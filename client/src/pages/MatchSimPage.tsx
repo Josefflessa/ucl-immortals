@@ -1,0 +1,1870 @@
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useGame } from '../contexts/GameContext';
+import {
+  Team, MatchResult, MatchEvent, simulateMatch,
+  getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
+  PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister
+} from '../lib/gameEngine';
+import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
+import PlayerCard from '../components/game/PlayerCard';
+
+const posLabel = (pos: string) => POS_PT[pos] ?? pos;
+
+const getPosLabelPt = (pos: string): string => {
+  if (['CB'].includes(pos)) return 'zagueiro';
+  if (['LB', 'LWB'].includes(pos)) return 'lateral-esquerdo';
+  if (['RB', 'RWB'].includes(pos)) return 'lateral-direito';
+  if (['CDM'].includes(pos)) return 'volante';
+  if (['CM', 'CAM', 'LM', 'RM'].includes(pos)) return 'meio-campista';
+  return 'defensor';
+};
+
+export default function MatchSimPage() {
+  const {
+    state,
+    dispatch,
+    streamMatchEvent,
+    onMatchEventReceived,
+    submitMatchResultOnline,
+    submitKnockoutResultOnline,
+  } = useGame();
+  const { currentMatchTeams, activeKnockoutMatch } = state;
+
+  if (!currentMatchTeams) return null;
+  const [initialHome, initialAway] = currentMatchTeams;
+
+  const playerTeamId = state.playerTeam?.id;
+  const isPlayerHome = initialHome.id === playerTeamId;
+
+  const isSimulatorHost = (() => {
+    if (state.mode !== 'online') return true;
+    const homeIsBot = initialHome.isBot;
+    const awayIsBot = initialAway.isBot;
+    if (homeIsBot || awayIsBot) return true;
+    return isPlayerHome;
+  })();
+
+  const isKnockout = !!activeKnockoutMatch;
+  const isFinal = activeKnockoutMatch?.round === 'final';
+
+  // 1. Stateful teams to track substitutions, cards
+  const [homeTeam, setHomeTeam] = useState<Team>(() => ({ ...initialHome }));
+  const [awayTeam, setAwayTeam] = useState<Team>(() => ({ ...initialAway }));
+
+  // 2. Real-time simulation state variables
+  const [minute, setMinute] = useState(0);
+  const [homeScore, setHomeScore] = useState(0);
+  const [awayScore, setAwayScore] = useState(0);
+  const [events, setEvents] = useState<MatchEvent[]>([]);
+  const [momentum, setMomentum] = useState(50); // 0 (away dominance) to 100 (home dominance)
+  const [momentumHistory, setMomentumHistory] = useState<number[]>([50]);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [speed, setSpeed] = useState<1 | 2 | 4>(2); // Multipliers
+  const [isFinished, setIsFinished] = useState(false);
+  const [goalAlert, setGoalAlert] = useState<{ teamName: string; scorer: string } | null>(null);
+
+  // Dynamic player ratings and match statistics: single source of truth
+  const [playerMatchStats, setPlayerMatchStats] = useState<Record<string, PlayerMatchStat>>(() => {
+    const initial: Record<string, PlayerMatchStat> = {};
+    const initStatsForTeam = (team: Team) => {
+      team.players.slice(0, 11).forEach(p => {
+        initial[p.id] = {
+          playerId: p.id,
+          playerName: p.shortName,
+          teamId: team.id,
+          rating: 6.0,
+          goals: 0,
+          assists: 0,
+          shots: 0,
+          tackles: 0,
+          saves: 0,
+          fouls: 0,
+          yellowCards: 0,
+          redCards: 0,
+        };
+      });
+    };
+    initStatsForTeam(initialHome);
+    initStatsForTeam(initialAway);
+    return initial;
+  });
+
+  const adjustPlayerStat = (playerId: string, callback: (stat: PlayerMatchStat) => void) => {
+    setPlayerMatchStats(prev => {
+      const current = prev[playerId];
+      if (!current) return prev;
+      const copy = { ...current };
+      callback(copy);
+      copy.rating = Math.min(10.0, Math.max(3.0, copy.rating));
+      copy.rating = parseFloat(copy.rating.toFixed(1));
+      return { ...prev, [playerId]: copy };
+    });
+  };
+
+  // Substitutions removed — apenas 11 titulares
+  const [squadModal, setSquadModal] = useState<'mine' | 'opponent' | null>(null);
+
+  // Suspense-based Key Attack Danger state
+  const [dangerState, setDangerState] = useState<{
+    stage: number;
+    teamId: string;
+    attacker: string;
+    defender: string;
+    type: string;
+    message: string;
+  } | null>(null);
+
+  const pendingGoalResult = useRef<any>(null);
+
+  // Interactive Penalty Shootout state
+  const [penaltyMode, setPenaltyMode] = useState(false);
+  const [penaltiesHome, setPenaltiesHome] = useState<boolean[]>([]);
+  const [penaltiesAway, setPenaltiesAway] = useState<boolean[]>([]);
+  const [penaltyHomeScore, setPenaltyHomeScore] = useState(0);
+  const [penaltyAwayScore, setPenaltyAwayScore] = useState(0);
+  const [penaltyCommentary, setPenaltyCommentary] = useState('A disputa de pênaltis vai começar! Escolha o próximo batedor.');
+  const [penaltyWinner, setPenaltyWinner] = useState<string | null>(null);
+
+  // Stats accumulator (progressive)
+  const [stats, setStats] = useState<MatchResult['stats']>({
+    homePos: 50, awayPos: 50,
+    homeShots: 0, awayShots: 0,
+    homeShotsOnTarget: 0, awayShotsOnTarget: 0,
+    homeFouls: 0, awayFouls: 0,
+    homeSaves: 0, awaySaves: 0,
+    homeCorners: 0, awayCorners: 0,
+  });
+
+  const myTeam = isPlayerHome ? homeTeam : awayTeam;
+  const oppTeam = isPlayerHome ? awayTeam : homeTeam;
+  const setMyTeam = isPlayerHome ? setHomeTeam : setAwayTeam;
+  const setOppTeam = isPlayerHome ? setAwayTeam : setHomeTeam;
+
+  // Spectator Mode listener
+  useEffect(() => {
+    if (state.mode !== 'online' || isSimulatorHost) return;
+
+    const unsubscribe = onMatchEventReceived(({ eventType, data }) => {
+      if (eventType === 'tick') {
+        setMinute(data.minute);
+        setHomeScore(data.homeScore);
+        setAwayScore(data.awayScore);
+        setEvents(data.events);
+        setMomentum(data.momentum);
+        setMomentumHistory(data.momentumHistory);
+        setStats(data.stats);
+        setPlayerMatchStats(data.playerMatchStats);
+        setDangerState(data.dangerState);
+        setGoalAlert(data.goalAlert);
+      } else if (eventType === 'penalty_tick') {
+        setPenaltyMode(true);
+        setPenaltiesHome(data.penaltiesHome);
+        setPenaltiesAway(data.penaltiesAway);
+        setPenaltyHomeScore(data.penaltyHomeScore);
+        setPenaltyAwayScore(data.penaltyAwayScore);
+        setPenaltyCommentary(data.penaltyCommentary);
+        setPenaltyWinner(data.penaltyWinner);
+        setIsFinished(data.isFinished);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [state.mode, isSimulatorHost, onMatchEventReceived]);
+
+  // Host Mode status emitter (tick)
+  useEffect(() => {
+    if (state.mode !== 'online' || !isSimulatorHost) return;
+
+    streamMatchEvent('tick', {
+      minute,
+      homeScore,
+      awayScore,
+      events,
+      momentum,
+      momentumHistory,
+      stats,
+      playerMatchStats,
+      dangerState,
+      goalAlert,
+    });
+  }, [
+    state.mode,
+    isSimulatorHost,
+    minute,
+    homeScore,
+    awayScore,
+    events,
+    momentum,
+    momentumHistory,
+    stats,
+    playerMatchStats,
+    dangerState,
+    goalAlert,
+    streamMatchEvent,
+  ]);
+
+  // Host Mode status emitter (penalties)
+  useEffect(() => {
+    if (state.mode !== 'online' || !isSimulatorHost || !penaltyMode) return;
+
+    streamMatchEvent('penalty_tick', {
+      penaltiesHome,
+      penaltiesAway,
+      penaltyHomeScore,
+      penaltyAwayScore,
+      penaltyCommentary,
+      penaltyWinner,
+      isFinished,
+    });
+  }, [
+    state.mode,
+    isSimulatorHost,
+    penaltyMode,
+    penaltiesHome,
+    penaltiesAway,
+    penaltyHomeScore,
+    penaltyAwayScore,
+    penaltyCommentary,
+    penaltyWinner,
+    isFinished,
+    streamMatchEvent,
+  ]);
+
+  const renderSquadRow = (p: EnginePlayerCard, rating: number) => {
+    const rColor = rating >= 8.5 ? '#d4af37' : rating >= 7.5 ? '#22c55e' : rating <= 5.3 ? '#ef4444' : '#ffffff';
+    return (
+      <div
+        key={p.id}
+        className="flex items-center justify-between p-2 rounded-xl border"
+        style={{ background: '#08080f', borderColor: '#171725' }}
+      >
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="text-[10px] font-black w-6 text-center rounded px-1 flex-shrink-0" style={{ background: '#171725', color: '#c9a84c', fontFamily: 'Rajdhani, sans-serif' }}>
+            {posLabel(p.position)}
+          </span>
+          <span className="text-sm font-bold text-white truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            {p.shortName}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-sm font-black px-2 py-0.5 rounded-lg border text-center min-w-[36px]" style={{ background: '#1a1a2e', color: rColor, borderColor: '#1f1f3b', fontFamily: 'Rajdhani, sans-serif' }}>
+            {rating.toFixed(1)}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+
+  const eventFeedRef = useRef<HTMLDivElement>(null);
+
+  // Time tick speed
+  const getTickDuration = () => {
+    if (speed === 1) return 1000;
+    if (speed === 2) return 450;
+    return 130;
+  };
+
+
+
+  // Helper helper to adjust stats
+  const incrementStat = (key: keyof MatchResult['stats']) => {
+    setStats(prev => ({ ...prev, [key]: prev[key] + 1 }));
+  };
+
+  const simulateKeyEvent = (nextMin: number, homeAttacks: boolean) => {
+    const attackTeam = homeAttacks ? homeTeam : awayTeam;
+    const defendTeam = homeAttacks ? awayTeam : homeTeam;
+
+    const homeCoach = COACHES.find(c => c.id === homeTeam.coachId)!;
+    const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
+    const homeChem = getChemistryBonus(homeTeam.totalChemistry);
+    const awayChem = getChemistryBonus(awayTeam.totalChemistry);
+    const attackCoach = homeAttacks ? homeCoach : awayCoach;
+    const defendCoach = homeAttacks ? awayCoach : homeCoach;
+    const attackChem = homeAttacks ? homeChem : awayChem;
+    const defendChem = homeAttacks ? awayChem : homeChem;
+
+    const attackers = attackTeam.players.slice(0, 11).filter(p =>
+      ['ST', 'CF', 'LW', 'RW', 'CAM'].includes(p.position)
+    );
+    const defenders = defendTeam.players.slice(0, 11).filter(p =>
+      ['CB', 'LB', 'RB', 'LWB', 'RWB', 'CDM'].includes(p.position)
+    );
+
+    const attacker = attackers[Math.floor(Math.random() * attackers.length)] || attackTeam.players[10];
+    const defender = defenders[Math.floor(Math.random() * defenders.length)] || defendTeam.players[0];
+    const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
+
+    const homeIsLosing = homeScore < awayScore;
+    const awayIsLosing = awayScore < homeScore;
+    const attackIsLosing = homeAttacks ? homeIsLosing : awayIsLosing;
+    const defendIsLosing = homeAttacks ? awayIsLosing : homeIsLosing;
+    const attackCtx = { isKnockout, isFinal, isLosing: attackIsLosing };
+    const defendCtx = { isKnockout, isFinal, isLosing: defendIsLosing };
+    const attackMentality = 'balanced';
+    const defendMentality = 'balanced';
+
+    let isGoal = false;
+    let homeScoreDelta = 0;
+    let awayScoreDelta = 0;
+    let goalAlert: { teamName: string; scorer: string } | undefined = undefined;
+    let momentumShift = 0;
+    const playerStatUpdates: { playerId: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
+    const statIncrements: (keyof MatchResult['stats'])[] = [];
+    const eventsToPush: MatchEvent[] = [];
+    let messageStage3 = "";
+
+    const isLuckEvent = Math.random() < 0.12;
+
+    if (isLuckEvent) {
+      const randLuck = Math.random();
+      
+      if (randLuck < 0.15) {
+        isGoal = true;
+        if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
+        goalAlert = {
+          teamName: attackTeam.name,
+          scorer: 'Gol Contra',
+        };
+        playerStatUpdates.push({
+          playerId: defender.id,
+          updateFn: s => { s.rating -= 0.8; }
+        });
+        eventsToPush.push({
+          minute: nextMin,
+          type: 'goal',
+          description: `⚽ GOL CONTRA! Cruzamento perigoso na área, o ${getPosLabelPt(defender.position)} ${defender.shortName} tenta fazer o corte de cabeça, mas desvia contra as próprias redes!`,
+          teamId: attackTeam.id,
+          opponentId: defender.id,
+        });
+        momentumShift = homeAttacks ? 15 : -15;
+        messageStage3 = `⚽ GOL DO ${attackTeam.name.toUpperCase()}! ${defender.shortName} faz contra!`;
+      } else if (randLuck < 0.30) {
+        isGoal = true;
+        if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
+        goalAlert = {
+          teamName: attackTeam.name,
+          scorer: attacker.shortName,
+        };
+        playerStatUpdates.push(
+          { playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.2; } },
+          { playerId: gk.id, updateFn: s => { s.rating -= 1.2; } }
+        );
+        eventsToPush.push({
+          minute: nextMin,
+          type: 'goal',
+          description: `⚽ FRANGO HISTÓRICO! ${attacker.shortName} arrisca um chute fraco e rasteiro de longe. O goleiro ${gk.shortName} tenta segurar, mas a bola passa por baixo de seus braços e entra de mansinho!`,
+          teamId: attackTeam.id,
+          playerId: attacker.id,
+          opponentId: gk.id,
+        });
+        momentumShift = homeAttacks ? 15 : -15;
+        messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Frangaço do goleiro!`;
+      } else if (randLuck < 0.50) {
+        isGoal = true;
+        if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
+        goalAlert = {
+          teamName: attackTeam.name,
+          scorer: attacker.shortName,
+        };
+        playerStatUpdates.push(
+          { playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.2; } },
+          { playerId: defender.id, updateFn: s => { s.rating -= 0.3; } }
+        );
+        eventsToPush.push({
+          minute: nextMin,
+          type: 'goal',
+          description: `⚽ GOL DESVIADO! ${attacker.shortName} bate forte da entrada da área. A bola carimba as costas de ${defender.shortName}, muda completamente de rumo e mata o goleiro!`,
+          teamId: attackTeam.id,
+          playerId: attacker.id,
+          opponentId: defender.id,
+        });
+        momentumShift = homeAttacks ? 15 : -15;
+        messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Chute desviado mata o goleiro!`;
+      } else if (randLuck < 0.68) {
+        isGoal = true;
+        if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
+        goalAlert = {
+          teamName: attackTeam.name,
+          scorer: attacker.shortName,
+        };
+        playerStatUpdates.push({
+          playerId: attacker.id,
+          updateFn: s => { s.goals++; s.rating += 1.6; }
+        });
+        eventsToPush.push({
+          minute: nextMin,
+          type: 'goal',
+          description: `⚽ GOLAÇO MONSTRUOSO! ${attacker.shortName} domina na intermediária e manda uma bomba sem pulo! A bola viaja a 110km/h e explode na gaveta, sem chances para o goleiro!`,
+          teamId: attackTeam.id,
+          playerId: attacker.id,
+          opponentId: gk.id,
+          isSpecial: true,
+        });
+        momentumShift = homeAttacks ? 20 : -20;
+        messageStage3 = `⚽ GOLAÇO DO ${attackTeam.name.toUpperCase()}! Que míssil na gaveta!`;
+      } else if (randLuck < 0.86) {
+        const takers = attackTeam.players.slice(0, 11);
+        const taker = takers.find(p => p.id === attackTeam.penaltyTaker) || takers[0];
+        const isPenaltyGoal = Math.random() < 0.76;
+        if (isPenaltyGoal) {
+          isGoal = true;
+          if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
+          goalAlert = {
+            teamName: attackTeam.name,
+            scorer: taker.shortName,
+          };
+          playerStatUpdates.push(
+            { playerId: taker.id, updateFn: s => { s.goals++; s.rating += 1.0; } },
+            { playerId: defender.id, updateFn: s => { s.rating -= 0.2; } }
+          );
+          eventsToPush.push({
+            minute: nextMin,
+            type: 'goal',
+            description: `⚽ GOL DE PÊNALTI! O árbitro pega toque de mão do ${getPosLabelPt(defender.position)} ${defender.shortName} na área! Na cobrança, ${taker.shortName} bate com extrema categoria deslocando o goleiro!`,
+            teamId: attackTeam.id,
+            playerId: taker.id,
+            opponentId: gk.id,
+          });
+          momentumShift = homeAttacks ? 15 : -15;
+          messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Cobrança perfeita de pênalti!`;
+        } else {
+          isGoal = false;
+          const isSaved = Math.random() < 0.5;
+          if (isSaved) {
+            statIncrements.push(homeAttacks ? 'awaySaves' : 'homeSaves');
+            playerStatUpdates.push(
+              { playerId: gk.id, updateFn: s => { s.saves++; s.rating += 0.8; } },
+              { playerId: taker.id, updateFn: s => { s.rating -= 0.5; } }
+            );
+            eventsToPush.push({
+              minute: nextMin,
+              type: 'save',
+              description: `🧤 DEFENDEU O PÊNALTI! Após toque de mão na área, ${taker.shortName} correu para a bola, mas o goleiro ${gk.shortName} voou no canto esquerdo para espalmar!`,
+              teamId: defendTeam.id,
+              playerId: gk.id,
+              opponentId: taker.id,
+            });
+            momentumShift = homeAttacks ? -8 : 8;
+            messageStage3 = `🧤 INCRÍVEL! Goleiro defende a cobrança de pênalti!`;
+          } else {
+            playerStatUpdates.push({
+              playerId: taker.id,
+              updateFn: s => { s.rating -= 0.6; }
+            });
+            eventsToPush.push({
+              minute: nextMin,
+              type: 'miss',
+              description: `❌ PÊNALTI PARA FORA! Falha defensiva com bola na mão! ${taker.shortName} ajeitou a bola e mandou um foguete, mas isolou por cima do travessão!`,
+              teamId: attackTeam.id,
+              playerId: taker.id,
+            });
+            momentumShift = homeAttacks ? -8 : 8;
+            messageStage3 = `❌ PARA FORA! Cobrança de pênalti vai direto nas arquibancadas!`;
+          }
+        }
+      } else {
+        isGoal = false;
+        playerStatUpdates.push({
+          playerId: attacker.id,
+          updateFn: s => { s.shots++; s.rating += 0.1; }
+        });
+        eventsToPush.push({
+          minute: nextMin,
+          type: 'miss',
+          description: `💥 NA TRAVE! ${attacker.shortName} limpa a marcação e bate colocado de chapa. A bola explode no travessão e volta limpa para o ${getPosLabelPt(defender.position)} ${defender.shortName} isolar!`,
+          teamId: attackTeam.id,
+          playerId: attacker.id,
+        });
+        momentumShift = homeAttacks ? 4 : -4;
+        messageStage3 = `💥 NA TRAVE! O chute explode no travessão!`;
+      }
+    } else {
+      const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, attackMentality, attackCtx);
+      const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, attackMentality, attackCtx);
+      const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, attackMentality, attackCtx);
+      const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, defendMentality, defendCtx);
+      const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, defendMentality, defendCtx);
+
+      let atkBonus = 0;
+      let defBonus = 0;
+      if (attacker.traits.includes('Frio na Final') && isFinal) atkBonus += 8;
+      if (attacker.traits.includes('Especialista em Decisões') && isKnockout) atkBonus += 6;
+      if (attacker.traits.includes('Velocista')) atkBonus += 4;
+      if (defender.traits.includes('Pressão Implacável')) defBonus += 8;
+      if (defender.traits.includes('Marcador Implacável')) defBonus += 6;
+
+      const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + atkBonus + Math.random() * 40;
+      const defScore = (defDefending + defPhysical) / 2 + defBonus + Math.random() * 40;
+
+      const isDribbleSuccessful = atkScore > defScore;
+
+      if (isDribbleSuccessful) {
+        statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
+
+        const targetChance = atkShooting / (atkShooting + 24);
+        const isOnTarget = Math.random() < targetChance;
+
+        if (isOnTarget) {
+          statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
+
+          const gkScore = gk.defending + (gk.traits.includes('Reflexo Felino') ? 12 : 0) + Math.random() * 36;
+          const shootScore = atkShooting + Math.random() * 36;
+
+          if (shootScore > gkScore) {
+            isGoal = true;
+            if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
+            goalAlert = {
+              teamName: attackTeam.name,
+              scorer: attacker.shortName,
+            };
+
+            const currentHomeG = homeScore + (homeAttacks ? 1 : 0);
+            const currentAwayG = awayScore + (homeAttacks ? 0 : 1);
+
+            const assister = pickWeightedAssister(attackTeam, attacker.id);
+            let desc = "";
+            if (assister) {
+              playerStatUpdates.push({
+                playerId: assister.id,
+                updateFn: s => { s.assists++; s.rating += 0.8; }
+              });
+              desc = `⚽ GOL! ${attacker.shortName} finaliza com precisão após passe açucarado de ${assister.shortName}! ${currentHomeG}-${currentAwayG}`;
+            } else {
+              desc = `⚽ GOL! ${attacker.shortName} se livra da zaga e solta uma bomba direto na gaveta! ${currentHomeG}-${currentAwayG}`;
+            }
+
+            eventsToPush.push({
+              minute: nextMin,
+              type: 'goal',
+              description: desc,
+              teamId: attackTeam.id,
+              playerId: attacker.id,
+              opponentId: defender.id,
+              assisterId: assister?.id,
+              isSpecial: attacker.rarity === 'immortal' || attacker.traits.includes('Frio na Final'),
+            });
+
+            playerStatUpdates.push(
+              { playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.4; } },
+              { playerId: gk.id, updateFn: s => { s.rating -= 0.4; } },
+              { playerId: defender.id, updateFn: s => { s.rating -= 0.2; } }
+            );
+
+            defendTeam.players.slice(0, 11).forEach(p => {
+              if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && p.id !== defender.id) {
+                playerStatUpdates.push({
+                  playerId: p.id,
+                  updateFn: s => { s.rating -= 0.1; }
+                });
+              }
+            });
+
+            momentumShift = homeAttacks ? 25 : -25;
+            messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! ${attacker.shortName} estufa as redes!`;
+          } else {
+            isGoal = false;
+            statIncrements.push(homeAttacks ? 'awaySaves' : 'homeSaves');
+
+            const isCorner = Math.random() < 0.45;
+            if (isCorner) {
+              statIncrements.push(homeAttacks ? 'homeCorners' : 'awayCorners');
+            }
+
+            eventsToPush.push({
+              minute: nextMin,
+              type: 'save',
+              description: `🧤 Defesa espetacular! O goleiro ${gk.shortName} voa e espalma o chute com endereço de ${attacker.shortName}!${isCorner ? ' Escanteio!' : ''}`,
+              teamId: defendTeam.id,
+              playerId: gk.id,
+              opponentId: attacker.id,
+            });
+
+            playerStatUpdates.push(
+              { playerId: gk.id, updateFn: s => { s.saves++; s.rating += 0.4; } },
+              { playerId: attacker.id, updateFn: s => { s.rating -= 0.1; } }
+            );
+
+            momentumShift = homeAttacks ? -8 : 8;
+            messageStage3 = `🧤 INCRÍVEL! Defesaça de ${gk.shortName} salvando o time!`;
+          }
+        } else {
+          isGoal = false;
+          eventsToPush.push({
+            minute: nextMin,
+            type: 'miss',
+            description: `❌ Chute desviado! ${attacker.shortName} bate forte de fora, mas a bola passa tirando tinta da trave!`,
+            teamId: attackTeam.id,
+            playerId: attacker.id,
+          });
+          playerStatUpdates.push({
+            playerId: attacker.id,
+            updateFn: s => { s.shots++; s.rating -= 0.15; }
+          });
+          messageStage3 = `❌ PARA FORA! Chute passa raspando a trave esquerda!`;
+        }
+      } else {
+        isGoal = false;
+        eventsToPush.push({
+          minute: nextMin,
+          type: 'duel',
+          description: `🤺 Intercepção precisa! ${defender.shortName} se impõe fisicamente e rouba a bola de ${attacker.shortName}.`,
+          teamId: defendTeam.id,
+          playerId: defender.id,
+          opponentId: attacker.id,
+        });
+
+        playerStatUpdates.push(
+          { playerId: defender.id, updateFn: s => { s.tackles++; s.rating += 0.35; } },
+          { playerId: attacker.id, updateFn: s => { s.rating -= 0.15; } }
+        );
+
+        momentumShift = homeAttacks ? -5 : 5;
+        messageStage3 = `🛑 BLOQUEADO! Desarme primoroso executado por ${defender.shortName}!`;
+      }
+    }
+
+    if (Math.random() < 0.15) {
+      const defendersList = defendTeam.players.slice(0, 11).filter(p => p.position !== 'GK');
+      const fouler = defendersList[Math.floor(Math.random() * defendersList.length)] || defendTeam.players[1];
+      statIncrements.push(homeAttacks ? 'awayFouls' : 'homeFouls');
+
+      playerStatUpdates.push({
+        playerId: fouler.id,
+        updateFn: s => { s.fouls++; s.rating -= 0.1; }
+      });
+
+      let cardType: 'yellow' | null = null;
+      let cardDesc = "";
+      const randCard = Math.random();
+
+      if (randCard < 0.17) {
+        cardType = 'yellow';
+        playerStatUpdates.push({
+          playerId: fouler.id,
+          updateFn: s => { s.yellowCards++; s.rating -= 0.5; }
+        });
+        cardDesc = `🟨 Cartão Amarelo! ${fouler.shortName} é advertido pelo árbitro por entrada dura.`;
+      }
+
+      eventsToPush.push({
+        minute: nextMin,
+        type: cardType || 'duel',
+        description: cardDesc || `🚨 Falta! O árbitro marca a infração de ${fouler.shortName} sobre o adversário.`,
+        teamId: defendTeam.id,
+        playerId: fouler.id,
+      });
+    }
+
+    return {
+      isGoal,
+      homeScoreDelta,
+      awayScoreDelta,
+      goalAlert,
+      momentumShift,
+      playerStatUpdates,
+      statIncrements,
+      eventsToPush,
+      messageStage3,
+      attackerName: attacker.shortName,
+      defenderName: defender.shortName,
+      attackTeamId: attackTeam.id,
+    };
+  };
+
+  // 3. Clock tick runner
+  useEffect(() => {
+    if (state.mode === 'online' && !isSimulatorHost) return;
+    if (!isPlaying || isFinished || dangerState || penaltyMode) return;
+
+    const interval = setInterval(() => {
+      const nextMin = minute + 1;
+      const finalMin = isKnockout ? 120 : 90;
+
+      // Finish condition
+      if (nextMin > finalMin) {
+        clearInterval(interval);
+        if (isKnockout && homeScore === awayScore) {
+          setPenaltyMode(true);
+          setIsPlaying(false);
+          setMinute(120);
+        } else {
+          setIsFinished(true);
+          setIsPlaying(false);
+        }
+        return;
+      }
+
+      setMinute(nextMin);
+
+      // 3.2 Match Simulation math resolver
+      const homeCoach = COACHES.find(c => c.id === homeTeam.coachId)!;
+      const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
+      const homeFormation = FORMATIONS.find(f => f.id === homeTeam.formationId)!;
+      const awayFormation = FORMATIONS.find(f => f.id === awayTeam.formationId)!;
+
+      const homeChem = getChemistryBonus(homeTeam.totalChemistry);
+      const awayChem = getChemistryBonus(awayTeam.totalChemistry);
+
+      const homeFormBonus = homeFormation.counters.includes(awayTeam.formationId) ? 5 : 0;
+      const awayFormBonus = awayFormation.counters.includes(homeTeam.formationId) ? 5 : 0;
+
+      const fergusonActive = (team: Team, goals: number, oppGoals: number) =>
+        team.coachId === 'ferguson' && goals < oppGoals;
+      const zidaneBonus = (team: Team) =>
+        team.coachId === 'zidane' && isKnockout ? (minute >= 90 ? 20 : 12) : 0;
+
+      const homeStrength = calculateTeamStrength(homeTeam, homeCoach, homeChem, homeFormBonus) +
+        zidaneBonus(homeTeam) +
+        (fergusonActive(homeTeam, homeScore, awayScore) ? 15 : 0);
+      const awayStrength = calculateTeamStrength(awayTeam, awayCoach, awayChem, awayFormBonus) +
+        zidaneBonus(awayTeam) +
+        (fergusonActive(awayTeam, awayScore, homeScore) ? 15 : 0);
+
+      const homeMomBonus = (momentum - 50) * 0.12;
+      const awayMomBonus = ((100 - momentum) - 50) * 0.12;
+
+      const homeAtkScore = homeStrength + homeMomBonus + (Math.random() * 44 - 22);
+      const awayAtkScore = awayStrength + awayMomBonus + (Math.random() * 44 - 22);
+
+      const homeAttacks = homeAtkScore > awayAtkScore;
+      const attackTeam = homeAttacks ? homeTeam : awayTeam;
+      const defendTeam = homeAttacks ? awayTeam : homeTeam;
+
+      const isKeyEvent = [8, 15, 22, 28, 35, 42, 47, 55, 62, 68, 75, 82, 88, 90].includes(nextMin) ||
+        (isKnockout && nextMin > 90 && [95, 102, 108, 114, 120].includes(nextMin));
+
+      if (isKeyEvent) {
+        const result = simulateKeyEvent(nextMin, homeAttacks);
+
+        // Determine if this event deserves suspense animation
+        const firstEvent = result.eventsToPush[0];
+        const isSuspenseWorthy = result.isGoal ||
+          (firstEvent && (firstEvent.type === 'save' || firstEvent.type === 'miss'));
+
+        if (isSuspenseWorthy) {
+          setIsPlaying(false);
+          pendingGoalResult.current = result;
+
+          const attackingTeam = result.attackTeamId === homeTeam.id ? homeTeam : awayTeam;
+          const dangerMsg = result.isGoal
+            ? `🚨 OPORTUNIDADE! ${attackingTeam.name.toUpperCase()} inicia jogada ofensiva perigosa por intermédio de ${result.attackerName}...`
+            : firstEvent?.type === 'save'
+              ? `🧤 CHUTE COM ENDEREÇO! ${result.attackerName} arrisca a finalização e o goleiro se prepara...`
+              : `💥 CHUTE FORTE! ${result.attackerName} bate colocado mirando o ângulo...`;
+
+          setDangerState({
+            stage: 1,
+            teamId: result.attackTeamId,
+            attacker: result.attackerName,
+            defender: result.defenderName,
+            type: 'attack',
+            message: dangerMsg
+          });
+        } else {
+          // Silent resolution
+          result.playerStatUpdates.forEach(update => {
+            adjustPlayerStat(update.playerId, update.updateFn);
+          });
+          result.statIncrements.forEach(key => {
+            incrementStat(key);
+          });
+          setEvents(prev => [...prev, ...result.eventsToPush]);
+          setMomentum(prev => {
+            const nextMom = Math.min(100, Math.max(0, prev + result.momentumShift));
+            setMomentumHistory(hist => [...hist, nextMom]);
+            return nextMom;
+          });
+        }
+      } else {
+        // Flow/Commentary events (25% chance)
+        if (Math.random() < 0.25) {
+          const homePossesses = Math.random() < (momentum / 100);
+          const possessTeam = homePossesses ? homeTeam : awayTeam;
+          const dTeam = homePossesses ? awayTeam : homeTeam;
+
+          const midPlayers = possessTeam.players.slice(0, 11).filter(p =>
+            ['MID', 'CM', 'CDM', 'CAM', 'LM', 'RM'].includes(p.position)
+          );
+          const defPlayers = dTeam.players.slice(0, 11).filter(p =>
+            ['DEF', 'CB', 'LB', 'RB', 'CDM'].includes(p.position)
+          );
+
+          const playerA = midPlayers[Math.floor(Math.random() * midPlayers.length)] || possessTeam.players[5];
+          const defenderA = defPlayers[Math.floor(Math.random() * defPlayers.length)] || dTeam.players[2];
+
+          const coach = COACHES.find(c => c.id === possessTeam.coachId);
+          const style = possessTeam.playStyle;
+          const rand = Math.random();
+
+          let desc = "";
+          if (style === 'possession' || coach?.id === 'guardiola') {
+            if (rand < 0.4) desc = `🔄 ${playerA.shortName} organiza o jogo no círculo central, trocando passes curtos com paciência.`;
+            else if (rand < 0.7) desc = `⚙️ Linha de passes rápidos! O time de ${coach?.name || 'Guardiola'} envolve a marcação com maestria.`;
+            else desc = `🛡️ ${dTeam.name} fecha os espaços tentando conter a troca de passes do adversário.`;
+          } else if (style === 'counter' || coach?.id === 'klopp') {
+            if (rand < 0.4) desc = `⚡ Contra-ataque rápido! ${playerA.shortName} puxa a transição ofensiva em alta velocidade!`;
+            else if (rand < 0.7) desc = `🏃 Lançamento em profundidade de ${playerA.shortName} tentando encontrar espaço nas costas da zaga!`;
+            else desc = `🛑 Pressão asfixiante de ${possessTeam.name}! ${defenderA.shortName} recupera a posse no meio de campo.`;
+          } else {
+            if (rand < 0.3) desc = `⚽ ${playerA.shortName} domina no meio-campo e distribui o jogo nas pontas.`;
+            else if (rand < 0.6) desc = `⚔️ Batalha física! ${playerA.shortName} e ${defenderA.shortName} disputam espaço ombro a ombro.`;
+            else desc = `🛡️ Bloqueio sólido! A linha defensiva de ${dTeam.name} rebate de cabeça o cruzamento na área.`;
+          }
+
+          const flowEvent: MatchEvent = {
+            minute: nextMin,
+            type: 'momentum',
+            description: desc,
+            teamId: possessTeam.id,
+            playerId: playerA.id,
+          };
+          setEvents(prev => [...prev, flowEvent]);
+          adjustPlayerStat(playerA.id, s => { s.rating += 0.1; });
+
+          setMomentum(prev => {
+            const shift = homePossesses ? 2 : -2;
+            const nextMom = Math.min(95, Math.max(5, prev + shift));
+            setMomentumHistory(hist => [...hist, nextMom]);
+            return nextMom;
+          });
+        } else {
+          setMomentumHistory(hist => [...hist, momentum]);
+        }
+      }
+    }, getTickDuration());
+
+    return () => clearInterval(interval);
+  }, [isPlaying, isFinished, speed, minute, momentum, homeTeam, awayTeam, dangerState, penaltyMode]);
+
+  // 4. Suspense / Danger sequence state runner
+  useEffect(() => {
+    if (state.mode === 'online' && !isSimulatorHost) return;
+    if (!dangerState) return;
+
+    if (dangerState.stage === 1) {
+      const timer = setTimeout(() => {
+        setDangerState(prev => prev ? {
+          ...prev,
+          stage: 2,
+          message: `🤺 DUELO TÁTICO! ${dangerState.attacker} parte no mano a mano. ${dangerState.defender} avança para o combate...`
+        } : null);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+
+    if (dangerState.stage === 2) {
+      const timer = setTimeout(() => {
+        const result = pendingGoalResult.current;
+        if (result) {
+          // Apply pre-simulated scores
+          const newHomeScore = homeScore + result.homeScoreDelta;
+          const newAwayScore = awayScore + result.awayScoreDelta;
+          setHomeScore(newHomeScore);
+          setAwayScore(newAwayScore);
+
+          // Trigger Goal alert
+          if (result.goalAlert) {
+            setGoalAlert(result.goalAlert);
+            setTimeout(() => setGoalAlert(null), 3000);
+          }
+
+          // Apply pre-simulated player stats
+          result.playerStatUpdates.forEach((update: any) => {
+            adjustPlayerStat(update.playerId, update.updateFn);
+          });
+
+          // Apply pre-simulated team stats
+          result.statIncrements.forEach((key: any) => {
+            incrementStat(key);
+          });
+
+          // Add pre-simulated events
+          setEvents(prev => [...prev, ...result.eventsToPush]);
+
+          // Shift momentum
+          setMomentum(prev => {
+            const nextMom = Math.min(100, Math.max(0, prev + result.momentumShift));
+            setMomentumHistory(hist => [...hist, nextMom]);
+            return nextMom;
+          });
+
+          // Transition to stage 3
+          setDangerState(prev => prev ? {
+            ...prev,
+            stage: 3,
+            message: result.messageStage3
+          } : null);
+        } else {
+          setDangerState(null);
+          setIsPlaying(true);
+        }
+      }, 1200);
+
+      return () => clearTimeout(timer);
+    }
+
+    if (dangerState.stage === 3) {
+      const timer = setTimeout(() => {
+        setDangerState(null);
+        pendingGoalResult.current = null;
+        setIsPlaying(true); // Resume simulation clock
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [dangerState]);
+
+  // Scroll live events feed to bottom automatically
+  useEffect(() => {
+    if (eventFeedRef.current) {
+      eventFeedRef.current.scrollTop = eventFeedRef.current.scrollHeight;
+    }
+  }, [events, dangerState]);
+
+  // 5. Interactive Penalty Shootout Handler
+  const handleTakePenalty = () => {
+    const currentKick = penaltiesHome.length + penaltiesAway.length;
+    const isHomeTurn = penaltiesHome.length === penaltiesAway.length;
+
+    const attackTeam = isHomeTurn ? homeTeam : awayTeam;
+    const defendTeam = isHomeTurn ? awayTeam : homeTeam;
+
+    const takerIdx = Math.floor(currentKick / 2);
+    const taker = attackTeam.players[takerIdx % attackTeam.players.length];
+    const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
+
+    const composure = taker.composure +
+      (taker.traits.includes('Especialista em Decisões') ? 10 : 0) +
+      (taker.traits.includes('Frio na Final') ? 10 : 0);
+    const gkReflexes = gk.defending + (gk.traits.includes('Reflexo Felino') ? 12 : 0);
+
+    const goalChance = composure / (composure + gkReflexes * 0.45);
+    const isGoal = Math.random() < goalChance;
+
+    let desc = "";
+    if (isGoal) {
+      desc = `🎯 CONVERTEU! ${taker.shortName} cobra com categoria na bochecha da rede!`;
+    } else {
+      desc = Math.random() < 0.5
+        ? `🧤 DEFENDEU! O goleiro voa para o canto e espalma o chute de ${taker.shortName}!`
+        : `❌ PARA FORA! ${taker.shortName} sente a pressão e isola o pênalti por cima!`;
+    }
+
+    const comment = `${attackTeam.name} (${taker.shortName}) vs ${defendTeam.name} (${gk.shortName}):\n${desc}`;
+    setPenaltyCommentary(comment);
+
+    const nextHomePens = [...penaltiesHome];
+    const nextAwayPens = [...penaltiesAway];
+    let nextHomeScore = penaltyHomeScore;
+    let nextAwayScore = penaltyAwayScore;
+
+    if (isHomeTurn) {
+      nextHomePens.push(isGoal);
+      if (isGoal) nextHomeScore = penaltyHomeScore + 1;
+      setPenaltiesHome(nextHomePens);
+      setPenaltyHomeScore(nextHomeScore);
+    } else {
+      nextAwayPens.push(isGoal);
+      if (isGoal) nextAwayScore = penaltyAwayScore + 1;
+      setPenaltiesAway(nextAwayPens);
+      setPenaltyAwayScore(nextAwayScore);
+    }
+
+    // Check if resolved
+    const hKicks = isHomeTurn ? nextHomePens.length : penaltiesHome.length;
+    const aKicks = isHomeTurn ? penaltiesAway.length : nextAwayPens.length;
+    const hScore = isHomeTurn ? nextHomeScore : penaltyHomeScore;
+    const aScore = isHomeTurn ? penaltyAwayScore : nextAwayScore;
+
+    const hRem = 5 - hKicks;
+    const aRem = 5 - aKicks;
+
+    let ended = false;
+    let winner = null;
+
+    if (hKicks >= 3 || aKicks >= 3) {
+      if (hScore > aScore + aRem) {
+        ended = true;
+        winner = homeTeam.id;
+      } else if (aScore > hScore + hRem) {
+        ended = true;
+        winner = awayTeam.id;
+      }
+    }
+
+    if (hKicks === 5 && aKicks === 5 && !ended) {
+      if (hScore > aScore) {
+        ended = true;
+        winner = homeTeam.id;
+      } else if (aScore > hScore) {
+        ended = true;
+        winner = awayTeam.id;
+      }
+    } else if (hKicks > 5 && aKicks === hKicks && !ended) {
+      if (hScore !== aScore) {
+        ended = true;
+        winner = hScore > aScore ? homeTeam.id : awayTeam.id;
+      }
+    }
+
+    if (ended && winner) {
+      setPenaltyWinner(winner);
+      setIsFinished(true);
+
+      const finalPensEvent: MatchEvent = {
+        minute: 120,
+        type: 'penalty',
+        description: `🎯 DISPUTA DE PÊNALTIS FINALIZADA! ${homeTeam.name} ${hScore}-${aScore} ${awayTeam.name}. Vencedor: ${winner === homeTeam.id ? homeTeam.name : awayTeam.name}`,
+        teamId: winner,
+      };
+      setEvents(prev => [...prev, finalPensEvent]);
+    }
+  };
+
+  const handleSkip = () => {
+    // Generate organic outcome for remaining minutes using the actual engine logic!
+    const result = simulateRemainingMatch(
+      homeTeam,
+      awayTeam,
+      minute,
+      homeScore,
+      awayScore,
+      events,
+      stats,
+      isKnockout,
+      isFinal
+    );
+
+    setMinute(isKnockout ? 120 : 90);
+    setHomeScore(result.homeGoals);
+    setAwayScore(result.awayGoals);
+    setEvents(result.events);
+    setStats(result.stats);
+    
+    if (result.playerStats) {
+      setPlayerMatchStats(result.playerStats);
+    }
+
+    if (isKnockout && result.homeGoals === result.awayGoals) {
+      setPenaltyMode(true);
+      setIsPlaying(false);
+      if (result.penaltyWinner) {
+        setPenaltyWinner(result.penaltyWinner);
+        setPenaltyHomeScore(result.homePenalties ?? 0);
+        setPenaltyAwayScore(result.awayPenalties ?? 0);
+      }
+    } else {
+      setIsFinished(true);
+      setIsPlaying(false);
+      if (result.winner) {
+        setPenaltyWinner(result.winner);
+      }
+    }
+  };
+
+  const handleFinish = () => {
+    const allPlayers = [...homeTeam.players, ...awayTeam.players];
+
+    // Compute clean sheet and match outcome modifiers just before finishing
+    const updatedStats = { ...playerMatchStats };
+    const homeGoals = homeScore;
+    const awayGoals = awayScore;
+    const winner = penaltyWinner || (homeGoals > awayGoals ? homeTeam.id : awayGoals > homeGoals ? awayTeam.id : null);
+
+    if (awayGoals === 0) {
+      homeTeam.players.slice(0, 11).forEach(p => {
+        if (updatedStats[p.id]) {
+          if (p.position === 'GK') updatedStats[p.id].rating += 0.8;
+          else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) updatedStats[p.id].rating += 0.4;
+        }
+      });
+    }
+    if (homeGoals === 0) {
+      awayTeam.players.slice(0, 11).forEach(p => {
+        if (updatedStats[p.id]) {
+          if (p.position === 'GK') updatedStats[p.id].rating += 0.8;
+          else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) updatedStats[p.id].rating += 0.4;
+        }
+      });
+    }
+
+    if (winner === homeTeam.id) {
+      homeTeam.players.slice(0, 11).forEach(p => { if (updatedStats[p.id]) updatedStats[p.id].rating += 0.3; });
+      awayTeam.players.slice(0, 11).forEach(p => { if (updatedStats[p.id]) updatedStats[p.id].rating -= 0.2; });
+    } else if (winner === awayTeam.id) {
+      awayTeam.players.slice(0, 11).forEach(p => { if (updatedStats[p.id]) updatedStats[p.id].rating += 0.3; });
+      homeTeam.players.slice(0, 11).forEach(p => { if (updatedStats[p.id]) updatedStats[p.id].rating -= 0.2; });
+    }
+
+    // Clamp and round final ratings
+    allPlayers.forEach(p => {
+      if (updatedStats[p.id]) {
+        const finalR = Math.min(10.0, Math.max(3.0, updatedStats[p.id].rating));
+        updatedStats[p.id].rating = parseFloat(finalR.toFixed(1));
+      }
+    });
+
+    const sorted = [...allPlayers].sort((a, b) => {
+      const rA = updatedStats[a.id]?.rating ?? 6.0;
+      const rB = updatedStats[b.id]?.rating ?? 6.0;
+      return rB - rA;
+    });
+    const mvpId = sorted[0]?.id || 'messi';
+
+    const finalResult: MatchResult = {
+      homeTeamId: homeTeam.id,
+      awayTeamId: awayTeam.id,
+      homeGoals: homeScore,
+      awayGoals: awayScore,
+      events: events,
+      winner: winner,
+      penaltyWinner: penaltyWinner || undefined,
+      homePenalties: penaltyWinner ? penaltyHomeScore : undefined,
+      awayPenalties: penaltyWinner ? penaltyAwayScore : undefined,
+      mvp: mvpId,
+      stats: getProgressiveStats(),
+      playerStats: updatedStats,
+    };
+
+    if (state.mode === 'online') {
+      if (isSimulatorHost) {
+        if (activeKnockoutMatch) {
+          submitKnockoutResultOnline(activeKnockoutMatch.matchId, activeKnockoutMatch.round, finalResult);
+        } else {
+          submitMatchResultOnline(finalResult);
+        }
+      }
+      if (activeKnockoutMatch) {
+        dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
+      } else {
+        dispatch({ type: 'FINISH_LEAGUE_MATCH', result: finalResult });
+      }
+    } else {
+      if (activeKnockoutMatch) {
+        dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
+      } else {
+        dispatch({ type: 'FINISH_LEAGUE_MATCH', result: finalResult });
+      }
+    }
+  };
+
+  // Helper helper to get progressive stats with ball possession
+  const getProgressiveStats = () => {
+    const getMidfielderPassing = (t: Team) => {
+      const mids = t.players.slice(0, 11).filter(p => ['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(p.position));
+      if (mids.length === 0) return 75;
+      return mids.reduce((sum, p) => sum + p.passing, 0) / mids.length;
+    };
+    const homeMidPass = getMidfielderPassing(homeTeam);
+    const awayMidPass = getMidfielderPassing(awayTeam);
+    const baseHomePos = Math.min(65, Math.max(35, Math.round((homeMidPass / (homeMidPass + awayMidPass)) * 100)));
+
+    // Fluctuates possession dynamically based on current momentum and minute ticks for realism
+    const momentumEffect = (momentum - 50) * 0.12; // up to +-6%
+    const tickSeed = Math.sin(minute * 0.8) * 2.2; // organic oscillation
+    let currentHomePos = Math.round(baseHomePos + momentumEffect + tickSeed);
+
+    const duelEvents = events.filter(e => e.type === 'duel');
+    if (duelEvents.length > 0) {
+      const homeWins = duelEvents.filter(e => e.teamId === homeTeam.id).length;
+      const deviation = (homeWins / duelEvents.length - 0.5) * 12;
+      currentHomePos = Math.round(currentHomePos + deviation);
+    }
+
+    currentHomePos = Math.min(78, Math.max(22, currentHomePos));
+
+    return {
+      ...stats,
+      homePos: currentHomePos,
+      awayPos: 100 - currentHomePos,
+    };
+  };
+
+  const currentStats = getProgressiveStats();
+  const latestEvent = events[events.length - 1];
+
+  // Helper to format events icons
+  const getEventIcon = (type: MatchEvent['type']) => {
+    switch (type) {
+      case 'goal': return '⚽';
+      case 'duel': return '🤺';
+      case 'save': return '🧤';
+      case 'sub': return '🔄';
+      case 'penalty': return '🎯';
+      default: return '📢';
+    }
+  };
+
+  // Render the pressure curves
+  const renderMomentumChart = () => {
+    if (momentumHistory.length === 0) return null;
+
+    const width = 320;
+    const height = 60;
+    const padding = 10;
+    const midY = height / 2;
+
+    const points = momentumHistory.map((val, idx) => {
+      const x = padding + (idx / (momentumHistory.length - 1 || 1)) * (width - 2 * padding);
+      const y = height - padding - (val / 100) * (height - 2 * padding);
+      return { x, y };
+    });
+
+    const pathD = points.reduce((acc, p, idx) =>
+      idx === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`
+    , "");
+
+    const areaPathD = points.length > 0
+      ? `${pathD} L ${points[points.length - 1].x} ${midY} L ${points[0].x} ${midY} Z`
+      : "";
+
+    const goalEvents = events.filter(e => e.type === 'goal');
+
+    return (
+      <div className="bg-[#0e0e1a] border border-[#1f1f35] rounded-xl p-3 flex flex-col flex-shrink-0">
+        <span className="text-[10px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+          MOMENTUM
+        </span>
+        <div className="relative w-full h-[60px] bg-[#07070d] rounded-lg border border-[#141426] p-1 overflow-hidden">
+          <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+            <line x1={padding} y1={midY} x2={width - padding} y2={midY} stroke="#1f1f35" strokeDasharray="3,3" strokeWidth="1" />
+            
+            {areaPathD && (
+              <path d={areaPathD} fill="url(#momentumAreaGrad)" />
+            )}
+
+            {pathD && (
+              <path d={pathD} fill="none" stroke="url(#momentumLineGrad)" strokeWidth="2.2" strokeLinecap="round" />
+            )}
+
+            <defs>
+              <linearGradient id="momentumLineGrad" x1="0" y1="0" x2="0" y2="60" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#ffd700" />
+                <stop offset="47%" stopColor="#ffd700" />
+                <stop offset="50%" stopColor="#8a8a9a" />
+                <stop offset="53%" stopColor="#6366f1" />
+                <stop offset="100%" stopColor="#6366f1" />
+              </linearGradient>
+              <linearGradient id="momentumAreaGrad" x1="0" y1="0" x2="0" y2="60" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#ffd700" stopOpacity="0.25" />
+                <stop offset="45%" stopColor="#ffd700" stopOpacity="0.03" />
+                <stop offset="50%" stopColor="#07070d" stopOpacity="0" />
+                <stop offset="55%" stopColor="#6366f1" stopOpacity="0.03" />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.25" />
+              </linearGradient>
+            </defs>
+
+            {/* Display goals as marker circles on the graph */}
+            {goalEvents.map((g, idx) => {
+              const markerIdx = g.minute;
+              const p = points[markerIdx] || points[points.length - 1];
+              if (!p) return null;
+              return (
+                <g key={idx}>
+                  <circle cx={p.x} cy={p.y} r="4.5" fill="#ffd700" stroke="#05050a" strokeWidth="1.2" />
+                  <text x={p.x} y={p.y - 7} fontSize="9" textAnchor="middle" className="select-none pointer-events-none">⚽</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <div className="flex justify-between mt-2 text-[9px] font-black" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+          <span style={{ color: '#ffd700' }}>▲ DOMINÂNCIA: {homeTeam.name.toUpperCase()}</span>
+          <span style={{ color: '#6366f1' }}>▼ DOMINÂNCIA: {awayTeam.name.toUpperCase()}</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="h-screen flex flex-col relative overflow-hidden select-none" style={{ background: '#05050a' }}>
+      
+      {/* ── 1. GOAL SPLASH SCREEN ── */}
+      <AnimatePresence>
+        {goalAlert && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center pointer-events-none"
+            style={{ background: 'rgba(0, 0, 0, 0.92)' }}
+          >
+            <motion.h1
+              animate={{ scale: [1, 1.18, 1] }}
+              transition={{ repeat: Infinity, duration: 1.1 }}
+              className="text-8xl font-black text-center tracking-wider text-yellow-500 mb-2"
+              style={{ fontFamily: 'Bebas Neue, sans-serif', textShadow: '0 0 50px rgba(234, 179, 8, 0.95)' }}
+            >
+              GOOOOOL!
+            </motion.h1>
+            <p className="text-3xl text-white font-bold tracking-widest text-center" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              {goalAlert.teamName.toUpperCase()}
+            </p>
+            <p className="text-2xl text-yellow-400 font-extrabold text-center mt-3 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              ⭐ {goalAlert.scorer.toUpperCase()}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── 2. SCOREBOARD HEADER ── */}
+      <div className="flex-shrink-0 border-b relative z-10" style={{ background: '#0b0b14', borderColor: '#171725' }}>
+        <div className="py-3 px-3 sm:py-4 sm:px-6">
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
+            {/* Home team metadata */}
+            <div className="flex-1 text-right pr-2 sm:pr-6 min-w-0">
+              <h2 className="font-black text-white truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
+                {homeTeam.name.toUpperCase()}
+              </h2>
+              <span className="text-[10px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#c9a84c' }}>
+                {homeTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
+              </span>
+            </div>
+
+            {/* Core Scoreboard Widgets */}
+            <div className="flex items-center gap-2 sm:gap-6 flex-shrink-0">
+              <div className="font-black text-white tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem, 8vw, 3.75rem)' }}>
+                {homeScore}
+              </div>
+
+              <div className="flex flex-col items-center justify-center px-2 sm:px-6 py-1 sm:py-2 rounded-xl border" style={{ background: '#0e0e1a', borderColor: '#1f1f35' }}>
+                <span className="text-[8px] sm:text-[9px] font-black text-yellow-500 tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  {minute >= 90 && penaltyMode ? 'PÊNALTIS' : isKnockout && minute > 90 ? 'PRORRG.' : 'MIN'}
+                </span>
+                <span className="font-black text-white leading-none mt-0.5" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(1.5rem, 6vw, 2.5rem)' }}>
+                  {minute}'
+                </span>
+              </div>
+
+              <div className="font-black text-white tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem, 8vw, 3.75rem)' }}>
+                {awayScore}
+              </div>
+            </div>
+
+            {/* Away team metadata */}
+            <div className="flex-1 text-left pl-2 sm:pl-6 min-w-0">
+              <h2 className="font-black text-white truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
+                {awayTeam.name.toUpperCase()}
+              </h2>
+              <span className="text-[10px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#c9a84c' }}>
+                {awayTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── GOAL TICKER ── Classic broadcaster-style goal list */}
+        {(() => {
+          const homeGoals = events.filter(e => e.type === 'goal' && e.teamId === homeTeam.id);
+          const awayGoals = events.filter(e => e.type === 'goal' && e.teamId === awayTeam.id);
+          if (homeGoals.length === 0 && awayGoals.length === 0) return null;
+          return (
+            <div className="border-t px-3 sm:px-6 py-1.5 flex items-start justify-center gap-4 sm:gap-8 max-w-6xl mx-auto" style={{ borderColor: '#1a1a2e' }}>
+              {/* Home goals */}
+              <div className="flex-1 flex flex-wrap justify-end gap-x-2 sm:gap-x-3 gap-y-0.5">
+                {homeGoals.map((g, i) => {
+                  const scorer = g.playerId
+                    ? homeTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
+                    : (g.description.includes('Contra') ? 'Contra' : '?');
+                  return (
+                    <span key={i} className="text-[10px] sm:text-[11px] font-bold text-yellow-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      ⚽ {scorer} {g.minute}'
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Divider */}
+              <div className="w-px self-stretch" style={{ background: '#1f1f35' }} />
+
+              {/* Away goals */}
+              <div className="flex-1 flex flex-wrap justify-start gap-x-2 sm:gap-x-3 gap-y-0.5">
+                {awayGoals.map((g, i) => {
+                  const scorer = g.playerId
+                    ? awayTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
+                    : (g.description.includes('Contra') ? 'Contra' : '?');
+                  return (
+                    <span key={i} className="text-[10px] sm:text-[11px] font-bold text-indigo-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      ⚽ {scorer} {g.minute}'
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── 3. MAIN SIMULATION INTERFACE ── */}
+      <div className="flex-1 min-h-0 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden relative z-10">
+        
+        {/* LEFT COLUMN: live feed */}
+        <div className="lg:col-span-2 flex flex-col min-h-[300px] sm:min-h-[420px] lg:min-h-0 lg:h-full rounded-2xl overflow-hidden border flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
+          
+          {/* Live broadcast commentary banner */}
+          <div className="p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: '#171725' }}>
+            <span className="text-[9px] sm:text-[10px] font-black text-yellow-500 tracking-widest uppercase mb-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              AO VIVO
+            </span>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="text-sm sm:text-base font-bold text-yellow-500 tabular-nums min-w-[28px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                {minute}'
+              </span>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={latestEvent ? latestEvent.description : 'start'}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="text-sm sm:text-base font-extrabold text-white leading-tight uppercase truncate"
+                  style={{ fontFamily: 'Rajdhani, sans-serif' }}
+                >
+                  {latestEvent ? latestEvent.description : 'Árbitro posiciona a bola. Arquibancadas cantam forte!'}
+                </motion.p>
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {/* Live Suspense Danger / Threat Meter Overlay */}
+          <AnimatePresence>
+            {dangerState && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="bg-yellow-500/10 border-b border-yellow-500/30 p-2.5 sm:p-3.5 flex flex-col flex-shrink-0 relative"
+              >
+                <div className="absolute inset-0 bg-yellow-500/5 animate-pulse" />
+                <div className="flex items-center justify-between mb-1.5 z-10">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-ping" />
+                    <span className="text-[10px] sm:text-xs font-black text-yellow-500 tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      JOGADA DE PERIGO!
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black text-yellow-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    ETAPA {dangerState.stage}/3
+                  </span>
+                </div>
+
+                {/* Threat bar visualization */}
+                <div className="h-2 w-full bg-yellow-950/50 rounded-full overflow-hidden mb-2 z-10">
+                  <motion.div 
+                    className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-red-500"
+                    initial={{ width: '0%' }}
+                    animate={{ width: dangerState.stage === 1 ? '35%' : dangerState.stage === 2 ? '70%' : '100%' }}
+                    transition={{ duration: 0.8 }}
+                  />
+                </div>
+
+                <p className="text-xs sm:text-sm font-black text-white uppercase tracking-wide leading-tight z-10" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  {dangerState.message}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#171725', background: '#08080f' }}>
+            <span className="text-[9px] sm:text-[10px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              TRANSMISSÃO DE LANCES
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+              <span className="text-[9px] font-black text-red-500 tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif' }}>AO VIVO</span>
+            </div>
+          </div>
+
+          {/* FIXED HEIGHT TIMELINE FEED */}
+          <div
+            ref={eventFeedRef}
+            className="flex-1 min-h-0 basis-0 overflow-y-auto overflow-x-hidden p-3 sm:p-5 space-y-2.5 sm:space-y-3.5 scroll-smooth"
+            style={{ background: '#08080f' }}
+          >
+            {events.filter(event => event.type === 'goal' || event.type === 'penalty').length === 0 ? (
+              <div className="h-full flex items-center justify-center flex-col text-center text-gray-500 py-8" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-5xl sm:text-6xl mb-3 animate-bounce">⚽</span>
+                <span className="text-sm sm:text-base font-bold text-white tracking-wide">ÁRBITRO APITA O INÍCIO!</span>
+                <span className="text-xs text-gray-500 mt-1 max-w-xs">A bola rola. Que vença a melhor estratégia!</span>
+              </div>
+            ) : (
+              events
+                .filter(event => event.type === 'goal' || event.type === 'penalty')
+                .map((event, idx) => {
+                  const isPlayerEvent = event.teamId === playerTeamId;
+                  const isGoal = event.type === 'goal';
+                  const accentColor   = isPlayerEvent ? '#22c55e' : '#ef4444';
+                  const bgColor       = isPlayerEvent
+                    ? 'rgba(34, 197, 94, 0.07)'
+                    : 'rgba(239, 68, 68, 0.07)';
+                  const borderColor   = isPlayerEvent
+                    ? 'rgba(34, 197, 94, 0.25)'
+                    : 'rgba(239, 68, 68, 0.25)';
+
+                  return (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, x: isPlayerEvent ? -14 : 14 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all border"
+                      style={{ background: bgColor, borderColor }}
+                    >
+                      {/* Coloured left accent bar */}
+                      <div className="w-0.5 rounded-full flex-shrink-0 self-stretch" style={{ background: accentColor }} />
+
+                      <span
+                        className="font-extrabold text-xs sm:text-sm tabular-nums flex-shrink-0 w-7 sm:w-8"
+                        style={{ fontFamily: 'Rajdhani, sans-serif', color: accentColor }}
+                      >
+                        {event.minute}'
+                      </span>
+
+                      <span className="text-sm sm:text-base flex-shrink-0">
+                        {getEventIcon(event.type)}
+                      </span>
+
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-xs sm:text-sm font-semibold leading-snug"
+                          style={{ fontFamily: 'Rajdhani, sans-serif', color: isGoal ? accentColor : '#dfdfe8' }}
+                        >
+                          {event.description}
+                        </p>
+                        {/* Team label badge */}
+                        <span
+                          className="text-[9px] font-black tracking-widest uppercase mt-0.5 inline-block px-1.5 py-0.5 rounded"
+                          style={{
+                            fontFamily: 'Rajdhani, sans-serif',
+                            color: accentColor,
+                            background: isPlayerEvent ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                          }}
+                        >
+                          {isPlayerEvent ? '▲ A FAVOR' : '▼ ADVERSÁRIO'}
+                        </span>
+                        {event.isSpecial && (
+                          <span className="text-[10px] text-yellow-500 font-extrabold tracking-widest mt-0.5 block animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                            ✨ HABILIDADE DE IMORTAL ATIVADA
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: stats + squad buttons */}
+        <div className="lg:col-span-1 flex flex-col min-h-0 lg:h-full gap-3 flex-shrink-0">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 flex-shrink-0">
+            <button
+              onClick={() => setSquadModal('mine')}
+              className="py-3 sm:py-4 px-3 rounded-xl border font-black text-xs sm:text-sm tracking-widest transition-all hover:scale-[1.02]"
+              style={{
+                fontFamily: 'Bebas Neue, sans-serif',
+                background: 'linear-gradient(135deg, #14142a, #0b0b14)',
+                borderColor: '#c9a84c55',
+                color: '#C9A84C',
+              }}
+            >
+              ⚽ MEU TIME
+              <span className="block text-[9px] sm:text-[10px] font-bold mt-1 truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                {myTeam.name}
+              </span>
+            </button>
+            <button
+              onClick={() => setSquadModal('opponent')}
+              className="py-3 sm:py-4 px-3 rounded-xl border font-black text-xs sm:text-sm tracking-widest transition-all hover:scale-[1.02]"
+              style={{
+                fontFamily: 'Bebas Neue, sans-serif',
+                background: 'linear-gradient(135deg, #14142a, #0b0b14)',
+                borderColor: '#6366f155',
+                color: '#818CF8',
+              }}
+            >
+              👁 ADVERSÁRIO
+              <span className="block text-[9px] sm:text-[10px] font-bold mt-1 truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                {oppTeam.name}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex-shrink-0 space-y-3">
+            {renderMomentumChart()}
+            <div className="bg-[#0b0b14] border border-[#171725] rounded-2xl p-3 flex flex-col">
+              <span className="text-[10px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                ESTATÍSTICAS (AO VIVO)
+              </span>
+              <div className="space-y-2">
+                {[
+                  { label: 'Posse (%)', homeVal: currentStats.homePos, awayVal: currentStats.awayPos },
+                  { label: 'Finalizações', homeVal: currentStats.homeShots, awayVal: currentStats.awayShots },
+                  { label: 'No Alvo', homeVal: currentStats.homeShotsOnTarget, awayVal: currentStats.awayShotsOnTarget },
+                  { label: 'Escanteios', homeVal: currentStats.homeCorners, awayVal: currentStats.awayCorners },
+                  { label: 'Faltas', homeVal: currentStats.homeFouls, awayVal: currentStats.awayFouls },
+                  { label: 'Defesas', homeVal: currentStats.homeSaves, awayVal: currentStats.awaySaves },
+                ].map((s, i) => {
+                  const total = s.homeVal + s.awayVal || 1;
+                  const hPct = (s.homeVal / total) * 100;
+                  return (
+                    <div key={i} className="space-y-0.5">
+                      <div className="flex justify-between text-[10px] font-bold text-gray-300" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                        <span style={{ color: '#ffd700' }}>{s.homeVal}</span>
+                        <span className="text-gray-500 text-[8px] tracking-wider uppercase">{s.label}</span>
+                        <span style={{ color: '#6366f1' }}>{s.awayVal}</span>
+                      </div>
+                      <div className="h-1 rounded-full overflow-hidden flex" style={{ background: '#141426' }}>
+                        <div className="h-full bg-yellow-500 transition-all duration-300" style={{ width: `${hPct}%` }} />
+                        <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${100 - hPct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 4. SQUAD MODAL ── */}
+      <AnimatePresence>
+        {squadModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0b0b14] border rounded-2xl p-5 max-w-md w-full max-h-[85vh] flex flex-col"
+              style={{ borderColor: squadModal === 'mine' ? '#c9a84c55' : '#6366f155' }}
+            >
+              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <div>
+                  <h3 className="text-xl font-black tracking-widest uppercase" style={{
+                    fontFamily: 'Bebas Neue, sans-serif',
+                    color: squadModal === 'mine' ? '#C9A84C' : '#818CF8',
+                  }}>
+                    {squadModal === 'mine' ? 'MEU TIME' : 'ADVERSÁRIO'}
+                  </h3>
+                  <p className="text-sm font-bold text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    {(squadModal === 'mine' ? myTeam : oppTeam).name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSquadModal(null)}
+                  className="text-gray-400 hover:text-white text-2xl font-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                {(squadModal === 'mine' ? myTeam : oppTeam).players.map(p =>
+                  renderSquadRow(p, playerMatchStats[p.id]?.rating ?? 6.0)
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── 5. PENALTY SHOOTOUT OVERLAY ── */}
+      <AnimatePresence>
+        {penaltyMode && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/92 backdrop-blur-md">
+            <div className="bg-[#0b0b14] border border-[#ffd700]/30 rounded-3xl p-6 max-w-xl w-full text-center relative shadow-[0_0_50px_rgba(255,215,0,0.15)]">
+              <h2 className="text-4xl font-black text-yellow-500 tracking-wider mb-2" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                DISPUTA DE PÊNALTIS!
+              </h2>
+              <div className="flex items-center justify-center gap-8 mb-5">
+                <div>
+                  <h3 className="text-xl font-black text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{homeTeam.name.toUpperCase()}</h3>
+                  <div className="flex gap-1 justify-center mt-1">
+                    {Array.from({ length: Math.max(5, penaltiesHome.length) }).map((_, i) => (
+                      <div 
+                        key={i} 
+                        className="w-4 h-4 rounded-full border border-[#1f1f35]" 
+                        style={{
+                          background: penaltiesHome[i] === true ? '#22c55e' : penaltiesHome[i] === false ? '#ef4444' : '#141426'
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-4xl font-black text-white block mt-2" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                    {penaltyHomeScore}
+                  </span>
+                </div>
+
+                <span className="text-2xl font-black text-gray-500" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>VS</span>
+
+                <div>
+                  <h3 className="text-xl font-black text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{awayTeam.name.toUpperCase()}</h3>
+                  <div className="flex gap-1 justify-center mt-1">
+                    {Array.from({ length: Math.max(5, penaltiesAway.length) }).map((_, i) => (
+                      <div 
+                        key={i} 
+                        className="w-4 h-4 rounded-full border border-[#1f1f35]" 
+                        style={{
+                          background: penaltiesAway[i] === true ? '#22c55e' : penaltiesAway[i] === false ? '#ef4444' : '#141426'
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-4xl font-black text-white block mt-2" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                    {penaltyAwayScore}
+                  </span>
+                </div>
+              </div>
+
+              {/* Shootout live narrative box */}
+              <div className="bg-[#07070d] border border-[#1f1f35] rounded-2xl p-4 mb-6 min-h-[70px]">
+                <p className="text-sm font-extrabold text-gray-200 uppercase whitespace-pre-line leading-relaxed" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  {penaltyCommentary}
+                </p>
+              </div>
+
+              {penaltyWinner ? (
+                <div>
+                  <div className="text-2xl font-black text-yellow-500 mb-5 tracking-wider animate-bounce" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                    🏆 VENCEDOR DA DISPUTA: {penaltyWinner === homeTeam.id ? homeTeam.name.toUpperCase() : awayTeam.name.toUpperCase()}!
+                  </div>
+                  <button
+                    onClick={handleFinish}
+                    className="px-8 py-3 rounded-xl font-black text-lg tracking-widest cursor-pointer"
+                    style={{
+                      fontFamily: 'Bebas Neue, sans-serif',
+                      background: 'linear-gradient(135deg, #ffd700, #e8c84a)',
+                      color: '#080810',
+                      boxShadow: '0 0 25px rgba(255, 215, 0, 0.4)',
+                    }}
+                  >
+                    CONCLUIR PARTIDA PÊNALTIS →
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleTakePenalty}
+                  disabled={state.mode === 'online' && !isSimulatorHost}
+                  className="px-8 py-3.5 rounded-xl font-black text-lg tracking-widest cursor-pointer bg-yellow-500 hover:bg-yellow-400 text-black border-none"
+                  style={{
+                    fontFamily: 'Bebas Neue, sans-serif',
+                    boxShadow: '0 0 20px rgba(234,179,8,0.3)',
+                    opacity: (state.mode === 'online' && !isSimulatorHost) ? 0.5 : 1,
+                    cursor: (state.mode === 'online' && !isSimulatorHost) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {(penaltiesHome.length === penaltiesAway.length) ? 'COBRAR PÊNALTI' : 'DEFENDER PÊNALTI'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── 6. FOOTER CONTROL CENTER ── */}
+      <div className="py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-2 sm:gap-4 z-10 flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
+        
+        {/* Speed selectors and Simulation control */}
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-start">
+          <button
+            onClick={() => setIsPlaying(!isPlaying)}
+            disabled={isFinished || penaltyMode || (state.mode === 'online' && !isSimulatorHost)}
+            className="px-5 sm:px-6 py-2.5 rounded-xl font-bold text-sm tracking-wider transition-all"
+            style={{
+              fontFamily: 'Rajdhani, sans-serif',
+              background: isFinished ? '#1a1a2e' : isPlaying ? '#EF4444' : '#22C55E',
+              color: '#fff',
+              opacity: isFinished || (state.mode === 'online' && !isSimulatorHost) ? 0.5 : 1,
+              cursor: isFinished || (state.mode === 'online' && !isSimulatorHost) ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isPlaying ? 'PAUSAR' : 'SIMULAR'}
+          </button>
+
+          <div className="flex rounded-lg overflow-hidden border border-gray-700">
+            {([1, 2, 4] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setSpeed(s)}
+                disabled={isFinished || (state.mode === 'online' && !isSimulatorHost)}
+                className="px-3 py-1.5 text-xs font-bold transition-all"
+                style={{
+                  fontFamily: 'Rajdhani, sans-serif',
+                  background: speed === s ? '#c9a84c' : '#0e0e1a',
+                  color: speed === s ? '#000' : '#8a8a9a',
+                  opacity: (state.mode === 'online' && !isSimulatorHost) ? 0.5 : 1,
+                }}
+              >
+                {s}x
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Skip & Conclude Match Actions */}
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-end">
+          {!isFinished && !penaltyMode && (state.mode !== 'online' || isSimulatorHost) && (
+            <button
+              onClick={handleSkip}
+              className="px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm tracking-wider border transition-all"
+              style={{
+                fontFamily: 'Rajdhani, sans-serif',
+                borderColor: '#171725',
+                color: '#8a8a9a',
+                background: 'rgba(255,255,255,0.02)',
+              }}
+            >
+              PULAR
+            </button>
+          )}
+
+          {isFinished ? (
+            <button
+              onClick={handleFinish}
+              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-black text-base sm:text-lg tracking-widest cursor-pointer shadow-lg animate-bounce"
+              style={{
+                fontFamily: 'Bebas Neue, sans-serif',
+                background: 'linear-gradient(135deg, #c9a84c, #e8c84a)',
+                color: '#080810',
+                boxShadow: '0 0 25px rgba(201, 168, 76, 0.4)',
+              }}
+            >
+              CONCLUIR →
+            </button>
+          ) : (
+            <button
+              disabled
+              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-black text-base sm:text-lg tracking-widest opacity-40 cursor-not-allowed"
+              style={{
+                fontFamily: 'Bebas Neue, sans-serif',
+                background: '#1A1A2A',
+                color: '#555',
+              }}
+            >
+              {penaltyMode ? 'PÊNALTIS' : 'JOGANDO...'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Ticker styling override for custom thin scrolls */}
+      <style>{`
+        ::-webkit-scrollbar {
+          width: 5px;
+        }
+        ::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.01);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.12);
+          border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255,255,255,0.22);
+        }
+      `}</style>
+    </div>
+  );
+}

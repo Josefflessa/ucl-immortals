@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>UCL Immortals – Verificação de Fotos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    background: #0a0a14; 
+    color: #fff; 
+    font-family: 'Segoe UI', sans-serif; 
+    padding: 20px 20px 140px 20px; /* space for the floating bottom panel */
+  }
+  
+  h1 { 
+    text-align: center; 
+    font-size: 24px; 
+    color: #FFD700; 
+    margin-bottom: 6px;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+  }
+  .subtitle { 
+    text-align: center; 
+    color: #aaa; 
+    font-size: 13px; 
+    margin-bottom: 20px; 
+  }
+  .stats { 
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 25px; 
+    font-size: 14px; 
+    background: #111122;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid #22223c;
+    width: max-content;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .stats span { font-weight: 500; }
+  .total-count { color: #3b82f6; }
+  .ok-count { color: #22c55e; }
+  .fail-count { color: #ef4444; }
+  .wrong-count { color: #f97316; font-weight: bold !important; }
+
+  .section { margin-bottom: 35px; }
+  .section-title { 
+    font-size: 14px; 
+    font-weight: bold; 
+    color: #999; 
+    text-transform: uppercase; 
+    letter-spacing: 2px; 
+    margin-bottom: 15px; 
+    padding: 4px 12px; 
+    border-left: 3px solid #FFD700; 
+    background: linear-gradient(90deg, #161630, transparent);
+  }
+  .grid { display: flex; flex-wrap: wrap; gap: 14px; }
+  
+  .card {
+    width: 110px; 
+    background: #121225; 
+    border-radius: 10px; 
+    overflow: hidden;
+    border: 2px solid #22223c; 
+    text-align: center; 
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    border-color: #44446c;
+  }
+  .card.loaded { border-color: #22c55e33; }
+  .card.error { border-color: #ef444444; background: #1f0d0d; }
+  
+  /* Marked wrong visual state */
+  .card.marked-wrong {
+    border-color: #ef4444 !important;
+    background: #2e0a0a !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+  }
+  .card.marked-wrong::after {
+    content: "⚠️ CORRIGIR";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    background: rgba(239, 68, 68, 0.95);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 4px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+    border: 1px solid #fff;
+    z-index: 10;
+  }
+  .card.marked-wrong img {
+    opacity: 0.4;
+    filter: grayscale(1);
+  }
+
+  .photo-wrap { 
+    width: 106px; 
+    height: 80px; 
+    background: #090911; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    position: relative; 
+  }
+  .photo-wrap img { width: 100%; height: 100%; object-fit: contain; transition: all 0.2s; }
+  .no-photo { font-size: 28px; opacity: 0.3; }
+  
+  .badge { position: absolute; top: 4px; right: 4px; font-size: 9px; border-radius: 4px; padding: 1px 4px; font-weight: bold; }
+  .badge.ok { background: #22c55e; color: #000; }
+  .badge.err { background: #ef4444; color: #fff; }
+  
+  .player-name { 
+    font-size: 10px; 
+    font-weight: bold; 
+    color: #fff; 
+    padding: 6px 4px 2px; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+  }
+  .player-id { font-size: 8px; color: #777; padding-bottom: 2px; }
+  
+  .sofifa-link {
+    display: block;
+    font-size: 8px;
+    color: #FFD700;
+    text-decoration: none;
+    background: #1c1c3a;
+    padding: 3px 0;
+    border-top: 1px solid #22223c;
+    transition: background 0.2s, color 0.2s;
+  }
+  .sofifa-link:hover {
+    background: #ffd700;
+    color: #000;
+  }
+
+  /* Floating Bottom Panel */
+  .floating-panel {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 15, 30, 0.95);
+    border: 2px solid #ef4444;
+    border-radius: 12px;
+    padding: 15px 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(239, 68, 68, 0.25);
+    width: 90%;
+    max-width: 700px;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  .floating-panel.hidden {
+    transform: translate(-50%, 150%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #22223c;
+    padding-bottom: 8px;
+  }
+  .panel-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ef4444;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-instructions {
+    font-size: 11px;
+    color: #aaa;
+  }
+  .panel-content {
+    font-size: 12px;
+    color: #ff9999;
+    max-height: 70px;
+    overflow-y: auto;
+    background: #080811;
+    padding: 10px;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    word-break: break-all;
+    border: 1px solid #221111;
+  }
+  .panel-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .copy-success {
+    color: #22c55e;
+    font-size: 12px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .btn-group {
+    display: flex;
+    gap: 10px;
+  }
+  .btn {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 12px;
+    transition: all 0.2s;
+  }
+  .btn:hover {
+    background: #dc2626;
+    transform: scale(1.03);
+  }
+  .btn-secondary {
+    background: #334155;
+  }
+  .btn-secondary:hover {
+    background: #475569;
+  }
+</style>
+</head>
+<body>
+
+<h1>🎮 UCL Immortals — Verificação de Fotos dos Jogadores</h1>
+<div class="subtitle">
+  Clique em qualquer jogador cuja foto esteja <strong>ERRADA</strong> ou <strong>DE OUTRA PESSOA</strong> para marcar.<br>
+  Para abrir o perfil do jogador no SoFIFA e conferir a face original, clique no botão <strong>🔗 SoFIFA</strong> no rodapé do card.
+</div>
+
+<div class="stats">
+  <span class="total-count">Total Mapeados: <strong id="total">0</strong></span>
+  <span class="ok-count">✅ CDN OK: <strong id="ok">0</strong></span>
+  <span class="fail-count">❌ CDN Erro: <strong id="fail">0</strong></span>
+  <span class="wrong-count">⚠️ Selecionados p/ Corrigir: <strong id="wrong">0</strong></span>
+</div>
+
+<div id="content"></div>
+
+<!-- Floating Panel -->
+<div id="floating-panel" class="floating-panel hidden">
+  <div class="panel-header">
+    <div class="panel-title">
+      <span>⚠️ Lista de Jogadores para Corrigir</span>
+    </div>
+    <div class="panel-instructions">
+      Copie a lista e cole-a no chat do assistente.
+    </div>
+  </div>
+  <div class="panel-content" id="wrong-list-content">
+    Nenhum jogador selecionado.
+  </div>
+  <div class="panel-actions">
+    <span class="copy-success" id="copy-success">✓ Lista copiada para a área de transferência!</span>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="clearSelection()">Limpar Seleção</button>
+      <button class="btn" onclick="copyWrongList()">Copiar Lista</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Mapeamento completo de jogadores — chave → {id, ver, nome, secao}
+const players = [
+  // IMMORTALS
+  { key:'messi',          id:158023, ver:24, name:'Messi',          sec:'Immortals' },
+  { key:'cristiano',      id:20801,  ver:24, name:'Cristiano',      sec:'Immortals' },
+  // LEGENDARY
+  { key:'xavi',           id:10535,  ver:23, name:'Xavi',           sec:'Legendary' },
+  { key:'iniesta',        id:41,     ver:22, name:'Iniesta',        sec:'Legendary' },
+  { key:'modric',         id:177003, ver:25, name:'Modric',         sec:'Legendary' },
+  { key:'ramos',          id:155862, ver:24, name:'Ramos',          sec:'Legendary' },
+  { key:'pirlo',          id:7763,   ver:25, name:'Pirlo',          sec:'Legendary' },
+  { key:'kaka',           id:138449, ver:23, name:'Kaká',           sec:'Legendary' },
+  { key:'maldini',        id:238439, ver:25, name:'Maldini',        sec:'Legendary' },
+  { key:'nesta',          id:1088,   ver:24, name:'Nesta',          sec:'Legendary' },
+  { key:'buffon',         id:1179,   ver:23, name:'Buffon',         sec:'Legendary' },
+  { key:'neuer',          id:167495, ver:25, name:'Neuer',          sec:'Legendary' },
+  { key:'drogba',         id:31432,  ver:24, name:'Drogba',         sec:'Legendary' },
+  { key:'henry',          id:1625,   ver:24, name:'Henry',          sec:'Legendary' },
+  { key:'benzema',        id:165153, ver:24, name:'Benzema',        sec:'Legendary' },
+  { key:'casillas',       id:5479,   ver:25, name:'Casillas',       sec:'Legendary' },
+  // GOLD
+  { key:'alonso',         id:45197,  ver:25, name:'Xabi Alonso',    sec:'Gold' },
+  { key:'busquets',       id:189511, ver:24, name:'Busquets',       sec:'Gold' },
+  { key:'alves',          id:146530, ver:23, name:'Dani Alves',     sec:'Gold' },
+  { key:'marcelo',        id:176676, ver:22, name:'Marcelo',        sec:'Gold' },
+  { key:'lahm',           id:121939, ver:24, name:'Lahm',           sec:'Gold' },
+  { key:'ribery',         id:156616, ver:23, name:'Ribéry',         sec:'Gold' },
+  { key:'robben',         id:9014,   ver:21, name:'Robben',         sec:'Gold' },
+  { key:'lampard',        id:242930, ver:22, name:'Lampard',        sec:'Gold' },
+  { key:'gerrard',        id:13743,  ver:25, name:'Gerrard',        sec:'Gold' },
+  { key:'terry',          id:13732,  ver:18, name:'Terry',          sec:'Gold' },
+  { key:'cech',           id:48940,  ver:24, name:'Čech',           sec:'Gold' },
+  { key:'sneijder',       id:139869, ver:18, name:'Sneijder',       sec:'Gold' },
+  { key:'milito',         id:262271, ver:25, name:'Milito',         sec:'Gold' },
+  { key:'zanetti',        id:1041,   ver:24, name:'Zanetti',        sec:'Gold' },
+  { key:'schweinsteiger', id:121944, ver:24, name:'Schweini',       sec:'Gold' },
+  { key:'neymar',         id:190871, ver:24, name:'Neymar',         sec:'Gold' },
+  { key:'suarez',         id:176580, ver:24, name:'Suárez',         sec:'Gold' },
+  { key:'puyol',          id:13038,  ver:24, name:'Puyol',          sec:'Gold' },
+  { key:'chiellini',      id:138956, ver:24, name:'Chiellini',      sec:'Gold' },
+  { key:'rooney',         id:54050,  ver:24, name:'Rooney',         sec:'Gold' },
+  { key:'giggs',          id:241,    ver:22, name:'Giggs',          sec:'Gold' },
+  { key:'scholes',        id:246,    ver:24, name:'Scholes',        sec:'Gold' },
+  { key:'vidic',          id:140601, ver:25, name:'Vidić',          sec:'Gold' },
+  { key:'kompany',        id:139720, ver:20, name:'Kompany',        sec:'Gold' },
+  { key:'silva_david',    id:168542, ver:23, name:'David Silva',    sec:'Gold' },
+  // SILVER
+  { key:'valdes',         id:193080, ver:17, name:'Valdés',         sec:'Silver' },
+  { key:'fabregas',       id:162895, ver:23, name:'Fàbregas',       sec:'Silver' },
+  { key:'pedro',          id:189509, ver:23, name:'Pedro',          sec:'Silver' },
+  { key:'evra',           id:52091,  ver:18, name:'Evra',           sec:'Silver' },
+  { key:'maicon',         id:135455, ver:25, name:'Maicon',         sec:'Silver' },
+  { key:'villa',          id:113422, ver:20, name:'Villa',          sec:'Silver' },
+  { key:'torres',         id:49369,  ver:22, name:'Torres',         sec:'Silver' },
+  { key:'aguero',         id:153079, ver:22, name:'Agüero',         sec:'Silver' },
+  { key:'bale',           id:173731, ver:23, name:'Bale',           sec:'Silver' },
+  { key:'seedorf',        id:1256,   ver:24, name:'Seedorf',        sec:'Silver' },
+  { key:'pires',          id:1605,   ver:25, name:'Pirès',          sec:'Silver' },
+  { key:'bergkamp',       id:238388, ver:24, name:'Bergkamp',       sec:'Silver' },
+  { key:'cannavaro',      id:1183,   ver:24, name:'Cannavaro',      sec:'Silver' },
+  { key:'tevez',          id:143001, ver:21, name:'Tevez',          sec:'Silver' },
+  // NOVOS GKs
+  { key:'vandersar',      id:51539,  ver:25, name:'Van der Sar',    sec:'GKs' },
+  { key:'courtois',       id:192119, ver:25, name:'Courtois',       sec:'GKs' },
+  { key:'terstegen',      id:192448, ver:25, name:'ter Stegen',     sec:'GKs' },
+  { key:'alisson',        id:212831, ver:25, name:'Alisson',        sec:'GKs' },
+  { key:'ederson',        id:210257, ver:25, name:'Ederson',        sec:'GKs' },
+  { key:'donnarumma',     id:230621, ver:25, name:'Donnarumma',     sec:'GKs' },
+  { key:'oblak',          id:200389, ver:25, name:'Oblak',          sec:'GKs' },
+  { key:'szczesny',       id:186153, ver:25, name:'Szczęsny',       sec:'GKs' },
+  { key:'sommer',         id:177683, ver:25, name:'Sommer',         sec:'GKs' },
+  { key:'edouard_mendy',  id:234642, ver:25, name:'É. Mendy',       sec:'GKs' },
+  { key:'julio_cesar',    id:48717,  ver:18, name:'Júlio César',    sec:'GKs' },
+  // DEFENSORES NOVOS
+  { key:'roberto_carlos', id:238430, ver:25, name:'Roberto Carlos', sec:'Defesas' },
+  { key:'vandijk',        id:203376, ver:25, name:'Van Dijk',       sec:'Defesas' },
+  { key:'rubendias',      id:239818, ver:25, name:'Rúben Dias',     sec:'Defesas' },
+  { key:'marquinhos',     id:207865, ver:25, name:'Marquinhos',     sec:'Defesas' },
+  { key:'araujo',         id:253163, ver:25, name:'Araújo',         sec:'Defesas' },
+  { key:'militao',        id:240130, ver:25, name:'Militão',        sec:'Defesas' },
+  { key:'rudiger',        id:205452, ver:25, name:'Rüdiger',        sec:'Defesas' },
+  { key:'thiago_silva',   id:164240, ver:24, name:'Thiago Silva',   sec:'Defesas' },
+  { key:'david_luiz',     id:179944, ver:21, name:'David Luiz',     sec:'Defesas' },
+  { key:'christensen',    id:213661, ver:25, name:'Christensen',    sec:'Defesas' },
+  { key:'blanc',          id:238443, ver:25, name:'Blanc',          sec:'Defesas' },
+  { key:'carvalho',       id:3622,   ver:25, name:'R. Carvalho',    sec:'Defesas' },
+  { key:'marquez',        id:26709,  ver:25, name:'R. Márquez',     sec:'Defesas' },
+  { key:'koeman',         id:167680, ver:25, name:'Koeman',         sec:'Defesas' },
+  { key:'cole_ashley',    id:34079,  ver:25, name:'A. Cole',        sec:'Defesas' },
+  { key:'theo_hernandez', id:232656, ver:25, name:'T. Hernández',   sec:'Defesas' },
+  { key:'grimaldo',       id:210035, ver:25, name:'Grimaldo',       sec:'Defesas' },
+  { key:'riise',          id:274967, ver:25, name:'J.A. Riise',     sec:'Defesas' },
+  { key:'robertson',      id:216267, ver:25, name:'Robertson',      sec:'Defesas' },
+  { key:'hakimi',         id:235212, ver:25, name:'Hakimi',         sec:'Defesas' },
+  { key:'walker',         id:188377, ver:25, name:'Walker',         sec:'Defesas' },
+  { key:'carvajal',       id:204963, ver:25, name:'Carvajal',       sec:'Defesas' },
+  { key:'frimpong',       id:253149, ver:25, name:'Frimpong',       sec:'Defesas' },
+  { key:'reece_james',    id:211522, ver:25, name:'Reece James',    sec:'Defesas' },
+  { key:'azpilicueta',    id:184432, ver:25, name:'Azpilicueta',    sec:'Defesas' },
+  { key:'gabriel',        id:232580, ver:25, name:'Gabriel',        sec:'Defesas' },
+  // MEIAS / LENDAS
+  { key:'gullit',         id:214100, ver:24, name:'Gullit',         sec:'Lendas' },
+  { key:'beckham',        id:250,    ver:25, name:'Beckham',        sec:'Lendas' },
+  { key:'keane',          id:238384, ver:24, name:'R. Keane',       sec:'Lendas' },
+  { key:'rijkaard',       id:214098, ver:25, name:'Rijkaard',       sec:'Lendas' },
+  { key:'matthaus',       id:238435, ver:21, name:'Matthäus',       sec:'Lendas' },
+  { key:'dalglish',       id:247699, ver:22, name:'Dalglish',       sec:'Lendas' },
+  { key:'hagi',           id:166124, ver:22, name:'Hagi',           sec:'Lendas' },
+  { key:'socrates',       id:190046, ver:25, name:'Sócrates',       sec:'Lendas' },
+  { key:'deco',           id:246508, ver:25, name:'Deco',           sec:'Lendas' },
+  { key:'veron',          id:7518,   ver:20, name:'Verón',          sec:'Lendas' },
+  { key:'zola',           id:239110, ver:24, name:'Zola',           sec:'Lendas' },
+  { key:'ruicosta',       id:1025,   ver:25, name:'Rui Costa',      sec:'Lendas' },
+  { key:'abedipele',      id:167425, ver:24, name:'Abedi Pelé',     sec:'Lendas' },
+  { key:'rodri',          id:231866, ver:25, name:'Rodri',          sec:'Meias' },
+  { key:'gundogan',       id:186942, ver:25, name:'Gündogan',       sec:'Meias' },
+  { key:'kroos',          id:182521, ver:24, name:'Kroos',          sec:'Meias' },
+  { key:'kimmich',        id:212622, ver:25, name:'Kimmich',        sec:'Meias' },
+  { key:'goretzka',       id:209658, ver:25, name:'Goretzka',       sec:'Meias' },
+  { key:'bruno_fernandes',id:212198, ver:25, name:'B. Fernandes',   sec:'Meias' },
+  { key:'odegaard',       id:222665, ver:25, name:'Ødegaard',       sec:'Meias' },
+  { key:'rice',           id:234378, ver:25, name:'Declan Rice',    sec:'Meias' },
+  { key:'barella',        id:224232, ver:25, name:'Barella',        sec:'Meias' },
+  { key:'calhanoglu',     id:208128, ver:25, name:'Çalhanoğlu',     sec:'Meias' },
+  { key:'dejong',         id:228702, ver:25, name:'De Jong',        sec:'Meias' },
+  { key:'pedri',          id:251854, ver:25, name:'Pedri',          sec:'Meias' },
+  { key:'casemiro',       id:200145, ver:25, name:'Casemiro',       sec:'Meias' },
+  { key:'wirtz',          id:256630, ver:25, name:'Wirtz',          sec:'Meias' },
+  { key:'xhaka',          id:199503, ver:25, name:'Xhaka',          sec:'Meias' },
+  { key:'kante',          id:215914, ver:25, name:'Kanté',          sec:'Meias' },
+  { key:'kovacic',        id:207410, ver:25, name:'Kovačić',        sec:'Meias' },
+  // ATACANTES LENDAS
+  { key:'ronaldo_nazario',id:37576,  ver:25, name:'R. Nazário',     sec:'Atacantes Lendas' },
+  { key:'ibrahimovic',    id:41236,  ver:23, name:'Ibrahimović',    sec:'Atacantes Lendas' },
+  { key:'rivaldo',        id:242950, ver:25, name:'Rivaldo',        sec:'Atacantes Lendas' },
+  { key:'cruyff',         id:190045, ver:25, name:'Cruyff',         sec:'Atacantes Lendas' },
+  { key:'nistelrooy',     id:10264,  ver:25, name:'Van Nistelrooy', sec:'Atacantes Lendas' },
+  { key:'inzaghi',        id:238382, ver:24, name:'Inzaghi',        sec:'Atacantes Lendas' },
+  { key:'owen',           id:5419,   ver:22, name:'Owen',           sec:'Atacantes Lendas' },
+  { key:'stoichkov',      id:239541, ver:25, name:'Stoichkov',      sec:'Atacantes Lendas' },
+  { key:'butragueno',     id:238419, ver:24, name:'Butragueño',     sec:'Atacantes Lendas' },
+  { key:'garrincha',      id:247553, ver:22, name:'Garrincha',      sec:'Atacantes Lendas' },
+  { key:'etoo',           id:9676,   ver:24, name:"Eto'o",          sec:'Atacantes Lendas' },
+  { key:'cantona',        id:167198, ver:22, name:'Cantona',        sec:'Atacantes Lendas' },
+  { key:'kewell',         id:266801, ver:23, name:'Kewell',         sec:'Atacantes Lendas' },
+  { key:'rummenigge',     id:246826, ver:25, name:'Rummenigge',     sec:'Atacantes Lendas' },
+  { key:'voller',         id:166676, ver:25, name:'Völler',         sec:'Atacantes Lendas' },
+  { key:'papin',          id:167134, ver:25, name:'Papin',          sec:'Atacantes Lendas' },
+  // MODERNOS
+  { key:'haaland',        id:239085, ver:25, name:'Haaland',        sec:'Modernos' },
+  { key:'mbappe',         id:231747, ver:25, name:'Mbappé',         sec:'Modernos' },
+  { key:'vinicius',       id:238794, ver:25, name:'Vinicius Jr',    sec:'Modernos' },
+  { key:'bellingham',     id:252371, ver:25, name:'Bellingham',     sec:'Modernos' },
+  { key:'salah',          id:209331, ver:25, name:'Salah',          sec:'Modernos' },
+  { key:'kane',           id:202126, ver:25, name:'Kane',           sec:'Modernos' },
+  { key:'lewandowski',    id:188545, ver:25, name:'Lewandowski',    sec:'Modernos' },
+  { key:'griezmann',      id:194765, ver:25, name:'Griezmann',      sec:'Modernos' },
+  { key:'bernardo_silva', id:218667, ver:25, name:'Bernardo',       sec:'Modernos' },
+  { key:'saka',           id:246669, ver:24, name:'Saka',           sec:'Modernos' },
+  { key:'martinelli',     id:251566, ver:25, name:'Martinelli',     sec:'Modernos' },
+  { key:'gabriel_jesus',  id:230666, ver:25, name:'G. Jesus',       sec:'Modernos' },
+  { key:'lautaro',        id:231478, ver:25, name:'Lautaro',        sec:'Modernos' },
+  { key:'leao',           id:241721, ver:25, name:'Leão',           sec:'Modernos' },
+  { key:'dimaria',        id:183898, ver:25, name:'Di María',       sec:'Modernos' },
+  { key:'son',            id:200104, ver:25, name:'Son',            sec:'Modernos' },
+  { key:'foden',          id:237692, ver:21, name:'Foden',          sec:'Modernos' },
+  { key:'dembele',        id:231443, ver:25, name:'Dembélé',        sec:'Modernos' },
+  { key:'alexis_sanchez', id:184941, ver:25, name:'A. Sánchez',     sec:'Modernos' },
+  { key:'lukaku',         id:192505, ver:25, name:'Lukaku',         sec:'Modernos' },
+  { key:'hazard',         id:183277, ver:25, name:'Hazard',         sec:'Modernos' },
+  { key:'trent',          id:231281, ver:25, name:'Trent',          sec:'Modernos' },
+  { key:'cavani',         id:179813, ver:25, name:'Cavani',         sec:'Modernos' },
+  { key:'willian',        id:180403, ver:25, name:'Willian',        sec:'Modernos' },
+  { key:'diego_costa',    id:179844, ver:23, name:'Diego Costa',    sec:'Modernos' },
+];
+
+function buildUrl(id, ver, size=360) {
+  const s = String(id).padStart(6, '0');
+  return `https://cdn.sofifa.net/players/${s.slice(0,3)}/${s.slice(3,6)}/${ver}_${size}.png`;
+}
+
+// Group by section
+const sections = {};
+for (const p of players) {
+  if (!sections[p.sec]) sections[p.sec] = [];
+  sections[p.sec].push(p);
+}
+
+let totalOk = 0, totalFail = 0;
+const content = document.getElementById('content');
+
+for (const [sec, list] of Object.entries(sections)) {
+  const secDiv = document.createElement('div');
+  secDiv.className = 'section';
+  secDiv.innerHTML = `<div class="section-title">${sec} (${list.length})</div><div class="grid" id="grid-${sec.replace(/\s/g,'_')}"></div>`;
+  content.appendChild(secDiv);
+  const grid = secDiv.querySelector('.grid');
+
+  for (const p of list) {
+    const url = buildUrl(p.id, p.ver);
+    const sofifaLink = `https://sofifa.com/player/${p.id}/`;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = `card-${p.key}`;
+    card.dataset.key = p.key;
+    card.dataset.name = p.name;
+    card.innerHTML = `
+      <div class="photo-wrap">
+        <img 
+          src="${url}" 
+          alt="${p.name}"
+          onerror="this.parentNode.innerHTML='<span class=no-photo>⚽</span>'; document.getElementById('card-${p.key}').classList.add('error'); updateFail();"
+          onload="document.getElementById('card-${p.key}').classList.add('loaded'); updateOk();"
+        />
+        <span class="badge" id="badge-${p.key}">...</span>
+      </div>
+      <div class="player-name" title="${p.name}">${p.name}</div>
+      <div class="player-id">ID ${p.id} v${p.ver}</div>
+      <a href="${sofifaLink}" target="_blank" class="sofifa-link" onclick="event.stopPropagation()" title="Ver página original do jogador no SoFIFA">🔗 SoFIFA</a>
+    `;
+    
+    // Toggle wrong style and list on click
+    card.addEventListener('click', () => {
+      card.classList.toggle('marked-wrong');
+      updateWrongList();
+    });
+    
+    grid.appendChild(card);
+  }
+}
+
+function updateOk() {
+  totalOk++;
+  document.getElementById('ok').textContent = totalOk;
+  document.getElementById('total').textContent = totalOk + totalFail;
+}
+function updateFail() {
+  totalFail++;
+  document.getElementById('fail').textContent = totalFail;
+  document.getElementById('total').textContent = totalOk + totalFail;
+}
+
+function updateWrongList() {
+  const markedCards = document.querySelectorAll('.card.marked-wrong');
+  const keys = Array.from(markedCards).map(card => card.dataset.key);
+  
+  document.getElementById('wrong').textContent = keys.length;
+  
+  const panel = document.getElementById('floating-panel');
+  const listEl = document.getElementById('wrong-list-content');
+  
+  if (keys.length > 0) {
+    panel.classList.remove('hidden');
+    listEl.textContent = keys.join(', ');
+  } else {
+    panel.classList.add('hidden');
+    listEl.textContent = 'Nenhum jogador selecionado.';
+  }
+}
+
+function copyWrongList() {
+  const markedCards = document.querySelectorAll('.card.marked-wrong');
+  const keys = Array.from(markedCards).map(card => card.dataset.key);
+  
+  if (keys.length === 0) return;
+  
+  const text = keys.join(', ');
+  navigator.clipboard.writeText(text).then(() => {
+    const successMsg = document.getElementById('copy-success');
+    successMsg.style.opacity = '1';
+    setTimeout(() => {
+      successMsg.style.opacity = '0';
+    }, 2500);
+  }).catch(err => {
+    console.error('Failed to copy text: ', err);
+    alert('Erro ao copiar. Por favor selecione e copie manualmente da caixa vermelha.');
+  });
+}
+
+function clearSelection() {
+  const markedCards = document.querySelectorAll('.card.marked-wrong');
+  markedCards.forEach(card => card.classList.remove('marked-wrong'));
+  updateWrongList();
+}
+
+// Update badges after load
+setTimeout(() => {
+  players.forEach(p => {
+    const badge = document.getElementById(`badge-${p.key}`);
+    const card = document.getElementById(`card-${p.key}`);
+    if (!badge || !card) return;
+    if (card.classList.contains('loaded')) {
+      badge.textContent = '✓';
+      badge.className = 'badge ok';
+    } else if (card.classList.contains('error')) {
+      badge.textContent = '✗';
+      badge.className = 'badge err';
+    }
+  });
+}, 4000);
+</script>
+</body>
+</html>

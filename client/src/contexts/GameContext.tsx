@@ -1,0 +1,1161 @@
+// UCL Immortals — Game Context
+// Central state management for the entire game session
+
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import {
+  Player, Coach, Formation, COACHES, FORMATIONS, PLAYERS,
+  DIFFICULTY_LEVELS,
+} from '../lib/gameData';
+import {
+  Team, PlayerCard, MatchResult, StandingsEntry, DraftState, ImmortalReport,
+  calculateChemistry, generateDraftOptions, getNeededPositions,
+  generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
+  LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
+} from '../lib/gameEngine';
+
+// ============================================================
+// GAME PHASES
+// ============================================================
+export type GamePhase =
+  | 'menu'           // Home screen
+  | 'lobby'          // Multiplayer lobby
+  | 'setup'          // Choose name, difficulty
+  | 'coach'          // Choose coach
+  | 'formation'      // Choose formation
+  | 'draft'          // Draft players
+  | 'squad_review'   // Review squad, set captain
+  | 'league'         // League phase
+  | 'knockout'       // Knockout phase
+  | 'match_sim'      // Watching a match simulation
+  | 'report';        // Final immortal report
+
+
+// ============================================================
+// STATE
+// ============================================================
+export interface RoomPlayer {
+  socketId: string;
+  id: string; // e.g. "player_0"
+  name: string;
+  coachId: string;
+  formationId: string;
+  draftedPlayers: (Player | undefined)[];
+  vetoesLeft: number;
+  captain: string | null;
+  penaltyTaker: string | null;
+  team: Team | null;
+  ready: boolean;
+}
+
+export interface GameState {
+  phase: GamePhase;
+  playerName: string;
+  difficulty: string;
+  playerTeam: Team | null;
+  botTeams: Team[];
+  draftState: DraftState | null;
+  leagueStandings: StandingsEntry[];
+  leagueResults: MatchResult[];
+  leagueRound: number;
+  leagueFixtures: LeagueFixture[];
+  knockoutBracket: KnockoutBracket | null;
+  activeKnockoutMatch: { matchId: string; round: string } | null;
+  currentMatch: MatchResult | null;
+  currentMatchTeams: [Team, Team] | null;
+  report: ImmortalReport | null;
+  champion: string | null;
+  draftedPlayers: (Player | undefined)[];
+  selectedCoachId: string;
+  selectedFormationId: string;
+  captain: string | null;
+  penaltyTaker: string | null;
+  
+  // Online Multiplayer fields
+  mode: 'solo' | 'online';
+  roomCode: string | null;
+  socketId: string | null;
+  onlinePlayers: RoomPlayer[];
+  isHost: boolean;
+  draftOrder: string[];
+  draftTurnIndex: number;
+  draftHistory: any[];
+  alreadyDraftedIds: string[];
+}
+
+export interface KnockoutBracket {
+  round16: KnockoutMatch[];
+  quarterFinals: KnockoutMatch[];
+  semiFinals: KnockoutMatch[];
+  final: KnockoutMatch | null;
+  currentRound: 'round16' | 'quarters' | 'semis' | 'final';
+}
+
+export interface KnockoutMatch {
+  id: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  result?: MatchResult;
+  played: boolean;
+}
+
+// ============================================================
+// ACTIONS
+// ============================================================
+type GameAction =
+  | { type: 'SET_PHASE'; phase: GamePhase }
+  | { type: 'SET_PLAYER_NAME'; name: string }
+  | { type: 'SET_DIFFICULTY'; difficulty: string }
+  | { type: 'SET_COACH'; coachId: string }
+  | { type: 'SET_FORMATION'; formationId: string }
+  | { type: 'START_DRAFT' }
+  | { type: 'DRAFT_PLAYER'; player: Player }
+  | { type: 'VETO_DRAFT' }
+  | { type: 'FINISH_DRAFT' }
+  | { type: 'SET_CAPTAIN'; playerId: string }
+  | { type: 'SET_PENALTY_TAKER'; playerId: string }
+  | { type: 'SWAP_PLAYERS'; indexA: number; indexB: number }
+  | { type: 'SWAP_PLAYER_TEAM'; indexA: number; indexB: number }
+  | { type: 'SET_PLAYER_TEAM_CAPTAIN'; playerId: string }
+  | { type: 'SET_PLAYER_TEAM_PENALTY_TAKER'; playerId: string }
+  | { type: 'START_LEAGUE' }
+  | { type: 'SIMULATE_LEAGUE' }
+  | { type: 'START_KNOCKOUT' }
+  | { type: 'PLAY_LEAGUE_MATCH'; homeTeamId: string; awayTeamId: string }
+  | { type: 'FINISH_LEAGUE_MATCH'; result: MatchResult }
+  | { type: 'SIMULATE_BOT_MATCHES' }
+  | { type: 'ADVANCE_LEAGUE_ROUND' }
+  | { type: 'PLAY_KNOCKOUT_MATCH'; matchId: string; round: string }
+  | { type: 'FINISH_KNOCKOUT_MATCH'; result: MatchResult }
+  | { type: 'SET_CURRENT_MATCH'; result: MatchResult; teams: [Team, Team] }
+  | { type: 'CLEAR_CURRENT_MATCH' }
+  | { type: 'FINISH_GAME'; champion: string }
+  | { type: 'RESET_GAME' }
+  | { type: 'SET_ONLINE_STATE'; roomState: any; socketId: string }
+  | { type: 'INIT_ONLINE'; socketId: string; roomCode: string; isHost: boolean }
+  | { type: 'DISCONNECT_ONLINE' };
+
+// ============================================================
+// INITIAL STATE
+// ============================================================
+const initialState: GameState = {
+  phase: 'menu',
+  playerName: '',
+  difficulty: 'gold',
+  playerTeam: null,
+  botTeams: [],
+  draftState: null,
+  leagueStandings: [],
+  leagueResults: [],
+  leagueRound: 1,
+  leagueFixtures: [],
+  knockoutBracket: null,
+  activeKnockoutMatch: null,
+  currentMatch: null,
+  currentMatchTeams: null,
+  report: null,
+  champion: null,
+  draftedPlayers: [],
+  selectedCoachId: 'guardiola',
+  selectedFormationId: '4-3-3',
+  captain: null,
+  penaltyTaker: null,
+  
+  // Online Multiplayer fields
+  mode: 'solo',
+  roomCode: null,
+  socketId: null,
+  onlinePlayers: [],
+  isHost: false,
+  draftOrder: [],
+  draftTurnIndex: 0,
+  draftHistory: [],
+  alreadyDraftedIds: [],
+};
+
+// ============================================================
+// REDUCER
+// ============================================================
+function gameReducer(state: GameState, action: GameAction): GameState {
+  switch (action.type) {
+    case 'SET_PHASE':
+      return { ...state, phase: action.phase };
+
+    case 'SET_PLAYER_NAME':
+      return { ...state, playerName: action.name };
+
+    case 'SET_DIFFICULTY':
+      return { ...state, difficulty: action.difficulty };
+
+    case 'SET_COACH':
+      return { ...state, selectedCoachId: action.coachId };
+
+    case 'SET_FORMATION':
+      return { ...state, selectedFormationId: action.formationId };
+
+    case 'START_DRAFT': {
+      const needed = getNeededPositions(state.selectedFormationId, Array(11).fill(undefined));
+      const options = generateDraftOptions(needed, []);
+      const draftState: DraftState = {
+        round: 1,
+        totalRounds: 11,
+        currentOptions: options,
+        selectedPlayers: [],
+        vetoesLeft: 2,
+        formationId: state.selectedFormationId,
+        coachId: state.selectedCoachId,
+        neededPositions: needed,
+      };
+      return { ...state, phase: 'draft', draftState, draftedPlayers: Array(11).fill(undefined) };
+    }
+
+    case 'DRAFT_PLAYER': {
+      if (!state.draftState) return state;
+      const currentRound = state.draftState.round;
+      const newDrafted = [...state.draftedPlayers];
+
+      const formation = FORMATIONS.find(f => f.id === state.selectedFormationId);
+      const roles = formation?.positions.map(p => p.role) ?? [];
+
+      let targetIndex = roles.findIndex((role, idx) =>
+        role === action.player.position && newDrafted[idx] === undefined
+      );
+
+      if (targetIndex === -1 && action.player.secondaryPositions) {
+        targetIndex = roles.findIndex((role, idx) =>
+          action.player.secondaryPositions!.includes(role) && newDrafted[idx] === undefined
+        );
+      }
+
+      if (targetIndex === -1) {
+        targetIndex = newDrafted.findIndex(p => p === undefined);
+      }
+
+      if (targetIndex === -1) {
+        targetIndex = currentRound - 1;
+      }
+
+      newDrafted[targetIndex] = action.player;
+
+      const newRound = currentRound + 1;
+
+      if (newRound > state.draftState.totalRounds) {
+        return {
+          ...state,
+          draftedPlayers: newDrafted,
+          draftState: null,
+          phase: 'squad_review',
+        };
+      }
+
+      const needed = getNeededPositions(state.selectedFormationId, newDrafted);
+      const drafted_ids = newDrafted.filter((p): p is Player => p !== null && p !== undefined).map(p => p.id);
+      const options = generateDraftOptions(needed, drafted_ids);
+
+      return {
+        ...state,
+        draftedPlayers: newDrafted,
+        draftState: {
+          ...state.draftState,
+          round: newRound,
+          currentOptions: options,
+          neededPositions: needed,
+        },
+      };
+    }
+
+    case 'VETO_DRAFT': {
+      if (!state.draftState || state.draftState.vetoesLeft <= 0) return state;
+      const actualDrafted = state.draftedPlayers.filter((p): p is Player => p !== null && p !== undefined);
+      const needed = getNeededPositions(state.selectedFormationId, state.draftedPlayers);
+      const drafted_ids = actualDrafted.map(p => p.id);
+      const options = generateDraftOptions(needed, drafted_ids);
+      return {
+        ...state,
+        draftState: {
+          ...state.draftState,
+          currentOptions: options,
+          vetoesLeft: state.draftState.vetoesLeft - 1,
+        },
+      };
+    }
+
+    case 'FINISH_DRAFT': {
+      return { ...state, phase: 'squad_review' };
+    }
+
+    case 'SWAP_PLAYERS': {
+      const newDrafted = [...state.draftedPlayers];
+      const temp = newDrafted[action.indexA];
+      newDrafted[action.indexA] = newDrafted[action.indexB];
+      newDrafted[action.indexB] = temp;
+      
+      let newCaptain = state.captain;
+      let newPenaltyTaker = state.penaltyTaker;
+      
+      const starters = newDrafted.slice(0, 11);
+      const isCaptainInStarters = starters.some(p => p?.id === newCaptain);
+      const isPenaltyTakerInStarters = starters.some(p => p?.id === newPenaltyTaker);
+      
+      if (!isCaptainInStarters) {
+        newCaptain = null;
+      }
+      if (!isPenaltyTakerInStarters) {
+        newPenaltyTaker = null;
+      }
+      
+      return {
+        ...state,
+        draftedPlayers: newDrafted,
+        captain: newCaptain,
+        penaltyTaker: newPenaltyTaker,
+      };
+    }
+
+    case 'SET_CAPTAIN':
+      return { ...state, captain: action.playerId };
+
+    case 'SET_PENALTY_TAKER':
+      return { ...state, penaltyTaker: action.playerId };
+
+    case 'SWAP_PLAYER_TEAM': {
+      if (!state.playerTeam) return state;
+      const newPlayers = [...state.playerTeam.players];
+      const temp = newPlayers[action.indexA];
+      newPlayers[action.indexA] = newPlayers[action.indexB];
+      newPlayers[action.indexB] = temp;
+
+      let captain = state.playerTeam.captain;
+      let penaltyTaker = state.playerTeam.penaltyTaker;
+      const starters = newPlayers.slice(0, 11);
+      if (captain && !starters.some(p => p.id === captain)) captain = undefined;
+      if (penaltyTaker && !starters.some(p => p.id === penaltyTaker)) penaltyTaker = undefined;
+
+      const updatedTeam = rebuildTeamChemistry({
+        ...state.playerTeam,
+        players: newPlayers,
+        captain,
+        penaltyTaker,
+      });
+
+      return { ...state, playerTeam: updatedTeam };
+    }
+
+    case 'SET_PLAYER_TEAM_CAPTAIN':
+      if (!state.playerTeam) return state;
+      return {
+        ...state,
+        playerTeam: { ...state.playerTeam, captain: action.playerId },
+      };
+
+    case 'SET_PLAYER_TEAM_PENALTY_TAKER':
+      if (!state.playerTeam) return state;
+      return {
+        ...state,
+        playerTeam: { ...state.playerTeam, penaltyTaker: action.playerId },
+      };
+
+    case 'START_LEAGUE': {
+      // Build player team
+      const starters = state.draftedPlayers.slice(0, 11).filter((p): p is Player => p !== null && p !== undefined);
+      const formation = FORMATIONS.find(f => f.id === state.selectedFormationId);
+      const formationRoles = formation?.positions.map(p => p.role) ?? [];
+
+      const chemData = calculateChemistry(
+        starters,
+        state.selectedCoachId,
+        formationRoles
+      );
+
+      const allPlayers = state.draftedPlayers.filter((p): p is Player => p !== null && p !== undefined);
+      const playerCards: PlayerCard[] = allPlayers.map(p => {
+        const idx = state.draftedPlayers.findIndex(dp => dp?.id === p.id);
+        const isOOP = idx !== -1 && idx < 11 ? (chemData.outOfPosition[p.id] ?? false) : false;
+
+        return {
+          ...p,
+          chemistryScore: chemData.individual[p.id] ?? 1,
+          isOOP,
+        };
+      });
+
+      const playerTeam: Team = {
+        id: 'player_team',
+        name: state.playerName || 'Meu Time',
+        coachId: state.selectedCoachId,
+        formationId: state.selectedFormationId,
+        playStyle: 'balanced',
+        players: playerCards,
+        captain: state.captain ?? undefined,
+        penaltyTaker: state.penaltyTaker ?? undefined,
+        totalChemistry: chemData.total,
+        isBot: false,
+      };
+
+      // Generate bot teams
+      const diffLevel = DIFFICULTY_LEVELS.find(d => d.id === state.difficulty);
+      const botStrength = diffLevel?.botStrength ?? 0.72;
+      const BOT_NAMES = [
+        'Real Madrid',
+        'Manchester City',
+        'Bayern München',
+        'Paris Saint-Germain',
+        'Liverpool FC',
+        'Inter de Milão',
+        'Arsenal FC',
+        'FC Barcelona',
+        'Borussia Dortmund',
+        'Juventus FC',
+        'Atlético de Madrid',
+        'Bayer Leverkusen',
+        'AC Milan',
+        'Benfica Glorioso',
+        'Sporting CP',
+        'FC Porto',
+        'Ajax Legends',
+        'PSV Eindhoven',
+        'Feyenoord Roterdã',
+        'Aston Villa',
+        'Atalanta Bergamo',
+        'AS Monaco',
+        'Lille OSC',
+        'VfB Stuttgart',
+        'Bologna FC',
+        'Girona FC',
+        'Celtic FC',
+        'Club Brugge',
+        'Shakhtar Donetsk',
+        'Dinamo Zagreb',
+        'RB Salzburg',
+        'Sparta Praga',
+        'Young Boys Bern',
+        'Estrela Vermelha',
+        'Lazio Roma',
+      ];
+      const botTeams = BOT_NAMES.map(name => generateBotTeam(name, botStrength));
+
+      const allTeams = [playerTeam, ...botTeams];
+      const fixtures = generateLeagueFixtures(allTeams);
+      const standings = computeStandings(allTeams, []);
+
+      return {
+        ...state,
+        playerTeam,
+        botTeams,
+        leagueFixtures: fixtures,
+        leagueStandings: standings,
+        leagueResults: [],
+        leagueRound: 1,
+        phase: 'league',
+      };
+    }
+
+    case 'SIMULATE_LEAGUE': {
+      if (!state.playerTeam) return state;
+      // Deprecated, but keep as fallback to instantly simulate remaining rounds
+      const allTeams = [state.playerTeam, ...state.botTeams];
+      const updatedFixtures = state.leagueFixtures.map(f => {
+        if (f.played) return f;
+        const home = allTeams.find(t => t.id === f.homeTeamId)!;
+        const away = allTeams.find(t => t.id === f.awayTeamId)!;
+        const result = simulateMatch(home, away);
+        return { ...f, played: true, result };
+      });
+      const standings = computeStandings(allTeams, updatedFixtures);
+      const results = updatedFixtures.map(f => f.result!).filter(Boolean);
+      return {
+        ...state,
+        leagueFixtures: updatedFixtures,
+        leagueStandings: standings,
+        leagueResults: results,
+        leagueRound: 8,
+      };
+    }
+
+    case 'PLAY_LEAGUE_MATCH': {
+      // In online mode, resolve teams from onlinePlayers; in solo from playerTeam + botTeams
+      let homeTeam: Team | undefined;
+      let awayTeam: Team | undefined;
+
+      if (state.mode === 'online') {
+        const allHumanTeams = state.onlinePlayers.filter(p => p.team).map(p => p.team!);
+        const allTeams = [...allHumanTeams, ...state.botTeams];
+        homeTeam = allTeams.find(t => t.id === action.homeTeamId);
+        awayTeam = allTeams.find(t => t.id === action.awayTeamId);
+      } else {
+        if (!state.playerTeam) return state;
+        const allTeams = [state.playerTeam, ...state.botTeams];
+        homeTeam = allTeams.find(t => t.id === action.homeTeamId);
+        awayTeam = allTeams.find(t => t.id === action.awayTeamId);
+      }
+
+      if (!homeTeam || !awayTeam) return state;
+
+      return {
+        ...state,
+        phase: 'match_sim',
+        currentMatch: null,
+        currentMatchTeams: [homeTeam, awayTeam],
+      };
+    }
+
+    case 'FINISH_LEAGUE_MATCH': {
+      // In online mode the server updates fixtures/standings — just clear the local match state
+      if (state.mode === 'online') {
+        return {
+          ...state,
+          phase: 'league',
+          currentMatch: null,
+          currentMatchTeams: null,
+        };
+      }
+
+      if (!state.playerTeam) return state;
+      const allTeams = [state.playerTeam, ...state.botTeams];
+      
+      // Save result for the player's fixture in the current round
+      let allFixtures = state.leagueFixtures.map(f => {
+        if (f.round === state.leagueRound && (f.homeTeamId === state.playerTeam?.id || f.awayTeamId === state.playerTeam?.id)) {
+          return { ...f, played: true, result: action.result };
+        }
+        return f;
+      });
+
+      // Automatically simulate other matches in the same round if not already done
+      allFixtures = allFixtures.map(f => {
+        if (f.round === state.leagueRound && !f.played) {
+          const home = allTeams.find(t => t.id === f.homeTeamId)!;
+          const away = allTeams.find(t => t.id === f.awayTeamId)!;
+          const result = simulateMatch(home, away);
+          return { ...f, played: true, result };
+        }
+        return f;
+      });
+
+      const standings = computeStandings(allTeams, allFixtures);
+      // Collect ALL played results across all rounds to preserve stats
+      const results = allFixtures.map(f => f.result!).filter(Boolean);
+
+      return {
+        ...state,
+        phase: 'league',
+        leagueFixtures: allFixtures,
+        leagueStandings: standings,
+        leagueResults: results,
+        currentMatch: null,
+        currentMatchTeams: null,
+      };
+    }
+
+    case 'SIMULATE_BOT_MATCHES': {
+      if (!state.playerTeam) return state;
+      const allTeams = [state.playerTeam, ...state.botTeams];
+      const allFixtures = state.leagueFixtures.map(f => {
+        if (f.round === state.leagueRound && !f.played) {
+          const home = allTeams.find(t => t.id === f.homeTeamId)!;
+          const away = allTeams.find(t => t.id === f.awayTeamId)!;
+          const result = simulateMatch(home, away);
+          return { ...f, played: true, result };
+        }
+        return f;
+      });
+      const standings = computeStandings(allTeams, allFixtures);
+      // Collect ALL played results across all rounds to preserve stats
+      const results = allFixtures.map(f => f.result!).filter(Boolean);
+      return {
+        ...state,
+        leagueFixtures: allFixtures,
+        leagueStandings: standings,
+        leagueResults: results,
+      };
+    }
+
+    case 'ADVANCE_LEAGUE_ROUND': {
+      return {
+        ...state,
+        leagueRound: Math.min(8, state.leagueRound + 1),
+      };
+    }
+
+    case 'START_KNOCKOUT': {
+      if (!state.playerTeam) return state;
+      const top8 = state.leagueStandings.slice(0, 8);
+      const allTeams = [state.playerTeam, ...state.botTeams];
+
+      // Build round of 16 (top 8 vs positions 9-16)
+      const qfMatches: KnockoutMatch[] = [];
+      for (let i = 0; i < 4; i++) {
+        const homeTeam = top8[i];
+        const awayTeam = top8[7 - i];
+        qfMatches.push({
+          id: `qf_${i}`,
+          homeTeamId: homeTeam.teamId,
+          awayTeamId: awayTeam.teamId,
+          played: false,
+        });
+      }
+
+      const bracket: KnockoutBracket = {
+        round16: [],
+        quarterFinals: qfMatches,
+        semiFinals: [],
+        final: null,
+        currentRound: 'quarters',
+      };
+
+      return { ...state, knockoutBracket: bracket, phase: 'knockout' };
+    }
+
+    case 'PLAY_KNOCKOUT_MATCH': {
+      if (!state.knockoutBracket) return state;
+
+      // In online mode, resolve teams from onlinePlayers; in solo from playerTeam + botTeams
+      let allTeams: Team[];
+      if (state.mode === 'online') {
+        const allHumanTeams = state.onlinePlayers.filter(p => p.team).map(p => p.team!);
+        allTeams = [...allHumanTeams, ...state.botTeams];
+      } else {
+        if (!state.playerTeam) return state;
+        allTeams = [state.playerTeam, ...state.botTeams];
+      }
+
+      const bracket = { ...state.knockoutBracket };
+      let matchList: KnockoutMatch[];
+
+      if (action.round === 'quarters') matchList = bracket.quarterFinals;
+      else if (action.round === 'semis') matchList = bracket.semiFinals;
+      else matchList = [bracket.final!];
+
+      const match = matchList.find(m => m.id === action.matchId);
+      if (!match) return state;
+
+      const homeTeam = allTeams.find(t => t.id === match.homeTeamId);
+      const awayTeam = allTeams.find(t => t.id === match.awayTeamId);
+      if (!homeTeam || !awayTeam) return state;
+
+      // Determine if this is a human player's match
+      const humanTeamIds = state.mode === 'online'
+        ? state.onlinePlayers.map(p => p.id)
+        : ['player_team'];
+      const isPlayerMatch =
+        humanTeamIds.includes(match.homeTeamId) || humanTeamIds.includes(match.awayTeamId);
+
+      if (isPlayerMatch) {
+        // Player match -> Go to match simulation screen!
+        return {
+          ...state,
+          phase: 'match_sim',
+          activeKnockoutMatch: { matchId: action.matchId, round: action.round },
+          currentMatch: null,
+          currentMatchTeams: [homeTeam, awayTeam],
+        };
+      }
+
+      // Bot match -> Simulate instantly
+      const isFinal = action.round === 'final';
+      const result = simulateMatch(homeTeam, awayTeam, true, isFinal);
+      match.result = result;
+      match.played = true;
+
+      // Check if all matches in round are played
+      const allPlayed = matchList.every(m => m.played);
+      if (allPlayed) {
+        const winners = matchList.map(m => m.result!.winner!);
+
+        if (action.round === 'quarters') {
+          const sfMatches: KnockoutMatch[] = [
+            { id: 'sf_0', homeTeamId: winners[0], awayTeamId: winners[1], played: false },
+            { id: 'sf_1', homeTeamId: winners[2], awayTeamId: winners[3], played: false },
+          ];
+          bracket.semiFinals = sfMatches;
+          bracket.currentRound = 'semis';
+        } else if (action.round === 'semis') {
+          bracket.final = {
+            id: 'final',
+            homeTeamId: winners[0],
+            awayTeamId: winners[1],
+            played: false,
+          };
+          bracket.currentRound = 'final';
+        } else if (action.round === 'final') {
+          const champion = result.winner!;
+          const championTeam = allTeams.find(t => t.id === champion);
+          const report = generateImmortalReport(
+            state.playerTeam!,
+            [...state.leagueResults, result],
+            championTeam?.name ?? 'Campeão'
+          );
+          return {
+            ...state,
+            knockoutBracket: bracket,
+            champion,
+            report,
+            phase: 'report',
+          };
+        }
+      }
+
+      return {
+        ...state,
+        knockoutBracket: bracket,
+        currentMatch: result,
+        currentMatchTeams: [homeTeam, awayTeam],
+      };
+    }
+
+    case 'FINISH_KNOCKOUT_MATCH': {
+      // In online mode the server handles bracket progression — just clear match state
+      if (state.mode === 'online') {
+        return {
+          ...state,
+          phase: 'knockout',
+          activeKnockoutMatch: null,
+          currentMatch: null,
+          currentMatchTeams: null,
+        };
+      }
+
+      if (!state.knockoutBracket || !state.playerTeam || !state.activeKnockoutMatch) return state;
+      const allTeams = [state.playerTeam, ...state.botTeams];
+      const { matchId, round } = state.activeKnockoutMatch;
+
+      const bracket = { ...state.knockoutBracket };
+      let matchList: KnockoutMatch[];
+
+      if (round === 'quarters') matchList = bracket.quarterFinals;
+      else if (round === 'semis') matchList = bracket.semiFinals;
+      else matchList = [bracket.final!];
+
+      const match = matchList.find(m => m.id === matchId);
+      if (!match) return state;
+
+      const result = action.result;
+      match.result = result;
+      match.played = true;
+
+      // Automatically simulate any other unplayed matches in the round (e.g. bots)
+      for (const m of matchList) {
+        if (!m.played) {
+          const home = allTeams.find(t => t.id === m.homeTeamId)!;
+          const away = allTeams.find(t => t.id === m.awayTeamId)!;
+          const res = simulateMatch(home, away, true, round === 'final');
+          m.result = res;
+          m.played = true;
+        }
+      }
+
+      // Check if all matches in round are played
+      const allPlayed = matchList.every(m => m.played);
+      if (allPlayed) {
+        const winners = matchList.map(m => m.result!.winner!);
+
+        if (round === 'quarters') {
+          const sfMatches: KnockoutMatch[] = [
+            { id: 'sf_0', homeTeamId: winners[0], awayTeamId: winners[1], played: false },
+            { id: 'sf_1', homeTeamId: winners[2], awayTeamId: winners[3], played: false },
+          ];
+          bracket.semiFinals = sfMatches;
+          bracket.currentRound = 'semis';
+        } else if (round === 'semis') {
+          bracket.final = {
+            id: 'final',
+            homeTeamId: winners[0],
+            awayTeamId: winners[1],
+            played: false,
+          };
+          bracket.currentRound = 'final';
+        } else if (round === 'final') {
+          const champion = result.winner!;
+          const championTeam = allTeams.find(t => t.id === champion);
+          const report = generateImmortalReport(
+            state.playerTeam!,
+            [...state.leagueResults, result],
+            championTeam?.name ?? 'Campeão'
+          );
+          return {
+            ...state,
+            knockoutBracket: bracket,
+            champion,
+            report,
+            phase: 'report',
+            activeKnockoutMatch: null,
+            currentMatch: null,
+            currentMatchTeams: null,
+          };
+        }
+      }
+
+      return {
+        ...state,
+        phase: 'knockout',
+        knockoutBracket: bracket,
+        activeKnockoutMatch: null,
+        currentMatch: result,
+        currentMatchTeams: null,
+      };
+    }
+
+    case 'SET_CURRENT_MATCH':
+      return { ...state, currentMatch: action.result, currentMatchTeams: action.teams };
+
+    case 'CLEAR_CURRENT_MATCH':
+      return { ...state, currentMatch: null, currentMatchTeams: null };
+
+    case 'FINISH_GAME':
+      return { ...state, champion: action.champion, phase: 'report' };
+
+    case 'SET_ONLINE_STATE': {
+      const { roomState, socketId } = action;
+      const me = roomState.players.find((p: any) => p.socketId === socketId);
+      
+      let draftState: any = null;
+      if (roomState.phase === 'draft' && roomState.draftState) {
+        const activePlayerId = roomState.draftState.draftOrder[roomState.draftState.turnIndex];
+        const activePlayer = roomState.players.find((p: any) => p.id === activePlayerId);
+        if (activePlayer) {
+          const isMyTurn = activePlayer.socketId === socketId;
+          const currentOptions = isMyTurn 
+            ? (roomState.draftState.currentOptionsByPlayer[activePlayerId] || [])
+            : [];
+          const needed = getNeededPositions(activePlayer.formationId, activePlayer.draftedPlayers);
+          draftState = {
+            round: roomState.draftState.round,
+            totalRounds: 11,
+            currentOptions,
+            selectedPlayers: [],
+            vetoesLeft: activePlayer.vetoesLeft,
+            formationId: activePlayer.formationId,
+            coachId: activePlayer.coachId,
+            neededPositions: needed,
+          };
+        }
+      }
+
+      let targetPhase = roomState.phase;
+      if (roomState.phase === 'setup') {
+        if (state.phase === 'coach' || state.phase === 'formation') {
+          targetPhase = state.phase;
+        } else {
+          targetPhase = 'coach';
+        }
+      } else if (state.phase === 'match_sim' && (roomState.phase === 'league' || roomState.phase === 'knockout')) {
+        targetPhase = 'match_sim';
+      }
+
+      return {
+        ...state,
+        mode: 'online',
+        roomCode: roomState.code,
+        phase: targetPhase,
+        difficulty: roomState.difficulty,
+        botTeams: roomState.botTeams || [],
+        leagueFixtures: roomState.leagueFixtures || [],
+        leagueStandings: roomState.leagueStandings || [],
+        leagueResults: roomState.leagueResults || [],
+        leagueRound: roomState.leagueRound || 1,
+        knockoutBracket: roomState.knockoutBracket || null,
+        champion: roomState.champion || null,
+        onlinePlayers: roomState.players || [],
+        draftOrder: roomState.draftState?.draftOrder || [],
+        draftTurnIndex: roomState.draftState?.turnIndex || 0,
+        draftHistory: roomState.draftState?.history || [],
+        alreadyDraftedIds: roomState.draftState?.alreadyDraftedIds || [],
+        
+        // Local player sync
+        playerName: me ? me.name : state.playerName,
+        playerTeam: me ? me.team : state.playerTeam,
+        draftedPlayers: me ? me.draftedPlayers : state.draftedPlayers,
+        selectedCoachId: me ? me.coachId : state.selectedCoachId,
+        selectedFormationId: me ? me.formationId : state.selectedFormationId,
+        captain: me ? me.captain : state.captain,
+        penaltyTaker: me ? me.penaltyTaker : state.penaltyTaker,
+        draftState,
+
+        // Generate local report if transitioning to report phase
+        report: (roomState.phase === 'report' && roomState.champion && !state.report)
+          ? (() => {
+              const myTeam = me ? me.team : state.playerTeam;
+              const allHumanTeams = (roomState.players || []).filter((p: any) => p.team).map((p: any) => p.team);
+              const allTeamsList = [...allHumanTeams, ...(roomState.botTeams || [])];
+              const championTeam = allTeamsList.find((t: any) => t.id === roomState.champion);
+              return myTeam
+                ? generateImmortalReport(myTeam, roomState.leagueResults || [], championTeam?.name ?? 'Campeão')
+                : state.report;
+            })()
+          : state.report,
+      };
+    }
+
+    case 'INIT_ONLINE':
+      return {
+        ...state,
+        mode: 'online',
+        socketId: action.socketId,
+        roomCode: action.roomCode,
+        isHost: action.isHost,
+      };
+
+    case 'DISCONNECT_ONLINE':
+      return {
+        ...initialState,
+      };
+
+    case 'RESET_GAME':
+      return { ...initialState };
+
+    default:
+      return state;
+  }
+}
+
+// ============================================================
+// CONTEXT
+// ============================================================
+interface GameContextType {
+  state: GameState;
+  dispatch: React.Dispatch<GameAction>;
+  // Helpers
+  getTeamById: (id: string) => Team | undefined;
+  getPlayerById: (id: string) => Player | undefined;
+  getCoachById: (id: string) => Coach | undefined;
+  getFormationById: (id: string) => Formation | undefined;
+  
+  // Online Multiplayer Socket emitters
+  createRoom: (creatorName: string) => void;
+  joinRoom: (roomCode: string, playerName: string) => void;
+  setDifficultyOnline: (difficulty: string) => void;
+  startSetupOnline: () => void;
+  submitSetupOnline: (coachId: string, formationId: string) => void;
+  draftPickOnline: (playerId: string) => void;
+  draftVetoOnline: () => void;
+  submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[]) => void;
+  advanceRoundOnline: () => void;
+  submitMatchResultOnline: (result: MatchResult) => void;
+  submitKnockoutResultOnline: (matchId: string, round: string, result: MatchResult) => void;
+  restartRoomOnline: () => void;
+  disconnectOnline: () => void;
+  
+  // Real-time match sim syncing helpers
+  streamMatchEvent: (eventType: string, data: any) => void;
+  onMatchEventReceived: (handler: (payload: { eventType: string, data: any }) => void) => () => void;
+}
+
+const GameContext = createContext<GameContextType | null>(null);
+
+// Exported separately to avoid HMR incompatibility
+export const useGame = () => {
+  const ctx = useContext(GameContext);
+  if (!ctx) throw new Error('useGame must be used within GameProvider');
+  return ctx;
+};
+
+export function GameProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(gameReducer, initialState);
+  const socketRef = useRef<Socket | null>(null);
+
+  // Auto disconnect on unmount
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  const connectSocket = useCallback(() => {
+    if (socketRef.current) return socketRef.current;
+
+    // Connect to the same origin as the current page
+    // (Socket.io is integrated directly into the Vite / production server)
+    const socketInstance = io({
+      transports: ["websocket", "polling"],
+      autoConnect: true,
+    });
+
+    socketRef.current = socketInstance;
+
+    socketInstance.on("connect", () => {
+      console.log("Socket connected to server:", socketInstance.id);
+    });
+
+    socketInstance.on("room_updated", (roomState: any) => {
+      dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
+    });
+
+    socketInstance.on("room_created", ({ roomCode, roomState }) => {
+      const me = roomState.players[0];
+      if (me) {
+        localStorage.setItem("ucl_immortals_playerName", me.name);
+        localStorage.setItem("ucl_immortals_roomCode", roomCode);
+      }
+      dispatch({ type: 'INIT_ONLINE', socketId: socketInstance.id || "", roomCode, isHost: true });
+      dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
+    });
+
+    socketInstance.on("joined_room", ({ roomCode, player, roomState }) => {
+      localStorage.setItem("ucl_immortals_playerName", player.name);
+      localStorage.setItem("ucl_immortals_roomCode", roomCode);
+      dispatch({ type: 'INIT_ONLINE', socketId: socketInstance.id || "", roomCode, isHost: player.id === 'player_0' });
+      dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
+    });
+
+    socketInstance.on("error_message", (msg: string) => {
+      alert(msg);
+      localStorage.removeItem("ucl_immortals_playerName");
+      localStorage.removeItem("ucl_immortals_roomCode");
+      dispatch({ type: 'DISCONNECT_ONLINE' });
+    });
+
+    return socketInstance;
+  }, []);
+
+  const createRoom = useCallback((creatorName: string) => {
+    const s = connectSocket();
+    s.emit("create_room", { creatorName });
+  }, [connectSocket]);
+
+  const joinRoom = useCallback((roomCode: string, playerName: string) => {
+    const s = connectSocket();
+    s.emit("join_room", { roomCode, playerName });
+  }, [connectSocket]);
+
+  const setDifficultyOnline = useCallback((difficulty: string) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("set_difficulty", { roomCode: state.roomCode, difficulty });
+    }
+  }, [state.roomCode]);
+
+  const startSetupOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("start_setup", { roomCode: state.roomCode });
+    }
+  }, [state.roomCode]);
+
+  const submitSetupOnline = useCallback((coachId: string, formationId: string) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("submit_setup", { roomCode: state.roomCode, coachId, formationId });
+    }
+  }, [state.roomCode]);
+
+  const draftPickOnline = useCallback((playerId: string) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("draft_pick", { roomCode: state.roomCode, playerId });
+    }
+  }, [state.roomCode]);
+
+  const draftVetoOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("draft_veto", { roomCode: state.roomCode });
+    }
+  }, [state.roomCode]);
+
+  const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[]) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("submit_squad_review", {
+        roomCode: state.roomCode,
+        captain,
+        penaltyTaker,
+        draftedPlayers
+      });
+    }
+  }, [state.roomCode]);
+
+  const advanceRoundOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("advance_round", { roomCode: state.roomCode });
+    }
+  }, [state.roomCode]);
+
+  const submitMatchResultOnline = useCallback((result: MatchResult) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("submit_match_result", { roomCode: state.roomCode, result });
+    }
+  }, [state.roomCode]);
+
+  const submitKnockoutResultOnline = useCallback((matchId: string, round: string, result: MatchResult) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("submit_knockout_result", { roomCode: state.roomCode, matchId, round, result });
+    }
+  }, [state.roomCode]);
+
+  const restartRoomOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("restart_room", { roomCode: state.roomCode });
+    }
+  }, [state.roomCode]);
+
+  const disconnectOnline = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    localStorage.removeItem("ucl_immortals_playerName");
+    localStorage.removeItem("ucl_immortals_roomCode");
+    dispatch({ type: 'DISCONNECT_ONLINE' });
+  }, []);
+
+  const streamMatchEvent = useCallback((eventType: string, data: any) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("match_event_stream", { roomCode: state.roomCode, eventType, data });
+    }
+  }, [state.roomCode]);
+
+  const onMatchEventReceived = useCallback((handler: (payload: { eventType: string, data: any }) => void) => {
+    const s = socketRef.current;
+    if (!s) return () => {};
+
+    const wrapper = ({ eventType, data }: { eventType: string, data: any }) => {
+      handler({ eventType, data });
+    };
+
+    s.on("match_event_relayed", wrapper);
+    return () => {
+      s.off("match_event_relayed", wrapper);
+    };
+  }, []);
+
+  const getTeamById = useCallback((id: string) => {
+    if (state.mode === 'online') {
+      const match = state.onlinePlayers.find(p => p.id === id);
+      if (match && match.team) return match.team;
+    }
+    if (state.playerTeam?.id === id) return state.playerTeam;
+    return state.botTeams.find(t => t.id === id);
+  }, [state.playerTeam, state.botTeams, state.onlinePlayers, state.mode]);
+
+  const getPlayerById = useCallback((id: string) => {
+    return PLAYERS.find(p => p.id === id);
+  }, []);
+
+  const getCoachById = useCallback((id: string) => {
+    return COACHES.find(c => c.id === id);
+  }, []);
+
+  const getFormationById = useCallback((id: string) => {
+    return FORMATIONS.find(f => f.id === id);
+  }, []);
+
+  // Auto reconnect to room if details exist in localStorage on mount
+  useEffect(() => {
+    const storedName = localStorage.getItem("ucl_immortals_playerName");
+    const storedCode = localStorage.getItem("ucl_immortals_roomCode");
+    if (storedName && storedCode) {
+      console.log(`Auto-reconnecting to room ${storedCode} as ${storedName}...`);
+      joinRoom(storedCode, storedName);
+    }
+  }, [joinRoom]);
+
+  return (
+    <GameContext.Provider value={{
+      state, dispatch, getTeamById, getPlayerById, getCoachById, getFormationById,
+      createRoom, joinRoom, setDifficultyOnline, startSetupOnline, submitSetupOnline,
+      draftPickOnline, draftVetoOnline, submitSquadReviewOnline, advanceRoundOnline,
+      submitMatchResultOnline, submitKnockoutResultOnline, restartRoomOnline, disconnectOnline,
+      streamMatchEvent, onMatchEventReceived
+    }}>
+      {children}
+    </GameContext.Provider>
+  );
+}
+
+
