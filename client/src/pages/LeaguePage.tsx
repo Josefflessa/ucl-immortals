@@ -1,7 +1,7 @@
 // UCL Immortals — League Phase Page
 // Show standings, round-by-round fixtures, and results
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, PlayerSeasonStats } from '../lib/gameEngine';
@@ -13,7 +13,7 @@ const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEC
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 export default function LeaguePage() {
-  const { state, dispatch, advanceRoundOnline, streamMatchEvent, onMatchEventReceived } = useGame();
+  const { state, dispatch, advanceRoundOnline } = useGame();
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'results' | 'squad' | 'scorers'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
@@ -93,12 +93,7 @@ export default function LeaguePage() {
 
     if (!myFixture) return;
 
-    if (state.mode === 'online') {
-      streamMatchEvent('match_start', {
-        homeTeamId: myFixture.homeTeamId,
-        awayTeamId: myFixture.awayTeamId,
-      });
-    }
+    // Each player navigates to their own match simulation independently
     dispatch({
       type: 'PLAY_LEAGUE_MATCH',
       homeTeamId: myFixture.homeTeamId,
@@ -126,26 +121,8 @@ export default function LeaguePage() {
     }
   };
 
-  useEffect(() => {
-    if (state.mode !== 'online') return;
-
-    const unsubscribe = onMatchEventReceived(({ eventType, data }) => {
-      if (eventType === 'match_start') {
-        const myPlayerId = state.onlinePlayers.find(p => p.socketId === state.socketId)?.id;
-        if (myPlayerId && (data.homeTeamId === myPlayerId || data.awayTeamId === myPlayerId)) {
-          dispatch({
-            type: 'PLAY_LEAGUE_MATCH',
-            homeTeamId: data.homeTeamId,
-            awayTeamId: data.awayTeamId,
-          });
-        }
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [state.mode, state.socketId, state.onlinePlayers, onMatchEventReceived, dispatch]);
+  // Each player manages their own match navigation independently in online mode.
+  // No cross-player match start events are needed.
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>

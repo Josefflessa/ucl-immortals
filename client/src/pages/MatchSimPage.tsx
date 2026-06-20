@@ -24,8 +24,6 @@ export default function MatchSimPage() {
   const {
     state,
     dispatch,
-    streamMatchEvent,
-    onMatchEventReceived,
     submitMatchResultOnline,
     submitKnockoutResultOnline,
   } = useGame();
@@ -37,13 +35,10 @@ export default function MatchSimPage() {
   const playerTeamId = state.playerTeam?.id;
   const isPlayerHome = initialHome.id === playerTeamId;
 
-  const isSimulatorHost = (() => {
-    if (state.mode !== 'online') return true;
-    const homeIsBot = initialHome.isBot;
-    const awayIsBot = initialAway.isBot;
-    if (homeIsBot || awayIsBot) return true;
-    return isPlayerHome;
-  })();
+  // In multiplayer, EVERY player simulates their own match independently.
+  // There is no spectator mode — each person runs their own fixture.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const isSimulatorHost = true;
 
   const isKnockout = !!activeKnockoutMatch;
   const isFinal = activeKnockoutMatch?.round === 'final';
@@ -141,97 +136,8 @@ export default function MatchSimPage() {
   const setMyTeam = isPlayerHome ? setHomeTeam : setAwayTeam;
   const setOppTeam = isPlayerHome ? setAwayTeam : setHomeTeam;
 
-  // Spectator Mode listener
-  useEffect(() => {
-    if (state.mode !== 'online' || isSimulatorHost) return;
-
-    const unsubscribe = onMatchEventReceived(({ eventType, data }) => {
-      if (eventType === 'tick') {
-        setMinute(data.minute);
-        setHomeScore(data.homeScore);
-        setAwayScore(data.awayScore);
-        setEvents(data.events);
-        setMomentum(data.momentum);
-        setMomentumHistory(data.momentumHistory);
-        setStats(data.stats);
-        setPlayerMatchStats(data.playerMatchStats);
-        setDangerState(data.dangerState);
-        setGoalAlert(data.goalAlert);
-      } else if (eventType === 'penalty_tick') {
-        setPenaltyMode(true);
-        setPenaltiesHome(data.penaltiesHome);
-        setPenaltiesAway(data.penaltiesAway);
-        setPenaltyHomeScore(data.penaltyHomeScore);
-        setPenaltyAwayScore(data.penaltyAwayScore);
-        setPenaltyCommentary(data.penaltyCommentary);
-        setPenaltyWinner(data.penaltyWinner);
-        setIsFinished(data.isFinished);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [state.mode, isSimulatorHost, onMatchEventReceived]);
-
-  // Host Mode status emitter (tick)
-  useEffect(() => {
-    if (state.mode !== 'online' || !isSimulatorHost) return;
-
-    streamMatchEvent('tick', {
-      minute,
-      homeScore,
-      awayScore,
-      events,
-      momentum,
-      momentumHistory,
-      stats,
-      playerMatchStats,
-      dangerState,
-      goalAlert,
-    });
-  }, [
-    state.mode,
-    isSimulatorHost,
-    minute,
-    homeScore,
-    awayScore,
-    events,
-    momentum,
-    momentumHistory,
-    stats,
-    playerMatchStats,
-    dangerState,
-    goalAlert,
-    streamMatchEvent,
-  ]);
-
-  // Host Mode status emitter (penalties)
-  useEffect(() => {
-    if (state.mode !== 'online' || !isSimulatorHost || !penaltyMode) return;
-
-    streamMatchEvent('penalty_tick', {
-      penaltiesHome,
-      penaltiesAway,
-      penaltyHomeScore,
-      penaltyAwayScore,
-      penaltyCommentary,
-      penaltyWinner,
-      isFinished,
-    });
-  }, [
-    state.mode,
-    isSimulatorHost,
-    penaltyMode,
-    penaltiesHome,
-    penaltiesAway,
-    penaltyHomeScore,
-    penaltyAwayScore,
-    penaltyCommentary,
-    penaltyWinner,
-    isFinished,
-    streamMatchEvent,
-  ]);
+  // NOTE: Spectator mode and match event streaming have been removed.
+  // Each player now simulates their own match independently.
 
   const renderSquadRow = (p: EnginePlayerCard, rating: number) => {
     const rColor = rating >= 8.5 ? '#d4af37' : rating >= 7.5 ? '#22c55e' : rating <= 5.3 ? '#ef4444' : '#ffffff';
@@ -1131,16 +1037,12 @@ export default function MatchSimPage() {
     };
 
     if (state.mode === 'online') {
-      if (isSimulatorHost) {
-        if (activeKnockoutMatch) {
-          submitKnockoutResultOnline(activeKnockoutMatch.matchId, activeKnockoutMatch.round, finalResult);
-        } else {
-          submitMatchResultOnline(finalResult);
-        }
-      }
+      // Each player submits their own match result to the server
       if (activeKnockoutMatch) {
+        submitKnockoutResultOnline(activeKnockoutMatch.matchId, activeKnockoutMatch.round, finalResult);
         dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
       } else {
+        submitMatchResultOnline(finalResult);
         dispatch({ type: 'FINISH_LEAGUE_MATCH', result: finalResult });
       }
     } else {

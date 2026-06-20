@@ -489,31 +489,48 @@ export function registerSocketHandlers(io: Server) {
       socket.to(roomCode).emit("match_event_relayed", { eventType, data });
     });
 
-    // Match finished (Human vs Bot or Human vs Human host)
+    // Match finished — submit result from any player in the match
     socket.on("submit_match_result", ({ roomCode, result }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
 
-      // Avoid double saving identical match results
-      const alreadySaved = room.leagueResults.some(
-        r => r.homeTeamId === result.homeTeamId && r.awayTeamId === result.awayTeamId && r.homeGoals === result.homeGoals && r.awayGoals === result.awayGoals
+      // Find the player who submitted
+      const submittingPlayer = room.players.find(p => p.socketId === socket.id);
+      if (!submittingPlayer) return;
+
+      // Only allow submitting player if they are actually in this fixture
+      const isInFixture =
+        submittingPlayer.id === result.homeTeamId ||
+        submittingPlayer.id === result.awayTeamId;
+      if (!isInFixture) return;
+
+      // Check if this specific fixture in the current round is already played (dedup)
+      const fixtureAlreadyPlayed = room.leagueFixtures.some(
+        f => f.round === room.leagueRound
+          && f.homeTeamId === result.homeTeamId
+          && f.awayTeamId === result.awayTeamId
+          && f.played
       );
 
-      if (!alreadySaved) {
-        room.leagueResults.push(result);
-        
-        // Mark fixture as played in state
-        room.leagueFixtures = room.leagueFixtures.map(f => {
-          if (f.round === room.leagueRound && f.homeTeamId === result.homeTeamId && f.awayTeamId === result.awayTeamId) {
-            return { ...f, played: true, result };
-          }
-          return f;
-        });
-
-        const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
-        const allTeams = [...allHumanTeams, ...room.botTeams];
-        room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
+      if (fixtureAlreadyPlayed) {
+        // Already saved, just re-broadcast current state
+        socket.emit("room_updated", room);
+        return;
       }
+
+      room.leagueResults.push(result);
+      
+      // Mark fixture as played in state
+      room.leagueFixtures = room.leagueFixtures.map(f => {
+        if (f.round === room.leagueRound && f.homeTeamId === result.homeTeamId && f.awayTeamId === result.awayTeamId) {
+          return { ...f, played: true, result };
+        }
+        return f;
+      });
+
+      const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
+      const allTeams = [...allHumanTeams, ...room.botTeams];
+      room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
 
       io.to(roomCode).emit("room_updated", room);
     });
