@@ -9,6 +9,9 @@ import {
   computeStandings,
   simulateMatch,
   calculateChemistry,
+  createKnockoutBracket,
+  playActiveKnockoutLeg,
+  advanceKnockoutBracket,
   Team,
   PlayerCard,
   MatchResult,
@@ -78,6 +81,12 @@ function getUniqueRoomCode(): string {
     code = generateRoomCode();
   }
   return code;
+}
+
+// The host is always the room creator (players[0], id "player_0").
+// Only the host is allowed to drive round progression in online mode.
+function isHost(room: RoomState, socketId: string): boolean {
+  return room.players.length > 0 && room.players[0].socketId === socketId;
 }
 
 export function registerSocketHandlers(io: Server) {
@@ -422,180 +431,118 @@ export function registerSocketHandlers(io: Server) {
       io.to(roomCode).emit("room_updated", room);
     });
 
-    // Multiplayer Match stream events: Match Host relays simulation events to Away player
-    socket.on("match_event_stream", ({ roomCode, eventType, data }) => {
-      // Relay match events (momentum, minute, goals, matchFinished) to all players in the room
-      socket.to(roomCode).emit("match_event_relayed", { eventType, data });
-    });
-
-    // Match finished — submit result from any player in the match
-    socket.on("submit_match_result", ({ roomCode, result }) => {
+    // Player updates captain / penalty taker for their own team (pre-league and
+    // between matches). Kept on the authoritative server team so the server-side
+    // simulation uses the chosen penalty taker.
+    socket.on("set_match_roles", ({ roomCode, captain, penaltyTaker }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player) return;
 
-      // Find the player who submitted
-      const submittingPlayer = room.players.find(p => p.socketId === socket.id);
-      if (!submittingPlayer) return;
-
-      // Only allow submitting player if they are actually in this fixture
-      const isInFixture =
-        submittingPlayer.id === result.homeTeamId ||
-        submittingPlayer.id === result.awayTeamId;
-      if (!isInFixture) return;
-
-      // Check if this specific fixture in the current round is already played (dedup)
-      const fixtureAlreadyPlayed = room.leagueFixtures.some(
-        f => f.round === room.leagueRound
-          && f.homeTeamId === result.homeTeamId
-          && f.awayTeamId === result.awayTeamId
-          && f.played
-      );
-
-      if (fixtureAlreadyPlayed) {
-        // Already saved, just re-broadcast current state
-        socket.emit("room_updated", room);
-        return;
+      player.captain = captain ?? null;
+      player.penaltyTaker = penaltyTaker ?? null;
+      if (player.team) {
+        player.team.captain = captain ?? undefined;
+        player.team.penaltyTaker = penaltyTaker ?? undefined;
       }
+      io.to(roomCode).emit("room_updated", room);
+    });
 
-      room.leagueResults.push(result);
-      
-      // Mark fixture as played in state
+    // ============================================================
+    // LEAGUE — server-authoritative, host-driven round progression
+    // ============================================================
+
+    // Host triggers the whole round: the SERVER simulates every fixture of the
+    // current round at once (single source of truth) so the scores/data are
+    // identical on every device. Each human then watches their own match as a
+    // deterministic replay of the result the server produced here.
+    socket.on("play_round", ({ roomCode }) => {
+      const room = rooms.get(roomCode);
+      if (!room || room.phase !== 'league') return;
+      if (!isHost(room, socket.id)) return;
+
+      const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
+      const allTeams = [...allHumanTeams, ...room.botTeams];
+
+      let simulatedAny = false;
       room.leagueFixtures = room.leagueFixtures.map(f => {
-        if (f.round === room.leagueRound && f.homeTeamId === result.homeTeamId && f.awayTeamId === result.awayTeamId) {
+        if (f.round === room.leagueRound && !f.played) {
+          const home = allTeams.find(t => t.id === f.homeTeamId);
+          const away = allTeams.find(t => t.id === f.awayTeamId);
+          if (!home || !away) return f;
+          const result = simulateMatch(home, away);
+          room.leagueResults.push(result);
+          simulatedAny = true;
           return { ...f, played: true, result };
         }
         return f;
       });
 
-      const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
-      const allTeams = [...allHumanTeams, ...room.botTeams];
-      room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
+      if (simulatedAny) {
+        room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
+      }
 
       io.to(roomCode).emit("room_updated", room);
     });
 
-    // Host simulates bot-vs-bot matches and advances round
+    // Host advances to the next round (or to the knockout) — only allowed once
+    // the entire current round has been played.
     socket.on("advance_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
-      if (!room) return;
+      if (!room || room.phase !== 'league') return;
+      if (!isHost(room, socket.id)) return;
 
-      const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
-      const allTeams = [...allHumanTeams, ...room.botTeams];
-
-      // Simulate bot vs bot fixtures of this round
-      room.leagueFixtures = room.leagueFixtures.map(f => {
-        if (f.round === room.leagueRound && !f.played) {
-          const isHomeBot = room.botTeams.some(t => t.id === f.homeTeamId);
-          const isAwayBot = room.botTeams.some(t => t.id === f.awayTeamId);
-          if (isHomeBot && isAwayBot) {
-            const home = allTeams.find(t => t.id === f.homeTeamId)!;
-            const away = allTeams.find(t => t.id === f.awayTeamId)!;
-            const result = simulateMatch(home, away);
-            return { ...f, played: true, result };
-          }
-        }
-        return f;
-      });
-
-      // Recalculate standings
-      room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
+      const roundFixtures = room.leagueFixtures.filter(f => f.round === room.leagueRound);
+      const allPlayed = roundFixtures.length > 0 && roundFixtures.every(f => f.played);
+      if (!allPlayed) return;
 
       if (room.leagueRound < 8) {
         room.leagueRound += 1;
       } else {
-        // End of league phase! Advance to Knockout!
+        // End of league phase! Build the full UCL knockout bracket
+        // (play-offs → R16 → quarters → semis → final).
         room.phase = 'knockout';
-        
-        // Build Round of 8 (top 8 teams)
-        const top8 = room.leagueStandings.slice(0, 8);
-        const qfMatches = [];
-        for (let i = 0; i < 4; i++) {
-          const homeTeam = top8[i];
-          const awayTeam = top8[7 - i];
-          qfMatches.push({
-            id: `qf_${i}`,
-            homeTeamId: homeTeam.teamId,
-            awayTeamId: awayTeam.teamId,
-            played: false,
-          });
-        }
-
-        room.knockoutBracket = {
-          round16: [],
-          quarterFinals: qfMatches,
-          semiFinals: [],
-          final: null,
-          currentRound: 'quarters',
-        };
+        room.knockoutBracket = createKnockoutBracket(room.leagueStandings);
       }
 
       io.to(roomCode).emit("room_updated", room);
     });
 
-    // Knockout Match Finished
-    socket.on("submit_knockout_result", ({ roomCode, matchId, round, result }) => {
+    // ============================================================
+    // KNOCKOUT — server-authoritative, host-driven round progression
+    // ============================================================
+
+    // Host triggers the whole knockout round: the SERVER simulates every match
+    // of the active bracket round. The bracket does NOT progress yet so that
+    // each human can watch their tie before the next round is drawn.
+    socket.on("play_knockout_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
-      if (!room || !room.knockoutBracket) return;
-
-      const bracket = room.knockoutBracket;
-      let matchList: any[];
-
-      if (round === 'quarters') matchList = bracket.quarterFinals;
-      else if (round === 'semis') matchList = bracket.semiFinals;
-      else matchList = [bracket.final!];
-
-      const match = matchList.find(m => m.id === matchId);
-      if (!match) return;
-
-      // Update match result
-      match.result = result;
-      match.played = true;
-
-      // Save match results to aggregate stats
-      room.leagueResults.push(result);
+      if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
+      if (!isHost(room, socket.id)) return;
 
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
+      const resolve = (id: string) => allTeams.find(t => t.id === id);
 
-      // Auto-simulate any bot vs bot matches in the active bracket round
-      for (const m of matchList) {
-        if (!m.played) {
-          const isHomeBot = room.botTeams.some(t => t.id === m.homeTeamId);
-          const isAwayBot = room.botTeams.some(t => t.id === m.awayTeamId);
-          if (isHomeBot && isAwayBot) {
-            const home = allTeams.find(t => t.id === m.homeTeamId)!;
-            const away = allTeams.find(t => t.id === m.awayTeamId)!;
-            const res = simulateMatch(home, away, true, round === 'final');
-            m.result = res;
-            m.played = true;
-            room.leagueResults.push(res);
-          }
-        }
-      }
+      // Plays the current leg (ida or volta) of every tie in the active round.
+      // Knockout results live in the bracket only — they are NOT pushed into
+      // leagueResults (season stats read the legs directly from the bracket).
+      playActiveKnockoutLeg(room.knockoutBracket, resolve);
 
-      // Check if all matches in the active bracket round are played
-      const allPlayed = matchList.every(m => m.played);
-      if (allPlayed) {
-        const winners = matchList.map(m => m.result!.winner!);
+      io.to(roomCode).emit("room_updated", room);
+    });
 
-        if (round === 'quarters') {
-          bracket.semiFinals = [
-            { id: 'sf_0', homeTeamId: winners[0], awayTeamId: winners[1], played: false },
-            { id: 'sf_1', homeTeamId: winners[2], awayTeamId: winners[3], played: false },
-          ];
-          bracket.currentRound = 'semis';
-        } else if (round === 'semis') {
-          bracket.final = {
-            id: 'final',
-            homeTeamId: winners[0],
-            awayTeamId: winners[1],
-            played: false,
-          };
-          bracket.currentRound = 'final';
-        } else if (round === 'final') {
-          room.champion = result.winner!;
-          room.phase = 'report';
-        }
+    // Host advances the bracket — only once the active round has been played.
+    socket.on("advance_knockout_round", ({ roomCode }) => {
+      const room = rooms.get(roomCode);
+      if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
+      if (!isHost(room, socket.id)) return;
+
+      const champion = advanceKnockoutBracket(room.knockoutBracket);
+      if (champion) {
+        room.champion = champion;
+        room.phase = 'report';
       }
 
       io.to(roomCode).emit("room_updated", room);

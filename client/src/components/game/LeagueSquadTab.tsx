@@ -5,6 +5,7 @@ import { FORMATIONS, HISTORICAL_TRIOS, getRarityColor } from '../../lib/gameData
 import { calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer } from '../../lib/gameEngine';
 import FormationField from './FormationField';
 import PlayerCard, { SOFIFA_MAPPING } from './PlayerCard';
+import RolesSelector from './RolesSelector';
 
 const POS_PT: Record<string, string> = {
   GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
@@ -14,11 +15,20 @@ const POS_PT: Record<string, string> = {
 };
 
 export default function LeagueSquadTab() {
-  const { state, dispatch } = useGame();
+  const { state, dispatch, setMatchRolesOnline } = useGame();
   const team = state.playerTeam;
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   if (!team) return null;
+
+  const handleSetCaptain = (id: string) => {
+    if (state.mode === 'online') setMatchRolesOnline(id, team.penaltyTaker ?? null);
+    else dispatch({ type: 'SET_PLAYER_TEAM_CAPTAIN', playerId: id });
+  };
+  const handleSetPenaltyTaker = (id: string) => {
+    if (state.mode === 'online') setMatchRolesOnline(team.captain ?? null, id);
+    else dispatch({ type: 'SET_PLAYER_TEAM_PENALTY_TAKER', playerId: id });
+  };
 
   const formation = FORMATIONS.find(f => f.id === team.formationId);
   const starters = team.players;
@@ -69,6 +79,15 @@ export default function LeagueSquadTab() {
           </div>
         )}
       </div>
+
+      {/* Captain & penalty taker */}
+      <RolesSelector
+        players={starters.slice(0, 11)}
+        captainId={team.captain}
+        penaltyTakerId={team.penaltyTaker}
+        onSetCaptain={handleSetCaptain}
+        onSetPenaltyTaker={handleSetPenaltyTaker}
+      />
 
       <p className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
         Clique em um jogador para trocar posições e ver buffs ativos do treinador.

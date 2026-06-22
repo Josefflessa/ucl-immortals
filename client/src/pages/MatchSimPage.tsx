@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import {
   Team, MatchResult, MatchEvent, simulateMatch,
   getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
-  PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister
+  PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
+  getPenaltyTaker, getPenaltyOrder
 } from '../lib/gameEngine';
 import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
 import PlayerCard from '../components/game/PlayerCard';
@@ -24,8 +25,6 @@ export default function MatchSimPage() {
   const {
     state,
     dispatch,
-    submitMatchResultOnline,
-    submitKnockoutResultOnline,
   } = useGame();
   const { currentMatchTeams, activeKnockoutMatch } = state;
 
@@ -35,10 +34,25 @@ export default function MatchSimPage() {
   const playerTeamId = state.playerTeam?.id;
   const isPlayerHome = initialHome.id === playerTeamId;
 
-  // In multiplayer, EVERY player simulates their own match independently.
-  // There is no spectator mode — each person runs their own fixture.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // REPLAY MODE: when a pre-computed authoritative result is set, we do NOT
+  // simulate locally — we replay its event timeline so the final score and stats
+  // are identical on every device. Used by ONLINE matches and by ALL knockout
+  // ties (online + solo, since two-legged aggregate ties are engine-decided).
+  const replayResult = state.currentMatchResult;
+  const isReplay = !!replayResult;
+
+  // Two-legged context (for the aggregate banner during a second leg).
+  const legNumber = activeKnockoutMatch?.leg;
+  const firstLeg = activeKnockoutMatch?.firstLeg;
+
+  // Local-sim control flag (kept for compatibility): always true now, except we
+  // gate the local simulation clock off entirely while replaying.
   const isSimulatorHost = true;
+
+  // Online = "broadcast ao vivo": runs at a single fixed pace for everyone, no
+  // pause / speed / skip controls (keeps every screen synchronized & spoiler-free).
+  // Solo keeps the full manual controls.
+  const broadcastMode = state.mode === 'online';
 
   const isKnockout = !!activeKnockoutMatch;
   const isFinal = activeKnockoutMatch?.round === 'final';
@@ -61,6 +75,10 @@ export default function MatchSimPage() {
 
   // Dynamic player ratings and match statistics: single source of truth
   const [playerMatchStats, setPlayerMatchStats] = useState<Record<string, PlayerMatchStat>>(() => {
+    // In replay mode, show the authoritative final ratings from the server result.
+    if (isReplay && replayResult?.playerStats) {
+      return { ...replayResult.playerStats };
+    }
     const initial: Record<string, PlayerMatchStat> = {};
     const initStatsForTeam = (team: Team) => {
       team.players.slice(0, 11).forEach(p => {
@@ -169,6 +187,7 @@ export default function MatchSimPage() {
 
   // Time tick speed
   const getTickDuration = () => {
+    if (broadcastMode) return 450; // fixed live-broadcast pace online (same for all)
     if (speed === 1) return 1000;
     if (speed === 2) return 450;
     return 130;
@@ -314,8 +333,7 @@ export default function MatchSimPage() {
         momentumShift = homeAttacks ? 20 : -20;
         messageStage3 = `⚽ GOLAÇO DO ${attackTeam.name.toUpperCase()}! Que míssil na gaveta!`;
       } else if (randLuck < 0.86) {
-        const takers = attackTeam.players.slice(0, 11);
-        const taker = takers.find(p => p.id === attackTeam.penaltyTaker) || takers[0];
+        const taker = getPenaltyTaker(attackTeam);
         const isPenaltyGoal = Math.random() < 0.76;
         if (isPenaltyGoal) {
           isGoal = true;
@@ -582,8 +600,9 @@ export default function MatchSimPage() {
     };
   };
 
-  // 3. Clock tick runner
+  // 3. Clock tick runner (LOCAL simulation — disabled while replaying a server result)
   useEffect(() => {
+    if (isReplay) return;
     if (state.mode === 'online' && !isSimulatorHost) return;
     if (!isPlaying || isFinished || dangerState || penaltyMode) return;
 
@@ -747,8 +766,9 @@ export default function MatchSimPage() {
     return () => clearInterval(interval);
   }, [isPlaying, isFinished, speed, minute, momentum, homeTeam, awayTeam, dangerState, penaltyMode]);
 
-  // 4. Suspense / Danger sequence state runner
+  // 4. Suspense / Danger sequence state runner (local sim only)
   useEffect(() => {
+    if (isReplay) return;
     if (state.mode === 'online' && !isSimulatorHost) return;
     if (!dangerState) return;
 
@@ -824,6 +844,81 @@ export default function MatchSimPage() {
     }
   }, [dangerState]);
 
+  // 4b. REPLAY clock — steps through the server's authoritative event timeline.
+  // Reveals each event at its minute and rebuilds the score from goal events, so
+  // the replay ends exactly on the server's score on every device.
+  useEffect(() => {
+    if (!isReplay || !replayResult) return;
+    if (!isPlaying || isFinished || penaltyMode || goalAlert) return;
+
+    // The result carries its own duration (90 or 120) — a first leg never goes to
+    // extra time; a second leg / single tie may. Penalties are signalled by the
+    // result's penaltyWinner, decided on aggregate by the engine.
+    const finalMin = replayResult.durationMinutes ?? (isKnockout ? 120 : 90);
+
+    const timer = setTimeout(() => {
+      const nextMin = minute + 1;
+
+      if (nextMin > finalMin) {
+        // Regular / extra time finished.
+        if (replayResult.penaltyWinner) {
+          // Reveal the already-decided shootout result (non-interactive).
+          setPenaltyWinner(replayResult.penaltyWinner);
+          setPenaltyHomeScore(replayResult.homePenalties ?? 0);
+          setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+          setPenaltyMode(true);
+          setIsPlaying(false);
+        } else {
+          setIsFinished(true);
+          setIsPlaying(false);
+        }
+        setMinute(finalMin);
+        return;
+      }
+
+      setMinute(nextMin);
+
+      const evs = replayResult.events.filter(e => e.minute === nextMin);
+      if (evs.length > 0) {
+        setEvents(prev => [...prev, ...evs]);
+
+        let homeDelta = 0;
+        let awayDelta = 0;
+        for (const e of evs) {
+          if (e.type === 'goal') {
+            if (e.teamId === replayResult.homeTeamId) homeDelta++;
+            else if (e.teamId === replayResult.awayTeamId) awayDelta++;
+          }
+        }
+        if (homeDelta) setHomeScore(s => s + homeDelta);
+        if (awayDelta) setAwayScore(s => s + awayDelta);
+
+        const lastGoal = [...evs].reverse().find(e => e.type === 'goal');
+        if (lastGoal) {
+          const scoringTeam = lastGoal.teamId === homeTeam.id ? homeTeam : awayTeam;
+          const scorerName = lastGoal.playerId
+            ? (scoringTeam.players.find(p => p.id === lastGoal.playerId)?.shortName
+                ?? (lastGoal.description.includes('Contra') ? 'Gol Contra' : 'Gol'))
+            : (lastGoal.description.includes('Contra') ? 'Gol Contra' : 'Gol');
+          setGoalAlert({ teamName: scoringTeam.name, scorer: scorerName });
+          setTimeout(() => setGoalAlert(null), 2500);
+          setMomentum(m => {
+            const shift = lastGoal.teamId === homeTeam.id ? 22 : -22;
+            const next = Math.min(100, Math.max(0, m + shift));
+            setMomentumHistory(h => [...h, next]);
+            return next;
+          });
+        } else {
+          setMomentumHistory(h => [...h, momentum]);
+        }
+      } else {
+        setMomentumHistory(h => [...h, momentum]);
+      }
+    }, getTickDuration());
+
+    return () => clearTimeout(timer);
+  }, [isReplay, replayResult, isPlaying, isFinished, penaltyMode, goalAlert, minute, speed, isKnockout, homeTeam, awayTeam, momentum]);
+
   // Scroll live events feed to bottom automatically
   useEffect(() => {
     if (eventFeedRef.current) {
@@ -839,8 +934,9 @@ export default function MatchSimPage() {
     const attackTeam = isHomeTurn ? homeTeam : awayTeam;
     const defendTeam = isHomeTurn ? awayTeam : homeTeam;
 
+    const order = getPenaltyOrder(attackTeam);
     const takerIdx = Math.floor(currentKick / 2);
-    const taker = attackTeam.players[takerIdx % attackTeam.players.length];
+    const taker = order[takerIdx % order.length];
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
 
     const composure = taker.composure +
@@ -932,6 +1028,28 @@ export default function MatchSimPage() {
   };
 
   const handleSkip = () => {
+    // REPLAY: jump straight to the authoritative final state.
+    if (isReplay && replayResult) {
+      setMinute(replayResult.durationMinutes ?? (isKnockout ? 120 : 90));
+      setEvents(replayResult.events);
+      setHomeScore(replayResult.homeGoals);
+      setAwayScore(replayResult.awayGoals);
+      setStats(replayResult.stats);
+      if (replayResult.playerStats) setPlayerMatchStats(replayResult.playerStats);
+      setGoalAlert(null);
+      if (replayResult.penaltyWinner) {
+        setPenaltyWinner(replayResult.penaltyWinner);
+        setPenaltyHomeScore(replayResult.homePenalties ?? 0);
+        setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+        setPenaltyMode(true);
+        setIsPlaying(false);
+      } else {
+        setIsFinished(true);
+        setIsPlaying(false);
+      }
+      return;
+    }
+
     // Generate organic outcome for remaining minutes using the actual engine logic!
     const result = simulateRemainingMatch(
       homeTeam,
@@ -1036,21 +1154,13 @@ export default function MatchSimPage() {
       playerStats: updatedStats,
     };
 
-    if (state.mode === 'online') {
-      // Each player submits their own match result to the server
-      if (activeKnockoutMatch) {
-        submitKnockoutResultOnline(activeKnockoutMatch.matchId, activeKnockoutMatch.round, finalResult);
-        dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
-      } else {
-        submitMatchResultOnline(finalResult);
-        dispatch({ type: 'FINISH_LEAGUE_MATCH', result: finalResult });
-      }
+    // Online results are authoritative on the server already (this screen is a
+    // replay), so we just return to the league/knockout view. Solo computes
+    // the result locally as before.
+    if (activeKnockoutMatch) {
+      dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
     } else {
-      if (activeKnockoutMatch) {
-        dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
-      } else {
-        dispatch({ type: 'FINISH_LEAGUE_MATCH', result: finalResult });
-      }
+      dispatch({ type: 'FINISH_LEAGUE_MATCH', result: finalResult });
     }
   };
 
@@ -1086,7 +1196,87 @@ export default function MatchSimPage() {
     };
   };
 
-  const currentStats = getProgressiveStats();
+  // REPLAY: rebuild live player ratings + team stats progressively from the
+  // events revealed so far, so they build up in real time instead of appearing
+  // final from the kickoff. Deterministic (same events => same numbers on every
+  // device), and we snap to the authoritative result at the final whistle.
+  const replayProgress = useMemo(() => {
+    if (!isReplay || !replayResult) return null;
+
+    const ps: Record<string, PlayerMatchStat> = {};
+    const initTeam = (team: Team) => {
+      team.players.slice(0, 11).forEach(p => {
+        ps[p.id] = {
+          playerId: p.id, playerName: p.shortName, teamId: team.id, rating: 6.0,
+          goals: 0, assists: 0, shots: 0, tackles: 0, saves: 0, fouls: 0, yellowCards: 0, redCards: 0,
+        };
+      });
+    };
+    initTeam(homeTeam);
+    initTeam(awayTeam);
+
+    const panel = {
+      homePos: 50, awayPos: 50, homeShots: 0, awayShots: 0,
+      homeShotsOnTarget: 0, awayShotsOnTarget: 0, homeFouls: 0, awayFouls: 0,
+      homeSaves: 0, awaySaves: 0, homeCorners: 0, awayCorners: 0,
+    };
+
+    const homeId = replayResult.homeTeamId;
+    for (const e of events) {
+      const isHome = e.teamId === homeId;
+      if (e.type === 'goal') {
+        if (e.playerId && ps[e.playerId]) { ps[e.playerId].goals++; ps[e.playerId].rating += 1.4; }
+        if (e.assisterId && ps[e.assisterId]) { ps[e.assisterId].assists++; ps[e.assisterId].rating += 0.8; }
+        if (e.opponentId && ps[e.opponentId]) ps[e.opponentId].rating -= 0.4;
+        if (isHome) { panel.homeShots++; panel.homeShotsOnTarget++; } else { panel.awayShots++; panel.awayShotsOnTarget++; }
+      } else if (e.type === 'save') {
+        if (e.playerId && ps[e.playerId]) { ps[e.playerId].saves++; ps[e.playerId].rating += 0.4; }
+        if (e.opponentId && ps[e.opponentId]) ps[e.opponentId].rating -= 0.1;
+        // the shot belongs to the attacking (other) team
+        if (isHome) { panel.homeSaves++; panel.awayShots++; panel.awayShotsOnTarget++; }
+        else { panel.awaySaves++; panel.homeShots++; panel.homeShotsOnTarget++; }
+        if (e.description?.includes('Escanteio')) { if (isHome) panel.awayCorners++; else panel.homeCorners++; }
+      } else if (e.type === 'miss') {
+        if (e.playerId && ps[e.playerId]) { ps[e.playerId].shots++; ps[e.playerId].rating -= 0.15; }
+        if (isHome) panel.homeShots++; else panel.awayShots++;
+      } else if (e.type === 'duel') {
+        if (e.playerId && ps[e.playerId]) { ps[e.playerId].tackles++; ps[e.playerId].rating += 0.35; }
+        if (e.opponentId && ps[e.opponentId]) ps[e.opponentId].rating -= 0.15;
+      } else if (e.type === 'yellow') {
+        if (e.playerId && ps[e.playerId]) { ps[e.playerId].yellowCards++; ps[e.playerId].rating -= 0.5; ps[e.playerId].fouls++; }
+        if (isHome) panel.homeFouls++; else panel.awayFouls++;
+      } else if (e.type === 'foul') {
+        if (e.playerId && ps[e.playerId]) { ps[e.playerId].fouls++; ps[e.playerId].rating -= 0.1; }
+        if (isHome) panel.homeFouls++; else panel.awayFouls++;
+      }
+    }
+
+    Object.values(ps).forEach(s => {
+      s.rating = parseFloat(Math.min(10, Math.max(3, s.rating)).toFixed(1));
+    });
+
+    const totalShots = panel.homeShots + panel.awayShots;
+    panel.homePos = totalShots > 0
+      ? Math.min(70, Math.max(30, Math.round(50 + ((panel.homeShots - panel.awayShots) / totalShots) * 18)))
+      : 50;
+    panel.awayPos = 100 - panel.homePos;
+
+    return { ps, panel };
+  }, [isReplay, replayResult, events, homeTeam, awayTeam]);
+
+  // During a replay the panel/ratings build up live; at the whistle we use the
+  // authoritative server values (already stored in playerMatchStats for replays).
+  const currentStats = isReplay
+    ? (isFinished || penaltyMode ? (replayResult?.stats ?? getProgressiveStats()) : (replayProgress?.panel ?? replayResult?.stats ?? getProgressiveStats()))
+    : getProgressiveStats();
+
+  const getDisplayRating = (playerId: string): number => {
+    if (isReplay && !isFinished && !penaltyMode && replayProgress) {
+      return replayProgress.ps[playerId]?.rating ?? 6.0;
+    }
+    return playerMatchStats[playerId]?.rating ?? 6.0;
+  };
+
   const latestEvent = events[events.length - 1];
 
   // Helper to format events icons
@@ -1300,6 +1490,24 @@ export default function MatchSimPage() {
           );
         })()}
       </div>
+
+      {/* ── 2b. SECOND-LEG AGGREGATE BANNER ── */}
+      {legNumber === 2 && firstLeg && (
+        <div className="flex-shrink-0 border-b px-3 sm:px-6 py-1.5 flex items-center justify-center gap-3 relative z-10" style={{ background: '#0d0d18', borderColor: '#1a1a2e' }}>
+          <span className="text-[9px] sm:text-[10px] font-black tracking-widest" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
+            JOGO DE VOLTA
+          </span>
+          <span className="text-[10px] sm:text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+            AGREGADO:
+          </span>
+          <span className="text-sm sm:text-base font-black tabular-nums" style={{ color: '#C9A84C', fontFamily: 'Bebas Neue, sans-serif' }}>
+            {homeTeam.name.split(' ')[0].toUpperCase()} {homeScore + firstLeg.home} - {awayScore + firstLeg.away} {awayTeam.name.split(' ')[0].toUpperCase()}
+          </span>
+          <span className="hidden sm:inline text-[9px] text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            (1ª mão {firstLeg.home}-{firstLeg.away})
+          </span>
+        </div>
+      )}
 
       {/* ── 3. MAIN SIMULATION INTERFACE ── */}
       <div className="flex-1 min-h-0 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden relative z-10">
@@ -1564,7 +1772,7 @@ export default function MatchSimPage() {
 
               <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
                 {(squadModal === 'mine' ? myTeam : oppTeam).players.map(p =>
-                  renderSquadRow(p, playerMatchStats[p.id]?.rating ?? 6.0)
+                  renderSquadRow(p, getDisplayRating(p.id))
                 )}
               </div>
             </motion.div>
@@ -1668,7 +1876,17 @@ export default function MatchSimPage() {
       {/* ── 6. FOOTER CONTROL CENTER ── */}
       <div className="py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-2 sm:gap-4 z-10 flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
         
-        {/* Speed selectors and Simulation control */}
+        {/* Speed selectors and Simulation control — hidden in online broadcast mode */}
+        {broadcastMode ? (
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
+            {!isFinished && (
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                <span style={{ fontFamily: 'Rajdhani, sans-serif', fontWeight: 800, letterSpacing: '0.18em', color: '#ff6b6b', fontSize: 13 }}>AO VIVO</span>
+              </span>
+            )}
+          </div>
+        ) : (
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-start">
           <button
             onClick={() => setIsPlaying(!isPlaying)}
@@ -1704,10 +1922,11 @@ export default function MatchSimPage() {
             ))}
           </div>
         </div>
+        )}
 
         {/* Skip & Conclude Match Actions */}
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-end">
-          {!isFinished && !penaltyMode && (state.mode !== 'online' || isSimulatorHost) && (
+          {!isFinished && !penaltyMode && !broadcastMode && (
             <button
               onClick={handleSkip}
               className="px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm tracking-wider border transition-all"
@@ -1725,7 +1944,7 @@ export default function MatchSimPage() {
           {isFinished ? (
             <button
               onClick={handleFinish}
-              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-black text-base sm:text-lg tracking-widest cursor-pointer shadow-lg animate-bounce"
+              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-black text-base sm:text-lg tracking-widest cursor-pointer shadow-lg transition-transform hover:scale-[1.03]"
               style={{
                 fontFamily: 'Bebas Neue, sans-serif',
                 background: 'linear-gradient(135deg, #c9a84c, #e8c84a)',

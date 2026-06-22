@@ -12,6 +12,8 @@ import {
   calculateChemistry, generateDraftOptions, getNeededPositions,
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
   LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
+  getAllPlayedMatchResults, createKnockoutBracket,
+  advanceKnockoutBracket, playActiveKnockoutLeg,
 } from '../lib/gameEngine';
 
 // ============================================================
@@ -60,9 +62,11 @@ export interface GameState {
   leagueRound: number;
   leagueFixtures: LeagueFixture[];
   knockoutBracket: KnockoutBracket | null;
-  activeKnockoutMatch: { matchId: string; round: string } | null;
+  activeKnockoutMatch: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } } | null;
   currentMatch: MatchResult | null;
   currentMatchTeams: [Team, Team] | null;
+  // Online: authoritative result (from server) being watched as a replay
+  currentMatchResult: MatchResult | null;
   report: ImmortalReport | null;
   champion: string | null;
   draftedPlayers: (Player | undefined)[];
@@ -81,22 +85,32 @@ export interface GameState {
   draftTurnIndex: number;
   draftHistory: any[];
   alreadyDraftedIds: string[];
+  // Online sync: which league round / knockout matches the local player has
+  // already watched, so we only auto-open each replay once.
+  lastWatchedRound: number;
+  watchedKnockoutMatches: string[];
 }
 
 export interface KnockoutBracket {
+  playoffs: KnockoutMatch[];
   round16: KnockoutMatch[];
   quarterFinals: KnockoutMatch[];
   semiFinals: KnockoutMatch[];
   final: KnockoutMatch | null;
-  currentRound: 'round16' | 'quarters' | 'semis' | 'final';
+  currentRound: 'playoffs' | 'round16' | 'quarters' | 'semis' | 'final';
+  currentLeg: number; // 1 = ida, 2 = volta
 }
 
 export interface KnockoutMatch {
   id: string;
   homeTeamId: string;
   awayTeamId: string;
-  result?: MatchResult;
+  result?: MatchResult;   // two-legged: aggregate (winner/aggregate score); single: the match
+  leg1?: MatchResult;     // first leg (two-legged ties)
+  leg2?: MatchResult;     // second leg (two-legged ties)
+  isSingleLeg?: boolean;  // the grand final is a single match
   played: boolean;
+  awayFromPo?: number;    // R16 only: index into playoffs whose winner fills awayTeamId
 }
 
 // ============================================================
@@ -125,9 +139,11 @@ type GameAction =
   | { type: 'FINISH_LEAGUE_MATCH'; result: MatchResult }
   | { type: 'SIMULATE_BOT_MATCHES' }
   | { type: 'ADVANCE_LEAGUE_ROUND' }
-  | { type: 'PLAY_KNOCKOUT_MATCH'; matchId: string; round: string }
+  | { type: 'PLAY_KNOCKOUT_LEG' }
+  | { type: 'ADVANCE_KNOCKOUT' }
   | { type: 'FINISH_KNOCKOUT_MATCH'; result: MatchResult }
   | { type: 'SET_CURRENT_MATCH'; result: MatchResult; teams: [Team, Team] }
+  | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } } }
   | { type: 'CLEAR_CURRENT_MATCH' }
   | { type: 'FINISH_GAME'; champion: string }
   | { type: 'RESET_GAME' }
@@ -153,6 +169,7 @@ const initialState: GameState = {
   activeKnockoutMatch: null,
   currentMatch: null,
   currentMatchTeams: null,
+  currentMatchResult: null,
   report: null,
   champion: null,
   draftedPlayers: [],
@@ -171,6 +188,8 @@ const initialState: GameState = {
   draftTurnIndex: 0,
   draftHistory: [],
   alreadyDraftedIds: [],
+  lastWatchedRound: 0,
+  watchedKnockoutMatches: [],
 };
 
 // ============================================================
@@ -500,13 +519,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'FINISH_LEAGUE_MATCH': {
-      // In online mode the server updates fixtures/standings — just clear the local match state
+      // In online mode the server updates fixtures/standings — just clear the local
+      // match state and mark this round's replay as watched.
       if (state.mode === 'online') {
+        // The round was already marked watched when the replay opened.
         return {
           ...state,
           phase: 'league',
           currentMatch: null,
           currentMatchTeams: null,
+          currentMatchResult: null,
         };
       }
 
@@ -579,227 +601,84 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'START_KNOCKOUT': {
       if (!state.playerTeam) return state;
-      const top8 = state.leagueStandings.slice(0, 8);
-      const allTeams = [state.playerTeam, ...state.botTeams];
-
-      // Build round of 16 (top 8 vs positions 9-16)
-      const qfMatches: KnockoutMatch[] = [];
-      for (let i = 0; i < 4; i++) {
-        const homeTeam = top8[i];
-        const awayTeam = top8[7 - i];
-        qfMatches.push({
-          id: `qf_${i}`,
-          homeTeamId: homeTeam.teamId,
-          awayTeamId: awayTeam.teamId,
-          played: false,
-        });
-      }
-
-      const bracket: KnockoutBracket = {
-        round16: [],
-        quarterFinals: qfMatches,
-        semiFinals: [],
-        final: null,
-        currentRound: 'quarters',
-      };
-
+      // Full UCL knockout: play-offs (9–24) → R16 (incl. top 8) → QF → SF → Final.
+      const bracket = createKnockoutBracket(state.leagueStandings) as KnockoutBracket;
       return { ...state, knockoutBracket: bracket, phase: 'knockout' };
     }
 
-    case 'PLAY_KNOCKOUT_MATCH': {
-      if (!state.knockoutBracket) return state;
+    case 'PLAY_KNOCKOUT_LEG': {
+      // Solo: simulate the current leg (ida/volta) of every tie in the active
+      // round on the server-equivalent engine. The player then watches their own
+      // tie as a synchronized replay (KnockoutPage auto-opens it).
+      if (!state.knockoutBracket || !state.playerTeam) return state;
+      const allTeams = [state.playerTeam, ...state.botTeams];
+      const bracket: KnockoutBracket = JSON.parse(JSON.stringify(state.knockoutBracket));
+      playActiveKnockoutLeg(bracket as any, (id: string) => allTeams.find(t => t.id === id));
+      return { ...state, knockoutBracket: bracket };
+    }
 
-      // In online mode, resolve teams from onlinePlayers; in solo from playerTeam + botTeams
-      let allTeams: Team[];
-      if (state.mode === 'online') {
-        const allHumanTeams = state.onlinePlayers.filter(p => p.team).map(p => p.team!);
-        allTeams = [...allHumanTeams, ...state.botTeams];
-      } else {
-        if (!state.playerTeam) return state;
-        allTeams = [state.playerTeam, ...state.botTeams];
+    case 'ADVANCE_KNOCKOUT': {
+      // Solo: advance the bracket once the active round is fully decided.
+      if (!state.knockoutBracket || !state.playerTeam) return state;
+      const allTeams = [state.playerTeam, ...state.botTeams];
+      const bracket: KnockoutBracket = JSON.parse(JSON.stringify(state.knockoutBracket));
+      const champion = advanceKnockoutBracket(bracket as any);
+      if (champion) {
+        const championTeam = allTeams.find(t => t.id === champion);
+        const report = generateImmortalReport(
+          state.playerTeam!,
+          getAllPlayedMatchResults(state.leagueResults, bracket),
+          championTeam?.name ?? 'Campeão'
+        );
+        return { ...state, knockoutBracket: bracket, champion, report, phase: 'report' };
       }
-
-      const bracket = { ...state.knockoutBracket };
-      let matchList: KnockoutMatch[];
-
-      if (action.round === 'quarters') matchList = bracket.quarterFinals;
-      else if (action.round === 'semis') matchList = bracket.semiFinals;
-      else matchList = [bracket.final!];
-
-      const match = matchList.find(m => m.id === action.matchId);
-      if (!match) return state;
-
-      const homeTeam = allTeams.find(t => t.id === match.homeTeamId);
-      const awayTeam = allTeams.find(t => t.id === match.awayTeamId);
-      if (!homeTeam || !awayTeam) return state;
-
-      // Determine if this is a human player's match
-      const humanTeamIds = state.mode === 'online'
-        ? state.onlinePlayers.map(p => p.id)
-        : ['player_team'];
-      const isPlayerMatch =
-        humanTeamIds.includes(match.homeTeamId) || humanTeamIds.includes(match.awayTeamId);
-
-      if (isPlayerMatch) {
-        // Player match -> Go to match simulation screen!
-        return {
-          ...state,
-          phase: 'match_sim',
-          activeKnockoutMatch: { matchId: action.matchId, round: action.round },
-          currentMatch: null,
-          currentMatchTeams: [homeTeam, awayTeam],
-        };
-      }
-
-      // Bot match -> Simulate instantly
-      const isFinal = action.round === 'final';
-      const result = simulateMatch(homeTeam, awayTeam, true, isFinal);
-      match.result = result;
-      match.played = true;
-
-      // Check if all matches in round are played
-      const allPlayed = matchList.every(m => m.played);
-      if (allPlayed) {
-        const winners = matchList.map(m => m.result!.winner!);
-
-        if (action.round === 'quarters') {
-          const sfMatches: KnockoutMatch[] = [
-            { id: 'sf_0', homeTeamId: winners[0], awayTeamId: winners[1], played: false },
-            { id: 'sf_1', homeTeamId: winners[2], awayTeamId: winners[3], played: false },
-          ];
-          bracket.semiFinals = sfMatches;
-          bracket.currentRound = 'semis';
-        } else if (action.round === 'semis') {
-          bracket.final = {
-            id: 'final',
-            homeTeamId: winners[0],
-            awayTeamId: winners[1],
-            played: false,
-          };
-          bracket.currentRound = 'final';
-        } else if (action.round === 'final') {
-          const champion = result.winner!;
-          const championTeam = allTeams.find(t => t.id === champion);
-          const report = generateImmortalReport(
-            state.playerTeam!,
-            [...state.leagueResults, result],
-            championTeam?.name ?? 'Campeão'
-          );
-          return {
-            ...state,
-            knockoutBracket: bracket,
-            champion,
-            report,
-            phase: 'report',
-          };
-        }
-      }
-
-      return {
-        ...state,
-        knockoutBracket: bracket,
-        currentMatch: result,
-        currentMatchTeams: [homeTeam, awayTeam],
-      };
+      return { ...state, knockoutBracket: bracket };
     }
 
     case 'FINISH_KNOCKOUT_MATCH': {
-      // In online mode the server handles bracket progression — just clear match state
-      if (state.mode === 'online') {
-        return {
-          ...state,
-          phase: 'knockout',
-          activeKnockoutMatch: null,
-          currentMatch: null,
-          currentMatchTeams: null,
-        };
-      }
-
-      if (!state.knockoutBracket || !state.playerTeam || !state.activeKnockoutMatch) return state;
-      const allTeams = [state.playerTeam, ...state.botTeams];
-      const { matchId, round } = state.activeKnockoutMatch;
-
-      const bracket = { ...state.knockoutBracket };
-      let matchList: KnockoutMatch[];
-
-      if (round === 'quarters') matchList = bracket.quarterFinals;
-      else if (round === 'semis') matchList = bracket.semiFinals;
-      else matchList = [bracket.final!];
-
-      const match = matchList.find(m => m.id === matchId);
-      if (!match) return state;
-
-      const result = action.result;
-      match.result = result;
-      match.played = true;
-
-      // Automatically simulate any other unplayed matches in the round (e.g. bots)
-      for (const m of matchList) {
-        if (!m.played) {
-          const home = allTeams.find(t => t.id === m.homeTeamId)!;
-          const away = allTeams.find(t => t.id === m.awayTeamId)!;
-          const res = simulateMatch(home, away, true, round === 'final');
-          m.result = res;
-          m.played = true;
-        }
-      }
-
-      // Check if all matches in round are played
-      const allPlayed = matchList.every(m => m.played);
-      if (allPlayed) {
-        const winners = matchList.map(m => m.result!.winner!);
-
-        if (round === 'quarters') {
-          const sfMatches: KnockoutMatch[] = [
-            { id: 'sf_0', homeTeamId: winners[0], awayTeamId: winners[1], played: false },
-            { id: 'sf_1', homeTeamId: winners[2], awayTeamId: winners[3], played: false },
-          ];
-          bracket.semiFinals = sfMatches;
-          bracket.currentRound = 'semis';
-        } else if (round === 'semis') {
-          bracket.final = {
-            id: 'final',
-            homeTeamId: winners[0],
-            awayTeamId: winners[1],
-            played: false,
-          };
-          bracket.currentRound = 'final';
-        } else if (round === 'final') {
-          const champion = result.winner!;
-          const championTeam = allTeams.find(t => t.id === champion);
-          const report = generateImmortalReport(
-            state.playerTeam!,
-            [...state.leagueResults, result],
-            championTeam?.name ?? 'Campeão'
-          );
-          return {
-            ...state,
-            knockoutBracket: bracket,
-            champion,
-            report,
-            phase: 'report',
-            activeKnockoutMatch: null,
-            currentMatch: null,
-            currentMatchTeams: null,
-          };
-        }
-      }
-
+      // Both modes: the tie result is already computed by the engine and the
+      // bracket advances via ADVANCE_KNOCKOUT (solo) / the host (online). Watching
+      // a leg only returns to the bracket. The leg was marked watched on open.
       return {
         ...state,
         phase: 'knockout',
-        knockoutBracket: bracket,
         activeKnockoutMatch: null,
-        currentMatch: result,
+        currentMatch: null,
         currentMatchTeams: null,
+        currentMatchResult: null,
       };
     }
 
     case 'SET_CURRENT_MATCH':
       return { ...state, currentMatch: action.result, currentMatchTeams: action.teams };
 
+    case 'WATCH_ONLINE_MATCH': {
+      // Open the match-sim screen in replay mode, driven by the authoritative
+      // result already computed (identical on every device). Mark the round/leg as
+      // watched immediately so it only auto-opens once.
+      const watchKey = action.knockout
+        ? (action.knockout.leg ? `${action.knockout.matchId}_l${action.knockout.leg}` : action.knockout.matchId)
+        : null;
+      return {
+        ...state,
+        phase: 'match_sim',
+        currentMatchTeams: action.teams,
+        currentMatchResult: action.result,
+        currentMatch: null,
+        activeKnockoutMatch: action.knockout
+          ? { matchId: action.knockout.matchId, round: action.knockout.round, leg: action.knockout.leg, firstLeg: action.knockout.firstLeg }
+          : null,
+        lastWatchedRound: action.knockout
+          ? state.lastWatchedRound
+          : Math.max(state.lastWatchedRound, state.leagueRound),
+        watchedKnockoutMatches: watchKey && !state.watchedKnockoutMatches.includes(watchKey)
+          ? [...state.watchedKnockoutMatches, watchKey]
+          : state.watchedKnockoutMatches,
+      };
+    }
+
     case 'CLEAR_CURRENT_MATCH':
-      return { ...state, currentMatch: null, currentMatchTeams: null };
+      return { ...state, currentMatch: null, currentMatchTeams: null, currentMatchResult: null };
 
     case 'FINISH_GAME':
       return { ...state, champion: action.champion, phase: 'report' };
@@ -878,8 +757,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               const allHumanTeams = (roomState.players || []).filter((p: any) => p.team).map((p: any) => p.team);
               const allTeamsList = [...allHumanTeams, ...(roomState.botTeams || [])];
               const championTeam = allTeamsList.find((t: any) => t.id === roomState.champion);
+              // Aggregate every played match (league + knockout) for accurate stats.
+              const allResults = getAllPlayedMatchResults(roomState.leagueResults || [], roomState.knockoutBracket || null);
               return myTeam
-                ? generateImmortalReport(myTeam, roomState.leagueResults || [], championTeam?.name ?? 'Campeão')
+                ? generateImmortalReport(myTeam, allResults, championTeam?.name ?? 'Campeão')
                 : state.report;
             })()
           : state.report,
@@ -929,15 +810,15 @@ interface GameContextType {
   draftPickOnline: (playerId: string) => void;
   draftVetoOnline: () => void;
   submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[]) => void;
+  setMatchRolesOnline: (captain: string | null, penaltyTaker: string | null) => void;
+  // League — host only
+  playRoundOnline: () => void;
   advanceRoundOnline: () => void;
-  submitMatchResultOnline: (result: MatchResult) => void;
-  submitKnockoutResultOnline: (matchId: string, round: string, result: MatchResult) => void;
+  // Knockout — host only
+  playKnockoutRoundOnline: () => void;
+  advanceKnockoutRoundOnline: () => void;
   restartRoomOnline: () => void;
   disconnectOnline: () => void;
-  
-  // Real-time match sim syncing helpers
-  streamMatchEvent: (eventType: string, data: any) => void;
-  onMatchEventReceived: (handler: (payload: { eventType: string, data: any }) => void) => () => void;
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -1060,21 +941,33 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.roomCode]);
 
+  const setMatchRolesOnline = useCallback((captain: string | null, penaltyTaker: string | null) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker });
+    }
+  }, [state.roomCode]);
+
+  const playRoundOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("play_round", { roomCode: state.roomCode });
+    }
+  }, [state.roomCode]);
+
   const advanceRoundOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) {
       socketRef.current.emit("advance_round", { roomCode: state.roomCode });
     }
   }, [state.roomCode]);
 
-  const submitMatchResultOnline = useCallback((result: MatchResult) => {
+  const playKnockoutRoundOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("submit_match_result", { roomCode: state.roomCode, result });
+      socketRef.current.emit("play_knockout_round", { roomCode: state.roomCode });
     }
   }, [state.roomCode]);
 
-  const submitKnockoutResultOnline = useCallback((matchId: string, round: string, result: MatchResult) => {
+  const advanceKnockoutRoundOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("submit_knockout_result", { roomCode: state.roomCode, matchId, round, result });
+      socketRef.current.emit("advance_knockout_round", { roomCode: state.roomCode });
     }
   }, [state.roomCode]);
 
@@ -1092,26 +985,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("ucl_immortals_playerName");
     localStorage.removeItem("ucl_immortals_roomCode");
     dispatch({ type: 'DISCONNECT_ONLINE' });
-  }, []);
-
-  const streamMatchEvent = useCallback((eventType: string, data: any) => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("match_event_stream", { roomCode: state.roomCode, eventType, data });
-    }
-  }, [state.roomCode]);
-
-  const onMatchEventReceived = useCallback((handler: (payload: { eventType: string, data: any }) => void) => {
-    const s = socketRef.current;
-    if (!s) return () => {};
-
-    const wrapper = ({ eventType, data }: { eventType: string, data: any }) => {
-      handler({ eventType, data });
-    };
-
-    s.on("match_event_relayed", wrapper);
-    return () => {
-      s.off("match_event_relayed", wrapper);
-    };
   }, []);
 
   const getTeamById = useCallback((id: string) => {
@@ -1149,9 +1022,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     <GameContext.Provider value={{
       state, dispatch, getTeamById, getPlayerById, getCoachById, getFormationById,
       createRoom, joinRoom, setDifficultyOnline, startSetupOnline, submitSetupOnline,
-      draftPickOnline, draftVetoOnline, submitSquadReviewOnline, advanceRoundOnline,
-      submitMatchResultOnline, submitKnockoutResultOnline, restartRoomOnline, disconnectOnline,
-      streamMatchEvent, onMatchEventReceived
+      draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
+      playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
+      restartRoomOnline, disconnectOnline,
     }}>
       {children}
     </GameContext.Provider>

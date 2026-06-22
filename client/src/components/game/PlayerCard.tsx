@@ -146,7 +146,7 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   nistelrooy      : { id: 10264,  ver: 25 }, // ✅ FIXED — correto Ruud van Nistelrooy
   inzaghi         : { id: 238382, ver: 24 },
   owen            : { id: 5419,   ver: 22 }, // ✅ FIXED2 — correto Michael Owen
-  stoichkov       : { id: 239541, ver: 25 }, // ✅ FIXED2 — correto Hristo Stoichkov
+  stoichkov       : { id: 239541, ver: 23 }, // ✅ FIXED3 — ver25 era 404; ver23 carrega (rosto conferido)
   butragueno      : { id: 238419, ver: 24 },
   garrincha       : { id: 247553, ver: 22 }, // ✅ FIXED — correto Garrincha
   etoo            : { id: 9676,   ver: 24 }, // ✅ FIXED — correto Samuel Eto'o
@@ -206,7 +206,59 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   rafinha         : { id: 168607, ver: 19 },
   felipe_anderson : { id: 210008, ver: 20 },
   lucas_leiva     : { id: 176266, ver: 20 },
-  paulinho        : { id: 187961, ver: 19 }
+  paulinho        : { id: 187961, ver: 19 },
+  // ── NEW PLAYERS (all CDN-verified: curl 200 image/png, correct person) ──────
+  zidane          : { id: 1397,   ver: 26 }, // ✅ visual-verified (real Zidane face)
+  ronaldinho      : { id: 28130,  ver: 26 }, // ✅ visual-verified
+  figo            : { id: 5589,   ver: 26 }, // ✅ visual-verified
+  totti           : { id: 1238,   ver: 26 }, // ✅ visual-verified
+  delpiero        : { id: 1075,   ver: 24 }, // ✅ visual-verified
+  shevchenko      : { id: 13128,  ver: 26 }, // ✅ visual-verified
+  musiala         : { id: 256790, ver: 26 },
+  mane            : { id: 208722, ver: 26 },
+  coutinho        : { id: 189242, ver: 24 },
+  firmino         : { id: 201942, ver: 25 },
+  james           : { id: 198710, ver: 26 },
+  mahrez          : { id: 204485, ver: 26 },
+  mount           : { id: 233064, ver: 26 },
+  sterling        : { id: 202652, ver: 26 },
+  sancho          : { id: 233049, ver: 26 },
+  verratti        : { id: 199556, ver: 24 },
+  brozovic        : { id: 216352, ver: 26 },
+  eriksen         : { id: 190460, ver: 26 },
+  grealish        : { id: 206517, ver: 26 },
+  caballero       : { id: 139062, ver: 23 },
+  fabianski       : { id: 164835, ver: 26 },
+  foster          : { id: 163155, ver: 24 },
+  heurelho        : { id: 135451, ver: 20 },
+  mertesacker     : { id: 53612,  ver: 18 },
+  monreal         : { id: 177604, ver: 22 },
+  zabaleta        : { id: 142784, ver: 20 },
+  smalling        : { id: 189881, ver: 26 },
+  evans           : { id: 169588, ver: 25 },
+  young           : { id: 152908, ver: 26 },
+  clyne           : { id: 190456, ver: 26 },
+  mustafi         : { id: 192227, ver: 23 },
+  rojo            : { id: 201862, ver: 26 },
+  bailly          : { id: 225508, ver: 26 },
+  jones           : { id: 194957, ver: 23 },
+  chambers        : { id: 205989, ver: 26 },
+  holding         : { id: 228295, ver: 26 },
+  milner          : { id: 138412, ver: 26 },
+  henderson       : { id: 183711, ver: 26 },
+  matic           : { id: 191202, ver: 26 },
+  fellaini        : { id: 176944, ver: 24 },
+  gueye           : { id: 193474, ver: 26 },
+  ramsey          : { id: 186561, ver: 25 },
+  elneny          : { id: 211454, ver: 24 },
+  walcott         : { id: 164859, ver: 23 },
+  benteke         : { id: 184111, ver: 26 },
+  defoe           : { id: 50542,  ver: 22 },
+  sturridge       : { id: 171833, ver: 20 },
+  origi           : { id: 213135, ver: 25 },
+  long            : { id: 169216, ver: 23 },
+  carroll         : { id: 182836, ver: 25 },
+  giroud          : { id: 178509, ver: 26 }
 };
 
 const NATION_CODES: Record<string, string> = {
@@ -226,6 +278,15 @@ const NATION_CODES: Record<string, string> = {
   'Sérvia':           'rs',
   'Bélgica':          'be',
   'Uruguai':          'uy',
+  'Ucrânia':          'ua',
+  'Senegal':          'sn',
+  'Colômbia':         'co',
+  'Argélia':          'dz',
+  'Dinamarca':        'dk',
+  'Polônia':          'pl',
+  'Irlanda do Norte': 'gb-nir',
+  'Egito':            'eg',
+  'Irlanda':          'ie',
 };
 
 // PT-BR position abbreviations
@@ -254,7 +315,34 @@ const CLUB_CRESTS: Record<string, string> = {
   'Liverpool': 'https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg',
   'Inter Milan': 'https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg',
   'Manchester United': 'https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg',
-  'Manchester City': 'https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg'
+  'Manchester City': 'https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg',
+  // ── Added crests (all CDN-verified: 200 image/svg+xml) ──────────────────────
+  'Tottenham': 'https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg',
+  'Paris Saint-Germain': 'https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg',
+  'PSG': 'https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg',
+  'Borussia Dortmund': 'https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg',
+  'Bayer Leverkusen': 'https://upload.wikimedia.org/wikipedia/en/5/59/Bayer_04_Leverkusen_logo.svg',
+  'Roma': 'https://upload.wikimedia.org/wikipedia/en/f/f7/AS_Roma_logo_%282017%29.svg',
+  'Lazio': 'https://upload.wikimedia.org/wikipedia/en/c/ce/S.S._Lazio_badge.svg',
+  'Fiorentina': 'https://upload.wikimedia.org/wikipedia/commons/7/79/ACF_Fiorentina.svg',
+  'Atlético Madrid': 'https://upload.wikimedia.org/wikipedia/en/c/c1/Atletico_Madrid_logo.svg',
+  'Sevilla': 'https://upload.wikimedia.org/wikipedia/en/3/3b/Sevilla_FC_logo.svg',
+  'Valencia': 'https://upload.wikimedia.org/wikipedia/en/c/ce/Valenciacf.svg',
+  'Porto': 'https://upload.wikimedia.org/wikipedia/en/f/f1/FC_Porto.svg',
+  'Ajax': 'https://upload.wikimedia.org/wikipedia/en/7/79/Ajax_Amsterdam.svg',
+  'Marseille': 'https://upload.wikimedia.org/wikipedia/commons/d/d8/Olympique_Marseille_logo.svg',
+  'Galatasaray': 'https://upload.wikimedia.org/wikipedia/commons/2/20/Galatasaray_Sports_Club_Logo.svg',
+  'Everton': 'https://upload.wikimedia.org/wikipedia/en/7/7c/Everton_FC_logo.svg',
+  'Leicester City': 'https://upload.wikimedia.org/wikipedia/en/2/2d/Leicester_City_crest.svg',
+  'West Ham': 'https://upload.wikimedia.org/wikipedia/en/c/c2/West_Ham_United_FC_logo.svg',
+  'Crystal Palace': 'https://upload.wikimedia.org/wikipedia/en/a/a2/Crystal_Palace_FC_logo_%282022%29.svg',
+  'Southampton': 'https://upload.wikimedia.org/wikipedia/en/c/c9/FC_Southampton.svg',
+  'Watford': 'https://upload.wikimedia.org/wikipedia/en/e/e2/Watford.svg',
+  'Sunderland': 'https://upload.wikimedia.org/wikipedia/en/7/77/Logo_Sunderland.svg',
+  'Grêmio': 'https://upload.wikimedia.org/wikipedia/commons/0/08/Gremio_logo.svg',
+  'Internacional': 'https://upload.wikimedia.org/wikipedia/commons/c/c5/Sport_Club_Internacional_logo.svg',
+  'Atlético Mineiro': 'https://upload.wikimedia.org/wikipedia/commons/2/27/Clube_Atl%C3%A9tico_Mineiro_logo.svg',
+  'Brasil': 'https://upload.wikimedia.org/wikipedia/commons/9/99/Brazilian_Football_Confederation_logo.svg'
 };
 
 function getBasePlayerId(playerId: string): string {
@@ -269,13 +357,56 @@ function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null 
   return `https://cdn.sofifa.net/players/${padded.slice(0,3)}/${padded.slice(3,6)}/${m.ver}_${size}.png`;
 }
 
+// Per-rarity visual identity. Each tier has a distinct silhouette: premium tiers
+// (immortal/legendary) get a radial sunburst + animated shine; mid/low tiers get
+// quieter geometric textures (weave / dots / hatch) so they read as more "humble".
 function getCardTheme(rarity: string) {
   switch (rarity) {
-    case 'immortal':  return { bg: 'linear-gradient(160deg,#130c01 0%,#2c1d02 45%,#3d2a03 75%,#130c01 100%)', border: '#FFD700', glow: '0 0 32px rgba(255,215,0,.5),inset 0 0 20px rgba(255,215,0,.18)', accent: '#FFD700', badgeBg: 'rgba(255,215,0,.12)', statColor: '#FFD700', nameGlow: 'rgba(255,215,0,.5)', isPremium: true };
-    case 'legendary': return { bg: 'linear-gradient(160deg,#0f0702 0%,#24120a 45%,#361b0a 75%,#0f0702 100%)', border: '#FF8C00', glow: '0 0 24px rgba(255,140,0,.4),inset 0 0 14px rgba(255,140,0,.15)', accent: '#FF8C00', badgeBg: 'rgba(255,140,0,.12)', statColor: '#FF8C00', nameGlow: 'rgba(255,140,0,.4)', isPremium: true };
-    case 'gold':      return { bg: 'linear-gradient(160deg,#050509 0%,#18140c 50%,#231e12 85%,#050509 100%)', border: '#C9A84C', glow: '0 0 16px rgba(201,168,76,.22)', accent: '#C9A84C', badgeBg: 'rgba(201,168,76,.1)', statColor: '#E8D080', nameGlow: 'rgba(201,168,76,.35)', isPremium: false };
-    case 'silver':    return { bg: 'linear-gradient(160deg,#040408 0%,#121220 55%,#1c1c2e 90%,#040408 100%)', border: '#A8A8B8', glow: 'none', accent: '#C0C0D0', badgeBg: 'rgba(168,168,184,.1)', statColor: '#D0D0E0', nameGlow: 'rgba(168,168,184,.28)', isPremium: false };
-    default:          return { bg: 'linear-gradient(160deg,#040202 0%,#150e08 55%,#1f1510 90%,#040202 100%)', border: '#CD7F32', glow: 'none', accent: '#CD7F32', badgeBg: 'rgba(205,127,50,.1)', statColor: '#D09060', nameGlow: 'rgba(205,127,50,.28)', isPremium: false };
+    case 'immortal':  return {
+      bg: 'radial-gradient(125% 85% at 50% 4%,#574006 0%,#34230300 0%,#2c1d02 34%,#170f08 70%,#090602 100%)',
+      border: '#FFD700', glow: '0 0 36px rgba(255,215,0,.55),inset 0 0 22px rgba(255,215,0,.20)',
+      accent: '#FFD700', badgeBg: 'rgba(255,215,0,.14)', statColor: '#FFE680', nameGlow: 'rgba(255,215,0,.6)',
+      isPremium: true, label: 'IMORTAL', icon: '👑',
+      ribbon: 'linear-gradient(90deg,#7a5803,#FFD700 45%,#fff6c2 50%,#FFD700 55%,#7a5803)',
+      pattern: 'repeating-conic-gradient(from 0deg at 50% 30%,rgba(255,215,0,.10) 0deg,rgba(255,215,0,0) 6deg 13deg)',
+      patternOpacity: 1,
+    };
+    case 'legendary': return {
+      bg: 'radial-gradient(125% 85% at 50% 4%,#3a1d05 0%,#24120a00 0%,#22120a 36%,#150b06 72%,#080402 100%)',
+      border: '#FF8C00', glow: '0 0 26px rgba(255,140,0,.42),inset 0 0 16px rgba(255,140,0,.16)',
+      accent: '#FF8C00', badgeBg: 'rgba(255,140,0,.13)', statColor: '#FFC061', nameGlow: 'rgba(255,140,0,.45)',
+      isPremium: true, label: 'LENDÁRIO', icon: '★',
+      ribbon: 'linear-gradient(90deg,#7a3d02,#FF8C00 45%,#ffd9a3 50%,#FF8C00 55%,#7a3d02)',
+      pattern: 'repeating-conic-gradient(from 0deg at 50% 30%,rgba(255,140,0,.07) 0deg,rgba(255,140,0,0) 8deg 17deg)',
+      patternOpacity: 1,
+    };
+    case 'gold':      return {
+      bg: 'linear-gradient(157deg,#06060b 0%,#161109 48%,#241c10 84%,#070509 100%)',
+      border: '#C9A84C', glow: '0 0 16px rgba(201,168,76,.24),inset 0 0 10px rgba(201,168,76,.06)',
+      accent: '#C9A84C', badgeBg: 'rgba(201,168,76,.1)', statColor: '#E8D080', nameGlow: 'rgba(201,168,76,.35)',
+      isPremium: false, label: 'OURO', icon: '◆',
+      ribbon: 'linear-gradient(90deg,#5e4d1c,#C9A84C 50%,#5e4d1c)',
+      pattern: 'repeating-linear-gradient(125deg,rgba(201,168,76,.05) 0 1px,transparent 1px 9px)',
+      patternOpacity: 1,
+    };
+    case 'silver':    return {
+      bg: 'linear-gradient(157deg,#05050a 0%,#10101d 52%,#1b1b2c 88%,#06060b 100%)',
+      border: '#A8A8B8', glow: 'inset 0 0 10px rgba(168,168,184,.06)',
+      accent: '#C0C0D0', badgeBg: 'rgba(168,168,184,.1)', statColor: '#D6D6E4', nameGlow: 'rgba(168,168,184,.3)',
+      isPremium: false, label: 'PRATA', icon: '◆',
+      ribbon: 'linear-gradient(90deg,#42424f,#A8A8B8 50%,#42424f)',
+      pattern: 'radial-gradient(rgba(168,168,184,.07) 1px,transparent 1.4px)',
+      patternOpacity: 1, patternSize: '11px 11px',
+    };
+    default:          return {
+      bg: 'linear-gradient(157deg,#070302 0%,#160d07 52%,#22150d 88%,#080302 100%)',
+      border: '#CD7F32', glow: 'inset 0 0 10px rgba(205,127,50,.06)',
+      accent: '#D89254', badgeBg: 'rgba(205,127,50,.1)', statColor: '#E0A878', nameGlow: 'rgba(205,127,50,.3)',
+      isPremium: false, label: 'BRONZE', icon: '◆',
+      ribbon: 'linear-gradient(90deg,#5a3318,#CD7F32 50%,#5a3318)',
+      pattern: 'repeating-linear-gradient(45deg,rgba(205,127,50,.05) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(205,127,50,.04) 0 1px,transparent 1px 7px)',
+      patternOpacity: 1,
+    };
   }
 }
 
@@ -357,6 +488,7 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
         className={`relative select-none rounded-xl overflow-hidden flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
         style={{ width: 80, height: 112, background: theme.bg, border: selected ? '2px solid #fff' : `1.5px solid ${theme.border}`, boxShadow: selected ? '0 0 18px rgba(255,255,255,.7)' : theme.glow }}
       >
+        {!lite && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: theme.pattern, backgroundSize: theme.patternSize ?? 'auto', opacity: (theme.patternOpacity ?? 1) * 0.7 }} />}
         {theme.isPremium && !lite && <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(120deg,transparent 30%,rgba(255,255,255,.07) 50%,transparent 70%)', animation: 'shimmer 2.8s infinite ease-in-out' }} />}
 
         {/* Top: OVR + POS + flag */}
@@ -426,11 +558,14 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
       className={`relative select-none rounded-2xl overflow-hidden flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
       style={{ width: 200, height: 340, background: theme.bg, border: selected ? '3px solid #fff' : `2px solid ${theme.border}`, boxShadow: selected ? '0 0 36px rgba(255,255,255,.8),inset 0 0 18px rgba(255,255,255,.1)' : theme.glow }}
     >
-      {/* Grid overlay */}
-      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px)', backgroundSize: '14px 14px' }} />
+      {/* Per-rarity texture pattern */}
+      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: theme.pattern, backgroundSize: theme.patternSize ?? 'auto', opacity: theme.patternOpacity ?? 1 }} />
 
       {/* Rarity glow blob */}
-      <div className="absolute pointer-events-none" style={{ top: -40, left: -40, width: 150, height: 150, borderRadius: '50%', background: baseColor, filter: 'blur(55px)', opacity: .22 }} />
+      <div className="absolute pointer-events-none" style={{ top: -40, left: -40, width: 150, height: 150, borderRadius: '50%', background: baseColor, filter: 'blur(55px)', opacity: theme.isPremium ? .26 : .16 }} />
+
+      {/* Top sheen edge */}
+      <div className="absolute inset-x-0 top-0 h-px pointer-events-none" style={{ background: `linear-gradient(90deg,transparent,${theme.accent}88,transparent)` }} />
 
       {/* Shimmer */}
       {theme.isPremium && !lite && <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(120deg,transparent 25%,rgba(255,255,255,.07) 50%,transparent 75%)', animation: 'shimmer 3s infinite ease-in-out' }} />}
@@ -479,8 +614,16 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
         )}
       </div>
 
+      {/* ── RARITY RIBBON ── */}
+      <div className="flex-shrink-0 mx-2 flex justify-center" style={{ zIndex: 6, marginBottom: -6 }}>
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full" style={{ background: theme.ribbon, boxShadow: `0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25)`, border: '1px solid rgba(0,0,0,.35)' }}>
+          <span style={{ fontSize: 8, lineHeight: 1, color: theme.isPremium ? '#3a2600' : '#000', filter: theme.isPremium ? 'none' : 'opacity(.7)' }}>{theme.icon}</span>
+          <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 900, letterSpacing: '0.16em', color: theme.isPremium ? '#1f1500' : '#0a0a0a' }}>{theme.label}</span>
+        </span>
+      </div>
+
       {/* ── NAME BANNER ── */}
-      <div className="flex-shrink-0 mx-2 mb-1.5 py-1.5 rounded-xl text-center" style={{ background: 'linear-gradient(90deg,rgba(0,0,0,.85) 0%,rgba(0,0,0,.95) 50%,rgba(0,0,0,.85) 100%)', border: `1px solid ${theme.border}22`, boxShadow: `0 0 14px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04)`, zIndex: 5 }}>
+      <div className="flex-shrink-0 mx-2 mb-1.5 pt-2.5 pb-1.5 rounded-xl text-center" style={{ background: 'linear-gradient(90deg,rgba(0,0,0,.85) 0%,rgba(0,0,0,.95) 50%,rgba(0,0,0,.85) 100%)', border: `1px solid ${theme.border}22`, boxShadow: `0 0 14px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04)`, zIndex: 5 }}>
         <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 20, letterSpacing: '0.08em', color: '#fff', textShadow: `0 0 16px ${theme.nameGlow}` }}>{player.shortName.toUpperCase()}</span>
       </div>
 

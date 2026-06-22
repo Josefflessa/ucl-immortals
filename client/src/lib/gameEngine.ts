@@ -65,6 +65,7 @@ export interface MatchResult {
   penaltyWinner?: string;
   homePenalties?: number;
   awayPenalties?: number;
+  durationMinutes?: number; // 90 (league/first leg) or 120 (extra time)
   mvp?: string;
   topDuel?: { attacker: string; defender: string; winner: string };
   stats: {
@@ -1176,7 +1177,7 @@ export function simulateMatch(
     awayCorners: 0,
   };
 
-  return runMatchSimulation(
+  const result = runMatchSimulation(
     home,
     away,
     0, // startMinute
@@ -1189,6 +1190,8 @@ export function simulateMatch(
     isKnockout,
     isFinal
   );
+  result.durationMinutes = isKnockout ? 120 : 90;
+  return result;
 }
 
 export function simulateRemainingMatch(
@@ -1322,6 +1325,33 @@ export function calculateTeamStrength(
   return strength;
 }
 
+// Resolves the designated penalty taker: the explicit choice if valid, otherwise
+// the best outfield player by composure+shooting. NEVER the goalkeeper unless the
+// XI somehow has no outfield player. Fixes the old bug where the keeper (slot 0)
+// was the default taker.
+export function getPenaltyTaker(team: Team): PlayerCard {
+  const starters = team.players.slice(0, 11);
+  if (team.penaltyTaker) {
+    const chosen = starters.find(p => p.id === team.penaltyTaker);
+    if (chosen) return chosen;
+  }
+  const outfield = starters.filter(p => p.position !== 'GK');
+  const pool = outfield.length > 0 ? outfield : starters;
+  return [...pool].sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting))[0];
+}
+
+// Ordered shootout takers: designated taker (or best outfield) first, then the
+// remaining outfield by composure+shooting, with the goalkeeper last of all.
+export function getPenaltyOrder(team: Team): PlayerCard[] {
+  const starters = team.players.slice(0, 11);
+  const outfield = starters.filter(p => p.position !== 'GK');
+  const keepers = starters.filter(p => p.position === 'GK');
+  const sorted = [...outfield].sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting));
+  const designated = team.penaltyTaker ? sorted.find(p => p.id === team.penaltyTaker) : undefined;
+  const ordered = designated ? [designated, ...sorted.filter(p => p.id !== designated.id)] : sorted;
+  return [...ordered, ...keepers];
+}
+
 function simulatePenalties(home: Team, away: Team, playerStats?: Record<string, PlayerMatchStat>): {
   winner: string;
   homeScore: number;
@@ -1331,21 +1361,8 @@ function simulatePenalties(home: Team, away: Team, playerStats?: Record<string, 
   let awayScore = 0;
 
   const getTakers = (team: Team) => {
-    const starters = team.players.slice(0, 11);
-    let takers = [...starters];
-    let takerId = team.penaltyTaker;
-    if (!takerId && team.isBot) {
-      const sortedByComposure = [...starters].sort((a, b) => b.composure - a.composure);
-      takerId = sortedByComposure[0]?.id;
-    }
-
-    if (takerId) {
-      const idx = takers.findIndex(p => p.id === takerId);
-      if (idx !== -1) {
-        const [taker] = takers.splice(idx, 1);
-        takers.unshift(taker);
-      }
-    }
+    const takers = getPenaltyOrder(team);
+    const takerId = getPenaltyTaker(team).id;
     return { takers, takerId };
   };
 
@@ -1851,11 +1868,253 @@ export function computeStandings(teams: Team[], fixtures: LeagueFixture[]): Stan
 }
 
 export interface KnockoutBracket {
+  playoffs: any[];
   round16: any[];
   quarterFinals: any[];
   semiFinals: any[];
   final: any | null;
   currentRound: string;
+  currentLeg: number; // 1 = ida, 2 = volta (active two-legged round)
+}
+
+// ============================================================
+// KNOCKOUT BRACKET — faithful to the new UEFA Champions League format
+// 36 teams → 8-round league phase →
+//   • 1st–8th: qualify straight to the Round of 16 (seeded)
+//   • 9th–24th: enter the knockout play-off round (single-leg here)
+//   • 25th–36th: eliminated
+// Play-off winners join the top 8 in the Round of 16, then Quarters → Semis → Final.
+// The bracket path is fixed up front (1 and 2 can only meet in the final) and the
+// play-off winners feed predetermined Round-of-16 slots.
+// ============================================================
+
+// Every tie is TWO-LEGGED (home & away), decided on aggregate, EXCEPT the single
+// grand final. `currentLeg` (1 = ida / 2 = volta) tracks the leg being played in
+// the active round. `awayFromPo` marks a Round-of-16 slot whose away team is
+// filled once that play-off tie is decided.
+export function createKnockoutBracket(standings: StandingsEntry[]): KnockoutBracket {
+  const seedId = (pos: number) => standings[pos - 1]?.teamId;
+
+  // Play-off ties PO1..PO8 — seeded (9–16) vs unseeded (17–24):
+  // PO1 9v24, PO2 10v23, ... PO8 16v17.
+  const playoffs = [];
+  for (let i = 1; i <= 8; i++) {
+    playoffs.push({
+      id: `po_${i - 1}`,
+      homeTeamId: seedId(8 + i),   // 9..16 (seeded, first-leg home)
+      awayTeamId: seedId(25 - i),  // 24..17 (unseeded)
+      played: false,
+    });
+  }
+
+  // Round of 16 in bracket order so array-pairing yields a correct bracket where
+  // seeds 1 and 2 are kept apart until the final. Home = top-8 seed; away = winner
+  // of play-off PO(9 - seed) (best seed faces the lowest-ranked play-off path).
+  const r16Seeds = [1, 8, 4, 5, 2, 7, 3, 6];
+  const round16 = r16Seeds.map((s, idx) => ({
+    id: `r16_${idx}`,
+    homeTeamId: seedId(s),
+    awayTeamId: '',                 // filled after the play-off round
+    awayFromPo: (9 - s) - 1,        // 0-based index into `playoffs`
+    played: false,
+  }));
+
+  return {
+    playoffs,
+    round16,
+    quarterFinals: [],
+    semiFinals: [],
+    final: null,
+    currentRound: 'playoffs',
+    currentLeg: 1,
+  };
+}
+
+export function getActiveKnockoutMatches(bracket: KnockoutBracket): any[] {
+  switch (bracket.currentRound) {
+    case 'playoffs': return bracket.playoffs;
+    case 'round16': return bracket.round16;
+    case 'quarters': return bracket.quarterFinals;
+    case 'semis': return bracket.semiFinals;
+    case 'final': return bracket.final ? [bracket.final] : [];
+    default: return [];
+  }
+}
+
+function emptyMatchStats(): MatchResult['stats'] {
+  return {
+    homePos: 50, awayPos: 50, homeShots: 0, awayShots: 0,
+    homeShotsOnTarget: 0, awayShotsOnTarget: 0, homeFouls: 0, awayFouls: 0,
+    homeSaves: 0, awaySaves: 0, homeCorners: 0, awayCorners: 0,
+  };
+}
+
+// Simulates the SECOND leg of a two-legged tie. `homeB` hosts the return leg (the
+// first-leg away side); `awayA` is the first-leg home side. Extra time and the
+// shootout are decided on AGGREGATE, never on the single leg.
+export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult): {
+  leg2: MatchResult; tieWinner: string; aggA: number; aggB: number;
+} {
+  // 90-minute return leg (draws allowed).
+  let leg2 = simulateMatch(homeB, awayA, false);
+  // Team A was first-leg HOME / second-leg AWAY; team B was first-leg AWAY / second-leg HOME.
+  let aggA = leg1.homeGoals + leg2.awayGoals;
+  let aggB = leg1.awayGoals + leg2.homeGoals;
+
+  if (aggA === aggB) {
+    // Level on aggregate → extra time (engine adds no auto-penalties here).
+    leg2 = runMatchSimulation(
+      homeB, awayA, 90, 120,
+      leg2.homeGoals, leg2.awayGoals, leg2.events, leg2.stats,
+      leg2.playerStats ?? {}, false, false
+    );
+    leg2.durationMinutes = 120;
+    aggA = leg1.homeGoals + leg2.awayGoals;
+    aggB = leg1.awayGoals + leg2.homeGoals;
+    if (aggA === aggB) {
+      const pens = simulatePenalties(homeB, awayA, leg2.playerStats);
+      leg2.penaltyWinner = pens.winner;
+      leg2.homePenalties = pens.homeScore;
+      leg2.awayPenalties = pens.awayScore;
+      leg2.events.push({
+        minute: 120,
+        type: 'penalty',
+        description: `🎯 Pênaltis! ${homeB.name} ${pens.homeScore}-${pens.awayScore} ${awayA.name}`,
+        teamId: pens.winner,
+      });
+    }
+  } else {
+    leg2.durationMinutes = 90;
+  }
+
+  let tieWinner: string;
+  if (aggA > aggB) tieWinner = awayA.id;        // team A advances
+  else if (aggB > aggA) tieWinner = homeB.id;   // team B advances
+  else tieWinner = leg2.penaltyWinner!;         // decided on penalties (B home / A away)
+
+  return { leg2, tieWinner, aggA, aggB };
+}
+
+// Simulates ONE tie's current leg. Two-legged: leg 1 = 90', leg 2 = aggregate
+// decider (sets result + played). Single-leg final: 120' + penalties.
+export function simulateKnockoutTieLeg(
+  tie: any,
+  currentLeg: number,
+  isFinalRound: boolean,
+  resolve: (id: string) => Team | undefined,
+): void {
+  const home = resolve(tie.homeTeamId);
+  const away = resolve(tie.awayTeamId);
+  if (!home || !away) return;
+
+  if (tie.isSingleLeg || isFinalRound) {
+    if (tie.played) return;
+    tie.result = simulateMatch(home, away, true, true);
+    tie.played = true;
+    return;
+  }
+
+  if (currentLeg === 1) {
+    if (tie.leg1) return;
+    tie.leg1 = simulateMatch(home, away, false); // 90', durationMinutes = 90
+  } else {
+    if (tie.leg2) return;
+    const sl = simulateSecondLeg(away, home, tie.leg1); // return leg: B home, A away
+    tie.leg2 = sl.leg2;
+    tie.result = {
+      homeTeamId: tie.homeTeamId,
+      awayTeamId: tie.awayTeamId,
+      homeGoals: sl.aggA,
+      awayGoals: sl.aggB,
+      events: [],
+      winner: sl.tieWinner,
+      stats: emptyMatchStats(),
+    };
+    tie.played = true;
+  }
+}
+
+// Plays the current leg for EVERY tie of the active round, then bumps the leg
+// pointer 1 → 2 for two-legged rounds.
+export function playActiveKnockoutLeg(
+  bracket: KnockoutBracket,
+  resolve: (id: string) => Team | undefined,
+): void {
+  const isFinalRound = bracket.currentRound === 'final';
+  const ties = getActiveKnockoutMatches(bracket);
+  for (const tie of ties) {
+    simulateKnockoutTieLeg(tie, bracket.currentLeg, isFinalRound, resolve);
+  }
+  if (!isFinalRound && bracket.currentLeg === 1) {
+    bracket.currentLeg = 2;
+  }
+}
+
+// Advances the bracket when the active round is fully played. Mutates `bracket`
+// in place and returns the champion's teamId once the final is decided (else null).
+export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null {
+  const round = bracket.currentRound;
+  const list = getActiveKnockoutMatches(bracket);
+  if (list.length === 0 || !list.every((m: any) => m.played && m.result)) return null;
+
+  const winnerOf = (m: any): string => m.result.winner ?? m.result.penaltyWinner;
+
+  if (round === 'playoffs') {
+    // Slot each play-off winner into its predetermined Round-of-16 away berth.
+    for (const tie of bracket.round16) {
+      const po = bracket.playoffs[tie.awayFromPo];
+      tie.awayTeamId = po ? winnerOf(po) : '';
+    }
+    bracket.currentRound = 'round16';
+    bracket.currentLeg = 1;
+    return null;
+  }
+  if (round === 'round16') {
+    const w = bracket.round16.map(winnerOf);
+    bracket.quarterFinals = [
+      { id: 'qf_0', homeTeamId: w[0], awayTeamId: w[1], played: false },
+      { id: 'qf_1', homeTeamId: w[2], awayTeamId: w[3], played: false },
+      { id: 'qf_2', homeTeamId: w[4], awayTeamId: w[5], played: false },
+      { id: 'qf_3', homeTeamId: w[6], awayTeamId: w[7], played: false },
+    ];
+    bracket.currentRound = 'quarters';
+    bracket.currentLeg = 1;
+    return null;
+  }
+  if (round === 'quarters') {
+    const w = bracket.quarterFinals.map(winnerOf);
+    bracket.semiFinals = [
+      { id: 'sf_0', homeTeamId: w[0], awayTeamId: w[1], played: false },
+      { id: 'sf_1', homeTeamId: w[2], awayTeamId: w[3], played: false },
+    ];
+    bracket.currentRound = 'semis';
+    bracket.currentLeg = 1;
+    return null;
+  }
+  if (round === 'semis') {
+    const w = bracket.semiFinals.map(winnerOf);
+    // The grand final is a SINGLE match at a neutral venue.
+    bracket.final = { id: 'final', homeTeamId: w[0], awayTeamId: w[1], played: false, isSingleLeg: true };
+    bracket.currentRound = 'final';
+    bracket.currentLeg = 1;
+    return null;
+  }
+  if (round === 'final') {
+    return winnerOf(bracket.final);
+  }
+  return null;
+}
+
+// Human-readable label for a bracket round.
+export function knockoutRoundLabel(round: string): string {
+  switch (round) {
+    case 'playoffs': return 'PLAYOFFS';
+    case 'round16': return 'OITAVAS DE FINAL';
+    case 'quarters': return 'QUARTAS DE FINAL';
+    case 'semis': return 'SEMIFINAIS';
+    case 'final': return 'GRANDE FINAL';
+    default: return '';
+  }
 }
 
 export function getAllPlayedMatchResults(
@@ -1865,14 +2124,19 @@ export function getAllPlayedMatchResults(
   const all: MatchResult[] = [...leagueResults];
   if (bracket) {
     const list = [
+      ...(bracket.playoffs ?? []),
+      ...(bracket.round16 ?? []),
       ...bracket.quarterFinals,
       ...bracket.semiFinals,
       ...(bracket.final ? [bracket.final] : [])
     ];
     for (const m of list) {
-      if (m.played && m.result) {
-        all.push(m.result);
-      }
+      // Two-legged ties contribute each leg (real events/stats); single-leg ties
+      // (the final) contribute their one result. The aggregate object on a
+      // two-legged tie carries no events, so it is never counted on its own.
+      if (m.leg1) all.push(m.leg1);
+      if (m.leg2) all.push(m.leg2);
+      if (!m.leg1 && !m.leg2 && m.played && m.result) all.push(m.result);
     }
   }
   return all;

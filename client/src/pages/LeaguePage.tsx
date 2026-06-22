@@ -1,7 +1,7 @@
 // UCL Immortals — League Phase Page
 // Show standings, round-by-round fixtures, and results
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, PlayerSeasonStats } from '../lib/gameEngine';
@@ -13,7 +13,7 @@ const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEC
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 export default function LeaguePage() {
-  const { state, dispatch, advanceRoundOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById } = useGame();
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'results' | 'squad' | 'scorers'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
@@ -44,10 +44,18 @@ export default function LeaguePage() {
 
   const playerStanding = leagueStandings.find(s => s.teamId === playerTeam?.id);
   const playerPosition = leagueStandings.findIndex(s => s.teamId === playerTeam?.id) + 1;
-  const qualifies = playerPosition <= 8;
+  // New UCL format: 1–8 qualify straight to the Round of 16, 9–24 go to the
+  // knockout play-offs, 25–36 are eliminated.
+  const directQual = playerPosition >= 1 && playerPosition <= 8;
+  const playoffQual = playerPosition >= 9 && playerPosition <= 24;
+  const qualifies = directQual || playoffQual;
 
   // Filter fixtures for the current round
   const currentRoundFixtures = leagueFixtures.filter(f => f.round === leagueRound);
+
+  // ONLINE: never reveal this round's scores before the local player has watched
+  // their own match (avoids spoiling the result the live replay is about to show).
+  const hideRoundScore = state.mode === 'online' && state.lastWatchedRound < leagueRound;
 
   const getPlayerPhotoUrl = (playerId: string) => {
     const baseId = Object.keys(SOFIFA_MAPPING).find(key => playerId === key || playerId.startsWith(key + '_')) || playerId.split('_')[0];
@@ -63,16 +71,6 @@ export default function LeaguePage() {
 
   // Check if all fixtures in this round are played
   const allFixturesPlayed = currentRoundFixtures.every(f => f.played);
-
-  const getHumanFixturesOfRound = () => {
-    return currentRoundFixtures.filter(f => {
-      const isHomeHuman = f.homeTeamId.startsWith('player_') || state.onlinePlayers.some(p => p.id === f.homeTeamId);
-      const isAwayHuman = f.awayTeamId.startsWith('player_') || state.onlinePlayers.some(p => p.id === f.awayTeamId);
-      return isHomeHuman || isAwayHuman;
-    });
-  };
-
-  const allHumanFixturesPlayed = getHumanFixturesOfRound().every(f => f.played);
 
   const getTeamName = (teamId: string) => {
     if (teamId === playerTeam?.id) return playerTeam.name;
@@ -105,6 +103,11 @@ export default function LeaguePage() {
     dispatch({ type: 'SIMULATE_BOT_MATCHES' });
   };
 
+  // ONLINE host only: simulate the entire round on the server at once.
+  const handlePlayRound = () => {
+    playRoundOnline();
+  };
+
   const handleAdvanceRound = () => {
     if (state.mode === 'online') {
       advanceRoundOnline();
@@ -121,8 +124,33 @@ export default function LeaguePage() {
     }
   };
 
-  // Each player manages their own match navigation independently in online mode.
-  // No cross-player match start events are needed.
+  // ONLINE: when the host plays the round, the server simulates every match and
+  // broadcasts the authoritative results. As soon as the local player's fixture
+  // for the current round is resolved, auto-open it as a synchronized live replay
+  // (each device replays the same server result, so the score is identical).
+  useEffect(() => {
+    if (state.mode !== 'online') return;
+    if (state.phase !== 'league') return;
+    if (state.currentMatchResult) return; // already watching one
+
+    const myId = state.onlinePlayers.find(p => p.socketId === state.socketId)?.id;
+    if (!myId) return;
+
+    const myFixture = leagueFixtures.find(
+      f => f.round === leagueRound && (f.homeTeamId === myId || f.awayTeamId === myId)
+    );
+    if (!myFixture || !myFixture.played || !myFixture.result) return;
+    if (state.lastWatchedRound >= leagueRound) return;
+
+    const home = getTeamById(myFixture.homeTeamId);
+    const away = getTeamById(myFixture.awayTeamId);
+    if (!home || !away) return;
+
+    dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [home, away], result: myFixture.result });
+  }, [
+    state.mode, state.phase, state.currentMatchResult, state.onlinePlayers, state.socketId,
+    state.lastWatchedRound, leagueFixtures, leagueRound, getTeamById, dispatch,
+  ]);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
@@ -200,10 +228,14 @@ export default function LeaguePage() {
                   {playerTeam?.name}
                 </div>
                 <div className="text-xs" style={{
-                  color: qualifies ? '#22C55E' : '#EF4444',
+                  color: directQual ? '#22C55E' : playoffQual ? '#3B82F6' : '#EF4444',
                   fontFamily: 'Rajdhani, sans-serif',
                 }}>
-                  {qualifies ? '✓ Zona de Classificação (Top 8)' : '✗ Fora da Zona de Classificação'}
+                  {directQual
+                    ? '✓ Classificação direta às Oitavas (Top 8)'
+                    : playoffQual
+                      ? '✓ Zona de Playoff (9º a 24º)'
+                      : '✗ Eliminado (fora do Top 24)'}
                 </div>
               </div>
               <div className="ml-auto grid grid-cols-4 gap-2 sm:gap-4 text-center">
@@ -263,7 +295,7 @@ export default function LeaguePage() {
               <span className="text-xs font-bold tracking-widest text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 PARTIDAS DA RODADA
               </span>
-              {!allFixturesPlayed && (
+              {!allFixturesPlayed && state.mode !== 'online' && (
                 <button
                   onClick={handleSimulateBots}
                   className="text-xs font-bold text-yellow-500 hover:underline"
@@ -313,11 +345,15 @@ export default function LeaguePage() {
 
                   {/* Score / VS */}
                   <div className="w-28 text-center flex flex-col items-center justify-center">
-                    {fixture.played && fixture.result ? (
+                    {fixture.played && fixture.result && !hideRoundScore ? (
                       <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
                         {fixture.result.homeGoals} - {fixture.result.awayGoals}
                       </span>
-                    ) : isMyFixture ? (
+                    ) : hideRoundScore && fixture.played ? (
+                      <span className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: isMyFixture ? '#C9A84C' : isHumanMatch ? '#6366f1' : '#4A4A5A' }}>
+                        {isMyFixture ? '⚽ AO VIVO' : '🔒'}
+                      </span>
+                    ) : isMyFixture && state.mode !== 'online' ? (
                       <button
                         onClick={handlePlayPlayerMatch}
                         className="px-3 py-1 rounded bg-yellow-500 hover:bg-yellow-400 text-black text-xs font-bold uppercase tracking-wider"
@@ -326,8 +362,8 @@ export default function LeaguePage() {
                         ⚽ JOGAR
                       </button>
                     ) : (
-                      <span className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: isHumanMatch ? '#6366f1' : '#4A4A5A' }}>
-                        {isHumanMatch ? '👥 VS' : 'VS'}
+                      <span className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: isMyFixture ? '#C9A84C' : isHumanMatch ? '#6366f1' : '#4A4A5A' }}>
+                        {isMyFixture ? '⚽ VS' : isHumanMatch ? '👥 VS' : 'VS'}
                       </span>
                     )}
                   </div>
@@ -349,11 +385,13 @@ export default function LeaguePage() {
                 style={{ background: '#0F0F1A', borderColor: '#1A1A2A' }}
               >
                 {state.isHost ? (
-                  allHumanFixturesPlayed ? (
-                    leagueRound < 8 ? (
+                  !allFixturesPlayed ? (
+                    /* Host has not started the round yet — a single press simulates
+                       every match of the round at once on the server. */
+                    <>
                       <button
-                        onClick={handleAdvanceRound}
-                        className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
+                        onClick={handlePlayRound}
+                        className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
                         style={{
                           fontFamily: 'Bebas Neue, sans-serif',
                           background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
@@ -361,35 +399,47 @@ export default function LeaguePage() {
                           boxShadow: '0 0 25px rgba(201,168,76,0.3)',
                         }}
                       >
-                        AVANÇAR PARA A RODADA {leagueRound + 1} →
+                        ▶ JOGAR RODADA {leagueRound}
                       </button>
-                    ) : (
-                      <button
-                        onClick={handleAdvanceKnockout}
-                        className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
-                        style={{
-                          fontFamily: 'Bebas Neue, sans-serif',
-                          background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)',
-                          color: '#000',
-                          boxShadow: '0 0 25px rgba(34,197,94,0.3)',
-                        }}
-                      >
-                        🏆 AVANÇAR PARA O MATA-MATA →
-                      </button>
-                    )
+                      <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                        Todas as partidas da rodada começam ao mesmo tempo para todos.
+                      </div>
+                    </>
+                  ) : leagueRound < 8 ? (
+                    <button
+                      onClick={handleAdvanceRound}
+                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
+                      style={{
+                        fontFamily: 'Bebas Neue, sans-serif',
+                        background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
+                        color: '#080810',
+                        boxShadow: '0 0 25px rgba(201,168,76,0.3)',
+                      }}
+                    >
+                      AVANÇAR PARA A RODADA {leagueRound + 1} →
+                    </button>
                   ) : (
-                    <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                      ⏳ AGUARDANDO TODOS OS JOGADORES CONCLUÍREM OS SEUS JOGOS DA RODADA {leagueRound}
-                    </div>
+                    <button
+                      onClick={handleAdvanceKnockout}
+                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
+                      style={{
+                        fontFamily: 'Bebas Neue, sans-serif',
+                        background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)',
+                        color: '#000',
+                        boxShadow: '0 0 25px rgba(34,197,94,0.3)',
+                      }}
+                    >
+                      🏆 AVANÇAR PARA O MATA-MATA →
+                    </button>
                   )
                 ) : (
-                  allHumanFixturesPlayed ? (
-                    <div className="py-2 text-sm font-bold text-green-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                      👑 RODADA CONCLUÍDA! AGUARDANDO O HOST AVANÇAR DE RODADA...
+                  !allFixturesPlayed ? (
+                    <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      ⏳ AGUARDANDO O ANFITRIÃO INICIAR A RODADA {leagueRound}...
                     </div>
                   ) : (
-                    <div className="py-2 text-sm font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                      ⏳ AGUARDANDO CONCLUÍRA DE TODAS AS PARTIDAS DA RODADA {leagueRound}...
+                    <div className="py-2 text-sm font-bold text-green-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      👑 RODADA CONCLUÍDA! AGUARDANDO O ANFITRIÃO AVANÇAR...
                     </div>
                   )
                 )}
@@ -429,7 +479,7 @@ export default function LeaguePage() {
                         cursor: qualifies ? 'pointer' : 'not-allowed',
                       }}
                     >
-                      {qualifies ? '🏆 AVANÇAR PARA O MATA-MATA →' : '❌ ELIMINADO — FORA DO TOP 8'}
+                      {qualifies ? '🏆 AVANÇAR PARA O MATA-MATA →' : '❌ ELIMINADO — FORA DO TOP 24'}
                     </button>
                   )}
                 </motion.div>

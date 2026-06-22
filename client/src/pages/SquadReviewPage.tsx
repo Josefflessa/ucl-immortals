@@ -8,6 +8,7 @@ import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player } from '.
 import { calculateChemistry, getPlayerEffectiveStats, isPlayerInPosition, getCoachModifiersForPlayer } from '../lib/gameEngine';
 import FormationField from '../components/game/FormationField';
 import PlayerCard, { SOFIFA_MAPPING } from '../components/game/PlayerCard';
+import RolesSelector from '../components/game/RolesSelector';
 
 const POS_PT: Record<string, string> = {
   GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
@@ -229,6 +230,17 @@ export default function SquadReviewPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Captain & penalty taker */}
+          <div className="mb-6">
+            <RolesSelector
+              players={starters}
+              captainId={state.captain}
+              penaltyTakerId={state.penaltyTaker}
+              onSetCaptain={(id) => dispatch({ type: 'SET_CAPTAIN', playerId: id })}
+              onSetPenaltyTaker={(id) => dispatch({ type: 'SET_PENALTY_TAKER', playerId: id })}
+            />
           </div>
 
           {/* Coach summary */}

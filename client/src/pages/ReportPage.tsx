@@ -4,7 +4,7 @@
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { COACHES, FORMATIONS } from '../lib/gameData';
-import { calculateChemistry } from '../lib/gameEngine';
+import { calculateChemistry, getAllPlayedMatchResults } from '../lib/gameEngine';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
@@ -23,12 +23,8 @@ export default function ReportPage() {
     ? calculateChemistry(playerTeam.players.slice(0, 11), playerTeam.coachId, formationRoles)
     : null;
 
-  const allResults = [
-    ...leagueResults,
-    ...(knockoutBracket?.quarterFinals.map(m => m.result).filter(Boolean) ?? []),
-    ...(knockoutBracket?.semiFinals.map(m => m.result).filter(Boolean) ?? []),
-    ...(knockoutBracket?.final?.result ? [knockoutBracket.final.result] : []),
-  ] as any[];
+  // Every played match across the league + full knockout (play-offs → final).
+  const allResults = getAllPlayedMatchResults(leagueResults, knockoutBracket) as any[];
 
   const playerResults = allResults.filter(
     r => r.homeTeamId === playerTeam?.id || r.awayTeamId === playerTeam?.id

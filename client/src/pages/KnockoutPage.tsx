@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
-import { MatchResult } from '../lib/gameEngine';
+import { MatchResult, getActiveKnockoutMatches, knockoutRoundLabel } from '../lib/gameEngine';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
@@ -13,10 +13,11 @@ interface MatchEventFeedProps {
   result: MatchResult;
   homeName: string;
   awayName: string;
+  subtitle?: string;
   onClose: () => void;
 }
 
-function MatchEventFeed({ result, homeName, awayName, onClose }: MatchEventFeedProps) {
+function MatchEventFeed({ result, homeName, awayName, subtitle, onClose }: MatchEventFeedProps) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -52,6 +53,11 @@ function MatchEventFeed({ result, homeName, awayName, onClose }: MatchEventFeedP
           {result.penaltyWinner && (
             <div className="text-sm mt-2" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
               Pênaltis: {result.homePenalties} - {result.awayPenalties}
+            </div>
+          )}
+          {subtitle && (
+            <div className="text-xs mt-2 font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+              {subtitle}
             </div>
           )}
         </div>
@@ -102,34 +108,62 @@ function MatchEventFeed({ result, homeName, awayName, onClose }: MatchEventFeedP
 }
 
 export default function KnockoutPage() {
-  const { state, dispatch, getTeamById, streamMatchEvent, onMatchEventReceived } = useGame();
+  const { state, dispatch, getTeamById, playKnockoutRoundOnline, advanceKnockoutRoundOnline } = useGame();
   const { knockoutBracket, playerTeam } = state;
   const [viewingResult, setViewingResult] = useState<{
     result: MatchResult;
     homeName: string;
     awayName: string;
+    subtitle?: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (state.mode !== 'online') return;
+  const localTeamId = state.mode === 'online'
+    ? state.onlinePlayers.find(p => p.socketId === state.socketId)?.id
+    : playerTeam?.id;
 
-    const unsubscribe = onMatchEventReceived(({ eventType, data }) => {
-      if (eventType === 'match_start') {
-        const myPlayerId = state.onlinePlayers.find(p => p.socketId === state.socketId)?.id;
-        if (myPlayerId && (data.homeTeamId === myPlayerId || data.awayTeamId === myPlayerId)) {
-          dispatch({
-            type: 'PLAY_KNOCKOUT_MATCH',
-            matchId: data.matchId,
-            round: data.round,
-          });
+  // Auto-open the local player's tie as a synchronized replay — LEG BY LEG — as
+  // soon as each leg's engine-computed result is available (solo + online).
+  useEffect(() => {
+    if (state.phase !== 'knockout' || !knockoutBracket) return;
+    if (state.currentMatchResult) return; // already watching
+    if (!localTeamId) return;
+
+    const round = knockoutBracket.currentRound;
+    const ties = getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[];
+    const myTie = ties.find(m => m.homeTeamId === localTeamId || m.awayTeamId === localTeamId);
+    if (!myTie) return;
+    const watched = state.watchedKnockoutMatches;
+
+    // Single-leg tie (the grand final).
+    if (myTie.isSingleLeg || round === 'final') {
+      if (myTie.played && myTie.result && !watched.includes(myTie.id)) {
+        const home = getTeamById(myTie.homeTeamId);
+        const away = getTeamById(myTie.awayTeamId);
+        if (home && away) {
+          dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [home, away], result: myTie.result, knockout: { matchId: myTie.id, round } });
         }
       }
-    });
+      return;
+    }
 
-    return () => {
-      unsubscribe();
-    };
-  }, [state.mode, state.socketId, state.onlinePlayers, onMatchEventReceived, dispatch]);
+    // Two-legged tie: watch the first leg, then the second.
+    const teamA = getTeamById(myTie.homeTeamId); // first-leg home
+    const teamB = getTeamById(myTie.awayTeamId); // first-leg away
+    if (!teamA || !teamB) return;
+
+    if (myTie.leg1 && !watched.includes(`${myTie.id}_l1`)) {
+      dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [teamA, teamB], result: myTie.leg1, knockout: { matchId: myTie.id, round, leg: 1 } });
+      return;
+    }
+    if (myTie.leg2 && !watched.includes(`${myTie.id}_l2`)) {
+      dispatch({
+        type: 'WATCH_ONLINE_MATCH',
+        teams: [teamB, teamA], // return leg: B hosts
+        result: myTie.leg2,
+        knockout: { matchId: myTie.id, round, leg: 2, firstLeg: { home: myTie.leg1?.awayGoals ?? 0, away: myTie.leg1?.homeGoals ?? 0 } },
+      });
+    }
+  }, [state.phase, state.currentMatchResult, state.watchedKnockoutMatches, knockoutBracket, localTeamId, getTeamById, dispatch]);
 
   if (!knockoutBracket) return null;
 
@@ -144,46 +178,29 @@ export default function KnockoutPage() {
     teamId === playerTeam?.id ||
     (state.mode === 'online' && state.onlinePlayers.some(p => p.id === teamId && p.socketId === state.socketId));
 
-  const playMatch = (matchId: string, round: string) => {
-    if (state.mode === 'online' && knockoutBracket) {
-      const allMatches = [
-        ...knockoutBracket.quarterFinals,
-        ...knockoutBracket.semiFinals,
-        ...(knockoutBracket.final ? [knockoutBracket.final] : []),
-      ];
-      const match = allMatches.find(m => m.id === matchId);
-      if (match) {
-        streamMatchEvent('match_start', {
-          matchId,
-          round,
-          homeTeamId: match.homeTeamId,
-          awayTeamId: match.awayTeamId,
-        });
-      }
-    }
-    dispatch({ type: 'PLAY_KNOCKOUT_MATCH', matchId, round });
+  // Solo: the player drives progression locally. Online: only the host does.
+  const canControl = state.mode !== 'online' || state.isHost;
+  const currentLeg = knockoutBracket.currentLeg;
+
+  const handlePlayLeg = () => {
+    if (state.mode === 'online') playKnockoutRoundOnline();
+    else dispatch({ type: 'PLAY_KNOCKOUT_LEG' });
+  };
+  const handleAdvance = () => {
+    if (state.mode === 'online') advanceKnockoutRoundOnline();
+    else dispatch({ type: 'ADVANCE_KNOCKOUT' });
   };
 
-  const simulateAllInRound = (matches: KnockoutMatch[], round: string) => {
-    const unplayed = matches.filter(m => !m.played);
-    for (const match of unplayed) {
-      dispatch({ type: 'PLAY_KNOCKOUT_MATCH', matchId: match.id, round });
-    }
-  };
-
-  const getRoundMatches = (): { matches: KnockoutMatch[]; round: string; label: string } => {
-    if (knockoutBracket.currentRound === 'quarters') {
-      return { matches: knockoutBracket.quarterFinals, round: 'quarters', label: 'QUARTAS DE FINAL' };
-    } else if (knockoutBracket.currentRound === 'semis') {
-      return { matches: knockoutBracket.semiFinals, round: 'semis', label: 'SEMIFINAIS' };
-    } else {
-      return { matches: knockoutBracket.final ? [knockoutBracket.final] : [], round: 'final', label: 'GRANDE FINAL' };
-    }
-  };
-
-  const { matches, round, label } = getRoundMatches();
-  const allPlayed = matches.every(m => m.played);
+  const matches = getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[];
+  const round = knockoutBracket.currentRound;
+  const label = knockoutRoundLabel(round);
+  const allPlayed = matches.length > 0 && matches.every(m => m.played);
   const isFinal = round === 'final';
+  const playLabel = isFinal
+    ? `▶ JOGAR ${label}`
+    : currentLeg === 1
+      ? `▶ JOGAR IDA — ${label}`
+      : `▶ JOGAR VOLTA — ${label}`;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
@@ -234,6 +251,16 @@ export default function KnockoutPage() {
             const homeIsPlayer = isPlayerTeam(match.homeTeamId);
             const awayIsPlayer = isPlayerTeam(match.awayTeamId);
             const hasPlayer = homeIsPlayer || awayIsPlayer;
+            const twoLeg = !match.isSingleLeg && round !== 'final';
+            const l1 = match.leg1;
+            const l2 = match.leg2;
+            const watched = state.watchedKnockoutMatches;
+            // Don't reveal the player's own leg score before they watch that leg.
+            const hideMyScore = hasPlayer && (
+              twoLeg
+                ? (!!l2 && !watched.includes(`${match.id}_l2`)) || (!!l1 && !watched.includes(`${match.id}_l1`))
+                : (match.played && !!match.result && !watched.includes(match.id))
+            );
 
             return (
               <motion.div
@@ -274,11 +301,39 @@ export default function KnockoutPage() {
                     </div>
 
                     {/* Score / VS */}
-                    <div className="flex-shrink-0 w-16 sm:w-24 text-center">
-                      {match.played && match.result ? (
+                    <div className="flex-shrink-0 w-20 sm:w-28 text-center">
+                      {hideMyScore ? (
+                        <div className="text-sm font-black animate-pulse" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
+                          ⚽ AO VIVO
+                        </div>
+                      ) : twoLeg ? (
+                        !l1 ? (
+                          <div className="text-xl sm:text-2xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#555' }}>VS</div>
+                        ) : !l2 || !match.result ? (
+                          <div>
+                            <div className="text-[8px] font-black tracking-widest text-indigo-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>IDA</div>
+                            <div className="text-xl sm:text-2xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
+                              {l1.homeGoals} - {l1.awayGoals}
+                            </div>
+                            <div className="text-[8px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>aguardando volta</div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="text-2xl sm:text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
+                              {match.result.homeGoals} - {match.result.awayGoals}
+                            </div>
+                            <div className="text-[8px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                              ida {l1.homeGoals}-{l1.awayGoals} · volta {l2.homeGoals}-{l2.awayGoals}
+                              {match.result.penaltyWinner ? ' · pên.' : ''}
+                            </div>
+                            <div className="text-[10px] sm:text-xs mt-0.5 font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
+                              {getTeamName(match.result.winner!)} avança
+                            </div>
+                          </div>
+                        )
+                      ) : match.played && match.result ? (
                         <div>
-                          <div className="text-2xl sm:text-3xl font-black"
-                            style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
+                          <div className="text-2xl sm:text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
                             {match.result.homeGoals} - {match.result.awayGoals}
                           </div>
                           {match.result.penaltyWinner && (
@@ -286,11 +341,7 @@ export default function KnockoutPage() {
                               ({match.result.homePenalties}-{match.result.awayPenalties} pen)
                             </div>
                           )}
-                          <div className="text-[10px] sm:text-xs mt-1 font-bold"
-                            style={{
-                              color: '#22C55E',
-                              fontFamily: 'Rajdhani, sans-serif',
-                            }}>
+                          <div className="text-[10px] sm:text-xs mt-1 font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
                             {getTeamName(match.result.winner!)} avança
                           </div>
                         </div>
@@ -320,38 +371,31 @@ export default function KnockoutPage() {
 
                   {/* Action buttons */}
                   <div className="mt-2 mb-4 flex gap-3 justify-center">
-                    {!match.played ? (
+                    {hideMyScore ? (
+                      <span className="px-4 py-2 text-xs font-bold animate-pulse" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+                        ⚽ ABRINDO SEU CONFRONTO...
+                      </span>
+                    ) : match.played && match.result ? (
                       <button
-                        onClick={() => playMatch(match.id, round)}
-                        className="px-6 py-2.5 rounded-xl font-black text-sm tracking-wider"
-                        style={{
-                          fontFamily: 'Bebas Neue, sans-serif',
-                          background: hasPlayer
-                            ? 'linear-gradient(135deg, #C9A84C, #E8C84A)'
-                            : '#1B4FD8',
-                          color: hasPlayer ? '#080810' : '#FFFFFF',
-                          boxShadow: hasPlayer ? '0 0 20px rgba(201,168,76,0.3)' : 'none',
-                        }}
-                      >
-                        {hasPlayer ? '⚽ JOGAR AGORA' : '▶ SIMULAR'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => match.result && setViewingResult({
-                          result: match.result,
-                          homeName,
-                          awayName,
-                        })}
+                        onClick={() => setViewingResult(
+                          twoLeg && l2
+                            ? {
+                                result: l2,
+                                homeName: awayName, // return leg: away side (B) hosts
+                                awayName: homeName,
+                                subtitle: `Agregado ${match.result!.homeGoals}-${match.result!.awayGoals} · Ida ${l1?.homeGoals ?? 0}-${l1?.awayGoals ?? 0}`,
+                              }
+                            : { result: match.result!, homeName, awayName }
+                        )}
                         className="px-4 py-2 rounded-lg text-xs font-bold"
-                        style={{
-                          background: '#1A1A2A',
-                          color: '#8A8A9A',
-                          fontFamily: 'Rajdhani, sans-serif',
-                          border: '1px solid #333',
-                        }}
+                        style={{ background: '#1A1A2A', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif', border: '1px solid #333' }}
                       >
                         VER DETALHES
                       </button>
+                    ) : (
+                      <span className="px-4 py-2 text-xs font-bold" style={{ color: hasPlayer ? '#C9A84C' : '#4A4A5A', fontFamily: 'Rajdhani, sans-serif' }}>
+                        {hasPlayer ? '⚽ SEU CONFRONTO' : 'AGUARDANDO'}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -360,25 +404,60 @@ export default function KnockoutPage() {
           })}
         </div>
 
-        {/* Simulate all button */}
-        {!allPlayed && matches.some(m => !m.played && !isPlayerTeam(m.homeTeamId) && !isPlayerTeam(m.awayTeamId)) && (
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => simulateAllInRound(matches.filter(m => !isPlayerTeam(m.homeTeamId) && !isPlayerTeam(m.awayTeamId)), round)}
-            className="w-full mt-4 py-3 rounded-xl font-black text-base tracking-wider"
-            style={{
-              fontFamily: 'Bebas Neue, sans-serif',
-              background: '#1A1A2A',
-              color: '#8A8A9A',
-              border: '1px solid #333',
-            }}
-          >
-            SIMULAR OUTROS JOGOS
-          </motion.button>
-        )}
+        {/* Round controls — solo: the player drives; online: only the host */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-6 p-4 rounded-xl text-center border"
+          style={{ background: '#0F0F1A', borderColor: '#1A1A2A' }}
+        >
+          {canControl ? (
+            !allPlayed ? (
+              <>
+                <button
+                  onClick={handlePlayLeg}
+                  className="w-full py-4 rounded-xl font-black text-lg sm:text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
+                  style={{
+                    fontFamily: 'Bebas Neue, sans-serif',
+                    background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
+                    color: '#080810',
+                    boxShadow: '0 0 25px rgba(201,168,76,0.3)',
+                  }}
+                >
+                  {playLabel}
+                </button>
+                <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  {isFinal
+                    ? 'A grande final é em jogo único, em campo neutro.'
+                    : `Mata-mata em ida e volta — quem avança é decidido no placar agregado.${state.mode === 'online' ? ' Todos jogam ao mesmo tempo.' : ''}`}
+                </div>
+              </>
+            ) : (
+              <button
+                onClick={handleAdvance}
+                className="w-full py-4 rounded-xl font-black text-lg sm:text-xl tracking-widest cursor-pointer shadow-lg transition-all"
+                style={{
+                  fontFamily: 'Bebas Neue, sans-serif',
+                  background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)',
+                  color: '#000',
+                  boxShadow: '0 0 25px rgba(34,197,94,0.3)',
+                }}
+              >
+                {isFinal ? '🏆 VER O CAMPEÃO →' : 'AVANÇAR PARA A PRÓXIMA FASE →'}
+              </button>
+            )
+          ) : (
+            !allPlayed ? (
+              <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                ⏳ AGUARDANDO O ANFITRIÃO INICIAR: {isFinal ? label : currentLeg === 1 ? `IDA — ${label}` : `VOLTA — ${label}`}...
+              </div>
+            ) : (
+              <div className="py-2 text-sm font-bold text-green-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                👑 FASE CONCLUÍDA! AGUARDANDO O ANFITRIÃO AVANÇAR...
+              </div>
+            )
+          )}
+        </motion.div>
       </div>
 
       {/* Match result modal */}
@@ -388,6 +467,7 @@ export default function KnockoutPage() {
             result={viewingResult.result}
             homeName={viewingResult.homeName}
             awayName={viewingResult.awayName}
+            subtitle={viewingResult.subtitle}
             onClose={() => setViewingResult(null)}
           />
         )}
