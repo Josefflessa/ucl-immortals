@@ -48,6 +48,9 @@ interface RoomState {
   leagueRound: number;
   knockoutBracket: KnockoutBracket | null;
   champion: string | null;
+  // Synchronization: which human players have confirmed watching the current round/leg
+  watchedRoundPlayers: string[];
+  watchedKnockoutLegPlayers: string[];
   draftState: {
     round: number;
     turnIndex: number;
@@ -122,6 +125,8 @@ export function registerSocketHandlers(io: Server) {
         leagueRound: 1,
         knockoutBracket: null,
         champion: null,
+        watchedRoundPlayers: [],
+        watchedKnockoutLegPlayers: [],
         draftState: {
           round: 1,
           turnIndex: 0,
@@ -481,6 +486,8 @@ export function registerSocketHandlers(io: Server) {
 
       if (simulatedAny) {
         room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
+        // Reset watch confirmations so the new round requires fresh confirmation
+        room.watchedRoundPlayers = [];
       }
 
       io.to(roomCode).emit("room_updated", room);
@@ -496,6 +503,19 @@ export function registerSocketHandlers(io: Server) {
       const roundFixtures = room.leagueFixtures.filter(f => f.round === room.leagueRound);
       const allPlayed = roundFixtures.length > 0 && roundFixtures.every(f => f.played);
       if (!allPlayed) return;
+
+      // Block advancement until every human player who has a match this round has confirmed watching
+      const playersWithFixture = room.players.filter(p =>
+        roundFixtures.some(f => f.homeTeamId === p.id || f.awayTeamId === p.id)
+      );
+      const allWatched = playersWithFixture.every(p => room.watchedRoundPlayers.includes(p.id));
+      if (!allWatched) {
+        const waiting = playersWithFixture
+          .filter(p => !room.watchedRoundPlayers.includes(p.id))
+          .map(p => p.name);
+        socket.emit("advance_blocked", { waiting });
+        return;
+      }
 
       if (room.leagueRound < 8) {
         room.leagueRound += 1;
@@ -529,6 +549,8 @@ export function registerSocketHandlers(io: Server) {
       // Knockout results live in the bracket only — they are NOT pushed into
       // leagueResults (season stats read the legs directly from the bracket).
       playActiveKnockoutLeg(room.knockoutBracket, resolve);
+      // Reset watch confirmations for this new leg
+      room.watchedKnockoutLegPlayers = [];
 
       io.to(roomCode).emit("room_updated", room);
     });
@@ -539,10 +561,49 @@ export function registerSocketHandlers(io: Server) {
       if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
       if (!isHost(room, socket.id)) return;
 
+      // Block until all human players who are in the current knockout round have confirmed watching
+      const bracket = room.knockoutBracket;
+      const roundKey = bracket.currentRound === 'quarters' ? 'quarterFinals' : bracket.currentRound === 'semis' ? 'semiFinals' : bracket.currentRound;
+      const currentMatches: any[] = bracket.currentRound === 'final'
+        ? (bracket.final ? [bracket.final] : [])
+        : (bracket as any)[roundKey] || [];
+      const humanIdsInRound = room.players
+        .filter(p => currentMatches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id))
+        .map(p => p.id);
+      const allWatched = humanIdsInRound.every(id => room.watchedKnockoutLegPlayers.includes(id));
+      if (!allWatched) {
+        const waiting = room.players
+          .filter(p => humanIdsInRound.includes(p.id) && !room.watchedKnockoutLegPlayers.includes(p.id))
+          .map(p => p.name);
+        socket.emit("advance_blocked", { waiting });
+        return;
+      }
+
       const champion = advanceKnockoutBracket(room.knockoutBracket);
       if (champion) {
         room.champion = champion;
         room.phase = 'report';
+      }
+
+      io.to(roomCode).emit("room_updated", room);
+    });
+
+    // Player confirms they finished watching their match replay for the current round/leg.
+    // The host cannot advance until all human players who have a match have confirmed.
+    socket.on("player_match_watched", ({ roomCode, type }: { roomCode: string; type: 'league' | 'knockout' }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player) return;
+
+      if (type === 'league') {
+        if (!room.watchedRoundPlayers.includes(player.id)) {
+          room.watchedRoundPlayers.push(player.id);
+        }
+      } else {
+        if (!room.watchedKnockoutLegPlayers.includes(player.id)) {
+          room.watchedKnockoutLegPlayers.push(player.id);
+        }
       }
 
       io.to(roomCode).emit("room_updated", room);
@@ -569,6 +630,8 @@ export function registerSocketHandlers(io: Server) {
       room.leagueRound = 1;
       room.knockoutBracket = null;
       room.champion = null;
+      room.watchedRoundPlayers = [];
+      room.watchedKnockoutLegPlayers = [];
       room.draftState = {
         round: 1,
         turnIndex: 0,

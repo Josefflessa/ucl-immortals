@@ -89,6 +89,8 @@ export interface GameState {
   // already watched, so we only auto-open each replay once.
   lastWatchedRound: number;
   watchedKnockoutMatches: string[];
+  // IDs of players who have confirmed watching the current round/leg (from server)
+  onlineWatchedPlayers: string[];
 }
 
 export interface KnockoutBracket {
@@ -190,6 +192,7 @@ const initialState: GameState = {
   alreadyDraftedIds: [],
   lastWatchedRound: 0,
   watchedKnockoutMatches: [],
+  onlineWatchedPlayers: [],
 };
 
 // ============================================================
@@ -739,7 +742,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         draftTurnIndex: roomState.draftState?.turnIndex || 0,
         draftHistory: roomState.draftState?.history || [],
         alreadyDraftedIds: roomState.draftState?.alreadyDraftedIds || [],
-        
+        onlineWatchedPlayers: roomState.phase === 'league'
+          ? (roomState.watchedRoundPlayers || [])
+          : (roomState.watchedKnockoutLegPlayers || []),
+
         // Local player sync
         playerName: me ? me.name : state.playerName,
         playerTeam: me ? me.team : state.playerTeam,
@@ -819,6 +825,8 @@ interface GameContextType {
   advanceKnockoutRoundOnline: () => void;
   restartRoomOnline: () => void;
   disconnectOnline: () => void;
+  // Each player emits this when they finish watching their match replay
+  notifyMatchWatchedOnline: (type: 'league' | 'knockout') => void;
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -977,6 +985,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.roomCode]);
 
+  const notifyMatchWatchedOnline = useCallback((type: 'league' | 'knockout') => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("player_match_watched", { roomCode: state.roomCode, type });
+    }
+  }, [state.roomCode]);
+
   const disconnectOnline = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -1024,7 +1038,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       createRoom, joinRoom, setDifficultyOnline, startSetupOnline, submitSetupOnline,
       draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
       playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
-      restartRoomOnline, disconnectOnline,
+      restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     }}>
       {children}
     </GameContext.Provider>

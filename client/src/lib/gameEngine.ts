@@ -1318,7 +1318,8 @@ export function calculateTeamStrength(
   let strength = avgStrength + formationBonus + chemBonus.passing + (chemBonus.special ? 5 : 0) + captainBonus;
   
   if (team.isBot && team.botStrength !== undefined) {
-    const multiplier = 0.70 + team.botStrength * 0.20;
+    // Bronze (~0.45) → 0.75x, Gold (~0.75) → 0.91x, Immortal (~0.97) → 1.03x
+    const multiplier = 0.50 + team.botStrength * 0.55;
     strength = strength * multiplier;
   }
 
@@ -1527,8 +1528,9 @@ export function generateBotTeam(name: string, difficulty: number): Team {
       (p.position === pos.role || p.secondaryPositions?.includes(pos.role))
     );
     if (candidates.length > 0) {
-      // Pick randomly from the top 3 candidates to avoid all bots having the exact same stars
-      const randIdx = Math.floor(Math.random() * Math.min(candidates.length, 3));
+      // Pick randomly from top N candidates — window scales with difficulty so easier bots vary more
+      const window = difficulty >= 0.88 ? 4 : difficulty >= 0.62 ? 6 : 8;
+      const randIdx = Math.floor(Math.random() * Math.min(candidates.length, window));
       selected.push(candidates[randIdx]);
     }
   }
@@ -1537,8 +1539,8 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   while (selected.length < 11) {
     const remaining = pool.filter(p => !selected.find(s => s.id === p.id));
     if (remaining.length === 0) break;
-    // Pick randomly from the top 3 remaining players
-    const randIdx = Math.floor(Math.random() * Math.min(remaining.length, 3));
+    const window = difficulty >= 0.88 ? 4 : difficulty >= 0.62 ? 6 : 8;
+    const randIdx = Math.floor(Math.random() * Math.min(remaining.length, window));
     selected.push(remaining[randIdx]);
   }
 

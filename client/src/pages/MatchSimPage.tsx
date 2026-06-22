@@ -25,6 +25,7 @@ export default function MatchSimPage() {
   const {
     state,
     dispatch,
+    notifyMatchWatchedOnline,
   } = useGame();
   const { currentMatchTeams, activeKnockoutMatch } = state;
 
@@ -1158,8 +1159,10 @@ export default function MatchSimPage() {
     // replay), so we just return to the league/knockout view. Solo computes
     // the result locally as before.
     if (activeKnockoutMatch) {
+      if (state.mode === 'online') notifyMatchWatchedOnline('knockout');
       dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
     } else {
+      if (state.mode === 'online') notifyMatchWatchedOnline('league');
       dispatch({ type: 'FINISH_LEAGUE_MATCH', result: finalResult });
     }
   };
@@ -1530,7 +1533,7 @@ export default function MatchSimPage() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="text-sm sm:text-base font-extrabold text-white leading-tight uppercase truncate"
+                  className="text-sm sm:text-base font-extrabold text-white leading-tight uppercase break-words"
                   style={{ fontFamily: 'Rajdhani, sans-serif' }}
                 >
                   {latestEvent ? latestEvent.description : 'Árbitro posiciona a bola. Arquibancadas cantam forte!'}

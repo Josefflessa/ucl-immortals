@@ -18,7 +18,10 @@ export default function LeaguePage() {
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'results' | 'squad' | 'scorers'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
 
-  const allTeams = playerTeam ? [playerTeam, ...state.botTeams] : state.botTeams;
+  // In online mode include all human teams so stats cover every player in the league
+  const allTeams = state.mode === 'online'
+    ? [...state.onlinePlayers.filter(p => p.team).map(p => p.team!), ...state.botTeams]
+    : playerTeam ? [playerTeam, ...state.botTeams] : state.botTeams;
 
   // Aggregate stats for all players in the league
   const allPlayedResults = getAllPlayedMatchResults(leagueResults, state.knockoutBracket);
@@ -53,9 +56,19 @@ export default function LeaguePage() {
   // Filter fixtures for the current round
   const currentRoundFixtures = leagueFixtures.filter(f => f.round === leagueRound);
 
-  // ONLINE: never reveal this round's scores before the local player has watched
-  // their own match (avoids spoiling the result the live replay is about to show).
-  const hideRoundScore = state.mode === 'online' && state.lastWatchedRound < leagueRound;
+  // Online: which human players still need to watch their match before host can advance
+  const humanPlayersWithMatch = state.mode === 'online'
+    ? state.onlinePlayers.filter(p =>
+        currentRoundFixtures.some(f => f.homeTeamId === p.id || f.awayTeamId === p.id)
+      )
+    : [];
+  const allPlayersWatched = humanPlayersWithMatch.length === 0 ||
+    humanPlayersWithMatch.every(p => state.onlineWatchedPlayers.includes(p.id));
+  const waitingForCount = humanPlayersWithMatch.filter(p => !state.onlineWatchedPlayers.includes(p.id)).length;
+
+  // ONLINE: hide ALL scores until every player has confirmed watching the replay.
+  // This prevents the host (or anyone else) from seeing results before others finish.
+  const hideRoundScore = state.mode === 'online' && !allPlayersWatched;
 
   const getPlayerPhotoUrl = (playerId: string) => {
     const baseId = Object.keys(SOFIFA_MAPPING).find(key => playerId === key || playerId.startsWith(key + '_')) || playerId.split('_')[0];
@@ -405,10 +418,19 @@ export default function LeaguePage() {
                         Todas as partidas da rodada começam ao mesmo tempo para todos.
                       </div>
                     </>
+                  ) : !allPlayersWatched ? (
+                    <div className="py-3">
+                      <div className="text-sm font-bold animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#C9A84C' }}>
+                        ⏳ AGUARDANDO {waitingForCount} JOGADOR{waitingForCount !== 1 ? 'ES' : ''} VEREM O RESULTADO...
+                      </div>
+                      <div className="mt-1 text-[11px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                        ({humanPlayersWithMatch.length - waitingForCount}/{humanPlayersWithMatch.length} concluídos)
+                      </div>
+                    </div>
                   ) : leagueRound < 8 ? (
                     <button
                       onClick={handleAdvanceRound}
-                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
+                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
                       style={{
                         fontFamily: 'Bebas Neue, sans-serif',
                         background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
@@ -421,7 +443,7 @@ export default function LeaguePage() {
                   ) : (
                     <button
                       onClick={handleAdvanceKnockout}
-                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
+                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
                       style={{
                         fontFamily: 'Bebas Neue, sans-serif',
                         background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)',
