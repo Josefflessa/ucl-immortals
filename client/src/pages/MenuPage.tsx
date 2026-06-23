@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Gamepad2, Trophy, Plus, LogIn, Wifi, LogOut, Swords, FlaskConical, Target, ListOrdered, BarChart3 } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
 
@@ -168,10 +169,10 @@ export default function MenuPage() {
 
           <button
             onClick={handleLeaveLobby}
-            className="mt-4 text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-widest transition-all"
+            className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-widest transition-all"
             style={{ fontFamily: 'Rajdhani, sans-serif' }}
           >
-            🚫 SAIR DA SALA
+            <LogOut size={14} /> SAIR DA SALA
           </button>
         </div>
       </div>
@@ -260,7 +261,9 @@ export default function MenuPage() {
                   border: '1px solid #1B4FD888'
                 }}
               >
-                ⚽ JOGAR SOLO (CARREIRA)
+                <span className="inline-flex items-center justify-center gap-2.5">
+                  <Gamepad2 size={22} strokeWidth={2.5} /> JOGAR SOLO (CARREIRA)
+                </span>
               </button>
 
               <button
@@ -273,7 +276,9 @@ export default function MenuPage() {
                   boxShadow: '0 0 25px rgba(201,168,76,0.4)'
                 }}
               >
-                🏆 MULTIPLAYER ONLINE (SALAS)
+                <span className="inline-flex items-center justify-center gap-2.5">
+                  <Trophy size={22} strokeWidth={2.5} /> MULTIPLAYER ONLINE
+                </span>
               </button>
             </motion.div>
           )}
@@ -364,7 +369,9 @@ export default function MenuPage() {
                     cursor: playerName.trim() ? 'pointer' : 'not-allowed'
                   }}
                 >
-                  🏠 CRIAR SALA
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <Plus size={16} strokeWidth={3} /> CRIAR SALA
+                  </span>
                 </button>
                 <button
                   onClick={() => setMenuMode('online_join')}
@@ -378,13 +385,15 @@ export default function MenuPage() {
                     cursor: playerName.trim() ? 'pointer' : 'not-allowed'
                   }}
                 >
-                  🚪 ENTRAR EM SALA
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <LogIn size={16} strokeWidth={3} /> ENTRAR EM SALA
+                  </span>
                 </button>
               </div>
 
               {serverIp && (
                 <div className="p-3 rounded-lg border text-center text-[10px] text-gray-400 mt-2" style={{ background: '#0C0C16', borderColor: '#1F1F35', fontFamily: 'Rajdhani, sans-serif' }}>
-                  💡 Celular no mesmo Wi-Fi? Conecte em:
+                  <span className="inline-flex items-center gap-1.5"><Wifi size={12} /> Celular no mesmo Wi-Fi? Conecte em:</span>
                   <div className="font-bold text-[#C9A84C] text-sm mt-1 select-all">
                     http://{serverIp}:3000
                   </div>
@@ -461,15 +470,15 @@ export default function MenuPage() {
           className="flex flex-wrap gap-3 mt-10 justify-center"
         >
           {[
-            '⚽ Draft de Lendas',
-            '🧪 Sistema de Química',
-            '🎯 Simulação Tática',
-            '🏆 Liga + Mata-Mata',
-            '📊 Relatório Imortal',
-          ].map(feat => (
+            { Icon: Swords, label: 'Draft de Lendas' },
+            { Icon: FlaskConical, label: 'Sistema de Química' },
+            { Icon: Target, label: 'Simulação Tática' },
+            { Icon: ListOrdered, label: 'Liga + Mata-Mata' },
+            { Icon: BarChart3, label: 'Relatório Imortal' },
+          ].map(({ Icon, label }) => (
             <div
-              key={feat}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold"
+              key={label}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
               style={{
                 background: '#0F0F1A',
                 border: '1px solid #1B4FD833',
@@ -477,7 +486,7 @@ export default function MenuPage() {
                 fontFamily: 'Rajdhani, sans-serif',
               }}
             >
-              {feat}
+              <Icon size={13} /> {label}
             </div>
           ))}
         </motion.div>

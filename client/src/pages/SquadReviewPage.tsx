@@ -24,7 +24,7 @@ export default function SquadReviewPage() {
   const handlePlayerClick = (index: number) => {
     setSelectedPlayerIndex(index);
   };
-  const { draftedPlayers: rawDraftedPlayers, selectedFormationId, selectedCoachId } = state;
+  const { draftedPlayers: rawDraftedPlayers, selectedFormationId, selectedCoachId, selectedPlayStyle } = state;
   const draftedPlayers = rawDraftedPlayers as Player[];
 
   const formation = FORMATIONS.find(f => f.id === selectedFormationId);
@@ -46,6 +46,7 @@ export default function SquadReviewPage() {
           chemData.outOfPosition[p.id] ?? false,
           selectedCoachId,
           chemData.total,
+          selectedPlayStyle,
         );
         return sum + eff.overall;
       }, 0) / 11)
@@ -70,7 +71,7 @@ export default function SquadReviewPage() {
 
   const handleStart = () => {
     if (state.mode === 'online') {
-      submitSquadReviewOnline(state.captain, state.penaltyTaker, state.draftedPlayers);
+      submitSquadReviewOnline(state.captain, state.penaltyTaker, state.draftedPlayers, selectedPlayStyle);
     } else {
       dispatch({ type: 'START_LEAGUE' });
     }
@@ -329,7 +330,7 @@ export default function SquadReviewPage() {
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? player.position) : player.position;
                   const chemScore = chemData.individual[player.id] ?? 0;
                   const isOOP = isStarter ? (chemData.outOfPosition[player.id] ?? false) : false;
-                  const eff = getPlayerEffectiveStats(player, chemScore, isOOP, selectedCoachId, chemData.total);
+                  const eff = getPlayerEffectiveStats(player, chemScore, isOOP, selectedCoachId, chemData.total, selectedPlayStyle);
 
                   const photoUrl = buildSofifaUrl(player.id, 120);
 
@@ -373,7 +374,7 @@ export default function SquadReviewPage() {
                         {/* Overall block */}
                         <div className="text-right flex-shrink-0">
                           <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{eff.overall}</div>
-                          {eff.overallMod > 0 && <div className="text-xs font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>(+{eff.overallMod} química/trein.)</div>}
+                          {eff.overallMod > 0 && <div className="text-xs font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>(+{eff.overallMod} química/treino/traits/tática)</div>}
                           <div className="text-[9px] text-gray-500 mt-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GERAL EFETIVO</div>
                         </div>
                       </div>

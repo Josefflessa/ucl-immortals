@@ -28,6 +28,7 @@ interface RoomPlayer {
   name: string;
   coachId: string;
   formationId: string;
+  playStyle: string;
   draftedPlayers: (Player | undefined)[];
   vetoesLeft: number;
   captain: string | null;
@@ -110,6 +111,7 @@ export function registerSocketHandlers(io: Server) {
             name: creatorName,
             coachId: 'guardiola',
             formationId: '4-3-3',
+            playStyle: 'balanced',
             draftedPlayers: Array(11).fill(undefined),
             vetoesLeft: 2,
             captain: null,
@@ -180,6 +182,7 @@ export function registerSocketHandlers(io: Server) {
         name: playerName.trim(),
         coachId: 'guardiola',
         formationId: '4-3-3',
+        playStyle: 'balanced',
         draftedPlayers: Array(11).fill(undefined),
         vetoesLeft: 2,
         captain: null,
@@ -355,7 +358,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Player submits squad review (captain, penalty taker)
-    socket.on("submit_squad_review", ({ roomCode, captain, penaltyTaker, draftedPlayers }) => {
+    socket.on("submit_squad_review", ({ roomCode, captain, penaltyTaker, draftedPlayers, playStyle }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
 
@@ -365,6 +368,7 @@ export function registerSocketHandlers(io: Server) {
       player.captain = captain;
       player.penaltyTaker = penaltyTaker;
       player.draftedPlayers = draftedPlayers;
+      if (playStyle) player.playStyle = playStyle;
       player.ready = true;
 
       // Check if all players are ready
@@ -394,7 +398,7 @@ export function registerSocketHandlers(io: Server) {
             name: p.name,
             coachId: p.coachId,
             formationId: p.formationId,
-            playStyle: 'balanced',
+            playStyle: p.playStyle ?? 'balanced',
             players: playerCards,
             captain: p.captain ?? undefined,
             penaltyTaker: p.penaltyTaker ?? undefined,
@@ -439,7 +443,7 @@ export function registerSocketHandlers(io: Server) {
     // Player updates captain / penalty taker for their own team (pre-league and
     // between matches). Kept on the authoritative server team so the server-side
     // simulation uses the chosen penalty taker.
-    socket.on("set_match_roles", ({ roomCode, captain, penaltyTaker }) => {
+    socket.on("set_match_roles", ({ roomCode, captain, penaltyTaker, playStyle }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -447,9 +451,11 @@ export function registerSocketHandlers(io: Server) {
 
       player.captain = captain ?? null;
       player.penaltyTaker = penaltyTaker ?? null;
+      if (playStyle) player.playStyle = playStyle;
       if (player.team) {
         player.team.captain = captain ?? undefined;
         player.team.penaltyTaker = penaltyTaker ?? undefined;
+        if (playStyle) player.team.playStyle = playStyle;
       }
       io.to(roomCode).emit("room_updated", room);
     });
@@ -620,6 +626,7 @@ export function registerSocketHandlers(io: Server) {
         p.vetoesLeft = 2;
         p.captain = null;
         p.penaltyTaker = null;
+        p.playStyle = 'balanced';
         p.team = null;
         p.ready = false;
       });

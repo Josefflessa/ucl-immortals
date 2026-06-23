@@ -70,12 +70,13 @@ export default function LeagueSquadTab() {
         )}
       </div>
 
-      {/* Tactic / play style — solo can change between matches */}
+      {/* Tactic / play style — changeable between matches (solo and online) */}
       <TacticSelector
         value={team.playStyle}
-        onChange={(id) => dispatch({ type: 'SET_PLAYER_TEAM_PLAY_STYLE', playStyle: id })}
-        disabled={state.mode === 'online'}
-        disabledHint="A troca de tática no multiplayer ainda não está disponível."
+        onChange={(id) => {
+          if (state.mode === 'online') setMatchRolesOnline(team.captain ?? null, team.penaltyTaker ?? null, id);
+          else dispatch({ type: 'SET_PLAYER_TEAM_PLAY_STYLE', playStyle: id });
+        }}
       />
 
       {/* Captain & penalty taker */}
@@ -160,6 +161,7 @@ export default function LeagueSquadTab() {
                     selectedIsOOP,
                     team.coachId,
                     chemData.total,
+                    team.playStyle,
                   );
                   const isStarter = selectedIndex < 11;
                   const posIdx = isStarter ? selectedIndex : -1;

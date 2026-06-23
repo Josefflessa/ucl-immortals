@@ -827,8 +827,8 @@ interface GameContextType {
   submitSetupOnline: (coachId: string, formationId: string) => void;
   draftPickOnline: (playerId: string) => void;
   draftVetoOnline: () => void;
-  submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[]) => void;
-  setMatchRolesOnline: (captain: string | null, penaltyTaker: string | null) => void;
+  submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string) => void;
+  setMatchRolesOnline: (captain: string | null, penaltyTaker: string | null, playStyle?: string) => void;
   // League — host only
   playRoundOnline: () => void;
   advanceRoundOnline: () => void;
@@ -950,20 +950,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.roomCode]);
 
-  const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[]) => {
+  const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string) => {
     if (socketRef.current && state.roomCode) {
       socketRef.current.emit("submit_squad_review", {
         roomCode: state.roomCode,
         captain,
         penaltyTaker,
-        draftedPlayers
+        draftedPlayers,
+        playStyle,
       });
     }
   }, [state.roomCode]);
 
-  const setMatchRolesOnline = useCallback((captain: string | null, penaltyTaker: string | null) => {
+  const setMatchRolesOnline = useCallback((captain: string | null, penaltyTaker: string | null, playStyle?: string) => {
     if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker });
+      socketRef.current.emit("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker, playStyle });
     }
   }, [state.roomCode]);
 

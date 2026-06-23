@@ -5,7 +5,8 @@ import {
   Team, MatchResult, MatchEvent, simulateMatch,
   getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
-  getPenaltyTaker, getPenaltyOrder
+  getPenaltyTaker, getPenaltyOrder,
+  GK_SAVE_EDGE, ON_TARGET_RESISTANCE, MATCH_NOISE,
 } from '../lib/gameEngine';
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';
 import {
@@ -16,7 +17,7 @@ import {
   Approach,
 } from '../lib/matchNarrative';
 import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
-import PlayerCard from '../components/game/PlayerCard';
+import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
@@ -163,21 +164,43 @@ export default function MatchSimPage() {
   // NOTE: Spectator mode and match event streaming have been removed.
   // Each player now simulates their own match independently.
 
-  const renderSquadRow = (p: EnginePlayerCard, rating: number) => {
+  const renderSquadRow = (p: EnginePlayerCard, rating: number, goals = 0, assists = 0) => {
     const rColor = rating >= 8.5 ? '#d4af37' : rating >= 7.5 ? '#22c55e' : rating <= 5.3 ? '#ef4444' : '#ffffff';
+    const ringColor = getRarityColor(p.rarity);
+    const photoUrl = buildSofifaUrl(p.id, 120);
     return (
       <div
         key={p.id}
         className="flex items-center justify-between p-2 rounded-xl border"
         style={{ background: '#08080f', borderColor: '#171725' }}
       >
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {/* Player photo with rarity ring */}
+          <div
+            className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+            style={{ background: '#10101d', border: `1.5px solid ${ringColor}` }}
+          >
+            {photoUrl
+              ? <img src={photoUrl} alt={p.shortName} referrerPolicy="no-referrer" className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.25' }} />
+              : <span className="text-[10px] font-black" style={{ color: ringColor, fontFamily: 'Rajdhani, sans-serif' }}>{posLabel(p.position)}</span>}
+          </div>
           <span className="text-[10px] font-black w-6 text-center rounded px-1 flex-shrink-0" style={{ background: '#171725', color: '#c9a84c', fontFamily: 'Rajdhani, sans-serif' }}>
             {posLabel(p.position)}
           </span>
           <span className="text-sm font-bold text-white truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
             {p.shortName}
           </span>
+          {/* Goal / assist markers */}
+          {goals > 0 && (
+            <span className="text-[11px] flex-shrink-0" title={`${goals} gol(s)`}>
+              {goals > 1 ? `⚽×${goals}` : '⚽'}
+            </span>
+          )}
+          {assists > 0 && (
+            <span className="text-[10px] flex-shrink-0 font-black" style={{ color: '#60a5fa', fontFamily: 'Rajdhani, sans-serif' }} title={`${assists} assistência(s)`}>
+              {assists > 1 ? `🅰×${assists}` : '🅰'}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-sm font-black px-2 py-0.5 rounded-lg border text-center min-w-[36px]" style={{ background: '#1a1a2e', color: rColor, borderColor: '#1f1f3b', fontFamily: 'Rajdhani, sans-serif' }}>
@@ -403,13 +426,13 @@ export default function MatchSimPage() {
       if (atkScore > defScore) {
         statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
 
-        const targetChance = atkShooting / (atkShooting + 24);
+        const targetChance = atkShooting / (atkShooting + ON_TARGET_RESISTANCE);
         const isOnTarget = Math.random() < targetChance;
 
         if (isOnTarget) {
           statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
 
-          const gkScore = gk.defending + getGoalkeeperTraitBonus(gk.traits) + Math.random() * 36;
+          const gkScore = gk.defending + getGoalkeeperTraitBonus(gk.traits) + GK_SAVE_EDGE + Math.random() * 36;
           const shootScore = atkShooting + Math.random() * 36;
 
           if (shootScore > gkScore) {
@@ -447,7 +470,7 @@ export default function MatchSimPage() {
               }
             });
 
-            momentumShift = homeAttacks ? 25 : -25;
+            momentumShift = homeAttacks ? 15 : -15;
             messageStage3 = celebrationMsg(approach, attackTeam.name, attacker.shortName, newHG, newAG);
           } else {
             isSaveResult = true;
@@ -566,12 +589,26 @@ export default function MatchSimPage() {
       const homeMomBonus = (momentum - 50) * 0.12;
       const awayMomBonus = ((100 - momentum) - 50) * 0.12;
 
-      const homeAtkScore = homeStrength + homeMomBonus + (Math.random() * 44 - 22);
-      const awayAtkScore = awayStrength + awayMomBonus + (Math.random() * 44 - 22);
+      const homeAtkScore = homeStrength + homeMomBonus + (Math.random() * 2 - 1) * MATCH_NOISE;
+      const awayAtkScore = awayStrength + awayMomBonus + (Math.random() * 2 - 1) * MATCH_NOISE;
 
       const homeAttacks = homeAtkScore > awayAtkScore;
       const attackTeam = homeAttacks ? homeTeam : awayTeam;
       const defendTeam = homeAttacks ? awayTeam : homeTeam;
+
+      // Flavour box-score (never affects the score) — mirrors the engine so the
+      // player's live match shows realistic, varied shots/fouls/corners/saves.
+      if (Math.random() < 0.24) incrementStat(homeAttacks ? 'awayFouls' : 'homeFouls');
+      if (Math.random() < 0.20) {
+        incrementStat(homeAttacks ? 'homeShots' : 'awayShots');
+        const o = Math.random();
+        if (o < 0.34) {
+          incrementStat(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
+          incrementStat(homeAttacks ? 'awaySaves' : 'homeSaves');
+        } else if (o < 0.62) {
+          incrementStat(homeAttacks ? 'homeCorners' : 'awayCorners');
+        }
+      }
 
       const isKeyEvent = [8, 15, 22, 28, 35, 42, 47, 55, 62, 68, 75, 82, 88, 90].includes(nextMin) ||
         (isKnockout && nextMin > 90 && [95, 102, 108, 114, 120].includes(nextMin));
@@ -1299,6 +1336,11 @@ export default function MatchSimPage() {
     return playerMatchStats[playerId]?.rating ?? 6.0;
   };
 
+  const getDisplayStat = (playerId: string): PlayerMatchStat | undefined => {
+    if (isReplay && !isFinished && !penaltyMode && replayProgress) return replayProgress.ps[playerId];
+    return playerMatchStats[playerId];
+  };
+
   const latestEvent = events[events.length - 1];
 
   // Helper to format events icons
@@ -1793,9 +1835,10 @@ export default function MatchSimPage() {
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
-                {(squadModal === 'mine' ? myTeam : oppTeam).players.map(p =>
-                  renderSquadRow(p, getDisplayRating(p.id))
-                )}
+                {(squadModal === 'mine' ? myTeam : oppTeam).players.map(p => {
+                  const st = getDisplayStat(p.id);
+                  return renderSquadRow(p, getDisplayRating(p.id), st?.goals ?? 0, st?.assists ?? 0);
+                })}
               </div>
             </motion.div>
           </div>

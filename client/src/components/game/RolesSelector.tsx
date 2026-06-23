@@ -81,9 +81,9 @@ export default function RolesSelector({
           <br /><span style={{ color: '#6A6A7A' }}>Dica: escolha seu craque mais raro.</span>
         </div>
         <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #C9A84C33', color: '#B8A875' }}>
-          <span className="font-black" style={{ color: '#C9A84C' }}>⚽ Cobrador</span> — bate todos os
-          pênaltis (na partida e na disputa) e ganha <b style={{ color: '#FFF' }}>+5 de compostura</b>. O sucesso
-          depende da compostura e dos traits de frieza.
+          <span className="font-black" style={{ color: '#C9A84C' }}>⚽ Cobrador</span> — bate os pênaltis
+          <b style={{ color: '#FFF' }}> durante o jogo</b> e a <b style={{ color: '#FFF' }}>1ª cobrança da disputa</b> (com
+          +5 de compostura); na disputa, os demais batem na sequência. O sucesso depende da compostura e dos traits de frieza.
           <br /><span style={{ color: '#6A6A7A' }}>Dica: escolha quem tem maior compostura.</span>
         </div>
       </div>

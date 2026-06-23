@@ -413,6 +413,7 @@ export function getPlayerEffectiveStats(
   isOOP: boolean,
   coachId: string,
   teamChemTotal: number,
+  playStyle: string = 'balanced',
   context?: {
     isKnockout?: boolean;
     isFinal?: boolean;
@@ -421,22 +422,57 @@ export function getPlayerEffectiveStats(
   }
 ): EffectiveStats {
   const effectiveChem = isOOP ? 0 : chemScore;
-  const chemMult = isOOP ? 0.85 : (effectiveChem === 3 ? 1.10 : effectiveChem === 2 ? 1.06 : effectiveChem === 1 ? 1.03 : 1.00);
+  // Match the engine: OOP debuff is softened by the "Versatilidade" trait.
+  const oopMult = hasOopRelief(player.traits) ? 0.92 : 0.85;
+  const chemMult = isOOP ? oopMult : (effectiveChem === 3 ? 1.10 : effectiveChem === 2 ? 1.06 : effectiveChem === 1 ? 1.03 : 1.00);
 
   const applyMult = (base: number) => Math.round(base * chemMult);
 
   const modifiers = getCoachModifiersForPlayer(player, coachId, context);
+  const chemBonus = getChemistryBonus(teamChemTotal);
 
-  const eff = (base: number, mod: number) => Math.max(1, applyMult(base) + mod);
+  // Unconditional trait bonuses (no context → only 'always' boosts count; conditional
+  // traits like "na final" are shown separately, not summed here).
+  const traitBonus = (attr: AttrKey) => getTraitAttributeBonus(player.traits, attr);
 
-  const pace      = eff(player.pace, modifiers.pace);
-  const shooting  = eff(player.shooting, modifiers.shooting);
-  const passing   = eff(player.passing, modifiers.passing);
-  const dribbling = eff(player.dribbling, modifiers.dribbling);
-  const defending = eff(player.defending, modifiers.defending);
-  const physical  = eff(player.physical, modifiers.physical);
+  // Play-style (tactic) modifiers — same rules as getEffectiveAttribute.
+  const styleBonus = (attr: AttrKey): number => {
+    if (playStyle === 'possession' && attr === 'passing') return 5;
+    if (playStyle === 'counter' && (attr === 'pace' || attr === 'shooting')) return 5;
+    if (playStyle === 'high_press' && attr === 'physical') return 5;
+    if (playStyle === 'defensive' && attr === 'defending') return 8;
+    if (playStyle === 'all_out_attack' && attr === 'shooting') return 8;
+    return 0;
+  };
 
-  const effectiveOverall = Math.max(1, Math.round(player.overall * chemMult) + modifiers.overall);
+  // Global chemistry bonus (only passing & pace), same as the engine.
+  const globalChem = (attr: AttrKey): number => {
+    if (attr === 'passing') return chemBonus.passing * 2;
+    if (attr === 'pace') return chemBonus.pace * 2;
+    return 0;
+  };
+
+  // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr);
+
+  const eff = (base: number, mod: number, attr: AttrKey) =>
+    Math.max(1, applyMult(base) + mod + extra(attr));
+
+  const pace      = eff(player.pace, modifiers.pace, 'pace');
+  const shooting  = eff(player.shooting, modifiers.shooting, 'shooting');
+  const passing   = eff(player.passing, modifiers.passing, 'passing');
+  const dribbling = eff(player.dribbling, modifiers.dribbling, 'dribbling');
+  const defending = eff(player.defending, modifiers.defending, 'defending');
+  const physical  = eff(player.physical, modifiers.physical, 'physical');
+
+  // Effective overall reflects every additive uplift (traits + tactic + global chem),
+  // averaged across the six stats, on top of the chem-scaled base + coach overall mod.
+  const extraOverall = Math.round(
+    (extra('pace') + extra('shooting') + extra('passing')
+      + extra('dribbling') + extra('defending') + extra('physical')) / 6
+  );
+
+  const effectiveOverall = Math.max(1, Math.round(player.overall * chemMult) + modifiers.overall + extraOverall);
   const baseOverall = player.overall;
   const overallMod = effectiveOverall - baseOverall;
 
@@ -518,6 +554,29 @@ export function getEffectiveAttribute(
 // ============================================================
 // MATCH ENGINE
 // ============================================================
+
+// Balance knobs (tuned via client/src/lib/balance.test.ts to ~3.2 goals/match):
+//  - GK_SAVE_EDGE: extra edge for the keeper in the shot-vs-keeper duel.
+//  - ON_TARGET_RESISTANCE: higher = fewer shots on target (denominator of the
+//    accuracy curve atkShooting/(atkShooting + resistance)). Both raise = fewer goals.
+export const GK_SAVE_EDGE = 8;
+export const ON_TARGET_RESISTANCE = 48;
+// Per-minute randomness in deciding which team attacks. Lower = team strength
+// matters more. Tuned to 20 via the harness: favorites clearly win more (champion
+// avg strength-rank ~8 of 36, vs ~18.5 random) while upsets stay common (a rank
+// ~20+ team still lifts the trophy now and then). Football should be unpredictable.
+export const MATCH_NOISE = 20;
+
+// ── Flavour match statistics (shots/saves/corners/fouls) ──────
+// These populate the box-score WITHOUT ever changing the score. They are
+// per-minute probabilistic and scaled by a per-match tempo/aggression roll, so
+// every match looks different (a one-sided thrashing, a scrappy foul-fest, a
+// quiet game with few corners) instead of fixed averages.
+const FLAVOR_SHOT_RATE = 0.20;  // base chance the attacking side takes an extra attempt this minute
+const FLAVOR_FOUL_RATE = 0.24;  // base chance of a foul this minute
+// Momentum gained/lost by the team that scores. Lower = leads snowball less, so
+// fewer blowouts and more balanced (drawn) games.
+export const GOAL_MOMENTUM_SWING = 8;
 
 /** Pick a weighted random attacker — ST/CF get higher weight */
 function pickWeightedAttacker(players: PlayerCard[]): PlayerCard {
@@ -622,6 +681,10 @@ export function runMatchSimulation(
 
   let lastKeyCtx: LastKeyCtx = null;
 
+  // Per-match character so each box-score is different (tempo & aggression vary).
+  const matchTempo = 0.7 + Math.random() * 0.6;       // 0.70 .. 1.30
+  const matchAggression = 0.55 + Math.random() * 0.9; // 0.55 .. 1.45
+
   for (let minute = startMinute + 1; minute <= endMinute; minute++) {
     const isKeyEventMinute = KEY_MINUTES.includes(minute);
 
@@ -635,8 +698,8 @@ export function runMatchSimulation(
     const homeMomBonus = (homeMomentum - 50) * 0.25;
     const awayMomBonus = (awayMomentum - 50) * 0.25;
 
-    const homeAttack = homeStrength + homeMomBonus + (Math.random() * 44 - 22);
-    const awayAttack = awayStrength + awayMomBonus + (Math.random() * 44 - 22);
+    const homeAttack = homeStrength + homeMomBonus + (Math.random() * 2 - 1) * MATCH_NOISE;
+    const awayAttack = awayStrength + awayMomBonus + (Math.random() * 2 - 1) * MATCH_NOISE;
 
     const homeAttacks = homeAttack > awayAttack;
     const attackTeam = homeAttacks ? home : away;
@@ -652,6 +715,26 @@ export function runMatchSimulation(
     const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
+
+    // ── Flavour box-score (never changes the score) ──
+    // A foul this minute, charged to whoever is defending.
+    if (Math.random() < FLAVOR_FOUL_RATE * matchAggression) {
+      if (homeAttacks) matchStats.awayFouls++; else matchStats.homeFouls++;
+    }
+    // An extra attempt by the side on top this minute (off-target / corner / saved — never a goal).
+    if (Math.random() < FLAVOR_SHOT_RATE * matchTempo) {
+      if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
+      const o = Math.random();
+      if (o < 0.34) {
+        // on target but saved by the keeper
+        if (homeAttacks) { matchStats.homeShotsOnTarget++; matchStats.awaySaves++; }
+        else { matchStats.awayShotsOnTarget++; matchStats.homeSaves++; }
+      } else if (o < 0.62) {
+        // blocked/deflected out for a corner
+        if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++;
+      }
+      // else: off target — no further stat
+    }
 
     if (isKeyEventMinute) {
       const attackers = attackTeam.players.slice(0, 11).filter(p =>
@@ -812,18 +895,18 @@ export function runMatchSimulation(
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
           if (playerStats[attacker.id]) playerStats[attacker.id].shots++;
 
-          const targetChance = atkShooting / (atkShooting + 30);
+          const targetChance = atkShooting / (atkShooting + ON_TARGET_RESISTANCE);
           if (Math.random() < targetChance) {
             if (homeAttacks) matchStats.homeShotsOnTarget++; else matchStats.awayShotsOnTarget++;
 
-            const gkScore = gk.defending + getGoalkeeperTraitBonus(gk.traits) + Math.random() * 36;
+            const gkScore = gk.defending + getGoalkeeperTraitBonus(gk.traits) + GK_SAVE_EDGE + Math.random() * 36;
             const shootScore = atkShooting + Math.random() * 36;
 
             if (shootScore > gkScore) {
               if (homeAttacks) homeGoals++; else awayGoals++;
 
-              homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 15) : Math.max(0, homeMomentum - 15);
-              awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 15) : Math.min(100, awayMomentum + 15);
+              homeMomentum = homeAttacks ? Math.min(100, homeMomentum + GOAL_MOMENTUM_SWING) : Math.max(0, homeMomentum - GOAL_MOMENTUM_SWING);
+              awayMomentum = homeAttacks ? Math.max(0, awayMomentum - GOAL_MOMENTUM_SWING) : Math.min(100, awayMomentum + GOAL_MOMENTUM_SWING);
 
               if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.4; }
               if (playerStats[gk.id]) playerStats[gk.id].rating -= 0.4;
@@ -1288,7 +1371,7 @@ export function getPenaltyOrder(team: Team): PlayerCard[] {
   return [...ordered, ...keepers];
 }
 
-function simulatePenalties(home: Team, away: Team, _playerStats?: Record<string, PlayerMatchStat>): {
+export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<string, PlayerMatchStat>): {
   winner: string;
   homeScore: number;
   awayScore: number;

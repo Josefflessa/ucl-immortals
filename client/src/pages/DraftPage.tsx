@@ -5,7 +5,9 @@ import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useGame } from '../contexts/GameContext';
 import PlayerCard from '../components/game/PlayerCard';
 import FormationField from '../components/game/FormationField';
+import { Ban } from 'lucide-react';
 import { FORMATIONS, COACHES, Player } from '../lib/gameData';
+import { getTraitInfo, traitEffectLabel } from '../lib/traits';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 const DRAFT_TIME = 20;
@@ -100,6 +102,30 @@ const DraftOptions = memo(function DraftOptions({
           />
         ))}
       </div>
+      {selectedId && (() => {
+        const sel = options.find(p => p.id === selectedId);
+        if (!sel || sel.traits.length === 0) return null;
+        return (
+          <div className="mx-auto mb-3 max-w-md rounded-xl px-3 py-2.5" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
+            <div className="text-[10px] font-black tracking-widest mb-1.5" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+              ⭐ {sel.shortName.toUpperCase()} — CARACTERÍSTICAS
+            </div>
+            <div className="flex flex-col gap-1">
+              {sel.traits.map(t => {
+                const info = getTraitInfo(t);
+                const isRolled = t === sel.rolledTrait;
+                return (
+                  <div key={t} className="flex items-baseline gap-1.5 text-[11px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <span className="flex-shrink-0">{info?.icon ?? '⭐'}</span>
+                    <span className="font-black flex-shrink-0" style={{ color: isRolled ? '#E8C84A' : '#FFF' }}>{isRolled ? `${t} (extra)` : t}</span>
+                    <span style={{ color: '#C9A84C' }}>{traitEffectLabel(t) || 'sem efeito direto'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
       {selectedId && (
         <div className="flex justify-center">
           <button
@@ -333,7 +359,7 @@ export default function DraftPage() {
             fontFamily: 'Rajdhani, sans-serif',
           }}
         >
-          🚫 VETAR ({vetoesLeft})
+          <Ban size={14} /> VETAR ({vetoesLeft})
         </button>
       </div>
 

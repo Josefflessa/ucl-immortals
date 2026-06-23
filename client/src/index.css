@@ -199,3 +199,34 @@ select option {
   background: #0F0F1A;
   color: #FFFFFF;
 }
+
+/* ── Global polish ──────────────────────────────────────────── */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Branded text selection */
+::selection {
+  background: #C9A84C;
+  color: #080810;
+}
+
+/* Tabular numbers for stats/scores so digits don't jitter */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Reusable elevated-surface treatment (subtle top highlight + depth) */
+.surface-card {
+  background: linear-gradient(180deg, #12121f 0%, #0d0d18 100%);
+  border: 1px solid #1c1c2c;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* Soft radial spotlight used behind heroes/headers for depth */
+.spotlight-gold {
+  background: radial-gradient(60% 60% at 50% 0%, rgba(201, 168, 76, 0.10) 0%, transparent 70%);
+}
