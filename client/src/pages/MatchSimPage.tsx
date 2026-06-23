@@ -7,19 +7,19 @@ import {
   PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
   getPenaltyTaker, getPenaltyOrder
 } from '../lib/gameEngine';
+import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';
+import {
+  selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
+  frangoDesc, screamedDesc, deflectedDesc, woodworkDesc,
+  penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc,
+  flowDesc, dangerStage1Msg, celebrationMsg, saveCelebMsg, missCelebMsg, tackleCelebMsg,
+  Approach,
+} from '../lib/matchNarrative';
 import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
 import PlayerCard from '../components/game/PlayerCard';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
-const getPosLabelPt = (pos: string): string => {
-  if (['CB'].includes(pos)) return 'zagueiro';
-  if (['LB', 'LWB'].includes(pos)) return 'lateral-esquerdo';
-  if (['RB', 'RWB'].includes(pos)) return 'lateral-direito';
-  if (['CDM'].includes(pos)) return 'volante';
-  if (['CM', 'CAM', 'LM', 'RM'].includes(pos)) return 'meio-campista';
-  return 'defensor';
-};
 
 export default function MatchSimPage() {
   const {
@@ -127,9 +127,12 @@ export default function MatchSimPage() {
     defender: string;
     type: string;
     message: string;
+    approach?: Approach;
+    buildUp?: string;
   } | null>(null);
 
   const pendingGoalResult = useRef<any>(null);
+  const pendingReplayGoals = useRef<any>(null); // buffered goal events for replay danger sequence
 
   // Interactive Penalty Shootout state
   const [penaltyMode, setPenaltyMode] = useState(false);
@@ -139,6 +142,8 @@ export default function MatchSimPage() {
   const [penaltyAwayScore, setPenaltyAwayScore] = useState(0);
   const [penaltyCommentary, setPenaltyCommentary] = useState('A disputa de pênaltis vai começar! Escolha o próximo batedor.');
   const [penaltyWinner, setPenaltyWinner] = useState<string | null>(null);
+  // Replay-mode kick-by-kick index (-1 = not in replay penalty mode)
+  const [penaltyReplayIdx, setPenaltyReplayIdx] = useState(-1);
 
   // Stats accumulator (progressive)
   const [stats, setStats] = useState<MatchResult['stats']>({
@@ -190,8 +195,8 @@ export default function MatchSimPage() {
   const getTickDuration = () => {
     if (broadcastMode) return 450; // fixed live-broadcast pace online (same for all)
     if (speed === 1) return 1000;
-    if (speed === 2) return 450;
-    return 130;
+    if (speed === 2) return 500;
+    return 250;
   };
 
 
@@ -225,210 +230,177 @@ export default function MatchSimPage() {
     const defender = defenders[Math.floor(Math.random() * defenders.length)] || defendTeam.players[0];
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
 
+    const widePlayer = attackTeam.players.slice(0, 11).find(p =>
+      ['LW', 'RW', 'LM', 'RM'].includes(p.position)
+    ) || attackTeam.players.slice(0, 11).find(p =>
+      ['CAM', 'CM'].includes(p.position)
+    ) || attacker;
+
     const homeIsLosing = homeScore < awayScore;
     const awayIsLosing = awayScore < homeScore;
     const attackIsLosing = homeAttacks ? homeIsLosing : awayIsLosing;
     const defendIsLosing = homeAttacks ? awayIsLosing : homeIsLosing;
     const attackCtx = { isKnockout, isFinal, isLosing: attackIsLosing };
     const defendCtx = { isKnockout, isFinal, isLosing: defendIsLosing };
-    const attackMentality = 'balanced';
-    const defendMentality = 'balanced';
+
+    const approach = selectApproach(attackTeam.playStyle ?? 'balanced');
+    const bUpMsg = buildUpDesc(approach, attacker.shortName, defender.shortName, widePlayer.shortName, attackTeam.name);
 
     let isGoal = false;
+    let isSaveResult = false;
     let homeScoreDelta = 0;
     let awayScoreDelta = 0;
-    let goalAlert: { teamName: string; scorer: string } | undefined = undefined;
+    let goalAlert: { teamName: string; scorer: string } | undefined;
     let momentumShift = 0;
     const playerStatUpdates: { playerId: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
     const statIncrements: (keyof MatchResult['stats'])[] = [];
     const eventsToPush: MatchEvent[] = [];
     let messageStage3 = "";
 
-    const isLuckEvent = Math.random() < 0.12;
+    const isLuckEvent = Math.random() < 0.04;
 
     if (isLuckEvent) {
       const randLuck = Math.random();
-      
+
       if (randLuck < 0.15) {
         isGoal = true;
         if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-        goalAlert = {
-          teamName: attackTeam.name,
-          scorer: 'Gol Contra',
-        };
-        playerStatUpdates.push({
-          playerId: defender.id,
-          updateFn: s => { s.rating -= 0.8; }
-        });
+        const newHG = homeScore + (homeAttacks ? 1 : 0);
+        const newAG = awayScore + (homeAttacks ? 0 : 1);
+        goalAlert = { teamName: attackTeam.name, scorer: 'Gol Contra' };
+        playerStatUpdates.push({ playerId: defender.id, updateFn: s => { s.rating -= 0.8; } });
         eventsToPush.push({
-          minute: nextMin,
-          type: 'goal',
-          description: `⚽ GOL CONTRA! Cruzamento perigoso na área, o ${getPosLabelPt(defender.position)} ${defender.shortName} tenta fazer o corte de cabeça, mas desvia contra as próprias redes!`,
-          teamId: attackTeam.id,
-          opponentId: defender.id,
+          minute: nextMin, type: 'goal',
+          description: ownGoalDesc(defender.shortName, gk.shortName),
+          teamId: attackTeam.id, opponentId: defender.id,
         });
         momentumShift = homeAttacks ? 15 : -15;
-        messageStage3 = `⚽ GOL DO ${attackTeam.name.toUpperCase()}! ${defender.shortName} faz contra!`;
+        messageStage3 = `⚽ GOL DO ${attackTeam.name.toUpperCase()}! ${defender.shortName} faz gol contra! ${newHG}-${newAG}`;
       } else if (randLuck < 0.30) {
         isGoal = true;
         if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-        goalAlert = {
-          teamName: attackTeam.name,
-          scorer: attacker.shortName,
-        };
+        const newHG = homeScore + (homeAttacks ? 1 : 0);
+        const newAG = awayScore + (homeAttacks ? 0 : 1);
+        goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
         playerStatUpdates.push(
           { playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.2; } },
           { playerId: gk.id, updateFn: s => { s.rating -= 1.2; } }
         );
         eventsToPush.push({
-          minute: nextMin,
-          type: 'goal',
-          description: `⚽ FRANGO HISTÓRICO! ${attacker.shortName} arrisca um chute fraco e rasteiro de longe. O goleiro ${gk.shortName} tenta segurar, mas a bola passa por baixo de seus braços e entra de mansinho!`,
-          teamId: attackTeam.id,
-          playerId: attacker.id,
-          opponentId: gk.id,
+          minute: nextMin, type: 'goal',
+          description: frangoDesc(attacker.shortName, gk.shortName),
+          teamId: attackTeam.id, playerId: attacker.id, opponentId: gk.id,
         });
         momentumShift = homeAttacks ? 15 : -15;
-        messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Frangaço do goleiro!`;
+        messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Frangaço de ${gk.shortName}! ${newHG}-${newAG}`;
       } else if (randLuck < 0.50) {
         isGoal = true;
         if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-        goalAlert = {
-          teamName: attackTeam.name,
-          scorer: attacker.shortName,
-        };
+        const newHG = homeScore + (homeAttacks ? 1 : 0);
+        const newAG = awayScore + (homeAttacks ? 0 : 1);
+        goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
         playerStatUpdates.push(
           { playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.2; } },
           { playerId: defender.id, updateFn: s => { s.rating -= 0.3; } }
         );
         eventsToPush.push({
-          minute: nextMin,
-          type: 'goal',
-          description: `⚽ GOL DESVIADO! ${attacker.shortName} bate forte da entrada da área. A bola carimba as costas de ${defender.shortName}, muda completamente de rumo e mata o goleiro!`,
-          teamId: attackTeam.id,
-          playerId: attacker.id,
-          opponentId: defender.id,
+          minute: nextMin, type: 'goal',
+          description: deflectedDesc(attacker.shortName, defender.shortName),
+          teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
         });
         momentumShift = homeAttacks ? 15 : -15;
-        messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Chute desviado mata o goleiro!`;
+        messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Desvio fatal! ${newHG}-${newAG}`;
       } else if (randLuck < 0.68) {
         isGoal = true;
         if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-        goalAlert = {
-          teamName: attackTeam.name,
-          scorer: attacker.shortName,
-        };
-        playerStatUpdates.push({
-          playerId: attacker.id,
-          updateFn: s => { s.goals++; s.rating += 1.6; }
-        });
+        const newHG = homeScore + (homeAttacks ? 1 : 0);
+        const newAG = awayScore + (homeAttacks ? 0 : 1);
+        goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
+        playerStatUpdates.push({ playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.6; } });
         eventsToPush.push({
-          minute: nextMin,
-          type: 'goal',
-          description: `⚽ GOLAÇO MONSTRUOSO! ${attacker.shortName} domina na intermediária e manda uma bomba sem pulo! A bola viaja a 110km/h e explode na gaveta, sem chances para o goleiro!`,
-          teamId: attackTeam.id,
-          playerId: attacker.id,
-          opponentId: gk.id,
-          isSpecial: true,
+          minute: nextMin, type: 'goal',
+          description: screamedDesc(attacker.shortName, gk.shortName),
+          teamId: attackTeam.id, playerId: attacker.id, opponentId: gk.id, isSpecial: true,
         });
         momentumShift = homeAttacks ? 20 : -20;
-        messageStage3 = `⚽ GOLAÇO DO ${attackTeam.name.toUpperCase()}! Que míssil na gaveta!`;
+        messageStage3 = `⚽ GOLAÇO DO ${attackTeam.name.toUpperCase()}! Que míssil de ${attacker.shortName}! ${newHG}-${newAG}`;
       } else if (randLuck < 0.86) {
         const taker = getPenaltyTaker(attackTeam);
         const isPenaltyGoal = Math.random() < 0.76;
         if (isPenaltyGoal) {
           isGoal = true;
           if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-          goalAlert = {
-            teamName: attackTeam.name,
-            scorer: taker.shortName,
-          };
+          const newHG = homeScore + (homeAttacks ? 1 : 0);
+          const newAG = awayScore + (homeAttacks ? 0 : 1);
+          goalAlert = { teamName: attackTeam.name, scorer: taker.shortName };
           playerStatUpdates.push(
             { playerId: taker.id, updateFn: s => { s.goals++; s.rating += 1.0; } },
             { playerId: defender.id, updateFn: s => { s.rating -= 0.2; } }
           );
           eventsToPush.push({
-            minute: nextMin,
-            type: 'goal',
-            description: `⚽ GOL DE PÊNALTI! O árbitro pega toque de mão do ${getPosLabelPt(defender.position)} ${defender.shortName} na área! Na cobrança, ${taker.shortName} bate com extrema categoria deslocando o goleiro!`,
-            teamId: attackTeam.id,
-            playerId: taker.id,
-            opponentId: gk.id,
+            minute: nextMin, type: 'goal',
+            description: penaltyGoalDesc(taker.shortName, defender.shortName, gk.shortName),
+            teamId: attackTeam.id, playerId: taker.id, opponentId: gk.id,
           });
           momentumShift = homeAttacks ? 15 : -15;
-          messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Cobrança perfeita de pênalti!`;
+          messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Pênalti convertido! ${newHG}-${newAG}`;
         } else {
-          isGoal = false;
           const isSaved = Math.random() < 0.5;
           if (isSaved) {
+            isSaveResult = true;
             statIncrements.push(homeAttacks ? 'awaySaves' : 'homeSaves');
             playerStatUpdates.push(
               { playerId: gk.id, updateFn: s => { s.saves++; s.rating += 0.8; } },
               { playerId: taker.id, updateFn: s => { s.rating -= 0.5; } }
             );
             eventsToPush.push({
-              minute: nextMin,
-              type: 'save',
-              description: `🧤 DEFENDEU O PÊNALTI! Após toque de mão na área, ${taker.shortName} correu para a bola, mas o goleiro ${gk.shortName} voou no canto esquerdo para espalmar!`,
-              teamId: defendTeam.id,
-              playerId: gk.id,
-              opponentId: taker.id,
+              minute: nextMin, type: 'save',
+              description: penaltySaveDesc(gk.shortName, taker.shortName),
+              teamId: defendTeam.id, playerId: gk.id, opponentId: taker.id,
             });
             momentumShift = homeAttacks ? -8 : 8;
-            messageStage3 = `🧤 INCRÍVEL! Goleiro defende a cobrança de pênalti!`;
+            messageStage3 = saveCelebMsg(gk.shortName, taker.shortName);
           } else {
-            playerStatUpdates.push({
-              playerId: taker.id,
-              updateFn: s => { s.rating -= 0.6; }
-            });
+            playerStatUpdates.push({ playerId: taker.id, updateFn: s => { s.rating -= 0.6; } });
             eventsToPush.push({
-              minute: nextMin,
-              type: 'miss',
-              description: `❌ PÊNALTI PARA FORA! Falha defensiva com bola na mão! ${taker.shortName} ajeitou a bola e mandou um foguete, mas isolou por cima do travessão!`,
-              teamId: attackTeam.id,
-              playerId: taker.id,
+              minute: nextMin, type: 'miss',
+              description: penaltyMissDesc(taker.shortName),
+              teamId: attackTeam.id, playerId: taker.id,
             });
             momentumShift = homeAttacks ? -8 : 8;
-            messageStage3 = `❌ PARA FORA! Cobrança de pênalti vai direto nas arquibancadas!`;
+            messageStage3 = missCelebMsg(taker.shortName);
           }
         }
       } else {
-        isGoal = false;
-        playerStatUpdates.push({
-          playerId: attacker.id,
-          updateFn: s => { s.shots++; s.rating += 0.1; }
-        });
+        playerStatUpdates.push({ playerId: attacker.id, updateFn: s => { s.shots++; s.rating += 0.1; } });
         eventsToPush.push({
-          minute: nextMin,
-          type: 'miss',
-          description: `💥 NA TRAVE! ${attacker.shortName} limpa a marcação e bate colocado de chapa. A bola explode no travessão e volta limpa para o ${getPosLabelPt(defender.position)} ${defender.shortName} isolar!`,
-          teamId: attackTeam.id,
-          playerId: attacker.id,
+          minute: nextMin, type: 'miss',
+          description: woodworkDesc(attacker.shortName, defender.shortName),
+          teamId: attackTeam.id, playerId: attacker.id,
         });
         momentumShift = homeAttacks ? 4 : -4;
-        messageStage3 = `💥 NA TRAVE! O chute explode no travessão!`;
+        messageStage3 = `💥 NA TRAVE! Que azar de ${attacker.shortName}!`;
       }
     } else {
-      const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, attackMentality, attackCtx);
-      const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, attackMentality, attackCtx);
-      const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, attackMentality, attackCtx);
-      const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, defendMentality, defendCtx);
-      const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, defendMentality, defendCtx);
+      // Push build-up commentary before the resolution event
+      eventsToPush.push({
+        minute: nextMin, type: 'momentum',
+        description: bUpMsg,
+        teamId: attackTeam.id,
+      });
 
-      let atkBonus = 0;
-      let defBonus = 0;
-      if (attacker.traits.includes('Frio na Final') && isFinal) atkBonus += 8;
-      if (attacker.traits.includes('Especialista em Decisões') && isKnockout) atkBonus += 6;
-      if (attacker.traits.includes('Velocista')) atkBonus += 4;
-      if (defender.traits.includes('Pressão Implacável')) defBonus += 8;
-      if (defender.traits.includes('Marcador Implacável')) defBonus += 6;
+      const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
+      const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
+      const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
+      const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle ?? 'balanced', defendCtx);
+      const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, defendTeam.playStyle ?? 'balanced', defendCtx);
 
-      const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + atkBonus + Math.random() * 40;
-      const defScore = (defDefending + defPhysical) / 2 + defBonus + Math.random() * 40;
+      // Trait effects are already baked into the effective attributes above
+      // (getEffectiveAttribute + trait catalog), so no extra bonuses here.
+      const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + Math.random() * 40;
+      const defScore = (defDefending + defPhysical) / 2 + Math.random() * 40;
 
-      const isDribbleSuccessful = atkScore > defScore;
-
-      if (isDribbleSuccessful) {
+      if (atkScore > defScore) {
         statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
 
         const targetChance = atkShooting / (atkShooting + 24);
@@ -437,41 +409,31 @@ export default function MatchSimPage() {
         if (isOnTarget) {
           statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
 
-          const gkScore = gk.defending + (gk.traits.includes('Reflexo Felino') ? 12 : 0) + Math.random() * 36;
+          const gkScore = gk.defending + getGoalkeeperTraitBonus(gk.traits) + Math.random() * 36;
           const shootScore = atkShooting + Math.random() * 36;
 
           if (shootScore > gkScore) {
             isGoal = true;
             if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-            goalAlert = {
-              teamName: attackTeam.name,
-              scorer: attacker.shortName,
-            };
-
-            const currentHomeG = homeScore + (homeAttacks ? 1 : 0);
-            const currentAwayG = awayScore + (homeAttacks ? 0 : 1);
+            const newHG = homeScore + (homeAttacks ? 1 : 0);
+            const newAG = awayScore + (homeAttacks ? 0 : 1);
+            goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
 
             const assister = pickWeightedAssister(attackTeam, attacker.id);
-            let desc = "";
+            const isImmortal = attacker.rarity === 'immortal';
             if (assister) {
-              playerStatUpdates.push({
-                playerId: assister.id,
-                updateFn: s => { s.assists++; s.rating += 0.8; }
-              });
-              desc = `⚽ GOL! ${attacker.shortName} finaliza com precisão após passe açucarado de ${assister.shortName}! ${currentHomeG}-${currentAwayG}`;
-            } else {
-              desc = `⚽ GOL! ${attacker.shortName} se livra da zaga e solta uma bomba direto na gaveta! ${currentHomeG}-${currentAwayG}`;
+              playerStatUpdates.push({ playerId: assister.id, updateFn: s => { s.assists++; s.rating += 0.8; } });
             }
 
+            const atkGoals = homeAttacks ? newHG : newAG;
+            const defGoals = homeAttacks ? newAG : newHG;
+
             eventsToPush.push({
-              minute: nextMin,
-              type: 'goal',
-              description: desc,
-              teamId: attackTeam.id,
-              playerId: attacker.id,
-              opponentId: defender.id,
+              minute: nextMin, type: 'goal',
+              description: goalDesc(approach, attacker.shortName, assister?.shortName ?? null, defender.shortName, gk.shortName, newHG, newAG, nextMin, atkGoals, defGoals, isImmortal),
+              teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
               assisterId: assister?.id,
-              isSpecial: attacker.rarity === 'immortal' || attacker.traits.includes('Frio na Final'),
+              isSpecial: isImmortal || attacker.traits.includes('Frio na Final'),
             });
 
             playerStatUpdates.push(
@@ -479,114 +441,61 @@ export default function MatchSimPage() {
               { playerId: gk.id, updateFn: s => { s.rating -= 0.4; } },
               { playerId: defender.id, updateFn: s => { s.rating -= 0.2; } }
             );
-
             defendTeam.players.slice(0, 11).forEach(p => {
               if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && p.id !== defender.id) {
-                playerStatUpdates.push({
-                  playerId: p.id,
-                  updateFn: s => { s.rating -= 0.1; }
-                });
+                playerStatUpdates.push({ playerId: p.id, updateFn: s => { s.rating -= 0.1; } });
               }
             });
 
             momentumShift = homeAttacks ? 25 : -25;
-            messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! ${attacker.shortName} estufa as redes!`;
+            messageStage3 = celebrationMsg(approach, attackTeam.name, attacker.shortName, newHG, newAG);
           } else {
-            isGoal = false;
+            isSaveResult = true;
             statIncrements.push(homeAttacks ? 'awaySaves' : 'homeSaves');
 
             const isCorner = Math.random() < 0.45;
-            if (isCorner) {
-              statIncrements.push(homeAttacks ? 'homeCorners' : 'awayCorners');
-            }
+            if (isCorner) statIncrements.push(homeAttacks ? 'homeCorners' : 'awayCorners');
 
             eventsToPush.push({
-              minute: nextMin,
-              type: 'save',
-              description: `🧤 Defesa espetacular! O goleiro ${gk.shortName} voa e espalma o chute com endereço de ${attacker.shortName}!${isCorner ? ' Escanteio!' : ''}`,
-              teamId: defendTeam.id,
-              playerId: gk.id,
-              opponentId: attacker.id,
+              minute: nextMin, type: 'save',
+              description: saveDesc(approach, gk.shortName, attacker.shortName, isCorner),
+              teamId: defendTeam.id, playerId: gk.id, opponentId: attacker.id,
             });
-
             playerStatUpdates.push(
               { playerId: gk.id, updateFn: s => { s.saves++; s.rating += 0.4; } },
               { playerId: attacker.id, updateFn: s => { s.rating -= 0.1; } }
             );
-
             momentumShift = homeAttacks ? -8 : 8;
-            messageStage3 = `🧤 INCRÍVEL! Defesaça de ${gk.shortName} salvando o time!`;
+            messageStage3 = saveCelebMsg(gk.shortName, attacker.shortName);
           }
         } else {
-          isGoal = false;
           eventsToPush.push({
-            minute: nextMin,
-            type: 'miss',
-            description: `❌ Chute desviado! ${attacker.shortName} bate forte de fora, mas a bola passa tirando tinta da trave!`,
-            teamId: attackTeam.id,
-            playerId: attacker.id,
+            minute: nextMin, type: 'miss',
+            description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
+            teamId: attackTeam.id, playerId: attacker.id,
           });
-          playerStatUpdates.push({
-            playerId: attacker.id,
-            updateFn: s => { s.shots++; s.rating -= 0.15; }
-          });
-          messageStage3 = `❌ PARA FORA! Chute passa raspando a trave esquerda!`;
+          playerStatUpdates.push({ playerId: attacker.id, updateFn: s => { s.shots++; s.rating -= 0.15; } });
+          momentumShift = homeAttacks ? -3 : 3;
+          messageStage3 = missCelebMsg(attacker.shortName);
         }
       } else {
-        isGoal = false;
-        eventsToPush.push({
-          minute: nextMin,
-          type: 'duel',
-          description: `🤺 Intercepção precisa! ${defender.shortName} se impõe fisicamente e rouba a bola de ${attacker.shortName}.`,
-          teamId: defendTeam.id,
-          playerId: defender.id,
-          opponentId: attacker.id,
-        });
-
         playerStatUpdates.push(
           { playerId: defender.id, updateFn: s => { s.tackles++; s.rating += 0.35; } },
           { playerId: attacker.id, updateFn: s => { s.rating -= 0.15; } }
         );
-
-        momentumShift = homeAttacks ? -5 : 5;
-        messageStage3 = `🛑 BLOQUEADO! Desarme primoroso executado por ${defender.shortName}!`;
-      }
-    }
-
-    if (Math.random() < 0.15) {
-      const defendersList = defendTeam.players.slice(0, 11).filter(p => p.position !== 'GK');
-      const fouler = defendersList[Math.floor(Math.random() * defendersList.length)] || defendTeam.players[1];
-      statIncrements.push(homeAttacks ? 'awayFouls' : 'homeFouls');
-
-      playerStatUpdates.push({
-        playerId: fouler.id,
-        updateFn: s => { s.fouls++; s.rating -= 0.1; }
-      });
-
-      let cardType: 'yellow' | null = null;
-      let cardDesc = "";
-      const randCard = Math.random();
-
-      if (randCard < 0.17) {
-        cardType = 'yellow';
-        playerStatUpdates.push({
-          playerId: fouler.id,
-          updateFn: s => { s.yellowCards++; s.rating -= 0.5; }
+        eventsToPush.push({
+          minute: nextMin, type: 'duel',
+          description: duelDesc(approach, defender.shortName, attacker.shortName),
+          teamId: defendTeam.id, playerId: defender.id, opponentId: attacker.id,
         });
-        cardDesc = `🟨 Cartão Amarelo! ${fouler.shortName} é advertido pelo árbitro por entrada dura.`;
+        momentumShift = homeAttacks ? -5 : 5;
+        messageStage3 = tackleCelebMsg(defender.shortName, attacker.shortName);
       }
-
-      eventsToPush.push({
-        minute: nextMin,
-        type: cardType || 'duel',
-        description: cardDesc || `🚨 Falta! O árbitro marca a infração de ${fouler.shortName} sobre o adversário.`,
-        teamId: defendTeam.id,
-        playerId: fouler.id,
-      });
     }
 
     return {
       isGoal,
+      isSaveResult,
       homeScoreDelta,
       awayScoreDelta,
       goalAlert,
@@ -597,6 +506,9 @@ export default function MatchSimPage() {
       messageStage3,
       attackerName: attacker.shortName,
       defenderName: defender.shortName,
+      gkName: gk.shortName,
+      approach,
+      buildUpMsg: bUpMsg,
       attackTeamId: attackTeam.id,
     };
   };
@@ -642,14 +554,14 @@ export default function MatchSimPage() {
       const fergusonActive = (team: Team, goals: number, oppGoals: number) =>
         team.coachId === 'ferguson' && goals < oppGoals;
       const zidaneBonus = (team: Team) =>
-        team.coachId === 'zidane' && isKnockout ? (minute >= 90 ? 20 : 12) : 0;
+        team.coachId === 'zidane' && isKnockout ? (minute >= 90 ? 10 : 7) : 0;
 
       const homeStrength = calculateTeamStrength(homeTeam, homeCoach, homeChem, homeFormBonus) +
         zidaneBonus(homeTeam) +
-        (fergusonActive(homeTeam, homeScore, awayScore) ? 15 : 0);
+        (fergusonActive(homeTeam, homeScore, awayScore) ? 10 : 0);
       const awayStrength = calculateTeamStrength(awayTeam, awayCoach, awayChem, awayFormBonus) +
         zidaneBonus(awayTeam) +
-        (fergusonActive(awayTeam, awayScore, homeScore) ? 15 : 0);
+        (fergusonActive(awayTeam, awayScore, homeScore) ? 10 : 0);
 
       const homeMomBonus = (momentum - 50) * 0.12;
       const awayMomBonus = ((100 - momentum) - 50) * 0.12;
@@ -677,11 +589,14 @@ export default function MatchSimPage() {
           pendingGoalResult.current = result;
 
           const attackingTeam = result.attackTeamId === homeTeam.id ? homeTeam : awayTeam;
-          const dangerMsg = result.isGoal
-            ? `🚨 OPORTUNIDADE! ${attackingTeam.name.toUpperCase()} inicia jogada ofensiva perigosa por intermédio de ${result.attackerName}...`
-            : firstEvent?.type === 'save'
-              ? `🧤 CHUTE COM ENDEREÇO! ${result.attackerName} arrisca a finalização e o goleiro se prepara...`
-              : `💥 CHUTE FORTE! ${result.attackerName} bate colocado mirando o ângulo...`;
+          const dangerMsg = dangerStage1Msg(
+            result.approach,
+            attackingTeam.name,
+            result.attackerName,
+            result.defenderName,
+            result.isGoal,
+            result.isSaveResult,
+          );
 
           setDangerState({
             stage: 1,
@@ -689,7 +604,9 @@ export default function MatchSimPage() {
             attacker: result.attackerName,
             defender: result.defenderName,
             type: 'attack',
-            message: dangerMsg
+            message: dangerMsg,
+            approach: result.approach,
+            buildUp: result.buildUpMsg,
           });
         } else {
           // Silent resolution
@@ -707,8 +624,8 @@ export default function MatchSimPage() {
           });
         }
       } else {
-        // Flow/Commentary events (25% chance)
-        if (Math.random() < 0.25) {
+        // Flow/Commentary events (30% chance, context-aware)
+        if (Math.random() < 0.30) {
           const homePossesses = Math.random() < (momentum / 100);
           const possessTeam = homePossesses ? homeTeam : awayTeam;
           const dTeam = homePossesses ? awayTeam : homeTeam;
@@ -721,26 +638,32 @@ export default function MatchSimPage() {
           );
 
           const playerA = midPlayers[Math.floor(Math.random() * midPlayers.length)] || possessTeam.players[5];
-          const defenderA = defPlayers[Math.floor(Math.random() * defPlayers.length)] || dTeam.players[2];
+          const defPlayerA = defPlayers[Math.floor(Math.random() * defPlayers.length)] || dTeam.players[2];
 
           const coach = COACHES.find(c => c.id === possessTeam.coachId);
-          const style = possessTeam.playStyle;
-          const rand = Math.random();
+          const lastEvt = [...events].reverse().find(e => ['goal', 'save', 'miss', 'duel'].includes(e.type));
+          const lastCtxForFlow = lastEvt ? {
+            type: lastEvt.type as 'goal' | 'save' | 'miss' | 'duel',
+            teamId: lastEvt.teamId ?? possessTeam.id,
+            atkName: lastEvt.playerId ? (possessTeam.players.find(p => p.id === lastEvt.playerId)?.shortName ?? playerA.shortName) : playerA.shortName,
+            defName: defPlayerA.shortName,
+            gkName: dTeam.players.find(p => p.position === 'GK')?.shortName ?? defPlayerA.shortName,
+            approach: 'counter' as Approach,
+          } : null;
 
-          let desc = "";
-          if (style === 'possession' || coach?.id === 'guardiola') {
-            if (rand < 0.4) desc = `🔄 ${playerA.shortName} organiza o jogo no círculo central, trocando passes curtos com paciência.`;
-            else if (rand < 0.7) desc = `⚙️ Linha de passes rápidos! O time de ${coach?.name || 'Guardiola'} envolve a marcação com maestria.`;
-            else desc = `🛡️ ${dTeam.name} fecha os espaços tentando conter a troca de passes do adversário.`;
-          } else if (style === 'counter' || coach?.id === 'klopp') {
-            if (rand < 0.4) desc = `⚡ Contra-ataque rápido! ${playerA.shortName} puxa a transição ofensiva em alta velocidade!`;
-            else if (rand < 0.7) desc = `🏃 Lançamento em profundidade de ${playerA.shortName} tentando encontrar espaço nas costas da zaga!`;
-            else desc = `🛑 Pressão asfixiante de ${possessTeam.name}! ${defenderA.shortName} recupera a posse no meio de campo.`;
-          } else {
-            if (rand < 0.3) desc = `⚽ ${playerA.shortName} domina no meio-campo e distribui o jogo nas pontas.`;
-            else if (rand < 0.6) desc = `⚔️ Batalha física! ${playerA.shortName} e ${defenderA.shortName} disputam espaço ombro a ombro.`;
-            else desc = `🛡️ Bloqueio sólido! A linha defensiva de ${dTeam.name} rebate de cabeça o cruzamento na área.`;
-          }
+          const desc = flowDesc(
+            lastCtxForFlow,
+            possessTeam.name,
+            possessTeam.id,
+            playerA.shortName,
+            defPlayerA.shortName,
+            possessTeam.playStyle ?? 'balanced',
+            coach?.id ?? '',
+            dTeam.name,
+            homeScore,
+            awayScore,
+            nextMin,
+          );
 
           const flowEvent: MatchEvent = {
             minute: nextMin,
@@ -778,7 +701,7 @@ export default function MatchSimPage() {
         setDangerState(prev => prev ? {
           ...prev,
           stage: 2,
-          message: `🤺 DUELO TÁTICO! ${dangerState.attacker} parte no mano a mano. ${dangerState.defender} avança para o combate...`
+          message: prev.buildUp ?? `🤺 ${prev.attacker} parte para cima de ${prev.defender} — duelo decisivo!`,
         } : null);
       }, 1000);
       return () => clearTimeout(timer);
@@ -786,6 +709,24 @@ export default function MatchSimPage() {
 
     if (dangerState.stage === 2) {
       const timer = setTimeout(() => {
+        // Replay mode: apply the buffered goal events from pendingReplayGoals
+        if (isReplay && pendingReplayGoals.current) {
+          const rg = pendingReplayGoals.current;
+          setHomeScore(s => s + rg.homeGoalDelta);
+          setAwayScore(s => s + rg.awayGoalDelta);
+          setEvents(prev => [...prev, ...rg.goalEvents]);
+          setGoalAlert(rg.goalAlert);
+          setTimeout(() => setGoalAlert(null), 2500);
+          setMomentum(m => {
+            const next = Math.min(100, Math.max(0, m + rg.momentumShift));
+            setMomentumHistory(h => [...h, next]);
+            return next;
+          });
+          setDangerState(prev => prev ? { ...prev, stage: 3, message: rg.messageStage3 } : null);
+          pendingReplayGoals.current = null;
+          return;
+        }
+
         const result = pendingGoalResult.current;
         if (result) {
           // Apply pre-simulated scores
@@ -839,7 +780,8 @@ export default function MatchSimPage() {
       const timer = setTimeout(() => {
         setDangerState(null);
         pendingGoalResult.current = null;
-        setIsPlaying(true); // Resume simulation clock
+        pendingReplayGoals.current = null;
+        setIsPlaying(true); // Resume simulation clock (or replay clock)
       }, 1500);
       return () => clearTimeout(timer);
     }
@@ -850,7 +792,8 @@ export default function MatchSimPage() {
   // the replay ends exactly on the server's score on every device.
   useEffect(() => {
     if (!isReplay || !replayResult) return;
-    if (!isPlaying || isFinished || penaltyMode || goalAlert) return;
+    // Pause during danger sequence (goals trigger the same 3-stage suspense as local sim)
+    if (!isPlaying || isFinished || penaltyMode || goalAlert || dangerState) return;
 
     // The result carries its own duration (90 or 120) — a first leg never goes to
     // extra time; a second leg / single tie may. Penalties are signalled by the
@@ -863,11 +806,10 @@ export default function MatchSimPage() {
       if (nextMin > finalMin) {
         // Regular / extra time finished.
         if (replayResult.penaltyWinner) {
-          // Reveal the already-decided shootout result (non-interactive).
-          setPenaltyWinner(replayResult.penaltyWinner);
-          setPenaltyHomeScore(replayResult.homePenalties ?? 0);
-          setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+          // Enter penalty mode and auto-play kicks one by one (kick-by-kick narration).
+          setPenaltyCommentary('⚡ DISPUTA DE PÊNALTIS! Máxima tensão...');
           setPenaltyMode(true);
+          setPenaltyReplayIdx(0);
           setIsPlaying(false);
         } else {
           setIsFinished(true);
@@ -881,35 +823,52 @@ export default function MatchSimPage() {
 
       const evs = replayResult.events.filter(e => e.minute === nextMin);
       if (evs.length > 0) {
-        setEvents(prev => [...prev, ...evs]);
+        // Separate goal events from non-goal events. Non-goal events (yellow cards,
+        // saves, etc.) are shown immediately. Goal events trigger the 3-stage danger
+        // play sequence so knockouts get the same suspense as the local sim.
+        const goalEvs = evs.filter(e => e.type === 'goal');
+        const nonGoalEvs = evs.filter(e => e.type !== 'goal');
 
-        let homeDelta = 0;
-        let awayDelta = 0;
-        for (const e of evs) {
-          if (e.type === 'goal') {
-            if (e.teamId === replayResult.homeTeamId) homeDelta++;
-            else if (e.teamId === replayResult.awayTeamId) awayDelta++;
-          }
+        if (nonGoalEvs.length > 0) {
+          setEvents(prev => [...prev, ...nonGoalEvs]);
+          setMomentumHistory(h => [...h, momentum]);
         }
-        if (homeDelta) setHomeScore(s => s + homeDelta);
-        if (awayDelta) setAwayScore(s => s + awayDelta);
 
-        const lastGoal = [...evs].reverse().find(e => e.type === 'goal');
-        if (lastGoal) {
+        if (goalEvs.length > 0) {
+          const lastGoal = [...goalEvs].reverse()[0];
           const scoringTeam = lastGoal.teamId === homeTeam.id ? homeTeam : awayTeam;
+          const defTeam = lastGoal.teamId === homeTeam.id ? awayTeam : homeTeam;
           const scorerName = lastGoal.playerId
             ? (scoringTeam.players.find(p => p.id === lastGoal.playerId)?.shortName
                 ?? (lastGoal.description.includes('Contra') ? 'Gol Contra' : 'Gol'))
             : (lastGoal.description.includes('Contra') ? 'Gol Contra' : 'Gol');
-          setGoalAlert({ teamName: scoringTeam.name, scorer: scorerName });
-          setTimeout(() => setGoalAlert(null), 2500);
-          setMomentum(m => {
-            const shift = lastGoal.teamId === homeTeam.id ? 22 : -22;
-            const next = Math.min(100, Math.max(0, m + shift));
-            setMomentumHistory(h => [...h, next]);
-            return next;
+          const defenderName = defTeam.players.find(p => p.position === 'GK' || p.position === 'CB')?.shortName ?? defTeam.name;
+          const homeDelta = goalEvs.filter(e => e.teamId === homeTeam.id).length;
+          const awayDelta = goalEvs.filter(e => e.teamId === awayTeam.id).length;
+
+          pendingReplayGoals.current = {
+            goalEvents: goalEvs,
+            homeGoalDelta: homeDelta,
+            awayGoalDelta: awayDelta,
+            goalAlert: { teamName: scoringTeam.name, scorer: scorerName },
+            momentumShift: lastGoal.teamId === homeTeam.id ? 22 : -22,
+            messageStage3: `🔥 GOOOOL! ${scorerName} balança as redes! ${scoringTeam.name.toUpperCase()} MARCA!`,
+          };
+
+          setIsPlaying(false);
+          const replayApproach = selectApproach(scoringTeam.playStyle ?? 'balanced');
+          const replayBuildUp = buildUpDesc(replayApproach, scorerName, defenderName, defenderName, scoringTeam.name);
+          setDangerState({
+            stage: 1,
+            teamId: lastGoal.teamId,
+            attacker: scorerName,
+            defender: defenderName,
+            type: 'goal',
+            message: dangerStage1Msg(replayApproach, scoringTeam.name, scorerName, defenderName, true, false),
+            approach: replayApproach,
+            buildUp: replayBuildUp,
           });
-        } else {
+        } else if (nonGoalEvs.length === 0) {
           setMomentumHistory(h => [...h, momentum]);
         }
       } else {
@@ -918,7 +877,7 @@ export default function MatchSimPage() {
     }, getTickDuration());
 
     return () => clearTimeout(timer);
-  }, [isReplay, replayResult, isPlaying, isFinished, penaltyMode, goalAlert, minute, speed, isKnockout, homeTeam, awayTeam, momentum]);
+  }, [isReplay, replayResult, isPlaying, isFinished, penaltyMode, goalAlert, dangerState, minute, speed, isKnockout, homeTeam, awayTeam, momentum]);
 
   // Scroll live events feed to bottom automatically
   useEffect(() => {
@@ -926,6 +885,50 @@ export default function MatchSimPage() {
       eventFeedRef.current.scrollTop = eventFeedRef.current.scrollHeight;
     }
   }, [events, dangerState]);
+
+  // 4c. Replay penalty kick-by-kick auto-narration
+  useEffect(() => {
+    if (!penaltyMode || !isReplay || !replayResult || penaltyReplayIdx < 0 || penaltyWinner) return;
+    const kicks = replayResult.penaltyKicks;
+    if (!kicks || kicks.length === 0) {
+      // No kick data — fallback to instant reveal
+      setPenaltyWinner(replayResult.penaltyWinner!);
+      setPenaltyHomeScore(replayResult.homePenalties ?? 0);
+      setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+      return;
+    }
+    if (penaltyReplayIdx >= kicks.length) {
+      // All kicks narrated → reveal winner
+      setPenaltyWinner(replayResult.penaltyWinner!);
+      setPenaltyHomeScore(replayResult.homePenalties ?? 0);
+      setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const kick = kicks[penaltyReplayIdx];
+      const isHome = kick.teamId === homeTeam.id;
+      const teamName = isHome ? homeTeam.name : awayTeam.name;
+      let desc: string;
+      if (kick.isGoal) {
+        desc = `🎯 CONVERTEU! ${kick.takerName} cobra com frieza e marca!`;
+      } else {
+        // Vary miss description using index parity
+        desc = penaltyReplayIdx % 2 === 0
+          ? `🧤 DEFENDEU! ${kick.gkName} voa para o canto e salva!`
+          : `❌ PARA FORA! ${kick.takerName} sente a pressão e isola!`;
+      }
+      setPenaltyCommentary(`${teamName.toUpperCase()} — ${kick.takerName}:\n${desc}`);
+      if (isHome) {
+        setPenaltiesHome(prev => [...prev, kick.isGoal]);
+        if (kick.isGoal) setPenaltyHomeScore(prev => prev + 1);
+      } else {
+        setPenaltiesAway(prev => [...prev, kick.isGoal]);
+        if (kick.isGoal) setPenaltyAwayScore(prev => prev + 1);
+      }
+      setPenaltyReplayIdx(prev => prev + 1);
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [penaltyMode, isReplay, replayResult, penaltyReplayIdx, penaltyWinner, homeTeam, awayTeam]);
 
   // 5. Interactive Penalty Shootout Handler
   const handleTakePenalty = () => {
@@ -940,10 +943,8 @@ export default function MatchSimPage() {
     const taker = order[takerIdx % order.length];
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
 
-    const composure = taker.composure +
-      (taker.traits.includes('Especialista em Decisões') ? 10 : 0) +
-      (taker.traits.includes('Frio na Final') ? 10 : 0);
-    const gkReflexes = gk.defending + (gk.traits.includes('Reflexo Felino') ? 12 : 0);
+    const composure = taker.composure + getPenaltyComposureBonus(taker.traits);
+    const gkReflexes = gk.defending + getGoalkeeperTraitBonus(gk.traits);
 
     const goalChance = composure / (composure + gkReflexes * 0.45);
     const isGoal = Math.random() < goalChance;
@@ -1031,6 +1032,19 @@ export default function MatchSimPage() {
   const handleSkip = () => {
     // REPLAY: jump straight to the authoritative final state.
     if (isReplay && replayResult) {
+      // If already in penalty replay mode, skip to final shootout result immediately.
+      if (penaltyMode && penaltyReplayIdx >= 0 && replayResult.penaltyKicks) {
+        const kicks = replayResult.penaltyKicks;
+        const homeKicks = kicks.filter(k => k.teamId === homeTeam.id).map(k => k.isGoal);
+        const awayKicks = kicks.filter(k => k.teamId === awayTeam.id).map(k => k.isGoal);
+        setPenaltiesHome(homeKicks);
+        setPenaltiesAway(awayKicks);
+        setPenaltyWinner(replayResult.penaltyWinner!);
+        setPenaltyHomeScore(replayResult.homePenalties ?? 0);
+        setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+        setPenaltyReplayIdx(-1);
+        return;
+      }
       setMinute(replayResult.durationMinutes ?? (isKnockout ? 120 : 90));
       setEvents(replayResult.events);
       setHomeScore(replayResult.homeGoals);
@@ -1039,10 +1053,15 @@ export default function MatchSimPage() {
       if (replayResult.playerStats) setPlayerMatchStats(replayResult.playerStats);
       setGoalAlert(null);
       if (replayResult.penaltyWinner) {
+        // Skip past penalty replay too
+        const kicks = replayResult.penaltyKicks ?? [];
+        setPenaltiesHome(kicks.filter(k => k.teamId === homeTeam.id).map(k => k.isGoal));
+        setPenaltiesAway(kicks.filter(k => k.teamId === awayTeam.id).map(k => k.isGoal));
         setPenaltyWinner(replayResult.penaltyWinner);
         setPenaltyHomeScore(replayResult.homePenalties ?? 0);
         setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
         setPenaltyMode(true);
+        setPenaltyReplayIdx(-1);
         setIsPlaying(false);
       } else {
         setIsFinished(true);
@@ -1929,7 +1948,7 @@ export default function MatchSimPage() {
 
         {/* Skip & Conclude Match Actions */}
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-end">
-          {!isFinished && !penaltyMode && !broadcastMode && (
+          {!isFinished && !penaltyMode && !broadcastMode && state.mode !== 'online' && (
             <button
               onClick={handleSkip}
               className="px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm tracking-wider border transition-all"

@@ -1,7 +1,7 @@
 // UCL Immortals — Game Context
 // Central state management for the entire game session
 
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import {
   Player, Coach, Formation, COACHES, FORMATIONS, PLAYERS,
@@ -15,6 +15,7 @@ import {
   getAllPlayedMatchResults, createKnockoutBracket,
   advanceKnockoutBracket, playActiveKnockoutLeg,
 } from '../lib/gameEngine';
+import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem } from '../lib/storage';
 
 // ============================================================
 // GAME PHASES
@@ -72,6 +73,7 @@ export interface GameState {
   draftedPlayers: (Player | undefined)[];
   selectedCoachId: string;
   selectedFormationId: string;
+  selectedPlayStyle: string;
   captain: string | null;
   penaltyTaker: string | null;
   
@@ -124,6 +126,8 @@ type GameAction =
   | { type: 'SET_DIFFICULTY'; difficulty: string }
   | { type: 'SET_COACH'; coachId: string }
   | { type: 'SET_FORMATION'; formationId: string }
+  | { type: 'SET_PLAY_STYLE'; playStyle: string }
+  | { type: 'SET_PLAYER_TEAM_PLAY_STYLE'; playStyle: string }
   | { type: 'START_DRAFT' }
   | { type: 'DRAFT_PLAYER'; player: Player }
   | { type: 'VETO_DRAFT' }
@@ -177,9 +181,10 @@ const initialState: GameState = {
   draftedPlayers: [],
   selectedCoachId: 'guardiola',
   selectedFormationId: '4-3-3',
+  selectedPlayStyle: 'balanced',
   captain: null,
   penaltyTaker: null,
-  
+
   // Online Multiplayer fields
   mode: 'solo',
   roomCode: null,
@@ -214,6 +219,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_FORMATION':
       return { ...state, selectedFormationId: action.formationId };
+
+    case 'SET_PLAY_STYLE':
+      return { ...state, selectedPlayStyle: action.playStyle };
+
+    case 'SET_PLAYER_TEAM_PLAY_STYLE':
+      if (!state.playerTeam) return state;
+      return { ...state, playerTeam: { ...state.playerTeam, playStyle: action.playStyle } };
 
     case 'START_DRAFT': {
       const needed = getNeededPositions(state.selectedFormationId, Array(11).fill(undefined));
@@ -406,7 +418,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         name: state.playerName || 'Meu Time',
         coachId: state.selectedCoachId,
         formationId: state.selectedFormationId,
-        playStyle: 'balanced',
+        playStyle: state.selectedPlayStyle,
         players: playerCards,
         captain: state.captain ?? undefined,
         penaltyTaker: state.penaltyTaker ?? undefined,
@@ -874,24 +886,24 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on("room_created", ({ roomCode, roomState }) => {
       const me = roomState.players[0];
       if (me) {
-        localStorage.setItem("ucl_immortals_playerName", me.name);
-        localStorage.setItem("ucl_immortals_roomCode", roomCode);
+        setStorageItem(STORAGE_KEYS.playerName, me.name);
+        setStorageItem(STORAGE_KEYS.roomCode, roomCode);
       }
       dispatch({ type: 'INIT_ONLINE', socketId: socketInstance.id || "", roomCode, isHost: true });
       dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
     });
 
     socketInstance.on("joined_room", ({ roomCode, player, roomState }) => {
-      localStorage.setItem("ucl_immortals_playerName", player.name);
-      localStorage.setItem("ucl_immortals_roomCode", roomCode);
+      setStorageItem(STORAGE_KEYS.playerName, player.name);
+      setStorageItem(STORAGE_KEYS.roomCode, roomCode);
       dispatch({ type: 'INIT_ONLINE', socketId: socketInstance.id || "", roomCode, isHost: player.id === 'player_0' });
       dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
     });
 
     socketInstance.on("error_message", (msg: string) => {
       alert(msg);
-      localStorage.removeItem("ucl_immortals_playerName");
-      localStorage.removeItem("ucl_immortals_roomCode");
+      removeStorageItem(STORAGE_KEYS.playerName);
+      removeStorageItem(STORAGE_KEYS.roomCode);
       dispatch({ type: 'DISCONNECT_ONLINE' });
     });
 
@@ -996,8 +1008,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       socketRef.current.disconnect();
       socketRef.current = null;
     }
-    localStorage.removeItem("ucl_immortals_playerName");
-    localStorage.removeItem("ucl_immortals_roomCode");
+    removeStorageItem(STORAGE_KEYS.playerName);
+    removeStorageItem(STORAGE_KEYS.roomCode);
     dispatch({ type: 'DISCONNECT_ONLINE' });
   }, []);
 
@@ -1022,24 +1034,29 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return FORMATIONS.find(f => f.id === id);
   }, []);
 
-  // Auto reconnect to room if details exist in localStorage on mount
+  // Auto reconnect to room if details exist in localStorage on mount.
+  // Guard against double-joining: only reconnect when no socket is active yet.
   useEffect(() => {
-    const storedName = localStorage.getItem("ucl_immortals_playerName");
-    const storedCode = localStorage.getItem("ucl_immortals_roomCode");
+    if (socketRef.current) return;
+    const storedName = getStorageItem(STORAGE_KEYS.playerName);
+    const storedCode = getStorageItem(STORAGE_KEYS.roomCode);
     if (storedName && storedCode) {
       console.log(`Auto-reconnecting to room ${storedCode} as ${storedName}...`);
       joinRoom(storedCode, storedName);
     }
   }, [joinRoom]);
 
+  const contextValue = useMemo(() => ({
+    state, dispatch, getTeamById, getPlayerById, getCoachById, getFormationById,
+    createRoom, joinRoom, setDifficultyOnline, startSetupOnline, submitSetupOnline,
+    draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
+    playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
+    restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [state, dispatch]);
+
   return (
-    <GameContext.Provider value={{
-      state, dispatch, getTeamById, getPlayerById, getCoachById, getFormationById,
-      createRoom, joinRoom, setDifficultyOnline, startSetupOnline, submitSetupOnline,
-      draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
-      playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
-      restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    }}>
+    <GameContext.Provider value={contextValue}>
       {children}
     </GameContext.Provider>
   );

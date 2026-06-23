@@ -1,18 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
-import { FORMATIONS, HISTORICAL_TRIOS, getRarityColor } from '../../lib/gameData';
+import { FORMATIONS, HISTORICAL_TRIOS, getRarityColor, POS_PT } from '../../lib/gameData';
 import { calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer } from '../../lib/gameEngine';
 import FormationField from './FormationField';
-import PlayerCard, { SOFIFA_MAPPING } from './PlayerCard';
+import PlayerCard, { buildSofifaUrl } from './PlayerCard';
 import RolesSelector from './RolesSelector';
-
-const POS_PT: Record<string, string> = {
-  GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
-  LWB: 'AEL', RWB: 'AED', CDM: 'VOL', CM: 'MC',
-  CAM: 'MEI', LM: 'ML', RM: 'MD',
-  LW: 'ALE', RW: 'ALD', CF: 'SS', ST: 'CA',
-};
+import TacticSelector from './TacticSelector';
 
 export default function LeagueSquadTab() {
   const { state, dispatch, setMatchRolesOnline } = useGame();
@@ -52,11 +46,7 @@ export default function LeagueSquadTab() {
   const selectedChemScore = selectedPlayer ? (chemData.individual[selectedPlayer.id] ?? 0) : 0;
   const selectedIsOOP = selectedPlayer ? (chemData.outOfPosition[selectedPlayer.id] ?? false) : false;
 
-  const getPlayerPhotoUrl = (playerId: string) => {
-    const baseId = Object.keys(SOFIFA_MAPPING).find(key => playerId === key || playerId.startsWith(key + '_')) || playerId.split('_')[0];
-    const m = SOFIFA_MAPPING[baseId];
-    return m ? `https://cdn.sofifa.net/players/${String(m.id).padStart(6, '0').slice(0,3)}/${String(m.id).padStart(6, '0').slice(3,6)}/${m.ver}_120.png` : null;
-  };
+  const getPlayerPhotoUrl = (playerId: string) => buildSofifaUrl(playerId, 120);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -79,6 +69,14 @@ export default function LeagueSquadTab() {
           </div>
         )}
       </div>
+
+      {/* Tactic / play style — solo can change between matches */}
+      <TacticSelector
+        value={team.playStyle}
+        onChange={(id) => dispatch({ type: 'SET_PLAYER_TEAM_PLAY_STYLE', playStyle: id })}
+        disabled={state.mode === 'online'}
+        disabledHint="A troca de tática no multiplayer ainda não está disponível."
+      />
 
       {/* Captain & penalty taker */}
       <RolesSelector

@@ -1,12 +1,13 @@
 // UCL Immortals — League Phase Page
 // Show standings, round-by-round fixtures, and results
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
+import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, PlayerSeasonStats } from '../lib/gameEngine';
 import LeagueSquadTab from '../components/game/LeagueSquadTab';
-import { SOFIFA_MAPPING } from '../components/game/PlayerCard';
+import { buildSofifaUrl } from '../components/game/PlayerCard';
 import { POS_PT } from '../lib/gameData';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
@@ -15,34 +16,35 @@ const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEC
 export default function LeaguePage() {
   const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById } = useGame();
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
+  const { allTeams, localTeamId, getTeamName } = useTeams();
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'results' | 'squad' | 'scorers'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
 
-  // In online mode include all human teams so stats cover every player in the league
-  const allTeams = state.mode === 'online'
-    ? [...state.onlinePlayers.filter(p => p.team).map(p => p.team!), ...state.botTeams]
-    : playerTeam ? [playerTeam, ...state.botTeams] : state.botTeams;
+  // Aggregate stats for all players in the league. Memoized so switching tabs
+  // (fixtures → standings → scorers) does not recompute/re-sort every render.
+  const allPlayers = useMemo(() => {
+    const allPlayedResults = getAllPlayedMatchResults(leagueResults, state.knockoutBracket);
+    return allTeams.flatMap(t =>
+      t.players.map(p => ({
+        ...p,
+        teamName: t.name,
+        teamId: t.id,
+        stats: getPlayerSeasonStats(p.id, t.id, allPlayedResults),
+      }))
+    );
+  }, [allTeams, leagueResults, state.knockoutBracket]);
 
-  // Aggregate stats for all players in the league
-  const allPlayedResults = getAllPlayedMatchResults(leagueResults, state.knockoutBracket);
-  const allPlayers = allTeams.flatMap(t =>
-    t.players.map(p => ({
-      ...p,
-      teamName: t.name,
-      teamId: t.id,
-      stats: getPlayerSeasonStats(p.id, t.id, allPlayedResults),
-    }))
-  );
+  const { topScorers, topAssists, topRatings, topKeepers, topTacklers } = useMemo(() => ({
+    topScorers: [...allPlayers].filter(p => p.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals),
+    topAssists: [...allPlayers].filter(p => p.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists),
+    topRatings: [...allPlayers].filter(p => p.stats.played >= 1).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg),
+    topKeepers: [...allPlayers].filter(p => p.position === 'GK' && p.stats.played > 0).sort((a, b) => b.stats.saves - a.stats.saves),
+    topTacklers: [...allPlayers].filter(p => p.stats.tackles > 0).sort((a, b) => b.stats.tackles - a.stats.tackles),
+  }), [allPlayers]);
 
-  const topScorers = [...allPlayers].filter(p => p.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals);
-  const topAssists = [...allPlayers].filter(p => p.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists);
-  const topRatings = [...allPlayers].filter(p => p.stats.played >= 1).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg);
-  const topKeepers = [...allPlayers].filter(p => p.position === 'GK' && p.stats.played > 0).sort((a, b) => b.stats.saves - a.stats.saves);
-  const topTacklers = [...allPlayers].filter(p => p.stats.tackles > 0).sort((a, b) => b.stats.tackles - a.stats.tackles);
-
-
-  const playerResults = leagueResults.filter(
-    r => r.homeTeamId === playerTeam?.id || r.awayTeamId === playerTeam?.id
+  const playerResults = useMemo(
+    () => leagueResults.filter(r => r.homeTeamId === playerTeam?.id || r.awayTeamId === playerTeam?.id),
+    [leagueResults, playerTeam?.id]
   );
 
   const playerStanding = leagueStandings.find(s => s.teamId === playerTeam?.id);
@@ -70,12 +72,6 @@ export default function LeaguePage() {
   // This prevents the host (or anyone else) from seeing results before others finish.
   const hideRoundScore = state.mode === 'online' && !allPlayersWatched;
 
-  const getPlayerPhotoUrl = (playerId: string) => {
-    const baseId = Object.keys(SOFIFA_MAPPING).find(key => playerId === key || playerId.startsWith(key + '_')) || playerId.split('_')[0];
-    const m = SOFIFA_MAPPING[baseId];
-    return m ? `https://cdn.sofifa.net/players/${String(m.id).padStart(6, '0').slice(0,3)}/${String(m.id).padStart(6, '0').slice(3,6)}/${m.ver}_120.png` : null;
-  };
-
   // Check if player's match in this round is already played
   const playerFixture = currentRoundFixtures.find(
     f => f.homeTeamId === playerTeam?.id || f.awayTeamId === playerTeam?.id
@@ -85,18 +81,9 @@ export default function LeaguePage() {
   // Check if all fixtures in this round are played
   const allFixturesPlayed = currentRoundFixtures.every(f => f.played);
 
-  const getTeamName = (teamId: string) => {
-    if (teamId === playerTeam?.id) return playerTeam.name;
-    const onlinePlayer = state.onlinePlayers.find(p => p.id === teamId);
-    if (onlinePlayer) return onlinePlayer.name;
-    return state.botTeams.find(t => t.id === teamId)?.name ?? teamId;
-  };
-
   const handlePlayPlayerMatch = () => {
     // In online mode, the player's team ID is player_0, player_1 etc. not player_team
-    const myPlayerId = state.mode === 'online'
-      ? state.onlinePlayers.find(p => p.socketId === state.socketId)?.id
-      : playerTeam?.id;
+    const myPlayerId = localTeamId;
 
     const myFixture = currentRoundFixtures.find(
       f => f.homeTeamId === myPlayerId || f.awayTeamId === myPlayerId
@@ -146,11 +133,10 @@ export default function LeaguePage() {
     if (state.phase !== 'league') return;
     if (state.currentMatchResult) return; // already watching one
 
-    const myId = state.onlinePlayers.find(p => p.socketId === state.socketId)?.id;
-    if (!myId) return;
+    if (!localTeamId) return;
 
     const myFixture = leagueFixtures.find(
-      f => f.round === leagueRound && (f.homeTeamId === myId || f.awayTeamId === myId)
+      f => f.round === leagueRound && (f.homeTeamId === localTeamId || f.awayTeamId === localTeamId)
     );
     if (!myFixture || !myFixture.played || !myFixture.result) return;
     if (state.lastWatchedRound >= leagueRound) return;
@@ -161,7 +147,7 @@ export default function LeaguePage() {
 
     dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [home, away], result: myFixture.result });
   }, [
-    state.mode, state.phase, state.currentMatchResult, state.onlinePlayers, state.socketId,
+    state.mode, state.phase, state.currentMatchResult, localTeamId,
     state.lastWatchedRound, leagueFixtures, leagueRound, getTeamById, dispatch,
   ]);
 
@@ -320,11 +306,7 @@ export default function LeaguePage() {
             </div>
 
             {currentRoundFixtures.map((fixture, idx) => {
-              const myPlayerId = state.mode === 'online'
-                ? state.onlinePlayers.find(p => p.socketId === state.socketId)?.id
-                : playerTeam?.id;
-
-              const isMyFixture = fixture.homeTeamId === myPlayerId || fixture.awayTeamId === myPlayerId;
+              const isMyFixture = fixture.homeTeamId === localTeamId || fixture.awayTeamId === localTeamId;
               const isPlayer = fixture.homeTeamId === playerTeam?.id || fixture.awayTeamId === playerTeam?.id;
 
               const isHomeHuman = state.mode === 'online'
@@ -338,8 +320,8 @@ export default function LeaguePage() {
               const homeName = getTeamName(fixture.homeTeamId);
               const awayName = getTeamName(fixture.awayTeamId);
 
-              const homeColor = fixture.homeTeamId === myPlayerId ? '#C9A84C' : isHomeHuman ? '#818CF8' : '#FFF';
-              const awayColor = fixture.awayTeamId === myPlayerId ? '#C9A84C' : isAwayHuman ? '#818CF8' : '#FFF';
+              const homeColor = fixture.homeTeamId === localTeamId ? '#C9A84C' : isHomeHuman ? '#818CF8' : '#FFF';
+              const awayColor = fixture.awayTeamId === localTeamId ? '#C9A84C' : isAwayHuman ? '#818CF8' : '#FFF';
 
               return (
                 <div
@@ -664,7 +646,7 @@ export default function LeaguePage() {
                   <div className="divide-y divide-[#1A1A2A]">
                     {currentList.slice(0, 15).map((player, i) => {
                       const isPlayerTeam = player.teamId === playerTeam?.id;
-                      const photoUrl = getPlayerPhotoUrl(player.id);
+                      const photoUrl = buildSofifaUrl(player.id, 120);
                       
                       // Resolve metric values
                       let metricVal: string | number = 0;

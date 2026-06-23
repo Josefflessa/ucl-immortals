@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
+import { useTeams } from '../hooks/useTeams';
 import { COACHES, FORMATIONS, getRarityColor, getRarityGlow, POS_PT } from '../lib/gameData';
 import {
   calculateChemistry,
@@ -91,10 +92,7 @@ function FireworkBurst({ cx, cy, color, rays, delay }: { cx: number; cy: number;
 export default function ReportPage() {
   const { state, dispatch } = useGame();
   const { report, playerTeam, champion, leagueResults, knockoutBracket } = state;
-
-  const localTeamId = state.mode === 'online'
-    ? state.onlinePlayers.find(p => p.socketId === state.socketId)?.id
-    : playerTeam?.id;
+  const { localTeamId, allTeams: allTeamsForStats } = useTeams();
 
   const isChampion = champion === localTeamId;
 
@@ -122,10 +120,6 @@ export default function ReportPage() {
   const goalsAgainst = playerResults.reduce((s: number, r: any) => s + (r.homeTeamId === localTeamId ? r.awayGoals : r.homeGoals), 0);
 
   // ── Top performers across the whole season ────────────────────────────────
-  const allTeamsForStats = state.mode === 'online'
-    ? [...state.onlinePlayers.filter(p => p.team).map(p => p.team!), ...state.botTeams]
-    : playerTeam ? [playerTeam, ...state.botTeams] : state.botTeams;
-
   const topScorer = useMemo(() => {
     const allPlayers = allTeamsForStats.flatMap(t => t.players);
     const rows = allPlayers.flatMap(pl => {

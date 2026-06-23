@@ -6,6 +6,16 @@ import {
   PLAYERS, COACHES, FORMATIONS, HISTORICAL_TRIOS,
   getPositionGroup,
 } from './gameData';
+import {
+  selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
+  frangoDesc, screamedDesc, deflectedDesc, woodworkDesc,
+  penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc,
+  flowDesc, Approach, LastKeyCtx,
+} from './matchNarrative';
+import {
+  AttrKey, getTraitAttributeBonus, getGoalkeeperTraitBonus,
+  getPenaltyComposureBonus, hasOopRelief, ROLLABLE_TRAITS,
+} from './traits';
 
 // ============================================================
 // TYPES
@@ -55,6 +65,13 @@ export interface PlayerMatchStat {
   redCards: number;
 }
 
+export interface PenaltyKick {
+  teamId: string;
+  takerName: string;
+  gkName: string;
+  isGoal: boolean;
+}
+
 export interface MatchResult {
   homeTeamId: string;
   awayTeamId: string;
@@ -65,6 +82,7 @@ export interface MatchResult {
   penaltyWinner?: string;
   homePenalties?: number;
   awayPenalties?: number;
+  penaltyKicks?: PenaltyKick[]; // kick-by-kick sequence for client replay
   durationMinutes?: number; // 90 (league/first leg) or 120 (extra time)
   mvp?: string;
   topDuel?: { attacker: string; defender: string; winner: string };
@@ -350,14 +368,14 @@ export function getCoachModifiersForPlayer(
     }
   } else if (coachId === 'zidane') {
     if (player.rarity === 'legendary' || player.rarity === 'immortal') {
-      let b = 8;
-      let label = "Galácticos Zidane: +8 Geral";
+      let b = 5;
+      let label = "Galácticos Zidane: +5 Geral";
       if (isFinal) {
-        b = 20;
-        label = "Rei da Final: +20 Geral";
+        b = 10;
+        label = "Rei da Final: +10 Geral";
       } else if (isKnockout) {
-        b = 12;
-        label = "Rei do Mata-Mata: +12 Geral";
+        b = 7;
+        label = "Rei do Mata-Mata: +7 Geral";
       }
       modifiers.overall += b;
       modifiers.pace += b;
@@ -372,7 +390,7 @@ export function getCoachModifiersForPlayer(
     }
   } else if (coachId === 'ferguson') {
     if (isLosing) {
-      const b = 15;
+      const b = 10;
       modifiers.overall += b;
       modifiers.pace += b;
       modifiers.shooting += b;
@@ -382,7 +400,7 @@ export function getCoachModifiersForPlayer(
       modifiers.physical += b;
       modifiers.composure += b;
       modifiers.vision += b;
-      modifiers.activeEffects.push("Fergie Time: +15 Geral");
+      modifiers.activeEffects.push("Fergie Time: +10 Geral");
     }
   }
 
@@ -438,6 +456,10 @@ export function getPlayerEffectiveStats(
 }
 
 export function getChemistryBonus(total: number): { passing: number; pace: number; special: boolean } {
+  if (total >= 90) return { passing: 3, pace: 2, special: true };
+  if (total >= 75) return { passing: 2, pace: 1, special: false };
+  if (total >= 60) return { passing: 1, pace: 1, special: false };
+  if (total >= 45) return { passing: 1, pace: 0, special: false };
   return { passing: 0, pace: 0, special: false };
 }
 
@@ -459,8 +481,10 @@ export function getEffectiveAttribute(
 ): number {
   let base = player[attribute] as number;
 
-  // Individual chemistry bonus: If OOP, apply 15% stats debuff. If not, apply standard chemistry multipliers (+0% / +3% / +6% / +10%)
-  const chemMult = player.isOOP ? 0.85 : (player.chemistryScore >= 3 ? 1.10 : player.chemistryScore === 2 ? 1.06 : player.chemistryScore === 1 ? 1.03 : 1.00);
+  // Individual chemistry bonus: If OOP, apply a stats debuff (softened by the
+  // "Versatilidade" trait). If not, apply standard chemistry multipliers (+0% / +3% / +6% / +10%)
+  const oopMult = hasOopRelief(player.traits) ? 0.92 : 0.85;
+  const chemMult = player.isOOP ? oopMult : (player.chemistryScore >= 3 ? 1.10 : player.chemistryScore === 2 ? 1.06 : player.chemistryScore === 1 ? 1.03 : 1.00);
   base = Math.round(base * chemMult);
 
   // Chemistry global bonus (passing & pace)
@@ -484,6 +508,9 @@ export function getEffectiveAttribute(
   if (playStyle === 'high_press' && attribute === 'physical') base += 5;
   if (playStyle === 'defensive' && attribute === 'defending') base += 8;
   if (playStyle === 'all_out_attack' && attribute === 'shooting') base += 8;
+
+  // Trait attribute bonuses (data-driven from the trait catalog)
+  base += getTraitAttributeBonus(player.traits, attribute as AttrKey, context);
 
   return Math.max(1, base);
 }
@@ -548,14 +575,6 @@ export function pickWeightedAssister(team: Team, scorerId: string, playerStats?:
   return teammates[0];
 }
 
-const getPosLabelPt = (pos: string): string => {
-  if (['CB'].includes(pos)) return 'zagueiro';
-  if (['LB', 'LWB'].includes(pos)) return 'lateral-esquerdo';
-  if (['RB', 'RWB'].includes(pos)) return 'lateral-direito';
-  if (['CDM'].includes(pos)) return 'volante';
-  if (['CM', 'CAM', 'LM', 'RM'].includes(pos)) return 'meio-campista';
-  return 'defensor';
-};
 
 export function runMatchSimulation(
   home: Team,
@@ -569,6 +588,7 @@ export function runMatchSimulation(
   playerStats: Record<string, PlayerMatchStat>,
   isKnockout: boolean = false,
   isFinal: boolean = false,
+  decideWinner: boolean = true, // when false, skip end-of-match bonuses/winner logic
 ): MatchResult {
   const events = [...initialEvents];
   let homeGoals = initialHomeGoals;
@@ -593,25 +613,27 @@ export function runMatchSimulation(
     team.coachId === 'ferguson' && goals < oppGoals;
 
   const zidaneBonus = (team: Team) =>
-    team.coachId === 'zidane' && (isKnockout || isFinal) ? (isFinal ? 20 : 12) : 0;
+    team.coachId === 'zidane' && (isKnockout || isFinal) ? (isFinal ? 10 : 7) : 0;
 
   const KEY_MINUTES = [8, 15, 22, 28, 35, 42, 47, 55, 62, 68, 75, 82, 88, 90];
   if (isKnockout) {
     KEY_MINUTES.push(95, 102, 108, 114, 120);
   }
 
+  let lastKeyCtx: LastKeyCtx = null;
+
   for (let minute = startMinute + 1; minute <= endMinute; minute++) {
     const isKeyEventMinute = KEY_MINUTES.includes(minute);
 
     const homeStrength = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus) +
       zidaneBonus(home) +
-      (fergusonActive(home, homeGoals, awayGoals) ? 15 : 0);
+      (fergusonActive(home, homeGoals, awayGoals) ? 10 : 0);
     const awayStrength = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus) +
       zidaneBonus(away) +
-      (fergusonActive(away, awayGoals, homeGoals) ? 15 : 0);
+      (fergusonActive(away, awayGoals, homeGoals) ? 10 : 0);
 
-    const homeMomBonus = (homeMomentum - 50) * 0.1;
-    const awayMomBonus = (awayMomentum - 50) * 0.1;
+    const homeMomBonus = (homeMomentum - 50) * 0.25;
+    const awayMomBonus = (awayMomentum - 50) * 0.25;
 
     const homeAttack = homeStrength + homeMomBonus + (Math.random() * 44 - 22);
     const awayAttack = awayStrength + awayMomBonus + (Math.random() * 44 - 22);
@@ -643,359 +665,232 @@ export function runMatchSimulation(
       const defender = defenders[Math.floor(Math.random() * defenders.length)] || defendTeam.players[0];
       const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
 
-      // FATOR SORTE: 12% de chance de eventos de sorte/azar bizarros ou imprevisíveis (Own Goals, Blunders, Screamer, Handball, Woodwork)
-      const isLuckEvent = Math.random() < 0.12;
+      const widePlayer = attackTeam.players.slice(0, 11).find(p =>
+        ['LW', 'RW', 'LM', 'RM'].includes(p.position)
+      ) || attackTeam.players.slice(0, 11).find(p =>
+        ['CAM', 'CM'].includes(p.position)
+      ) || attacker;
+
+      const approach: Approach = selectApproach(attackTeam.playStyle ?? 'balanced');
+      const isLuckEvent = Math.random() < 0.04;
 
       if (isLuckEvent) {
         const randLuck = Math.random();
-        
+
         if (randLuck < 0.15) {
           // Own Goal
           if (homeAttacks) homeGoals++; else awayGoals++;
-          if (playerStats[defender.id]) {
-            playerStats[defender.id].rating -= 0.8;
-          }
+          if (playerStats[defender.id]) playerStats[defender.id].rating -= 0.8;
           events.push({
-            minute,
-            type: 'goal',
-            description: `⚽ GOL CONTRA! Cruzamento perigoso na área, o ${getPosLabelPt(defender.position)} ${defender.shortName} tenta fazer o corte de cabeça, mas desvia contra as próprias redes!`,
-            teamId: attackTeam.id,
-            opponentId: defender.id,
+            minute, type: 'goal',
+            description: ownGoalDesc(defender.shortName, gk.shortName),
+            teamId: attackTeam.id, opponentId: defender.id,
           });
-          
+          lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: defender.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 15) : Math.max(0, homeMomentum - 15);
           awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 15) : Math.min(100, awayMomentum + 15);
+
         } else if (randLuck < 0.30) {
-          // Goalkeeper Blunder (Frango)
+          // Goalkeeper blunder
           if (homeAttacks) homeGoals++; else awayGoals++;
-          if (playerStats[attacker.id]) {
-            playerStats[attacker.id].goals++;
-            playerStats[attacker.id].rating += 1.2;
-          }
-          if (playerStats[gk.id]) {
-            playerStats[gk.id].rating -= 1.2;
-          }
-          
+          if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.2; }
+          if (playerStats[gk.id]) playerStats[gk.id].rating -= 1.2;
           events.push({
-            minute,
-            type: 'goal',
-            description: `⚽ FRANGO HISTÓRICO! ${attacker.shortName} arrisca um chute fraco e rasteiro de longe. O goleiro ${gk.shortName} tenta segurar, mas a bola passa por baixo de seus braços e entra de mansinho!`,
-            teamId: attackTeam.id,
-            playerId: attacker.id,
-            opponentId: gk.id,
+            minute, type: 'goal',
+            description: frangoDesc(attacker.shortName, gk.shortName),
+            teamId: attackTeam.id, playerId: attacker.id, opponentId: gk.id,
           });
-          
+          lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 15) : Math.max(0, homeMomentum - 15);
           awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 15) : Math.min(100, awayMomentum + 15);
+
         } else if (randLuck < 0.50) {
-          // Deflected Goal
+          // Deflected goal
           if (homeAttacks) homeGoals++; else awayGoals++;
-          if (playerStats[attacker.id]) {
-            playerStats[attacker.id].goals++;
-            playerStats[attacker.id].rating += 1.2;
-          }
-          if (playerStats[defender.id]) {
-            playerStats[defender.id].rating -= 0.3;
-          }
-          
+          if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.2; }
+          if (playerStats[defender.id]) playerStats[defender.id].rating -= 0.3;
           events.push({
-            minute,
-            type: 'goal',
-            description: `⚽ GOL DESVIADO! ${attacker.shortName} bate forte da entrada da área. A bola carimba as costas do ${getPosLabelPt(defender.position)} ${defender.shortName}, muda completamente de rumo e mata o goleiro!`,
-            teamId: attackTeam.id,
-            playerId: attacker.id,
-            opponentId: defender.id,
+            minute, type: 'goal',
+            description: deflectedDesc(attacker.shortName, defender.shortName),
+            teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
           });
-          
+          lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 15) : Math.max(0, homeMomentum - 15);
           awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 15) : Math.min(100, awayMomentum + 15);
+
         } else if (randLuck < 0.68) {
-          // Long Range Screamer
+          // Long-range screamer
           if (homeAttacks) homeGoals++; else awayGoals++;
-          if (playerStats[attacker.id]) {
-            playerStats[attacker.id].goals++;
-            playerStats[attacker.id].rating += 1.6;
-          }
-          
+          if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.6; }
           events.push({
-            minute,
-            type: 'goal',
-            description: `⚽ GOLAÇO MONSTRUOSO! ${attacker.shortName} domina na intermediária e manda uma bomba sem pulo! A bola viaja a 110km/h e explode na gaveta, sem chances para o goleiro!`,
-            teamId: attackTeam.id,
-            playerId: attacker.id,
-            opponentId: gk.id,
-            isSpecial: true,
+            minute, type: 'goal',
+            description: screamedDesc(attacker.shortName, gk.shortName),
+            teamId: attackTeam.id, playerId: attacker.id, opponentId: gk.id, isSpecial: true,
           });
-          
+          lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 20) : Math.max(0, homeMomentum - 20);
           awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 20) : Math.min(100, awayMomentum + 20);
+
         } else if (randLuck < 0.86) {
-          // Handball Penalty (Pênalti por Mão na bola)
+          // Penalty
           const takers = attackTeam.players.slice(0, 11);
-          let taker = takers.find(p => p.id === attackTeam.penaltyTaker) || takers[0];
-          if (!taker && attackTeam.isBot) {
-            taker = [...takers].sort((a,b) => b.composure - a.composure)[0] || takers[0];
-          }
-          
-          const isGoal = Math.random() < 0.76;
-          
-          if (isGoal) {
+          // Designated taker first; bots fall back to their most composed starter;
+          // finally guarantee a real player so `taker` is never undefined.
+          const taker = takers.find(p => p.id === attackTeam.penaltyTaker)
+            || (attackTeam.isBot ? [...takers].sort((a, b) => b.composure - a.composure)[0] : undefined)
+            || takers[0]
+            || attackTeam.players[0];
+          if (!taker) continue; // degenerate: team has no players at all — skip this minute
+          const isPenGoal = Math.random() < 0.76;
+          if (isPenGoal) {
             if (homeAttacks) homeGoals++; else awayGoals++;
-            if (playerStats[taker.id]) {
-              playerStats[taker.id].goals++;
-              playerStats[taker.id].rating += 1.0;
-            }
-            if (playerStats[defender.id]) {
-              playerStats[defender.id].rating -= 0.2;
-            }
+            if (playerStats[taker.id]) { playerStats[taker.id].goals++; playerStats[taker.id].rating += 1.0; }
+            if (playerStats[defender.id]) playerStats[defender.id].rating -= 0.2;
             events.push({
-              minute,
-              type: 'goal',
-              description: `⚽ GOL DE PÊNALTI! O árbitro pega toque de mão do ${getPosLabelPt(defender.position)} ${defender.shortName} na área! Na cobrança, ${taker.shortName} bate com extrema categoria deslocando o goleiro!`,
-              teamId: attackTeam.id,
-              playerId: taker.id,
-              opponentId: gk.id,
+              minute, type: 'goal',
+              description: penaltyGoalDesc(taker.shortName, defender.shortName, gk.shortName),
+              teamId: attackTeam.id, playerId: taker.id, opponentId: gk.id,
             });
-            
+            lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: taker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
             homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 15) : Math.max(0, homeMomentum - 15);
             awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 15) : Math.min(100, awayMomentum + 15);
           } else {
             if (Math.random() < 0.5) {
-              if (playerStats[gk.id]) {
-                playerStats[gk.id].saves++;
-                playerStats[gk.id].rating += 0.8;
-              }
-              if (playerStats[taker.id]) {
-                playerStats[taker.id].rating -= 0.5;
-              }
+              if (playerStats[gk.id]) { playerStats[gk.id].saves++; playerStats[gk.id].rating += 0.8; }
+              if (playerStats[taker.id]) playerStats[taker.id].rating -= 0.5;
               events.push({
-                minute,
-                type: 'save',
-                description: `🧤 DEFENDEU O PÊNALTI! Após toque de mão na área, ${taker.shortName} correu para a bola, mas o goleiro ${gk.shortName} voou no canto esquerdo para espalmar!`,
-                teamId: defendTeam.id,
-                playerId: gk.id,
-                opponentId: taker.id,
+                minute, type: 'save',
+                description: penaltySaveDesc(gk.shortName, taker.shortName),
+                teamId: defendTeam.id, playerId: gk.id, opponentId: taker.id,
               });
+              lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: taker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
             } else {
-              if (playerStats[taker.id]) {
-                playerStats[taker.id].rating -= 0.6;
-              }
+              if (playerStats[taker.id]) playerStats[taker.id].rating -= 0.6;
               events.push({
-                minute,
-                type: 'miss',
-                description: `❌ PÊNALTI PARA FORA! Falha defensiva com bola na mão! ${taker.shortName} ajeitou a bola e mandou um foguete, mas isolou por cima do travessão!`,
-                teamId: attackTeam.id,
-                playerId: taker.id,
+                minute, type: 'miss',
+                description: penaltyMissDesc(taker.shortName),
+                teamId: attackTeam.id, playerId: taker.id,
               });
+              lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: taker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
             }
-            
             homeMomentum = homeAttacks ? Math.max(0, homeMomentum - 8) : Math.min(100, homeMomentum + 8);
             awayMomentum = homeAttacks ? Math.min(100, awayMomentum + 8) : Math.max(0, awayMomentum - 8);
           }
+
         } else {
-          // Woodwork Miss
-          if (playerStats[attacker.id]) {
-            playerStats[attacker.id].shots++;
-            playerStats[attacker.id].rating += 0.1;
-          }
+          // Woodwork
+          if (playerStats[attacker.id]) { playerStats[attacker.id].shots++; playerStats[attacker.id].rating += 0.1; }
           events.push({
-            minute,
-            type: 'miss',
-            description: `💥 NA TRAVE! ${attacker.shortName} limpa a marcação e bate colocado de chapa. A bola explode no travessão e volta limpa para o ${getPosLabelPt(defender.position)} ${defender.shortName} isolar!`,
-            teamId: attackTeam.id,
-            playerId: attacker.id,
+            minute, type: 'miss',
+            description: woodworkDesc(attacker.shortName, defender.shortName),
+            teamId: attackTeam.id, playerId: attacker.id,
           });
-          
+          lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           homeMomentum = homeAttacks ? Math.min(95, homeMomentum + 4) : Math.max(5, homeMomentum - 4);
           awayMomentum = homeAttacks ? Math.max(5, awayMomentum - 4) : Math.min(95, awayMomentum + 4);
         }
       } else {
-        // EVENTO LÓGICO NORMAL: duelo com variabilidade de sorte aumentada
+        // Normal event — push build-up first, then resolve
+        events.push({
+          minute, type: 'momentum',
+          description: buildUpDesc(approach, attacker.shortName, defender.shortName, widePlayer.shortName, attackTeam.name),
+          teamId: attackTeam.id,
+        });
+
         const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle, attackCtx);
         const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, attackTeam.playStyle, attackCtx);
         const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, attackTeam.playStyle, attackCtx);
         const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defendCtx);
         const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defendCtx);
 
-        let atkBonus = 0;
-        let defBonus = 0;
-        if (attacker.traits.includes('Frio na Final') && isFinal) atkBonus += 8;
-        if (attacker.traits.includes('Especialista em Decisões') && isKnockout) atkBonus += 6;
-        if (attacker.traits.includes('Velocista')) atkBonus += 4;
-        if (defender.traits.includes('Pressão Implacável')) defBonus += 8;
-        if (defender.traits.includes('Marcador Implacável')) defBonus += 6;
-
-        // Variabilidade aumentada (de Math.random() * 30 para Math.random() * 40)
-        const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + atkBonus + Math.random() * 40;
-        const defScore = (defDefending + defPhysical) / 2 + defBonus + Math.random() * 40;
+        // Trait effects are already baked into the effective attributes above
+        // (see getEffectiveAttribute + trait catalog), so no extra bonuses here.
+        const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + Math.random() * 40;
+        const defScore = (defDefending + defPhysical) / 2 + Math.random() * 40;
 
         if (atkScore > defScore) {
-          if (homeAttacks) matchStats.homeShots++;
-          else matchStats.awayShots++;
-
-          if (playerStats[attacker.id]) {
-            playerStats[attacker.id].shots++;
-          }
+          if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
+          if (playerStats[attacker.id]) playerStats[attacker.id].shots++;
 
           const targetChance = atkShooting / (atkShooting + 30);
           if (Math.random() < targetChance) {
-            if (homeAttacks) matchStats.homeShotsOnTarget++;
-            else matchStats.awayShotsOnTarget++;
+            if (homeAttacks) matchStats.homeShotsOnTarget++; else matchStats.awayShotsOnTarget++;
 
-            // Variabilidade aumentada (de Math.random() * 28 para Math.random() * 36)
-            const gkScore = gk.defending + (gk.traits.includes('Reflexo Felino') ? 10 : 0) + Math.random() * 36;
+            const gkScore = gk.defending + getGoalkeeperTraitBonus(gk.traits) + Math.random() * 36;
             const shootScore = atkShooting + Math.random() * 36;
 
             if (shootScore > gkScore) {
-              if (homeAttacks) homeGoals++;
-              else awayGoals++;
+              if (homeAttacks) homeGoals++; else awayGoals++;
 
               homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 15) : Math.max(0, homeMomentum - 15);
               awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 15) : Math.min(100, awayMomentum + 15);
 
-              if (playerStats[attacker.id]) {
-                playerStats[attacker.id].goals++;
-                playerStats[attacker.id].rating += 1.4;
-              }
-
-              // GK conceded
-              if (playerStats[gk.id]) {
-                playerStats[gk.id].rating -= 0.4;
-              }
-              // Defenders penalty
+              if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.4; }
+              if (playerStats[gk.id]) playerStats[gk.id].rating -= 0.4;
               defendTeam.players.slice(0, 11).forEach(p => {
                 if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.id]) {
                   playerStats[p.id].rating -= 0.1;
                 }
               });
 
-              // Assist logic
               const assister = pickWeightedAssister(attackTeam, attacker.id, playerStats);
-              let desc = "";
-              if (assister) {
-                if (playerStats[assister.id]) {
-                  playerStats[assister.id].assists++;
-                  playerStats[assister.id].rating += 0.8;
-                }
-                desc = `⚽ GOL! ${attacker.shortName} finaliza com precisão após ótimo passe de ${assister.shortName}! ${homeGoals}-${awayGoals}`;
-              } else {
-                desc = `⚽ GOL! ${attacker.shortName} finaliza com precisão para vencer o goleiro e marcar! ${homeGoals}-${awayGoals}`;
+              if (assister && playerStats[assister.id]) {
+                playerStats[assister.id].assists++;
+                playerStats[assister.id].rating += 0.8;
               }
 
-              const isSpecial = attacker.rarity === 'immortal' || attacker.traits.includes('Frio na Final');
+              const atkGoals = homeAttacks ? homeGoals : awayGoals;
+              const defGoals = homeAttacks ? awayGoals : homeGoals;
+              const isImmortal = attacker.rarity === 'immortal';
+
               events.push({
-                minute,
-                type: 'goal',
-                description: desc,
-                teamId: attackTeam.id,
-                playerId: attacker.id,
-                opponentId: defender.id,
+                minute, type: 'goal',
+                description: goalDesc(approach, attacker.shortName, assister?.shortName ?? null, defender.shortName, gk.shortName, homeGoals, awayGoals, minute, atkGoals, defGoals, isImmortal),
+                teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
                 assisterId: assister?.id,
-                isSpecial,
+                isSpecial: isImmortal || attacker.traits.includes('Frio na Final'),
               });
-            } else {
-              if (homeAttacks) matchStats.awaySaves++;
-              else matchStats.homeSaves++;
+              lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
 
-              if (playerStats[gk.id]) {
-                playerStats[gk.id].saves++;
-                playerStats[gk.id].rating += 0.4;
-              }
-              if (playerStats[attacker.id]) {
-                playerStats[attacker.id].rating -= 0.1;
-              }
+            } else {
+              if (homeAttacks) matchStats.awaySaves++; else matchStats.homeSaves++;
+              if (playerStats[gk.id]) { playerStats[gk.id].saves++; playerStats[gk.id].rating += 0.4; }
+              if (playerStats[attacker.id]) playerStats[attacker.id].rating -= 0.1;
+
+              const isCorner = Math.random() < 0.4;
+              if (isCorner) { if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++; }
 
               events.push({
-                minute,
-                type: 'save',
-                description: `🧤 Defesa espetacular! O goleiro se estica todo e defende a finalização perigosa de ${attacker.shortName}!`,
-                teamId: defendTeam.id,
-                playerId: gk.id,
-                opponentId: attacker.id,
+                minute, type: 'save',
+                description: saveDesc(approach, gk.shortName, attacker.shortName, isCorner),
+                teamId: defendTeam.id, playerId: gk.id, opponentId: attacker.id,
               });
-
-              if (Math.random() < 0.4) {
-                if (homeAttacks) matchStats.homeCorners++;
-                else matchStats.awayCorners++;
-
-                events.push({
-                  minute,
-                  type: 'duel',
-                  description: `🚩 Escanteio! A bola é desviada pela defesa e sai pela linha de fundo.`,
-                  teamId: attackTeam.id,
-                });
-              }
+              lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
             }
           } else {
-            if (playerStats[attacker.id]) {
-              playerStats[attacker.id].rating -= 0.15;
-            }
+            if (playerStats[attacker.id]) playerStats[attacker.id].rating -= 0.15;
             events.push({
-              minute,
-              type: 'miss',
-              description: `❌ Chute para fora! ${attacker.shortName} recebe na cara do gol mas bate torto na bola.`,
-              teamId: attackTeam.id,
-              playerId: attacker.id,
+              minute, type: 'miss',
+              description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
+              teamId: attackTeam.id, playerId: attacker.id,
             });
+            lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           }
         } else {
-          if (playerStats[defender.id]) {
-            playerStats[defender.id].tackles++;
-            playerStats[defender.id].rating += 0.35;
-          }
-          if (playerStats[attacker.id]) {
-            playerStats[attacker.id].rating -= 0.15;
-          }
-
+          if (playerStats[defender.id]) { playerStats[defender.id].tackles++; playerStats[defender.id].rating += 0.35; }
+          if (playerStats[attacker.id]) playerStats[attacker.id].rating -= 0.15;
           events.push({
-            minute,
-            type: 'duel',
-            description: `🤺 Desarme preciso! ${defender.shortName} rouba a bola de ${attacker.shortName} no campo de defesa.`,
-            teamId: defendTeam.id,
-            playerId: defender.id,
-            opponentId: attacker.id,
+            minute, type: 'duel',
+            description: duelDesc(approach, defender.shortName, attacker.shortName),
+            teamId: defendTeam.id, playerId: defender.id, opponentId: attacker.id,
           });
-
+          lastKeyCtx = { type: 'duel', teamId: defendTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           if (homeAttacks) homeMomentum = Math.max(0, homeMomentum - 5);
           else awayMomentum = Math.max(0, awayMomentum - 5);
         }
       }
-
-      // Fouls and Yellow Cards (no red cards / expulsions)
-      if (Math.random() < 0.15) {
-        const outfieldFoulers = defendTeam.players.slice(0, 11).filter(p => p.position !== 'GK');
-        const fouler = outfieldFoulers[Math.floor(Math.random() * outfieldFoulers.length)] || defendTeam.players[1];
-        if (homeAttacks) matchStats.awayFouls++;
-        else matchStats.homeFouls++;
-
-        if (playerStats[fouler.id]) {
-          playerStats[fouler.id].fouls++;
-          playerStats[fouler.id].rating -= 0.1;
-        }
-
-        let cardType: 'yellow' | null = null;
-        let cardDesc = "";
-        const randCard = Math.random();
-
-        if (randCard < 0.17) {
-          cardType = 'yellow';
-          if (playerStats[fouler.id]) {
-            playerStats[fouler.id].yellowCards++;
-            playerStats[fouler.id].rating -= 0.5;
-          }
-          cardDesc = `🟨 Cartão Amarelo! ${fouler.shortName} é advertido pelo árbitro por entrada dura.`;
-        }
-
-        events.push({
-          minute,
-          type: cardType || 'duel',
-          description: cardDesc || `🚨 Falta cometida por ${fouler.shortName} interrompendo o ataque de ${attackTeam.name}.`,
-          teamId: defendTeam.id,
-          playerId: fouler.id,
-        });
-      }
     } else {
-      if (Math.random() < 0.25) {
+      if (Math.random() < 0.30) {
         const homePossesses = Math.random() < (homeMomentum / 100);
         const possessTeam = homePossesses ? home : away;
         const dTeam = homePossesses ? away : home;
@@ -1007,27 +902,23 @@ export function runMatchSimulation(
         const defenderA = defPlayers[Math.floor(Math.random() * defPlayers.length)] || dTeam.players[2];
 
         const coach = COACHES.find(c => c.id === possessTeam.coachId);
-        const style = possessTeam.playStyle;
-        const rand = Math.random();
 
-        let desc = "";
-        if (style === 'possession' || coach?.id === 'guardiola') {
-          if (rand < 0.4) desc = `🔄 ${playerA.shortName} organiza o jogo no círculo central, trocando passes curtos com paciência.`;
-          else if (rand < 0.7) desc = `⚙️ Linha de passes rápidos! O time de ${coach?.name || 'Guardiola'} envolve a marcação com maestria.`;
-          else desc = `🛡️ ${dTeam.name} fecha os espaços tentando conter a troca de passes do adversário.`;
-        } else if (style === 'counter' || coach?.id === 'klopp') {
-          if (rand < 0.4) desc = `⚡ Contra-ataque rápido! ${playerA.shortName} puxa a transição ofensiva em alta velocidade!`;
-          else if (rand < 0.7) desc = `🏃 Lançamento em profundidade de ${playerA.shortName} tentando encontrar espaço nas costas da zaga!`;
-          else desc = `🛑 Pressão asfixiante de ${possessTeam.name}! ${defenderA.shortName} recupera a posse no meio de campo.`;
-        } else {
-          if (rand < 0.3) desc = `⚽ ${playerA.shortName} domina no meio-campo e distribui o jogo nas pontas.`;
-          else if (rand < 0.6) desc = `⚔️ Batalha física! ${playerA.shortName} e ${defenderA.shortName} disputam espaço ombro a ombro.`;
-          else desc = `🛡️ Bloqueio sólido! A linha defensiva de ${dTeam.name} rebate de cabeça o cruzamento na área.`;
-        }
+        const desc = flowDesc(
+          lastKeyCtx,
+          possessTeam.name,
+          possessTeam.id,
+          playerA.shortName,
+          defenderA.shortName,
+          possessTeam.playStyle ?? 'balanced',
+          coach?.id ?? '',
+          dTeam.name,
+          homeGoals,
+          awayGoals,
+          minute,
+        );
 
         events.push({
-          minute,
-          type: 'momentum',
+          minute, type: 'momentum',
           description: desc,
           teamId: possessTeam.id,
           playerId: playerA.id,
@@ -1045,76 +936,72 @@ export function runMatchSimulation(
   let homePenalties: number | undefined;
   let awayPenalties: number | undefined;
 
-  if (homeGoals > awayGoals) winner = home.id;
-  else if (awayGoals > homeGoals) winner = away.id;
-  else if (isKnockout) {
-    const pRes = simulatePenalties(home, away, playerStats);
-    penaltyWinner = pRes.winner;
-    homePenalties = pRes.homeScore;
-    awayPenalties = pRes.awayScore;
-    winner = pRes.winner;
-    events.push({
-      minute: 120,
-      type: 'penalty',
-      description: `🎯 Pênaltis! ${home.name} ${pRes.homeScore}-${pRes.awayScore} ${away.name}`,
-      teamId: pRes.winner,
-    });
+  // Winner determination, bonuses, and MVP are skipped when decideWinner=false
+  // (used by simulateMatch to run 0→90 without prematurely triggering penalties,
+  //  then call again for 90→120 extra time if needed).
+  let penaltyKicks: PenaltyKick[] | undefined;
 
-    // Penalties rating impact
-    // We can add minor points
-    home.players.slice(0, 5).forEach(p => {
-      if (playerStats[p.id]) playerStats[p.id].rating += 0.1;
-    });
-    away.players.slice(0, 5).forEach(p => {
-      if (playerStats[p.id]) playerStats[p.id].rating += 0.1;
-    });
-  }
-
-  // End of match Clean Sheet bonuses
-  if (awayGoals === 0) {
-    home.players.slice(0, 11).forEach(p => {
-      if (p.position === 'GK' && playerStats[p.id]) {
-        playerStats[p.id].rating += 0.8;
-      } else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.id]) {
-        playerStats[p.id].rating += 0.4;
-      }
-    });
-  }
-  if (homeGoals === 0) {
-    away.players.slice(0, 11).forEach(p => {
-      if (p.position === 'GK' && playerStats[p.id]) {
-        playerStats[p.id].rating += 0.8;
-      } else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.id]) {
-        playerStats[p.id].rating += 0.4;
-      }
-    });
-  }
-
-  // Win/Loss match rating adjustment
-  const homeStarters = home.players.slice(0, 11);
-  const awayStarters = away.players.slice(0, 11);
-
-  if (winner === home.id) {
-    homeStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
-    awayStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
-  } else if (winner === away.id) {
-    awayStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
-    homeStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
-  }
-
-  // Clamp and format ratings
-  const allStarters = [...homeStarters, ...awayStarters];
-  allStarters.forEach(p => {
-    if (playerStats[p.id]) {
-      const finalR = Math.min(10.0, Math.max(3.0, playerStats[p.id].rating));
-      playerStats[p.id].rating = parseFloat(finalR.toFixed(1));
+  if (decideWinner) {
+    if (homeGoals > awayGoals) winner = home.id;
+    else if (awayGoals > homeGoals) winner = away.id;
+    else if (isKnockout) {
+      const pRes = simulatePenalties(home, away, playerStats);
+      penaltyKicks = pRes.kicks;
+      penaltyWinner = pRes.winner;
+      homePenalties = pRes.homeScore;
+      awayPenalties = pRes.awayScore;
+      winner = pRes.winner;
+      events.push({
+        minute: endMinute,
+        type: 'penalty',
+        description: `🎯 Pênaltis! ${home.name} ${pRes.homeScore}-${pRes.awayScore} ${away.name}`,
+        teamId: pRes.winner,
+      });
+      home.players.slice(0, 5).forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.1; });
+      away.players.slice(0, 5).forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.1; });
     }
-  });
 
-  const scorers = events.filter(e => e.type === 'goal').map(e => e.playerId);
-  const mvpId = scorers.length > 0
-    ? scorers[scorers.length - 1]
-    : allStarters.sort((a,b) => (playerStats[b.id]?.rating ?? 6.0) - (playerStats[a.id]?.rating ?? 6.0))[0]?.id || allStarters[0].id;
+    // Clean sheet bonuses
+    if (awayGoals === 0) {
+      home.players.slice(0, 11).forEach(p => {
+        if (p.position === 'GK' && playerStats[p.id]) playerStats[p.id].rating += 0.8;
+        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.id]) playerStats[p.id].rating += 0.4;
+      });
+    }
+    if (homeGoals === 0) {
+      away.players.slice(0, 11).forEach(p => {
+        if (p.position === 'GK' && playerStats[p.id]) playerStats[p.id].rating += 0.8;
+        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.id]) playerStats[p.id].rating += 0.4;
+      });
+    }
+
+    // Win/loss adjustments
+    const homeStarters = home.players.slice(0, 11);
+    const awayStarters = away.players.slice(0, 11);
+    if (winner === home.id) {
+      homeStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
+      awayStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
+    } else if (winner === away.id) {
+      awayStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
+      homeStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
+    }
+
+    // Clamp and format ratings
+    [...homeStarters, ...awayStarters].forEach(p => {
+      if (playerStats[p.id]) {
+        const finalR = Math.min(10.0, Math.max(3.0, playerStats[p.id].rating));
+        playerStats[p.id].rating = parseFloat(finalR.toFixed(1));
+      }
+    });
+  }
+
+  const allStarters = [...home.players.slice(0, 11), ...away.players.slice(0, 11)];
+  const mvpId = allStarters.length > 0
+    ? allStarters.reduce((best, p) =>
+        (playerStats[p.id]?.rating ?? 6.0) > (playerStats[best.id]?.rating ?? 6.0) ? p : best,
+        allStarters[0]
+      ).id
+    : '';
 
   return {
     homeTeamId: home.id,
@@ -1126,6 +1013,7 @@ export function runMatchSimulation(
     penaltyWinner,
     homePenalties,
     awayPenalties,
+    penaltyKicks,
     mvp: mvpId,
     stats: matchStats,
     playerStats,
@@ -1177,21 +1065,62 @@ export function simulateMatch(
     awayCorners: 0,
   };
 
-  const result = runMatchSimulation(
-    home,
-    away,
-    0, // startMinute
-    isKnockout ? 120 : 90, // endMinute
-    0, // initialHomeGoals
-    0, // initialAwayGoals
-    [], // initialEvents
-    initialStats,
-    playerStats,
-    isKnockout,
-    isFinal
-  );
-  result.durationMinutes = isKnockout ? 120 : 90;
-  return result;
+  // Phase 1: run 90 minutes WITHOUT deciding the winner yet (no penalties, no bonuses).
+  // This gives us the authoritative 90-min state to check whether extra time is needed.
+  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, false, isFinal, false);
+
+  if (isKnockout && r90.homeGoals === r90.awayGoals) {
+    // Tied at 90 → extra time (90→120). Winner determination + penalties handled inside.
+    const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true);
+    rET.durationMinutes = 120;
+    return rET;
+  }
+
+  // Match decided in 90 minutes — apply winner/bonuses manually on the existing result.
+  const hg = r90.homeGoals;
+  const ag = r90.awayGoals;
+  r90.winner = hg > ag ? home.id : ag > hg ? away.id : null;
+  r90.durationMinutes = 90;
+
+  // Clean sheet bonuses
+  if (ag === 0) home.players.slice(0, 11).forEach(p => {
+    if (!playerStats[p.id]) return;
+    if (p.position === 'GK') playerStats[p.id].rating += 0.8;
+    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) playerStats[p.id].rating += 0.4;
+  });
+  if (hg === 0) away.players.slice(0, 11).forEach(p => {
+    if (!playerStats[p.id]) return;
+    if (p.position === 'GK') playerStats[p.id].rating += 0.8;
+    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) playerStats[p.id].rating += 0.4;
+  });
+
+  // Win/loss adjustments
+  const hs = home.players.slice(0, 11);
+  const as_ = away.players.slice(0, 11);
+  if (r90.winner === home.id) {
+    hs.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
+    as_.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
+  } else if (r90.winner === away.id) {
+    as_.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
+    hs.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
+  }
+
+  // Clamp ratings and set MVP
+  [...hs, ...as_].forEach(p => {
+    if (playerStats[p.id]) {
+      playerStats[p.id].rating = parseFloat(Math.min(10, Math.max(3, playerStats[p.id].rating)).toFixed(1));
+    }
+  });
+  const r90Starters = [...hs, ...as_];
+  r90.mvp = r90Starters.length > 0
+    ? r90Starters.reduce((best, p) =>
+        (playerStats[p.id]?.rating ?? 6) > (playerStats[best.id]?.rating ?? 6) ? p : best,
+        r90Starters[0]
+      ).id
+    : '';
+  r90.playerStats = playerStats;
+
+  return r90;
 }
 
 export function simulateRemainingMatch(
@@ -1296,8 +1225,14 @@ export function calculateTeamStrength(
   formationBonus: number,
 ): number {
   const starters = team.players.slice(0, 11);
+  // Guard against an empty lineup (would otherwise divide by zero → NaN strength).
+  if (starters.length === 0) return 0;
   const avgStrength = starters.reduce((sum, p) => {
-    const base = (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical) / 6;
+    // GKs are evaluated on shot-stopping attributes (defending + physical) rather than
+    // the 6-stat average that inflates/deflates them due to low shooting/dribbling.
+    const base = p.position === 'GK'
+      ? (p.defending * 1.5 + p.physical + p.pace * 0.5) / 3
+      : (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical) / 6;
     const chemMod = p.isOOP ? 0.85 : (p.chemistryScore >= 3 ? 1.10 : p.chemistryScore === 2 ? 1.06 : p.chemistryScore === 1 ? 1.03 : 1.00);
     return sum + base * chemMod;
   }, 0) / starters.length;
@@ -1353,58 +1288,81 @@ export function getPenaltyOrder(team: Team): PlayerCard[] {
   return [...ordered, ...keepers];
 }
 
-function simulatePenalties(home: Team, away: Team, playerStats?: Record<string, PlayerMatchStat>): {
+function simulatePenalties(home: Team, away: Team, _playerStats?: Record<string, PlayerMatchStat>): {
   winner: string;
   homeScore: number;
   awayScore: number;
+  kicks: PenaltyKick[];
 } {
   let homeScore = 0;
   let awayScore = 0;
+  const kicks: PenaltyKick[] = [];
 
-  const getTakers = (team: Team) => {
-    const takers = getPenaltyOrder(team);
-    const takerId = getPenaltyTaker(team).id;
-    return { takers, takerId };
-  };
-
-  const { takers: homeTakers, takerId: homeTakerId } = getTakers(home);
-  const { takers: awayTakers, takerId: awayTakerId } = getTakers(away);
+  const homeTakers = getPenaltyOrder(home);
+  const awayTakers = getPenaltyOrder(away);
+  const homeGK = home.players.find(p => p.position === 'GK') || home.players[0];
+  const awayGK = away.players.find(p => p.position === 'GK') || away.players[0];
+  const homeTakerId = getPenaltyTaker(home).id;
+  const awayTakerId = getPenaltyTaker(away).id;
 
   for (let i = 0; i < 5; i++) {
     const homeTaker = homeTakers[i % homeTakers.length];
     const awayTaker = awayTakers[i % awayTakers.length];
-    const homeGK = home.players.find(p => p.position === 'GK') || home.players[0];
-    const awayGK = away.players.find(p => p.position === 'GK') || away.players[0];
 
-    // Home penalty
-    let homeComposure = homeTaker.composure + (homeTaker.traits.includes('Especialista em Decisões') ? 10 : 0) + (homeTaker.traits.includes('Frio na Final') ? 10 : 0);
-    if (homeTaker.id === homeTakerId) {
-      homeComposure += 5;
-    }
-    const awayGKReflexes = awayGK.defending + (awayGK.traits.includes('Reflexo Felino') ? 10 : 0);
-    if (Math.random() < homeComposure / (homeComposure + awayGKReflexes * 0.5)) homeScore++;
+    // Home kick
+    const homeComp = homeTaker.composure
+      + getPenaltyComposureBonus(homeTaker.traits)
+      + (homeTaker.id === homeTakerId ? 5 : 0);
+    const awayGKRef = awayGK.defending + getGoalkeeperTraitBonus(awayGK.traits);
+    const homeGoal = Math.random() < homeComp / (homeComp + awayGKRef * 0.5);
+    if (homeGoal) homeScore++;
+    kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoal });
 
-    // Away penalty
-    let awayComposure = awayTaker.composure + (awayTaker.traits.includes('Especialista em Decisões') ? 10 : 0) + (awayTaker.traits.includes('Frio na Final') ? 10 : 0);
-    if (awayTaker.id === awayTakerId) {
-      awayComposure += 5;
-    }
-    const homeGKReflexes = homeGK.defending + (homeGK.traits.includes('Reflexo Felino') ? 10 : 0);
-    if (Math.random() < awayComposure / (awayComposure + homeGKReflexes * 0.5)) awayScore++;
+    // Away kick
+    const awayComp = awayTaker.composure
+      + getPenaltyComposureBonus(awayTaker.traits)
+      + (awayTaker.id === awayTakerId ? 5 : 0);
+    const homeGKRef = homeGK.defending + getGoalkeeperTraitBonus(homeGK.traits);
+    const awayGoal = Math.random() < awayComp / (awayComp + homeGKRef * 0.5);
+    if (awayGoal) awayScore++;
+    kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoal });
   }
 
-  // Sudden death if tied
+  // Sudden death: simulate paired kicks until outcomes differ (max 10 rounds)
   if (homeScore === awayScore) {
-    return Math.random() < 0.5
-      ? { winner: home.id, homeScore: homeScore + 1, awayScore }
-      : { winner: away.id, homeScore, awayScore: awayScore + 1 };
+    for (let sd = 0; sd < 10; sd++) {
+      const homeTaker = homeTakers[(5 + sd) % homeTakers.length];
+      const awayTaker = awayTakers[(5 + sd) % awayTakers.length];
+
+      const homeComp2 = homeTaker.composure
+        + getPenaltyComposureBonus(homeTaker.traits)
+        + (homeTaker.id === homeTakerId ? 5 : 0);
+      const awayGKRef2 = awayGK.defending + getGoalkeeperTraitBonus(awayGK.traits);
+      const homeGoalSD = Math.random() < homeComp2 / (homeComp2 + awayGKRef2 * 0.5);
+
+      const awayComp2 = awayTaker.composure
+        + getPenaltyComposureBonus(awayTaker.traits)
+        + (awayTaker.id === awayTakerId ? 5 : 0);
+      const homeGKRef2 = homeGK.defending + getGoalkeeperTraitBonus(homeGK.traits);
+      const awayGoalSD = Math.random() < awayComp2 / (awayComp2 + homeGKRef2 * 0.5);
+
+      kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoalSD });
+      kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoalSD });
+
+      if (homeGoalSD && !awayGoalSD) return { winner: home.id, homeScore: homeScore + 1, awayScore, kicks };
+      if (awayGoalSD && !homeGoalSD) return { winner: away.id, homeScore, awayScore: awayScore + 1, kicks };
+      // Both scored or both missed → next round
+      if (homeGoalSD) homeScore++;
+      if (awayGoalSD) awayScore++;
+    }
+    // Safety fallback (extremely rare all-10-rounds tie)
+    const homeWins = homeScore >= awayScore;
+    return homeWins
+      ? { winner: home.id, homeScore: homeScore + 1, awayScore, kicks }
+      : { winner: away.id, homeScore, awayScore: awayScore + 1, kicks };
   }
 
-  return {
-    winner: homeScore > awayScore ? home.id : away.id,
-    homeScore,
-    awayScore,
-  };
+  return { winner: homeScore > awayScore ? home.id : away.id, homeScore, awayScore, kicks };
 }
 
 // ============================================================
@@ -1412,6 +1370,61 @@ function simulatePenalties(home: Team, away: Team, playerStats?: Record<string, 
 // ============================================================
 
 const DRAFT_OPTIONS_COUNT = 6;
+
+// ── Draft card variants (arcade variety) ──────────────────────
+// Each card in the draft pool has a small chance to spawn as a boosted "in-form"
+// special, or to receive a wildcard extra trait. These ALWAYS clone the player
+// so the static PLAYERS pool is never mutated.
+const DRAFT_INFORM_CHANCE = 0.06;   // rare boosted card
+const DRAFT_WILDCARD_CHANCE = 0.14; // extra trait, no stat boost
+const INFORM_OVERALL_BOOST = 3;
+const INFORM_STAT_BOOST = 3;
+
+function clampStat(v: number): number {
+  return Math.max(1, Math.min(99, v));
+}
+
+function pickRollableTrait(existing: string[]): string | null {
+  const pool = ROLLABLE_TRAITS.filter(t => !existing.includes(t));
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function applyDraftVariant(p: Player): Player {
+  const roll = Math.random();
+
+  // In-form: rare, boosts overall + core stats and adds an extra trait.
+  if (roll < DRAFT_INFORM_CHANCE) {
+    const extra = pickRollableTrait(p.traits);
+    return {
+      ...p,
+      inForm: true,
+      baseOverall: p.overall,
+      overall: clampStat(p.overall + INFORM_OVERALL_BOOST),
+      pace: clampStat(p.pace + INFORM_STAT_BOOST),
+      shooting: clampStat(p.shooting + INFORM_STAT_BOOST),
+      passing: clampStat(p.passing + INFORM_STAT_BOOST),
+      dribbling: clampStat(p.dribbling + INFORM_STAT_BOOST),
+      defending: clampStat(p.defending + INFORM_STAT_BOOST),
+      physical: clampStat(p.physical + INFORM_STAT_BOOST),
+      traits: extra ? [...p.traits, extra] : [...p.traits],
+      rolledTrait: extra ?? undefined,
+    };
+  }
+
+  // Wildcard: just an extra trait (no stat change).
+  if (roll < DRAFT_INFORM_CHANCE + DRAFT_WILDCARD_CHANCE) {
+    const extra = pickRollableTrait(p.traits);
+    if (!extra) return p;
+    return { ...p, traits: [...p.traits, extra], rolledTrait: extra };
+  }
+
+  return p;
+}
+
+function withDraftVariants(list: Player[]): Player[] {
+  return list.map(applyDraftVariant);
+}
 
 function shuffleWithRarityWeight(pool: Player[]): Player[] {
   const weighted: Player[] = [];
@@ -1439,7 +1452,7 @@ export function generateDraftOptions(
   const fullAvailable = PLAYERS.filter(p => !alreadyDrafted.includes(p.id));
 
   if (neededPositions.length === 0) {
-    return shuffleWithRarityWeight(fullAvailable).slice(0, DRAFT_OPTIONS_COUNT);
+    return withDraftVariants(shuffleWithRarityWeight(fullAvailable).slice(0, DRAFT_OPTIONS_COUNT));
   }
 
   // Filter available players: they must be able to play in at least one of the remaining needed positions
@@ -1488,7 +1501,7 @@ export function generateDraftOptions(
 
   const result = guaranteed ? [guaranteed, ...rest] : rest.slice(0, DRAFT_OPTIONS_COUNT);
   // Shuffle the final list so the guaranteed pick isn't always first
-  return result.sort(() => Math.random() - 0.5);
+  return withDraftVariants(result.sort(() => Math.random() - 0.5));
 }
 
 export function getNeededPositions(
@@ -1514,12 +1527,25 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   const coach = COACHES[Math.floor(Math.random() * COACHES.length)];
   const formation = FORMATIONS[Math.floor(Math.random() * FORMATIONS.length)];
 
-  // Pick players based on difficulty
-  const sortedPlayers = [...PLAYERS].sort((a, b) => b.overall - a.overall);
-  const topN = Math.round(sortedPlayers.length * (1 - difficulty * 0.5));
-  const pool = sortedPlayers.slice(0, Math.max(11, topN));
+  // Build a pool sorted by quality tier but randomized within each tier so every
+  // call returns a different ordering among same-strength players. Without this,
+  // all bots of the same difficulty always see candidates in identical rank order
+  // and end up picking from the exact same handful of top players every time.
+  const tieredPool = [...PLAYERS].sort((a, b) => {
+    const tA = Math.floor(a.overall / 4); // 4-point bands: 92-95, 88-91, 84-87 …
+    const tB = Math.floor(b.overall / 4);
+    if (tA !== tB) return tB - tA;
+    return Math.random() - 0.5; // random within the same quality band
+  });
+  const topN = Math.round(tieredPool.length * (1 - difficulty * 0.5));
+  const pool = tieredPool.slice(0, Math.max(22, topN)); // min 22 so fallback has options
 
   const selected: Player[] = [];
+
+  // Candidate window: how many positional matches to consider per slot.
+  // Wider window → more variety; harder bots still pick from a quality pool,
+  // just with more randomness within it.
+  const candidateWindow = difficulty >= 0.88 ? 7 : difficulty >= 0.62 ? 12 : 20;
 
   // Fill formation positions (11 titulares)
   for (const pos of formation.positions) {
@@ -1528,9 +1554,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
       (p.position === pos.role || p.secondaryPositions?.includes(pos.role))
     );
     if (candidates.length > 0) {
-      // Pick randomly from top N candidates — window scales with difficulty so easier bots vary more
-      const window = difficulty >= 0.88 ? 4 : difficulty >= 0.62 ? 6 : 8;
-      const randIdx = Math.floor(Math.random() * Math.min(candidates.length, window));
+      const randIdx = Math.floor(Math.random() * Math.min(candidates.length, candidateWindow));
       selected.push(candidates[randIdx]);
     }
   }
@@ -1539,8 +1563,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   while (selected.length < 11) {
     const remaining = pool.filter(p => !selected.find(s => s.id === p.id));
     if (remaining.length === 0) break;
-    const window = difficulty >= 0.88 ? 4 : difficulty >= 0.62 ? 6 : 8;
-    const randIdx = Math.floor(Math.random() * Math.min(remaining.length, window));
+    const randIdx = Math.floor(Math.random() * Math.min(remaining.length, candidateWindow));
     selected.push(remaining[randIdx]);
   }
 
@@ -1978,6 +2001,7 @@ export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult): 
       leg2.penaltyWinner = pens.winner;
       leg2.homePenalties = pens.homeScore;
       leg2.awayPenalties = pens.awayScore;
+      leg2.penaltyKicks = pens.kicks;
       leg2.events.push({
         minute: 120,
         type: 'penalty',

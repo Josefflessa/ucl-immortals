@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Player, getRarityColor } from '../../lib/gameData';
+import { traitEffectLabel } from '../../lib/traits';
 
 interface PlayerCardProps {
   player: Player;
@@ -345,11 +346,11 @@ const CLUB_CRESTS: Record<string, string> = {
   'Brasil': 'https://upload.wikimedia.org/wikipedia/commons/9/99/Brazilian_Football_Confederation_logo.svg'
 };
 
-function getBasePlayerId(playerId: string): string {
+export function getBasePlayerId(playerId: string): string {
   return Object.keys(SOFIFA_MAPPING).find(key => playerId === key || playerId.startsWith(key + '_')) || playerId.split('_')[0];
 }
 
-function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null {
+export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null {
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
   if (!m) return null;
@@ -622,6 +623,16 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
         </span>
       </div>
 
+      {/* ── IN-FORM BADGE (special draft card) ── */}
+      {player.inForm && (
+        <div className="flex-shrink-0 mx-2 flex justify-center" style={{ zIndex: 6, marginTop: 4 }}>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(90deg,#C9A84C,#E8C84A,#C9A84C)', boxShadow: '0 0 10px rgba(201,168,76,.6)', border: '1px solid rgba(0,0,0,.35)' }}
+            title={`Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 3} geral e atributos reforçados`}>
+            <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 900, letterSpacing: '0.14em', color: '#1f1500' }}>⚡ EM ALTA</span>
+          </span>
+        </div>
+      )}
+
       {/* ── NAME BANNER ── */}
       <div className="flex-shrink-0 mx-2 mb-1.5 pt-2.5 pb-1.5 rounded-xl text-center" style={{ background: 'linear-gradient(90deg,rgba(0,0,0,.85) 0%,rgba(0,0,0,.95) 50%,rgba(0,0,0,.85) 100%)', border: `1px solid ${theme.border}22`, boxShadow: `0 0 14px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04)`, zIndex: 5 }}>
         <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 20, letterSpacing: '0.08em', color: '#fff', textShadow: `0 0 16px ${theme.nameGlow}` }}>{player.shortName.toUpperCase()}</span>
@@ -640,9 +651,15 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
       {/* ── TRAITS FOOTER ── */}
       <div className="flex-shrink-0 flex justify-center items-center gap-1 pb-2.5 px-2 text-[7.5px]" style={{ zIndex: 5 }}>
         {player.traits.length > 0
-          ? player.traits.slice(0,2).map((t,i) => (
-              <span key={i} className="font-bold px-1.5 py-0.5 rounded-full truncate" style={{ fontFamily: 'Rajdhani,sans-serif', color: 'rgba(255,255,255,.5)', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', maxWidth: 85 }} title={t}>⭐ {t}</span>
-            ))
+          ? (player.rolledTrait
+              ? [player.rolledTrait, ...player.traits.filter(t => t !== player.rolledTrait)]
+              : player.traits
+            ).slice(0,2).map((t,i) => {
+              const eff = traitEffectLabel(t);
+              const isRolled = t === player.rolledTrait;
+              return (
+              <span key={i} className="font-bold px-1.5 py-0.5 rounded-full truncate" style={{ fontFamily: 'Rajdhani,sans-serif', color: isRolled ? '#E8C84A' : 'rgba(255,255,255,.5)', background: isRolled ? 'rgba(201,168,76,.12)' : 'rgba(255,255,255,.04)', border: `1px solid ${isRolled ? 'rgba(201,168,76,.5)' : 'rgba(255,255,255,.08)'}`, maxWidth: 85 }} title={`${isRolled ? 'Trait extra! ' : ''}${t}${eff ? ` — ${eff}` : ''}`}>{isRolled ? '✨' : '⭐'} {t}</span>
+            ); })
           : <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: theme.accent, opacity: .7 }}>{player.rarity.toUpperCase()}</span>
         }
       </div>

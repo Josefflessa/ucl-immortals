@@ -26,6 +26,11 @@ export interface Player {
   traits: string[];
   historicalCoaches?: string[];
   historicalPartners?: string[];
+  // Draft-time variants (never present on the base PLAYERS pool — only on cloned
+  // cards produced during the draft). See gameEngine.applyDraftVariant.
+  rolledTrait?: string; // extra "wildcard" trait granted randomly in the draft
+  inForm?: boolean;     // rare boosted "in-form" special card
+  baseOverall?: number; // original overall before the in-form boost (for display)
 }
 
 export interface CoachBonus {
@@ -121,6 +126,35 @@ export const POS_PT: Record<string, string> = {
   CAM: 'MEI', LM: 'ML', RM: 'MD',
   LW: 'ALE', RW: 'ALD', CF: 'SS', ST: 'CA',
 };
+
+// ============================================================
+// TACTICS (PLAY STYLE)
+// ============================================================
+// The `id` MUST match the playStyle strings the engine reads in
+// gameEngine.getEffectiveAttribute / matchNarrative.selectApproach.
+// Changing an id here without updating the engine silently disables the bonus.
+export interface Tactic {
+  id: string;
+  name: string;
+  icon: string;
+  short: string; // one-line attribute effect, kept in sync with the engine
+  desc: string;
+}
+
+export const TACTICS: Tactic[] = [
+  { id: 'balanced',       name: 'Equilibrado',     icon: '⚖️', short: 'Sem bônus de atributo',   desc: 'Postura neutra, sem reforços nem fraquezas. Boa quando o elenco já é completo.' },
+  { id: 'possession',     name: 'Posse de Bola',   icon: '🎯', short: '+5 Passe e Visão',        desc: 'Domina a bola e cria com paciência. Reforça passe e visão dos jogadores.' },
+  { id: 'counter',        name: 'Contra-ataque',   icon: '⚡', short: '+5 Ritmo e Finalização',  desc: 'Defende firme e explode na velocidade. Reforça ritmo e finalização.' },
+  { id: 'high_press',     name: 'Pressão Alta',    icon: '🔥', short: '+5 Físico',               desc: 'Sufoca a saída de bola adversária. Reforça o físico para aguentar a intensidade.' },
+  { id: 'defensive',      name: 'Defensivo',       icon: '🛡️', short: '+8 Defesa',               desc: 'Fecha os espaços e segura o resultado. Forte reforço defensivo.' },
+  { id: 'all_out_attack', name: 'Tudo pro Ataque', icon: '⚔️', short: '+8 Finalização',          desc: 'Joga com tudo no ataque, aceitando o risco atrás. Forte reforço de finalização.' },
+];
+
+export const DEFAULT_PLAY_STYLE = 'balanced';
+
+export function getTacticById(id: string | undefined): Tactic {
+  return TACTICS.find(t => t.id === id) ?? TACTICS[0];
+}
 
 // ============================================================
 // DIFFICULTY LEVELS

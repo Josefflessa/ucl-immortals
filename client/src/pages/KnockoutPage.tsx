@@ -1,11 +1,11 @@
 // UCL Immortals — Knockout Phase Page
 // Quarter-finals, Semi-finals, Final bracket
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
+import { useTeams } from '../hooks/useTeams';
 import { MatchResult, getActiveKnockoutMatches, knockoutRoundLabel, getAllPlayedMatchResults, getPlayerSeasonStats } from '../lib/gameEngine';
-import { SOFIFA_MAPPING } from '../components/game/PlayerCard';
 import { POS_PT } from '../lib/gameData';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
@@ -145,6 +145,7 @@ function MatchEventFeed({ result, homeName, awayName, leg1, leg1HomeName, leg1Aw
 export default function KnockoutPage() {
   const { state, dispatch, getTeamById, playKnockoutRoundOnline, advanceKnockoutRoundOnline } = useGame();
   const { knockoutBracket, playerTeam } = state;
+  const { localTeamId, allTeams, getTeamName: resolveTeamName } = useTeams();
   const [viewingResult, setViewingResult] = useState<{
     result: MatchResult;
     homeName: string;
@@ -155,10 +156,6 @@ export default function KnockoutPage() {
     subtitle?: string;
   } | null>(null);
   const [knockoutTab, setKnockoutTab] = useState<'matches' | 'stats'>('matches');
-
-  const localTeamId = state.mode === 'online'
-    ? state.onlinePlayers.find(p => p.socketId === state.socketId)?.id
-    : playerTeam?.id;
 
   // Auto-open the local player's tie as a synchronized replay — LEG BY LEG — as
   // soon as each leg's engine-computed result is available (solo + online).
@@ -206,12 +203,8 @@ export default function KnockoutPage() {
 
   if (!knockoutBracket) return null;
 
-  const getTeamName = (teamId: string) => {
-    if (teamId === playerTeam?.id) return playerTeam.name;
-    const onlinePlayer = state.onlinePlayers.find(p => p.id === teamId);
-    if (onlinePlayer) return onlinePlayer.name;
-    return state.botTeams.find(t => t.id === teamId)?.name ?? 'TBD';
-  };
+  // Unknown ids show "TBD" (knockout slots not yet decided).
+  const getTeamName = (teamId: string) => resolveTeamName(teamId, 'TBD');
 
   const isPlayerTeam = (teamId: string) =>
     teamId === playerTeam?.id ||
@@ -232,38 +225,29 @@ export default function KnockoutPage() {
 
   const matches = getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[];
 
-  // ── Season stats (for ESTATÍSTICAS tab) ─────────────────────────────────
-  const allTeamsForStats = state.mode === 'online'
-    ? [...state.onlinePlayers.filter(p => p.team).map(p => p.team!), ...state.botTeams]
-    : state.playerTeam ? [state.playerTeam, ...state.botTeams] : state.botTeams;
-  const allPlayers = allTeamsForStats.flatMap(t => t.players);
-  const allResults = getAllPlayedMatchResults(state.leagueResults, state.knockoutBracket ?? null);
+  // ── Season stats (for ESTATÍSTICAS tab) — memoized so they don't recompute on every render ──
+  const { topScorers, topAssists, topRatings } = useMemo(() => {
+    const allPlayers = allTeams.flatMap(t => t.players);
+    const allResults = getAllPlayedMatchResults(state.leagueResults, state.knockoutBracket ?? null);
 
-  type StatRow = { pl: typeof allPlayers[number]; team: typeof allTeamsForStats[number]; stats: ReturnType<typeof getPlayerSeasonStats> };
+    const rows = allPlayers.flatMap(pl => {
+      const team = allTeams.find(t => t.players.some(p => p.id === pl.id));
+      if (!team) return [];
+      return [{ pl, team, stats: getPlayerSeasonStats(pl.id, team.id, allResults) }];
+    });
 
-  const buildStatRows = (): StatRow[] =>
-    allPlayers.map(pl => {
-      const team = allTeamsForStats.find(t => t.players.some(p => p.id === pl.id));
-      if (!team) return null;
-      return { pl, team, stats: getPlayerSeasonStats(pl.id, team.id, allResults) };
-    }).filter((x): x is StatRow => x !== null);
-
-  const allStatRows = buildStatRows();
-
-  const topScorers = allStatRows
-    .filter(x => x.stats.goals > 0)
-    .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists)
-    .slice(0, 15);
-
-  const topAssists = allStatRows
-    .filter(x => x.stats.assists > 0)
-    .sort((a, b) => b.stats.assists - a.stats.assists)
-    .slice(0, 15);
-
-  const topRatings = allStatRows
-    .filter(x => x.stats.played >= 3)
-    .sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg)
-    .slice(0, 15);
+    return {
+      topScorers: rows.filter(x => x.stats.goals > 0)
+        .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists)
+        .slice(0, 15),
+      topAssists: rows.filter(x => x.stats.assists > 0)
+        .sort((a, b) => b.stats.assists - a.stats.assists)
+        .slice(0, 15),
+      topRatings: rows.filter(x => x.stats.played >= 3)
+        .sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg)
+        .slice(0, 15),
+    };
+  }, [allTeams, state.leagueResults, state.knockoutBracket]);
   const round = knockoutBracket.currentRound;
   const label = knockoutRoundLabel(round);
   const allPlayed = matches.length > 0 && matches.every(m => m.played);
@@ -544,16 +528,26 @@ export default function KnockoutPage() {
                       <button
                         onClick={() => setViewingResult(
                           twoLeg && l2
-                            ? {
-                                // Return leg (volta): the away team hosts, so flip home/away
-                                result: l2,
-                                homeName: awayName,
-                                awayName: homeName,
-                                leg1: l1,
-                                leg1HomeName: homeName,
-                                leg1AwayName: awayName,
-                                subtitle: `Agregado ${match.result!.homeGoals}-${match.result!.awayGoals} · Ida ${l1?.homeGoals ?? 0}-${l1?.awayGoals ?? 0}`,
-                              }
+                            ? (() => {
+                                const aggH = match.result!.homeGoals;
+                                const aggA = match.result!.awayGoals;
+                                const l1H = l1?.homeGoals ?? 0;
+                                const l1A = l1?.awayGoals ?? 0;
+                                const advancer = getTeamName(match.result!.winner!);
+                                const penSuffix = match.result!.penaltyWinner
+                                  ? ` · Pên ${match.result!.homePenalties}-${match.result!.awayPenalties}`
+                                  : '';
+                                return {
+                                  // Return leg (volta): the away team hosts, so flip home/away
+                                  result: l2,
+                                  homeName: awayName,
+                                  awayName: homeName,
+                                  leg1: l1,
+                                  leg1HomeName: homeName,
+                                  leg1AwayName: awayName,
+                                  subtitle: `✅ ${advancer} avança · Agg ${homeName} ${aggH}-${aggA} ${awayName} (Ida ${l1H}-${l1A}${penSuffix})`,
+                                };
+                              })()
                             : { result: match.result!, homeName, awayName }
                         )}
                         className="px-4 py-2 rounded-lg text-xs font-bold"

@@ -2,29 +2,11 @@
 // Tactical field with player positions and chemistry lines
 
 import { motion } from 'framer-motion';
-import { Player, Formation, getRarityColor } from '../../lib/gameData';
+import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
 import { isPlayerInPosition } from '../../lib/gameEngine';
-import { SOFIFA_MAPPING } from './PlayerCard';
+import { buildSofifaUrl } from './PlayerCard';
 
-const POS_PT: Record<string, string> = {
-  GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
-  LWB: 'AEL', RWB: 'AED', CDM: 'VOL', CM: 'MC',
-  CAM: 'MEI', LM: 'ML', RM: 'MD',
-  LW: 'ALE', RW: 'ALD', CF: 'SS', ST: 'CA',
-};
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
-
-const getBasePlayerId = (playerId: string): string => {
-  return Object.keys(SOFIFA_MAPPING).find(key => playerId === key || playerId.startsWith(key + '_')) || playerId.split('_')[0];
-};
-
-const getPlayerPhotoUrl = (playerId: string): string | null => {
-  const baseId = getBasePlayerId(playerId);
-  const m = SOFIFA_MAPPING[baseId];
-  if (!m) return null;
-  const padded = String(m.id).padStart(6, '0');
-  return `https://cdn.sofifa.net/players/${padded.slice(0,3)}/${padded.slice(3,6)}/${m.ver}_120.png`;
-};
 
 interface FormationFieldProps {
   formation: Formation;
@@ -162,7 +144,7 @@ export default function FormationField({
         const chemScore = player ? (chemistryScores[player.id] ?? 0) : 0;
         const rarityColor = player ? getRarityColor(player.rarity) : '#555';
         const initials = player ? (PLAYER_INITIALS[player.id] || player.shortName.slice(0, 2).toUpperCase()) : '?';
-        const photoUrl = player ? getPlayerPhotoUrl(player.id) : null;
+        const photoUrl = player ? buildSofifaUrl(player.id, 120) : null;
         const tokenSize = compact ? 34 : 48;
 
         const isSelected = selectedPlayerIndex === index;

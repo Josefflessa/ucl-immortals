@@ -4,18 +4,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
-import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player } from '../lib/gameData';
+import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT } from '../lib/gameData';
 import { calculateChemistry, getPlayerEffectiveStats, isPlayerInPosition, getCoachModifiersForPlayer } from '../lib/gameEngine';
 import FormationField from '../components/game/FormationField';
-import PlayerCard, { SOFIFA_MAPPING } from '../components/game/PlayerCard';
+import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 import RolesSelector from '../components/game/RolesSelector';
-
-const POS_PT: Record<string, string> = {
-  GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
-  LWB: 'AEL', RWB: 'AED', CDM: 'VOL', CM: 'MC',
-  CAM: 'MEI', LM: 'ML', RM: 'MD',
-  LW: 'ALE', RW: 'ALD', CF: 'SS', ST: 'CA',
-};
+import TacticSelector from '../components/game/TacticSelector';
+import { getTraitInfo, traitEffectLabel } from '../lib/traits';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 
@@ -232,6 +227,14 @@ export default function SquadReviewPage() {
             </div>
           </div>
 
+          {/* Tactic / play style */}
+          <div className="mb-6">
+            <TacticSelector
+              value={state.selectedPlayStyle}
+              onChange={(id) => dispatch({ type: 'SET_PLAY_STYLE', playStyle: id })}
+            />
+          </div>
+
           {/* Captain & penalty taker */}
           <div className="mb-6">
             <RolesSelector
@@ -328,9 +331,7 @@ export default function SquadReviewPage() {
                   const isOOP = isStarter ? (chemData.outOfPosition[player.id] ?? false) : false;
                   const eff = getPlayerEffectiveStats(player, chemScore, isOOP, selectedCoachId, chemData.total);
 
-                  const baseId = Object.keys(SOFIFA_MAPPING).find(key => player.id === key || player.id.startsWith(key + '_')) || player.id.split('_')[0];
-                  const m = SOFIFA_MAPPING[baseId];
-                  const photoUrl = m ? `https://cdn.sofifa.net/players/${String(m.id).padStart(6, '0').slice(0,3)}/${String(m.id).padStart(6, '0').slice(3,6)}/${m.ver}_120.png` : null;
+                  const photoUrl = buildSofifaUrl(player.id, 120);
 
                   const statRows = [
                     { label: 'RIT', base: player.pace,      eff: eff.pace },
@@ -429,6 +430,28 @@ export default function SquadReviewPage() {
                           </div>
                         </div>
                       )}
+
+                      {/* Player traits + what they do */}
+                      {player.traits.length > 0 && (
+                        <div className="px-4 py-3 border-t" style={{ borderColor: '#161626', background: '#09090f' }}>
+                          <div className="text-[9px] font-black tracking-widest mb-2" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+                            ⭐ CARACTERÍSTICAS (EFEITO NO JOGO)
+                          </div>
+                          <div className="space-y-1.5">
+                            {player.traits.map((t) => {
+                              const info = getTraitInfo(t);
+                              const label = traitEffectLabel(t);
+                              return (
+                                <div key={t} className="flex items-start gap-2 text-[11px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                                  <span className="flex-shrink-0">{info?.icon ?? '⭐'}</span>
+                                  <span className="font-black text-white flex-shrink-0">{t}</span>
+                                  <span className="text-[#C9A84C] font-bold">{label || 'sem efeito direto'}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -448,10 +471,8 @@ export default function SquadReviewPage() {
                       const posIdx = isStarter ? idx : -1;
                       const chemDiffColor = chemPreview.diff > 0 ? '#22C55E' : chemPreview.diff < 0 ? '#EF4444' : '#8A8A9A';
                       const chemDiffLabel = chemPreview.diff > 0 ? `+${chemPreview.diff}` : chemPreview.diff < 0 ? `${chemPreview.diff}` : '0';
-                      
-                      const baseId = Object.keys(SOFIFA_MAPPING).find(key => player.id === key || player.id.startsWith(key + '_')) || player.id.split('_')[0];
-                      const m = SOFIFA_MAPPING[baseId];
-                      const photoUrl = m ? `https://cdn.sofifa.net/players/${String(m.id).padStart(6, '0').slice(0,3)}/${String(m.id).padStart(6, '0').slice(3,6)}/${m.ver}_120.png` : null;
+
+                      const photoUrl = buildSofifaUrl(player.id, 120);
 
                       // Check compatibility if target index is a starter slot
                       const targetIsStarterSlot = selectedPlayerIndex < 11;
