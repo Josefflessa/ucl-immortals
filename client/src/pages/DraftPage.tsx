@@ -31,18 +31,25 @@ const DraftTimer = memo(function DraftTimer({
   const onExpireRef = useRef(onExpire);
   onExpireRef.current = onExpire;
 
+  // One self-contained countdown per turn. Restarts when `round` (the turn) changes.
+  // Using a single interval + a local guard avoids the old two-effect race, where a
+  // pick changed `round` while timeLeft was still 0 and re-fired the auto-pick (or
+  // left the timer stuck at 0). onExpire fires exactly once, then the interval stops.
   useEffect(() => {
     setTimeLeft(DRAFT_TIME);
+    let remaining = DRAFT_TIME;
+    let fired = false;
+    const id = setInterval(() => {
+      remaining -= 1;
+      setTimeLeft(remaining);
+      if (remaining <= 0 && !fired) {
+        fired = true;
+        clearInterval(id);
+        onExpireRef.current();
+      }
+    }, 1000);
+    return () => clearInterval(id);
   }, [round]);
-
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      onExpireRef.current();
-      return;
-    }
-    const timer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [timeLeft, round]);
 
   const timerColor = timeLeft <= 5 ? '#EF4444' : timeLeft <= 10 ? '#F97316' : '#C9A84C';
   const timerPct = (timeLeft / DRAFT_TIME) * 100;
