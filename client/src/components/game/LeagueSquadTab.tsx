@@ -7,6 +7,8 @@ import FormationField from './FormationField';
 import PlayerCard, { buildSofifaUrl } from './PlayerCard';
 import RolesSelector from './RolesSelector';
 import TacticSelector from './TacticSelector';
+import ChemistryBonusInfo from './ChemistryBonusInfo';
+import BuffBreakdown from './BuffBreakdown';
 
 export default function LeagueSquadTab() {
   const { state, dispatch, setMatchRolesOnline } = useGame();
@@ -34,6 +36,22 @@ export default function LeagueSquadTab() {
   const chemColor = chemData.total >= 90 ? '#22C55E' : chemData.total >= 60 ? '#EAB308' : chemData.total >= 30 ? '#F97316' : '#EF4444';
   const activeTrios = chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean);
 
+  // Team overall = avg EFFECTIVE overall of the 11 starters (mirrors the post-draft
+  // screen), so it reflects chemistry, coach, traits and tactic — not just base.
+  const teamOverall = xi.length === 11
+    ? Math.round(xi.reduce((sum, p) => {
+        const eff = getPlayerEffectiveStats(
+          p,
+          chemData.individual[p.id] ?? 0,
+          chemData.outOfPosition[p.id] ?? false,
+          team.coachId,
+          chemData.total,
+          team.playStyle,
+        );
+        return sum + eff.overall;
+      }, 0) / 11)
+    : null;
+
   const getChemPreview = (candidateIdx: number) => {
     if (selectedIndex === null) return { total: chemData.total, diff: 0 };
     const temp = [...team.players];
@@ -52,8 +70,18 @@ export default function LeagueSquadTab() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-      {/* Chemistry summary */}
+      {/* Team overall + chemistry summary */}
       <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: `1px solid ${chemColor}44` }}>
+        {teamOverall !== null && (
+          <div className="flex items-center justify-between mb-3 pb-3 border-b" style={{ borderColor: '#1A1A2A' }}>
+            <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
+              OVERALL DO TIME
+            </span>
+            <span className="text-2xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>
+              {teamOverall}
+            </span>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
             QUÍMICA DO TIME
@@ -70,6 +98,7 @@ export default function LeagueSquadTab() {
             ⭐ {activeTrios.map(t => t?.name).join(' · ')}
           </div>
         )}
+        <ChemistryBonusInfo total={chemData.total} />
       </div>
 
       {/* Tactic / play style — changeable between matches (solo and online) */}
@@ -281,6 +310,9 @@ export default function LeagueSquadTab() {
                           </div>
                         </div>
                       )}
+
+                      {/* Per-source buff breakdown — what's lifting each stat */}
+                      <BuffBreakdown eff={eff} />
                     </div>
                   );
                 })()}

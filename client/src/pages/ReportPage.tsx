@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
-import { COACHES, FORMATIONS, getRarityColor, getRarityGlow, POS_PT } from '../lib/gameData';
+import { FORMATIONS, getRarityColor, getRarityGlow, POS_PT } from '../lib/gameData';
 import {
   calculateChemistry,
   getAllPlayedMatchResults,
@@ -96,7 +96,6 @@ export default function ReportPage() {
 
   const isChampion = champion === localTeamId;
 
-  const coach = COACHES.find(c => c.id === playerTeam?.coachId);
   const formation = FORMATIONS.find(f => f.id === playerTeam?.formationId);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
   const chemData = playerTeam
@@ -140,6 +139,17 @@ export default function ReportPage() {
       return [{ pl, team, stats }];
     });
     return rows.filter(x => x.stats.played >= 3).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg)[0] ?? null;
+  }, [allResults]);
+
+  const topAssister = useMemo(() => {
+    const allPlayers = allTeamsForStats.flatMap(t => t.players);
+    const rows = allPlayers.flatMap(pl => {
+      const team = allTeamsForStats.find(t => t.players.some(p => p.id === pl.id));
+      if (!team) return [];
+      const stats = getPlayerSeasonStats(pl.id, team.id, allResults);
+      return [{ pl, team, stats }];
+    });
+    return rows.filter(x => x.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists)[0] ?? null;
   }, [allResults]);
 
   // ── Champion team name (works for bot or any human in online mode) ─────────
@@ -405,7 +415,7 @@ export default function ReportPage() {
         )}
 
         {/* Top performers */}
-        {phase >= 3 && (topScorer || topRating) && (
+        {phase >= 3 && (topScorer || topRating || topAssister) && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -445,30 +455,30 @@ export default function ReportPage() {
                   </div>
                 </div>
               )}
-              {report && (
-                <>
-                  {report.historicalRecreations.length > 0 && (
-                    <div className="flex items-start gap-4 px-5 py-4">
-                      <div className="text-2xl">⚡</div>
-                      <div>
-                        <div className="text-[10px] font-bold tracking-widest mb-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
-                        {report.historicalRecreations.map(trio => (
-                          <div key={trio} className="text-sm font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{trio}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {coach && (
-                    <div className="flex items-center gap-4 px-5 py-4">
-                      <div className="text-2xl">🧠</div>
-                      <div>
-                        <div className="text-[10px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>TREINADOR</div>
-                        <div className="text-sm font-bold" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{coach.name}</div>
-                        <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
-                      </div>
-                    </div>
-                  )}
-                </>
+              {topAssister && (
+                <div className="flex items-center gap-4 px-5 py-4">
+                  <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#4FC3F7' }}>👟</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>REI DAS ASSISTÊNCIAS</div>
+                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topAssister.pl.shortName}</div>
+                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{topAssister.team.name}</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#4FC3F7' }}>{topAssister.stats.assists}</div>
+                    <div className="text-[10px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>assist.</div>
+                  </div>
+                </div>
+              )}
+              {report && report.historicalRecreations.length > 0 && (
+                <div className="flex items-start gap-4 px-5 py-4">
+                  <div className="text-2xl">⚡</div>
+                  <div>
+                    <div className="text-[10px] font-bold tracking-widest mb-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
+                    {report.historicalRecreations.map(trio => (
+                      <div key={trio} className="text-sm font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{trio}</div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </motion.div>

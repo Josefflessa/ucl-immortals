@@ -107,6 +107,26 @@ function isHost(room: RoomState, socketId: string): boolean {
   return !!host && host.socketId === socketId;
 }
 
+// Whether every human in the active knockout round has confirmed watching the leg
+// that was just played. Used to gate BOTH playing the next leg (ida → volta) and
+// advancing the bracket (after the volta) — so the host can never skip ahead.
+function knockoutWatchStatus(room: RoomState): { allWatched: boolean; waiting: string[] } {
+  const bracket = room.knockoutBracket;
+  if (!bracket) return { allWatched: true, waiting: [] };
+  const roundKey = bracket.currentRound === 'quarters' ? 'quarterFinals' : bracket.currentRound === 'semis' ? 'semiFinals' : bracket.currentRound;
+  const currentMatches: any[] = bracket.currentRound === 'final'
+    ? (bracket.final ? [bracket.final] : [])
+    : (bracket as any)[roundKey] || [];
+  const humanIdsInRound = room.players
+    .filter(p => currentMatches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id))
+    .map(p => p.id);
+  const allWatched = humanIdsInRound.every(id => room.watchedKnockoutLegPlayers.includes(id));
+  const waiting = room.players
+    .filter(p => humanIdsInRound.includes(p.id) && !room.watchedKnockoutLegPlayers.includes(p.id))
+    .map(p => p.name);
+  return { allWatched, waiting };
+}
+
 // Schedule deletion of a room once every player has disconnected; cancelled if
 // anyone (re)joins. Prevents abandoned rooms from leaking forever.
 function scheduleRoomCleanupIfEmpty(room: RoomState): void {
@@ -617,6 +637,17 @@ export function registerSocketHandlers(io: Server) {
       if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
       if (!isHost(room, socket.id)) return;
 
+      // About to play the SECOND leg (volta)? Gate it just like advancing: every
+      // human must have watched the FIRST leg (ida) first. Without this the host
+      // could fire the volta immediately, spoiling the ida score for everyone.
+      if (room.knockoutBracket.currentLeg === 2) {
+        const { allWatched, waiting } = knockoutWatchStatus(room);
+        if (!allWatched) {
+          socket.emit("advance_blocked", { waiting });
+          return;
+        }
+      }
+
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
       const resolve = (id: string) => allTeams.find(t => t.id === id);
@@ -637,20 +668,10 @@ export function registerSocketHandlers(io: Server) {
       if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
       if (!isHost(room, socket.id)) return;
 
-      // Block until all human players who are in the current knockout round have confirmed watching
-      const bracket = room.knockoutBracket;
-      const roundKey = bracket.currentRound === 'quarters' ? 'quarterFinals' : bracket.currentRound === 'semis' ? 'semiFinals' : bracket.currentRound;
-      const currentMatches: any[] = bracket.currentRound === 'final'
-        ? (bracket.final ? [bracket.final] : [])
-        : (bracket as any)[roundKey] || [];
-      const humanIdsInRound = room.players
-        .filter(p => currentMatches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id))
-        .map(p => p.id);
-      const allWatched = humanIdsInRound.every(id => room.watchedKnockoutLegPlayers.includes(id));
+      // Block until all human players who are in the current knockout round have
+      // confirmed watching the leg just played (the volta).
+      const { allWatched, waiting } = knockoutWatchStatus(room);
       if (!allWatched) {
-        const waiting = room.players
-          .filter(p => humanIdsInRound.includes(p.id) && !room.watchedKnockoutLegPlayers.includes(p.id))
-          .map(p => p.name);
         socket.emit("advance_blocked", { waiting });
         return;
       }

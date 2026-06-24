@@ -9,6 +9,7 @@ import {
   getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
   getPenaltyTaker, getPenaltyOrder, setStatIds, statKey,
+  teamMidfieldPassing, midfieldBuildUpEdge,
   GK_SAVE_EDGE, ON_TARGET_RESISTANCE, MATCH_NOISE,
 } from '../lib/gameEngine';
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';
@@ -154,6 +155,8 @@ export default function MatchSimPage() {
   const [penaltyWinner, setPenaltyWinner] = useState<string | null>(null);
   // Replay-mode kick-by-kick index (-1 = not in replay penalty mode)
   const [penaltyReplayIdx, setPenaltyReplayIdx] = useState(-1);
+  // Team currently stepping up (build-up phase) — drives the overlay's "a cobrar" glow.
+  const [penaltyKickPending, setPenaltyKickPending] = useState<string | null>(null);
 
   // Stats accumulator (progressive)
   const [stats, setStats] = useState<MatchResult['stats']>({
@@ -429,7 +432,9 @@ export default function MatchSimPage() {
 
       // Trait effects are already baked into the effective attributes above
       // (getEffectiveAttribute + trait catalog), so no extra bonuses here.
-      const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + Math.random() * 40;
+      // Midfield control (passing) lifts the quality of the chance created.
+      const buildUp = midfieldBuildUpEdge(teamMidfieldPassing(attackTeam), teamMidfieldPassing(defendTeam), attackTeam.playStyle ?? 'balanced');
+      const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + buildUp + Math.random() * 40;
       const defScore = (defDefending + defPhysical) / 2 + Math.random() * 40;
 
       if (atkScore > defScore) {
@@ -880,7 +885,10 @@ export default function MatchSimPage() {
         // NOT know if it's a goal until the reveal. Everything else (build-up, duels,
         // fouls, cards) shows immediately.
         const shotEvs = evs.filter(e => e.type === 'goal' || e.type === 'save' || e.type === 'miss');
-        const otherEvs = evs.filter(e => e.type !== 'goal' && e.type !== 'save' && e.type !== 'miss');
+        // 'penalty' is the engine's shootout SUMMARY (carries the final pen score) — it
+        // must NEVER hit the live feed here, or it spoils the result before the shootout
+        // overlay even opens. It's added to the feed only after the overlay finishes.
+        const otherEvs = evs.filter(e => e.type !== 'goal' && e.type !== 'save' && e.type !== 'miss' && e.type !== 'penalty');
 
         if (otherEvs.length > 0) {
           setEvents(prev => [...prev, ...otherEvs]);
@@ -906,9 +914,18 @@ export default function MatchSimPage() {
           const atkId = isSaveOutcome ? (decisive.teamId === homeTeam.id ? awayTeam.id : homeTeam.id) : decisive.teamId;
           const atkTeam = atkId === homeTeam.id ? homeTeam : awayTeam;
           const defTeam = atkTeam.id === homeTeam.id ? awayTeam : homeTeam;
-          const isOwnGoal = isGoalOutcome && decisive.description?.includes('Contra');
+          // Own goal: the engine tags the scorer via opponentId (a defender on the
+          // OTHER team). Name him explicitly so the broadcast is clear about who put
+          // it in his own net and for which team — instead of a vague "Gol Contra".
+          // Own goals carry NO playerId (the scorer isn't on the attacking team). The
+          // old check `description.includes('Contra')` wrongly flagged "Contra-ataque"
+          // goals — which DO have a scorer — as own goals. Use the structural signal.
+          const isOwnGoal = isGoalOutcome && !decisive.playerId;
+          const ogName = isOwnGoal
+            ? (defTeam.players.find(p => p.id === decisive.opponentId)?.shortName ?? 'um zagueiro')
+            : '';
           const attackerName = isOwnGoal
-            ? 'Gol Contra'
+            ? `Gol Contra (${ogName})`
             : isSaveOutcome
               ? (atkTeam.players.find(p => p.id === decisive.opponentId)?.shortName ?? 'Atacante')
               : (atkTeam.players.find(p => p.id === decisive.playerId)?.shortName ?? 'Atacante');
@@ -917,9 +934,11 @@ export default function MatchSimPage() {
           const awayDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === awayTeam.id).length;
           const atkIsHome = atkId === homeTeam.id;
           const momentumShift = isGoalOutcome ? (atkIsHome ? 22 : -22) : isSaveOutcome ? (atkIsHome ? -8 : 8) : (atkIsHome ? -3 : 3);
-          const messageStage3 = isGoalOutcome
-            ? `🔥 GOOOOL! ${attackerName} balança as redes! ${atkTeam.name.toUpperCase()} MARCA!`
-            : isSaveOutcome ? saveCelebMsg(gkName, attackerName) : missCelebMsg(attackerName);
+          const messageStage3 = isOwnGoal
+            ? `😱 GOL CONTRA de ${ogName} (${defTeam.name})! Ele desviou para a própria meta e o ${atkTeam.name.toUpperCase()} agradece!`
+            : isGoalOutcome
+              ? `🔥 GOOOOL! ${attackerName} balança as redes! ${atkTeam.name.toUpperCase()} MARCA!`
+              : isSaveOutcome ? saveCelebMsg(gkName, attackerName) : missCelebMsg(attackerName);
 
           pendingReplayGoals.current = {
             goalEvents: shotEvs,
@@ -932,14 +951,18 @@ export default function MatchSimPage() {
 
           setIsPlaying(false);
           const replayApproach = selectApproach(atkTeam.playStyle ?? 'balanced');
-          const replayBuildUp = buildUpDesc(replayApproach, attackerName, gkName, gkName, atkTeam.name);
+          const replayBuildUp = isOwnGoal
+            ? `😬 ${ogName} tenta cortar sob pressão na área do ${defTeam.name}, mas a bola desvia em direção ao próprio gol...`
+            : buildUpDesc(replayApproach, attackerName, gkName, gkName, atkTeam.name);
           setDangerState({
             stage: 1,
             teamId: atkId,
-            attacker: attackerName,
+            attacker: isOwnGoal ? ogName : attackerName,
             defender: gkName,
             type: 'attack',
-            message: dangerStage1Msg(replayApproach, atkTeam.name, attackerName, gkName, isGoalOutcome, isSaveOutcome),
+            message: isOwnGoal
+              ? `⚠️ Cruzamento perigoso na área do ${defTeam.name} — todo cuidado é pouco!`
+              : dangerStage1Msg(replayApproach, atkTeam.name, attackerName, gkName, isGoalOutcome, isSaveOutcome),
             approach: replayApproach,
             buildUp: replayBuildUp,
           });
@@ -973,26 +996,44 @@ export default function MatchSimPage() {
       return;
     }
     if (penaltyReplayIdx >= kicks.length) {
-      // All kicks narrated → reveal winner
+      // All kicks narrated → reveal winner. Only NOW is it safe to drop the shootout
+      // summary into the live feed (the result is no longer a spoiler).
+      setPenaltyKickPending(null);
       setPenaltyWinner(replayResult.penaltyWinner!);
       setPenaltyHomeScore(replayResult.homePenalties ?? 0);
       setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+      const champ = replayResult.penaltyWinner === homeTeam.id ? homeTeam.name : awayTeam.name;
+      setEvents(prev => prev.some(e => e.type === 'penalty') ? prev : [...prev, {
+        minute: replayResult.durationMinutes ?? (isKnockout ? 120 : 90),
+        type: 'penalty',
+        description: `🎯 Pênaltis: ${homeTeam.name} ${replayResult.homePenalties ?? 0}-${replayResult.awayPenalties ?? 0} ${awayTeam.name} — ${champ} avança!`,
+        teamId: replayResult.penaltyWinner!,
+      }]);
       return;
     }
-    const timer = setTimeout(() => {
-      const kick = kicks[penaltyReplayIdx];
-      const isHome = kick.teamId === homeTeam.id;
-      const teamName = isHome ? homeTeam.name : awayTeam.name;
+
+    const kick = kicks[penaltyReplayIdx];
+    const isHome = kick.teamId === homeTeam.id;
+    const teamName = isHome ? homeTeam.name : awayTeam.name;
+    const num = penaltyReplayIdx + 1;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    // Phase 1 — build-up (suspense): the taker steps up, the keeper tries to read him.
+    setPenaltyKickPending(kick.teamId);
+    setPenaltyCommentary(`COBRANÇA ${num} · ${teamName.toUpperCase()}\n🎯 ${kick.takerName} ajeita a bola na marca... ${kick.gkName} dança na linha tentando intimidar.`);
+
+    timers.push(setTimeout(() => {
+      // Phase 2 — the reveal.
       let desc: string;
       if (kick.isGoal) {
-        desc = `🎯 CONVERTEU! ${kick.takerName} cobra com frieza e marca!`;
+        desc = `⚽ GOOOOL! ${kick.takerName} desloca o goleiro e estufa a rede!`;
       } else {
-        // Vary miss description using index parity
         desc = penaltyReplayIdx % 2 === 0
-          ? `🧤 DEFENDEU! ${kick.gkName} voa para o canto e salva!`
-          : `❌ PARA FORA! ${kick.takerName} sente a pressão e isola!`;
+          ? `🧤 PEGOU! ${kick.gkName} voa no canto e DEFENDE a cobrança de ${kick.takerName}!`
+          : `❌ PRA FORA! ${kick.takerName} pesa a perna e manda por cima do travessão!`;
       }
-      setPenaltyCommentary(`${teamName.toUpperCase()} — ${kick.takerName}:\n${desc}`);
+      setPenaltyCommentary(`COBRANÇA ${num} · ${teamName.toUpperCase()}\n${desc}`);
+      setPenaltyKickPending(null);
       if (isHome) {
         setPenaltiesHome(prev => [...prev, kick.isGoal]);
         if (kick.isGoal) setPenaltyHomeScore(prev => prev + 1);
@@ -1000,10 +1041,12 @@ export default function MatchSimPage() {
         setPenaltiesAway(prev => [...prev, kick.isGoal]);
         if (kick.isGoal) setPenaltyAwayScore(prev => prev + 1);
       }
-      setPenaltyReplayIdx(prev => prev + 1);
-    }, 1800);
-    return () => clearTimeout(timer);
-  }, [penaltyMode, isReplay, replayResult, penaltyReplayIdx, penaltyWinner, homeTeam, awayTeam]);
+      // Hold the reveal so the drama lands before the next taker walks up.
+      timers.push(setTimeout(() => setPenaltyReplayIdx(prev => prev + 1), 1700));
+    }, 1900));
+
+    return () => timers.forEach(clearTimeout);
+  }, [penaltyMode, isReplay, replayResult, penaltyReplayIdx, penaltyWinner, homeTeam, awayTeam, isKnockout]);
 
   // 5. Interactive Penalty Shootout Handler
   const handleTakePenalty = () => {
@@ -1570,7 +1613,7 @@ export default function MatchSimPage() {
                 {homeGoals.map((g, i) => {
                   const scorer = g.playerId
                     ? homeTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
-                    : (g.description.includes('Contra') ? 'Contra' : '?');
+                    : 'Gol Contra'; // no playerId on a goal event ⇒ own goal
                   return (
                     <span key={i} className="text-[10px] sm:text-[11px] font-bold text-yellow-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       ⚽ {scorer} {g.minute}'
@@ -1587,7 +1630,7 @@ export default function MatchSimPage() {
                 {awayGoals.map((g, i) => {
                   const scorer = g.playerId
                     ? awayTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
-                    : (g.description.includes('Contra') ? 'Contra' : '?');
+                    : 'Gol Contra'; // no playerId on a goal event ⇒ own goal
                   return (
                     <span key={i} className="text-[10px] sm:text-[11px] font-bold text-indigo-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       ⚽ {scorer} {g.minute}'
@@ -1929,93 +1972,118 @@ export default function MatchSimPage() {
       {/* ── 5. PENALTY SHOOTOUT OVERLAY ── */}
       <AnimatePresence>
         {penaltyMode && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/92 backdrop-blur-md">
-            <div className="bg-[#0b0b14] border border-[#ffd700]/30 rounded-3xl p-6 max-w-xl w-full text-center relative shadow-[0_0_50px_rgba(255,215,0,0.15)]">
-              <h2 className="text-4xl font-black text-yellow-500 tracking-wider mb-2" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                DISPUTA DE PÊNALTIS!
-              </h2>
-              <div className="flex items-center justify-center gap-8 mb-5">
-                <div>
-                  <h3 className="text-xl font-black text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{homeTeam.name.toUpperCase()}</h3>
-                  <div className="flex gap-1 justify-center mt-1">
-                    {Array.from({ length: Math.max(5, penaltiesHome.length) }).map((_, i) => (
-                      <div 
-                        key={i} 
-                        className="w-4 h-4 rounded-full border border-[#1f1f35]" 
-                        style={{
-                          background: penaltiesHome[i] === true ? '#22c55e' : penaltiesHome[i] === false ? '#ef4444' : '#141426'
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-4xl font-black text-white block mt-2" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                    {penaltyHomeScore}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(4,4,10,0.95)', backdropFilter: 'blur(10px)' }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-xl rounded-3xl overflow-hidden"
+              style={{ background: 'linear-gradient(165deg,#12121f 0%,#0a0a14 100%)', border: '1px solid rgba(255,215,0,0.28)', boxShadow: '0 0 60px rgba(255,215,0,0.12)' }}
+            >
+              {/* Header */}
+              <div className="px-6 py-4 text-center" style={{ background: 'linear-gradient(135deg,#1c1636,#0f0f1e)', borderBottom: '1px solid rgba(255,215,0,0.18)' }}>
+                <div className="inline-flex items-center gap-2 mb-1.5">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-[10px] sm:text-[11px] font-black tracking-[0.22em] text-red-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    AO VIVO · DECISÃO POR PÊNALTIS
                   </span>
                 </div>
+                <h2 className="text-3xl sm:text-4xl font-black tracking-wider" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#ffd700' }}>
+                  DISPUTA DE PÊNALTIS
+                </h2>
+              </div>
 
-                <span className="text-2xl font-black text-gray-500" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>VS</span>
-
-                <div>
-                  <h3 className="text-xl font-black text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{awayTeam.name.toUpperCase()}</h3>
-                  <div className="flex gap-1 justify-center mt-1">
-                    {Array.from({ length: Math.max(5, penaltiesAway.length) }).map((_, i) => (
-                      <div 
-                        key={i} 
-                        className="w-4 h-4 rounded-full border border-[#1f1f35]" 
-                        style={{
-                          background: penaltiesAway[i] === true ? '#22c55e' : penaltiesAway[i] === false ? '#ef4444' : '#141426'
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-4xl font-black text-white block mt-2" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                    {penaltyAwayScore}
-                  </span>
+              {/* Scoreboard */}
+              <div className="px-5 sm:px-6 py-5">
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+                  {[{ team: homeTeam, pens: penaltiesHome }, null, { team: awayTeam, pens: penaltiesAway }].map((col, ci) => {
+                    if (!col) return (
+                      <div key="score" className="text-center px-1">
+                        <div className="text-4xl sm:text-5xl font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#fff' }}>
+                          {penaltyHomeScore}<span className="text-gray-600 mx-1.5 sm:mx-2">-</span>{penaltyAwayScore}
+                        </div>
+                        <div className="text-[9px] font-bold tracking-widest text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>PLACAR</div>
+                      </div>
+                    );
+                    const shooting = penaltyKickPending === col.team.id;
+                    const slots = Math.max(5, col.pens.length + (shooting ? 1 : 0));
+                    return (
+                      <div key={ci} className="text-center rounded-2xl py-3 px-2 transition-all"
+                        style={{ background: shooting ? 'rgba(255,215,0,0.08)' : 'transparent', border: `1px solid ${shooting ? 'rgba(255,215,0,0.4)' : 'transparent'}`, boxShadow: shooting ? '0 0 18px rgba(255,215,0,0.15)' : 'none' }}>
+                        <h3 className="text-base sm:text-lg font-black truncate leading-tight" style={{ fontFamily: 'Bebas Neue, sans-serif', color: shooting ? '#ffd700' : '#fff' }}>
+                          {col.team.name.toUpperCase()}
+                        </h3>
+                        <div className="h-3.5">
+                          {shooting && <div className="text-[9px] font-black tracking-widest text-yellow-500 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>▼ COBRANDO</div>}
+                        </div>
+                        <div className="flex gap-1 justify-center mt-1.5 flex-wrap">
+                          {Array.from({ length: slots }).map((_, i) => {
+                            const v = col.pens[i];
+                            const isNext = shooting && i === col.pens.length;
+                            return (
+                              <div key={i} className={`w-3.5 h-3.5 rounded-full ${isNext ? 'animate-pulse' : ''}`} style={{
+                                background: v === true ? '#22c55e' : v === false ? '#ef4444' : '#141426',
+                                border: `1px solid ${isNext ? '#ffd700' : '#1f1f35'}`,
+                                boxShadow: isNext ? '0 0 8px rgba(255,215,0,0.6)' : 'none',
+                              }} />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Shootout live narrative box */}
-              <div className="bg-[#07070d] border border-[#1f1f35] rounded-2xl p-4 mb-6 min-h-[70px]">
-                <p className="text-sm font-extrabold text-gray-200 uppercase whitespace-pre-line leading-relaxed" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  {penaltyCommentary}
-                </p>
+              {/* Live narrative */}
+              <div className="px-5 sm:px-6">
+                <div className="rounded-2xl px-4 py-4 min-h-[88px] flex items-center justify-center text-center" style={{ background: '#06060d', border: '1px solid #1a1a2c' }}>
+                  <p className="text-sm sm:text-base font-bold text-gray-100 uppercase whitespace-pre-line leading-relaxed" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    {penaltyCommentary}
+                  </p>
+                </div>
               </div>
 
-              {penaltyWinner ? (
-                <div>
-                  <div className="text-2xl font-black text-yellow-500 mb-5 tracking-wider animate-bounce" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                    🏆 VENCEDOR DA DISPUTA: {penaltyWinner === homeTeam.id ? homeTeam.name.toUpperCase() : awayTeam.name.toUpperCase()}!
+              {/* Action / winner */}
+              <div className="px-5 sm:px-6 pb-6 pt-4 text-center">
+                {penaltyWinner ? (
+                  <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+                    <div className="text-2xl sm:text-3xl font-black text-yellow-500 mb-4 tracking-wider" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                      🏆 {penaltyWinner === homeTeam.id ? homeTeam.name.toUpperCase() : awayTeam.name.toUpperCase()} AVANÇA!
+                    </div>
+                    <button
+                      onClick={handleFinish}
+                      className="px-8 py-3 rounded-xl font-black text-lg tracking-widest cursor-pointer"
+                      style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #ffd700, #e8c84a)', color: '#080810', boxShadow: '0 0 25px rgba(255, 215, 0, 0.4)' }}
+                    >
+                      CONCLUIR →
+                    </button>
+                  </motion.div>
+                ) : isReplay ? (
+                  <div className="inline-flex items-center gap-2 text-sm font-bold text-yellow-500/70" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" /> A DISPUTA ESTÁ SENDO DECIDIDA...
                   </div>
+                ) : (
                   <button
-                    onClick={handleFinish}
-                    className="px-8 py-3 rounded-xl font-black text-lg tracking-widest cursor-pointer"
+                    onClick={handleTakePenalty}
+                    disabled={state.mode === 'online' && !isSimulatorHost}
+                    className="px-8 py-3.5 rounded-xl font-black text-lg tracking-widest"
                     style={{
                       fontFamily: 'Bebas Neue, sans-serif',
-                      background: 'linear-gradient(135deg, #ffd700, #e8c84a)',
-                      color: '#080810',
-                      boxShadow: '0 0 25px rgba(255, 215, 0, 0.4)',
+                      background: 'linear-gradient(135deg,#ffd700,#e8c84a)', color: '#080810',
+                      boxShadow: '0 0 20px rgba(234,179,8,0.3)',
+                      opacity: (state.mode === 'online' && !isSimulatorHost) ? 0.5 : 1,
+                      cursor: (state.mode === 'online' && !isSimulatorHost) ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    CONCLUIR PARTIDA PÊNALTIS →
+                    {(penaltiesHome.length === penaltiesAway.length) ? 'COBRAR PÊNALTI' : 'DEFENDER PÊNALTI'}
                   </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleTakePenalty}
-                  disabled={state.mode === 'online' && !isSimulatorHost}
-                  className="px-8 py-3.5 rounded-xl font-black text-lg tracking-widest cursor-pointer bg-yellow-500 hover:bg-yellow-400 text-black border-none"
-                  style={{
-                    fontFamily: 'Bebas Neue, sans-serif',
-                    boxShadow: '0 0 20px rgba(234,179,8,0.3)',
-                    opacity: (state.mode === 'online' && !isSimulatorHost) ? 0.5 : 1,
-                    cursor: (state.mode === 'online' && !isSimulatorHost) ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {(penaltiesHome.length === penaltiesAway.length) ? 'COBRAR PÊNALTI' : 'DEFENDER PÊNALTI'}
-                </button>
-              )}
-            </div>
-          </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

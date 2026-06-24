@@ -150,10 +150,13 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   stoichkov       : { id: 239541, ver: 23 }, // ✅ FIXED3 — ver25 era 404; ver23 carrega (rosto conferido)
   butragueno      : { id: 238419, ver: 24 },
   garrincha       : { id: 247553, ver: 22 }, // ✅ FIXED — correto Garrincha
+  pele            : { id: 237067, ver: 24 }, // EA id 237067 (fut.gg) — fallback p/ placeholder se 404
+  maradona        : { id: 237073, ver: 24 }, // EA id 237073 (fifplay) — fallback p/ placeholder se 404
   etoo            : { id: 9676,   ver: 24 }, // ✅ FIXED — correto Samuel Eto'o
   cantona         : { id: 167198, ver: 22 }, // ✅ FIXED — correto Eric Cantona
   kewell          : { id: 266801, ver: 23 }, // ✅ FIXED — correto Harry Kewell
-  rummenigge      : { id: 246826, ver: 25 }, // ⚠️ CDN verificado, sem CDN alternativo
+  // rummenigge: id 246826 renderizava o jogador ERRADO e não há ID oficial confiável
+  // no CDN do SoFIFA (não é ícone EA padrão) → sem mapeamento = placeholder limpo.
   voller          : { id: 166676, ver: 25 }, // ✅ FIXED — correto Rudi Völler
   papin           : { id: 167134, ver: 25 }, // ✅ FIXED — correto Jean-Pierre Papin
   haaland         : { id: 239085, ver: 25 },

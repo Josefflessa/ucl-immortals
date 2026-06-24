@@ -10,6 +10,8 @@ import FormationField from '../components/game/FormationField';
 import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 import RolesSelector from '../components/game/RolesSelector';
 import TacticSelector from '../components/game/TacticSelector';
+import ChemistryBonusInfo from '../components/game/ChemistryBonusInfo';
+import BuffBreakdown from '../components/game/BuffBreakdown';
 import { getTraitInfo, traitEffectLabel } from '../lib/traits';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
@@ -148,6 +150,7 @@ export default function SquadReviewPage() {
                 / 100
               </span>
             </div>
+            <ChemistryBonusInfo total={chemData.total} />
           </motion.div>
 
           {/* Active trios */}
@@ -431,6 +434,9 @@ export default function SquadReviewPage() {
                           </div>
                         </div>
                       )}
+
+                      {/* Per-source buff breakdown — what's lifting each stat */}
+                      <BuffBreakdown eff={eff} />
 
                       {/* Player traits + what they do */}
                       {player.traits.length > 0 && (

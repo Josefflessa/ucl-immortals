@@ -1,14 +1,14 @@
-// UCL Immortals — Knockout Phase Page
-// Quarter-finals, Semi-finals, Final bracket
+// UCL Immortals — Knockout CONFRONTOS tab
+// The bracket ties + ida/volta leg controls (with online watch-gating) + result
+// modal, lifted out of the old standalone KnockoutPage so the season hub can host
+// it as a single tab alongside MEU TIME / ESTATÍSTICAS / MEUS JOGOS.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGame, KnockoutMatch } from '../contexts/GameContext';
-import { useTeams } from '../hooks/useTeams';
-import { MatchResult, getActiveKnockoutMatches, knockoutRoundLabel, getAllPlayedMatchResults, getPlayerSeasonStats } from '../lib/gameEngine';
-import { POS_PT } from '../lib/gameData';
+import { useGame, KnockoutMatch } from '../../contexts/GameContext';
+import { useTeams } from '../../hooks/useTeams';
+import { MatchResult, getActiveKnockoutMatches, knockoutRoundLabel } from '../../lib/gameEngine';
 
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
 
 interface MatchEventFeedProps {
@@ -142,10 +142,10 @@ function MatchEventFeed({ result, homeName, awayName, leg1, leg1HomeName, leg1Aw
   );
 }
 
-export default function KnockoutPage() {
-  const { state, dispatch, getTeamById, playKnockoutRoundOnline, advanceKnockoutRoundOnline } = useGame();
+export default function KnockoutTiesTab() {
+  const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline } = useGame();
   const { knockoutBracket, playerTeam } = state;
-  const { localTeamId, allTeams, getTeamName: resolveTeamName } = useTeams();
+  const { localTeamId, getTeamName: resolveTeamName } = useTeams();
   const [viewingResult, setViewingResult] = useState<{
     result: MatchResult;
     homeName: string;
@@ -155,51 +155,9 @@ export default function KnockoutPage() {
     leg1AwayName?: string;
     subtitle?: string;
   } | null>(null);
-  const [knockoutTab, setKnockoutTab] = useState<'matches' | 'stats'>('matches');
 
-  // Auto-open the local player's tie as a synchronized replay — LEG BY LEG — as
-  // soon as each leg's engine-computed result is available (solo + online).
-  useEffect(() => {
-    if (state.phase !== 'knockout' || !knockoutBracket) return;
-    if (state.currentMatchResult) return; // already watching
-    if (!localTeamId) return;
-
-    const round = knockoutBracket.currentRound;
-    const ties = getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[];
-    const myTie = ties.find(m => m.homeTeamId === localTeamId || m.awayTeamId === localTeamId);
-    if (!myTie) return;
-    const watched = state.watchedKnockoutMatches;
-
-    // Single-leg tie (the grand final).
-    if (myTie.isSingleLeg || round === 'final') {
-      if (myTie.played && myTie.result && !watched.includes(myTie.id)) {
-        const home = getTeamById(myTie.homeTeamId);
-        const away = getTeamById(myTie.awayTeamId);
-        if (home && away) {
-          dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [home, away], result: myTie.result, knockout: { matchId: myTie.id, round } });
-        }
-      }
-      return;
-    }
-
-    // Two-legged tie: watch the first leg, then the second.
-    const teamA = getTeamById(myTie.homeTeamId); // first-leg home
-    const teamB = getTeamById(myTie.awayTeamId); // first-leg away
-    if (!teamA || !teamB) return;
-
-    if (myTie.leg1 && !watched.includes(`${myTie.id}_l1`)) {
-      dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [teamA, teamB], result: myTie.leg1, knockout: { matchId: myTie.id, round, leg: 1 } });
-      return;
-    }
-    if (myTie.leg2 && !watched.includes(`${myTie.id}_l2`)) {
-      dispatch({
-        type: 'WATCH_ONLINE_MATCH',
-        teams: [teamB, teamA], // return leg: B hosts
-        result: myTie.leg2,
-        knockout: { matchId: myTie.id, round, leg: 2, firstLeg: { home: myTie.leg1?.awayGoals ?? 0, away: myTie.leg1?.homeGoals ?? 0 } },
-      });
-    }
-  }, [state.phase, state.currentMatchResult, state.watchedKnockoutMatches, knockoutBracket, localTeamId, getTeamById, dispatch]);
+  // NOTE: the leg-by-leg auto-open-replay effect lives in the season hub (LeaguePage),
+  // not here, so it keeps firing while the player is on another tab.
 
   if (!knockoutBracket) return null;
 
@@ -225,33 +183,14 @@ export default function KnockoutPage() {
 
   const matches = getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[];
 
-  // ── Season stats (for ESTATÍSTICAS tab) — memoized so they don't recompute on every render ──
-  const { topScorers, topAssists, topRatings } = useMemo(() => {
-    const allPlayers = allTeams.flatMap(t => t.players);
-    const allResults = getAllPlayedMatchResults(state.leagueResults, state.knockoutBracket ?? null);
-
-    const rows = allPlayers.flatMap(pl => {
-      const team = allTeams.find(t => t.players.some(p => p.id === pl.id));
-      if (!team) return [];
-      return [{ pl, team, stats: getPlayerSeasonStats(pl.id, team.id, allResults) }];
-    });
-
-    return {
-      topScorers: rows.filter(x => x.stats.goals > 0)
-        .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists)
-        .slice(0, 15),
-      topAssists: rows.filter(x => x.stats.assists > 0)
-        .sort((a, b) => b.stats.assists - a.stats.assists)
-        .slice(0, 15),
-      topRatings: rows.filter(x => x.stats.played >= 3)
-        .sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg)
-        .slice(0, 15),
-    };
-  }, [allTeams, state.leagueResults, state.knockoutBracket]);
   const round = knockoutBracket.currentRound;
   const label = knockoutRoundLabel(round);
   const allPlayed = matches.length > 0 && matches.every(m => m.played);
   const isFinal = round === 'final';
+  // After the IDA is played the bracket bumps currentLeg to 2, but the ties aren't
+  // resolved yet (allPlayed=false). This in-between state must ALSO gate on everyone
+  // watching the ida before the host can fire the volta — otherwise the ida spoils.
+  const idaPlayed = !isFinal && currentLeg === 2 && !allPlayed;
 
   // Online: gate advance button until all human players in this round have watched their tie
   const humanPlayersInBracket = state.mode === 'online'
@@ -265,132 +204,35 @@ export default function KnockoutPage() {
     : currentLeg === 1
       ? `▶ JOGAR IDA — ${label}`
       : `▶ JOGAR VOLTA — ${label}`;
+  // Gate label: which leg everyone is still watching (ida between legs, else volta).
+  const waitingLegLabel = idaPlayed ? 'A IDA' : 'O RESULTADO';
+  const waitingBlock = (
+    <div className="py-3">
+      <div className="text-sm font-bold animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#C9A84C' }}>
+        ⏳ AGUARDANDO {knockoutWaitingCount} JOGADOR{knockoutWaitingCount !== 1 ? 'ES' : ''} ASSISTIREM {waitingLegLabel}...
+      </div>
+      <div className="mt-1 text-[11px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        ({humanPlayersInBracket.length - knockoutWaitingCount}/{humanPlayersInBracket.length} concluídos)
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b" style={{ borderColor: '#1A1A2A' }}>
-        <img src={LOGO_URL} alt="UCL Immortals" className="w-7 h-7 sm:w-8 sm:h-8 object-contain flex-shrink-0" />
-        <span className="text-base sm:text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-          MATA-MATA
-        </span>
-        <div className="ml-auto">
-          <span className="text-sm font-bold tracking-widest"
-            style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-            {label}
-          </span>
-        </div>
-      </div>
+    <>
+      {/* Final: trophy for drama */}
+      {isFinal && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex justify-center mb-4 sm:mb-6"
+        >
+          <img src={TROPHY_URL} alt="Trophy" className="w-16 h-20 sm:w-24 sm:h-32 object-contain"
+            style={{ filter: 'drop-shadow(0 0 30px rgba(201,168,76,0.6))' }} />
+        </motion.div>
+      )}
 
-      <div className="flex-1 px-3 sm:px-4 py-4 sm:py-6 max-w-3xl mx-auto w-full">
-        {/* Trophy for final */}
-        {isFinal && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex justify-center mb-4 sm:mb-6"
-          >
-            <img src={TROPHY_URL} alt="Trophy" className="w-16 h-20 sm:w-24 sm:h-32 object-contain"
-              style={{ filter: 'drop-shadow(0 0 30px rgba(201,168,76,0.6))' }} />
-          </motion.div>
-        )}
-
-        <div className="text-center mb-5 sm:mb-8">
-          <h2 className="text-3xl sm:text-5xl font-black tracking-widest"
-            style={{ fontFamily: 'Bebas Neue, sans-serif', color: isFinal ? '#C9A84C' : '#FFFFFF' }}>
-            {label}
-          </h2>
-          {isFinal && (
-            <p style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-              A grande decisão da Champions League
-            </p>
-          )}
-        </div>
-
-        {/* Tab switcher */}
-        <div className="flex gap-2 mb-5">
-          {(['matches', 'stats'] as const).map(tab => (
-            <button key={tab} onClick={() => setKnockoutTab(tab)}
-              className="flex-1 py-2 rounded-xl font-black tracking-wider text-sm transition-all"
-              style={{ fontFamily: 'Rajdhani, sans-serif', background: knockoutTab === tab ? '#C9A84C' : '#0F0F1A', color: knockoutTab === tab ? '#080810' : '#8A8A9A', border: `1px solid ${knockoutTab === tab ? '#C9A84C' : '#1A1A2A'}` }}>
-              {tab === 'matches' ? 'CONFRONTOS' : 'ESTATÍSTICAS'}
-            </button>
-          ))}
-        </div>
-
-        {/* ── STATS TAB ── */}
-        {knockoutTab === 'stats' && (
-          <div className="space-y-6">
-            {/* Top Scorers */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
-              <div className="px-4 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-                <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#C9A84C' }}>⚽ ARTILHARIA</span>
-              </div>
-              <div className="divide-y" style={{ borderColor: '#1A1A2A' }}>
-                {topScorers.length === 0 ? (
-                  <div className="px-4 py-4 text-xs text-center" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Sem gols marcados ainda.</div>
-                ) : topScorers.map((x, i) => (
-                  <div key={x.pl.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="text-sm font-black w-6 text-center flex-shrink-0" style={{ fontFamily: 'Bebas Neue, sans-serif', color: i === 0 ? '#C9A84C' : '#8A8A9A' }}>{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#fff' }}>{x.pl.shortName}</div>
-                      <div className="text-xs truncate" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{x.team.name} · {(POS_PT as any)[x.pl.position] ?? x.pl.position}</div>
-                    </div>
-                    <span className="text-xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>{x.stats.goals}</span>
-                    <span className="text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⚽</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Top Assists */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
-              <div className="px-4 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-                <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#4FC3F7' }}>👟 ASSISTÊNCIAS</span>
-              </div>
-              <div className="divide-y" style={{ borderColor: '#1A1A2A' }}>
-                {topAssists.length === 0 ? (
-                  <div className="px-4 py-4 text-xs text-center" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Sem assistências ainda.</div>
-                ) : topAssists.map((x, i) => (
-                  <div key={x.pl.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="text-sm font-black w-6 text-center flex-shrink-0" style={{ fontFamily: 'Bebas Neue, sans-serif', color: i === 0 ? '#4FC3F7' : '#8A8A9A' }}>{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#fff' }}>{x.pl.shortName}</div>
-                      <div className="text-xs truncate" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{x.team.name} · {(POS_PT as any)[x.pl.position] ?? x.pl.position}</div>
-                    </div>
-                    <span className="text-xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#4FC3F7' }}>{x.stats.assists}</span>
-                    <span className="text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>👟</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Top Ratings */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
-              <div className="px-4 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-                <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#22C55E' }}>⭐ MELHORES NOTAS</span>
-                <span className="text-xs ml-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>(mín. 3 jogos)</span>
-              </div>
-              <div className="divide-y" style={{ borderColor: '#1A1A2A' }}>
-                {topRatings.length === 0 ? (
-                  <div className="px-4 py-4 text-xs text-center" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Dados insuficientes ainda.</div>
-                ) : topRatings.map((x, i) => (
-                  <div key={x.pl.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="text-sm font-black w-6 text-center flex-shrink-0" style={{ fontFamily: 'Bebas Neue, sans-serif', color: i === 0 ? '#22C55E' : '#8A8A9A' }}>{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#fff' }}>{x.pl.shortName}</div>
-                      <div className="text-xs truncate" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{x.team.name} · {x.stats.played}J</div>
-                    </div>
-                    <span className="text-xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#22C55E' }}>{x.stats.ratingAvg.toFixed(1)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Matches */}
-        {knockoutTab === 'matches' && <div className="space-y-4">
+        {/* Confrontos da fase atual */}
+        <div className="space-y-4">
           {matches.map((match, i) => {
             const homeName = getTeamName(match.homeTeamId);
             const awayName = getTeamName(match.awayTeamId);
@@ -407,8 +249,9 @@ export default function KnockoutPage() {
                 ? (!!l2 && !watched.includes(`${match.id}_l2`)) || (!!l1 && !watched.includes(`${match.id}_l1`))
                 : (match.played && !!match.result && !watched.includes(match.id))
             );
-            // In online mode hide ALL tie scores until every player has confirmed watching.
-            const hideAllScores = state.mode === 'online' && !allPlayersWatched && allPlayed;
+            // In online mode hide ALL tie scores until every player has confirmed
+            // watching — both after the volta (allPlayed) AND after the ida (idaPlayed).
+            const hideAllScores = state.mode === 'online' && !allPlayersWatched && (allPlayed || idaPlayed);
             const hideScore = hideAllScores || hideMyScore;
 
             return (
@@ -442,11 +285,6 @@ export default function KnockoutPage() {
                         }}>
                         {homeName}
                       </div>
-                      {homeIsPlayer && (
-                        <div className="text-xs" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
-                          {playerTeam?.formationId}
-                        </div>
-                      )}
                     </div>
 
                     {/* Score / VS */}
@@ -510,11 +348,6 @@ export default function KnockoutPage() {
                         }}>
                         {awayName}
                       </div>
-                      {awayIsPlayer && (
-                        <div className="text-xs" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
-                          {playerTeam?.formationId}
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -565,7 +398,7 @@ export default function KnockoutPage() {
               </motion.div>
             );
           })}
-        </div>}
+        </div>
 
         {/* Round controls — solo: the player drives; online: only the host */}
         <motion.div
@@ -575,7 +408,11 @@ export default function KnockoutPage() {
           style={{ background: '#0F0F1A', borderColor: '#1A1A2A' }}
         >
           {canControl ? (
-            !allPlayed ? (
+            // Between the ida and the volta the host must also wait for everyone to
+            // watch the ida — otherwise firing the volta spoils the first-leg score.
+            idaPlayed && !allPlayersWatched ? (
+              waitingBlock
+            ) : !allPlayed ? (
               <>
                 <button
                   onClick={handlePlayLeg}
@@ -596,14 +433,7 @@ export default function KnockoutPage() {
                 </div>
               </>
             ) : !allPlayersWatched ? (
-              <div className="py-3">
-                <div className="text-sm font-bold animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#C9A84C' }}>
-                  ⏳ AGUARDANDO {knockoutWaitingCount} JOGADOR{knockoutWaitingCount !== 1 ? 'ES' : ''} VEREM O RESULTADO...
-                </div>
-                <div className="mt-1 text-[11px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  ({humanPlayersInBracket.length - knockoutWaitingCount}/{humanPlayersInBracket.length} concluídos)
-                </div>
-              </div>
+              waitingBlock
             ) : (
               <button
                 onClick={handleAdvance}
@@ -619,7 +449,11 @@ export default function KnockoutPage() {
               </button>
             )
           ) : (
-            !allPlayed ? (
+            idaPlayed && !allPlayersWatched ? (
+              <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                ⏳ AGUARDANDO TODOS ASSISTIREM A IDA ANTES DA VOLTA...
+              </div>
+            ) : !allPlayed ? (
               <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 ⏳ AGUARDANDO O ANFITRIÃO INICIAR: {isFinal ? label : currentLeg === 1 ? `IDA — ${label}` : `VOLTA — ${label}`}...
               </div>
@@ -635,7 +469,6 @@ export default function KnockoutPage() {
             </div>
           )}
         </motion.div>
-      </div>
 
       {/* Match result modal */}
       <AnimatePresence>
@@ -652,6 +485,6 @@ export default function KnockoutPage() {
           />
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

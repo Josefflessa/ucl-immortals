@@ -229,6 +229,15 @@ export function calculateChemistry(
 // ============================================================
 // EFFECTIVE STATS CALCULATOR (for display in UI)
 // ============================================================
+export interface StatBreakdown {
+  base: number;       // raw attribute
+  chem: number;       // delta from the individual-chemistry multiplier (can be negative if OOP)
+  coach: number;      // coach per-attribute modifier
+  trait: number;      // sum of always-on trait bonuses
+  tactic: number;     // play-style (tactic) bonus
+  globalChem: number; // team-wide chemistry bonus (passing/pace only)
+}
+
 export interface EffectiveStats {
   overall: number;
   pace: number;
@@ -241,6 +250,10 @@ export interface EffectiveStats {
   isOOP: boolean;
   overallMod: number; // positive or negative delta vs base
   activeCoachEffects: string[];
+  // Per-source breakdown so the UI can explain WHERE each buff comes from.
+  chemMult: number;                                   // individual-chem multiplier (1.00–1.10, or OOP 0.85/0.92)
+  globalChemBonus: { passing: number; pace: number }; // team-wide bonus, in stat points
+  breakdown: Record<'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical', StatBreakdown>;
 }
 
 export function getCoachModifiersForPlayer(
@@ -482,6 +495,17 @@ export function getPlayerEffectiveStats(
   const defending = eff(player.defending, modifiers.defending, 'defending');
   const physical  = eff(player.physical, modifiers.physical, 'physical');
 
+  // Per-source breakdown (base + chem + coach + trait + tactic + globalChem = effective,
+  // barring the rare Math.max(1, …) floor). Lets the UI show where each point comes from.
+  const mkBreak = (base: number, mod: number, attr: AttrKey): StatBreakdown => ({
+    base,
+    chem: applyMult(base) - base,
+    coach: mod,
+    trait: traitBonus(attr),
+    tactic: styleBonus(attr),
+    globalChem: globalChem(attr),
+  });
+
   // Effective overall reflects every additive uplift (traits + tactic + global chem),
   // averaged across the six stats, on top of the chem-scaled base + coach overall mod.
   const extraOverall = Math.round(
@@ -505,6 +529,16 @@ export function getPlayerEffectiveStats(
     isOOP,
     overallMod,
     activeCoachEffects: modifiers.activeEffects,
+    chemMult,
+    globalChemBonus: { passing: chemBonus.passing * 2, pace: chemBonus.pace * 2 },
+    breakdown: {
+      pace: mkBreak(player.pace, modifiers.pace, 'pace'),
+      shooting: mkBreak(player.shooting, modifiers.shooting, 'shooting'),
+      passing: mkBreak(player.passing, modifiers.passing, 'passing'),
+      dribbling: mkBreak(player.dribbling, modifiers.dribbling, 'dribbling'),
+      defending: mkBreak(player.defending, modifiers.defending, 'defending'),
+      physical: mkBreak(player.physical, modifiers.physical, 'physical'),
+    },
   };
 }
 
@@ -514,6 +548,26 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
   if (total >= 60) return { passing: 1, pace: 1, special: false };
   if (total >= 45) return { passing: 1, pace: 0, special: false };
   return { passing: 0, pace: 0, special: false };
+}
+
+// Average passing of a team's midfield (central + wide mids) — a proxy for who
+// controls the middle of the pitch. Used so a side that out-passes the opponent's
+// midfield manufactures BETTER chances (passing finally feeds chance creation, not
+// just assist selection). Falls back to the whole XI if no midfielders are fielded.
+export function teamMidfieldPassing(team: Team): number {
+  const xi = team.players.slice(0, 11);
+  const mids = xi.filter(p => ['CM', 'CAM', 'CDM', 'LM', 'RM'].includes(p.position));
+  const pool = mids.length > 0 ? mids : xi;
+  if (pool.length === 0) return 70;
+  return pool.reduce((s, p) => s + p.passing, 0) / pool.length;
+}
+
+// Build-up edge added to the attacker's chance-creation score: midfield-control gap
+// (bounded) plus a nudge for the possession tactic. Kept modest so squad/tactic
+// quality tilts — never decides — the duel on its own.
+export function midfieldBuildUpEdge(atkMid: number, defMid: number, attackPlayStyle: string): number {
+  const gap = Math.max(-8, Math.min(8, (atkMid - defMid) * 0.3));
+  return gap + (attackPlayStyle === 'possession' ? 2 : 0);
 }
 
 // ============================================================
@@ -679,6 +733,10 @@ export function runMatchSimulation(
 
   const homeChem = getChemistryBonus(home.totalChemistry);
   const awayChem = getChemistryBonus(away.totalChemistry);
+
+  // Midfield passing ratings (constant across the match) feed chance quality.
+  const homeMid = teamMidfieldPassing(home);
+  const awayMid = teamMidfieldPassing(away);
 
   const homeFormBonus = homeFormation.counters.includes(away.formationId) ? 5 : 0;
   const awayFormBonus = awayFormation.counters.includes(home.formationId) ? 5 : 0;
@@ -905,7 +963,9 @@ export function runMatchSimulation(
 
         // Trait effects are already baked into the effective attributes above
         // (see getEffectiveAttribute + trait catalog), so no extra bonuses here.
-        const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + Math.random() * 40;
+        // Midfield control (passing) lifts the quality of the chance created.
+        const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, attackTeam.playStyle);
+        const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + buildUp + Math.random() * 40;
         const defScore = (defDefending + defPhysical) / 2 + Math.random() * 40;
 
         if (atkScore > defScore) {
@@ -1358,12 +1418,14 @@ export function calculateTeamStrength(
 // was the default taker.
 export function getPenaltyTaker(team: Team): PlayerCard {
   const starters = team.players.slice(0, 11);
-  if (team.penaltyTaker) {
-    const chosen = starters.find(p => p.id === team.penaltyTaker);
-    if (chosen) return chosen;
-  }
   const outfield = starters.filter(p => p.position !== 'GK');
   const pool = outfield.length > 0 ? outfield : starters;
+  // The designated taker must be an outfielder — never the goalkeeper, even if a
+  // stale/garbage penaltyTaker id points at him (that produced "GK scores penalty").
+  if (team.penaltyTaker) {
+    const chosen = pool.find(p => p.id === team.penaltyTaker);
+    if (chosen) return chosen;
+  }
   return [...pool].sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting))[0];
 }
 

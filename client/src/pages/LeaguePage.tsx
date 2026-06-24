@@ -4,10 +4,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Goal, Footprints, Star, Hand, Swords, UserPlus } from 'lucide-react';
-import { useGame } from '../contexts/GameContext';
+import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
-import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, PlayerSeasonStats } from '../lib/gameEngine';
+import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
 import LeagueSquadTab from '../components/game/LeagueSquadTab';
+import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
 import PlayerCard from '../components/game/PlayerCard';
 import PlayerAvatar from '../components/game/PlayerAvatar';
 import { POS_PT } from '../lib/gameData';
@@ -21,6 +22,18 @@ export default function LeaguePage() {
   const { allTeams, localTeamId, getTeamName } = useTeams();
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'results' | 'squad' | 'scorers'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
+
+  // This page is the season HUB for BOTH phases: league (rounds + standings) and
+  // knockout (ties + bracket). Shared tabs — ESTATÍSTICAS, MEU TIME, MEUS JOGOS —
+  // work in either phase; only the first tab (matches) and the standings tab differ.
+  const isKnockout = state.phase === 'knockout';
+  const knockoutLabel = state.knockoutBracket ? knockoutRoundLabel(state.knockoutBracket.currentRound) : '';
+
+  // When the season advances league → knockout, the standings tab disappears; fall
+  // back to the matches (CONFRONTOS) tab so we never render a blank panel.
+  useEffect(() => {
+    if (isKnockout && activeTab === 'standings') setActiveTab('fixtures');
+  }, [isKnockout, activeTab]);
 
   // Aggregate stats for all players in the league. Memoized so switching tabs
   // (fixtures → standings → scorers) does not recompute/re-sort every render.
@@ -44,9 +57,11 @@ export default function LeaguePage() {
     topTacklers: [...allPlayers].filter(p => p.stats.tackles > 0).sort((a, b) => b.stats.tackles - a.stats.tackles),
   }), [allPlayers]);
 
+  // MEUS JOGOS spans the whole season — league rounds AND knockout legs.
   const playerResults = useMemo(
-    () => leagueResults.filter(r => r.homeTeamId === playerTeam?.id || r.awayTeamId === playerTeam?.id),
-    [leagueResults, playerTeam?.id]
+    () => getAllPlayedMatchResults(leagueResults, state.knockoutBracket)
+      .filter(r => r.homeTeamId === playerTeam?.id || r.awayTeamId === playerTeam?.id),
+    [leagueResults, state.knockoutBracket, playerTeam?.id]
   );
 
   const playerStanding = leagueStandings.find(s => s.teamId === playerTeam?.id);
@@ -153,16 +168,62 @@ export default function LeaguePage() {
     state.lastWatchedRound, leagueFixtures, leagueRound, getTeamById, dispatch,
   ]);
 
+  // Knockout: auto-open the local player's tie as a synchronized replay — LEG BY LEG
+  // (solo + online). This lives in the HUB (not the CONFRONTOS tab) so it still fires
+  // when the player is on another tab — WATCH_ONLINE_MATCH navigates to the replay.
+  useEffect(() => {
+    if (state.phase !== 'knockout' || !state.knockoutBracket) return;
+    if (state.currentMatchResult) return;
+    if (!localTeamId) return;
+
+    const kb = state.knockoutBracket;
+    const round = kb.currentRound;
+    const ties = getActiveKnockoutMatches(kb) as KnockoutMatch[];
+    const myTie = ties.find(m => m.homeTeamId === localTeamId || m.awayTeamId === localTeamId);
+    if (!myTie) return;
+    const watched = state.watchedKnockoutMatches;
+
+    // Single-leg tie (the grand final).
+    if (myTie.isSingleLeg || round === 'final') {
+      if (myTie.played && myTie.result && !watched.includes(myTie.id)) {
+        const home = getTeamById(myTie.homeTeamId);
+        const away = getTeamById(myTie.awayTeamId);
+        if (home && away) {
+          dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [home, away], result: myTie.result, knockout: { matchId: myTie.id, round } });
+        }
+      }
+      return;
+    }
+
+    // Two-legged tie: watch the first leg, then the second.
+    const teamA = getTeamById(myTie.homeTeamId); // first-leg home
+    const teamB = getTeamById(myTie.awayTeamId); // first-leg away
+    if (!teamA || !teamB) return;
+
+    if (myTie.leg1 && !watched.includes(`${myTie.id}_l1`)) {
+      dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [teamA, teamB], result: myTie.leg1, knockout: { matchId: myTie.id, round, leg: 1 } });
+      return;
+    }
+    if (myTie.leg2 && !watched.includes(`${myTie.id}_l2`)) {
+      dispatch({
+        type: 'WATCH_ONLINE_MATCH',
+        teams: [teamB, teamA], // return leg: B hosts
+        result: myTie.leg2,
+        knockout: { matchId: myTie.id, round, leg: 2, firstLeg: { home: myTie.leg1?.awayGoals ?? 0, away: myTie.leg1?.homeGoals ?? 0 } },
+      });
+    }
+  }, [state.phase, state.currentMatchResult, state.watchedKnockoutMatches, state.knockoutBracket, localTeamId, getTeamById, dispatch]);
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b" style={{ borderColor: '#1A1A2A' }}>
         <img src={LOGO_URL} alt="UCL Immortals" className="w-7 h-7 sm:w-8 sm:h-8 object-contain flex-shrink-0" />
         <span className="text-base sm:text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-          FASE DE LIGA
+          {isKnockout ? 'MATA-MATA' : 'FASE DE LIGA'}
         </span>
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          {playerStanding && (
+          {!isKnockout && playerStanding && (
             <div className="flex items-center gap-2">
               <span className="text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                 Posição:
@@ -193,19 +254,19 @@ export default function LeaguePage() {
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="text-center">
             <h2 className="text-3xl sm:text-5xl font-black tracking-widest"
-              style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
-              RODADA {leagueRound} DE 8
+              style={{ fontFamily: 'Bebas Neue, sans-serif', color: isKnockout ? '#C9A84C' : '#FFFFFF' }}>
+              {isKnockout ? knockoutLabel : `RODADA ${leagueRound} DE 8`}
             </h2>
             <p className="hidden sm:block" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif', fontSize: '13px' }}>
-              Dispute rodada por rodada e classifique-se no Top 8
+              {isKnockout ? 'Mata-mata em ida e volta — gerencie seu time entre os confrontos' : 'Dispute rodada por rodada e classifique-se no Top 8'}
             </p>
           </div>
         </div>
       </div>
 
       <div className="flex-1 px-3 sm:px-4 py-4 max-w-4xl mx-auto w-full">
-        {/* Player summary card */}
-        {playerStanding && (
+        {/* Player summary card — league standing only (irrelevant in the knockout) */}
+        {!isKnockout && playerStanding && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -262,13 +323,21 @@ export default function LeaguePage() {
 
         {/* Tabs — scrollable on mobile */}
         <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-          {[
-            { id: 'fixtures', label: `RODADA ${leagueRound}` },
-            { id: 'standings', label: 'CLASSIFICAÇÃO' },
-            { id: 'scorers', label: 'ESTATÍSTICAS' },
-            { id: 'squad', label: 'MEU TIME' },
-            { id: 'results', label: 'MEUS JOGOS' },
-          ].map(tab => (
+          {(isKnockout
+            ? [
+                { id: 'fixtures', label: 'CONFRONTOS' },
+                { id: 'scorers', label: 'ESTATÍSTICAS' },
+                { id: 'squad', label: 'MEU TIME' },
+                { id: 'results', label: 'MEUS JOGOS' },
+              ]
+            : [
+                { id: 'fixtures', label: `RODADA ${leagueRound}` },
+                { id: 'standings', label: 'CLASSIFICAÇÃO' },
+                { id: 'scorers', label: 'ESTATÍSTICAS' },
+                { id: 'squad', label: 'MEU TIME' },
+                { id: 'results', label: 'MEUS JOGOS' },
+              ]
+          ).map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
@@ -285,8 +354,9 @@ export default function LeaguePage() {
           ))}
         </div>
 
-        {/* Current Round Fixtures */}
-        {activeTab === 'fixtures' && (
+        {/* Matches tab — knockout shows the bracket ties; league shows round fixtures */}
+        {activeTab === 'fixtures' && isKnockout && <KnockoutTiesTab />}
+        {activeTab === 'fixtures' && !isKnockout && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -499,8 +569,8 @@ export default function LeaguePage() {
           </motion.div>
         )}
 
-        {/* Standings table */}
-        {activeTab === 'standings' && (
+        {/* Standings table — league only (knockout has no table) */}
+        {activeTab === 'standings' && !isKnockout && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

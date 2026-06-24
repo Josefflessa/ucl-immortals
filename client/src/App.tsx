@@ -10,7 +10,6 @@ import FormationPage from "./pages/FormationPage";
 import DraftPage from "./pages/DraftPage";
 import SquadReviewPage from "./pages/SquadReviewPage";
 import LeaguePage from "./pages/LeaguePage";
-import KnockoutPage from "./pages/KnockoutPage";
 import ReportPage from "./pages/ReportPage";
 import MatchSimPage from "./pages/MatchSimPage";
 
@@ -25,8 +24,9 @@ function GameRouter() {
     case 'formation': return <FormationPage />;
     case 'draft': return <DraftPage />;
     case 'squad_review': return <SquadReviewPage />;
-    case 'league': return <LeaguePage />;
-    case 'knockout': return <KnockoutPage />;
+    // Both phases share the same season hub (rounds/standings vs ties/bracket).
+    case 'league':
+    case 'knockout': return <LeaguePage />;
     case 'match_sim': return <MatchSimPage />;
     case 'report': return <ReportPage />;
     default: return <MenuPage />;
