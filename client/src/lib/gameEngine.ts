@@ -298,25 +298,29 @@ export function getCoachModifiersForPlayer(
   const coach = COACHES.find(c => c.id === coachId);
   if (!coach) return modifiers;
 
-  // Add the base bonuses from the bonuses array
+  // Apply every coach bonus to its named attribute. The `phase` field
+  // ('Criação'/'Finalização'/'Defesa'/'Todos') is descriptive: each attribute is only
+  // read during its natural phase of play in the sim (shooting→finalização,
+  // pace/dribbling→criação, defending/physical→defesa), so a per-attribute bonus
+  // effectively only "fires" in that phase. Team strength uses RAW stats, so these
+  // never inflate favouritism — they tilt the in-phase duels only. Display and sim
+  // both read this function, so the breakdown UI stays in sync.
   for (const bonus of coach.bonuses) {
-    if (bonus.phase === 'Todos') {
-      const val = bonus.value;
-      if (bonus.attribute === 'all') {
-        modifiers.overall += val;
-        modifiers.pace += val;
-        modifiers.shooting += val;
-        modifiers.passing += val;
-        modifiers.dribbling += val;
-        modifiers.defending += val;
-        modifiers.physical += val;
-        modifiers.composure += val;
-        modifiers.vision += val;
-      } else {
-        const attr = bonus.attribute as keyof typeof modifiers;
-        if (attr in modifiers && attr !== 'activeEffects') {
-          (modifiers[attr] as number) += val;
-        }
+    const val = bonus.value;
+    if (bonus.attribute === 'all') {
+      modifiers.overall += val;
+      modifiers.pace += val;
+      modifiers.shooting += val;
+      modifiers.passing += val;
+      modifiers.dribbling += val;
+      modifiers.defending += val;
+      modifiers.physical += val;
+      modifiers.composure += val;
+      modifiers.vision += val;
+    } else {
+      const attr = bonus.attribute as keyof typeof modifiers;
+      if (attr in modifiers && attr !== 'activeEffects') {
+        (modifiers[attr] as number) += val;
       }
     }
   }

@@ -303,7 +303,7 @@ export default function SquadReviewPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl p-6 max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+              className="bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl p-4 sm:p-6 max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)]"
             >
               {/* Modal Header */}
               <div className="flex items-center justify-between border-b pb-4 mb-4" style={{ borderColor: '#1d1d2f' }}>
@@ -357,8 +357,8 @@ export default function SquadReviewPage() {
                             ? <img src={photoUrl} alt={player.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} />
                             : <span className="text-2xl" style={{ color: getRarityColor(player.rarity) }}>⚽</span>}
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
                             <span className="text-[10px] font-black px-2 py-0.5 rounded" style={{ background: '#1c1c2e', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
                               {POS_PT[formationRole] ?? formationRole}
                             </span>
@@ -371,13 +371,13 @@ export default function SquadReviewPage() {
                               POSIÇÃO {posIdx + 1}
                             </span>
                           </div>
-                          <div className="text-xl font-black uppercase" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{player.shortName}</div>
-                          <div className="text-xs text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{player.club} · {player.nation}</div>
+                          <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{player.shortName}</div>
+                          <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{player.club} · {player.nation}</div>
                         </div>
                         {/* Overall block */}
                         <div className="text-right flex-shrink-0">
                           <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{eff.overall}</div>
-                          {eff.overallMod > 0 && <div className="text-xs font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>(+{eff.overallMod} química/treino/traits/tática)</div>}
+                          {eff.overallMod > 0 && <div className="text-xs font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>+{eff.overallMod}</div>}
                           <div className="text-[9px] text-gray-500 mt-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GERAL EFETIVO</div>
                         </div>
                       </div>

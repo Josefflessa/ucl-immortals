@@ -25,6 +25,12 @@ import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
+// Event descriptions already start with an emoji (⚽ GOL!, 🧤 DEFENDEU!…). The feed
+// also renders a type-icon badge next to them, so strip the leading emoji from the
+// text to avoid showing it twice (e.g. "⚽ ⚽ GOL CONTRA!").
+const stripLeadingEmoji = (s: string) =>
+  s.replace(/^[\s☀-➿⬀-⯿️‍\uD800-\uDFFF]+/, '');
+
 
 export default function MatchSimPage() {
   const {
@@ -758,7 +764,7 @@ export default function MatchSimPage() {
           stage: 2,
           message: prev.buildUp ?? `🤺 ${prev.attacker} parte para cima de ${prev.defender} — duelo decisivo!`,
         } : null);
-      }, 1000);
+      }, 1500);
       return () => clearTimeout(timer);
     }
 
@@ -826,7 +832,7 @@ export default function MatchSimPage() {
           setDangerState(null);
           setIsPlaying(true);
         }
-      }, 1200);
+      }, 1500);
 
       return () => clearTimeout(timer);
     }
@@ -1693,30 +1699,41 @@ export default function MatchSimPage() {
 
           {/* Live Suspense Danger / Threat Meter Overlay */}
           <AnimatePresence>
-            {dangerState && (
+            {dangerState && (() => {
+              // Colour-code the threat by side: GREEN = your team is attacking (your
+              // chance), RED = the opponent is attacking your goal (defend!).
+              const dangerForMe = dangerState.teamId === myTeam.id;
+              const accent = dangerForMe ? '#22C55E' : '#EF4444';
+              const label = dangerForMe ? '⚔️ CHANCE DO SEU TIME!' : '🛡️ PERIGO NO SEU GOL!';
+              const bar = dangerForMe
+                ? 'linear-gradient(90deg,#15803d,#4ade80,#22c55e)'
+                : 'linear-gradient(90deg,#a16207,#facc15,#ef4444)';
+              return (
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="bg-yellow-500/10 border-b border-yellow-500/30 p-2.5 sm:p-3.5 flex flex-col flex-shrink-0 relative"
+                className="border-b p-2.5 sm:p-3.5 flex flex-col flex-shrink-0 relative"
+                style={{ background: `${accent}1a`, borderColor: `${accent}4d` }}
               >
-                <div className="absolute inset-0 bg-yellow-500/5 animate-pulse" />
+                <div className="absolute inset-0 animate-pulse" style={{ background: `${accent}0d` }} />
                 <div className="flex items-center justify-between mb-1.5 z-10">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-ping" />
-                    <span className="text-[10px] sm:text-xs font-black text-yellow-500 tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                      JOGADA DE PERIGO!
+                    <span className="w-2.5 h-2.5 rounded-full animate-ping" style={{ background: accent }} />
+                    <span className="text-[10px] sm:text-xs font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: accent }}>
+                      {label}
                     </span>
                   </div>
-                  <span className="text-[10px] font-black text-yellow-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <span className="text-[10px] font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color: accent }}>
                     ETAPA {dangerState.stage}/3
                   </span>
                 </div>
 
-                {/* Threat bar visualization */}
-                <div className="h-2 w-full bg-yellow-950/50 rounded-full overflow-hidden mb-2 z-10">
-                  <motion.div 
-                    className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-red-500"
+                {/* Threat bar — colour reflects who the chance favours */}
+                <div className="h-2 w-full rounded-full overflow-hidden mb-2 z-10" style={{ background: '#00000055' }}>
+                  <motion.div
+                    className="h-full"
+                    style={{ background: bar }}
                     initial={{ width: '0%' }}
                     animate={{ width: dangerState.stage === 1 ? '35%' : dangerState.stage === 2 ? '70%' : '100%' }}
                     transition={{ duration: 0.8 }}
@@ -1727,7 +1744,8 @@ export default function MatchSimPage() {
                   {dangerState.message}
                 </p>
               </motion.div>
-            )}
+              );
+            })()}
           </AnimatePresence>
 
           <div className="px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#171725', background: '#08080f' }}>
@@ -1793,7 +1811,7 @@ export default function MatchSimPage() {
                           className="text-xs sm:text-sm font-semibold leading-snug"
                           style={{ fontFamily: 'Rajdhani, sans-serif', color: isGoal ? accentColor : '#dfdfe8' }}
                         >
-                          {event.description}
+                          {stripLeadingEmoji(event.description)}
                         </p>
                         {/* Team label badge */}
                         <span
