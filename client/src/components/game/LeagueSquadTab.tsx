@@ -25,9 +25,11 @@ export default function LeagueSquadTab() {
   };
 
   const formation = FORMATIONS.find(f => f.id === team.formationId);
-  const starters = team.players;
+  // The XI is always the first 11; anything beyond is the bench (reinforcements).
+  const xi = team.players.slice(0, 11);
+  const bench = team.players.slice(11);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
-  const chemData = calculateChemistry(starters, team.coachId, formationRoles);
+  const chemData = calculateChemistry(xi, team.coachId, formationRoles);
 
   const chemColor = chemData.total >= 90 ? '#22C55E' : chemData.total >= 60 ? '#EAB308' : chemData.total >= 30 ? '#F97316' : '#EF4444';
   const activeTrios = chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean);
@@ -81,7 +83,7 @@ export default function LeagueSquadTab() {
 
       {/* Captain & penalty taker */}
       <RolesSelector
-        players={starters.slice(0, 11)}
+        players={xi}
         captainId={team.captain}
         penaltyTakerId={team.penaltyTaker}
         onSetCaptain={handleSetCaptain}
@@ -97,7 +99,7 @@ export default function LeagueSquadTab() {
           <div className="lg:w-[380px] flex-shrink-0">
             <FormationField
               formation={formation}
-              players={starters}
+              players={xi}
               chemistryScores={chemData.individual}
               showChemLines
               selectedPlayerIndex={selectedIndex}
@@ -110,7 +112,7 @@ export default function LeagueSquadTab() {
             TITULARES
           </div>
           <div className="flex flex-wrap gap-2 mb-4">
-            {starters.map((player, index) => (
+            {xi.map((player, index) => (
               <PlayerCard
                 key={player.id}
                 player={player}
@@ -122,6 +124,29 @@ export default function LeagueSquadTab() {
               />
             ))}
           </div>
+
+          {/* Bench / reinforcements — click a player, then "TROCAR COM" a starter */}
+          {bench.length > 0 && (
+            <>
+              <div className="text-xs font-bold tracking-widest mb-3 flex items-center gap-2" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
+                BANCO / RESERVAS ({bench.length})
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {bench.map((player, i) => (
+                  <PlayerCard
+                    key={player.id}
+                    player={player}
+                    compact
+                    selected={selectedIndex === 11 + i}
+                    onClick={() => setSelectedIndex(11 + i)}
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                Clique num reserva e escolha "Trocar com" um titular para substituir.
+              </p>
+            </>
+          )}
         </div>
       </div>
 

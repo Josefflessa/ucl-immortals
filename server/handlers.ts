@@ -35,12 +35,15 @@ interface RoomPlayer {
   penaltyTaker: string | null;
   team: Team | null;
   ready: boolean;
+  connected: boolean;
 }
 
 interface RoomState {
   code: string;
   phase: 'lobby' | 'setup' | 'draft' | 'squad_review' | 'league' | 'knockout' | 'report';
   difficulty: string;
+  // id of the player that currently drives progression (first connected player).
+  hostId: string;
   players: RoomPlayer[];
   botTeams: Team[];
   leagueFixtures: LeagueFixture[];
@@ -87,10 +90,115 @@ function getUniqueRoomCode(): string {
   return code;
 }
 
-// The host is always the room creator (players[0], id "player_0").
-// Only the host is allowed to drive round progression in online mode.
+// Pending deletions for rooms whose players have all left (kept off the RoomState
+// so the timer object is never serialized to clients).
+const cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const ROOM_CLEANUP_MS = 5 * 60 * 1000; // delete an all-empty room after 5 min
+
+// The host drives progression. It is the FIRST CONNECTED player, so if the
+// creator drops the role transfers automatically (and reverts when they return).
+function recomputeHost(room: RoomState): void {
+  const firstConnected = room.players.find(p => p.connected);
+  room.hostId = (firstConnected ?? room.players[0])?.id ?? '';
+}
+
 function isHost(room: RoomState, socketId: string): boolean {
-  return room.players.length > 0 && room.players[0].socketId === socketId;
+  const host = room.players.find(p => p.id === room.hostId);
+  return !!host && host.socketId === socketId;
+}
+
+// Schedule deletion of a room once every player has disconnected; cancelled if
+// anyone (re)joins. Prevents abandoned rooms from leaking forever.
+function scheduleRoomCleanupIfEmpty(room: RoomState): void {
+  if (room.players.some(p => p.connected)) {
+    cancelRoomCleanup(room.code);
+    return;
+  }
+  if (cleanupTimers.has(room.code)) return;
+  const timer = setTimeout(() => {
+    cleanupTimers.delete(room.code);
+    const cur = rooms.get(room.code);
+    if (cur && !cur.players.some(p => p.connected)) {
+      rooms.delete(room.code);
+      console.log(`Room ${room.code} deleted (all players left)`);
+    }
+  }, ROOM_CLEANUP_MS);
+  cleanupTimers.set(room.code, timer);
+}
+
+function cancelRoomCleanup(code: string): void {
+  const t = cleanupTimers.get(code);
+  if (t) { clearTimeout(t); cleanupTimers.delete(code); }
+}
+
+// Slots the chosen player into the active player's lineup and advances the draft
+// turn (or moves to squad review when the draft is complete). Shared by the
+// draft_pick handler and the disconnected-player auto-pick.
+function applyDraftPick(room: RoomState, activePlayer: RoomPlayer, chosenPlayer: Player): void {
+  const ds = room.draftState;
+  const currentRound = ds.round;
+  const newDrafted = [...activePlayer.draftedPlayers];
+  const formation = FORMATIONS.find(f => f.id === activePlayer.formationId);
+  const roles = formation?.positions.map(p => p.role) ?? [];
+
+  let targetIndex = roles.findIndex((role, idx) => role === chosenPlayer.position && newDrafted[idx] === undefined);
+  if (targetIndex === -1 && chosenPlayer.secondaryPositions) {
+    targetIndex = roles.findIndex((role, idx) => chosenPlayer.secondaryPositions!.includes(role) && newDrafted[idx] === undefined);
+  }
+  if (targetIndex === -1) targetIndex = newDrafted.findIndex(p => p === undefined);
+  if (targetIndex === -1) targetIndex = currentRound - 1;
+
+  newDrafted[targetIndex] = chosenPlayer;
+  activePlayer.draftedPlayers = newDrafted;
+
+  ds.alreadyDraftedIds.push(chosenPlayer.id);
+  ds.history.push({
+    round: currentRound,
+    teamName: activePlayer.name,
+    playerName: chosenPlayer.shortName,
+    position: chosenPlayer.position,
+    overall: chosenPlayer.overall,
+  });
+
+  const nextTurnIndex = ds.turnIndex + 1;
+  if (nextTurnIndex >= ds.draftOrder.length) {
+    room.phase = 'squad_review';
+    room.players.forEach(p => { p.ready = false; });
+  } else {
+    ds.turnIndex = nextTurnIndex;
+    ds.round = Math.floor(nextTurnIndex / room.players.length) + 1;
+    const nextPlayerId = ds.draftOrder[nextTurnIndex];
+    const nextPlayer = room.players.find(p => p.id === nextPlayerId);
+    if (nextPlayer) {
+      const nextNeeded = getNeededPositions(nextPlayer.formationId, nextPlayer.draftedPlayers);
+      ds.currentOptionsByPlayer[nextPlayerId] = generateDraftOptions(nextNeeded, ds.alreadyDraftedIds);
+    }
+  }
+}
+
+// Auto-picks (first available option) for any disconnected player whose turn it
+// is, so the draft never stalls on someone who left. Stops at the first connected
+// player. Emits once if any auto-pick happened.
+function autoPickDisconnected(io: Server, room: RoomState): void {
+  let picked = false;
+  let guard = 0;
+  while (room.phase === 'draft' && guard++ < 1000) {
+    const ds = room.draftState;
+    const activeId = ds.draftOrder[ds.turnIndex];
+    const active = room.players.find(p => p.id === activeId);
+    if (!active || active.connected) break;
+    let options = ds.currentOptionsByPlayer[activeId];
+    if (!options || options.length === 0) {
+      const needed = getNeededPositions(active.formationId, active.draftedPlayers);
+      options = generateDraftOptions(needed, ds.alreadyDraftedIds);
+      ds.currentOptionsByPlayer[activeId] = options;
+    }
+    const chosen = options[0];
+    if (!chosen) break;
+    applyDraftPick(room, active, chosen);
+    picked = true;
+  }
+  if (picked) io.to(room.code).emit("room_updated", room);
 }
 
 export function registerSocketHandlers(io: Server) {
@@ -104,6 +212,7 @@ export function registerSocketHandlers(io: Server) {
         code: roomCode,
         phase: 'lobby',
         difficulty: 'gold',
+        hostId: 'player_0',
         players: [
           {
             socketId: socket.id,
@@ -117,7 +226,8 @@ export function registerSocketHandlers(io: Server) {
             captain: null,
             penaltyTaker: null,
             team: null,
-            ready: false
+            ready: false,
+            connected: true
           }
         ],
         botTeams: [],
@@ -159,9 +269,14 @@ export function registerSocketHandlers(io: Server) {
       const existingPlayer = room.players.find(p => p.name.toLowerCase() === playerName.trim().toLowerCase());
       if (existingPlayer) {
         existingPlayer.socketId = socket.id;
+        existingPlayer.connected = true;
+        cancelRoomCleanup(code);
+        recomputeHost(room);
         socket.join(code);
         socket.emit("joined_room", { roomCode: code, player: existingPlayer, roomState: room });
         io.to(code).emit("room_updated", room);
+        // A reconnected player may have been the one we were waiting on for a pick.
+        if (room.phase === 'draft') autoPickDisconnected(io, room);
         console.log(`Player reconnected: ${playerName} to ${code}`);
         return;
       }
@@ -188,10 +303,12 @@ export function registerSocketHandlers(io: Server) {
         captain: null,
         penaltyTaker: null,
         team: null,
-        ready: false
+        ready: false,
+        connected: true
       };
 
       room.players.push(newPlayer);
+      recomputeHost(room);
       socket.join(code);
       socket.emit("joined_room", { roomCode: code, player: newPlayer, roomState: room });
       io.to(code).emit("room_updated", room);
@@ -201,7 +318,7 @@ export function registerSocketHandlers(io: Server) {
     // Host updates difficulty
     socket.on("set_difficulty", ({ roomCode, difficulty }) => {
       const room = rooms.get(roomCode);
-      if (!room) return;
+      if (!room || !isHost(room, socket.id)) return;
       room.difficulty = difficulty;
       io.to(roomCode).emit("room_updated", room);
     });
@@ -209,7 +326,7 @@ export function registerSocketHandlers(io: Server) {
     // Host starts setup phase
     socket.on("start_setup", ({ roomCode }) => {
       const room = rooms.get(roomCode);
-      if (!room) return;
+      if (!room || !isHost(room, socket.id)) return;
       room.phase = 'setup';
       room.players.forEach(p => { p.ready = false; });
       io.to(roomCode).emit("room_updated", room);
@@ -265,6 +382,8 @@ export function registerSocketHandlers(io: Server) {
       }
 
       io.to(roomCode).emit("room_updated", room);
+      // If the draft just started on a disconnected player, don't stall.
+      if (room.phase === 'draft') autoPickDisconnected(io, room);
     });
 
     // Player picks a card
@@ -273,7 +392,8 @@ export function registerSocketHandlers(io: Server) {
       if (!room || !room.draftState) return;
 
       const activePlayerId = room.draftState.draftOrder[room.draftState.turnIndex];
-      const activePlayer = room.players.find(p => p.id === activePlayerId)!;
+      const activePlayer = room.players.find(p => p.id === activePlayerId);
+      if (!activePlayer) return;
 
       // Verify it is indeed their turn
       if (activePlayer.socketId !== socket.id) return;
@@ -282,61 +402,10 @@ export function registerSocketHandlers(io: Server) {
       const chosenPlayer = options.find(p => p.id === playerId);
       if (!chosenPlayer) return;
 
-      // Add to player drafted list
-      const currentRound = room.draftState.round;
-      const newDrafted = [...activePlayer.draftedPlayers];
-      const formation = FORMATIONS.find(f => f.id === activePlayer.formationId);
-      const roles = formation?.positions.map(p => p.role) ?? [];
-
-      let targetIndex = roles.findIndex((role, idx) =>
-        role === chosenPlayer.position && newDrafted[idx] === undefined
-      );
-
-      if (targetIndex === -1 && chosenPlayer.secondaryPositions) {
-        targetIndex = roles.findIndex((role, idx) =>
-          chosenPlayer.secondaryPositions!.includes(role) && newDrafted[idx] === undefined
-        );
-      }
-
-      if (targetIndex === -1) {
-        targetIndex = newDrafted.findIndex(p => p === undefined);
-      }
-
-      if (targetIndex === -1) {
-        targetIndex = currentRound - 1;
-      }
-
-      newDrafted[targetIndex] = chosenPlayer;
-      activePlayer.draftedPlayers = newDrafted;
-
-      // Update global draft state
-      room.draftState.alreadyDraftedIds.push(chosenPlayer.id);
-      room.draftState.history.push({
-        round: currentRound,
-        teamName: activePlayer.name,
-        playerName: chosenPlayer.shortName,
-        position: chosenPlayer.position,
-        overall: chosenPlayer.overall
-      });
-
-      const nextTurnIndex = room.draftState.turnIndex + 1;
-      if (nextTurnIndex >= room.draftState.draftOrder.length) {
-        // Draft finished! Move to squad review phase
-        room.phase = 'squad_review';
-        room.players.forEach(p => { p.ready = false; });
-      } else {
-        room.draftState.turnIndex = nextTurnIndex;
-        room.draftState.round = Math.floor(nextTurnIndex / room.players.length) + 1;
-
-        // Generate options for the next player
-        const nextPlayerId = room.draftState.draftOrder[nextTurnIndex];
-        const nextPlayer = room.players.find(p => p.id === nextPlayerId)!;
-        const nextNeeded = getNeededPositions(nextPlayer.formationId, nextPlayer.draftedPlayers);
-        const nextOptions = generateDraftOptions(nextNeeded, room.draftState.alreadyDraftedIds);
-        room.draftState.currentOptionsByPlayer[nextPlayerId] = nextOptions;
-      }
-
+      applyDraftPick(room, activePlayer, chosenPlayer);
       io.to(roomCode).emit("room_updated", room);
+      // If the turn landed on someone who has disconnected, keep the draft moving.
+      autoPickDisconnected(io, room);
     });
 
     // Player vetoes current draft options
@@ -345,7 +414,8 @@ export function registerSocketHandlers(io: Server) {
       if (!room || !room.draftState) return;
 
       const activePlayerId = room.draftState.draftOrder[room.draftState.turnIndex];
-      const activePlayer = room.players.find(p => p.id === activePlayerId)!;
+      const activePlayer = room.players.find(p => p.id === activePlayerId);
+      if (!activePlayer) return;
 
       if (activePlayer.socketId !== socket.id || activePlayer.vetoesLeft <= 0) return;
 
@@ -615,10 +685,10 @@ export function registerSocketHandlers(io: Server) {
       io.to(roomCode).emit("room_updated", room);
     });
 
-    // Restart game in room
+    // Restart game in room (host only — otherwise any player could wipe progress)
     socket.on("restart_room", ({ roomCode }) => {
       const room = rooms.get(roomCode);
-      if (!room) return;
+      if (!room || !isHost(room, socket.id)) return;
 
       room.phase = 'lobby';
       room.players.forEach(p => {
@@ -657,21 +727,31 @@ export function registerSocketHandlers(io: Server) {
       // Find rooms where player was present
       rooms.forEach((room: RoomState, code: string) => {
         const idx = room.players.findIndex((p: RoomPlayer) => p.socketId === socket.id);
-        if (idx !== -1) {
-          console.log(`Player ${room.players[idx].name} disconnected from room ${code}`);
-          if (room.phase === 'lobby') {
-            // Remove player if still in lobby
-            room.players.splice(idx, 1);
-            if (room.players.length === 0) {
-              rooms.delete(code);
-              console.log(`Room ${code} deleted (empty)`);
-            } else {
-              io.to(code).emit("room_updated", room);
-            }
-          } else {
-            // Keep player in room so they can reconnect during draft or gameplay
+        if (idx === -1) return;
+        console.log(`Player ${room.players[idx].name} disconnected from room ${code}`);
+
+        if (room.phase === 'lobby') {
+          // In the lobby we fully remove the player (the seat is freed).
+          room.players.splice(idx, 1);
+          if (room.players.length === 0) {
+            cancelRoomCleanup(code);
+            rooms.delete(code);
+            console.log(`Room ${code} deleted (empty)`);
+            return;
           }
+          recomputeHost(room);
+          io.to(code).emit("room_updated", room);
+          return;
         }
+
+        // Mid-game: keep the player (so they can reconnect by name) but mark them
+        // offline. Transfer host to the next connected player, keep the draft
+        // moving if it was their turn, and schedule cleanup if everyone has left.
+        room.players[idx].connected = false;
+        recomputeHost(room);
+        io.to(code).emit("room_updated", room);
+        if (room.phase === 'draft') autoPickDisconnected(io, room);
+        scheduleRoomCleanupIfEmpty(room);
       });
     });
   });

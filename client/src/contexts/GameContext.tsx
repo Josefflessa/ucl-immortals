@@ -76,6 +76,8 @@ export interface GameState {
   selectedPlayStyle: string;
   captain: string | null;
   penaltyTaker: string | null;
+  // End-of-round reinforcement draft: 6 random players to pick 1 from (solo).
+  reinforcementOptions: Player[] | null;
   
   // Online Multiplayer fields
   mode: 'solo' | 'online';
@@ -93,6 +95,9 @@ export interface GameState {
   watchedKnockoutMatches: string[];
   // IDs of players who have confirmed watching the current round/leg (from server)
   onlineWatchedPlayers: string[];
+  // Names the host is still waiting on before advancing (from the server's
+  // advance_blocked event); null when not blocked.
+  advanceBlocked: string[] | null;
 }
 
 export interface KnockoutBracket {
@@ -128,6 +133,8 @@ type GameAction =
   | { type: 'SET_FORMATION'; formationId: string }
   | { type: 'SET_PLAY_STYLE'; playStyle: string }
   | { type: 'SET_PLAYER_TEAM_PLAY_STYLE'; playStyle: string }
+  | { type: 'PICK_REINFORCEMENT'; player: Player }
+  | { type: 'DISMISS_REINFORCEMENT' }
   | { type: 'START_DRAFT' }
   | { type: 'DRAFT_PLAYER'; player: Player }
   | { type: 'VETO_DRAFT' }
@@ -155,6 +162,7 @@ type GameAction =
   | { type: 'RESET_GAME' }
   | { type: 'SET_ONLINE_STATE'; roomState: any; socketId: string }
   | { type: 'INIT_ONLINE'; socketId: string; roomCode: string; isHost: boolean }
+  | { type: 'SET_ADVANCE_BLOCKED'; waiting: string[] | null }
   | { type: 'DISCONNECT_ONLINE' };
 
 // ============================================================
@@ -184,6 +192,7 @@ const initialState: GameState = {
   selectedPlayStyle: 'balanced',
   captain: null,
   penaltyTaker: null,
+  reinforcementOptions: null,
 
   // Online Multiplayer fields
   mode: 'solo',
@@ -198,6 +207,7 @@ const initialState: GameState = {
   lastWatchedRound: 0,
   watchedKnockoutMatches: [],
   onlineWatchedPlayers: [],
+  advanceBlocked: null,
 };
 
 // ============================================================
@@ -226,6 +236,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_PLAYER_TEAM_PLAY_STYLE':
       if (!state.playerTeam) return state;
       return { ...state, playerTeam: { ...state.playerTeam, playStyle: action.playStyle } };
+
+    case 'PICK_REINFORCEMENT': {
+      if (!state.playerTeam) return { ...state, reinforcementOptions: null };
+      // The reinforcement joins the BENCH (players beyond the starting 11). The
+      // XI is unchanged, so chemistry stays the same until you substitute it in.
+      const card: PlayerCard = { ...action.player, chemistryScore: 0, isOOP: false };
+      return {
+        ...state,
+        playerTeam: { ...state.playerTeam, players: [...state.playerTeam.players, card] },
+        reinforcementOptions: null,
+      };
+    }
+
+    case 'DISMISS_REINFORCEMENT':
+      return { ...state, reinforcementOptions: null };
 
     case 'START_DRAFT': {
       const needed = getNeededPositions(state.selectedFormationId, Array(11).fill(undefined));
@@ -573,6 +598,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Collect ALL played results across all rounds to preserve stats
       const results = allFixtures.map(f => f.result!).filter(Boolean);
 
+      // End-of-round reinforcement: offer 6 random players to add to the bench,
+      // excluding players already on the team.
+      const ownedIds = state.playerTeam.players.map(p => p.id);
+      const reinforcementOptions = generateDraftOptions([], ownedIds);
+
       return {
         ...state,
         phase: 'league',
@@ -581,6 +611,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         leagueResults: results,
         currentMatch: null,
         currentMatchTeams: null,
+        reinforcementOptions,
       };
     }
 
@@ -764,8 +795,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         draftedPlayers: me ? me.draftedPlayers : state.draftedPlayers,
         selectedCoachId: me ? me.coachId : state.selectedCoachId,
         selectedFormationId: me ? me.formationId : state.selectedFormationId,
+        selectedPlayStyle: me ? (me.playStyle ?? 'balanced') : state.selectedPlayStyle,
         captain: me ? me.captain : state.captain,
         penaltyTaker: me ? me.penaltyTaker : state.penaltyTaker,
+        // Host can transfer if the creator drops — derive from the server's hostId.
+        isHost: me ? me.id === roomState.hostId : state.isHost,
+        // Surfaced when the host tries to advance before everyone has watched.
+        advanceBlocked: null,
         draftState,
 
         // Generate local report if transitioning to report phase
@@ -793,6 +829,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         roomCode: action.roomCode,
         isHost: action.isHost,
       };
+
+    case 'SET_ADVANCE_BLOCKED':
+      return { ...state, advanceBlocked: action.waiting };
 
     case 'DISCONNECT_ONLINE':
       return {
@@ -881,6 +920,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     socketInstance.on("room_updated", (roomState: any) => {
       dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
+    });
+
+    // Server refused an advance because not everyone has watched their match yet.
+    socketInstance.on("advance_blocked", ({ waiting }: { waiting: string[] }) => {
+      dispatch({ type: 'SET_ADVANCE_BLOCKED', waiting: waiting || [] });
     });
 
     socketInstance.on("room_created", ({ roomCode, roomState }) => {

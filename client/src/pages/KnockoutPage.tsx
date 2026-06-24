@@ -629,6 +629,11 @@ export default function KnockoutPage() {
               </div>
             )
           )}
+          {state.advanceBlocked && state.advanceBlocked.length > 0 && (
+            <div className="mt-2 text-center text-[11px] font-bold text-yellow-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              ⏳ Aguardando assistirem: {state.advanceBlocked.join(', ')}
+            </div>
+          )}
         </motion.div>
       </div>
 

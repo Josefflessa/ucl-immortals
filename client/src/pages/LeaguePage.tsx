@@ -2,12 +2,13 @@
 // Show standings, round-by-round fixtures, and results
 
 import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Goal, Footprints, Star, Hand, Swords, UserPlus } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, PlayerSeasonStats } from '../lib/gameEngine';
 import LeagueSquadTab from '../components/game/LeagueSquadTab';
-import { buildSofifaUrl } from '../components/game/PlayerCard';
+import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 import { POS_PT } from '../lib/gameData';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
@@ -447,6 +448,11 @@ export default function LeaguePage() {
                     </div>
                   )
                 )}
+                {state.advanceBlocked && state.advanceBlocked.length > 0 && (
+                  <div className="mt-2 text-center text-[11px] font-bold text-yellow-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    ⏳ Aguardando assistirem: {state.advanceBlocked.join(', ')}
+                  </div>
+                )}
               </motion.div>
             ) : (
               isPlayerMatchPlayed && (
@@ -583,17 +589,17 @@ export default function LeaguePage() {
             {/* Sub-tabs scrollable on mobile */}
             <div className="flex gap-1.5 p-1 rounded-xl bg-[#09090f] border border-[#1A1A2A] overflow-x-auto scrollbar-none">
               {[
-                { id: 'goals', label: '⚽ GOLS', data: topScorers },
-                { id: 'assists', label: '👟 ASSISTÊNCIAS', data: topAssists },
-                { id: 'ratings', label: '⭐ NOTA MÉDIA', data: topRatings },
-                { id: 'keepers', label: '🧤 GOLEIROS (DEF.)', data: topKeepers },
-                { id: 'tackles', label: '🤺 DESARMES', data: topTacklers },
-              ].map(sub => {
-                const isActive = statsSubTab === sub.id;
+                { id: 'goals', label: 'GOLS', Icon: Goal },
+                { id: 'assists', label: 'ASSISTÊNCIAS', Icon: Footprints },
+                { id: 'ratings', label: 'NOTA MÉDIA', Icon: Star },
+                { id: 'keepers', label: 'GOLEIROS', Icon: Hand },
+                { id: 'tackles', label: 'DESARMES', Icon: Swords },
+              ].map(({ id, label, Icon }) => {
+                const isActive = statsSubTab === id;
                 return (
                   <button
-                    key={sub.id}
-                    onClick={() => setStatsSubTab(sub.id as any)}
+                    key={id}
+                    onClick={() => setStatsSubTab(id as any)}
                     className="flex-shrink-0 py-2 px-2.5 sm:px-3 rounded-lg text-[10px] sm:text-xs font-bold transition-all text-center whitespace-nowrap"
                     style={{
                       fontFamily: 'Rajdhani, sans-serif',
@@ -601,7 +607,7 @@ export default function LeaguePage() {
                       color: isActive ? '#080810' : '#8A8A9A',
                     }}
                   >
-                    {sub.label}
+                    <span className="inline-flex items-center gap-1.5"><Icon size={13} /> {label}</span>
                   </button>
                 );
               })}
@@ -820,6 +826,50 @@ export default function LeaguePage() {
         )}
 
       </div>
+
+      {/* ── End-of-round reinforcement pick ── */}
+      <AnimatePresence>
+        {state.reinforcementOptions && state.reinforcementOptions.length > 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl p-5 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="text-center mb-4">
+                <h3 className="text-2xl font-black tracking-widest uppercase inline-flex items-center gap-2" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
+                  <UserPlus size={22} /> REFORÇO DA RODADA
+                </h3>
+                <p className="text-xs mt-1" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Escolha <b style={{ color: '#FFF' }}>1 jogador</b> para o seu banco. Depois, na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b>, você pode substituir um titular.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 justify-items-center">
+                {state.reinforcementOptions.map(option => (
+                  <PlayerCard
+                    key={option.id}
+                    player={option}
+                    lite
+                    onClick={() => dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
+                  />
+                ))}
+              </div>
+
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => dispatch({ type: 'DISMISS_REINFORCEMENT' })}
+                  className="px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all border"
+                  style={{ fontFamily: 'Rajdhani, sans-serif', borderColor: '#1A1A2A', background: 'transparent', color: '#6A6A7A' }}
+                >
+                  Pular reforço
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

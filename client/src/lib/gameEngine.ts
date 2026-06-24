@@ -1371,6 +1371,14 @@ export function getPenaltyOrder(team: Team): PlayerCard[] {
   return [...ordered, ...keepers];
 }
 
+// Resolves a single penalty kick: taker composure (+ frieza traits, + designated
+// bonus) vs the keeper's shot-stopping (+ Reflexo Felino). Returns whether it went in.
+function penaltyKickGoal(taker: PlayerCard, gk: PlayerCard, designatedTakerId: string): boolean {
+  const comp = taker.composure + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
+  const gkRef = gk.defending + getGoalkeeperTraitBonus(gk.traits);
+  return Math.random() < comp / (comp + gkRef * 0.5);
+}
+
 export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<string, PlayerMatchStat>): {
   winner: string;
   homeScore: number;
@@ -1388,46 +1396,39 @@ export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<
   const homeTakerId = getPenaltyTaker(home).id;
   const awayTakerId = getPenaltyTaker(away).id;
 
-  for (let i = 0; i < 5; i++) {
-    const homeTaker = homeTakers[i % homeTakers.length];
-    const awayTaker = awayTakers[i % awayTakers.length];
+  // Best-of-5, kick by kick, stopping as soon as the result is mathematically
+  // decided (as in a real shootout — no pointless extra kicks).
+  let homeKicks = 0;
+  let awayKicks = 0;
+  let decided = false;
+  // A team has clinched it once the other can no longer catch up with its kicks left.
+  const clinched = () =>
+    homeScore > awayScore + (5 - awayKicks) || awayScore > homeScore + (5 - homeKicks);
 
-    // Home kick
-    const homeComp = homeTaker.composure
-      + getPenaltyComposureBonus(homeTaker.traits)
-      + (homeTaker.id === homeTakerId ? 5 : 0);
-    const awayGKRef = awayGK.defending + getGoalkeeperTraitBonus(awayGK.traits);
-    const homeGoal = Math.random() < homeComp / (homeComp + awayGKRef * 0.5);
+  for (let i = 0; i < 5 && !decided; i++) {
+    const homeTaker = homeTakers[homeKicks % homeTakers.length];
+    const homeGoal = penaltyKickGoal(homeTaker, awayGK, homeTakerId);
     if (homeGoal) homeScore++;
+    homeKicks++;
     kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoal });
+    if (clinched()) { decided = true; break; }
 
-    // Away kick
-    const awayComp = awayTaker.composure
-      + getPenaltyComposureBonus(awayTaker.traits)
-      + (awayTaker.id === awayTakerId ? 5 : 0);
-    const homeGKRef = homeGK.defending + getGoalkeeperTraitBonus(homeGK.traits);
-    const awayGoal = Math.random() < awayComp / (awayComp + homeGKRef * 0.5);
+    const awayTaker = awayTakers[awayKicks % awayTakers.length];
+    const awayGoal = penaltyKickGoal(awayTaker, homeGK, awayTakerId);
     if (awayGoal) awayScore++;
+    awayKicks++;
     kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoal });
+    if (clinched()) { decided = true; break; }
   }
 
   // Sudden death: simulate paired kicks until outcomes differ (max 10 rounds)
-  if (homeScore === awayScore) {
+  if (!decided && homeScore === awayScore) {
     for (let sd = 0; sd < 10; sd++) {
       const homeTaker = homeTakers[(5 + sd) % homeTakers.length];
       const awayTaker = awayTakers[(5 + sd) % awayTakers.length];
 
-      const homeComp2 = homeTaker.composure
-        + getPenaltyComposureBonus(homeTaker.traits)
-        + (homeTaker.id === homeTakerId ? 5 : 0);
-      const awayGKRef2 = awayGK.defending + getGoalkeeperTraitBonus(awayGK.traits);
-      const homeGoalSD = Math.random() < homeComp2 / (homeComp2 + awayGKRef2 * 0.5);
-
-      const awayComp2 = awayTaker.composure
-        + getPenaltyComposureBonus(awayTaker.traits)
-        + (awayTaker.id === awayTakerId ? 5 : 0);
-      const homeGKRef2 = homeGK.defending + getGoalkeeperTraitBonus(homeGK.traits);
-      const awayGoalSD = Math.random() < awayComp2 / (awayComp2 + homeGKRef2 * 0.5);
+      const homeGoalSD = penaltyKickGoal(homeTaker, awayGK, homeTakerId);
+      const awayGoalSD = penaltyKickGoal(awayTaker, homeGK, awayTakerId);
 
       kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoalSD });
       kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoalSD });

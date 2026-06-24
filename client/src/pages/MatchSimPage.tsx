@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Shirt, Eye, Play, Pause, SkipForward, Brain } from 'lucide-react';
+import TacticSelector from '../components/game/TacticSelector';
+import { getTacticById } from '../lib/gameData';
 import { useGame } from '../contexts/GameContext';
 import {
   Team, MatchResult, MatchEvent, simulateMatch,
@@ -119,6 +122,8 @@ export default function MatchSimPage() {
 
   // Substitutions removed — apenas 11 titulares
   const [squadModal, setSquadModal] = useState<'mine' | 'opponent' | null>(null);
+  // Live tactic change (solo only): switch your team's mentality mid-match.
+  const [showTactics, setShowTactics] = useState(false);
 
   // Suspense-based Key Attack Danger state
   const [dangerState, setDangerState] = useState<{
@@ -727,9 +732,10 @@ export default function MatchSimPage() {
     return () => clearInterval(interval);
   }, [isPlaying, isFinished, speed, minute, momentum, homeTeam, awayTeam, dangerState, penaltyMode]);
 
-  // 4. Suspense / Danger sequence state runner (local sim only)
+  // 4. Suspense / Danger sequence state runner (drives stages 1→2→3 for BOTH the
+  // local sim and the online replay — stage 2 branches per mode below). This must
+  // run in replay mode too; otherwise an online danger sequence freezes at stage 1.
   useEffect(() => {
-    if (isReplay) return;
     if (state.mode === 'online' && !isSimulatorHost) return;
     if (!dangerState) return;
 
@@ -868,7 +874,20 @@ export default function MatchSimPage() {
 
         if (nonGoalEvs.length > 0) {
           setEvents(prev => [...prev, ...nonGoalEvs]);
-          setMomentumHistory(h => [...h, momentum]);
+          // Shift momentum on non-goal events too, so the bar stays alive in online
+          // (not only on goals). Direction follows the engine's event teamId convention.
+          let delta = 0;
+          for (const e of nonGoalEvs) {
+            const isHome = e.teamId === homeTeam.id;
+            if (e.type === 'miss' || e.type === 'momentum') delta += isHome ? 6 : -6;       // attacking side
+            else if (e.type === 'save') delta += isHome ? -6 : 6;                            // teamId = keeper's side
+            else if (e.type === 'duel') delta += isHome ? 5 : -5;                            // teamId = defender who won
+          }
+          setMomentum(m => {
+            const next = Math.min(95, Math.max(5, m + delta));
+            setMomentumHistory(h => [...h, next]);
+            return next;
+          });
         }
 
         if (goalEvs.length > 0) {
@@ -1744,7 +1763,7 @@ export default function MatchSimPage() {
                 color: '#C9A84C',
               }}
             >
-              ⚽ MEU TIME
+              <span className="inline-flex items-center justify-center gap-1.5"><Shirt size={15} /> MEU TIME</span>
               <span className="block text-[9px] sm:text-[10px] font-bold mt-1 truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
                 {myTeam.name}
               </span>
@@ -1759,7 +1778,7 @@ export default function MatchSimPage() {
                 color: '#818CF8',
               }}
             >
-              👁 ADVERSÁRIO
+              <span className="inline-flex items-center justify-center gap-1.5"><Eye size={15} /> ADVERSÁRIO</span>
               <span className="block text-[9px] sm:text-[10px] font-bold mt-1 truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
                 {oppTeam.name}
               </span>
@@ -1840,6 +1859,42 @@ export default function MatchSimPage() {
                   return renderSquadRow(p, getDisplayRating(p.id), st?.goals ?? 0, st?.assists ?? 0);
                 })}
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Live tactic change (solo) ── */}
+      <AnimatePresence>
+        {showTactics && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" onClick={() => setShowTactics(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl p-5 max-w-md w-full"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-black tracking-widest uppercase inline-flex items-center gap-2" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#818CF8' }}>
+                  <Brain size={18} /> MUDAR TÁTICA
+                </h3>
+                <button onClick={() => setShowTactics(false)} className="text-gray-400 hover:text-white text-xl font-black">✕</button>
+              </div>
+              <p className="text-[11px] mb-3" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                Vale <b style={{ color: '#FFF' }}>a partir de agora</b>, só nesta partida. {myTeam.name} está em <b style={{ color: '#C9A84C' }}>{getTacticById(myTeam.playStyle).name}</b>.
+              </p>
+              <TacticSelector
+                value={myTeam.playStyle}
+                onChange={(id) => setMyTeam(prev => ({ ...prev, playStyle: id }))}
+              />
+              <button
+                onClick={() => { setShowTactics(false); if (!isFinished && !penaltyMode) setIsPlaying(true); }}
+                className="w-full mt-3 py-3 rounded-xl font-black tracking-widest"
+                style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #C9A84C, #E8C84A)', color: '#080810' }}
+              >
+                VOLTAR AO JOGO →
+              </button>
             </motion.div>
           </div>
         )}
@@ -1965,7 +2020,10 @@ export default function MatchSimPage() {
               cursor: isFinished || (state.mode === 'online' && !isSimulatorHost) ? 'not-allowed' : 'pointer',
             }}
           >
-            {isPlaying ? 'PAUSAR' : 'SIMULAR'}
+            <span className="inline-flex items-center gap-1.5">
+              {isPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
+              {isPlaying ? 'PAUSAR' : 'SIMULAR'}
+            </span>
           </button>
 
           <div className="flex rounded-lg overflow-hidden border border-gray-700">
@@ -1986,6 +2044,23 @@ export default function MatchSimPage() {
               </button>
             ))}
           </div>
+
+          {/* Live tactic change — solo only, situational mid-match decision */}
+          {!isFinished && !penaltyMode && (
+            <button
+              onClick={() => { setIsPlaying(false); setShowTactics(true); }}
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl font-bold text-sm tracking-wider border transition-all"
+              style={{
+                fontFamily: 'Rajdhani, sans-serif',
+                borderColor: '#6366f155',
+                background: 'linear-gradient(135deg, #14142a, #0b0b14)',
+                color: '#818CF8',
+              }}
+              title="Mudar a tática do seu time durante a partida"
+            >
+              <Brain size={15} /> TÁTICA
+            </button>
+          )}
         </div>
         )}
 
@@ -2002,7 +2077,7 @@ export default function MatchSimPage() {
                 background: 'rgba(255,255,255,0.02)',
               }}
             >
-              PULAR
+              <span className="inline-flex items-center gap-1.5"><SkipForward size={15} /> PULAR</span>
             </button>
           )}
 
