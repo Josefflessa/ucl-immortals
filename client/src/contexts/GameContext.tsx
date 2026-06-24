@@ -76,9 +76,7 @@ export interface GameState {
   selectedPlayStyle: string;
   captain: string | null;
   penaltyTaker: string | null;
-  // End-of-round reinforcement draft: 6 random players to pick 1 from (solo).
-  reinforcementOptions: Player[] | null;
-  
+
   // Online Multiplayer fields
   mode: 'solo' | 'online';
   roomCode: string | null;
@@ -133,8 +131,6 @@ type GameAction =
   | { type: 'SET_FORMATION'; formationId: string }
   | { type: 'SET_PLAY_STYLE'; playStyle: string }
   | { type: 'SET_PLAYER_TEAM_PLAY_STYLE'; playStyle: string }
-  | { type: 'PICK_REINFORCEMENT'; player: Player }
-  | { type: 'DISMISS_REINFORCEMENT' }
   | { type: 'START_DRAFT' }
   | { type: 'DRAFT_PLAYER'; player: Player }
   | { type: 'VETO_DRAFT' }
@@ -192,7 +188,6 @@ const initialState: GameState = {
   selectedPlayStyle: 'balanced',
   captain: null,
   penaltyTaker: null,
-  reinforcementOptions: null,
 
   // Online Multiplayer fields
   mode: 'solo',
@@ -236,21 +231,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_PLAYER_TEAM_PLAY_STYLE':
       if (!state.playerTeam) return state;
       return { ...state, playerTeam: { ...state.playerTeam, playStyle: action.playStyle } };
-
-    case 'PICK_REINFORCEMENT': {
-      if (!state.playerTeam) return { ...state, reinforcementOptions: null };
-      // The reinforcement joins the BENCH (players beyond the starting 11). The
-      // XI is unchanged, so chemistry stays the same until you substitute it in.
-      const card: PlayerCard = { ...action.player, chemistryScore: 0, isOOP: false };
-      return {
-        ...state,
-        playerTeam: { ...state.playerTeam, players: [...state.playerTeam.players, card] },
-        reinforcementOptions: null,
-      };
-    }
-
-    case 'DISMISS_REINFORCEMENT':
-      return { ...state, reinforcementOptions: null };
 
     case 'START_DRAFT': {
       const needed = getNeededPositions(state.selectedFormationId, Array(11).fill(undefined));
@@ -598,11 +578,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Collect ALL played results across all rounds to preserve stats
       const results = allFixtures.map(f => f.result!).filter(Boolean);
 
-      // End-of-round reinforcement: offer 6 random players to add to the bench,
-      // excluding players already on the team.
-      const ownedIds = state.playerTeam.players.map(p => p.id);
-      const reinforcementOptions = generateDraftOptions([], ownedIds);
-
       return {
         ...state,
         phase: 'league',
@@ -611,7 +586,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         leagueResults: results,
         currentMatch: null,
         currentMatchTeams: null,
-        reinforcementOptions,
       };
     }
 
