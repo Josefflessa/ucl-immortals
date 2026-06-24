@@ -8,7 +8,8 @@ import { useGame } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, PlayerSeasonStats } from '../lib/gameEngine';
 import LeagueSquadTab from '../components/game/LeagueSquadTab';
-import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
+import PlayerCard from '../components/game/PlayerCard';
+import PlayerAvatar from '../components/game/PlayerAvatar';
 import { POS_PT } from '../lib/gameData';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
@@ -652,8 +653,7 @@ export default function LeaguePage() {
                   <div className="divide-y divide-[#1A1A2A]">
                     {currentList.slice(0, 15).map((player, i) => {
                       const isPlayerTeam = player.teamId === playerTeam?.id;
-                      const photoUrl = buildSofifaUrl(player.id, 120);
-                      
+
                       // Resolve metric values
                       let metricVal: string | number = 0;
                       let metricLabel = "";
@@ -675,15 +675,6 @@ export default function LeaguePage() {
                         metricLabel = metricVal === 1 ? 'desarme' : 'desarmes';
                       }
 
-                      // Rarity color for card border avatar
-                      const getBorderColor = (rarity: string) => {
-                        if (rarity === 'immortal') return '#C9A84C';
-                        if (rarity === 'legendary') return '#818CF8';
-                        if (rarity === 'gold') return '#EAB308';
-                        if (rarity === 'silver') return '#9CA3AF';
-                        return '#CD7F32';
-                      };
-
                       return (
                         <motion.div
                           key={`${statsSubTab}-${player.id}`}
@@ -703,17 +694,8 @@ export default function LeaguePage() {
                             {i + 1}
                           </span>
 
-                          {/* Player face avatar */}
-                          <div
-                            className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d]"
-                            style={{ border: `1.5px solid ${getBorderColor(player.rarity)}` }}
-                          >
-                            {photoUrl ? (
-                              <img src={photoUrl} alt={player.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} />
-                            ) : (
-                              <span className="text-sm font-bold" style={{ color: getBorderColor(player.rarity) }}>⚽</span>
-                            )}
-                          </div>
+                          {/* Player face avatar (robust fallback) */}
+                          <PlayerAvatar playerId={player.id} rarity={player.rarity} size={40} />
 
                           {/* Player details */}
                           <div className="flex-1 min-w-0">

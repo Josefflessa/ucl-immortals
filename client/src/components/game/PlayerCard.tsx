@@ -601,11 +601,6 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
 
       {/* ── PHOTO ZONE — tall flex-1 for maximum photo size ── */}
       <div className="relative flex-1 flex items-end justify-center overflow-visible mx-1 mt-0 mb-0" style={{ minHeight: 0 }}>
-        {/* Watermark */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none" style={{ opacity: .04 }}>
-          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 60, color: '#fff', whiteSpace: 'nowrap', transform: 'rotate(-10deg)' }}>{player.shortName.toUpperCase()}</span>
-        </div>
-
         {hasPhoto ? (
           <div style={{ width: '100%', height: '115%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
             <PlayerPhoto playerId={player.id} fullName={player.fullName} size={180} lowRes={lite} />

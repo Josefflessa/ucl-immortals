@@ -3,6 +3,7 @@ import { PLAYERS, COACHES, Player } from './gameData';
 import {
   calculateChemistry, getEffectiveAttribute, getPlayerEffectiveStats, getChemistryBonus,
   calculateTeamStrength, simulateMatch, generateBotTeam, generateDraftOptions,
+  statKey, getPlayerSeasonStats,
   PlayerCard,
 } from './gameEngine';
 
@@ -107,5 +108,35 @@ describe('generateDraftOptions', () => {
     expect(traitCountAfter).toBe(traitCountBefore);
     // No base player should ever carry a draft-only variant flag.
     expect(PLAYERS.some(p => p.inForm || p.rolledTrait)).toBe(false);
+  });
+});
+
+describe('match stats are keyed per team (shared player is not conflated)', () => {
+  it('a player on BOTH teams gets SEPARATE stat entries', () => {
+    const home = generateBotTeam('Casa', 0.8);
+    const away = generateBotTeam('Fora', 0.8);
+    home.id = 'home_test';
+    away.id = 'away_test';
+    // Force the same legend (same id) into both starting XIs.
+    const shared = asCard(PLAYERS.find(p => p.position === 'ST')!, { chemistryScore: 3 });
+    home.players[10] = { ...shared };
+    away.players[10] = { ...shared };
+
+    const r = simulateMatch(home, away);
+    const homeKey = statKey(home.id, shared.id);
+    const awayKey = statKey(away.id, shared.id);
+
+    expect(homeKey).not.toBe(awayKey);
+    expect(r.playerStats![homeKey]).toBeDefined();
+    expect(r.playerStats![awayKey]).toBeDefined();
+    // Each instance is attributed to its own team — no copying across.
+    expect(r.playerStats![homeKey].teamId).toBe(home.id);
+    expect(r.playerStats![awayKey].teamId).toBe(away.id);
+
+    // Season stats for the same player on each team read independently.
+    const homeSeason = getPlayerSeasonStats(shared.id, home.id, [r]);
+    const awaySeason = getPlayerSeasonStats(shared.id, away.id, [r]);
+    expect(homeSeason.goals).toBe(r.playerStats![homeKey].goals);
+    expect(awaySeason.goals).toBe(r.playerStats![awayKey].goals);
   });
 });

@@ -23,6 +23,23 @@ import {
 export interface PlayerCard extends Player {
   chemistryScore: number; // 0-3
   isOOP: boolean;
+  // Per-MATCH unique stat key ("teamId::playerId"). The same player (same id) can
+  // appear on two teams (the pool is smaller than 36×11), so match stats must be
+  // keyed per instance, not by playerId alone. Set by setStatIds() before a sim.
+  statId?: string;
+}
+
+// Stamps every player on both teams with a per-instance stat key so a shared
+// player (e.g. the same legend on both sides) gets SEPARATE stats per team.
+export function setStatIds(home: Team, away: Team): void {
+  home.players.forEach(p => { (p as PlayerCard).statId = `${home.id}::${p.id}`; });
+  away.players.forEach(p => { (p as PlayerCard).statId = `${away.id}::${p.id}`; });
+}
+
+// Builds the same key from a (teamId, playerId) pair — for season-stat lookups
+// and event-derived stats where we only have ids.
+export function statKey(teamId: string, playerId: string): string {
+  return `${teamId}::${playerId}`;
 }
 
 export interface Team {
@@ -763,7 +780,7 @@ export function runMatchSimulation(
         if (randLuck < 0.15) {
           // Own Goal
           if (homeAttacks) homeGoals++; else awayGoals++;
-          if (playerStats[defender.id]) playerStats[defender.id].rating -= 0.8;
+          if (playerStats[defender.statId!]) playerStats[defender.statId!].rating -= 0.8;
           events.push({
             minute, type: 'goal',
             description: ownGoalDesc(defender.shortName, gk.shortName),
@@ -776,8 +793,8 @@ export function runMatchSimulation(
         } else if (randLuck < 0.30) {
           // Goalkeeper blunder
           if (homeAttacks) homeGoals++; else awayGoals++;
-          if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.2; }
-          if (playerStats[gk.id]) playerStats[gk.id].rating -= 1.2;
+          if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].rating += 1.2; }
+          if (playerStats[gk.statId!]) playerStats[gk.statId!].rating -= 1.2;
           events.push({
             minute, type: 'goal',
             description: frangoDesc(attacker.shortName, gk.shortName),
@@ -790,8 +807,8 @@ export function runMatchSimulation(
         } else if (randLuck < 0.50) {
           // Deflected goal
           if (homeAttacks) homeGoals++; else awayGoals++;
-          if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.2; }
-          if (playerStats[defender.id]) playerStats[defender.id].rating -= 0.3;
+          if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].rating += 1.2; }
+          if (playerStats[defender.statId!]) playerStats[defender.statId!].rating -= 0.3;
           events.push({
             minute, type: 'goal',
             description: deflectedDesc(attacker.shortName, defender.shortName),
@@ -804,7 +821,7 @@ export function runMatchSimulation(
         } else if (randLuck < 0.68) {
           // Long-range screamer
           if (homeAttacks) homeGoals++; else awayGoals++;
-          if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.6; }
+          if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].rating += 1.6; }
           events.push({
             minute, type: 'goal',
             description: screamedDesc(attacker.shortName, gk.shortName),
@@ -827,8 +844,8 @@ export function runMatchSimulation(
           const isPenGoal = Math.random() < 0.76;
           if (isPenGoal) {
             if (homeAttacks) homeGoals++; else awayGoals++;
-            if (playerStats[taker.id]) { playerStats[taker.id].goals++; playerStats[taker.id].rating += 1.0; }
-            if (playerStats[defender.id]) playerStats[defender.id].rating -= 0.2;
+            if (playerStats[taker.statId!]) { playerStats[taker.statId!].goals++; playerStats[taker.statId!].rating += 1.0; }
+            if (playerStats[defender.statId!]) playerStats[defender.statId!].rating -= 0.2;
             events.push({
               minute, type: 'goal',
               description: penaltyGoalDesc(taker.shortName, defender.shortName, gk.shortName),
@@ -839,8 +856,8 @@ export function runMatchSimulation(
             awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 15) : Math.min(100, awayMomentum + 15);
           } else {
             if (Math.random() < 0.5) {
-              if (playerStats[gk.id]) { playerStats[gk.id].saves++; playerStats[gk.id].rating += 0.8; }
-              if (playerStats[taker.id]) playerStats[taker.id].rating -= 0.5;
+              if (playerStats[gk.statId!]) { playerStats[gk.statId!].saves++; playerStats[gk.statId!].rating += 0.8; }
+              if (playerStats[taker.statId!]) playerStats[taker.statId!].rating -= 0.5;
               events.push({
                 minute, type: 'save',
                 description: penaltySaveDesc(gk.shortName, taker.shortName),
@@ -848,7 +865,7 @@ export function runMatchSimulation(
               });
               lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: taker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
             } else {
-              if (playerStats[taker.id]) playerStats[taker.id].rating -= 0.6;
+              if (playerStats[taker.statId!]) playerStats[taker.statId!].rating -= 0.6;
               events.push({
                 minute, type: 'miss',
                 description: penaltyMissDesc(taker.shortName),
@@ -862,7 +879,7 @@ export function runMatchSimulation(
 
         } else {
           // Woodwork
-          if (playerStats[attacker.id]) { playerStats[attacker.id].shots++; playerStats[attacker.id].rating += 0.1; }
+          if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].shots++; playerStats[attacker.statId!].rating += 0.1; }
           events.push({
             minute, type: 'miss',
             description: woodworkDesc(attacker.shortName, defender.shortName),
@@ -893,7 +910,7 @@ export function runMatchSimulation(
 
         if (atkScore > defScore) {
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
-          if (playerStats[attacker.id]) playerStats[attacker.id].shots++;
+          if (playerStats[attacker.statId!]) playerStats[attacker.statId!].shots++;
 
           const targetChance = atkShooting / (atkShooting + ON_TARGET_RESISTANCE);
           if (Math.random() < targetChance) {
@@ -908,18 +925,18 @@ export function runMatchSimulation(
               homeMomentum = homeAttacks ? Math.min(100, homeMomentum + GOAL_MOMENTUM_SWING) : Math.max(0, homeMomentum - GOAL_MOMENTUM_SWING);
               awayMomentum = homeAttacks ? Math.max(0, awayMomentum - GOAL_MOMENTUM_SWING) : Math.min(100, awayMomentum + GOAL_MOMENTUM_SWING);
 
-              if (playerStats[attacker.id]) { playerStats[attacker.id].goals++; playerStats[attacker.id].rating += 1.4; }
-              if (playerStats[gk.id]) playerStats[gk.id].rating -= 0.4;
+              if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].rating += 1.4; }
+              if (playerStats[gk.statId!]) playerStats[gk.statId!].rating -= 0.4;
               defendTeam.players.slice(0, 11).forEach(p => {
-                if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.id]) {
-                  playerStats[p.id].rating -= 0.1;
+                if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.statId!]) {
+                  playerStats[p.statId!].rating -= 0.1;
                 }
               });
 
               const assister = pickWeightedAssister(attackTeam, attacker.id, playerStats);
-              if (assister && playerStats[assister.id]) {
-                playerStats[assister.id].assists++;
-                playerStats[assister.id].rating += 0.8;
+              if (assister && playerStats[assister.statId!]) {
+                playerStats[assister.statId!].assists++;
+                playerStats[assister.statId!].rating += 0.8;
               }
 
               const atkGoals = homeAttacks ? homeGoals : awayGoals;
@@ -937,8 +954,8 @@ export function runMatchSimulation(
 
             } else {
               if (homeAttacks) matchStats.awaySaves++; else matchStats.homeSaves++;
-              if (playerStats[gk.id]) { playerStats[gk.id].saves++; playerStats[gk.id].rating += 0.4; }
-              if (playerStats[attacker.id]) playerStats[attacker.id].rating -= 0.1;
+              if (playerStats[gk.statId!]) { playerStats[gk.statId!].saves++; playerStats[gk.statId!].rating += 0.4; }
+              if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.1;
 
               const isCorner = Math.random() < 0.4;
               if (isCorner) { if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++; }
@@ -951,7 +968,7 @@ export function runMatchSimulation(
               lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
             }
           } else {
-            if (playerStats[attacker.id]) playerStats[attacker.id].rating -= 0.15;
+            if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.15;
             events.push({
               minute, type: 'miss',
               description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
@@ -960,8 +977,8 @@ export function runMatchSimulation(
             lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           }
         } else {
-          if (playerStats[defender.id]) { playerStats[defender.id].tackles++; playerStats[defender.id].rating += 0.35; }
-          if (playerStats[attacker.id]) playerStats[attacker.id].rating -= 0.15;
+          if (playerStats[defender.statId!]) { playerStats[defender.statId!].tackles++; playerStats[defender.statId!].rating += 0.35; }
+          if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.15;
           events.push({
             minute, type: 'duel',
             description: duelDesc(approach, defender.shortName, attacker.shortName),
@@ -1040,21 +1057,21 @@ export function runMatchSimulation(
         description: `🎯 Pênaltis! ${home.name} ${pRes.homeScore}-${pRes.awayScore} ${away.name}`,
         teamId: pRes.winner,
       });
-      home.players.slice(0, 5).forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.1; });
-      away.players.slice(0, 5).forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.1; });
+      home.players.slice(0, 5).forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating += 0.1; });
+      away.players.slice(0, 5).forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating += 0.1; });
     }
 
     // Clean sheet bonuses
     if (awayGoals === 0) {
       home.players.slice(0, 11).forEach(p => {
-        if (p.position === 'GK' && playerStats[p.id]) playerStats[p.id].rating += 0.8;
-        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.id]) playerStats[p.id].rating += 0.4;
+        if (p.position === 'GK' && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.8;
+        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.4;
       });
     }
     if (homeGoals === 0) {
       away.players.slice(0, 11).forEach(p => {
-        if (p.position === 'GK' && playerStats[p.id]) playerStats[p.id].rating += 0.8;
-        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.id]) playerStats[p.id].rating += 0.4;
+        if (p.position === 'GK' && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.8;
+        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.4;
       });
     }
 
@@ -1062,18 +1079,18 @@ export function runMatchSimulation(
     const homeStarters = home.players.slice(0, 11);
     const awayStarters = away.players.slice(0, 11);
     if (winner === home.id) {
-      homeStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
-      awayStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
+      homeStarters.forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating += 0.3; });
+      awayStarters.forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating -= 0.2; });
     } else if (winner === away.id) {
-      awayStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
-      homeStarters.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
+      awayStarters.forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating += 0.3; });
+      homeStarters.forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating -= 0.2; });
     }
 
     // Clamp and format ratings
     [...homeStarters, ...awayStarters].forEach(p => {
-      if (playerStats[p.id]) {
-        const finalR = Math.min(10.0, Math.max(3.0, playerStats[p.id].rating));
-        playerStats[p.id].rating = parseFloat(finalR.toFixed(1));
+      if (playerStats[p.statId!]) {
+        const finalR = Math.min(10.0, Math.max(3.0, playerStats[p.statId!].rating));
+        playerStats[p.statId!].rating = parseFloat(finalR.toFixed(1));
       }
     });
   }
@@ -1081,7 +1098,7 @@ export function runMatchSimulation(
   const allStarters = [...home.players.slice(0, 11), ...away.players.slice(0, 11)];
   const mvpId = allStarters.length > 0
     ? allStarters.reduce((best, p) =>
-        (playerStats[p.id]?.rating ?? 6.0) > (playerStats[best.id]?.rating ?? 6.0) ? p : best,
+        (playerStats[p.statId!]?.rating ?? 6.0) > (playerStats[best.statId!]?.rating ?? 6.0) ? p : best,
         allStarters[0]
       ).id
     : '';
@@ -1109,11 +1126,12 @@ export function simulateMatch(
   isKnockout: boolean = false,
   isFinal: boolean = false,
 ): MatchResult {
+  setStatIds(home, away);
   const playerStats: Record<string, PlayerMatchStat> = {};
-  
+
   const initStatsForTeam = (team: Team) => {
     team.players.slice(0, 11).forEach(p => {
-      playerStats[p.id] = {
+      playerStats[(p as PlayerCard).statId!] = {
         playerId: p.id,
         playerName: p.shortName,
         teamId: team.id,
@@ -1167,37 +1185,37 @@ export function simulateMatch(
 
   // Clean sheet bonuses
   if (ag === 0) home.players.slice(0, 11).forEach(p => {
-    if (!playerStats[p.id]) return;
-    if (p.position === 'GK') playerStats[p.id].rating += 0.8;
-    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) playerStats[p.id].rating += 0.4;
+    if (!playerStats[p.statId!]) return;
+    if (p.position === 'GK') playerStats[p.statId!].rating += 0.8;
+    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) playerStats[p.statId!].rating += 0.4;
   });
   if (hg === 0) away.players.slice(0, 11).forEach(p => {
-    if (!playerStats[p.id]) return;
-    if (p.position === 'GK') playerStats[p.id].rating += 0.8;
-    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) playerStats[p.id].rating += 0.4;
+    if (!playerStats[p.statId!]) return;
+    if (p.position === 'GK') playerStats[p.statId!].rating += 0.8;
+    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) playerStats[p.statId!].rating += 0.4;
   });
 
   // Win/loss adjustments
   const hs = home.players.slice(0, 11);
   const as_ = away.players.slice(0, 11);
   if (r90.winner === home.id) {
-    hs.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
-    as_.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
+    hs.forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating += 0.3; });
+    as_.forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating -= 0.2; });
   } else if (r90.winner === away.id) {
-    as_.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating += 0.3; });
-    hs.forEach(p => { if (playerStats[p.id]) playerStats[p.id].rating -= 0.2; });
+    as_.forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating += 0.3; });
+    hs.forEach(p => { if (playerStats[p.statId!]) playerStats[p.statId!].rating -= 0.2; });
   }
 
   // Clamp ratings and set MVP
   [...hs, ...as_].forEach(p => {
-    if (playerStats[p.id]) {
-      playerStats[p.id].rating = parseFloat(Math.min(10, Math.max(3, playerStats[p.id].rating)).toFixed(1));
+    if (playerStats[p.statId!]) {
+      playerStats[p.statId!].rating = parseFloat(Math.min(10, Math.max(3, playerStats[p.statId!].rating)).toFixed(1));
     }
   });
   const r90Starters = [...hs, ...as_];
   r90.mvp = r90Starters.length > 0
     ? r90Starters.reduce((best, p) =>
-        (playerStats[p.id]?.rating ?? 6) > (playerStats[best.id]?.rating ?? 6) ? p : best,
+        (playerStats[p.statId!]?.rating ?? 6) > (playerStats[best.statId!]?.rating ?? 6) ? p : best,
         r90Starters[0]
       ).id
     : '';
@@ -1217,11 +1235,12 @@ export function simulateRemainingMatch(
   isKnockout: boolean = false,
   isFinal: boolean = false,
 ): MatchResult {
+  setStatIds(home, away);
   const playerStats: Record<string, PlayerMatchStat> = {};
-  
+
   const initStatsForTeam = (team: Team) => {
     team.players.slice(0, 11).forEach(p => {
-      playerStats[p.id] = {
+      playerStats[p.statId!] = {
         playerId: p.id,
         playerName: p.shortName,
         teamId: team.id,
@@ -1240,47 +1259,36 @@ export function simulateRemainingMatch(
   initStatsForTeam(home);
   initStatsForTeam(away);
 
+  // Stat keys for an event's actor (on e.teamId) and its opponent (the other team).
+  const otherTeam = (teamId?: string) => (teamId === home.id ? away.id : home.id);
+  const actorKey = (e: MatchEvent, id?: string) => (e.teamId && id ? statKey(e.teamId, id) : undefined);
+  const oppKey = (e: MatchEvent, id?: string) => (id ? statKey(otherTeam(e.teamId), id) : undefined);
+
   // Parse existing events to pre-fill stats
   existingEvents.forEach(e => {
     if (e.type === 'goal') {
-      if (e.playerId && playerStats[e.playerId]) {
-        playerStats[e.playerId].goals++;
-        playerStats[e.playerId].rating += 1.4;
-      }
-      if (e.assisterId && playerStats[e.assisterId]) {
-        playerStats[e.assisterId].assists++;
-        playerStats[e.assisterId].rating += 0.8;
-      }
-      const gkId = e.opponentId; // goalkeeper could be opponentId
-      if (gkId && playerStats[gkId]) {
-        playerStats[gkId].rating -= 0.4;
-      }
+      const sk = actorKey(e, e.playerId);
+      if (sk && playerStats[sk]) { playerStats[sk].goals++; playerStats[sk].rating += 1.4; }
+      const ak = actorKey(e, e.assisterId);
+      if (ak && playerStats[ak]) { playerStats[ak].assists++; playerStats[ak].rating += 0.8; }
+      const gk = oppKey(e, e.opponentId); // goalkeeper is on the opposing team
+      if (gk && playerStats[gk]) playerStats[gk].rating -= 0.4;
     } else if (e.type === 'save') {
-      if (e.playerId && playerStats[e.playerId]) {
-        playerStats[e.playerId].saves++;
-        playerStats[e.playerId].rating += 0.4;
-      }
-      if (e.opponentId && playerStats[e.opponentId]) {
-        playerStats[e.opponentId].rating -= 0.1;
-      }
+      const sk = actorKey(e, e.playerId);
+      if (sk && playerStats[sk]) { playerStats[sk].saves++; playerStats[sk].rating += 0.4; }
+      const ok = oppKey(e, e.opponentId);
+      if (ok && playerStats[ok]) playerStats[ok].rating -= 0.1;
     } else if (e.type === 'miss') {
-      if (e.playerId && playerStats[e.playerId]) {
-        playerStats[e.playerId].shots++;
-        playerStats[e.playerId].rating -= 0.15;
-      }
+      const sk = actorKey(e, e.playerId);
+      if (sk && playerStats[sk]) { playerStats[sk].shots++; playerStats[sk].rating -= 0.15; }
     } else if (e.type === 'duel') {
-      if (e.playerId && playerStats[e.playerId]) {
-        playerStats[e.playerId].tackles++;
-        playerStats[e.playerId].rating += 0.35;
-      }
-      if (e.opponentId && playerStats[e.opponentId]) {
-        playerStats[e.opponentId].rating -= 0.15;
-      }
+      const sk = actorKey(e, e.playerId);
+      if (sk && playerStats[sk]) { playerStats[sk].tackles++; playerStats[sk].rating += 0.35; }
+      const ok = oppKey(e, e.opponentId);
+      if (ok && playerStats[ok]) playerStats[ok].rating -= 0.15;
     } else if (e.type === 'yellow') {
-      if (e.playerId && playerStats[e.playerId]) {
-        playerStats[e.playerId].yellowCards++;
-        playerStats[e.playerId].rating -= 0.5;
-      }
+      const sk = actorKey(e, e.playerId);
+      if (sk && playerStats[sk]) { playerStats[sk].yellowCards++; playerStats[sk].rating -= 0.5; }
     }
   });
 
@@ -2286,9 +2294,11 @@ export function getPlayerSeasonStats(
   };
 
   for (const r of results) {
-    if (r.playerStats && r.playerStats[playerId]) {
-      const ps = r.playerStats[playerId];
-      if (ps.teamId === teamId) {
+    // Match stats are keyed by team+player, so this never picks up a same-named
+    // player from the OTHER team.
+    const ps = r.playerStats?.[statKey(teamId, playerId)];
+    if (ps) {
+      {
         stats.played++;
         stats.goals += ps.goals;
         stats.assists += ps.assists;

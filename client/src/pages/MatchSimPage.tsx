@@ -8,7 +8,7 @@ import {
   Team, MatchResult, MatchEvent, simulateMatch,
   getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
-  getPenaltyTaker, getPenaltyOrder,
+  getPenaltyTaker, getPenaltyOrder, setStatIds, statKey,
   GK_SAVE_EDGE, ON_TARGET_RESISTANCE, MATCH_NOISE,
 } from '../lib/gameEngine';
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';
@@ -80,14 +80,18 @@ export default function MatchSimPage() {
 
   // Dynamic player ratings and match statistics: single source of truth
   const [playerMatchStats, setPlayerMatchStats] = useState<Record<string, PlayerMatchStat>>(() => {
-    // In replay mode, show the authoritative final ratings from the server result.
+    // Stamp per-instance stat keys so a player who happens to be on BOTH teams
+    // (the pool is smaller than 36×11) gets separate stats per side.
+    setStatIds(initialHome, initialAway);
+    // In replay mode, show the authoritative final ratings from the server result
+    // (already keyed by teamId::playerId by the engine).
     if (isReplay && replayResult?.playerStats) {
       return { ...replayResult.playerStats };
     }
     const initial: Record<string, PlayerMatchStat> = {};
     const initStatsForTeam = (team: Team) => {
       team.players.slice(0, 11).forEach(p => {
-        initial[p.id] = {
+        initial[p.statId!] = {
           playerId: p.id,
           playerName: p.shortName,
           teamId: team.id,
@@ -280,7 +284,7 @@ export default function MatchSimPage() {
     let awayScoreDelta = 0;
     let goalAlert: { teamName: string; scorer: string } | undefined;
     let momentumShift = 0;
-    const playerStatUpdates: { playerId: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
+    const playerStatUpdates: { statKey: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
     const statIncrements: (keyof MatchResult['stats'])[] = [];
     const eventsToPush: MatchEvent[] = [];
     let messageStage3 = "";
@@ -296,7 +300,7 @@ export default function MatchSimPage() {
         const newHG = homeScore + (homeAttacks ? 1 : 0);
         const newAG = awayScore + (homeAttacks ? 0 : 1);
         goalAlert = { teamName: attackTeam.name, scorer: 'Gol Contra' };
-        playerStatUpdates.push({ playerId: defender.id, updateFn: s => { s.rating -= 0.8; } });
+        playerStatUpdates.push({ statKey: defender.statId!, updateFn: s => { s.rating -= 0.8; } });
         eventsToPush.push({
           minute: nextMin, type: 'goal',
           description: ownGoalDesc(defender.shortName, gk.shortName),
@@ -311,8 +315,8 @@ export default function MatchSimPage() {
         const newAG = awayScore + (homeAttacks ? 0 : 1);
         goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
         playerStatUpdates.push(
-          { playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.2; } },
-          { playerId: gk.id, updateFn: s => { s.rating -= 1.2; } }
+          { statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.2; } },
+          { statKey: gk.statId!, updateFn: s => { s.rating -= 1.2; } }
         );
         eventsToPush.push({
           minute: nextMin, type: 'goal',
@@ -328,8 +332,8 @@ export default function MatchSimPage() {
         const newAG = awayScore + (homeAttacks ? 0 : 1);
         goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
         playerStatUpdates.push(
-          { playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.2; } },
-          { playerId: defender.id, updateFn: s => { s.rating -= 0.3; } }
+          { statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.2; } },
+          { statKey: defender.statId!, updateFn: s => { s.rating -= 0.3; } }
         );
         eventsToPush.push({
           minute: nextMin, type: 'goal',
@@ -344,7 +348,7 @@ export default function MatchSimPage() {
         const newHG = homeScore + (homeAttacks ? 1 : 0);
         const newAG = awayScore + (homeAttacks ? 0 : 1);
         goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
-        playerStatUpdates.push({ playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.6; } });
+        playerStatUpdates.push({ statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.6; } });
         eventsToPush.push({
           minute: nextMin, type: 'goal',
           description: screamedDesc(attacker.shortName, gk.shortName),
@@ -362,8 +366,8 @@ export default function MatchSimPage() {
           const newAG = awayScore + (homeAttacks ? 0 : 1);
           goalAlert = { teamName: attackTeam.name, scorer: taker.shortName };
           playerStatUpdates.push(
-            { playerId: taker.id, updateFn: s => { s.goals++; s.rating += 1.0; } },
-            { playerId: defender.id, updateFn: s => { s.rating -= 0.2; } }
+            { statKey: taker.statId!, updateFn: s => { s.goals++; s.rating += 1.0; } },
+            { statKey: defender.statId!, updateFn: s => { s.rating -= 0.2; } }
           );
           eventsToPush.push({
             minute: nextMin, type: 'goal',
@@ -378,8 +382,8 @@ export default function MatchSimPage() {
             isSaveResult = true;
             statIncrements.push(homeAttacks ? 'awaySaves' : 'homeSaves');
             playerStatUpdates.push(
-              { playerId: gk.id, updateFn: s => { s.saves++; s.rating += 0.8; } },
-              { playerId: taker.id, updateFn: s => { s.rating -= 0.5; } }
+              { statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.8; } },
+              { statKey: taker.statId!, updateFn: s => { s.rating -= 0.5; } }
             );
             eventsToPush.push({
               minute: nextMin, type: 'save',
@@ -389,7 +393,7 @@ export default function MatchSimPage() {
             momentumShift = homeAttacks ? -8 : 8;
             messageStage3 = saveCelebMsg(gk.shortName, taker.shortName);
           } else {
-            playerStatUpdates.push({ playerId: taker.id, updateFn: s => { s.rating -= 0.6; } });
+            playerStatUpdates.push({ statKey: taker.statId!, updateFn: s => { s.rating -= 0.6; } });
             eventsToPush.push({
               minute: nextMin, type: 'miss',
               description: penaltyMissDesc(taker.shortName),
@@ -400,7 +404,7 @@ export default function MatchSimPage() {
           }
         }
       } else {
-        playerStatUpdates.push({ playerId: attacker.id, updateFn: s => { s.shots++; s.rating += 0.1; } });
+        playerStatUpdates.push({ statKey: attacker.statId!, updateFn: s => { s.shots++; s.rating += 0.1; } });
         eventsToPush.push({
           minute: nextMin, type: 'miss',
           description: woodworkDesc(attacker.shortName, defender.shortName),
@@ -450,7 +454,7 @@ export default function MatchSimPage() {
             const assister = pickWeightedAssister(attackTeam, attacker.id);
             const isImmortal = attacker.rarity === 'immortal';
             if (assister) {
-              playerStatUpdates.push({ playerId: assister.id, updateFn: s => { s.assists++; s.rating += 0.8; } });
+              playerStatUpdates.push({ statKey: assister.statId!, updateFn: s => { s.assists++; s.rating += 0.8; } });
             }
 
             const atkGoals = homeAttacks ? newHG : newAG;
@@ -465,13 +469,13 @@ export default function MatchSimPage() {
             });
 
             playerStatUpdates.push(
-              { playerId: attacker.id, updateFn: s => { s.goals++; s.rating += 1.4; } },
-              { playerId: gk.id, updateFn: s => { s.rating -= 0.4; } },
-              { playerId: defender.id, updateFn: s => { s.rating -= 0.2; } }
+              { statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.4; } },
+              { statKey: gk.statId!, updateFn: s => { s.rating -= 0.4; } },
+              { statKey: defender.statId!, updateFn: s => { s.rating -= 0.2; } }
             );
             defendTeam.players.slice(0, 11).forEach(p => {
               if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && p.id !== defender.id) {
-                playerStatUpdates.push({ playerId: p.id, updateFn: s => { s.rating -= 0.1; } });
+                playerStatUpdates.push({ statKey: p.statId!, updateFn: s => { s.rating -= 0.1; } });
               }
             });
 
@@ -490,8 +494,8 @@ export default function MatchSimPage() {
               teamId: defendTeam.id, playerId: gk.id, opponentId: attacker.id,
             });
             playerStatUpdates.push(
-              { playerId: gk.id, updateFn: s => { s.saves++; s.rating += 0.4; } },
-              { playerId: attacker.id, updateFn: s => { s.rating -= 0.1; } }
+              { statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.4; } },
+              { statKey: attacker.statId!, updateFn: s => { s.rating -= 0.1; } }
             );
             momentumShift = homeAttacks ? -8 : 8;
             messageStage3 = saveCelebMsg(gk.shortName, attacker.shortName);
@@ -502,14 +506,14 @@ export default function MatchSimPage() {
             description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
             teamId: attackTeam.id, playerId: attacker.id,
           });
-          playerStatUpdates.push({ playerId: attacker.id, updateFn: s => { s.shots++; s.rating -= 0.15; } });
+          playerStatUpdates.push({ statKey: attacker.statId!, updateFn: s => { s.shots++; s.rating -= 0.15; } });
           momentumShift = homeAttacks ? -3 : 3;
           messageStage3 = missCelebMsg(attacker.shortName);
         }
       } else {
         playerStatUpdates.push(
-          { playerId: defender.id, updateFn: s => { s.tackles++; s.rating += 0.35; } },
-          { playerId: attacker.id, updateFn: s => { s.rating -= 0.15; } }
+          { statKey: defender.statId!, updateFn: s => { s.tackles++; s.rating += 0.35; } },
+          { statKey: attacker.statId!, updateFn: s => { s.rating -= 0.15; } }
         );
         eventsToPush.push({
           minute: nextMin, type: 'duel',
@@ -621,10 +625,13 @@ export default function MatchSimPage() {
       if (isKeyEvent) {
         const result = simulateKeyEvent(nextMin, homeAttacks);
 
-        // Determine if this event deserves suspense animation
-        const firstEvent = result.eventsToPush[0];
-        const isSuspenseWorthy = result.isGoal ||
-          (firstEvent && (firstEvent.type === 'save' || firstEvent.type === 'miss'));
+        // Suspense applies to ANY shot outcome (goal / save / miss), wherever it
+        // sits in eventsToPush. The normal play pushes a 'momentum' build-up event
+        // first, which used to hide saves/misses — so every danger sequence ended
+        // in a goal, spoiling the suspense. Now defenses and misses build tension too.
+        const isSuspenseWorthy = result.eventsToPush.some(
+          e => e.type === 'goal' || e.type === 'save' || e.type === 'miss'
+        );
 
         if (isSuspenseWorthy) {
           setIsPlaying(false);
@@ -653,7 +660,7 @@ export default function MatchSimPage() {
         } else {
           // Silent resolution
           result.playerStatUpdates.forEach(update => {
-            adjustPlayerStat(update.playerId, update.updateFn);
+            adjustPlayerStat(update.statKey, update.updateFn);
           });
           result.statIncrements.forEach(key => {
             incrementStat(key);
@@ -715,7 +722,7 @@ export default function MatchSimPage() {
             playerId: playerA.id,
           };
           setEvents(prev => [...prev, flowEvent]);
-          adjustPlayerStat(playerA.id, s => { s.rating += 0.1; });
+          adjustPlayerStat(playerA.statId!, s => { s.rating += 0.1; });
 
           setMomentum(prev => {
             const shift = homePossesses ? 2 : -2;
@@ -786,7 +793,7 @@ export default function MatchSimPage() {
 
           // Apply pre-simulated player stats
           result.playerStatUpdates.forEach((update: any) => {
-            adjustPlayerStat(update.playerId, update.updateFn);
+            adjustPlayerStat(update.statKey, update.updateFn);
           });
 
           // Apply pre-simulated team stats
@@ -1209,8 +1216,8 @@ export default function MatchSimPage() {
     });
 
     const sorted = [...allPlayers].sort((a, b) => {
-      const rA = updatedStats[a.id]?.rating ?? 6.0;
-      const rB = updatedStats[b.id]?.rating ?? 6.0;
+      const rA = updatedStats[a.statId!]?.rating ?? 6.0;
+      const rB = updatedStats[b.statId!]?.rating ?? 6.0;
       return rB - rA;
     });
     const mvpId = sorted[0]?.id || 'messi';
@@ -1284,7 +1291,7 @@ export default function MatchSimPage() {
     const ps: Record<string, PlayerMatchStat> = {};
     const initTeam = (team: Team) => {
       team.players.slice(0, 11).forEach(p => {
-        ps[p.id] = {
+        ps[p.statId!] = {
           playerId: p.id, playerName: p.shortName, teamId: team.id, rating: 6.0,
           goals: 0, assists: 0, shots: 0, tackles: 0, saves: 0, fouls: 0, yellowCards: 0, redCards: 0,
         };
@@ -1292,6 +1299,10 @@ export default function MatchSimPage() {
     };
     initTeam(homeTeam);
     initTeam(awayTeam);
+    // Event ids → per-team stat keys (actor is on e.teamId; opponent on the other).
+    const otherOf = (teamId?: string) => (teamId === replayResult.homeTeamId ? replayResult.awayTeamId : replayResult.homeTeamId);
+    const aKey = (e: MatchEvent, id?: string) => (e.teamId && id ? statKey(e.teamId, id) : undefined);
+    const oKey = (e: MatchEvent, id?: string) => (id ? statKey(otherOf(e.teamId), id) : undefined);
 
     const panel = {
       homePos: 50, awayPos: 50, homeShots: 0, awayShots: 0,
@@ -1302,29 +1313,32 @@ export default function MatchSimPage() {
     const homeId = replayResult.homeTeamId;
     for (const e of events) {
       const isHome = e.teamId === homeId;
+      const ak = aKey(e, e.playerId);
+      const asK = aKey(e, e.assisterId);
+      const ok = oKey(e, e.opponentId);
       if (e.type === 'goal') {
-        if (e.playerId && ps[e.playerId]) { ps[e.playerId].goals++; ps[e.playerId].rating += 1.4; }
-        if (e.assisterId && ps[e.assisterId]) { ps[e.assisterId].assists++; ps[e.assisterId].rating += 0.8; }
-        if (e.opponentId && ps[e.opponentId]) ps[e.opponentId].rating -= 0.4;
+        if (ak && ps[ak]) { ps[ak].goals++; ps[ak].rating += 1.4; }
+        if (asK && ps[asK]) { ps[asK].assists++; ps[asK].rating += 0.8; }
+        if (ok && ps[ok]) ps[ok].rating -= 0.4;
         if (isHome) { panel.homeShots++; panel.homeShotsOnTarget++; } else { panel.awayShots++; panel.awayShotsOnTarget++; }
       } else if (e.type === 'save') {
-        if (e.playerId && ps[e.playerId]) { ps[e.playerId].saves++; ps[e.playerId].rating += 0.4; }
-        if (e.opponentId && ps[e.opponentId]) ps[e.opponentId].rating -= 0.1;
+        if (ak && ps[ak]) { ps[ak].saves++; ps[ak].rating += 0.4; }
+        if (ok && ps[ok]) ps[ok].rating -= 0.1;
         // the shot belongs to the attacking (other) team
         if (isHome) { panel.homeSaves++; panel.awayShots++; panel.awayShotsOnTarget++; }
         else { panel.awaySaves++; panel.homeShots++; panel.homeShotsOnTarget++; }
         if (e.description?.includes('Escanteio')) { if (isHome) panel.awayCorners++; else panel.homeCorners++; }
       } else if (e.type === 'miss') {
-        if (e.playerId && ps[e.playerId]) { ps[e.playerId].shots++; ps[e.playerId].rating -= 0.15; }
+        if (ak && ps[ak]) { ps[ak].shots++; ps[ak].rating -= 0.15; }
         if (isHome) panel.homeShots++; else panel.awayShots++;
       } else if (e.type === 'duel') {
-        if (e.playerId && ps[e.playerId]) { ps[e.playerId].tackles++; ps[e.playerId].rating += 0.35; }
-        if (e.opponentId && ps[e.opponentId]) ps[e.opponentId].rating -= 0.15;
+        if (ak && ps[ak]) { ps[ak].tackles++; ps[ak].rating += 0.35; }
+        if (ok && ps[ok]) ps[ok].rating -= 0.15;
       } else if (e.type === 'yellow') {
-        if (e.playerId && ps[e.playerId]) { ps[e.playerId].yellowCards++; ps[e.playerId].rating -= 0.5; ps[e.playerId].fouls++; }
+        if (ak && ps[ak]) { ps[ak].yellowCards++; ps[ak].rating -= 0.5; ps[ak].fouls++; }
         if (isHome) panel.homeFouls++; else panel.awayFouls++;
       } else if (e.type === 'foul') {
-        if (e.playerId && ps[e.playerId]) { ps[e.playerId].fouls++; ps[e.playerId].rating -= 0.1; }
+        if (ak && ps[ak]) { ps[ak].fouls++; ps[ak].rating -= 0.1; }
         if (isHome) panel.homeFouls++; else panel.awayFouls++;
       }
     }
@@ -1855,8 +1869,8 @@ export default function MatchSimPage() {
 
               <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
                 {(squadModal === 'mine' ? myTeam : oppTeam).players.map(p => {
-                  const st = getDisplayStat(p.id);
-                  return renderSquadRow(p, getDisplayRating(p.id), st?.goals ?? 0, st?.assists ?? 0);
+                  const st = getDisplayStat(p.statId!);
+                  return renderSquadRow(p, getDisplayRating(p.statId!), st?.goals ?? 0, st?.assists ?? 0);
                 })}
               </div>
             </motion.div>
