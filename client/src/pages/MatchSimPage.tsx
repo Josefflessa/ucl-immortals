@@ -876,62 +876,74 @@ export default function MatchSimPage() {
         // Separate goal events from non-goal events. Non-goal events (yellow cards,
         // saves, etc.) are shown immediately. Goal events trigger the 3-stage danger
         // play sequence so knockouts get the same suspense as the local sim.
-        const goalEvs = evs.filter(e => e.type === 'goal');
-        const nonGoalEvs = evs.filter(e => e.type !== 'goal');
+        // Shot outcomes (goal / save / miss) get the 3-stage suspense — you should
+        // NOT know if it's a goal until the reveal. Everything else (build-up, duels,
+        // fouls, cards) shows immediately.
+        const shotEvs = evs.filter(e => e.type === 'goal' || e.type === 'save' || e.type === 'miss');
+        const otherEvs = evs.filter(e => e.type !== 'goal' && e.type !== 'save' && e.type !== 'miss');
 
-        if (nonGoalEvs.length > 0) {
-          setEvents(prev => [...prev, ...nonGoalEvs]);
-          // Shift momentum on non-goal events too, so the bar stays alive in online
-          // (not only on goals). Direction follows the engine's event teamId convention.
+        if (otherEvs.length > 0) {
+          setEvents(prev => [...prev, ...otherEvs]);
           let delta = 0;
-          for (const e of nonGoalEvs) {
+          for (const e of otherEvs) {
             const isHome = e.teamId === homeTeam.id;
-            if (e.type === 'miss' || e.type === 'momentum') delta += isHome ? 6 : -6;       // attacking side
-            else if (e.type === 'save') delta += isHome ? -6 : 6;                            // teamId = keeper's side
-            else if (e.type === 'duel') delta += isHome ? 5 : -5;                            // teamId = defender who won
+            if (e.type === 'momentum') delta += isHome ? 6 : -6;
+            else if (e.type === 'duel') delta += isHome ? 5 : -5;
           }
-          setMomentum(m => {
+          if (delta !== 0) setMomentum(m => {
             const next = Math.min(95, Math.max(5, m + delta));
             setMomentumHistory(h => [...h, next]);
             return next;
           });
         }
 
-        if (goalEvs.length > 0) {
-          const lastGoal = [...goalEvs].reverse()[0];
-          const scoringTeam = lastGoal.teamId === homeTeam.id ? homeTeam : awayTeam;
-          const defTeam = lastGoal.teamId === homeTeam.id ? awayTeam : homeTeam;
-          const scorerName = lastGoal.playerId
-            ? (scoringTeam.players.find(p => p.id === lastGoal.playerId)?.shortName
-                ?? (lastGoal.description.includes('Contra') ? 'Gol Contra' : 'Gol'))
-            : (lastGoal.description.includes('Contra') ? 'Gol Contra' : 'Gol');
-          const defenderName = defTeam.players.find(p => p.position === 'GK' || p.position === 'CB')?.shortName ?? defTeam.name;
-          const homeDelta = goalEvs.filter(e => e.teamId === homeTeam.id).length;
-          const awayDelta = goalEvs.filter(e => e.teamId === awayTeam.id).length;
+        if (shotEvs.length > 0) {
+          const decisive = shotEvs[shotEvs.length - 1];
+          const isGoalOutcome = shotEvs.some(e => e.type === 'goal');
+          const isSaveOutcome = !isGoalOutcome && decisive.type === 'save';
+          // For a save the event teamId is the keeper's (defending) side; the attacker
+          // is on the other team. For goals/misses teamId is the attacking team.
+          const atkId = isSaveOutcome ? (decisive.teamId === homeTeam.id ? awayTeam.id : homeTeam.id) : decisive.teamId;
+          const atkTeam = atkId === homeTeam.id ? homeTeam : awayTeam;
+          const defTeam = atkTeam.id === homeTeam.id ? awayTeam : homeTeam;
+          const isOwnGoal = isGoalOutcome && decisive.description?.includes('Contra');
+          const attackerName = isOwnGoal
+            ? 'Gol Contra'
+            : isSaveOutcome
+              ? (atkTeam.players.find(p => p.id === decisive.opponentId)?.shortName ?? 'Atacante')
+              : (atkTeam.players.find(p => p.id === decisive.playerId)?.shortName ?? 'Atacante');
+          const gkName = defTeam.players.find(p => p.position === 'GK')?.shortName ?? defTeam.name;
+          const homeDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === homeTeam.id).length;
+          const awayDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === awayTeam.id).length;
+          const atkIsHome = atkId === homeTeam.id;
+          const momentumShift = isGoalOutcome ? (atkIsHome ? 22 : -22) : isSaveOutcome ? (atkIsHome ? -8 : 8) : (atkIsHome ? -3 : 3);
+          const messageStage3 = isGoalOutcome
+            ? `🔥 GOOOOL! ${attackerName} balança as redes! ${atkTeam.name.toUpperCase()} MARCA!`
+            : isSaveOutcome ? saveCelebMsg(gkName, attackerName) : missCelebMsg(attackerName);
 
           pendingReplayGoals.current = {
-            goalEvents: goalEvs,
+            goalEvents: shotEvs,
             homeGoalDelta: homeDelta,
             awayGoalDelta: awayDelta,
-            goalAlert: { teamName: scoringTeam.name, scorer: scorerName },
-            momentumShift: lastGoal.teamId === homeTeam.id ? 22 : -22,
-            messageStage3: `🔥 GOOOOL! ${scorerName} balança as redes! ${scoringTeam.name.toUpperCase()} MARCA!`,
+            goalAlert: isGoalOutcome ? { teamName: atkTeam.name, scorer: attackerName } : null,
+            momentumShift,
+            messageStage3,
           };
 
           setIsPlaying(false);
-          const replayApproach = selectApproach(scoringTeam.playStyle ?? 'balanced');
-          const replayBuildUp = buildUpDesc(replayApproach, scorerName, defenderName, defenderName, scoringTeam.name);
+          const replayApproach = selectApproach(atkTeam.playStyle ?? 'balanced');
+          const replayBuildUp = buildUpDesc(replayApproach, attackerName, gkName, gkName, atkTeam.name);
           setDangerState({
             stage: 1,
-            teamId: lastGoal.teamId,
-            attacker: scorerName,
-            defender: defenderName,
-            type: 'goal',
-            message: dangerStage1Msg(replayApproach, scoringTeam.name, scorerName, defenderName, true, false),
+            teamId: atkId,
+            attacker: attackerName,
+            defender: gkName,
+            type: 'attack',
+            message: dangerStage1Msg(replayApproach, atkTeam.name, attackerName, gkName, isGoalOutcome, isSaveOutcome),
             approach: replayApproach,
             buildUp: replayBuildUp,
           });
-        } else if (nonGoalEvs.length === 0) {
+        } else if (otherEvs.length === 0) {
           setMomentumHistory(h => [...h, momentum]);
         }
       } else {
