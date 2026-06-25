@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { PLAYERS } from './gameData';
 import {
-  TRAITS, TRAIT_MAP, ROLLABLE_TRAITS,
+  TRAITS, TRAIT_MAP, TRAIT_POOLS, rollPlayerTraits, positionGroup,
   getTraitAttributeBonus, getGoalkeeperTraitBonus, getPenaltyComposureBonus,
   hasOopRelief, traitEffectLabel,
 } from './traits';
@@ -19,9 +19,38 @@ describe('trait catalog integrity', () => {
     expect(missing).toEqual([]);
   });
 
-  it('every rollable trait exists in the catalog', () => {
-    const missing = ROLLABLE_TRAITS.filter(t => !TRAIT_MAP[t]);
+  it('every trait in the roll pools exists in the catalog', () => {
+    const missing = Object.values(TRAIT_POOLS).flat().filter(t => !TRAIT_MAP[t]);
     expect(missing).toEqual([]);
+  });
+
+  it('has no mechanical duplicates (same exact effect twice)', () => {
+    const sig = (t: typeof TRAITS[number]) => JSON.stringify({
+      b: (t.boosts ?? []).map(x => `${x.attribute}${x.value}${x.condition ?? ''}`).sort(),
+      gk: t.goalkeeperSave ?? 0, pen: t.penaltyComposure ?? 0, oop: t.oopRelief ?? false,
+    });
+    const seen = new Map<string, string>();
+    const dups: string[] = [];
+    for (const t of TRAITS) {
+      const s = sig(t);
+      if (seen.has(s)) dups.push(`${t.id} == ${seen.get(s)}`); else seen.set(s, t.id);
+    }
+    expect(dups).toEqual([]);
+  });
+
+  it('rolls 1–3 valid, non-duplicate, position-appropriate traits', () => {
+    for (const pos of ['GK', 'CB', 'CM', 'ST']) {
+      for (let i = 0; i < 60; i++) {
+        const rolled = rollPlayerTraits(pos, 'immortal');
+        expect(rolled.length).toBeGreaterThanOrEqual(1);
+        expect(rolled.length).toBeLessThanOrEqual(3);
+        expect(new Set(rolled).size).toBe(rolled.length);
+        rolled.forEach(id => {
+          expect(TRAIT_MAP[id]).toBeTruthy();
+          expect(TRAIT_POOLS[positionGroup(pos)]).toContain(id);
+        });
+      }
+    }
   });
 
   it('every trait produces a readable effect label', () => {

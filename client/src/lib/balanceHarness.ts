@@ -7,6 +7,12 @@ import {
   generateLeagueFixtures, computeStandings, createKnockoutBracket,
   playActiveKnockoutLeg, advanceKnockoutBracket,
 } from './gameEngine';
+// Same squad, only the formation id changes — so formationImpact measures the
+// tactical PROFILE of the shape in isolation (attack/defense/control/width), without
+// the roster-fit / out-of-position confound (that is what chemistryImpact covers).
+function withFormation(base: Team, formationId: string, id: string): Team {
+  return { ...base, id, formationId };
+}
 
 // ============================================================
 // MATCH-LEVEL AGGREGATE
@@ -146,26 +152,327 @@ export function strengthCurve(
 // ============================================================
 // TACTIC IMPACT — win rate of each tactic vs a balanced side of equal strength
 // ============================================================
-export function tacticImpact(tactics: string[], n: number, strength = 0.8) {
+export function tacticImpact(tactics: string[], n: number, ownStrength = 0.8, oppStrength = ownStrength) {
   return tactics.map((t) => {
-    let wins = 0, draws = 0, goalsFor = 0, goalsAgainst = 0;
+    let wins = 0, draws = 0, losses = 0, goalsFor = 0, goalsAgainst = 0;
     for (let i = 0; i < n; i++) {
-      const home: Team = { ...generateBotTeam('TÁTICO', strength), playStyle: t };
-      const away: Team = { ...generateBotTeam('NEUTRO', strength), playStyle: 'balanced' };
+      const home: Team = { ...generateBotTeam('TÁTICO', ownStrength), playStyle: t };
+      const away: Team = { ...generateBotTeam('NEUTRO', oppStrength), playStyle: 'balanced' };
       const r = simulateMatch(home, away);
       goalsFor += r.homeGoals;
       goalsAgainst += r.awayGoals;
       if (r.winner === home.id) wins++;
       else if (r.winner === null) draws++;
+      else losses++;
     }
     return {
       tactic: t,
       winPct: wins / n,
       drawPct: draws / n,
+      lossPct: losses / n,
+      pointsPerGame: (wins * 3 + draws) / n,   // a tactic's RESULT value in this scenario
       goalsForAvg: goalsFor / n,
       goalsAgainstAvg: goalsAgainst / n,
     };
   });
+}
+
+// ============================================================
+// FORMATION IMPACT — same SQUAD, formation F vs the same squad as 4-3-3
+// (isolates the formation: only the shape differs)
+// ============================================================
+export function formationImpact(formations: string[], n: number, strength = 0.8) {
+  return formations.map((f) => {
+    let wins = 0, draws = 0, gf = 0, ga = 0;
+    for (let i = 0; i < n; i++) {
+      const base = generateBotTeam('BASE', strength);
+      const home = withFormation(base, f, 'home_f');
+      const away = withFormation(base, '4-3-3', 'away_f');
+      const r = simulateMatch(home, away);
+      gf += r.homeGoals; ga += r.awayGoals;
+      if (r.winner === home.id) wins++;
+      else if (r.winner === null) draws++;
+    }
+    return { formation: f, winPct: wins / n, drawPct: draws / n, goalsForAvg: gf / n, goalsAgainstAvg: ga / n };
+  });
+}
+
+// ============================================================
+// COACH IMPACT — same SQUAD with coach C vs the same squad with a reference coach
+// (isolates the coach: only the manager differs)
+// ============================================================
+export function coachImpact(coaches: string[], n: number, reference = 'ancelotti', strength = 0.8) {
+  return coaches.map((c) => {
+    let wins = 0, draws = 0, gf = 0, ga = 0;
+    for (let i = 0; i < n; i++) {
+      const base = generateBotTeam('BASE', strength);
+      const home: Team = { ...base, id: 'home_c', coachId: c };
+      const away: Team = { ...base, id: 'away_c', coachId: reference };
+      const r = simulateMatch(home, away);
+      gf += r.homeGoals; ga += r.awayGoals;
+      if (r.winner === home.id) wins++;
+      else if (r.winner === null) draws++;
+    }
+    return { coach: c, winPctVsRef: wins / n, drawPct: draws / n, goalsForAvg: gf / n, goalsAgainstAvg: ga / n };
+  });
+}
+
+// ============================================================
+// CHEMISTRY IMPACT — same SQUAD with HIGH chemistry vs LOW chemistry
+// (isolates chemistry: individual chem score + team total + OOP)
+// ============================================================
+export function chemistryImpact(n: number, strength = 0.8) {
+  let highWins = 0, draws = 0, lowWins = 0, highGoals = 0, lowGoals = 0;
+  for (let i = 0; i < n; i++) {
+    const base = generateBotTeam('BASE', strength);
+    const high: Team = {
+      ...base, id: 'home_chem', totalChemistry: 95,
+      players: base.players.map((p, idx) => ({ ...p, chemistryScore: idx < 11 ? 3 : 0, isOOP: false })),
+    };
+    const low: Team = {
+      ...base, id: 'away_chem', totalChemistry: 20,
+      players: base.players.map((p, idx) => ({ ...p, chemistryScore: 0, isOOP: idx < 11 && idx % 3 === 0 })),
+    };
+    const r = simulateMatch(high, low);
+    highGoals += r.homeGoals; lowGoals += r.awayGoals;
+    if (r.winner === high.id) highWins++;
+    else if (r.winner === null) draws++;
+    else lowWins++;
+  }
+  return { highChemWinPct: highWins / n, drawPct: draws / n, lowChemWinPct: lowWins / n, highGoalsAvg: highGoals / n, lowGoalsAvg: lowGoals / n };
+}
+
+// ============================================================
+// BOT ROSTER — variety + difficulty scaling
+// ============================================================
+export function botRosterStats(difficulty: number, teams: number) {
+  const used = new Set<string>();
+  let overallSum = 0, slots = 0;
+  for (let i = 0; i < teams; i++) {
+    const xi = generateBotTeam('B', difficulty).players.slice(0, 11);
+    xi.forEach(p => used.add(p.id));
+    overallSum += xi.reduce((s, p) => s + p.overall, 0);
+    slots += xi.length;
+  }
+  return { distinctPlayers: used.size, avgOverall: overallSum / slots, slots };
+}
+
+// Win rate of a stronger-difficulty bot vs a weaker one (does difficulty matter?).
+export function botDifficultyWinRate(strongDiff: number, weakDiff: number, n: number): number {
+  const agg = aggregateMatches(
+    () => generateBotTeam('FORTE', strongDiff),
+    () => generateBotTeam('FRACO', weakDiff),
+    n,
+  );
+  return agg.homeWins / n;
+}
+
+// ============================================================
+// PLAYER RATINGS & MATCH-STAT PROFILE — deep per-player / per-event read used to
+// validate (and tune) the rating system and confirm match statistics are realistic.
+// ============================================================
+type PosBucket = 'GK' | 'DEF' | 'MID' | 'FWD';
+const POS_BUCKET: Record<string, PosBucket> = {
+  GK: 'GK',
+  CB: 'DEF', LB: 'DEF', RB: 'DEF', LWB: 'DEF', RWB: 'DEF',
+  CDM: 'MID', CM: 'MID', CAM: 'MID', LM: 'MID', RM: 'MID',
+  ST: 'FWD', CF: 'FWD', LW: 'FWD', RW: 'FWD',
+};
+
+function pctl(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.round((p / 100) * (sorted.length - 1))));
+  return sorted[idx];
+}
+const mean = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+
+export interface PosProfile {
+  n: number; avgRating: number; p10: number; p50: number; p90: number; min: number; max: number;
+  goals: number; assists: number; keyPasses: number; shots: number; sot: number;
+  tackles: number; interceptions: number; saves: number; // all PER player-match
+}
+export interface RatingProfile {
+  byPos: Record<PosBucket, PosProfile>;
+  overall: { n: number; avg: number; p1: number; p10: number; p25: number; p50: number; p75: number; p90: number; p99: number; min: number; max: number };
+  motm: { avg: number; min: number; max: number };
+  worst: { avg: number; min: number; max: number };
+  scorerAvg: number;       // avg rating of a player who scored >=1
+  cleanSheetGkAvg: number; // avg GK rating in a clean sheet
+  outOf10: { below4: number; r4to6: number; r6to7: number; r7to8: number; above8: number }; // % of player-matches
+  perMatch: { goals: number; shots: number; sot: number; sotPct: number; saves: number; fouls: number; corners: number; possSpread: number };
+}
+
+// Runs n matches, bucketing every player-match by position. Captures rating + stat
+// distributions, MOTM/worst, scorer & clean-sheet ratings, and per-match team stats.
+export function ratingStatProfile(makeHome: () => Team, makeAway: () => Team, n: number): RatingProfile {
+  const ratingsByPos: Record<PosBucket, number[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+  const statSums: Record<PosBucket, Record<string, number>> = {
+    GK: {}, DEF: {}, MID: {}, FWD: {},
+  };
+  const bump = (b: PosBucket, k: string, v: number) => { statSums[b][k] = (statSums[b][k] || 0) + v; };
+  const allRatings: number[] = [];
+  const motm: number[] = [];
+  const worst: number[] = [];
+  const scorerRatings: number[] = [];
+  const csGk: number[] = [];
+  let below4 = 0, r4to6 = 0, r6to7 = 0, r7to8 = 0, above8 = 0;
+  const pm = { goals: [] as number[], shots: [] as number[], sot: [] as number[], saves: [] as number[], fouls: [] as number[], corners: [] as number[], possSpread: [] as number[] };
+
+  for (let i = 0; i < n; i++) {
+    const home = makeHome(), away = makeAway();
+    const r = simulateMatch(home, away, false);
+    const idToPos = new Map<string, PosBucket>();
+    [...home.players.slice(0, 11), ...away.players.slice(0, 11)].forEach(p => {
+      const b = POS_BUCKET[p.position]; if (b) idToPos.set(p.id, b);
+    });
+    if (!r.playerStats) continue;
+    const ratingsThisMatch: number[] = [];
+    const gkCleanSheet = new Set<string>();
+    // home clean sheet → away conceded 0
+    if ((r.awayGoals ?? 0) === 0) home.players.slice(0, 11).filter(p => p.position === 'GK').forEach(p => gkCleanSheet.add(p.id));
+    if ((r.homeGoals ?? 0) === 0) away.players.slice(0, 11).filter(p => p.position === 'GK').forEach(p => gkCleanSheet.add(p.id));
+
+    for (const ps of Object.values(r.playerStats) as any[]) {
+      const b = idToPos.get(ps.playerId); if (!b) continue;
+      ratingsByPos[b].push(ps.rating);
+      allRatings.push(ps.rating);
+      ratingsThisMatch.push(ps.rating);
+      bump(b, 'goals', ps.goals); bump(b, 'assists', ps.assists); bump(b, 'keyPasses', ps.keyPasses || 0);
+      bump(b, 'shots', ps.shots); bump(b, 'sot', ps.shotsOnTarget || 0); bump(b, 'tackles', ps.tackles);
+      bump(b, 'interceptions', ps.interceptions || 0); bump(b, 'saves', ps.saves); bump(b, 'count', 1);
+      if (ps.goals >= 1) scorerRatings.push(ps.rating);
+      if (gkCleanSheet.has(ps.playerId)) csGk.push(ps.rating);
+      if (ps.rating < 4) below4++; else if (ps.rating < 6) r4to6++; else if (ps.rating < 7) r6to7++; else if (ps.rating < 8) r7to8++; else above8++;
+    }
+    if (ratingsThisMatch.length) { motm.push(Math.max(...ratingsThisMatch)); worst.push(Math.min(...ratingsThisMatch)); }
+    const s = r.stats;
+    if (s) {
+      pm.goals.push((r.homeGoals ?? 0) + (r.awayGoals ?? 0));
+      pm.shots.push(s.homeShots + s.awayShots);
+      pm.sot.push(s.homeShotsOnTarget + s.awayShotsOnTarget);
+      pm.saves.push(s.homeSaves + s.awaySaves);
+      pm.fouls.push(s.homeFouls + s.awayFouls);
+      pm.corners.push(s.homeCorners + s.awayCorners);
+      pm.possSpread.push(Math.abs(s.homePos - s.awayPos));
+    }
+  }
+
+  const mkPos = (b: PosBucket): PosProfile => {
+    const arr = [...ratingsByPos[b]].sort((x, y) => x - y);
+    const cnt = statSums[b]['count'] || 1;
+    const per = (k: string) => (statSums[b][k] || 0) / cnt;
+    return {
+      n: ratingsByPos[b].length, avgRating: mean(ratingsByPos[b]),
+      p10: pctl(arr, 10), p50: pctl(arr, 50), p90: pctl(arr, 90), min: arr[0] ?? 0, max: arr[arr.length - 1] ?? 0,
+      goals: per('goals'), assists: per('assists'), keyPasses: per('keyPasses'), shots: per('shots'), sot: per('sot'),
+      tackles: per('tackles'), interceptions: per('interceptions'), saves: per('saves'),
+    };
+  };
+  const allSorted = [...allRatings].sort((a, b) => a - b);
+  const totalPM = allRatings.length || 1;
+  const sumSot = mean(pm.sot), sumShots = mean(pm.shots);
+  return {
+    byPos: { GK: mkPos('GK'), DEF: mkPos('DEF'), MID: mkPos('MID'), FWD: mkPos('FWD') },
+    overall: {
+      n: allRatings.length, avg: mean(allRatings),
+      p1: pctl(allSorted, 1), p10: pctl(allSorted, 10), p25: pctl(allSorted, 25), p50: pctl(allSorted, 50),
+      p75: pctl(allSorted, 75), p90: pctl(allSorted, 90), p99: pctl(allSorted, 99),
+      min: allSorted[0] ?? 0, max: allSorted[allSorted.length - 1] ?? 0,
+    },
+    motm: { avg: mean(motm), min: Math.min(...motm), max: Math.max(...motm) },
+    worst: { avg: mean(worst), min: Math.min(...worst), max: Math.max(...worst) },
+    scorerAvg: mean(scorerRatings),
+    cleanSheetGkAvg: mean(csGk),
+    outOf10: {
+      below4: (below4 / totalPM) * 100, r4to6: (r4to6 / totalPM) * 100, r6to7: (r6to7 / totalPM) * 100,
+      r7to8: (r7to8 / totalPM) * 100, above8: (above8 / totalPM) * 100,
+    },
+    perMatch: {
+      goals: mean(pm.goals), shots: sumShots, sot: sumSot, sotPct: sumShots ? (sumSot / sumShots) * 100 : 0,
+      saves: mean(pm.saves), fouls: mean(pm.fouls), corners: mean(pm.corners), possSpread: mean(pm.possSpread),
+    },
+  };
+}
+
+// Average team rating by match result — validates that ratings track performance
+// (the winning XI should, on average, out-rate the losing XI).
+export function ratingByResult(makeHome: () => Team, makeAway: () => Team, n: number): { winnerAvg: number; loserAvg: number; drawAvg: number; n: number } {
+  const winner: number[] = [], loser: number[] = [], draw: number[] = [];
+  const avgXi = (team: Team, r: MatchResult): number => {
+    const ids = new Set(team.players.slice(0, 11).map(p => p.id));
+    const rs = Object.values(r.playerStats || {}).filter((ps: any) => ids.has(ps.playerId)).map((ps: any) => ps.rating);
+    return rs.length ? rs.reduce((s, x) => s + x, 0) / rs.length : 0;
+  };
+  for (let i = 0; i < n; i++) {
+    const home = makeHome(), away = makeAway();
+    const r = simulateMatch(home, away, false);
+    const h = avgXi(home, r), a = avgXi(away, r);
+    if ((r.homeGoals ?? 0) > (r.awayGoals ?? 0)) { winner.push(h); loser.push(a); }
+    else if ((r.awayGoals ?? 0) > (r.homeGoals ?? 0)) { winner.push(a); loser.push(h); }
+    else { draw.push(h); draw.push(a); }
+  }
+  return { winnerAvg: mean(winner), loserAvg: mean(loser), drawAvg: mean(draw), n };
+}
+
+// Captain leadership impact: the captain's best stat is amplified +3 for the WHOLE
+// team. A captain whose best stat is SHOOTING should make the side score more; one
+// whose best stat is DEFENDING should make it concede less. We force the captain's
+// best stat (same altered captain slot for both variants → a clean A/B).
+export function captainStatImpact(n: number): { shootGoalsFor: number; shootGoalsAgainst: number; defGoalsFor: number; defGoalsAgainst: number } {
+  const clone = (t: Team): Team => ({ ...t, players: t.players.map(p => ({ ...p })) });
+  const makeVariant = (base: Team, stat: string): Team => {
+    const t = clone(base);
+    const cap = t.players[1] as unknown as Record<string, number> & { id: string }; // an outfield starter
+    ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'].forEach(s => { cap[s] = 55; });
+    cap[stat] = 99; // makes `stat` unambiguously the captain's best → +3 of it for everyone
+    t.captain = cap.id;
+    t.id = 'CAP_' + stat;
+    return t;
+  };
+  let sgf = 0, sga = 0, dgf = 0, dga = 0;
+  for (let i = 0; i < n; i++) {
+    // PAIRED trial: same base squad, same opponent — only the captain's boosted stat
+    // differs. This cancels squad/opponent variance and isolates the captain effect.
+    const base = generateBotTeam('Base', 0.8);
+    const opp = generateBotTeam('Opp', 0.8);
+    const r1 = simulateMatch(makeVariant(base, 'shooting'), clone(opp), false);
+    sgf += r1.homeGoals; sga += r1.awayGoals;
+    const r2 = simulateMatch(makeVariant(base, 'defending'), clone(opp), false);
+    dgf += r2.homeGoals; dga += r2.awayGoals;
+  }
+  return { shootGoalsFor: sgf / n, shootGoalsAgainst: sga / n, defGoalsFor: dgf / n, defGoalsAgainst: dga / n };
+}
+
+// ISOLATES the team-wide (global) chemistry buff: identical players and identical
+// INDIVIDUAL chemistry — only `totalChemistry` differs, so the only change is the global
+// passing/pace/special bonus. Answers "is the team-wide chem buff actually worth it?".
+export function globalChemImpact(n: number): { highGoalsFor: number; noneGoalsFor: number; highWin: number; noneWin: number; highConceded: number; noneConceded: number } {
+  const clone = (t: Team): Team => ({ ...t, players: t.players.map(p => ({ ...p })) });
+  let hgf = 0, ngf = 0, hw = 0, nw = 0, hc = 0, nc = 0;
+  for (let i = 0; i < n; i++) {
+    const base = generateBotTeam('Base', 0.8);
+    const players = base.players.map((p, idx) => ({ ...p, chemistryScore: idx < 11 ? 2 : 0, isOOP: false }));
+    const high: Team = { ...base, id: 'high', totalChemistry: 95, players };          // full global buff (+6 pass/+4 pace/+5 str)
+    const none: Team = { ...base, id: 'none', totalChemistry: 30, players };           // no global buff at all
+    const opp = generateBotTeam('Opp', 0.8);
+    const r1 = simulateMatch(clone(high), clone(opp)); // paired: same opponent
+    hgf += r1.homeGoals; hc += r1.awayGoals; if (r1.winner === 'high') hw++;
+    const r2 = simulateMatch(clone(none), clone(opp));
+    ngf += r2.homeGoals; nc += r2.awayGoals; if (r2.winner === 'none') nw++;
+  }
+  return { highGoalsFor: hgf / n, noneGoalsFor: ngf / n, highWin: hw / n, noneWin: nw / n, highConceded: hc / n, noneConceded: nc / n };
+}
+
+// Home/draw/away split between EVEN teams — measures the home advantage. With
+// isFinal=true the match is at a neutral venue, so the host edge must vanish.
+export function homeAdvantageSplit(n: number, isFinal: boolean): { homeWin: number; draw: number; awayWin: number; goalsHome: number; goalsAway: number } {
+  let h = 0, d = 0, a = 0, gh = 0, ga = 0;
+  for (let i = 0; i < n; i++) {
+    const r = simulateMatch(generateBotTeam('Casa', 0.8), generateBotTeam('Fora', 0.8), false, isFinal);
+    gh += r.homeGoals; ga += r.awayGoals;
+    if (r.homeGoals > r.awayGoals) h++; else if (r.homeGoals < r.awayGoals) a++; else d++;
+  }
+  return { homeWin: h / n, draw: d / n, awayWin: a / n, goalsHome: gh / n, goalsAway: ga / n };
 }
 
 // ============================================================

@@ -42,9 +42,8 @@ export const TRAITS: TraitDef[] = [
   // ── Pace / runs ──────────────────────────────────────────────
   { id: 'Velocista',         icon: '💨', flavor: 'Explosão de velocidade.',          boosts: [{ attribute: 'pace', value: 5 }] },
   { id: 'Sobreposição',      icon: '🏃', flavor: 'Apoio constante pelo lado.',        boosts: [{ attribute: 'pace', value: 4 }] },
-  { id: 'Ponta de Lança',    icon: '🎯', flavor: 'Referência na frente.',             boosts: [{ attribute: 'shooting', value: 3 }, { attribute: 'pace', value: 3 }] },
+  { id: 'Ponta de Lança',    icon: '🎯', flavor: 'Referência na frente.',             boosts: [{ attribute: 'shooting', value: 4 }, { attribute: 'physical', value: 2 }] },
   { id: 'Invasor de Área',   icon: '⤴️', flavor: 'Chega na hora certa na área.',      boosts: [{ attribute: 'pace', value: 4 }, { attribute: 'shooting', value: 3 }] },
-  { id: 'Infiltração',       icon: '↗️', flavor: 'Rompe linhas nas costas da defesa.', boosts: [{ attribute: 'pace', value: 4 }, { attribute: 'shooting', value: 3 }] },
   { id: 'Chegada pelo Meio', icon: '⬆️', flavor: 'Surge do meio para finalizar.',     boosts: [{ attribute: 'pace', value: 3 }, { attribute: 'shooting', value: 3 }] },
   { id: 'Criador de Espaço', icon: '🌀', flavor: 'Cria espaços com movimentação.',    boosts: [{ attribute: 'pace', value: 3 }, { attribute: 'vision', value: 3 }] },
 
@@ -52,38 +51,25 @@ export const TRAITS: TraitDef[] = [
   { id: 'Finalizador',          icon: '🥅', flavor: 'Faro de gol.',                      boosts: [{ attribute: 'shooting', value: 6 }] },
   { id: 'Finalização Precisa',  icon: '🎯', flavor: 'Precisão na finalização.',           boosts: [{ attribute: 'shooting', value: 5 }] },
   { id: 'Chute de Longe',       icon: '🚀', flavor: 'Perigo de fora da área.',            boosts: [{ attribute: 'shooting', value: 4 }] },
-  { id: 'Chute Colocado',      icon: '🎯', flavor: 'Coloca a bola no canto.',            boosts: [{ attribute: 'shooting', value: 4 }] },
-  { id: 'Voleio Espetacular',   icon: '✨', flavor: 'Acerta voleios difíceis.',          boosts: [{ attribute: 'shooting', value: 5 }] },
-  { id: 'Futebol Acrobático',   icon: '🤸', flavor: 'Finaliza em posições acrobáticas.',  boosts: [{ attribute: 'shooting', value: 5 }] },
-  { id: 'Acrobata',             icon: '🤸', flavor: 'Lances acrobáticos.',               boosts: [{ attribute: 'shooting', value: 4 }] },
   { id: 'Canhota Mágica',       icon: '🦶', flavor: 'Esquerda letal.',                   boosts: [{ attribute: 'shooting', value: 3 }, { attribute: 'dribbling', value: 4 }] },
   { id: 'Frio na Final',        icon: '🧊', flavor: 'Decide nos grandes jogos.',         boosts: [{ attribute: 'shooting', value: 8, condition: 'final' }], penaltyComposure: 10 },
   { id: 'Especialista em Decisões', icon: '⚖️', flavor: 'Aparece no mata-mata.',          boosts: [{ attribute: 'shooting', value: 6, condition: 'knockout' }], penaltyComposure: 10 },
 
   // ── Dribbling ────────────────────────────────────────────────
   { id: 'Dribblador Nato',   icon: '🪄', flavor: 'Drible natural.',         boosts: [{ attribute: 'dribbling', value: 6 }] },
-  { id: 'Drible Mágico',     icon: '🪄', flavor: 'Dribles de outro mundo.', boosts: [{ attribute: 'dribbling', value: 6 }] },
   { id: 'Dribblador Técnico', icon: '🎩', flavor: 'Técnica refinada.',      boosts: [{ attribute: 'dribbling', value: 5 }] },
   { id: 'Dribblador Veloz',  icon: '⚡', flavor: 'Drible em velocidade.',   boosts: [{ attribute: 'dribbling', value: 4 }, { attribute: 'pace', value: 3 }] },
 
   // ── Passing / playmaking ─────────────────────────────────────
   { id: 'Maestro do Passe',  icon: '🎼', flavor: 'Rege o meio-campo.',        boosts: [{ attribute: 'passing', value: 6 }, { attribute: 'vision', value: 4 }] },
-  { id: 'Maestro',           icon: '🎼', flavor: 'Conduz o jogo do time.',    boosts: [{ attribute: 'passing', value: 6 }, { attribute: 'vision', value: 4 }] },
   { id: 'Metrônomo',         icon: '🎵', flavor: 'Mantém o ritmo do passe.',  boosts: [{ attribute: 'passing', value: 6 }] },
   { id: 'Armador',           icon: '🧩', flavor: 'Arma as jogadas.',          boosts: [{ attribute: 'passing', value: 5 }, { attribute: 'vision', value: 4 }] },
-  { id: 'Armador Recuado',   icon: '🧩', flavor: 'Cria de trás.',             boosts: [{ attribute: 'passing', value: 5 }, { attribute: 'vision', value: 4 }] },
-  { id: 'Lançador',          icon: '📡', flavor: 'Lançamentos precisos.',     boosts: [{ attribute: 'passing', value: 5 }] },
-  { id: 'Passe Longo',       icon: '📡', flavor: 'Troca o jogo de lado.',     boosts: [{ attribute: 'passing', value: 5 }] },
   { id: 'Passe Preciso',     icon: '🎯', flavor: 'Passe certeiro.',           boosts: [{ attribute: 'passing', value: 5 }] },
   { id: 'Passe de Calcanhar', icon: '🩰', flavor: 'Passes de calcanhar.',     boosts: [{ attribute: 'passing', value: 4 }] },
   { id: 'Visão de Jogo',     icon: '👁️', flavor: 'Enxerga o passe.',          boosts: [{ attribute: 'vision', value: 6 }] },
-  { id: 'Cruzador Preciso',  icon: '➰', flavor: 'Cruzamentos na medida.',    boosts: [{ attribute: 'passing', value: 5 }] },
-  { id: 'Cruzamento Preciso', icon: '➰', flavor: 'Cruzamentos perigosos.',   boosts: [{ attribute: 'passing', value: 5 }] },
 
   // ── Set pieces ───────────────────────────────────────────────
-  { id: 'Batedor de Faltas',     icon: '🎯', flavor: 'Faltas perigosas.',     boosts: [{ attribute: 'shooting', value: 4 }] },
-  { id: 'Cobrador de Falta',     icon: '🎯', flavor: 'Especialista em faltas.', boosts: [{ attribute: 'shooting', value: 4 }] },
-  { id: 'Cobrança de Falta',     icon: '🎯', flavor: 'Cobra faltas com perigo.', boosts: [{ attribute: 'shooting', value: 4 }] },
+  { id: 'Cobrador de Falta',     icon: '🎯', flavor: 'Especialista em faltas.', boosts: [{ attribute: 'shooting', value: 3 }, { attribute: 'passing', value: 2 }] },
   { id: 'Bola Parada',           icon: '🎯', flavor: 'Letal na bola parada.',  boosts: [{ attribute: 'shooting', value: 3 }, { attribute: 'passing', value: 3 }] },
   { id: 'Cobrador de Pênaltis',  icon: '⚽', flavor: 'Confiável nas penalidades.', penaltyComposure: 8 },
 
@@ -95,11 +81,8 @@ export const TRAITS: TraitDef[] = [
 
   // ── Physical / engine ────────────────────────────────────────
   { id: 'Força Bruta',   icon: '💪', flavor: 'Força física acima da média.', boosts: [{ attribute: 'physical', value: 6 }] },
-  { id: 'Guerreiro',     icon: '⚔️', flavor: 'Briga por cada bola.',         boosts: [{ attribute: 'physical', value: 6 }] },
-  { id: 'Motorzinho',    icon: '🔋', flavor: 'Não para de correr.',          boosts: [{ attribute: 'physical', value: 5 }] },
-  { id: 'Pulmão de Aço', icon: '🫁', flavor: 'Fôlego infinito.',             boosts: [{ attribute: 'physical', value: 5 }] },
+  { id: 'Motorzinho',    icon: '🔋', flavor: 'Não para de correr.',          boosts: [{ attribute: 'physical', value: 4 }, { attribute: 'pace', value: 3 }] },
   { id: 'Box-to-Box',    icon: '🔄', flavor: 'Defende e ataca o jogo todo.', boosts: [{ attribute: 'physical', value: 4 }, { attribute: 'passing', value: 3 }] },
-  { id: 'Resistência',   icon: '🔋', flavor: 'Aguenta o jogo inteiro.',      boosts: [{ attribute: 'physical', value: 5 }] },
 
   // ── Defending ────────────────────────────────────────────────
   { id: 'Muralha',             icon: '🧱', flavor: 'Parede defensiva.',          boosts: [{ attribute: 'defending', value: 7 }] },
@@ -108,14 +91,11 @@ export const TRAITS: TraitDef[] = [
   { id: 'Marcação Pesada',     icon: '🪓', flavor: 'Marcação dura.',             boosts: [{ attribute: 'defending', value: 5 }, { attribute: 'physical', value: 3 }] },
   { id: 'Pressão Implacável',  icon: '🔥', flavor: 'Sufoca o adversário.',       boosts: [{ attribute: 'defending', value: 8 }] },
   { id: 'Interceptador',       icon: '✋', flavor: 'Lê e intercepta lances.',    boosts: [{ attribute: 'defending', value: 5 }] },
-  { id: 'Tackle Preciso',      icon: '🦵', flavor: 'Desarme limpo.',             boosts: [{ attribute: 'defending', value: 5 }] },
   { id: 'Posicionamento',      icon: '📐', flavor: 'Sempre bem posicionado.',    boosts: [{ attribute: 'defending', value: 4 }] },
   { id: 'Pressionador',        icon: '🔥', flavor: 'Pressiona a saída de bola.', boosts: [{ attribute: 'defending', value: 3 }, { attribute: 'physical', value: 4 }] },
-  { id: 'Pressão Alta',        icon: '🔥', flavor: 'Marca lá na frente.',        boosts: [{ attribute: 'defending', value: 3 }, { attribute: 'physical', value: 4 }] },
 
   // ── Leadership ───────────────────────────────────────────────
   { id: 'Liderança',      icon: '🎖️', flavor: 'Comanda o time.',          boosts: [{ attribute: 'composure', value: 5 }] },
-  { id: 'Líder em Campo',  icon: '🎖️', flavor: 'Voz de comando em campo.', boosts: [{ attribute: 'composure', value: 5 }] },
   { id: 'Líder da Defesa', icon: '🛡️', flavor: 'Organiza a defesa.',      boosts: [{ attribute: 'composure', value: 3 }, { attribute: 'defending', value: 4 }] },
 
   // ── Goalkeeper ───────────────────────────────────────────────
@@ -123,8 +103,6 @@ export const TRAITS: TraitDef[] = [
   { id: 'Elasticidade',       icon: '🤸', flavor: 'Defesas elásticas.',          goalkeeperSave: 6 },
   { id: 'Pegador de Pênalti', icon: '🧤', flavor: 'Pega pênaltis.',              goalkeeperSave: 8 },
   { id: 'Goleiro Líbero',     icon: '🧹', flavor: 'Atua como líbero.',           goalkeeperSave: 5 },
-  { id: 'Goleiro-Líbero',     icon: '🧹', flavor: 'Sai jogando como líbero.',    goalkeeperSave: 5 },
-  { id: 'Goleiro da Linha',   icon: '🧤', flavor: 'Forte na linha do gol.',      goalkeeperSave: 6 },
   { id: 'Saída Rápida',       icon: '🧤', flavor: 'Sai rápido do gol.',          goalkeeperSave: 4 },
 
   // ── Versatility / talent ─────────────────────────────────────
@@ -194,12 +172,46 @@ export function hasOopRelief(traits: string[]): boolean {
   return traits.some(id => TRAIT_MAP[id]?.oopRelief);
 }
 
-// Traits eligible to be rolled as a draft "wildcard" extra. Curated to outfield,
-// attribute-boosting traits (no GK-only / penalty-only specials) so the bonus is
-// always meaningful regardless of who receives it.
-export const ROLLABLE_TRAITS: string[] = [
-  'Velocista', 'Finalizador', 'Finalização Precisa', 'Chute de Longe',
-  'Dribblador Técnico', 'Dribblador Veloz', 'Maestro do Passe', 'Visão de Jogo',
-  'Passe Preciso', 'Força Bruta', 'Motorzinho', 'Muralha', 'Interceptador',
-  'Marcador Implacável', 'Tackle Preciso', 'Liderança', 'Cabeceador', 'Guerreiro',
-];
+// ── Random trait rolling ─────────────────────────────────────────
+// Players have NO fixed traits. At draft / team-generation time each one is dealt
+// RANDOM traits: one guaranteed, plus a rarity-weighted chance of a 2nd and a 3rd, so
+// premium cards feel richer and "more than one" actually happens. Traits are drawn from
+// a pool appropriate to the player's POSITION GROUP, so a roll is always relevant
+// (a striker never lands a goalkeeper trait, a defender never a poacher's instinct).
+export type PosGroup = 'GK' | 'DEF' | 'MID' | 'ATK';
+
+export function positionGroup(position: string): PosGroup {
+  if (position === 'GK') return 'GK';
+  if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(position)) return 'DEF';
+  if (['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(position)) return 'MID';
+  return 'ATK';
+}
+
+export const TRAIT_POOLS: Record<PosGroup, string[]> = {
+  GK: ['Reflexo Felino', 'Elasticidade', 'Pegador de Pênalti', 'Goleiro Líbero', 'Saída Rápida', 'Liderança', 'Versatilidade'],
+  DEF: ['Muralha', 'Zagueiro Imponente', 'Marcador Implacável', 'Marcação Pesada', 'Pressão Implacável', 'Interceptador',
+    'Posicionamento', 'Pressionador', 'Líder da Defesa', 'Liderança', 'Força Bruta', 'Motorzinho', 'Box-to-Box',
+    'Cabeceador', 'Velocista', 'Sobreposição', 'Versatilidade', 'Cobrador de Pênaltis', 'Talento Natural'],
+  MID: ['Maestro do Passe', 'Metrônomo', 'Armador', 'Passe Preciso', 'Passe de Calcanhar', 'Visão de Jogo', 'Bola Parada',
+    'Box-to-Box', 'Motorzinho', 'Força Bruta', 'Dribblador Técnico', 'Dribblador Veloz', 'Criador de Espaço',
+    'Chegada pelo Meio', 'Chute de Longe', 'Cobrador de Falta', 'Cobrador de Pênaltis', 'Interceptador', 'Pressionador',
+    'Marcação Pesada', 'Liderança', 'Talento Natural', 'Versatilidade', 'Frio na Final', 'Especialista em Decisões'],
+  ATK: ['Finalizador', 'Finalização Precisa', 'Chute de Longe', 'Canhota Mágica', 'Ponta de Lança', 'Invasor de Área',
+    'Chegada pelo Meio', 'Criador de Espaço', 'Velocista', 'Sobreposição', 'Dribblador Nato', 'Dribblador Técnico',
+    'Dribblador Veloz', 'Cabeceador', 'Cabeceador Implacável', 'Pivô', 'Pivô Implacável', 'Cobrador de Falta',
+    'Cobrador de Pênaltis', 'Bola Parada', 'Frio na Final', 'Especialista em Decisões', 'Talento Natural', 'Versatilidade'],
+};
+
+// Rolls a player's random traits (1 guaranteed; extras scale with rarity). `minCount`
+// floors the number of traits — used by "em alta" (in-form) cards, which always carry
+// at least one EXTRA trait on top of their attribute boost.
+export function rollPlayerTraits(position: string, rarity: string, minCount = 1, rng: () => number = Math.random): string[] {
+  const pool = TRAIT_POOLS[positionGroup(position)];
+  const p2 = rarity === 'immortal' ? 0.80 : rarity === 'legendary' ? 0.60 : rarity === 'gold' ? 0.40 : 0.25;
+  const p3 = rarity === 'immortal' ? 0.45 : rarity === 'legendary' ? 0.25 : rarity === 'gold' ? 0.10 : 0.0;
+  let count = 1;
+  if (rng() < p2) { count++; if (rng() < p3) count++; }
+  count = Math.max(count, minCount);
+  const shuffled = [...pool].sort(() => rng() - 0.5);
+  return shuffled.slice(0, Math.min(count, pool.length));
+}

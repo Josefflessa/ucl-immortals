@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, getRarityColor } from '../../lib/gameData';
 import { traitEffectLabel } from '../../lib/traits';
@@ -361,54 +361,62 @@ export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string 
   return `https://cdn.sofifa.net/players/${padded.slice(0,3)}/${padded.slice(3,6)}/${m.ver}_${size}.png`;
 }
 
-// Per-rarity visual identity. Each tier has a distinct silhouette: premium tiers
-// (immortal/legendary) get a radial sunburst + animated shine; mid/low tiers get
-// quieter geometric textures (weave / dots / hatch) so they read as more "humble".
-function getCardTheme(rarity: string) {
+// Per-rarity visual identity. Each tier has a DISTINCT silhouette so they never read
+// the same at a glance:
+//  · Immortal  — radiant white-gold, hot halo at the crown, prismatic sunburst, brightest double glow.
+//  · Legendary — molten amber, vertical light beams (not a sunburst), warmer/redder.
+//  · Gold      — refined brushed gold, clean diagonal grain, no animated shine.
+//  · Silver    — cool brushed platinum, fine vertical steel lines.
+//  · Bronze    — warm copper, woven cross-hatch grain.
+function getCardTheme(rarity: string): {
+  bg: string; border: string; glow: string; accent: string; badgeBg: string;
+  statColor: string; nameGlow: string; isPremium: boolean; label: string; icon: string;
+  ribbon: string; pattern: string; patternOpacity: number; patternSize?: string;
+} {
   switch (rarity) {
     case 'immortal':  return {
-      bg: 'radial-gradient(125% 85% at 50% 4%,#574006 0%,#34230300 0%,#2c1d02 34%,#170f08 70%,#090602 100%)',
-      border: '#FFD700', glow: '0 0 36px rgba(255,215,0,.55),inset 0 0 22px rgba(255,215,0,.20)',
-      accent: '#FFD700', badgeBg: 'rgba(255,215,0,.14)', statColor: '#FFE680', nameGlow: 'rgba(255,215,0,.6)',
+      bg: 'radial-gradient(135% 90% at 50% -6%,#FFF0B0 0%,#C99A18 8%,#6e520a 22%,#2c1f04 48%,#140d04 76%,#070401 100%)',
+      border: '#FFE680', glow: '0 0 44px rgba(255,215,0,.62),0 0 14px rgba(255,250,220,.30),inset 0 0 28px rgba(255,215,0,.22)',
+      accent: '#FFE07A', badgeBg: 'rgba(255,225,120,.16)', statColor: '#FFEFAE', nameGlow: 'rgba(255,231,150,.7)',
       isPremium: true, label: 'IMORTAL', icon: '👑',
-      ribbon: 'linear-gradient(90deg,#7a5803,#FFD700 45%,#fff6c2 50%,#FFD700 55%,#7a5803)',
-      pattern: 'repeating-conic-gradient(from 0deg at 50% 30%,rgba(255,215,0,.10) 0deg,rgba(255,215,0,0) 6deg 13deg)',
+      ribbon: 'linear-gradient(90deg,#7a5803,#FFD700 40%,#fffbe0 50%,#FFD700 60%,#7a5803)',
+      pattern: 'repeating-conic-gradient(from 0deg at 50% 24%,rgba(255,235,150,.12) 0deg 1.4deg,rgba(255,235,150,0) 1.4deg 11deg)',
       patternOpacity: 1,
     };
     case 'legendary': return {
-      bg: 'radial-gradient(125% 85% at 50% 4%,#3a1d05 0%,#24120a00 0%,#22120a 36%,#150b06 72%,#080402 100%)',
-      border: '#FF8C00', glow: '0 0 26px rgba(255,140,0,.42),inset 0 0 16px rgba(255,140,0,.16)',
-      accent: '#FF8C00', badgeBg: 'rgba(255,140,0,.13)', statColor: '#FFC061', nameGlow: 'rgba(255,140,0,.45)',
+      bg: 'radial-gradient(130% 88% at 50% 0%,#FFB152 0%,#9c4708 12%,#4a1f06 34%,#220f06 62%,#100804 82%,#050302 100%)',
+      border: '#FF9E3C', glow: '0 0 30px rgba(255,120,20,.48),inset 0 0 18px rgba(255,120,20,.16)',
+      accent: '#FFAE54', badgeBg: 'rgba(255,150,60,.14)', statColor: '#FFCE92', nameGlow: 'rgba(255,150,40,.5)',
       isPremium: true, label: 'LENDÁRIO', icon: '★',
-      ribbon: 'linear-gradient(90deg,#7a3d02,#FF8C00 45%,#ffd9a3 50%,#FF8C00 55%,#7a3d02)',
-      pattern: 'repeating-conic-gradient(from 0deg at 50% 30%,rgba(255,140,0,.07) 0deg,rgba(255,140,0,0) 8deg 17deg)',
+      ribbon: 'linear-gradient(90deg,#7a3d02,#FF8C00 42%,#ffe1ba 50%,#FF8C00 58%,#7a3d02)',
+      pattern: 'repeating-linear-gradient(90deg,rgba(255,160,70,.07) 0 1px,transparent 1px 7px),linear-gradient(180deg,rgba(255,150,50,.05),transparent 55%)',
       patternOpacity: 1,
     };
     case 'gold':      return {
-      bg: 'linear-gradient(157deg,#06060b 0%,#161109 48%,#241c10 84%,#070509 100%)',
-      border: '#C9A84C', glow: '0 0 16px rgba(201,168,76,.24),inset 0 0 10px rgba(201,168,76,.06)',
-      accent: '#C9A84C', badgeBg: 'rgba(201,168,76,.1)', statColor: '#E8D080', nameGlow: 'rgba(201,168,76,.35)',
+      bg: 'linear-gradient(158deg,#08070c 0%,#1a1408 44%,#2c2212 82%,#0a0710 100%)',
+      border: '#D4B25A', glow: '0 0 18px rgba(201,168,76,.26),inset 0 0 11px rgba(201,168,76,.08)',
+      accent: '#E0C268', badgeBg: 'rgba(201,168,76,.12)', statColor: '#F0DC98', nameGlow: 'rgba(201,168,76,.38)',
       isPremium: false, label: 'OURO', icon: '◆',
-      ribbon: 'linear-gradient(90deg,#5e4d1c,#C9A84C 50%,#5e4d1c)',
-      pattern: 'repeating-linear-gradient(125deg,rgba(201,168,76,.05) 0 1px,transparent 1px 9px)',
+      ribbon: 'linear-gradient(90deg,#5e4d1c,#D4B25A 50%,#5e4d1c)',
+      pattern: 'repeating-linear-gradient(122deg,rgba(212,178,90,.06) 0 1px,transparent 1px 8px),repeating-linear-gradient(122deg,rgba(212,178,90,.03) 0 1px,transparent 1px 3px)',
       patternOpacity: 1,
     };
     case 'silver':    return {
-      bg: 'linear-gradient(157deg,#05050a 0%,#10101d 52%,#1b1b2c 88%,#06060b 100%)',
-      border: '#A8A8B8', glow: 'inset 0 0 10px rgba(168,168,184,.06)',
-      accent: '#C0C0D0', badgeBg: 'rgba(168,168,184,.1)', statColor: '#D6D6E4', nameGlow: 'rgba(168,168,184,.3)',
-      isPremium: false, label: 'PRATA', icon: '◆',
-      ribbon: 'linear-gradient(90deg,#42424f,#A8A8B8 50%,#42424f)',
-      pattern: 'radial-gradient(rgba(168,168,184,.07) 1px,transparent 1.4px)',
-      patternOpacity: 1, patternSize: '11px 11px',
+      bg: 'linear-gradient(158deg,#06060c 0%,#11131f 50%,#232734 86%,#070710 100%)',
+      border: '#B7BCCC', glow: '0 0 12px rgba(183,188,204,.16),inset 0 0 10px rgba(183,188,204,.07)',
+      accent: '#CCD2E2', badgeBg: 'rgba(183,188,204,.12)', statColor: '#E2E6F2', nameGlow: 'rgba(183,188,204,.34)',
+      isPremium: false, label: 'PRATA', icon: '◇',
+      ribbon: 'linear-gradient(90deg,#42454f,#B7BCCC 50%,#42454f)',
+      pattern: 'repeating-linear-gradient(90deg,rgba(190,196,212,.06) 0 1px,transparent 1px 5px)',
+      patternOpacity: 1,
     };
     default:          return {
-      bg: 'linear-gradient(157deg,#070302 0%,#160d07 52%,#22150d 88%,#080302 100%)',
-      border: '#CD7F32', glow: 'inset 0 0 10px rgba(205,127,50,.06)',
-      accent: '#D89254', badgeBg: 'rgba(205,127,50,.1)', statColor: '#E0A878', nameGlow: 'rgba(205,127,50,.3)',
-      isPremium: false, label: 'BRONZE', icon: '◆',
-      ribbon: 'linear-gradient(90deg,#5a3318,#CD7F32 50%,#5a3318)',
-      pattern: 'repeating-linear-gradient(45deg,rgba(205,127,50,.05) 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,rgba(205,127,50,.04) 0 1px,transparent 1px 7px)',
+      bg: 'linear-gradient(158deg,#0a0402 0%,#1c0f06 52%,#2c190d 88%,#0a0402 100%)',
+      border: '#C77B3A', glow: '0 0 11px rgba(205,127,50,.18),inset 0 0 10px rgba(205,127,50,.07)',
+      accent: '#DD9659', badgeBg: 'rgba(205,127,50,.12)', statColor: '#EAB084', nameGlow: 'rgba(205,127,50,.32)',
+      isPremium: false, label: 'BRONZE', icon: '⬢',
+      ribbon: 'linear-gradient(90deg,#5a3318,#C77B3A 50%,#5a3318)',
+      pattern: 'repeating-linear-gradient(45deg,rgba(205,127,50,.06) 0 1px,transparent 1px 6px),repeating-linear-gradient(-45deg,rgba(205,127,50,.05) 0 1px,transparent 1px 6px)',
       patternOpacity: 1,
     };
   }
@@ -472,9 +480,25 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
   );
 }
 
-export default function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0 }: PlayerCardProps) {
+// "EM ALTA" (in-form) overlay — turns ANY rarity into a jet-black special card with the
+// tier's accent ablaze, so a boosted card reads instantly as special (à la Team-of-the-Week)
+// while the accent colour still tells you the underlying tier.
+function inFormOverlay(a: string) {
+  return {
+    bg: `radial-gradient(130% 92% at 50% -5%,${a}40 0%,${a}12 14%,#0b0b11 46%,#050507 100%)`,
+    border: a,
+    glow: `0 0 40px ${a}66,0 0 12px ${a}3a,inset 0 0 24px ${a}1f`,
+    isPremium: true,
+    nameGlow: `${a}99`,
+    pattern: `repeating-conic-gradient(from 0deg at 50% 22%,${a}24 0deg 1.3deg,transparent 1.3deg 12deg)`,
+    patternOpacity: 1,
+  };
+}
+
+function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0 }: PlayerCardProps) {
   const baseColor = getRarityColor(player.rarity);
-  const theme = getCardTheme(player.rarity);
+  const baseTheme = getCardTheme(player.rarity);
+  const theme = player.inForm ? { ...baseTheme, ...inFormOverlay(baseTheme.accent) } : baseTheme;
   const baseId = getBasePlayerId(player.id);
   const hasPhoto = !!SOFIFA_MAPPING[baseId];
 
@@ -500,6 +524,7 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
           <div className="flex flex-col leading-none">
             <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 17, lineHeight: 1 }}>{player.overall}</span>
             <span style={{ fontFamily: 'Rajdhani,sans-serif', color: theme.accent, fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
+            {player.inForm && <span style={{ color: theme.accent, fontSize: 9, lineHeight: 1, marginTop: 1, textShadow: `0 0 5px ${theme.accent}` }}>⚡</span>}
           </div>
           <div className="flex items-center gap-1.5">
             {getFlagUrl(player.nation) && (
@@ -624,9 +649,9 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
       {/* ── IN-FORM BADGE (special draft card) ── */}
       {player.inForm && (
         <div className="flex-shrink-0 mx-2 flex justify-center" style={{ zIndex: 6, marginTop: 4 }}>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(90deg,#C9A84C,#E8C84A,#C9A84C)', boxShadow: '0 0 10px rgba(201,168,76,.6)', border: '1px solid rgba(0,0,0,.35)' }}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: `linear-gradient(90deg,${theme.border},${theme.accent},${theme.border})`, boxShadow: `0 0 12px ${theme.accent}99`, border: '1px solid rgba(0,0,0,.4)' }}
             title={`Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 3} geral e atributos reforçados`}>
-            <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 900, letterSpacing: '0.14em', color: '#1f1500' }}>⚡ EM ALTA</span>
+            <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 900, letterSpacing: '0.14em', color: '#1a1205' }}>⚡ EM ALTA</span>
           </span>
         </div>
       )}
@@ -666,3 +691,7 @@ export default function PlayerCard({ player, selected = false, onClick, compact 
     </CardWrapper>
   );
 }
+
+// Memoized: cards re-render only when their own props change, not whenever a parent
+// (e.g. the league hub) re-renders for unrelated reasons. Keeps grids of cards smooth.
+export default memo(PlayerCard);

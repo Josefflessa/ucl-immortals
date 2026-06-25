@@ -3,16 +3,25 @@
 
 import { motion } from 'framer-motion';
 import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
-import { isPlayerInPosition } from '../../lib/gameEngine';
+import { isPlayerInPosition, ChemLink, ChemLinkType } from '../../lib/gameEngine';
 import { buildSofifaUrl } from './PlayerCard';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
+
+// Connection colours by link type — shared with the legend in the squad screen.
+export const CHEM_LINK_COLOR: Record<ChemLinkType, string> = {
+  club: '#C9A84C',    // mesmo clube
+  nation: '#3B82F6',  // mesma nação
+  coach: '#A855F7',   // mesmo técnico histórico
+  partner: '#22C55E', // dupla histórica
+};
 
 interface FormationFieldProps {
   formation: Formation;
   players: (Player | undefined)[];
   chemistryScores?: Record<string, number>;
   showChemLines?: boolean;
+  chemLinks?: ChemLink[];
   onPlayerClick?: (player: Player, posIndex: number) => void;
   compact?: boolean;
   selectedPlayerIndex?: number | null;
@@ -44,6 +53,7 @@ export default function FormationField({
   players,
   chemistryScores = {},
   showChemLines = false,
+  chemLinks,
   onPlayerClick,
   compact = false,
   selectedPlayerIndex = null,
@@ -105,35 +115,31 @@ export default function FormationField({
           width={fieldWidth * 0.3} height={fieldHeight * 0.08}
           fill="none" stroke="#2A6A2A" strokeWidth="1" />
 
-        {/* Chemistry lines */}
-        {showChemLines && players.length >= 2 && formation.positions.map((pos, i) => {
-          const player = players[i];
-          if (!player) return null;
-          const chemScore = chemistryScores[player.id] ?? 0;
-          if (chemScore < 2) return null;
-
-          return formation.positions.slice(i + 1, i + 3).map((pos2, j) => {
-            const player2 = players[i + j + 1];
-            if (!player2) return null;
-            const chemScore2 = chemistryScores[player2.id] ?? 0;
-            if (chemScore2 < 2) return null;
-
-            const x1 = (pos.x / 100) * fieldWidth;
-            const y1 = (pos.y / 100) * fieldHeight;
-            const x2 = (pos2.x / 100) * fieldWidth;
-            const y2 = (pos2.y / 100) * fieldHeight;
-            const color = Math.min(chemScore, chemScore2) >= 3 ? '#22C55E' : '#EAB308';
-
-            return (
-              <line key={`${i}-${j}`}
-                x1={x1} y1={y1} x2={x2} y2={y2}
-                stroke={color} strokeWidth="1" strokeOpacity="0.4"
-                strokeDasharray="4,4"
-              />
-            );
-          });
-        })}
       </svg>
+
+      {/* Chemistry connection web — real links (club / nation / coach / partner), colour
+          coded. Selecting a player highlights only their connections. Drawn in its own
+          full-opacity SVG (the markings layer above is dimmed to 30%). */}
+      {showChemLines && chemLinks && chemLinks.length > 0 && (
+        <svg className="absolute inset-0 pointer-events-none" width={fieldWidth} height={fieldHeight}>
+          {chemLinks.map((link, idx) => {
+            const posA = formation.positions[link.aIndex];
+            const posB = formation.positions[link.bIndex];
+            if (!posA || !posB) return null;
+            const x1 = (posA.x / 100) * fieldWidth, y1 = (posA.y / 100) * fieldHeight;
+            const x2 = (posB.x / 100) * fieldWidth, y2 = (posB.y / 100) * fieldHeight;
+            const color = CHEM_LINK_COLOR[link.type];
+            const hasSel = selectedPlayerIndex !== null && selectedPlayerIndex < formation.positions.length;
+            const touchesSel = hasSel && (link.aIndex === selectedPlayerIndex || link.bIndex === selectedPlayerIndex);
+            const opacity = hasSel ? (touchesSel ? 0.95 : 0.1) : 0.5;
+            const width = touchesSel ? 2.6 : 1.6;
+            return (
+              <line key={idx} x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={color} strokeWidth={width} strokeOpacity={opacity} strokeLinecap="round" />
+            );
+          })}
+        </svg>
+      )}
 
       {/* Player tokens */}
       {formation.positions.map((pos, index) => {

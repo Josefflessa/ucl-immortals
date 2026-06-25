@@ -2,24 +2,32 @@
 // Show standings, round-by-round fixtures, and results
 
 import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { Goal, Footprints, Star, Hand, Swords } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
 import LeagueSquadTab from '../components/game/LeagueSquadTab';
 import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
+import BracketTab from '../components/game/BracketTab';
 import PlayerAvatar from '../components/game/PlayerAvatar';
+import PlayerCard from '../components/game/PlayerCard';
 import { POS_PT } from '../lib/gameData';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline } = useGame();
+
+  const handleLeaveRoom = () => {
+    if (window.confirm('Sair da sala? Você deixará o torneio online. Para voltar, é só entrar de novo com o mesmo código e nome enquanto a sala existir.')) {
+      disconnectOnline();
+    }
+  };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
-  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'results' | 'squad' | 'scorers'>('fixtures');
+  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
 
   // This page is the season HUB for BOTH phases: league (rounds + standings) and
@@ -235,6 +243,16 @@ export default function LeaguePage() {
               </span>
             </div>
           )}
+          {state.roomCode && (
+            <button
+              onClick={handleLeaveRoom}
+              title="Sair da sala"
+              className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-red-500/80 hover:text-red-400 border border-red-500/30 hover:border-red-400/60 rounded-md px-2 py-1 transition-all"
+              style={{ fontFamily: 'Rajdhani, sans-serif' }}
+            >
+              <LogOut size={13} /> <span className="hidden sm:inline">Sair</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -325,6 +343,7 @@ export default function LeaguePage() {
           {(isKnockout
             ? [
                 { id: 'fixtures', label: 'CONFRONTOS' },
+                { id: 'bracket', label: 'CHAVEAMENTO' },
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'MEUS JOGOS' },
@@ -355,6 +374,7 @@ export default function LeaguePage() {
 
         {/* Matches tab — knockout shows the bracket ties; league shows round fixtures */}
         {activeTab === 'fixtures' && isKnockout && <KnockoutTiesTab />}
+        {activeTab === 'bracket' && isKnockout && <BracketTab />}
         {activeTab === 'fixtures' && !isKnockout && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -877,6 +897,74 @@ export default function LeaguePage() {
         )}
 
       </div>
+
+      {/* ── End-of-round reinforcement pick ── */}
+      <AnimatePresence>
+        {state.reinforcementOptions && state.reinforcementOptions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
+            style={{ background: 'rgba(6,6,14,0.95)', backdropFilter: 'blur(3px)' }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col max-h-[92vh]"
+              style={{ background: '#0B0B14', border: '1px solid #C9A84C55', boxShadow: '0 0 50px rgba(201,168,76,0.18)' }}
+            >
+              {/* Header */}
+              <div className="px-5 sm:px-6 py-4 flex-shrink-0" style={{ background: 'linear-gradient(135deg,#171206,#0B0B14)', borderBottom: '1px solid #1d1d2f' }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#C9A84C22', border: '1px solid #C9A84C55' }}>
+                    <UserPlus size={20} style={{ color: '#E8C84A' }} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>
+                      REFORÇO DA RODADA
+                    </h3>
+                    <p className="text-[11px] sm:text-xs mt-1" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                      Escolha <b style={{ color: '#FFF' }}>1 jogador</b> para entrar no seu <b style={{ color: '#818CF8' }}>banco de reservas</b>. Depois, na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b>, você pode colocá-lo entre os titulares.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Options */}
+              <div className="px-4 sm:px-6 py-5 overflow-y-auto flex-1 min-h-0">
+                <div className="flex flex-wrap justify-center gap-2.5 sm:gap-4">
+                  {state.reinforcementOptions.map(option => (
+                    <button
+                      key={option.id}
+                      onClick={() => dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
+                      className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none"
+                      title={`Contratar ${option.shortName} para o banco`}
+                    >
+                      <PlayerCard player={option} compact lite />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 sm:px-6 py-4 flex-shrink-0 flex items-center justify-between gap-3" style={{ borderTop: '1px solid #1d1d2f' }}>
+                <span className="text-[11px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                  👆 Toque num card para contratar
+                </span>
+                <button
+                  onClick={() => dispatch({ type: 'DISMISS_REINFORCEMENT' })}
+                  className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+                  style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2A2A3A', background: 'transparent', color: '#8A8A9A' }}
+                >
+                  Pular reforço
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

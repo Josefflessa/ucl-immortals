@@ -3,7 +3,7 @@ import { PLAYERS, COACHES, Player } from './gameData';
 import {
   calculateChemistry, getEffectiveAttribute, getPlayerEffectiveStats, getChemistryBonus,
   calculateTeamStrength, simulateMatch, generateBotTeam, generateDraftOptions,
-  statKey, getPlayerSeasonStats,
+  statKey, getPlayerSeasonStats, PREFERRED_FORMATION_CHEM_BONUS,
   PlayerCard,
 } from './gameEngine';
 
@@ -13,6 +13,20 @@ const asCard = (p: Player, over: Partial<PlayerCard> = {}): PlayerCard =>
 const outfield = PLAYERS.find(p => p.position !== 'GK')!;
 const coach = COACHES[0];
 const noChem = { passing: 0, pace: 0, special: false };
+
+describe('coach preferred-formation chemistry bonus', () => {
+  it('adds the bonus to total chemistry only on the coach preferred formation', () => {
+    const c = COACHES.find(co => !!co.preferredFormation)!;
+    const players = PLAYERS.slice(0, 11);
+    const roles = players.map(p => p.position);
+    const off = calculateChemistry(players, c.id, roles, c.preferredFormation === '4-4-2' ? '4-3-3' : '4-4-2');
+    const on = calculateChemistry(players, c.id, roles, c.preferredFormation);
+    expect(on.total).toBe(Math.min(100, off.total + PREFERRED_FORMATION_CHEM_BONUS));
+    // No formation id passed → no bonus (backwards compatible).
+    const none = calculateChemistry(players, c.id, roles);
+    expect(none.total).toBe(off.total);
+  });
+});
 
 describe('getEffectiveAttribute', () => {
   it('applies a trait bonus to the matching attribute (isolated)', () => {
@@ -40,7 +54,10 @@ describe('getEffectiveAttribute', () => {
 
 describe('getPlayerEffectiveStats mirrors the engine (display = simulation)', () => {
   it('matches getEffectiveAttribute for every shown attribute', () => {
-    const player = PLAYERS.find(p => p.traits.length > 0 && p.position !== 'GK')!;
+    // Traits are now rolled at draft time (no fixed traits in the pool), so assign a
+    // representative trait set here to exercise the trait path in both functions.
+    const base = PLAYERS.find(p => p.position !== 'GK')!;
+    const player: Player = { ...base, traits: ['Finalizador', 'Velocista', 'Frio na Final'] };
     const total = 90;                       // high team chem → exercises global chem bonus
     const chem = getChemistryBonus(total);  // { passing: 3, pace: 2 }
     const playStyle = 'counter';

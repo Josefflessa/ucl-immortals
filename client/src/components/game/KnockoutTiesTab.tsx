@@ -143,7 +143,7 @@ function MatchEventFeed({ result, homeName, awayName, leg1, leg1HomeName, leg1Aw
 }
 
 export default function KnockoutTiesTab() {
-  const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline } = useGame();
+  const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById } = useGame();
   const { knockoutBracket, playerTeam } = state;
   const { localTeamId, getTeamName: resolveTeamName } = useTeams();
   const [viewingResult, setViewingResult] = useState<{
@@ -184,6 +184,24 @@ export default function KnockoutTiesTab() {
   const matches = getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[];
 
   const round = knockoutBracket.currentRound;
+
+  // SPECTATOR: a player with no tie in this round (eliminated / didn't qualify) can
+  // watch any other human's match as a live broadcast. Their watch doesn't gate anyone.
+  const iAmSpectator = state.mode === 'online' && matches.length > 0 &&
+    !matches.some(m => isPlayerTeam(m.homeTeamId) || isPlayerTeam(m.awayTeamId));
+
+  const spectateLeg = (match: KnockoutMatch, leg: 0 | 1 | 2) => {
+    const teamA = getTeamById(match.homeTeamId); // first-leg home
+    const teamB = getTeamById(match.awayTeamId); // first-leg away
+    if (!teamA || !teamB) return;
+    if (leg === 0 && match.result) {
+      dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [teamA, teamB], result: match.result, knockout: { matchId: match.id, round }, spectator: true });
+    } else if (leg === 1 && match.leg1) {
+      dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [teamA, teamB], result: match.leg1, knockout: { matchId: match.id, round, leg: 1 }, spectator: true });
+    } else if (leg === 2 && match.leg2) {
+      dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [teamB, teamA], result: match.leg2, knockout: { matchId: match.id, round, leg: 2, firstLeg: { home: match.leg1?.awayGoals ?? 0, away: match.leg1?.homeGoals ?? 0 } }, spectator: true });
+    }
+  };
   const label = knockoutRoundLabel(round);
   const allPlayed = matches.length > 0 && matches.every(m => m.played);
   const isFinal = round === 'final';
@@ -352,8 +370,26 @@ export default function KnockoutTiesTab() {
                   </div>
 
                   {/* Action buttons */}
-                  <div className="mt-2 mb-4 flex gap-3 justify-center">
-                    {hideScore ? (
+                  <div className="mt-2 mb-4 flex gap-2 sm:gap-3 justify-center flex-wrap">
+                    {iAmSpectator ? (
+                      // Spectator (eliminated): watch any human's match as a live broadcast.
+                      (() => {
+                        const specBtn = "px-3 sm:px-4 py-2 rounded-lg text-xs font-black tracking-wider transition-all hover:scale-[1.03]";
+                        const specStyle = { background: 'linear-gradient(135deg, #4338CA, #6366F1)', color: '#fff', fontFamily: 'Rajdhani, sans-serif', boxShadow: '0 0 14px rgba(99,102,241,0.25)' };
+                        if (twoLeg) {
+                          if (!l1 && !l2) return <span className="px-4 py-2 text-xs font-bold text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>AGUARDANDO JOGO</span>;
+                          return (
+                            <>
+                              {l1 && <button onClick={() => spectateLeg(match, 1)} className={specBtn} style={specStyle}>👁 ASSISTIR IDA</button>}
+                              {l2 && <button onClick={() => spectateLeg(match, 2)} className={specBtn} style={specStyle}>👁 ASSISTIR VOLTA</button>}
+                            </>
+                          );
+                        }
+                        return match.result
+                          ? <button onClick={() => spectateLeg(match, 0)} className={specBtn} style={specStyle}>👁 ASSISTIR JOGO</button>
+                          : <span className="px-4 py-2 text-xs font-bold text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>AGUARDANDO JOGO</span>;
+                      })()
+                    ) : hideScore ? (
                       <span className="px-4 py-2 text-xs font-bold animate-pulse" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
                         {hideMyScore ? '⚽ ABRINDO SEU CONFRONTO...' : '⏳ AGUARDANDO TODOS ASSISTIREM...'}
                       </span>

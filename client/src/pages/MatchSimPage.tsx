@@ -9,14 +9,22 @@ import {
   getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
   getPenaltyTaker, getPenaltyOrder, setStatIds, statKey,
-  teamMidfieldPassing, midfieldBuildUpEdge,
-  GK_SAVE_EDGE, ON_TARGET_RESISTANCE, MATCH_NOISE,
+  teamMidfieldPassing, midfieldBuildUpEdge, getFreeKickTaker, getHeaderTarget, resolveOpenPlayChance, buildKeyMinutes,
+  formationProfile, tacticProfile, MATCH_NOISE, HOME_ADVANTAGE, captainBestStat, CAPTAIN_BOOST,
 } from '../lib/gameEngine';
+
+// Captain leadership context: their best stat is lifted +CAPTAIN_BOOST for the whole side.
+const captainBoostCtx = (team: Team) => {
+  const s = captainBestStat(team);
+  return s ? { stat: s as string, amount: CAPTAIN_BOOST } : undefined;
+};
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';
 import {
   selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
   frangoDesc, screamedDesc, deflectedDesc, woodworkDesc,
   penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc,
+  freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc,
+  cornerGoalDesc, cornerSaveDesc, cornerMissDesc,
   flowDesc, dangerStage1Msg, celebrationMsg, saveCelebMsg, missCelebMsg, tackleCelebMsg,
   Approach,
 } from '../lib/matchNarrative';
@@ -102,7 +110,7 @@ export default function MatchSimPage() {
           playerId: p.id,
           playerName: p.shortName,
           teamId: team.id,
-          rating: 6.0,
+          rating: 6.4,
           goals: 0,
           assists: 0,
           shots: 0,
@@ -111,6 +119,9 @@ export default function MatchSimPage() {
           fouls: 0,
           yellowCards: 0,
           redCards: 0,
+          keyPasses: 0,
+          interceptions: 0,
+          shotsOnTarget: 0,
         };
       });
     };
@@ -150,6 +161,7 @@ export default function MatchSimPage() {
 
   const pendingGoalResult = useRef<any>(null);
   const pendingReplayGoals = useRef<any>(null); // buffered goal events for replay danger sequence
+  const keyMinutesRef = useRef<number[] | null>(null); // jittered key-event minutes for THIS match
 
   // Interactive Penalty Shootout state
   const [penaltyMode, setPenaltyMode] = useState(false);
@@ -234,7 +246,7 @@ export default function MatchSimPage() {
 
   // Time tick speed
   const getTickDuration = () => {
-    if (broadcastMode) return 450; // fixed live-broadcast pace online (same for all)
+    if (broadcastMode) return 250; // fixed live-broadcast pace online (≈4x, same for all)
     if (speed === 1) return 1000;
     if (speed === 2) return 500;
     return 250;
@@ -281,10 +293,14 @@ export default function MatchSimPage() {
     const awayIsLosing = awayScore < homeScore;
     const attackIsLosing = homeAttacks ? homeIsLosing : awayIsLosing;
     const defendIsLosing = homeAttacks ? awayIsLosing : homeIsLosing;
-    const attackCtx = { isKnockout, isFinal, isLosing: attackIsLosing };
-    const defendCtx = { isKnockout, isFinal, isLosing: defendIsLosing };
+    const attackCtx = { isKnockout, isFinal, isLosing: attackIsLosing, captainBoost: captainBoostCtx(attackTeam) };
+    const defendCtx = { isKnockout, isFinal, isLosing: defendIsLosing, captainBoost: captainBoostCtx(defendTeam) };
 
-    const approach = selectApproach(attackTeam.playStyle ?? 'balanced');
+    const atkProf = formationProfile(attackTeam.formationId);
+    const defProf = formationProfile(defendTeam.formationId);
+    let approach = selectApproach(attackTeam.playStyle ?? 'balanced');
+    // Narrow formations cross less → swap some crosses for central through-balls.
+    if (atkProf.cross <= -2 && approach === 'cross' && Math.random() < 0.6) approach = 'through';
     const bUpMsg = buildUpDesc(approach, attacker.shortName, defender.shortName, widePlayer.shortName, attackTeam.name);
 
     let isGoal = false;
@@ -325,7 +341,7 @@ export default function MatchSimPage() {
         goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
         playerStatUpdates.push(
           { statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.2; } },
-          { statKey: gk.statId!, updateFn: s => { s.rating -= 1.2; } }
+          { statKey: gk.statId!, updateFn: s => { s.rating -= 1.0; } }
         );
         eventsToPush.push({
           minute: nextMin, type: 'goal',
@@ -380,7 +396,7 @@ export default function MatchSimPage() {
           );
           eventsToPush.push({
             minute: nextMin, type: 'goal',
-            description: penaltyGoalDesc(taker.shortName, defender.shortName, gk.shortName),
+            description: penaltyGoalDesc(taker.shortName, attacker.shortName, defender.shortName, gk.shortName),
             teamId: attackTeam.id, playerId: taker.id, opponentId: gk.id,
           });
           momentumShift = homeAttacks ? 15 : -15;
@@ -439,23 +455,25 @@ export default function MatchSimPage() {
       // Trait effects are already baked into the effective attributes above
       // (getEffectiveAttribute + trait catalog), so no extra bonuses here.
       // Midfield control (passing) lifts the quality of the chance created.
-      const buildUp = midfieldBuildUpEdge(teamMidfieldPassing(attackTeam), teamMidfieldPassing(defendTeam), attackTeam.playStyle ?? 'balanced');
-      const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + buildUp + Math.random() * 40;
-      const defScore = (defDefending + defPhysical) / 2 + Math.random() * 40;
+      // Formation + tactic tune chance quality (midfield battle + opponent solidity).
+      const atkTac = tacticProfile(attackTeam.playStyle ?? 'balanced');
+      const defTac = tacticProfile(defendTeam.playStyle ?? 'balanced');
+      const formMod = ((atkProf.control + atkTac.control) - (defProf.control + defTac.control)) * 1.2
+        + atkTac.attack * 1.6
+        - (defProf.defense + defTac.defense) * 2.2;
+      const buildUp = midfieldBuildUpEdge(teamMidfieldPassing(attackTeam), teamMidfieldPassing(defendTeam), attackTeam.playStyle ?? 'balanced') + formMod;
+      const chance = resolveOpenPlayChance({
+        atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
+        gkRating: gk.defending + getGoalkeeperTraitBonus(gk.traits), approach,
+      });
 
-      if (atkScore > defScore) {
+      if (chance.outcome !== 'duel') {
         statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
 
-        const targetChance = atkShooting / (atkShooting + ON_TARGET_RESISTANCE);
-        const isOnTarget = Math.random() < targetChance;
-
-        if (isOnTarget) {
+        if (chance.outcome !== 'miss') {
           statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
 
-          const gkScore = gk.defending + getGoalkeeperTraitBonus(gk.traits) + GK_SAVE_EDGE + Math.random() * 36;
-          const shootScore = atkShooting + Math.random() * 36;
-
-          if (shootScore > gkScore) {
+          if (chance.outcome === 'goal') {
             isGoal = true;
             if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
             const newHG = homeScore + (homeAttacks ? 1 : 0);
@@ -480,8 +498,8 @@ export default function MatchSimPage() {
             });
 
             playerStatUpdates.push(
-              { statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.4; } },
-              { statKey: gk.statId!, updateFn: s => { s.rating -= 0.4; } },
+              { statKey: attacker.statId!, updateFn: s => { s.goals++; s.shotsOnTarget++; s.rating += 1.4; } },
+              { statKey: gk.statId!, updateFn: s => { s.rating -= 0.3; } },
               { statKey: defender.statId!, updateFn: s => { s.rating -= 0.2; } }
             );
             defendTeam.players.slice(0, 11).forEach(p => {
@@ -505,9 +523,11 @@ export default function MatchSimPage() {
               teamId: defendTeam.id, playerId: gk.id, opponentId: attacker.id,
             });
             playerStatUpdates.push(
-              { statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.4; } },
-              { statKey: attacker.statId!, updateFn: s => { s.rating -= 0.1; } }
+              { statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.45; } },
+              { statKey: attacker.statId!, updateFn: s => { s.shotsOnTarget++; s.rating += 0.05; } }
             );
+            const saveCreator = pickWeightedAssister(attackTeam, attacker.id);
+            if (saveCreator) playerStatUpdates.push({ statKey: saveCreator.statId!, updateFn: s => { s.keyPasses++; s.rating += 0.25; } });
             momentumShift = homeAttacks ? -8 : 8;
             messageStage3 = saveCelebMsg(gk.shortName, attacker.shortName);
           }
@@ -517,14 +537,17 @@ export default function MatchSimPage() {
             description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
             teamId: attackTeam.id, playerId: attacker.id,
           });
-          playerStatUpdates.push({ statKey: attacker.statId!, updateFn: s => { s.shots++; s.rating -= 0.15; } });
+          playerStatUpdates.push({ statKey: attacker.statId!, updateFn: s => { s.shots++; s.rating -= 0.1; } });
+          const missCreator = pickWeightedAssister(attackTeam, attacker.id);
+          if (missCreator) playerStatUpdates.push({ statKey: missCreator.statId!, updateFn: s => { s.keyPasses++; s.rating += 0.15; } });
           momentumShift = homeAttacks ? -3 : 3;
           messageStage3 = missCelebMsg(attacker.shortName);
         }
       } else {
+        const duelTackle = Math.random() < 0.5;
         playerStatUpdates.push(
-          { statKey: defender.statId!, updateFn: s => { s.tackles++; s.rating += 0.35; } },
-          { statKey: attacker.statId!, updateFn: s => { s.rating -= 0.15; } }
+          { statKey: defender.statId!, updateFn: s => { if (duelTackle) s.tackles++; else s.interceptions++; s.rating += 0.32; } },
+          { statKey: attacker.statId!, updateFn: s => { s.rating -= 0.12; } }
         );
         eventsToPush.push({
           minute: nextMin, type: 'duel',
@@ -552,6 +575,140 @@ export default function MatchSimPage() {
       gkName: gk.shortName,
       approach,
       buildUpMsg: bUpMsg,
+      attackTeamId: attackTeam.id,
+    };
+  };
+
+  // Direct free kick — a fraction of fouls become a dangerous dead ball. Returns the
+  // SAME result shape as simulateKeyEvent so it flows through the 3-stage suspense.
+  // Conversion is low (free kicks rarely go in), scaled by the taker's shooting+composure.
+  const simulateFreeKick = (nextMin: number, homeAttacks: boolean) => {
+    const attackTeam = homeAttacks ? homeTeam : awayTeam;
+    const defendTeam = homeAttacks ? awayTeam : homeTeam;
+    const homeCoach = COACHES.find(c => c.id === homeTeam.coachId)!;
+    const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
+    const attackCoach = homeAttacks ? homeCoach : awayCoach;
+    const attackChem = getChemistryBonus(attackTeam.totalChemistry);
+    const attackCtx = { isKnockout, isFinal, isLosing: homeAttacks ? homeScore < awayScore : awayScore < homeScore, captainBoost: captainBoostCtx(attackTeam) };
+
+    const taker = getFreeKickTaker(attackTeam);
+    const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
+    const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
+    const skill = (takerShoot + taker.composure) / 2;
+    const goalChance = Math.max(0.015, Math.min(0.11, (skill - 80) / 140));
+    const r = Math.random();
+
+    let isGoal = false, isSaveResult = false, homeScoreDelta = 0, awayScoreDelta = 0;
+    let goalAlert: { teamName: string; scorer: string } | undefined;
+    let momentumShift = 0;
+    const playerStatUpdates: { statKey: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
+    const statIncrements: (keyof MatchResult['stats'])[] = [];
+    const eventsToPush: MatchEvent[] = [];
+    let messageStage3 = '';
+
+    statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
+
+    if (r < goalChance) {
+      isGoal = true;
+      if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
+      statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
+      const newHG = homeScore + (homeAttacks ? 1 : 0);
+      const newAG = awayScore + (homeAttacks ? 0 : 1);
+      goalAlert = { teamName: attackTeam.name, scorer: taker.shortName };
+      playerStatUpdates.push(
+        { statKey: taker.statId!, updateFn: s => { s.goals++; s.rating += 1.5; } },
+        { statKey: gk.statId!, updateFn: s => { s.rating -= 0.3; } },
+      );
+      eventsToPush.push({ minute: nextMin, type: 'goal', description: freeKickGoalDesc(taker.shortName, gk.shortName), teamId: attackTeam.id, playerId: taker.id, opponentId: gk.id, isSpecial: true });
+      momentumShift = homeAttacks ? 15 : -15;
+      messageStage3 = `⚽ GOLAÇO DE FALTA DO ${attackTeam.name.toUpperCase()}! ${taker.shortName} marca! ${newHG}-${newAG}`;
+    } else if (r < goalChance + 0.35) {
+      isSaveResult = true;
+      statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget', homeAttacks ? 'awaySaves' : 'homeSaves');
+      playerStatUpdates.push({ statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.5; } });
+      eventsToPush.push({ minute: nextMin, type: 'save', description: freeKickSaveDesc(gk.shortName, taker.shortName), teamId: defendTeam.id, playerId: gk.id, opponentId: taker.id });
+      momentumShift = homeAttacks ? -6 : 6;
+      messageStage3 = saveCelebMsg(gk.shortName, taker.shortName);
+    } else {
+      playerStatUpdates.push({ statKey: taker.statId!, updateFn: s => { s.rating -= 0.1; } });
+      eventsToPush.push({ minute: nextMin, type: 'miss', description: freeKickMissDesc(taker.shortName), teamId: attackTeam.id, playerId: taker.id });
+      momentumShift = homeAttacks ? -3 : 3;
+      messageStage3 = missCelebMsg(taker.shortName);
+    }
+
+    return {
+      isGoal, isSaveResult, homeScoreDelta, awayScoreDelta, goalAlert, momentumShift,
+      playerStatUpdates, statIncrements, eventsToPush, messageStage3,
+      attackerName: taker.shortName, defenderName: gk.shortName, gkName: gk.shortName,
+      approach: 'longrange' as Approach,
+      buildUpMsg: `⚠️ FALTA PERIGOSA! ${taker.shortName} ajeita a bola para a cobrança direta...`,
+      attackTeamId: attackTeam.id,
+    };
+  };
+
+  // Corner header — a fraction of corners become an aerial chance. Same result shape
+  // as simulateKeyEvent so it flows through the 3-stage suspense.
+  const simulateCornerHeader = (nextMin: number, homeAttacks: boolean) => {
+    const attackTeam = homeAttacks ? homeTeam : awayTeam;
+    const defendTeam = homeAttacks ? awayTeam : homeTeam;
+    const homeCoach = COACHES.find(c => c.id === homeTeam.coachId)!;
+    const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
+    const attackCoach = homeAttacks ? homeCoach : awayCoach;
+    const attackChem = getChemistryBonus(attackTeam.totalChemistry);
+    const attackCtx = { isKnockout, isFinal, isLosing: homeAttacks ? homeScore < awayScore : awayScore < homeScore, captainBoost: captainBoostCtx(attackTeam) };
+
+    const header = getHeaderTarget(attackTeam);
+    const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
+    const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx) + header.physical) / 2;
+    const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
+    const r = Math.random();
+
+    let isGoal = false, isSaveResult = false, homeScoreDelta = 0, awayScoreDelta = 0;
+    let goalAlert: { teamName: string; scorer: string } | undefined;
+    let momentumShift = 0;
+    const playerStatUpdates: { statKey: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
+    const statIncrements: (keyof MatchResult['stats'])[] = [];
+    const eventsToPush: MatchEvent[] = [];
+    let messageStage3 = '';
+
+    statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
+
+    if (r < goalChance) {
+      isGoal = true;
+      if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
+      statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
+      const newHG = homeScore + (homeAttacks ? 1 : 0);
+      const newAG = awayScore + (homeAttacks ? 0 : 1);
+      goalAlert = { teamName: attackTeam.name, scorer: header.shortName };
+      const assister = pickWeightedAssister(attackTeam, header.id);
+      playerStatUpdates.push(
+        { statKey: header.statId!, updateFn: s => { s.goals++; s.rating += 1.4; } },
+        { statKey: gk.statId!, updateFn: s => { s.rating -= 0.3; } },
+      );
+      if (assister) playerStatUpdates.push({ statKey: assister.statId!, updateFn: s => { s.assists++; s.rating += 0.7; } });
+      eventsToPush.push({ minute: nextMin, type: 'goal', description: cornerGoalDesc(header.shortName, gk.shortName), teamId: attackTeam.id, playerId: header.id, opponentId: gk.id, assisterId: assister?.id, isSpecial: true });
+      momentumShift = homeAttacks ? 15 : -15;
+      messageStage3 = `⚽ GOL DE CABEÇA DO ${attackTeam.name.toUpperCase()}! ${header.shortName} marca no escanteio! ${newHG}-${newAG}`;
+    } else if (r < goalChance + 0.40) {
+      isSaveResult = true;
+      statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget', homeAttacks ? 'awaySaves' : 'homeSaves');
+      playerStatUpdates.push({ statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.5; } });
+      eventsToPush.push({ minute: nextMin, type: 'save', description: cornerSaveDesc(gk.shortName, header.shortName), teamId: defendTeam.id, playerId: gk.id, opponentId: header.id });
+      momentumShift = homeAttacks ? -6 : 6;
+      messageStage3 = saveCelebMsg(gk.shortName, header.shortName);
+    } else {
+      playerStatUpdates.push({ statKey: header.statId!, updateFn: s => { s.rating -= 0.1; } });
+      eventsToPush.push({ minute: nextMin, type: 'miss', description: cornerMissDesc(header.shortName), teamId: attackTeam.id, playerId: header.id });
+      momentumShift = homeAttacks ? -3 : 3;
+      messageStage3 = missCelebMsg(header.shortName);
+    }
+
+    return {
+      isGoal, isSaveResult, homeScoreDelta, awayScoreDelta, goalAlert, momentumShift,
+      playerStatUpdates, statIncrements, eventsToPush, messageStage3,
+      attackerName: header.shortName, defenderName: gk.shortName, gkName: gk.shortName,
+      approach: 'cross' as Approach,
+      buildUpMsg: `🚩 ESCANTEIO! A bola vai na área e ${header.shortName} sobe para o cabeceio...`,
       attackTeamId: attackTeam.id,
     };
   };
@@ -601,7 +758,8 @@ export default function MatchSimPage() {
 
       const homeStrength = calculateTeamStrength(homeTeam, homeCoach, homeChem, homeFormBonus) +
         zidaneBonus(homeTeam) +
-        (fergusonActive(homeTeam, homeScore, awayScore) ? 10 : 0);
+        (fergusonActive(homeTeam, homeScore, awayScore) ? 10 : 0) +
+        (isFinal ? 0 : HOME_ADVANTAGE); // neutral venue for the final → no host edge
       const awayStrength = calculateTeamStrength(awayTeam, awayCoach, awayChem, awayFormBonus) +
         zidaneBonus(awayTeam) +
         (fergusonActive(awayTeam, awayScore, homeScore) ? 10 : 0);
@@ -609,8 +767,10 @@ export default function MatchSimPage() {
       const homeMomBonus = (momentum - 50) * 0.12;
       const awayMomBonus = ((100 - momentum) - 50) * 0.12;
 
-      const homeAtkScore = homeStrength + homeMomBonus + (Math.random() * 2 - 1) * MATCH_NOISE;
-      const awayAtkScore = awayStrength + awayMomBonus + (Math.random() * 2 - 1) * MATCH_NOISE;
+      // Attacking FORMATIONS take a little more of the territory (the tactic's attacking
+      // intent lifts chance QUALITY below instead, so it doesn't also hog possession).
+      const homeAtkScore = homeStrength + homeMomBonus + formationProfile(homeTeam.formationId).attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
+      const awayAtkScore = awayStrength + awayMomBonus + formationProfile(awayTeam.formationId).attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
 
       const homeAttacks = homeAtkScore > awayAtkScore;
       const attackTeam = homeAttacks ? homeTeam : awayTeam;
@@ -630,8 +790,8 @@ export default function MatchSimPage() {
         }
       }
 
-      const isKeyEvent = [8, 15, 22, 28, 35, 42, 47, 55, 62, 68, 75, 82, 88, 90].includes(nextMin) ||
-        (isKnockout && nextMin > 90 && [95, 102, 108, 114, 120].includes(nextMin));
+      if (!keyMinutesRef.current) keyMinutesRef.current = buildKeyMinutes(isKnockout);
+      const isKeyEvent = keyMinutesRef.current.includes(nextMin);
 
       if (isKeyEvent) {
         const result = simulateKeyEvent(nextMin, homeAttacks);
@@ -683,6 +843,37 @@ export default function MatchSimPage() {
             return nextMom;
           });
         }
+      } else if (Math.random() < 0.02) {
+        // Dangerous free kick at a non-key minute (~1.5/match) — runs through the
+        // same 3-stage suspense as a normal danger play.
+        const fkResult = simulateFreeKick(nextMin, homeAttacks);
+        setIsPlaying(false);
+        pendingGoalResult.current = fkResult;
+        setDangerState({
+          stage: 1,
+          teamId: fkResult.attackTeamId,
+          attacker: fkResult.attackerName,
+          defender: fkResult.defenderName,
+          type: 'attack',
+          message: dangerStage1Msg(fkResult.approach, attackTeam.name, fkResult.attackerName, fkResult.defenderName, fkResult.isGoal, fkResult.isSaveResult),
+          approach: fkResult.approach,
+          buildUp: fkResult.buildUpMsg,
+        });
+      } else if (Math.random() < 0.01) {
+        // Corner header at a non-key minute (~0.7/match) — same 3-stage suspense.
+        const chResult = simulateCornerHeader(nextMin, homeAttacks);
+        setIsPlaying(false);
+        pendingGoalResult.current = chResult;
+        setDangerState({
+          stage: 1,
+          teamId: chResult.attackTeamId,
+          attacker: chResult.attackerName,
+          defender: chResult.defenderName,
+          type: 'attack',
+          message: dangerStage1Msg(chResult.approach, attackTeam.name, chResult.attackerName, chResult.defenderName, chResult.isGoal, chResult.isSaveResult),
+          approach: chResult.approach,
+          buildUp: chResult.buildUpMsg,
+        });
       } else {
         // Flow/Commentary events (30% chance, context-aware)
         if (Math.random() < 0.30) {
@@ -1302,7 +1493,9 @@ export default function MatchSimPage() {
     // replay), so we just return to the league/knockout view. Solo computes
     // the result locally as before.
     if (activeKnockoutMatch) {
-      if (state.mode === 'online') notifyMatchWatchedOnline('knockout');
+      // Spectators (eliminated players watching someone else's tie) must NOT notify the
+      // advance-gate — they aren't participants in this round.
+      if (state.mode === 'online' && !state.spectating) notifyMatchWatchedOnline('knockout');
       dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
     } else {
       if (state.mode === 'online') notifyMatchWatchedOnline('league');
@@ -1353,8 +1546,9 @@ export default function MatchSimPage() {
     const initTeam = (team: Team) => {
       team.players.slice(0, 11).forEach(p => {
         ps[p.statId!] = {
-          playerId: p.id, playerName: p.shortName, teamId: team.id, rating: 6.0,
+          playerId: p.id, playerName: p.shortName, teamId: team.id, rating: 6.4,
           goals: 0, assists: 0, shots: 0, tackles: 0, saves: 0, fouls: 0, yellowCards: 0, redCards: 0,
+          keyPasses: 0, interceptions: 0, shotsOnTarget: 0,
         };
       });
     };

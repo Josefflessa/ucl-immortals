@@ -47,6 +47,7 @@ export interface RoomPlayer {
   vetoesLeft: number;
   captain: string | null;
   penaltyTaker: string | null;
+  freeKickTaker: string | null;
   team: Team | null;
   ready: boolean;
 }
@@ -76,6 +77,9 @@ export interface GameState {
   selectedPlayStyle: string;
   captain: string | null;
   penaltyTaker: string | null;
+  freeKickTaker: string | null;
+  // End-of-round reinforcement (solo league): 6 random players, pick 1 → joins the bench.
+  reinforcementOptions: Player[] | null;
 
   // Online Multiplayer fields
   mode: 'solo' | 'online';
@@ -91,6 +95,9 @@ export interface GameState {
   // already watched, so we only auto-open each replay once.
   lastWatchedRound: number;
   watchedKnockoutMatches: string[];
+  // True while watching SOMEONE ELSE'S tie as a spectator (eliminated player). Such a
+  // watch must not notify the server's advance-gate (the spectator isn't a participant).
+  spectating: boolean;
   // IDs of players who have confirmed watching the current round/leg (from server)
   onlineWatchedPlayers: string[];
   // Names the host is still waiting on before advancing (from the server's
@@ -137,10 +144,15 @@ type GameAction =
   | { type: 'FINISH_DRAFT' }
   | { type: 'SET_CAPTAIN'; playerId: string }
   | { type: 'SET_PENALTY_TAKER'; playerId: string }
+  | { type: 'SET_FREE_KICK_TAKER'; playerId: string }
   | { type: 'SWAP_PLAYERS'; indexA: number; indexB: number }
   | { type: 'SWAP_PLAYER_TEAM'; indexA: number; indexB: number }
   | { type: 'SET_PLAYER_TEAM_CAPTAIN'; playerId: string }
   | { type: 'SET_PLAYER_TEAM_PENALTY_TAKER'; playerId: string }
+  | { type: 'SET_PLAYER_TEAM_FREE_KICK_TAKER'; playerId: string }
+  | { type: 'SET_PLAYER_TEAM_FORMATION'; formationId: string }
+  | { type: 'PICK_REINFORCEMENT'; player: Player }
+  | { type: 'DISMISS_REINFORCEMENT' }
   | { type: 'START_LEAGUE' }
   | { type: 'SIMULATE_LEAGUE' }
   | { type: 'START_KNOCKOUT' }
@@ -152,7 +164,7 @@ type GameAction =
   | { type: 'ADVANCE_KNOCKOUT' }
   | { type: 'FINISH_KNOCKOUT_MATCH'; result: MatchResult }
   | { type: 'SET_CURRENT_MATCH'; result: MatchResult; teams: [Team, Team] }
-  | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } } }
+  | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } }; spectator?: boolean }
   | { type: 'CLEAR_CURRENT_MATCH' }
   | { type: 'FINISH_GAME'; champion: string }
   | { type: 'RESET_GAME' }
@@ -188,6 +200,8 @@ const initialState: GameState = {
   selectedPlayStyle: 'balanced',
   captain: null,
   penaltyTaker: null,
+  freeKickTaker: null,
+  reinforcementOptions: null,
 
   // Online Multiplayer fields
   mode: 'solo',
@@ -201,6 +215,7 @@ const initialState: GameState = {
   alreadyDraftedIds: [],
   lastWatchedRound: 0,
   watchedKnockoutMatches: [],
+  spectating: false,
   onlineWatchedPlayers: [],
   advanceBlocked: null,
 };
@@ -331,23 +346,29 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       
       let newCaptain = state.captain;
       let newPenaltyTaker = state.penaltyTaker;
-      
+      let newFreeKickTaker = state.freeKickTaker;
+
       const starters = newDrafted.slice(0, 11);
       const isCaptainInStarters = starters.some(p => p?.id === newCaptain);
       const isPenaltyTakerInStarters = starters.some(p => p?.id === newPenaltyTaker);
-      
+      const isFreeKickTakerInStarters = starters.some(p => p?.id === newFreeKickTaker);
+
       if (!isCaptainInStarters) {
         newCaptain = null;
       }
       if (!isPenaltyTakerInStarters) {
         newPenaltyTaker = null;
       }
-      
+      if (!isFreeKickTakerInStarters) {
+        newFreeKickTaker = null;
+      }
+
       return {
         ...state,
         draftedPlayers: newDrafted,
         captain: newCaptain,
         penaltyTaker: newPenaltyTaker,
+        freeKickTaker: newFreeKickTaker,
       };
     }
 
@@ -356,6 +377,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_PENALTY_TAKER':
       return { ...state, penaltyTaker: action.playerId };
+
+    case 'SET_FREE_KICK_TAKER':
+      return { ...state, freeKickTaker: action.playerId };
 
     case 'SWAP_PLAYER_TEAM': {
       if (!state.playerTeam) return state;
@@ -366,15 +390,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       let captain = state.playerTeam.captain;
       let penaltyTaker = state.playerTeam.penaltyTaker;
+      let freeKickTaker = state.playerTeam.freeKickTaker;
       const starters = newPlayers.slice(0, 11);
       if (captain && !starters.some(p => p.id === captain)) captain = undefined;
       if (penaltyTaker && !starters.some(p => p.id === penaltyTaker)) penaltyTaker = undefined;
+      if (freeKickTaker && !starters.some(p => p.id === freeKickTaker)) freeKickTaker = undefined;
 
       const updatedTeam = rebuildTeamChemistry({
         ...state.playerTeam,
         players: newPlayers,
         captain,
         penaltyTaker,
+        freeKickTaker,
       });
 
       return { ...state, playerTeam: updatedTeam };
@@ -394,6 +421,36 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         playerTeam: { ...state.playerTeam, penaltyTaker: action.playerId },
       };
 
+    case 'SET_PLAYER_TEAM_FREE_KICK_TAKER':
+      if (!state.playerTeam) return state;
+      return {
+        ...state,
+        playerTeam: { ...state.playerTeam, freeKickTaker: action.playerId },
+      };
+
+    case 'SET_PLAYER_TEAM_FORMATION':
+      if (!state.playerTeam) return state;
+      // Changing the shape re-maps player roles → recompute chemistry / out-of-position.
+      return {
+        ...state,
+        playerTeam: rebuildTeamChemistry({ ...state.playerTeam, formationId: action.formationId }),
+      };
+
+    case 'PICK_REINFORCEMENT': {
+      if (!state.playerTeam) return { ...state, reinforcementOptions: null };
+      // The reinforcement joins the BENCH (index 11+). The XI is untouched, so chemistry
+      // stays the same until the manager substitutes him in via the MEU TIME screen.
+      const card: PlayerCard = { ...action.player, chemistryScore: 0, isOOP: false };
+      return {
+        ...state,
+        playerTeam: { ...state.playerTeam, players: [...state.playerTeam.players, card] },
+        reinforcementOptions: null,
+      };
+    }
+
+    case 'DISMISS_REINFORCEMENT':
+      return { ...state, reinforcementOptions: null };
+
     case 'START_LEAGUE': {
       // Build player team
       const starters = state.draftedPlayers.slice(0, 11).filter((p): p is Player => p !== null && p !== undefined);
@@ -403,7 +460,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const chemData = calculateChemistry(
         starters,
         state.selectedCoachId,
-        formationRoles
+        formationRoles,
+        state.selectedFormationId
       );
 
       const allPlayers = state.draftedPlayers.filter((p): p is Player => p !== null && p !== undefined);
@@ -427,6 +485,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         players: playerCards,
         captain: state.captain ?? undefined,
         penaltyTaker: state.penaltyTaker ?? undefined,
+        freeKickTaker: state.freeKickTaker ?? undefined,
         totalChemistry: chemData.total,
         isBot: false,
       };
@@ -578,6 +637,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Collect ALL played results across all rounds to preserve stats
       const results = allFixtures.map(f => f.result!).filter(Boolean);
 
+      // End-of-round reinforcement: offer 6 fresh players (none already owned) to pick
+      // 1 from → it joins the bench. Solo only.
+      const ownedIds = state.playerTeam.players.map(p => p.id);
+      const reinforcementOptions = generateDraftOptions([], ownedIds);
+
       return {
         ...state,
         phase: 'league',
@@ -586,6 +650,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         leagueResults: results,
         currentMatch: null,
         currentMatchTeams: null,
+        reinforcementOptions,
       };
     }
 
@@ -662,6 +727,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         phase: 'knockout',
+        spectating: false,
         activeKnockoutMatch: null,
         currentMatch: null,
         currentMatchTeams: null,
@@ -676,12 +742,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Open the match-sim screen in replay mode, driven by the authoritative
       // result already computed (identical on every device). Mark the round/leg as
       // watched immediately so it only auto-opens once.
-      const watchKey = action.knockout
+      // A spectator watch never gates advancement, so it isn't recorded as "watched".
+      const watchKey = action.spectator ? null : action.knockout
         ? (action.knockout.leg ? `${action.knockout.matchId}_l${action.knockout.leg}` : action.knockout.matchId)
         : null;
       return {
         ...state,
         phase: 'match_sim',
+        spectating: !!action.spectator,
         currentMatchTeams: action.teams,
         currentMatchResult: action.result,
         currentMatch: null,
@@ -741,6 +809,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         targetPhase = 'match_sim';
       }
 
+      // While the player is actively on a SELECTION screen (coach / formation / squad
+      // review), their local picks aren't submitted yet — a room broadcast triggered by
+      // ANOTHER player must NOT overwrite them with the server's stale/default values.
+      // (This caused the coach reverting to Guardiola and post-draft picks "jumping".)
+      // We only sync picks from the server when ENTERING the screen (phase changes).
+      const keepLocalPicks = ['coach', 'formation', 'squad_review'].includes(targetPhase) && state.phase === targetPhase;
+
       return {
         ...state,
         mode: 'online',
@@ -766,12 +841,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         // Local player sync
         playerName: me ? me.name : state.playerName,
         playerTeam: me ? me.team : state.playerTeam,
-        draftedPlayers: me ? me.draftedPlayers : state.draftedPlayers,
-        selectedCoachId: me ? me.coachId : state.selectedCoachId,
-        selectedFormationId: me ? me.formationId : state.selectedFormationId,
-        selectedPlayStyle: me ? (me.playStyle ?? 'balanced') : state.selectedPlayStyle,
-        captain: me ? me.captain : state.captain,
-        penaltyTaker: me ? me.penaltyTaker : state.penaltyTaker,
+        draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),
+        selectedCoachId: keepLocalPicks ? state.selectedCoachId : (me ? me.coachId : state.selectedCoachId),
+        selectedFormationId: keepLocalPicks ? state.selectedFormationId : (me ? me.formationId : state.selectedFormationId),
+        selectedPlayStyle: keepLocalPicks ? state.selectedPlayStyle : (me ? (me.playStyle ?? 'balanced') : state.selectedPlayStyle),
+        captain: keepLocalPicks ? state.captain : (me ? me.captain : state.captain),
+        penaltyTaker: keepLocalPicks ? state.penaltyTaker : (me ? me.penaltyTaker : state.penaltyTaker),
+        freeKickTaker: keepLocalPicks ? state.freeKickTaker : (me ? me.freeKickTaker : state.freeKickTaker),
         // Host can transfer if the creator drops — derive from the server's hostId.
         isHost: me ? me.id === roomState.hostId : state.isHost,
         // Surfaced when the host tries to advance before everyone has watched.
@@ -840,8 +916,8 @@ interface GameContextType {
   submitSetupOnline: (coachId: string, formationId: string) => void;
   draftPickOnline: (playerId: string) => void;
   draftVetoOnline: () => void;
-  submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string) => void;
-  setMatchRolesOnline: (captain: string | null, penaltyTaker: string | null, playStyle?: string) => void;
+  submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string) => void;
+  setMatchRolesOnline: (captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, playStyle?: string, formationId?: string) => void;
   // League — host only
   playRoundOnline: () => void;
   advanceRoundOnline: () => void;
@@ -968,21 +1044,23 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.roomCode]);
 
-  const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string) => {
+  const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string) => {
     if (socketRef.current && state.roomCode) {
       socketRef.current.emit("submit_squad_review", {
         roomCode: state.roomCode,
         captain,
         penaltyTaker,
+        freeKickTaker,
         draftedPlayers,
         playStyle,
+        formationId,
       });
     }
   }, [state.roomCode]);
 
-  const setMatchRolesOnline = useCallback((captain: string | null, penaltyTaker: string | null, playStyle?: string) => {
+  const setMatchRolesOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, playStyle?: string, formationId?: string) => {
     if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker, playStyle });
+      socketRef.current.emit("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker, freeKickTaker, playStyle, formationId });
     }
   }, [state.roomCode]);
 

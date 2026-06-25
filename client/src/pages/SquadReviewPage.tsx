@@ -5,14 +5,15 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT } from '../lib/gameData';
-import { calculateChemistry, getPlayerEffectiveStats, isPlayerInPosition, getCoachModifiersForPlayer } from '../lib/gameEngine';
-import FormationField from '../components/game/FormationField';
+import { calculateChemistry, getPlayerEffectiveStats, isPlayerInPosition, getCoachModifiersForPlayer, getChemistryLinks } from '../lib/gameEngine';
+import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
 import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 import RolesSelector from '../components/game/RolesSelector';
 import TacticSelector from '../components/game/TacticSelector';
+import FormationSelector from '../components/game/FormationSelector';
 import ChemistryBonusInfo from '../components/game/ChemistryBonusInfo';
 import BuffBreakdown from '../components/game/BuffBreakdown';
-import { getTraitInfo, traitEffectLabel } from '../lib/traits';
+import { TRAIT_MAP, traitEffectLabel } from '../lib/traits';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 
@@ -37,7 +38,8 @@ export default function SquadReviewPage() {
   // Build formation roles list (first 11 slots)
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
 
-  const chemData = calculateChemistry(starters, selectedCoachId, formationRoles);
+  const chemData = calculateChemistry(starters, selectedCoachId, formationRoles, selectedFormationId);
+  const chemLinks = getChemistryLinks(starters, selectedCoachId);
 
   // Team overall = avg effective overall of all 11 starters
   const teamOverall = starters.length === 11
@@ -61,7 +63,7 @@ export default function SquadReviewPage() {
     tempPlayers[selectedPlayerIndex] = tempPlayers[candidateIdx];
     tempPlayers[candidateIdx] = temp;
 
-    const newChemPreview = calculateChemistry(tempPlayers.slice(0, 11), selectedCoachId, formationRoles);
+    const newChemPreview = calculateChemistry(tempPlayers.slice(0, 11), selectedCoachId, formationRoles, selectedFormationId);
     const diff = newChemPreview.total - chemData.total;
     return { total: newChemPreview.total, diff };
   };
@@ -73,7 +75,7 @@ export default function SquadReviewPage() {
 
   const handleStart = () => {
     if (state.mode === 'online') {
-      submitSquadReviewOnline(state.captain, state.penaltyTaker, state.draftedPlayers, selectedPlayStyle);
+      submitSquadReviewOnline(state.captain, state.penaltyTaker, state.freeKickTaker, state.draftedPlayers, selectedPlayStyle, selectedFormationId);
     } else {
       dispatch({ type: 'START_LEAGUE' });
     }
@@ -193,6 +195,7 @@ export default function SquadReviewPage() {
                 players={starters}
                 chemistryScores={chemData.individual}
                 showChemLines
+                chemLinks={chemLinks}
                 selectedPlayerIndex={selectedPlayerIndex}
                 onPlayerClick={(player, posIndex) => handlePlayerClick(posIndex)}
               />
@@ -231,6 +234,14 @@ export default function SquadReviewPage() {
             </div>
           </div>
 
+          {/* Formation — changeable now that the squad is drafted */}
+          <div className="mb-6">
+            <FormationSelector
+              value={state.selectedFormationId}
+              onChange={(id) => dispatch({ type: 'SET_FORMATION', formationId: id })}
+            />
+          </div>
+
           {/* Tactic / play style */}
           <div className="mb-6">
             <TacticSelector
@@ -245,8 +256,10 @@ export default function SquadReviewPage() {
               players={starters}
               captainId={state.captain}
               penaltyTakerId={state.penaltyTaker}
+              freeKickTakerId={state.freeKickTaker}
               onSetCaptain={(id) => dispatch({ type: 'SET_CAPTAIN', playerId: id })}
               onSetPenaltyTaker={(id) => dispatch({ type: 'SET_PENALTY_TAKER', playerId: id })}
+              onSetFreeKickTaker={(id) => dispatch({ type: 'SET_FREE_KICK_TAKER', playerId: id })}
             />
           </div>
 
@@ -347,6 +360,33 @@ export default function SquadReviewPage() {
                   ];
 
                   const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
+                  // Chemistry connections + trait detail for the unified breakdown (same as "MEU TIME").
+                  const linkLabels: Record<string, string> = { club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica' };
+                  const selLinks = posIdx >= 0
+                    ? chemLinks.filter(l => l.aIndex === posIdx || l.bIndex === posIdx)
+                        .map(l => ({ player: starters[l.aIndex === posIdx ? l.bIndex : l.aIndex], type: l.type }))
+                    : [];
+                  const linksByType = (['club', 'nation', 'coach', 'partner'] as const)
+                    .map(t => ({ t, names: selLinks.filter(l => l.type === t).map(l => l.player?.shortName).filter(Boolean) as string[] }))
+                    .filter(g => g.names.length > 0);
+                  const LINK_PTS: Record<string, number> = { club: 2, nation: 1, coach: 2, partner: 1 };
+                  const chemRawPts = isOOP ? 0
+                    : selLinks.reduce((s, l) => s + (LINK_PTS[l.type] ?? 0), 0)
+                      + ((player.historicalCoaches ?? []).includes(selectedCoachId) ? 1 : 0);
+                  const chemThresholds = [2, 5, 8];
+                  const chemNextAt = eff.chemScore >= 3 ? null : chemThresholds[eff.chemScore];
+                  const chemInfo = {
+                    oop: isOOP,
+                    nativePos: POS_PT[player.position] ?? player.position,
+                    formationPos: POS_PT[formationRole] ?? formationRole,
+                    links: linksByType.map(({ t, names }) => ({ type: t, label: linkLabels[t], color: CHEM_LINK_COLOR[t], names })),
+                    rawPts: chemRawPts,
+                    nextAt: chemNextAt,
+                  };
+                  const traitInfos = (player.traits ?? []).map(tid => {
+                    const def = TRAIT_MAP[tid];
+                    return { id: tid, icon: def?.icon ?? '✨', effect: traitEffectLabel(tid), flavor: def?.flavor ?? '' };
+                  });
 
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#07070f', border: `1px solid ${getRarityColor(player.rarity)}22` }}>
@@ -406,6 +446,7 @@ export default function SquadReviewPage() {
                               <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: filled ? '#22C55E' : '#1a1a2e', boxShadow: filled ? '0 0 5px #22C55E' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
                             ))}
                           </div>
+                          <span className="text-[10px] font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{eff.chemScore}/3</span>
                         </div>
                         <div className="text-[9px] text-gray-500 font-bold" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                           Pos. nativa: <span className="text-white">{POS_PT[player.position] ?? player.position}</span>
@@ -435,30 +476,9 @@ export default function SquadReviewPage() {
                         </div>
                       )}
 
-                      {/* Per-source buff breakdown — what's lifting each stat */}
-                      <BuffBreakdown eff={eff} />
-
-                      {/* Player traits + what they do */}
-                      {player.traits.length > 0 && (
-                        <div className="px-4 py-3 border-t" style={{ borderColor: '#161626', background: '#09090f' }}>
-                          <div className="text-[9px] font-black tracking-widest mb-2" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
-                            ⭐ CARACTERÍSTICAS (EFEITO NO JOGO)
-                          </div>
-                          <div className="space-y-1.5">
-                            {player.traits.map((t) => {
-                              const info = getTraitInfo(t);
-                              const label = traitEffectLabel(t);
-                              return (
-                                <div key={t} className="flex items-start gap-2 text-[11px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                                  <span className="flex-shrink-0">{info?.icon ?? '⭐'}</span>
-                                  <span className="font-black text-white flex-shrink-0">{t}</span>
-                                  <span className="text-[#C9A84C] font-bold">{label || 'sem efeito direto'}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                      {/* Per-source buff breakdown — also carries chemistry connections
+                          and the named traits (identical to the "MEU TIME" screen). */}
+                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} />
                     </div>
                   );
                 })()}

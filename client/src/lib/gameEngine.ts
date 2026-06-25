@@ -10,11 +10,13 @@ import {
   selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
   frangoDesc, screamedDesc, deflectedDesc, woodworkDesc,
   penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc,
+  freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc,
+  cornerGoalDesc, cornerSaveDesc, cornerMissDesc,
   flowDesc, Approach, LastKeyCtx,
 } from './matchNarrative';
 import {
   AttrKey, getTraitAttributeBonus, getGoalkeeperTraitBonus,
-  getPenaltyComposureBonus, hasOopRelief, ROLLABLE_TRAITS,
+  getPenaltyComposureBonus, hasOopRelief, rollPlayerTraits,
 } from './traits';
 
 // ============================================================
@@ -51,6 +53,7 @@ export interface Team {
   players: PlayerCard[]; // 11 titulares
   captain?: string;
   penaltyTaker?: string;
+  freeKickTaker?: string;
   totalChemistry: number;
   isBot: boolean;
   botStrength?: number;
@@ -80,6 +83,11 @@ export interface PlayerMatchStat {
   fouls: number;
   yellowCards: number;
   redCards: number;
+  // Richer involvement data — feeds professional ratings (midfielders/defenders who
+  // never score still get credit) and the balance harness.
+  keyPasses: number;       // a pass that set up a shot (chance created), goal or not
+  interceptions: number;   // broke up an attack without it becoming a shot
+  shotsOnTarget: number;   // shots that forced a save or scored
 }
 
 export interface PenaltyKick {
@@ -153,10 +161,15 @@ export function isPlayerInPosition(player: Player, formationRole: string): boole
   return false;
 }
 
+// Playing in the coach's preferred formation gels the side: a flat bonus to the team's
+// TOTAL chemistry, which can push it into a higher global-bonus tier (passe/ritmo/especial).
+export const PREFERRED_FORMATION_CHEM_BONUS = 8;
+
 export function calculateChemistry(
   players: Player[],
   coachId: string,
   formationRoles?: string[], // ordered list matching players array
+  formationId?: string,      // the team's formation id — enables the coach-preference bonus
 ): {
   individual: Record<string, number>;
   total: number;
@@ -221,9 +234,35 @@ export function calculateChemistry(
     return sum + (trio?.chemBonus ?? 0);
   }, 0);
 
-  const total = Math.min(100, Math.round((baseTotal / maxPossible) * 80) + trioBonus);
+  // Coach-preference bonus: the formation the manager is known for lifts team chemistry.
+  const coachFormBonus = (formationId && COACHES.find(c => c.id === coachId)?.preferredFormation === formationId)
+    ? PREFERRED_FORMATION_CHEM_BONUS : 0;
+
+  const total = Math.min(100, Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus);
 
   return { individual, total, trios, outOfPosition };
+}
+
+// The chemistry LINKS between players (who connects with whom and why). Same priority
+// order as calculateChemistry (club > nation > shared coach > partner). Used to draw the
+// connection web on the pitch and to explain each player's chemistry in the UI.
+export type ChemLinkType = 'club' | 'nation' | 'coach' | 'partner';
+export interface ChemLink { aIndex: number; bIndex: number; type: ChemLinkType }
+export function getChemistryLinks(players: (Player | undefined)[], coachId: string): ChemLink[] {
+  const links: ChemLink[] = [];
+  for (let i = 0; i < players.length; i++) {
+    const a = players[i]; if (!a) continue;
+    for (let j = i + 1; j < players.length; j++) {
+      const b = players[j]; if (!b) continue;
+      let type: ChemLinkType | null = null;
+      if (a.club === b.club) type = 'club';
+      else if (a.nation === b.nation) type = 'nation';
+      else if (a.historicalCoaches?.includes(coachId) && b.historicalCoaches?.includes(coachId)) type = 'coach';
+      else if (a.historicalPartners?.includes(b.id) || b.historicalPartners?.includes(a.id)) type = 'partner';
+      if (type) links.push({ aIndex: i, bIndex: j, type });
+    }
+  }
+  return links;
 }
 
 // ============================================================
@@ -470,14 +509,7 @@ export function getPlayerEffectiveStats(
   const traitBonus = (attr: AttrKey) => getTraitAttributeBonus(player.traits, attr);
 
   // Play-style (tactic) modifiers — same rules as getEffectiveAttribute.
-  const styleBonus = (attr: AttrKey): number => {
-    if (playStyle === 'possession' && attr === 'passing') return 5;
-    if (playStyle === 'counter' && (attr === 'pace' || attr === 'shooting')) return 5;
-    if (playStyle === 'high_press' && attr === 'physical') return 5;
-    if (playStyle === 'defensive' && attr === 'defending') return 8;
-    if (playStyle === 'all_out_attack' && attr === 'shooting') return 8;
-    return 0;
-  };
+  const styleBonus = (attr: AttrKey): number => tacticStatBonus(playStyle, attr);
 
   // Global chemistry bonus (only passing & pace), same as the engine.
   const globalChem = (attr: AttrKey): number => {
@@ -574,6 +606,64 @@ export function midfieldBuildUpEdge(atkMid: number, defMid: number, attackPlaySt
   return gap + (attackPlayStyle === 'possession' ? 2 : 0);
 }
 
+// Realistic ball possession from squad strength + how the chances actually split,
+// with a tactic tilt. Compressed toward the centre so it stays believable (rarely
+// beyond ~28–72). Replaces the old hardcoded 50/50.
+export function computePossession(
+  homeStrength: number, awayStrength: number,
+  homeShots: number, awayShots: number,
+  homePlayStyle: string, awayPlayStyle: string,
+): number {
+  const strShare = homeStrength / (homeStrength + awayStrength || 1);
+  const shotShare = (homeShots + 1) / (homeShots + awayShots + 2);
+  let p = 0.55 * strShare + 0.45 * shotShare;
+  if (homePlayStyle === 'possession') p += 0.05;
+  if (awayPlayStyle === 'possession') p -= 0.05;
+  if (homePlayStyle === 'counter') p -= 0.04;       // a side sitting deep sees less of the ball
+  if (awayPlayStyle === 'counter') p += 0.04;
+  p = 0.5 + (p - 0.5) * 0.85;                        // compress toward the centre
+  return Math.round(Math.max(28, Math.min(72, p * 100)));
+}
+
+// ── Free kick (direct) ────────────────────────────────────────────────────────
+// Best dead-ball taker: a "Cobrador de Falta" specialist first, else the highest
+// shooting+composure outfielder. Never the keeper.
+export function getFreeKickTaker(team: Team): PlayerCard {
+  const starters = team.players.slice(0, 11);
+  const outfield = starters.filter(p => p.position !== 'GK');
+  const pool = outfield.length > 0 ? outfield : starters;
+  // The player's designated taker wins — but must be an outfielder (never the GK).
+  if (team.freeKickTaker) {
+    const chosen = pool.find(p => p.id === team.freeKickTaker);
+    if (chosen) return chosen;
+  }
+  const specialist = pool.find(p => p.traits.includes('Cobrador de Falta') || p.traits.includes('Cobrança de Falta'));
+  if (specialist) return specialist;
+  return [...pool].sort((a, b) => (b.shooting + b.composure) - (a.shooting + a.composure))[0];
+}
+
+// Who gets on the end of a corner — a WEIGHTED RANDOM pick, not a fixed player.
+// Strong/tall players (CBs, strikers) and heading specialists go up far more often,
+// but a corner is a scramble, so it genuinely varies who heads it each time.
+export function getHeaderTarget(team: Team): PlayerCard {
+  const xi = team.players.slice(0, 11);
+  const pool = xi.filter(p => p.position !== 'GK');
+  const cand = pool.length > 0 ? pool : xi;
+  const weighted = cand.map(p => {
+    let w = (p.physical + p.shooting) / 2;                           // base aerial threat
+    if (['CB', 'ST', 'CF'].includes(p.position)) w *= 1.8;           // these crash the box
+    else if (['LB', 'RB', 'CDM', 'CM'].includes(p.position)) w *= 0.7;
+    else w *= 0.4;                                                   // wingers/playmakers rarely head it
+    if (p.traits.includes('Cabeceador Implacável')) w += 40;
+    else if (p.traits.includes('Cabeceador')) w += 25;
+    return { p, w: Math.max(1, w) };
+  });
+  const total = weighted.reduce((s, x) => s + x.w, 0);
+  let r = Math.random() * total;
+  for (const x of weighted) { r -= x.w; if (r <= 0) return x.p; }
+  return weighted[weighted.length - 1].p;
+}
+
 // ============================================================
 // ATTRIBUTE RESOLVER
 // ============================================================
@@ -588,6 +678,8 @@ export function getEffectiveAttribute(
     isKnockout?: boolean;
     isFinal?: boolean;
     isLosing?: boolean;
+    // The captain's single best attribute is boosted by +amount for EVERY teammate.
+    captainBoost?: { stat: string; amount: number };
   }
 ): number {
   let base = player[attribute] as number;
@@ -613,12 +705,11 @@ export function getEffectiveAttribute(
   const mod = modifiers[attribute as keyof typeof modifiers] as number || 0;
   base += mod;
 
-  // Play style modifiers
-  if (playStyle === 'possession' && (attribute === 'passing' || attribute === 'vision')) base += 5;
-  if (playStyle === 'counter' && (attribute === 'pace' || attribute === 'shooting')) base += 5;
-  if (playStyle === 'high_press' && attribute === 'physical') base += 5;
-  if (playStyle === 'defensive' && attribute === 'defending') base += 8;
-  if (playStyle === 'all_out_attack' && attribute === 'shooting') base += 8;
+  // Play style modifiers (shared with the display so the two never drift)
+  base += tacticStatBonus(playStyle, attribute as string);
+
+  // Captain's leadership: their strongest attribute lifts the WHOLE team by +amount.
+  if (context?.captainBoost && attribute === context.captainBoost.stat) base += context.captainBoost.amount;
 
   // Trait attribute bonuses (data-driven from the trait catalog)
   base += getTraitAttributeBonus(player.traits, attribute as AttrKey, context);
@@ -642,6 +733,12 @@ export const ON_TARGET_RESISTANCE = 48;
 // ~20+ team still lifts the trophy now and then). Football should be unpredictable.
 export const MATCH_NOISE = 20;
 
+// Home advantage: the host enjoys a small territorial edge (crowd, familiarity, no
+// travel). Applied to the home side's strength EXCEPT in the grand final, which is at a
+// neutral venue. Tuned via the harness so the host wins clearly more than the visitor
+// without it being decisive. Gives two-legged ties real shape (hold away, strike at home).
+export const HOME_ADVANTAGE = 3;
+
 // ── Flavour match statistics (shots/saves/corners/fouls) ──────
 // These populate the box-score WITHOUT ever changing the score. They are
 // per-minute probabilistic and scaled by a per-match tempo/aggression roll, so
@@ -649,9 +746,122 @@ export const MATCH_NOISE = 20;
 // quiet game with few corners) instead of fixed averages.
 const FLAVOR_SHOT_RATE = 0.20;  // base chance the attacking side takes an extra attempt this minute
 const FLAVOR_FOUL_RATE = 0.24;  // base chance of a foul this minute
+export const FREE_KICK_CHANCE = 0.07; // fraction of fouls that are dangerous → a direct free kick
+export const CORNER_CHANCE = 0.12;    // fraction of corners that produce a header chance
 // Momentum gained/lost by the team that scores. Lower = leads snowball less, so
 // fewer blowouts and more balanced (drawn) games.
 export const GOAL_MOMENTUM_SWING = 8;
+
+// ── Open-play shot resolution (SHARED by the engine and the live sim) ──────────
+// This is the single source of truth for the chance math, so the two run loops can
+// never drift. Each side still builds its own events/messages/stats from the result.
+export type ShotType = 'normal' | 'header' | 'long_range' | 'one_on_one' | 'first_time';
+export interface ChanceResult {
+  outcome: 'goal' | 'save' | 'miss' | 'duel';
+  onTarget: boolean;
+  shotType: ShotType;
+}
+
+// The kind of finish a chance becomes, derived from the build-up approach.
+export function shotTypeForApproach(approach: string): ShotType {
+  if (approach === 'cross') return 'header';
+  if (approach === 'longrange') return 'long_range';
+  if (approach === 'through' || approach === 'counter') return Math.random() < 0.6 ? 'one_on_one' : 'first_time';
+  return 'normal';
+}
+
+// How each finish type bends accuracy (TARGET) and the keeper duel (GK):
+//  header     — slightly harder to place, keeper well set
+//  long_range — much harder to hit the target, keeper has time to set
+//  one_on_one — easier to hit AND keeper exposed → the best chance
+//  first_time — quick, a touch easier past the keeper
+const SHOT_TARGET_MOD: Record<ShotType, number> = { normal: 1, header: 0.90, long_range: 0.70, one_on_one: 1.02, first_time: 1.0 };
+const SHOT_GK_MOD:     Record<ShotType, number> = { normal: 0, header: 1,    long_range: 6,    one_on_one: -2,   first_time: 0 };
+
+export function resolveOpenPlayChance(p: {
+  atkShooting: number; atkPace: number; atkDribbling: number;
+  defDefending: number; defPhysical: number; buildUp: number;
+  gkRating: number; // gk.defending + getGoalkeeperTraitBonus(gk.traits)
+  approach: string;
+}): ChanceResult {
+  const atkScore = (p.atkShooting + p.atkPace + p.atkDribbling) / 3 + p.buildUp + Math.random() * 40;
+  const defScore = (p.defDefending + p.defPhysical) / 2 + Math.random() * 40;
+  if (atkScore <= defScore) return { outcome: 'duel', onTarget: false, shotType: 'normal' };
+
+  const shotType = shotTypeForApproach(p.approach);
+  const targetChance = (p.atkShooting / (p.atkShooting + ON_TARGET_RESISTANCE)) * SHOT_TARGET_MOD[shotType];
+  if (Math.random() >= targetChance) return { outcome: 'miss', onTarget: false, shotType };
+
+  const gkScore = p.gkRating + GK_SAVE_EDGE + SHOT_GK_MOD[shotType] + Math.random() * 36;
+  const shootScore = p.atkShooting + Math.random() * 36;
+  return { outcome: shootScore > gkScore ? 'goal' : 'save', onTarget: true, shotType };
+}
+
+// Key-event minutes for ONE match — jittered so every game has its own rhythm
+// instead of chances always landing on the same fixed minutes. Count is preserved
+// (~14 over 90', ~19 with extra time) so the goal rate is unchanged. Shared by the
+// engine and the live sim.
+export function buildKeyMinutes(isKnockout: boolean): number[] {
+  const cap = isKnockout ? 120 : 90;
+  const target = isKnockout ? 19 : 14;            // SAME count as the old fixed list → same goal rate
+  const gap = cap / (target + 1);
+  const set = new Set<number>();
+  for (let i = 1; i <= target; i++) {
+    let m = Math.round(gap * i + (Math.random() * 2 - 1) * gap * 0.45); // jitter ±45% of the gap
+    m = Math.max(3, Math.min(cap, m));
+    while (set.has(m)) m = Math.min(cap, m + 1);  // avoid duplicate minutes
+    set.add(m);
+  }
+  return Array.from(set).sort((a, b) => a - b);
+}
+
+// Tactical fingerprint derived from a formation's SHAPE (how many defenders/
+// midfielders/forwards/wide players it fields), normalised around a balanced 4-4-2.
+// Small numbers on purpose — the formation TILTS the game, it never decides it.
+export interface FormationProfile { attack: number; defense: number; control: number; cross: number; }
+export function formationProfile(formationId: string): FormationProfile {
+  const f = FORMATIONS.find(x => x.id === formationId);
+  if (!f) return { attack: 0, defense: 0, control: 0, cross: 0 };
+  const roles = f.positions.map(p => p.role);
+  const cnt = (arr: string[]) => roles.filter(r => arr.includes(r)).length;
+  const fwd = cnt(['ST', 'CF', 'LW', 'RW']);
+  const def = cnt(['CB', 'LB', 'RB', 'LWB', 'RWB']);
+  const mid = cnt(['CDM', 'CM', 'CAM', 'LM', 'RM']);
+  const wide = cnt(['LW', 'RW', 'LM', 'RM', 'LB', 'RB', 'LWB', 'RWB']);
+  return {
+    attack: fwd - 2,    // 3 forwards (4-3-3/3-4-3) = +1 · 2 = 0 · 1 (4-2-3-1) = -1
+    defense: def - 4,   // 5 at the back (5-3-2) = +1 · 4 = 0 · 3 (3-x-x) = -1
+    control: mid - 4,   // 5 mids (4-2-3-1/3-5-2) = +1 · 4 = 0 · 3 (4-3-3/5-3-2) = -1
+    cross: wide - 4,    // wide shapes = 0 · narrow (3-5-2/5-3-2 = 2 wide) = -2
+  };
+}
+
+// ── Tactic (play-style) effects — SHARED so the engine and the display never drift ──
+// Each tactic now has a richer attribute footprint (not a single stat) AND a profile
+// (attack/defense/control) that shapes how many and how good its chances are.
+export function tacticStatBonus(playStyle: string, attr: string): number {
+  switch (playStyle) {
+    case 'possession':     return attr === 'passing' ? 5 : attr === 'vision' ? 5 : attr === 'dribbling' ? 3 : 0;
+    case 'counter':        return (attr === 'pace' || attr === 'shooting') ? 5 : attr === 'defending' ? 2 : 0;
+    case 'high_press':     return attr === 'physical' ? 5 : attr === 'defending' ? 3 : attr === 'pace' ? 2 : 0;
+    case 'defensive':      return attr === 'defending' ? 8 : attr === 'physical' ? 3 : 0;
+    case 'all_out_attack': return attr === 'shooting' ? 8 : attr === 'pace' ? 4 : attr === 'dribbling' ? 2 : 0;
+    default:               return 0;
+  }
+}
+
+// How a tactic shapes chance VOLUME (attack = territory/waves), how exposed it is
+// (defense = lower opponent chance quality), and midfield grip (control = build-up).
+export function tacticProfile(playStyle: string): { attack: number; defense: number; control: number } {
+  switch (playStyle) {
+    case 'possession':     return { attack: 0, defense: 0, control: 2 };   // patient, owns the midfield
+    case 'counter':        return { attack: 1, defense: 1, control: -1 };  // sits in, hits fast (fewer but better chances)
+    case 'high_press':     return { attack: 1, defense: 0, control: 1 };   // aggressive and chaotic both ways
+    case 'defensive':      return { attack: -2, defense: 3, control: -1 }; // few chances, very hard to break down
+    case 'all_out_attack': return { attack: 3, defense: -3, control: 0 };  // floods forward, wide open at the back
+    default:               return { attack: 0, defense: 0, control: 0 };
+  }
+}
 
 /** Pick a weighted random attacker — ST/CF get higher weight */
 function pickWeightedAttacker(players: PlayerCard[]): PlayerCard {
@@ -745,6 +955,17 @@ export function runMatchSimulation(
   const homeFormBonus = homeFormation.counters.includes(away.formationId) ? 5 : 0;
   const awayFormBonus = awayFormation.counters.includes(home.formationId) ? 5 : 0;
 
+  // Formation shape + tactic both shape how each side creates/concedes chances.
+  const homeProf = formationProfile(home.formationId);
+  const awayProf = formationProfile(away.formationId);
+  const homeTac = tacticProfile(home.playStyle);
+  const awayTac = tacticProfile(away.playStyle);
+  // Captain leadership — computed once per side (the best stat is fixed for the match).
+  const homeCapStat = captainBestStat(home);
+  const awayCapStat = captainBestStat(away);
+  const homeCaptainBoost = homeCapStat ? { stat: homeCapStat as string, amount: CAPTAIN_BOOST } : undefined;
+  const awayCaptainBoost = awayCapStat ? { stat: awayCapStat as string, amount: CAPTAIN_BOOST } : undefined;
+
   const matchStats = { ...initialStats };
 
   const fergusonActive = (team: Team, goals: number, oppGoals: number) =>
@@ -753,10 +974,7 @@ export function runMatchSimulation(
   const zidaneBonus = (team: Team) =>
     team.coachId === 'zidane' && (isKnockout || isFinal) ? (isFinal ? 10 : 7) : 0;
 
-  const KEY_MINUTES = [8, 15, 22, 28, 35, 42, 47, 55, 62, 68, 75, 82, 88, 90];
-  if (isKnockout) {
-    KEY_MINUTES.push(95, 102, 108, 114, 120);
-  }
+  const KEY_MINUTES = buildKeyMinutes(isKnockout);
 
   let lastKeyCtx: LastKeyCtx = null;
 
@@ -769,7 +987,8 @@ export function runMatchSimulation(
 
     const homeStrength = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus) +
       zidaneBonus(home) +
-      (fergusonActive(home, homeGoals, awayGoals) ? 10 : 0);
+      (fergusonActive(home, homeGoals, awayGoals) ? 10 : 0) +
+      (isFinal ? 0 : HOME_ADVANTAGE); // neutral venue for the final → no host edge
     const awayStrength = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus) +
       zidaneBonus(away) +
       (fergusonActive(away, awayGoals, homeGoals) ? 10 : 0);
@@ -777,8 +996,11 @@ export function runMatchSimulation(
     const homeMomBonus = (homeMomentum - 50) * 0.25;
     const awayMomBonus = (awayMomentum - 50) * 0.25;
 
-    const homeAttack = homeStrength + homeMomBonus + (Math.random() * 2 - 1) * MATCH_NOISE;
-    const awayAttack = awayStrength + awayMomBonus + (Math.random() * 2 - 1) * MATCH_NOISE;
+    // Attacking FORMATIONS take a little more of the territory (subtle ±). The tactic's
+    // attacking intent is NOT applied here (that would let it hog possession AND concede
+    // less) — it lifts the team's own chance quality below, while leaving it exposed.
+    const homeAttack = homeStrength + homeMomBonus + homeProf.attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
+    const awayAttack = awayStrength + awayMomBonus + awayProf.attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
 
     const homeAttacks = homeAttack > awayAttack;
     const attackTeam = homeAttacks ? home : away;
@@ -790,15 +1012,57 @@ export function runMatchSimulation(
 
     const homeIsLosing = homeGoals < awayGoals;
     const awayIsLosing = awayGoals < homeGoals;
-    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing };
-    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing };
+    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost };
+    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
 
-    // ── Flavour box-score (never changes the score) ──
-    // A foul this minute, charged to whoever is defending.
+    // ── Flavour box-score + dead-ball play ──
+    // The defending side fouls the attacking side this minute.
     if (Math.random() < FLAVOR_FOUL_RATE * matchAggression) {
       if (homeAttacks) matchStats.awayFouls++; else matchStats.homeFouls++;
+
+      // A fraction of fouls are dangerous → a DIRECT FREE KICK (a real chance).
+      // Conversion is deliberately low (free kicks rarely go in), scaled by the
+      // taker's shooting+composure, so this adds drama without inflating scores.
+      if (Math.random() < FREE_KICK_CHANCE) {
+        const fkGk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
+        const taker = getFreeKickTaker(attackTeam);
+        const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
+        const skill = (takerShoot + taker.composure) / 2;
+        const goalChance = Math.max(0.015, Math.min(0.11, (skill - 80) / 140));
+        const r = Math.random();
+        if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
+
+        if (r < goalChance) {
+          if (homeAttacks) { homeGoals++; matchStats.homeShotsOnTarget++; } else { awayGoals++; matchStats.awayShotsOnTarget++; }
+          if (playerStats[taker.statId!]) { playerStats[taker.statId!].goals++; playerStats[taker.statId!].rating += 1.5; }
+          if (playerStats[fkGk.statId!]) playerStats[fkGk.statId!].rating -= 0.3;
+          events.push({
+            minute, type: 'goal',
+            description: freeKickGoalDesc(taker.shortName, fkGk.shortName),
+            teamId: attackTeam.id, playerId: taker.id, opponentId: fkGk.id, isSpecial: true,
+          });
+          const sw = homeAttacks ? GOAL_MOMENTUM_SWING : -GOAL_MOMENTUM_SWING;
+          homeMomentum = Math.min(100, Math.max(0, homeMomentum + sw));
+          awayMomentum = Math.min(100, Math.max(0, awayMomentum - sw));
+          lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: taker.shortName, defName: taker.shortName, gkName: fkGk.shortName, approach: 'longrange' };
+        } else if (r < goalChance + 0.35) {
+          if (homeAttacks) { matchStats.homeShotsOnTarget++; matchStats.awaySaves++; } else { matchStats.awayShotsOnTarget++; matchStats.homeSaves++; }
+          if (playerStats[fkGk.statId!]) { playerStats[fkGk.statId!].saves++; playerStats[fkGk.statId!].rating += 0.5; }
+          events.push({
+            minute, type: 'save',
+            description: freeKickSaveDesc(fkGk.shortName, taker.shortName),
+            teamId: defendTeam.id, playerId: fkGk.id, opponentId: taker.id,
+          });
+        } else {
+          events.push({
+            minute, type: 'miss',
+            description: freeKickMissDesc(taker.shortName),
+            teamId: attackTeam.id, playerId: taker.id,
+          });
+        }
+      }
     }
     // An extra attempt by the side on top this minute (off-target / corner / saved — never a goal).
     if (Math.random() < FLAVOR_SHOT_RATE * matchTempo) {
@@ -811,6 +1075,48 @@ export function runMatchSimulation(
       } else if (o < 0.62) {
         // blocked/deflected out for a corner
         if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++;
+
+        // A fraction of corners produce a header chance (set-piece goal). Conversion
+        // is moderate, scaled by the aerial target's shooting + physical.
+        if (Math.random() < CORNER_CHANCE) {
+          const cgk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
+          const header = getHeaderTarget(attackTeam);
+          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx) + header.physical) / 2;
+          const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
+          const r2 = Math.random();
+          if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
+
+          if (r2 < goalChance) {
+            if (homeAttacks) { homeGoals++; matchStats.homeShotsOnTarget++; } else { awayGoals++; matchStats.awayShotsOnTarget++; }
+            if (playerStats[header.statId!]) { playerStats[header.statId!].goals++; playerStats[header.statId!].rating += 1.4; }
+            if (playerStats[cgk.statId!]) playerStats[cgk.statId!].rating -= 0.3;
+            const assister = pickWeightedAssister(attackTeam, header.id, playerStats);
+            if (assister && playerStats[assister.statId!]) { playerStats[assister.statId!].assists++; playerStats[assister.statId!].rating += 0.7; }
+            events.push({
+              minute, type: 'goal',
+              description: cornerGoalDesc(header.shortName, cgk.shortName),
+              teamId: attackTeam.id, playerId: header.id, opponentId: cgk.id, assisterId: assister?.id, isSpecial: true,
+            });
+            const sw = homeAttacks ? GOAL_MOMENTUM_SWING : -GOAL_MOMENTUM_SWING;
+            homeMomentum = Math.min(100, Math.max(0, homeMomentum + sw));
+            awayMomentum = Math.min(100, Math.max(0, awayMomentum - sw));
+            lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: header.shortName, defName: header.shortName, gkName: cgk.shortName, approach: 'cross' };
+          } else if (r2 < goalChance + 0.40) {
+            if (homeAttacks) { matchStats.homeShotsOnTarget++; matchStats.awaySaves++; } else { matchStats.awayShotsOnTarget++; matchStats.homeSaves++; }
+            if (playerStats[cgk.statId!]) { playerStats[cgk.statId!].saves++; playerStats[cgk.statId!].rating += 0.5; }
+            events.push({
+              minute, type: 'save',
+              description: cornerSaveDesc(cgk.shortName, header.shortName),
+              teamId: defendTeam.id, playerId: cgk.id, opponentId: header.id,
+            });
+          } else {
+            events.push({
+              minute, type: 'miss',
+              description: cornerMissDesc(header.shortName),
+              teamId: attackTeam.id, playerId: header.id,
+            });
+          }
+        }
       }
       // else: off target — no further stat
     }
@@ -833,7 +1139,12 @@ export function runMatchSimulation(
         ['CAM', 'CM'].includes(p.position)
       ) || attacker;
 
-      const approach: Approach = selectApproach(attackTeam.playStyle ?? 'balanced');
+      let approach: Approach = selectApproach(attackTeam.playStyle ?? 'balanced');
+      // Narrow formations (3-5-2 / 5-3-2) cross far less — swap some crosses for
+      // central through-balls, which shifts their chances from headers to one-on-ones.
+      if ((homeAttacks ? homeProf : awayProf).cross <= -2 && approach === 'cross' && Math.random() < 0.6) {
+        approach = 'through';
+      }
       const isLuckEvent = Math.random() < 0.04;
 
       if (isLuckEvent) {
@@ -856,7 +1167,7 @@ export function runMatchSimulation(
           // Goalkeeper blunder
           if (homeAttacks) homeGoals++; else awayGoals++;
           if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].rating += 1.2; }
-          if (playerStats[gk.statId!]) playerStats[gk.statId!].rating -= 1.2;
+          if (playerStats[gk.statId!]) playerStats[gk.statId!].rating -= 1.0;
           events.push({
             minute, type: 'goal',
             description: frangoDesc(attacker.shortName, gk.shortName),
@@ -910,7 +1221,7 @@ export function runMatchSimulation(
             if (playerStats[defender.statId!]) playerStats[defender.statId!].rating -= 0.2;
             events.push({
               minute, type: 'goal',
-              description: penaltyGoalDesc(taker.shortName, defender.shortName, gk.shortName),
+              description: penaltyGoalDesc(taker.shortName, attacker.shortName, defender.shortName, gk.shortName),
               teamId: attackTeam.id, playerId: taker.id, opponentId: gk.id,
             });
             lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: taker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -968,29 +1279,36 @@ export function runMatchSimulation(
         // Trait effects are already baked into the effective attributes above
         // (see getEffectiveAttribute + trait catalog), so no extra bonuses here.
         // Midfield control (passing) lifts the quality of the chance created.
-        const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, attackTeam.playStyle);
-        const atkScore = (atkShooting + atkPace + atkDribbling) / 3 + buildUp + Math.random() * 40;
-        const defScore = (defDefending + defPhysical) / 2 + Math.random() * 40;
+        // Formation + tactic tune chance QUALITY: the midfield-control battle and how
+        // solid the defending side is (a deep block lowers the chance; an open one raises it).
+        const atkProf = homeAttacks ? homeProf : awayProf;
+        const defProf = homeAttacks ? awayProf : homeProf;
+        const atkTac = homeAttacks ? homeTac : awayTac;
+        const defTac = homeAttacks ? awayTac : homeTac;
+        const formMod = ((atkProf.control + atkTac.control) - (defProf.control + defTac.control)) * 1.2
+          + atkTac.attack * 1.6                          // attacking intent → better own chances
+          - (defProf.defense + defTac.defense) * 2.2;    // ...but an open tactic (defense<0) is exposed
+        const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, attackTeam.playStyle) + formMod;
+        const chance = resolveOpenPlayChance({
+          atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
+          gkRating: gk.defending + getGoalkeeperTraitBonus(gk.traits), approach,
+        });
 
-        if (atkScore > defScore) {
+        if (chance.outcome !== 'duel') {
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
           if (playerStats[attacker.statId!]) playerStats[attacker.statId!].shots++;
 
-          const targetChance = atkShooting / (atkShooting + ON_TARGET_RESISTANCE);
-          if (Math.random() < targetChance) {
+          if (chance.outcome !== 'miss') {
             if (homeAttacks) matchStats.homeShotsOnTarget++; else matchStats.awayShotsOnTarget++;
 
-            const gkScore = gk.defending + getGoalkeeperTraitBonus(gk.traits) + GK_SAVE_EDGE + Math.random() * 36;
-            const shootScore = atkShooting + Math.random() * 36;
-
-            if (shootScore > gkScore) {
+            if (chance.outcome === 'goal') {
               if (homeAttacks) homeGoals++; else awayGoals++;
 
               homeMomentum = homeAttacks ? Math.min(100, homeMomentum + GOAL_MOMENTUM_SWING) : Math.max(0, homeMomentum - GOAL_MOMENTUM_SWING);
               awayMomentum = homeAttacks ? Math.max(0, awayMomentum - GOAL_MOMENTUM_SWING) : Math.min(100, awayMomentum + GOAL_MOMENTUM_SWING);
 
-              if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].rating += 1.4; }
-              if (playerStats[gk.statId!]) playerStats[gk.statId!].rating -= 0.4;
+              if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].shotsOnTarget++; playerStats[attacker.statId!].rating += 1.4; }
+              if (playerStats[gk.statId!]) playerStats[gk.statId!].rating -= 0.3;
               defendTeam.players.slice(0, 11).forEach(p => {
                 if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.statId!]) {
                   playerStats[p.statId!].rating -= 0.1;
@@ -1018,8 +1336,12 @@ export function runMatchSimulation(
 
             } else {
               if (homeAttacks) matchStats.awaySaves++; else matchStats.homeSaves++;
-              if (playerStats[gk.statId!]) { playerStats[gk.statId!].saves++; playerStats[gk.statId!].rating += 0.4; }
-              if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.1;
+              if (playerStats[gk.statId!]) { playerStats[gk.statId!].saves++; playerStats[gk.statId!].rating += 0.45; }
+              // A shot on target forcing a save is a positive contribution, not a blemish.
+              if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].shotsOnTarget++; playerStats[attacker.statId!].rating += 0.05; }
+              // Whoever played the killer ball gets a key pass (rewards creators/midfield).
+              const creatorS = pickWeightedAssister(attackTeam, attacker.id, playerStats);
+              if (creatorS && playerStats[creatorS.statId!]) { playerStats[creatorS.statId!].keyPasses++; playerStats[creatorS.statId!].rating += 0.25; }
 
               const isCorner = Math.random() < 0.4;
               if (isCorner) { if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++; }
@@ -1032,7 +1354,10 @@ export function runMatchSimulation(
               lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
             }
           } else {
-            if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.15;
+            if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.1;
+            // The chance was still created — credit the supplier with a key pass.
+            const creatorM = pickWeightedAssister(attackTeam, attacker.id, playerStats);
+            if (creatorM && playerStats[creatorM.statId!]) { playerStats[creatorM.statId!].keyPasses++; playerStats[creatorM.statId!].rating += 0.15; }
             events.push({
               minute, type: 'miss',
               description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
@@ -1041,8 +1366,13 @@ export function runMatchSimulation(
             lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           }
         } else {
-          if (playerStats[defender.statId!]) { playerStats[defender.statId!].tackles++; playerStats[defender.statId!].rating += 0.35; }
-          if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.15;
+          // Defensive stop — attributed to a tackle or an interception (both tracked).
+          if (playerStats[defender.statId!]) {
+            if (Math.random() < 0.5) playerStats[defender.statId!].tackles++;
+            else playerStats[defender.statId!].interceptions++;
+            playerStats[defender.statId!].rating += 0.32;
+          }
+          if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.12;
           events.push({
             minute, type: 'duel',
             description: duelDesc(approach, defender.shortName, attacker.shortName),
@@ -1167,6 +1497,15 @@ export function runMatchSimulation(
       ).id
     : '';
 
+  // Real possession (was hardcoded 50/50): strength + chance share + tactic.
+  const homeBaseStr = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus);
+  const awayBaseStr = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus);
+  matchStats.homePos = computePossession(
+    homeBaseStr, awayBaseStr, matchStats.homeShots, matchStats.awayShots,
+    home.playStyle ?? 'balanced', away.playStyle ?? 'balanced',
+  );
+  matchStats.awayPos = 100 - matchStats.homePos;
+
   return {
     homeTeamId: home.id,
     awayTeamId: away.id,
@@ -1199,7 +1538,7 @@ export function simulateMatch(
         playerId: p.id,
         playerName: p.shortName,
         teamId: team.id,
-        rating: 6.0,
+        rating: 6.4,
         goals: 0,
         assists: 0,
         shots: 0,
@@ -1208,6 +1547,9 @@ export function simulateMatch(
         fouls: 0,
         yellowCards: 0,
         redCards: 0,
+        keyPasses: 0,
+        interceptions: 0,
+        shotsOnTarget: 0,
       };
     });
   };
@@ -1308,7 +1650,7 @@ export function simulateRemainingMatch(
         playerId: p.id,
         playerName: p.shortName,
         teamId: team.id,
-        rating: 6.0,
+        rating: 6.4,
         goals: 0,
         assists: 0,
         shots: 0,
@@ -1317,6 +1659,9 @@ export function simulateRemainingMatch(
         fouls: 0,
         yellowCards: 0,
         redCards: 0,
+        keyPasses: 0,
+        interceptions: 0,
+        shotsOnTarget: 0,
       };
     });
   };
@@ -1373,6 +1718,21 @@ export function simulateRemainingMatch(
   );
 }
 
+// The captain's single strongest attribute is amplified by CAPTAIN_BOOST for EVERY
+// teammate — so naming a captain is a tactical choice (which team-wide stat do you want
+// lifted?), not just "give the armband to your best card". A bot (no captain set)
+// defaults to its best player's strongest stat so it isn't shortchanged.
+export const CAPTAIN_BOOST = 3;
+const CAPTAIN_STATS: (keyof Player)[] = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'];
+export function captainBestStat(team: Team): keyof Player | null {
+  const starters = team.players.slice(0, 11) as PlayerCard[];
+  if (starters.length === 0) return null;
+  let cap = team.captain ? starters.find(p => p.id === team.captain) : undefined;
+  if (!cap) cap = [...starters].sort((a, b) => b.overall - a.overall)[0]; // bot / unset → best player
+  if (!cap) return null;
+  return CAPTAIN_STATS.reduce((best, s) => ((cap![s] as number) > (cap![best] as number) ? s : best), CAPTAIN_STATS[0]);
+}
+
 export function calculateTeamStrength(
   team: Team,
   coach: Coach,
@@ -1382,30 +1742,20 @@ export function calculateTeamStrength(
   const starters = team.players.slice(0, 11);
   // Guard against an empty lineup (would otherwise divide by zero → NaN strength).
   if (starters.length === 0) return 0;
+  // Captain leadership: +CAPTAIN_BOOST to their best stat, for every teammate.
+  const capStat = captainBestStat(team);
   const avgStrength = starters.reduce((sum, p) => {
+    const v = (s: keyof Player) => (p[s] as number) + (capStat === s ? CAPTAIN_BOOST : 0);
     // GKs are evaluated on shot-stopping attributes (defending + physical) rather than
     // the 6-stat average that inflates/deflates them due to low shooting/dribbling.
     const base = p.position === 'GK'
-      ? (p.defending * 1.5 + p.physical + p.pace * 0.5) / 3
-      : (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical) / 6;
+      ? (v('defending') * 1.5 + v('physical') + v('pace') * 0.5) / 3
+      : (v('pace') + v('shooting') + v('passing') + v('dribbling') + v('defending') + v('physical')) / 6;
     const chemMod = p.isOOP ? 0.85 : (p.chemistryScore >= 3 ? 1.10 : p.chemistryScore === 2 ? 1.06 : p.chemistryScore === 1 ? 1.03 : 1.00);
     return sum + base * chemMod;
   }, 0) / starters.length;
 
-  let captainBonus = 0;
-  if (team.captain) {
-    const captainPlayer = starters.find(p => p.id === team.captain);
-    if (captainPlayer) {
-      captainBonus = captainPlayer.rarity === 'immortal' ? 3.5 : captainPlayer.rarity === 'legendary' ? 2.5 : 1.5;
-    }
-  } else if (team.isBot) {
-    const bestStarter = [...starters].sort((a, b) => b.overall - a.overall)[0];
-    if (bestStarter) {
-      captainBonus = bestStarter.rarity === 'immortal' ? 3.5 : bestStarter.rarity === 'legendary' ? 2.5 : 1.5;
-    }
-  }
-
-  let strength = avgStrength + formationBonus + chemBonus.passing + (chemBonus.special ? 5 : 0) + captainBonus;
+  let strength = avgStrength + formationBonus + chemBonus.passing + (chemBonus.special ? 5 : 0);
   
   if (team.isBot && team.botStrength !== undefined) {
     // Bronze (~0.45) → 0.75x, Gold (~0.75) → 0.91x, Immortal (~0.97) → 1.03x
@@ -1534,7 +1884,6 @@ const DRAFT_OPTIONS_COUNT = 6;
 // special, or to receive a wildcard extra trait. These ALWAYS clone the player
 // so the static PLAYERS pool is never mutated.
 const DRAFT_INFORM_CHANCE = 0.06;   // rare boosted card
-const DRAFT_WILDCARD_CHANCE = 0.14; // extra trait, no stat boost
 const INFORM_OVERALL_BOOST = 3;
 const INFORM_STAT_BOOST = 3;
 
@@ -1542,18 +1891,10 @@ function clampStat(v: number): number {
   return Math.max(1, Math.min(99, v));
 }
 
-function pickRollableTrait(existing: string[]): string | null {
-  const pool = ROLLABLE_TRAITS.filter(t => !existing.includes(t));
-  if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
 function applyDraftVariant(p: Player): Player {
-  const roll = Math.random();
-
-  // In-form: rare, boosts overall + core stats and adds an extra trait.
-  if (roll < DRAFT_INFORM_CHANCE) {
-    const extra = pickRollableTrait(p.traits);
+  // In-form ("em alta"): rare boosted special — +overall/+stats AND a guaranteed extra
+  // trait (minimum 2), so it feels distinctly loaded.
+  if (Math.random() < DRAFT_INFORM_CHANCE) {
     return {
       ...p,
       inForm: true,
@@ -1565,19 +1906,12 @@ function applyDraftVariant(p: Player): Player {
       dribbling: clampStat(p.dribbling + INFORM_STAT_BOOST),
       defending: clampStat(p.defending + INFORM_STAT_BOOST),
       physical: clampStat(p.physical + INFORM_STAT_BOOST),
-      traits: extra ? [...p.traits, extra] : [...p.traits],
-      rolledTrait: extra ?? undefined,
+      traits: rollPlayerTraits(p.position, p.rarity, 2),
     };
   }
 
-  // Wildcard: just an extra trait (no stat change).
-  if (roll < DRAFT_INFORM_CHANCE + DRAFT_WILDCARD_CHANCE) {
-    const extra = pickRollableTrait(p.traits);
-    if (!extra) return p;
-    return { ...p, traits: [...p.traits, extra], rolledTrait: extra };
-  }
-
-  return p;
+  // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
+  return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
 }
 
 function withDraftVariants(list: Player[]): Player[] {
@@ -1685,51 +2019,42 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   const coach = COACHES[Math.floor(Math.random() * COACHES.length)];
   const formation = FORMATIONS[Math.floor(Math.random() * FORMATIONS.length)];
 
-  // Build a pool sorted by quality tier but randomized within each tier so every
-  // call returns a different ordering among same-strength players. Without this,
-  // all bots of the same difficulty always see candidates in identical rank order
-  // and end up picking from the exact same handful of top players every time.
-  const tieredPool = [...PLAYERS].sort((a, b) => {
-    const tA = Math.floor(a.overall / 4); // 4-point bands: 92-95, 88-91, 84-87 …
-    const tB = Math.floor(b.overall / 4);
-    if (tA !== tB) return tB - tA;
-    return Math.random() - 0.5; // random within the same quality band
-  });
-  const topN = Math.round(tieredPool.length * (1 - difficulty * 0.5));
-  const pool = tieredPool.slice(0, Math.max(22, topN)); // min 22 so fallback has options
+  // Difficulty sets the OVERALL BAND the bot recruits from; WITHIN the band each slot
+  // is filled at RANDOM. So two bots of the same difficulty field different XIs drawn
+  // from the WHOLE 200+ pool — not the same handful of top names every time — while a
+  // harder bot still recruits from a clearly higher band than an easier one.
+  const center = 74 + difficulty * 18;        // easy(0.45)→82 · mid(0.70)→86.6 · hard(0.97)→91.5
+  const lo = center - 6, hi = center + 6;      // a 12-pt window → broad variety, but a harder
+                                               // bot's floor rises so it fields clearly better players
 
   const selected: Player[] = [];
+  const taken = (p: Player) => selected.some(s => s.id === p.id);
+  const inBand = (p: Player) => p.overall >= lo && p.overall <= hi;
+  const fits = (p: Player, role: string) => p.position === role || (p.secondaryPositions?.includes(role) ?? false);
+  const randOf = (arr: Player[]) => arr[Math.floor(Math.random() * arr.length)];
 
-  // Candidate window: how many positional matches to consider per slot.
-  // Wider window → more variety; harder bots still pick from a quality pool,
-  // just with more randomness within it.
-  const candidateWindow = difficulty >= 0.88 ? 7 : difficulty >= 0.62 ? 12 : 20;
-
-  // Fill formation positions (11 titulares)
+  // Fill formation positions (11 titulares) — random within the band, by position.
   for (const pos of formation.positions) {
-    const candidates = pool.filter(p =>
-      !selected.find(s => s.id === p.id) &&
-      (p.position === pos.role || p.secondaryPositions?.includes(pos.role))
-    );
-    if (candidates.length > 0) {
-      const randIdx = Math.floor(Math.random() * Math.min(candidates.length, candidateWindow));
-      selected.push(candidates[randIdx]);
-    }
+    let cands = PLAYERS.filter(p => !taken(p) && fits(p, pos.role) && inBand(p));
+    if (cands.length < 4) cands = PLAYERS.filter(p => !taken(p) && fits(p, pos.role)); // widen if scarce for this role
+    if (cands.length === 0) cands = PLAYERS.filter(p => !taken(p) && inBand(p) && p.position !== 'GK');
+    if (cands.length > 0) selected.push(randOf(cands));
   }
 
-  // Complete missing slots if formation matching failed
+  // Complete missing slots if formation matching failed.
   while (selected.length < 11) {
-    const remaining = pool.filter(p => !selected.find(s => s.id === p.id));
-    if (remaining.length === 0) break;
-    const randIdx = Math.floor(Math.random() * Math.min(remaining.length, candidateWindow));
-    selected.push(remaining[randIdx]);
+    let rem = PLAYERS.filter(p => !taken(p) && inBand(p) && p.position !== 'GK');
+    if (rem.length === 0) rem = PLAYERS.filter(p => !taken(p));
+    if (rem.length === 0) break;
+    selected.push(randOf(rem));
   }
 
   const formationRoles = formation.positions.map(p => p.role);
-  const chemData = calculateChemistry(selected, coach.id, formationRoles);
+  const chemData = calculateChemistry(selected, coach.id, formationRoles, formation.id);
 
   const playerCards: PlayerCard[] = selected.map((p, idx) => ({
     ...p,
+    traits: rollPlayerTraits(p.position, p.rarity), // random traits, like every card
     chemistryScore: chemData.individual[p.id] ?? 1,
     isOOP: chemData.outOfPosition[p.id] ?? false,
   }));
@@ -1882,7 +2207,7 @@ export function rebuildTeamChemistry(team: Team): Team {
   const formation = FORMATIONS.find(f => f.id === team.formationId);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
   const starters = team.players.slice(0, 11);
-  const chemData = calculateChemistry(starters, team.coachId, formationRoles);
+  const chemData = calculateChemistry(starters, team.coachId, formationRoles, team.formationId);
 
   const updatedPlayers = team.players.map((p, idx) => ({
     ...p,

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
-import { FORMATIONS, HISTORICAL_TRIOS, getRarityColor, POS_PT } from '../../lib/gameData';
-import { calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer } from '../../lib/gameEngine';
-import FormationField from './FormationField';
+import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, POS_PT } from '../../lib/gameData';
+import { calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, PREFERRED_FORMATION_CHEM_BONUS } from '../../lib/gameEngine';
+import { TRAIT_MAP, traitEffectLabel } from '../../lib/traits';
+import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import PlayerCard, { buildSofifaUrl } from './PlayerCard';
 import RolesSelector from './RolesSelector';
 import TacticSelector from './TacticSelector';
+import FormationSelector from './FormationSelector';
 import ChemistryBonusInfo from './ChemistryBonusInfo';
 import BuffBreakdown from './BuffBreakdown';
 
@@ -18,20 +20,26 @@ export default function LeagueSquadTab() {
   if (!team) return null;
 
   const handleSetCaptain = (id: string) => {
-    if (state.mode === 'online') setMatchRolesOnline(id, team.penaltyTaker ?? null);
+    if (state.mode === 'online') setMatchRolesOnline(id, team.penaltyTaker ?? null, team.freeKickTaker ?? null);
     else dispatch({ type: 'SET_PLAYER_TEAM_CAPTAIN', playerId: id });
   };
   const handleSetPenaltyTaker = (id: string) => {
-    if (state.mode === 'online') setMatchRolesOnline(team.captain ?? null, id);
+    if (state.mode === 'online') setMatchRolesOnline(team.captain ?? null, id, team.freeKickTaker ?? null);
     else dispatch({ type: 'SET_PLAYER_TEAM_PENALTY_TAKER', playerId: id });
+  };
+  const handleSetFreeKickTaker = (id: string) => {
+    if (state.mode === 'online') setMatchRolesOnline(team.captain ?? null, team.penaltyTaker ?? null, id);
+    else dispatch({ type: 'SET_PLAYER_TEAM_FREE_KICK_TAKER', playerId: id });
   };
 
   const formation = FORMATIONS.find(f => f.id === team.formationId);
+  const coach = COACHES.find(c => c.id === team.coachId);
   // The XI is always the first 11; anything beyond is the bench (reinforcements).
   const xi = team.players.slice(0, 11);
   const bench = team.players.slice(11);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
-  const chemData = calculateChemistry(xi, team.coachId, formationRoles);
+  const chemData = calculateChemistry(xi, team.coachId, formationRoles, team.formationId);
+  const chemLinks = getChemistryLinks(xi, team.coachId);
 
   const chemColor = chemData.total >= 90 ? '#22C55E' : chemData.total >= 60 ? '#EAB308' : chemData.total >= 30 ? '#F97316' : '#EF4444';
   const activeTrios = chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean);
@@ -58,7 +66,7 @@ export default function LeagueSquadTab() {
     const swap = temp[selectedIndex];
     temp[selectedIndex] = temp[candidateIdx];
     temp[candidateIdx] = swap;
-    const preview = calculateChemistry(temp.slice(0, 11), team.coachId, formationRoles);
+    const preview = calculateChemistry(temp.slice(0, 11), team.coachId, formationRoles, team.formationId);
     return { total: preview.total, diff: preview.total - chemData.total };
   };
 
@@ -93,6 +101,12 @@ export default function LeagueSquadTab() {
         <div className="h-2 rounded-full" style={{ background: '#1A1A2A' }}>
           <div className="h-full rounded-full transition-all duration-500" style={{ width: `${chemData.total}%`, background: chemColor }} />
         </div>
+        {coach && formation?.id === coach.preferredFormation && (
+          <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px]"
+            style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'Rajdhani, sans-serif' }}>
+            ✓ Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do técnico ({coach.name})
+          </div>
+        )}
         {activeTrios.length > 0 && (
           <div className="mt-3 text-xs" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
             ⭐ {activeTrios.map(t => t?.name).join(' · ')}
@@ -101,42 +115,106 @@ export default function LeagueSquadTab() {
         <ChemistryBonusInfo total={chemData.total} />
       </div>
 
+      {/* ── Coach / manager card ── */}
+      {coach && (
+        <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
+          <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
+            <span className="text-[10px] font-black tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>🎓 TÉCNICO</span>
+            <span className="text-[9px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>COMANDO DO TIME</span>
+          </div>
+
+          <div className="p-4 flex gap-3.5">
+            {coach.photoUrl && (
+              <img src={coach.photoUrl} alt={coach.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                style={{ border: '2px solid #C9A84C55', objectPosition: 'center top' }} />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-lg font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{coach.name}</div>
+              <div className="text-[11px] font-bold mt-0.5" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
+              <div className="text-[11px] mt-1 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{coach.description}</div>
+            </div>
+          </div>
+
+          <div className="px-4 pb-4 space-y-2">
+            <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
+              <div className="text-[9px] font-black tracking-widest mb-1" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>⚡ EFEITO NO ELENCO</div>
+              <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{coach.effect}</div>
+            </div>
+            <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #2A2A4A' }}>
+              <div className="text-[9px] font-black tracking-widest mb-1" style={{ color: '#A78BFA', fontFamily: 'Rajdhani, sans-serif' }}>✨ HABILIDADE: {coach.specialAbilityName?.toUpperCase()}</div>
+              <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{coach.specialAbility}</div>
+            </div>
+            {coach.preferredFormation && (
+              <div className="flex items-center gap-2 text-[10px] pt-0.5 flex-wrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span style={{ color: '#6A6A7A' }}>Formação preferida:</span>
+                <span className="px-2 py-0.5 rounded font-black" style={{ background: '#C9A84C22', color: '#E8C84A', border: '1px solid #C9A84C44' }}>{coach.preferredFormation}</span>
+                {formation?.id === coach.preferredFormation
+                  ? <span className="font-bold inline-flex items-center gap-1" style={{ color: '#22C55E' }}>✓ em uso · <span style={{ color: '#22C55E' }}>+{PREFERRED_FORMATION_CHEM_BONUS} química</span></span>
+                  : <span style={{ color: '#8A8A9A' }}>jogue nela pra <b style={{ color: '#22C55E' }}>+{PREFERRED_FORMATION_CHEM_BONUS} química</b> do time</span>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Formation — changeable between matches (solo and online). */}
+      <FormationSelector
+        value={team.formationId}
+        onChange={(id) => {
+          if (state.mode === 'online') setMatchRolesOnline(team.captain ?? null, team.penaltyTaker ?? null, team.freeKickTaker ?? null, team.playStyle, id);
+          else dispatch({ type: 'SET_PLAYER_TEAM_FORMATION', formationId: id });
+        }}
+      />
+
       {/* Tactic / play style — changeable between matches (solo and online) */}
       <TacticSelector
         value={team.playStyle}
         onChange={(id) => {
-          if (state.mode === 'online') setMatchRolesOnline(team.captain ?? null, team.penaltyTaker ?? null, id);
+          if (state.mode === 'online') setMatchRolesOnline(team.captain ?? null, team.penaltyTaker ?? null, team.freeKickTaker ?? null, id);
           else dispatch({ type: 'SET_PLAYER_TEAM_PLAY_STYLE', playStyle: id });
         }}
       />
 
-      {/* Captain & penalty taker */}
+      {/* Captain, penalty taker & free-kick taker */}
       <RolesSelector
         players={xi}
         captainId={team.captain}
         penaltyTakerId={team.penaltyTaker}
+        freeKickTakerId={team.freeKickTaker}
         onSetCaptain={handleSetCaptain}
         onSetPenaltyTaker={handleSetPenaltyTaker}
+        onSetFreeKickTaker={handleSetFreeKickTaker}
       />
 
       <p className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
         Clique em um jogador para trocar posições e ver buffs ativos do treinador.
       </p>
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {formation && (
-          <div className="lg:w-[380px] flex-shrink-0">
+          <div className="lg:w-[420px] flex-shrink-0 space-y-2">
             <FormationField
               formation={formation}
               players={xi}
               chemistryScores={chemData.individual}
               showChemLines
+              chemLinks={chemLinks}
               selectedPlayerIndex={selectedIndex}
               onPlayerClick={(_player, posIndex) => setSelectedIndex(posIndex)}
             />
+            {/* Connection legend */}
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px]" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+              <span className="font-bold tracking-wider text-[#6A6A7A]">CONEXÕES:</span>
+              {([['club', 'Mesmo clube'], ['nation', 'Mesma nação'], ['coach', 'Mesmo técnico'], ['partner', 'Dupla histórica']] as const).map(([t, label]) => (
+                <span key={t} className="flex items-center gap-1">
+                  <span style={{ width: 12, height: 2.5, borderRadius: 2, background: CHEM_LINK_COLOR[t], display: 'inline-block' }} />
+                  {label}
+                </span>
+              ))}
+            </div>
           </div>
         )}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="text-xs font-bold tracking-widest mb-3" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>
             TITULARES
           </div>
@@ -154,28 +232,34 @@ export default function LeagueSquadTab() {
             ))}
           </div>
 
-          {/* Bench / reinforcements — click a player, then "TROCAR COM" a starter */}
-          {bench.length > 0 && (
-            <>
-              <div className="text-xs font-bold tracking-widest mb-3 flex items-center gap-2" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
-                BANCO / RESERVAS ({bench.length})
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {bench.map((player, i) => (
-                  <PlayerCard
-                    key={player.id}
-                    player={player}
-                    compact
-                    selected={selectedIndex === 11 + i}
-                    onClick={() => setSelectedIndex(11 + i)}
-                  />
-                ))}
-              </div>
-              <p className="text-[11px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                Clique num reserva e escolha "Trocar com" um titular para substituir.
+          {/* Bench / reinforcements — click a reserve, then "TROCAR COM" a starter */}
+          <div className="mt-5 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
+            <div className="text-xs font-black tracking-widest mb-2 flex items-center gap-2" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
+              🪑 BANCO / RESERVAS {bench.length > 0 && <span style={{ color: '#6A6A7A' }}>({bench.length})</span>}
+            </div>
+            {bench.length > 0 ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {bench.map((player, i) => (
+                    <PlayerCard
+                      key={player.id}
+                      player={player}
+                      compact
+                      selected={selectedIndex === 11 + i}
+                      onClick={() => setSelectedIndex(11 + i)}
+                    />
+                  ))}
+                </div>
+                <p className="text-[11px] mt-2" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Clique num reserva e escolha <b style={{ color: '#C9A84C' }}>"Trocar com"</b> um titular para colocá-lo no time.
+                </p>
+              </>
+            ) : (
+              <p className="text-[11px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                Sem reservas ainda. Você ganha um <b style={{ color: '#E8C84A' }}>reforço ao fim de cada rodada</b> — ele aparece aqui no banco.
               </p>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -222,6 +306,39 @@ export default function LeagueSquadTab() {
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
                   const photoUrl = getPlayerPhotoUrl(selectedPlayer.id);
                   const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
+                  // Who this starter connects with on the pitch, grouped by link type.
+                  const linkLabels: Record<string, string> = { club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica' };
+                  const selLinks = posIdx >= 0
+                    ? chemLinks
+                        .filter(l => l.aIndex === posIdx || l.bIndex === posIdx)
+                        .map(l => ({ player: xi[l.aIndex === posIdx ? l.bIndex : l.aIndex], type: l.type }))
+                    : [];
+                  const linksByType = (['club', 'nation', 'coach', 'partner'] as const)
+                    .map(t => ({ t, names: selLinks.filter(l => l.type === t).map(l => l.player?.shortName).filter(Boolean) as string[] }))
+                    .filter(g => g.names.length > 0);
+                  // Raw link points (club +2, nation +1, shared coach +2, partner +1) plus
+                  // the coach bond (+1). The chem LEVEL is round(rawPts / 3), so a single
+                  // weak link (e.g. 1 nation = 1 pt) rounds to level 0 — we surface the
+                  // progress so a connection never looks like it's doing nothing.
+                  const LINK_PTS: Record<string, number> = { club: 2, nation: 1, coach: 2, partner: 1 };
+                  const chemRawPts = selectedIsOOP ? 0
+                    : selLinks.reduce((s, l) => s + (LINK_PTS[l.type] ?? 0), 0)
+                      + ((selectedPlayer.historicalCoaches ?? []).includes(team.coachId) ? 1 : 0);
+                  const chemThresholds = [2, 5, 8]; // raw pts needed for level 1 / 2 / 3
+                  const chemNextAt = eff.chemScore >= 3 ? null : chemThresholds[eff.chemScore];
+                  // Shaped for the unified breakdown below (chemistry connections + traits).
+                  const chemInfo = {
+                    oop: selectedIsOOP,
+                    nativePos: POS_PT[selectedPlayer.position] ?? selectedPlayer.position,
+                    formationPos: POS_PT[formationRole] ?? formationRole,
+                    links: linksByType.map(({ t, names }) => ({ type: t, label: linkLabels[t], color: CHEM_LINK_COLOR[t], names })),
+                    rawPts: chemRawPts,
+                    nextAt: chemNextAt,
+                  };
+                  const traitInfos = (selectedPlayer.traits ?? []).map(tid => {
+                    const def = TRAIT_MAP[tid];
+                    return { id: tid, icon: def?.icon ?? '✨', effect: traitEffectLabel(tid), flavor: def?.flavor ?? '' };
+                  });
                   const statRows = [
                     { label: 'RIT', base: selectedPlayer.pace,      eff: eff.pace },
                     { label: 'FIN', base: selectedPlayer.shooting,  eff: eff.shooting },
@@ -276,7 +393,8 @@ export default function LeagueSquadTab() {
                         })}
                       </div>
 
-                      {/* Chemistry dots */}
+                      {/* Chemistry quick glance — score + native position (full detail and
+                          connections live in the unified breakdown below). */}
                       <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: '#161626' }}>
                         <div className="flex items-center gap-2">
                           <span className="text-[9px] text-gray-500 font-bold tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA INDIVIDUAL</span>
@@ -285,6 +403,7 @@ export default function LeagueSquadTab() {
                               <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: filled ? '#22C55E' : '#1a1a2e', boxShadow: filled ? '0 0 5px #22C55E' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
                             ))}
                           </div>
+                          <span className="text-[10px] font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{eff.chemScore}/3</span>
                         </div>
                         <div className="text-[9px] text-gray-500 font-bold" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                           Pos. nativa: <span className="text-white">{POS_PT[selectedPlayer.position] ?? selectedPlayer.position}</span>
@@ -311,8 +430,9 @@ export default function LeagueSquadTab() {
                         </div>
                       )}
 
-                      {/* Per-source buff breakdown — what's lifting each stat */}
-                      <BuffBreakdown eff={eff} />
+                      {/* Per-source buff breakdown — now ALSO carries the chemistry
+                          connections and the named traits, so everything lives in one place. */}
+                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} />
                     </div>
                   );
                 })()}
@@ -385,11 +505,11 @@ export default function LeagueSquadTab() {
               </div>
 
               {/* Footer */}
-              <div className="flex justify-end px-6 py-4 border-t" style={{ borderColor: '#1d1d2f' }}>
+              <div className="flex justify-end px-6 py-4 border-t flex-shrink-0" style={{ borderColor: '#1d1d2f' }}>
                 <button
                   onClick={() => setSelectedIndex(null)}
-                  className="px-5 py-2.5 rounded-lg text-sm font-black text-white hover:bg-white/5 transition-colors focus:outline-none"
-                  style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #1d1d2f' }}
+                  className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg text-sm font-black text-gray-300 hover:text-white hover:bg-white/5 transition-colors focus:outline-none whitespace-nowrap"
+                  style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2E2E42' }}
                 >
                   Cancelar
                 </button>

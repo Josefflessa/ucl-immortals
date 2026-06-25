@@ -320,11 +320,11 @@ export function woodworkDesc(atk: string, def: string): string {
 
 // ─── Penalty event descriptions ───────────────────────────────────────────────
 
-export function penaltyGoalDesc(taker: string, def: string, gk: string): string {
+export function penaltyGoalDesc(taker: string, victim: string, def: string, gk: string): string {
   return pick([
-    `⚽ GOL DE PÊNALTI! ${taker} bate com categoria no canto esquerdo, sem chances para ${gk}!`,
-    `⚽ PÊNALTI CONVERTIDO! ${taker} desloca ${gk} e marca com frieza!`,
-    `⚽ GOL! ${taker} coloca no ângulo com precisão após a infração de ${def}!`,
+    `⚽ PÊNALTI! ${def} derrubou ${victim} dentro da área — ${taker} cobra com categoria e desloca ${gk}!`,
+    `⚽ GOL DE PÊNALTI! Falta de ${def} sobre ${victim} na área; ${taker} bate firme no canto, sem chances para ${gk}!`,
+    `⚽ NA MARCA DA CAL! ${def} chegou atrasado em ${victim} e foi pênalti — ${taker} converte com frieza diante de ${gk}!`,
   ]);
 }
 
@@ -341,6 +341,67 @@ export function penaltyMissDesc(taker: string): string {
     `❌ PÊNALTI PARA FORA! ${taker} bate com muita força e manda por cima!`,
     `❌ QUE VACILO! ${taker} cola no ângulo, mas a bola vai tirando tinta da trave!`,
     `❌ ${taker} decide bater no canto e a bola vai para fora pela linha de fundo!`,
+  ]);
+}
+
+// ── Foul & direct free-kick descriptions ──────────────────────────────────────
+
+export function foulDesc(fouler: string, victim: string): string {
+  return pick([
+    `🦶 Falta de ${fouler} em ${victim}. O árbitro marca.`,
+    `✋ ${fouler} chega atrasado e derruba ${victim} — falta perigosa!`,
+    `⚠️ ${fouler} para ${victim} na infração. Bola parada na entrada da área.`,
+    `🤙 ${victim} sofre a falta de ${fouler} em ótima posição para a cobrança.`,
+  ]);
+}
+
+export function freeKickGoalDesc(taker: string, gk: string): string {
+  return pick([
+    `⚽ GOLAÇO DE FALTA! ${taker} cobra por cima da barreira no ângulo, sem chance para ${gk}!`,
+    `⚽ NO ÂNGULO! ${taker} bate a falta com categoria e ${gk} só vê a bola entrar!`,
+    `⚽ QUE COBRANÇA! ${taker} acerta um míssil na falta e estufa as redes!`,
+  ]);
+}
+
+export function freeKickSaveDesc(gk: string, taker: string): string {
+  return pick([
+    `🧤 DEFENDAÇA! ${taker} bate firme na falta, mas ${gk} voa e espalma!`,
+    `🧤 ${gk} estava atento! Pega a cobrança de falta de ${taker} no canto!`,
+    `🧤 NO CANTINHO... mas ${gk} se estica e salva a cobrança de ${taker}!`,
+  ]);
+}
+
+export function freeKickMissDesc(taker: string): string {
+  return pick([
+    `❌ POR CIMA! ${taker} caprichou na cobrança, mas mandou para a arquibancada.`,
+    `❌ NA BARREIRA! A falta de ${taker} é afastada pela barreira.`,
+    `❌ ${taker} cobra a falta, mas a bola passa rente à trave!`,
+  ]);
+}
+
+// ── Corner (header) descriptions ──────────────────────────────────────────────
+
+export function cornerGoalDesc(header: string, gk: string): string {
+  return pick([
+    `⚽ DE CABEÇA! ${header} sobe mais que todos no escanteio e testa firme, sem chance para ${gk}!`,
+    `⚽ GOL DE ESCANTEIO! ${header} cabeceia no contrapé de ${gk} e estufa as redes!`,
+    `⚽ SUBIU! ${header} ganha pelo alto na cobrança de escanteio e marca de cabeça!`,
+  ]);
+}
+
+export function cornerSaveDesc(gk: string, header: string): string {
+  return pick([
+    `🧤 NO ESCANTEIO... ${header} cabeceia firme, mas ${gk} faz a defesa por baixo do travessão!`,
+    `🧤 ${gk} ENORME! Espalma o cabeceio de ${header} após a cobrança de escanteio!`,
+    `🧤 ${header} testa com perigo, mas ${gk} estava no lugar certo!`,
+  ]);
+}
+
+export function cornerMissDesc(header: string): string {
+  return pick([
+    `❌ DE CABEÇA, POR CIMA! ${header} sobe no escanteio, mas manda para fora.`,
+    `❌ ${header} cabeceia no escanteio, mas a bola raspa a trave e sai!`,
+    `❌ NA ÁREA... ${header} testa de cabeça, mas sem direção. Tiro de meta.`,
   ]);
 }
 

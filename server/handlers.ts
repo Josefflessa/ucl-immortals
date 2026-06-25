@@ -33,6 +33,7 @@ interface RoomPlayer {
   vetoesLeft: number;
   captain: string | null;
   penaltyTaker: string | null;
+  freeKickTaker: string | null;
   team: Team | null;
   ready: boolean;
   connected: boolean;
@@ -117,8 +118,10 @@ function knockoutWatchStatus(room: RoomState): { allWatched: boolean; waiting: s
   const currentMatches: any[] = bracket.currentRound === 'final'
     ? (bracket.final ? [bracket.final] : [])
     : (bracket as any)[roundKey] || [];
+  // Only CONNECTED humans gate advancement — a player who left/disconnected must not
+  // freeze the host waiting for a "watch" that will never come.
   const humanIdsInRound = room.players
-    .filter(p => currentMatches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id))
+    .filter(p => p.connected && currentMatches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id))
     .map(p => p.id);
   const allWatched = humanIdsInRound.every(id => room.watchedKnockoutLegPlayers.includes(id));
   const waiting = room.players
@@ -245,6 +248,7 @@ export function registerSocketHandlers(io: Server) {
             vetoesLeft: 2,
             captain: null,
             penaltyTaker: null,
+            freeKickTaker: null,
             team: null,
             ready: false,
             connected: true
@@ -322,6 +326,7 @@ export function registerSocketHandlers(io: Server) {
         vetoesLeft: 2,
         captain: null,
         penaltyTaker: null,
+        freeKickTaker: null,
         team: null,
         ready: false,
         connected: true
@@ -448,7 +453,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Player submits squad review (captain, penalty taker)
-    socket.on("submit_squad_review", ({ roomCode, captain, penaltyTaker, draftedPlayers, playStyle }) => {
+    socket.on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
 
@@ -457,8 +462,10 @@ export function registerSocketHandlers(io: Server) {
 
       player.captain = captain;
       player.penaltyTaker = penaltyTaker;
+      player.freeKickTaker = freeKickTaker ?? null;
       player.draftedPlayers = draftedPlayers;
       if (playStyle) player.playStyle = playStyle;
+      if (formationId) player.formationId = formationId; // formation can be changed post-draft
       player.ready = true;
 
       // Check if all players are ready
@@ -469,7 +476,7 @@ export function registerSocketHandlers(io: Server) {
           const starters = p.draftedPlayers.slice(0, 11).filter((pl): pl is Player => pl !== undefined);
           const formation = FORMATIONS.find(f => f.id === p.formationId);
           const roles = formation?.positions.map(pos => pos.role) ?? [];
-          const chemData = calculateChemistry(starters, p.coachId, roles);
+          const chemData = calculateChemistry(starters, p.coachId, roles, p.formationId);
 
           const playerCards: PlayerCard[] = p.draftedPlayers
             .filter((pl): pl is Player => pl !== undefined)
@@ -492,6 +499,7 @@ export function registerSocketHandlers(io: Server) {
             players: playerCards,
             captain: p.captain ?? undefined,
             penaltyTaker: p.penaltyTaker ?? undefined,
+            freeKickTaker: p.freeKickTaker ?? undefined,
             totalChemistry: chemData.total,
             isBot: false
           };
@@ -533,7 +541,7 @@ export function registerSocketHandlers(io: Server) {
     // Player updates captain / penalty taker for their own team (pre-league and
     // between matches). Kept on the authoritative server team so the server-side
     // simulation uses the chosen penalty taker.
-    socket.on("set_match_roles", ({ roomCode, captain, penaltyTaker, playStyle }) => {
+    socket.on("set_match_roles", ({ roomCode, captain, penaltyTaker, freeKickTaker, playStyle, formationId }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -541,11 +549,29 @@ export function registerSocketHandlers(io: Server) {
 
       player.captain = captain ?? null;
       player.penaltyTaker = penaltyTaker ?? null;
+      player.freeKickTaker = freeKickTaker ?? null;
       if (playStyle) player.playStyle = playStyle;
+      if (formationId) player.formationId = formationId;
       if (player.team) {
         player.team.captain = captain ?? undefined;
         player.team.penaltyTaker = penaltyTaker ?? undefined;
+        player.team.freeKickTaker = freeKickTaker ?? undefined;
         if (playStyle) player.team.playStyle = playStyle;
+        // Changing formation between matches re-maps roles → recompute chemistry / OOP
+        // server-side so the authoritative simulation uses the new shape.
+        if (formationId && player.team.formationId !== formationId) {
+          player.team.formationId = formationId;
+          const formation = FORMATIONS.find(f => f.id === formationId);
+          const roles = formation?.positions.map(pos => pos.role) ?? [];
+          const starters = player.team.players.slice(0, 11);
+          const chemData = calculateChemistry(starters, player.team.coachId, roles, formationId);
+          player.team.players = player.team.players.map((pl, idx) => ({
+            ...pl,
+            chemistryScore: chemData.individual[pl.id] ?? 1,
+            isOOP: idx < 11 ? (chemData.outOfPosition[pl.id] ?? false) : false,
+          }));
+          player.team.totalChemistry = chemData.total;
+        }
       }
       io.to(roomCode).emit("room_updated", room);
     });
@@ -600,9 +626,10 @@ export function registerSocketHandlers(io: Server) {
       const allPlayed = roundFixtures.length > 0 && roundFixtures.every(f => f.played);
       if (!allPlayed) return;
 
-      // Block advancement until every human player who has a match this round has confirmed watching
+      // Block advancement until every CONNECTED human with a match this round has watched
+      // (a player who left/disconnected must not freeze the host).
       const playersWithFixture = room.players.filter(p =>
-        roundFixtures.some(f => f.homeTeamId === p.id || f.awayTeamId === p.id)
+        p.connected && roundFixtures.some(f => f.homeTeamId === p.id || f.awayTeamId === p.id)
       );
       const allWatched = playersWithFixture.every(p => room.watchedRoundPlayers.includes(p.id));
       if (!allWatched) {
@@ -717,6 +744,7 @@ export function registerSocketHandlers(io: Server) {
         p.vetoesLeft = 2;
         p.captain = null;
         p.penaltyTaker = null;
+        p.freeKickTaker = null;
         p.playStyle = 'balanced';
         p.team = null;
         p.ready = false;
