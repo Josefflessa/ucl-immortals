@@ -1,6 +1,6 @@
 import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
-import { Player, getRarityColor } from '../../lib/gameData';
+import { Player, getRarityColor, POS_PT } from '../../lib/gameData';
 import { traitEffectLabel } from '../../lib/traits';
 
 interface PlayerCardProps {
@@ -151,12 +151,10 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   butragueno      : { id: 238419, ver: 24 },
   garrincha       : { id: 247553, ver: 22 }, // ✅ FIXED — correto Garrincha
   pele            : { id: 237067, ver: 24 }, // EA id 237067 (fut.gg) — fallback p/ placeholder se 404
-  maradona        : { id: 237073, ver: 24 }, // EA id 237073 (fifplay) — fallback p/ placeholder se 404
+  maradona        : { id: 190042, ver: 22 }, // ✅ FIXED — was 237073 (404); 190042 = Maradona (CDN-verified, FIFA 22)
   etoo            : { id: 9676,   ver: 24 }, // ✅ FIXED — correto Samuel Eto'o
   cantona         : { id: 167198, ver: 22 }, // ✅ FIXED — correto Eric Cantona
   kewell          : { id: 266801, ver: 23 }, // ✅ FIXED — correto Harry Kewell
-  // rummenigge: id 246826 renderizava o jogador ERRADO e não há ID oficial confiável
-  // no CDN do SoFIFA (não é ícone EA padrão) → sem mapeamento = placeholder limpo.
   voller          : { id: 166676, ver: 25 }, // ✅ FIXED — correto Rudi Völler
   papin           : { id: 167134, ver: 25 }, // ✅ FIXED — correto Jean-Pierre Papin
   haaland         : { id: 239085, ver: 25 },
@@ -197,7 +195,7 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   fernandinho     : { id: 135507, ver: 22 },
   tardelli        : { id: 138456, ver: 20 }, // ✅ FIXED — Diego Tardelli
   alexandre_pato  : { id: 180175, ver: 23 }, // ✅ FIXED — Alexandre Pato
-  luiz_adriano    : { id: 176600, ver: 16 },
+  luiz_adriano    : { id: 180826, ver: 16 }, // ✅ FIXED — was 176600 (pessoa errada); 180826 = Luiz Adriano (Milan, FIFA 16)
   bernard         : { id: 205525, ver: 20 },
   diego_alves     : { id: 165580, ver: 22 }, // ✅ FIXED — Diego Alves
   miranda         : { id: 168609, ver: 19 }, // ✅ FIXED — Miranda
@@ -293,13 +291,7 @@ const NATION_CODES: Record<string, string> = {
   'Irlanda':          'ie',
 };
 
-// PT-BR position abbreviations
-const POS_PT: Record<string, string> = {
-  GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
-  LWB: 'AEL', RWB: 'AED', CDM: 'VOL', CM: 'MC',
-  CAM: 'MEI', LM: 'ML', RM: 'MD',
-  LW: 'ALE', RW: 'ALD', CF: 'SS', ST: 'CA',
-};
+// PT-BR position abbreviations (single source of truth lives in gameData/POS_PT)
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
 function getFlagUrl(nation: string): string | null {
@@ -312,7 +304,7 @@ const CLUB_CRESTS: Record<string, string> = {
   'Barcelona': 'https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_(crest).svg',
   'Real Madrid': 'https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg',
   'Milan': 'https://upload.wikimedia.org/wikipedia/commons/d/d0/Logo_of_AC_Milan.svg',
-  'Juventus': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Juventus_FC_2017_icon_%28black%29.svg',
+  'Juventus': 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Juventus_FC_-_logo_black_%28Italy%2C_2020%29.svg',
   'Bayern Munich': 'https://upload.wikimedia.org/wikipedia/commons/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg',
   'Chelsea': 'https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg',
   'Arsenal': 'https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg',
@@ -480,25 +472,42 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
   );
 }
 
-// "EM ALTA" (in-form) overlay — turns ANY rarity into a jet-black special card with the
-// tier's accent ablaze, so a boosted card reads instantly as special (à la Team-of-the-Week)
-// while the accent colour still tells you the underlying tier.
-function inFormOverlay(a: string) {
-  return {
-    bg: `radial-gradient(130% 92% at 50% -5%,${a}40 0%,${a}12 14%,#0b0b11 46%,#050507 100%)`,
-    border: a,
-    glow: `0 0 40px ${a}66,0 0 12px ${a}3a,inset 0 0 24px ${a}1f`,
-    isPremium: true,
-    nameGlow: `${a}99`,
-    pattern: `repeating-conic-gradient(from 0deg at 50% 22%,${a}24 0deg 1.3deg,transparent 1.3deg 12deg)`,
-    patternOpacity: 1,
-  };
+// Reserved "EM ALTA" colour — a neon green that NO rarity tier uses, so an in-form card
+// is unmistakable without ever looking like another rarity. It rides on its own channels
+// (an animated border highlight + outer aura) layered ON TOP of the untouched rarity card.
+const IN_FORM_COLOR = '#39FF14';
+const IN_FORM_GLOW = '0 0 22px rgba(57,255,20,.6),0 0 7px rgba(57,255,20,.45)';
+
+// Neon highlight that travels around the card border via a rotating conic-gradient,
+// masked to show only the border band. Sits above the card content (border only),
+// so it never repaints the rarity fill underneath.
+function InFormRing({ radius, thickness }: { radius: number; thickness: number }) {
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none z-20"
+      style={{
+        borderRadius: radius,
+        padding: thickness,
+        background: `conic-gradient(from var(--inform-ang),transparent 0deg 285deg,${IN_FORM_COLOR} 330deg,#e6ffd9 348deg,${IN_FORM_COLOR} 360deg)`,
+        WebkitMask: 'linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0)',
+        WebkitMaskComposite: 'xor',
+        maskComposite: 'exclude',
+        animation: 'inform-sweep 2.4s linear infinite',
+      }}
+    />
+  );
 }
 
 function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0 }: PlayerCardProps) {
   const baseColor = getRarityColor(player.rarity);
-  const baseTheme = getCardTheme(player.rarity);
-  const theme = player.inForm ? { ...baseTheme, ...inFormOverlay(baseTheme.accent) } : baseTheme;
+  // The card's visual identity is driven PURELY by rarity. "EM ALTA" (in-form) never
+  // touches the rarity theme — it adds a reserved neon-green border highlight + aura on
+  // top (see IN_FORM_COLOR / InFormRing), so the tier stays readable and is never
+  // mistaken for another rarity (e.g. Immortal).
+  const theme = getCardTheme(player.rarity);
+  // Steady neon aura appended to the rarity glow. box-shadow renders OUTSIDE the card,
+  // so overflow-hidden never clips it. Skipped while `selected` (white halo owns the edge).
+  const inFormAura = player.inForm && !selected ? `,${IN_FORM_GLOW}` : '';
   const baseId = getBasePlayerId(player.id);
   const hasPhoto = !!SOFIFA_MAPPING[baseId];
 
@@ -514,17 +523,18 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {...compactMotion}
         onClick={onClick}
         className={`relative select-none rounded-xl overflow-hidden flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
-        style={{ width: 80, height: 112, background: theme.bg, border: selected ? '2px solid #fff' : `1.5px solid ${theme.border}`, boxShadow: selected ? '0 0 18px rgba(255,255,255,.7)' : theme.glow }}
+        style={{ width: 80, height: 112, background: theme.bg, border: selected ? '2px solid #fff' : `1.5px solid ${theme.border}`, boxShadow: (selected ? '0 0 18px rgba(255,255,255,.7)' : theme.glow) + inFormAura }}
       >
         {!lite && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: theme.pattern, backgroundSize: theme.patternSize ?? 'auto', opacity: (theme.patternOpacity ?? 1) * 0.7 }} />}
         {theme.isPremium && !lite && <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(120deg,transparent 30%,rgba(255,255,255,.07) 50%,transparent 70%)', animation: 'shimmer 2.8s infinite ease-in-out' }} />}
+        {player.inForm && !lite && <InFormRing radius={12} thickness={1.5} />}
 
         {/* Top: OVR + POS + flag */}
         <div className="flex items-center justify-between px-1.5 pt-1.5 flex-shrink-0 z-10">
           <div className="flex flex-col leading-none">
             <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 17, lineHeight: 1 }}>{player.overall}</span>
             <span style={{ fontFamily: 'Rajdhani,sans-serif', color: theme.accent, fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
-            {player.inForm && <span style={{ color: theme.accent, fontSize: 9, lineHeight: 1, marginTop: 1, textShadow: `0 0 5px ${theme.accent}` }}>⚡</span>}
+            {player.inForm && <span style={{ color: IN_FORM_COLOR, fontSize: 9, lineHeight: 1, marginTop: 1, textShadow: `0 0 6px ${IN_FORM_COLOR}` }}>⚡</span>}
           </div>
           <div className="flex items-center gap-1.5">
             {getFlagUrl(player.nation) && (
@@ -585,7 +595,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       {...cardMotionProps}
       onClick={onClick}
       className={`relative select-none rounded-2xl overflow-hidden flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
-      style={{ width: 200, height: 340, background: theme.bg, border: selected ? '3px solid #fff' : `2px solid ${theme.border}`, boxShadow: selected ? '0 0 36px rgba(255,255,255,.8),inset 0 0 18px rgba(255,255,255,.1)' : theme.glow }}
+      style={{ width: 200, height: 340, background: theme.bg, border: selected ? '3px solid #fff' : `2px solid ${theme.border}`, boxShadow: (selected ? '0 0 36px rgba(255,255,255,.8),inset 0 0 18px rgba(255,255,255,.1)' : theme.glow) + inFormAura }}
     >
       {/* Per-rarity texture pattern */}
       <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: theme.pattern, backgroundSize: theme.patternSize ?? 'auto', opacity: theme.patternOpacity ?? 1 }} />
@@ -598,6 +608,9 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
 
       {/* Shimmer */}
       {theme.isPremium && !lite && <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(120deg,transparent 25%,rgba(255,255,255,.07) 50%,transparent 75%)', animation: 'shimmer 3s infinite ease-in-out' }} />}
+
+      {/* "EM ALTA" travelling neon border (rarity fill below stays untouched) */}
+      {player.inForm && !lite && <InFormRing radius={16} thickness={2} />}
 
       {/* ── TOP ROW — compact to maximise photo space ── */}
       <div className="relative z-10 flex items-start justify-between px-3 pt-2.5 flex-shrink-0">
@@ -649,9 +662,9 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       {/* ── IN-FORM BADGE (special draft card) ── */}
       {player.inForm && (
         <div className="flex-shrink-0 mx-2 flex justify-center" style={{ zIndex: 6, marginTop: 4 }}>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: `linear-gradient(90deg,${theme.border},${theme.accent},${theme.border})`, boxShadow: `0 0 12px ${theme.accent}99`, border: '1px solid rgba(0,0,0,.4)' }}
-            title={`Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 3} geral e atributos reforçados`}>
-            <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 900, letterSpacing: '0.14em', color: '#1a1205' }}>⚡ EM ALTA</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: `linear-gradient(90deg,#1c7a0e,${IN_FORM_COLOR},#1c7a0e)`, boxShadow: `0 0 12px rgba(57,255,20,.7)`, border: '1px solid rgba(0,0,0,.4)' }}
+            title={`Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 3} em cada atributo (o Geral sobe junto)`}>
+            <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 900, letterSpacing: '0.14em', color: '#06210a' }}>⚡ EM ALTA</span>
           </span>
         </div>
       )}
@@ -661,7 +674,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 20, letterSpacing: '0.08em', color: '#fff', textShadow: `0 0 16px ${theme.nameGlow}` }}>{player.shortName.toUpperCase()}</span>
       </div>
 
-      {/* ── STATS ── */}
+      {/* ── STATS (the 6 core on the card; vision & composure live in the detail/modal) ── */}
       <div className="flex-shrink-0 mx-2 mb-1.5 rounded-xl animate-fade-in" style={{ background: 'rgba(0,0,0,.35)', border: `1px solid ${theme.border}18`, display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', zIndex: 5 }}>
         {[{l:'RIT',v:player.pace},{l:'FIN',v:player.shooting},{l:'PAS',v:player.passing},{l:'DRI',v:player.dribbling},{l:'DEF',v:player.defending},{l:'FIS',v:player.physical}].map((s,i) => (
           <div key={i} className="flex flex-col items-center py-1.5">

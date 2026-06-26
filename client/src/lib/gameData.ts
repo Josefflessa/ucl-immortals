@@ -122,9 +122,9 @@ export const POSITION_GROUPS: Record<PositionGroup, string[]> = {
 
 export const POS_PT: Record<string, string> = {
   GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
-  LWB: 'AEL', RWB: 'AED', CDM: 'VOL', CM: 'MC',
+  LWB: 'AE', RWB: 'AD', CDM: 'VOL', CM: 'MC',
   CAM: 'MEI', LM: 'ML', RM: 'MD',
-  LW: 'ALE', RW: 'ALD', CF: 'SS', ST: 'CA',
+  LW: 'PE', RW: 'PD', CF: 'SS', ST: 'CA',
 };
 
 // ============================================================
@@ -260,9 +260,9 @@ export const COACHES: Coach[] = [
     name: 'Zinedine Zidane',
     philosophy: 'Gestão de Estrelas',
     description: 'Ganhou 3 Champions seguidas. Sabe como motivar os maiores craques do mundo.',
-    effect: '+2 em todos os atributos. Lendários e Imortais ganham +5 a mais.',
+    effect: '+2 em todos os atributos. Lendários e Imortais ganham +4 (total).',
     specialAbilityName: 'Rei do Mata-Mata',
-    specialAbility: 'O bônus dos Lendários/Imortais sobe para +7 no mata-mata e +10 na final.',
+    specialAbility: 'O bônus dos Lendários/Imortais sobe para +6 no mata-mata e na final.',
     preferredFormation: '4-3-3',
     bonuses: [
       { phase: 'Todos', attribute: 'all', value: 2 },
@@ -2681,22 +2681,6 @@ export const PLAYERS: Player[] = [
     traits: [],
     historicalCoaches: ['klopp'],
     historicalPartners: ['gerrard', 'riise'],
-  },
-  {
-    id: 'rummenigge',
-    shortName: 'Rummenigge',
-    fullName: 'Karl-Heinz Rummenigge',
-    position: 'ST',
-    nation: 'Alemanha',
-    club: 'Bayern Munich',
-    season: '1980/81',
-    rarity: 'legendary',
-    overall: 90,
-    pace: 90, shooting: 91, passing: 83, dribbling: 89, defending: 42, physical: 83,
-    composure: 89, vision: 82,
-    traits: [],
-    historicalCoaches: ['klopp'],
-    historicalPartners: ['brehme', 'matthaus'],
   },
   {
     id: 'voller',

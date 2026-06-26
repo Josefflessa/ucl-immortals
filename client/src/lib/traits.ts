@@ -124,7 +124,7 @@ export function traitEffectLabel(id: string): string {
   }
   if (def.goalkeeperSave) parts.push(`+${def.goalkeeperSave} defesa do goleiro`);
   if (def.penaltyComposure) parts.push(`+${def.penaltyComposure} compostura nos pênaltis`);
-  if (def.oopRelief) parts.push('menos penalidade fora de posição');
+  if (def.oopRelief) parts.push('sofre menos penalidade ao jogar fora de posição');
   return parts.join(' · ');
 }
 

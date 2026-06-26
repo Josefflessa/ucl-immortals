@@ -275,6 +275,7 @@ export interface StatBreakdown {
   trait: number;      // sum of always-on trait bonuses
   tactic: number;     // play-style (tactic) bonus
   globalChem: number; // team-wide chemistry bonus (passing/pace only)
+  captain: number;    // captain leadership bonus (+CAPTAIN_BOOST on the captain's best stat, for everyone)
 }
 
 export interface EffectiveStats {
@@ -285,14 +286,16 @@ export interface EffectiveStats {
   dribbling: number;
   defending: number;
   physical: number;
+  vision: number;
+  composure: number;
   chemScore: number;
   isOOP: boolean;
   overallMod: number; // positive or negative delta vs base
   activeCoachEffects: string[];
   // Per-source breakdown so the UI can explain WHERE each buff comes from.
   chemMult: number;                                   // individual-chem multiplier (1.00–1.10, or OOP 0.85/0.92)
-  globalChemBonus: { passing: number; pace: number }; // team-wide bonus, in stat points
-  breakdown: Record<'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical', StatBreakdown>;
+  globalChemBonus: { passing: number; pace: number; special: number }; // team-wide bonus in stat points (special = +3 to every attr at perfect chem)
+  breakdown: Record<'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure', StatBreakdown>;
 }
 
 export function getCoachModifiersForPlayer(
@@ -305,7 +308,8 @@ export function getCoachModifiersForPlayer(
     role?: string;
   }
 ): {
-  overall: number;
+  // No `overall` here: the effective overall is DERIVED from the per-attribute deltas
+  // (see getPlayerEffectiveStats), so a coach never carries a bespoke overall modifier.
   pace: number;
   shooting: number;
   passing: number;
@@ -322,7 +326,6 @@ export function getCoachModifiersForPlayer(
   const role = context?.role ?? player.position;
 
   const modifiers = {
-    overall: 0,
     pace: 0,
     shooting: 0,
     passing: 0,
@@ -347,7 +350,6 @@ export function getCoachModifiersForPlayer(
   for (const bonus of coach.bonuses) {
     const val = bonus.value;
     if (bonus.attribute === 'all') {
-      modifiers.overall += val;
       modifiers.pace += val;
       modifiers.shooting += val;
       modifiers.passing += val;
@@ -378,7 +380,6 @@ export function getCoachModifiersForPlayer(
     }
     if (player.vision >= 80) {
       const b = 3;
-      modifiers.overall += b;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -392,7 +393,6 @@ export function getCoachModifiersForPlayer(
   } else if (coachId === 'klopp') {
     if (isLosing) {
       const b = 8;
-      modifiers.overall += b;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -415,7 +415,6 @@ export function getCoachModifiersForPlayer(
   } else if (coachId === 'ancelotti') {
     if (player.overall >= 85) {
       const b = 4;
-      modifiers.overall += b;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -428,7 +427,6 @@ export function getCoachModifiersForPlayer(
     }
     if (isFinal) {
       const b = 6;
-      modifiers.overall += b;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -441,16 +439,15 @@ export function getCoachModifiersForPlayer(
     }
   } else if (coachId === 'zidane') {
     if (player.rarity === 'legendary' || player.rarity === 'immortal') {
-      let b = 5;
-      let label = "Galácticos Zidane: +5 Geral";
-      if (isFinal) {
-        b = 10;
-        label = "Rei da Final: +10 Geral";
-      } else if (isKnockout) {
-        b = 7;
-        label = "Rei do Mata-Mata: +7 Geral";
+      // Every player already has the +2 base bonus above. Legends/immortals get a higher all-round
+      // bump: +4 total normally, +6 in a knockout/final. `b` is the EXTRA added on top of the +2 base;
+      // the label states the TOTAL (so it matches the per-attribute chips the player sees).
+      let b = 2; // +2 base + 2 = +4 total
+      let label = "Galácticos Zidane: +4 Geral";
+      if (isFinal || isKnockout) {
+        b = 4; // +2 base + 4 = +6 total
+        label = isFinal ? "Rei da Final: +6 Geral" : "Rei do Mata-Mata: +6 Geral";
       }
-      modifiers.overall += b;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -464,7 +461,6 @@ export function getCoachModifiersForPlayer(
   } else if (coachId === 'ferguson') {
     if (isLosing) {
       const b = 10;
-      modifiers.overall += b;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -492,6 +488,9 @@ export function getPlayerEffectiveStats(
     isFinal?: boolean;
     isLosing?: boolean;
     role?: string;
+    // The captain's single best attribute is boosted by +amount for EVERY teammate
+    // (and the captain himself). Mirrors getEffectiveAttribute so the modal matches the engine.
+    captainBoost?: { stat: string; amount: number };
   }
 ): EffectiveStats {
   const effectiveChem = isOOP ? 0 : chemScore;
@@ -511,15 +510,22 @@ export function getPlayerEffectiveStats(
   // Play-style (tactic) modifiers — same rules as getEffectiveAttribute.
   const styleBonus = (attr: AttrKey): number => tacticStatBonus(playStyle, attr);
 
-  // Global chemistry bonus (only passing & pace), same as the engine.
+  // Global chemistry bonus, same as the engine: +passing/+pace by tier, PLUS a flat +3
+  // to every attribute once the team hits perfect chemistry (90+, chemBonus.special).
   const globalChem = (attr: AttrKey): number => {
-    if (attr === 'passing') return chemBonus.passing * 2;
-    if (attr === 'pace') return chemBonus.pace * 2;
-    return 0;
+    let v = chemBonus.special ? 3 : 0;
+    if (attr === 'passing') v += chemBonus.passing * 2;
+    if (attr === 'pace') v += chemBonus.pace * 2;
+    return v;
   };
 
+  // Captain leadership: +amount on the captain's single best stat, for the whole team
+  // (the captain included). Same rule the match engine applies in getEffectiveAttribute.
+  const captainBonus = (attr: AttrKey): number =>
+    context?.captainBoost && attr === context.captainBoost.stat ? context.captainBoost.amount : 0;
+
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -530,6 +536,10 @@ export function getPlayerEffectiveStats(
   const dribbling = eff(player.dribbling, modifiers.dribbling, 'dribbling');
   const defending = eff(player.defending, modifiers.defending, 'defending');
   const physical  = eff(player.physical, modifiers.physical, 'physical');
+  // Vision & composure are full attributes too (they drive possession, playmaking and
+  // penalties), so they go through the exact same pipeline and surface in the breakdown.
+  const vision    = eff(player.vision, modifiers.vision, 'vision');
+  const composure = eff(player.composure, modifiers.composure, 'composure');
 
   // Per-source breakdown (base + chem + coach + trait + tactic + globalChem = effective,
   // barring the rare Math.max(1, …) floor). Lets the UI show where each point comes from.
@@ -540,16 +550,21 @@ export function getPlayerEffectiveStats(
     trait: traitBonus(attr),
     tactic: styleBonus(attr),
     globalChem: globalChem(attr),
+    captain: captainBonus(attr),
   });
 
-  // Effective overall reflects every additive uplift (traits + tactic + global chem),
-  // averaged across the six stats, on top of the chem-scaled base + coach overall mod.
-  const extraOverall = Math.round(
-    (extra('pace') + extra('shooting') + extra('passing')
-      + extra('dribbling') + extra('defending') + extra('physical')) / 6
+  // Effective overall = base overall + the MEAN change across ALL EIGHT attributes (the six
+  // core + vision + composure, now first-class). ONE rule for every modifier (chemistry,
+  // coach, traits, tactic, global chem): each already surfaces as a per-attribute delta, and
+  // overall is simply their average — so nothing needs a bespoke "overall mod".
+  // The "em alta" upgrade lives in the BASE (the six stats + player.overall), so it is already
+  // reflected here without being a delta.
+  const avgAttrDelta = Math.round(
+    ((pace - player.pace) + (shooting - player.shooting) + (passing - player.passing)
+      + (dribbling - player.dribbling) + (defending - player.defending) + (physical - player.physical)
+      + (vision - player.vision) + (composure - player.composure)) / 8
   );
-
-  const effectiveOverall = Math.max(1, Math.round(player.overall * chemMult) + modifiers.overall + extraOverall);
+  const effectiveOverall = Math.max(1, player.overall + avgAttrDelta);
   const baseOverall = player.overall;
   const overallMod = effectiveOverall - baseOverall;
 
@@ -561,12 +576,14 @@ export function getPlayerEffectiveStats(
     dribbling,
     defending,
     physical,
+    vision,
+    composure,
     chemScore: effectiveChem,
     isOOP,
     overallMod,
     activeCoachEffects: modifiers.activeEffects,
     chemMult,
-    globalChemBonus: { passing: chemBonus.passing * 2, pace: chemBonus.pace * 2 },
+    globalChemBonus: { passing: chemBonus.passing * 2, pace: chemBonus.pace * 2, special: chemBonus.special ? 3 : 0 },
     breakdown: {
       pace: mkBreak(player.pace, modifiers.pace, 'pace'),
       shooting: mkBreak(player.shooting, modifiers.shooting, 'shooting'),
@@ -574,6 +591,8 @@ export function getPlayerEffectiveStats(
       dribbling: mkBreak(player.dribbling, modifiers.dribbling, 'dribbling'),
       defending: mkBreak(player.defending, modifiers.defending, 'defending'),
       physical: mkBreak(player.physical, modifiers.physical, 'physical'),
+      vision: mkBreak(player.vision, modifiers.vision, 'vision'),
+      composure: mkBreak(player.composure, modifiers.composure, 'composure'),
     },
   };
 }
@@ -590,12 +609,15 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // controls the middle of the pitch. Used so a side that out-passes the opponent's
 // midfield manufactures BETTER chances (passing finally feeds chance creation, not
 // just assist selection). Falls back to the whole XI if no midfielders are fielded.
-export function teamMidfieldPassing(team: Team): number {
+// Midfield build-up rating: passing (execution) blended with vision (the incisive idea /
+// final ball). Vision is ~35% so a true playmaker lifts chance creation noticeably, without
+// overshadowing pure passing. Feeds midfieldBuildUpEdge → the QUALITY of chances created.
+export function teamPlaymaking(team: Team): number {
   const xi = team.players.slice(0, 11);
   const mids = xi.filter(p => ['CM', 'CAM', 'CDM', 'LM', 'RM'].includes(p.position));
   const pool = mids.length > 0 ? mids : xi;
   if (pool.length === 0) return 70;
-  return pool.reduce((s, p) => s + p.passing, 0) / pool.length;
+  return pool.reduce((s, p) => s + p.passing * 0.65 + p.vision * 0.35, 0) / pool.length;
 }
 
 // Build-up edge added to the attacker's chance-creation score: midfield-control gap
@@ -613,6 +635,7 @@ export function computePossession(
   homeStrength: number, awayStrength: number,
   homeShots: number, awayShots: number,
   homePlayStyle: string, awayPlayStyle: string,
+  homeControl: number = 0, awayControl: number = 0,
 ): number {
   const strShare = homeStrength / (homeStrength + awayStrength || 1);
   const shotShare = (homeShots + 1) / (homeShots + awayShots + 2);
@@ -621,6 +644,7 @@ export function computePossession(
   if (awayPlayStyle === 'possession') p -= 0.05;
   if (homePlayStyle === 'counter') p -= 0.04;       // a side sitting deep sees less of the ball
   if (awayPlayStyle === 'counter') p += 0.04;
+  p += (homeControl - awayControl) * 0.02;           // a midfield-heavy SHAPE owns more of the ball
   p = 0.5 + (p - 0.5) * 0.85;                        // compress toward the centre
   return Math.round(Math.max(28, Math.min(72, p * 100)));
 }
@@ -693,6 +717,10 @@ export function getEffectiveAttribute(
   // Chemistry global bonus (passing & pace)
   if (attribute === 'passing') base += chemBonus.passing * 2;
   if (attribute === 'pace') base += chemBonus.pace * 2;
+  // Perfect team chemistry (90+): a flat +3 to EVERY attribute, for every starter — the
+  // reward for a fully gelled XI. Lives here so it flows through both the match engine and
+  // the modal (replaces the old flat +5 on team strength, which was an invisible team-only buff).
+  if (chemBonus.special) base += 3;
 
   // Coach bonuses (using the new unified modifiers function)
   const modifiers = getCoachModifiersForPlayer(player, coach.id, {
@@ -738,6 +766,12 @@ export const MATCH_NOISE = 20;
 // neutral venue. Tuned via the harness so the host wins clearly more than the visitor
 // without it being decisive. Gives two-legged ties real shape (hold away, strike at home).
 export const HOME_ADVANTAGE = 3;
+
+// Formation counter edge: if your shape "counters" the opponent's (see FORMATIONS[].counters),
+// you get this much added strength. A SOFT nudge on top of each formation's own profile (which
+// already carries its identity) — kept at the home-advantage scale so picking the counter tilts
+// the matchup without deciding it. The countered side gets +0 (not a penalty), so it's not a swing.
+export const FORMATION_COUNTER_BONUS = 3;
 
 // ── Flavour match statistics (shots/saves/corners/fouls) ──────
 // These populate the box-score WITHOUT ever changing the score. They are
@@ -819,7 +853,33 @@ export function buildKeyMinutes(isKnockout: boolean): number[] {
 // midfielders/forwards/wide players it fields), normalised around a balanced 4-4-2.
 // Small numbers on purpose — the formation TILTS the game, it never decides it.
 export interface FormationProfile { attack: number; defense: number; control: number; cross: number; }
+
+// Each shape's tactical fingerprint, tuned to its IDENTITY as a balanced TRADE-OFF: attack
+// (territory/chance volume) is paired with defense (exposure when defending), so an attacking
+// shape both scores AND concedes more, while a defensive shape does the reverse — no shape is
+// strictly better. control = midfield grip (possession + chance quality); cross = wide vs narrow
+// (shifts the chance mix between crosses and through-balls). Validated by the round-robin in
+// balance.test.ts ("formation impact"). Magnitudes stay small — the shape TILTS, never decides.
+const FORMATION_PROFILES: Record<string, FormationProfile> = {
+  // Attacking, wide, well-rounded: takes territory but leaves a little space behind.
+  '4-3-3':   { attack: 1,  defense: -1, control: 0,  cross: 0 },
+  // Patient control: double pivot is solid, the midfield owns the ball, but it's not direct.
+  '4-2-3-1': { attack: -1, defense: 1,  control: 1,  cross: 0 },
+  // Classic and compact: two banks of four are defensively organised (+defense), with no special
+  // attacking or midfield tilt — the dependable all-rounder.
+  '4-4-2':   { attack: 0,  defense: 1,  control: 0,  cross: 0 },
+  // Midfield dominance through the middle, but only three at the back → ball-hungry yet exposed.
+  '3-5-2':   { attack: 0,  defense: -1, control: 2,  cross: -2 },
+  // All-out attack: floods forward (most chances) and is wide open at the back (most exposed).
+  '3-4-3':   { attack: 2,  defense: -2, control: 0,  cross: 1 },
+  // Impenetrable back five that cedes the ball and hits on the counter: fewest chances, meanest D.
+  '5-3-2':   { attack: -1, defense: 2,  control: -1, cross: -2 },
+};
+
 export function formationProfile(formationId: string): FormationProfile {
+  const explicit = FORMATION_PROFILES[formationId];
+  if (explicit) return explicit;
+  // Fallback for any shape without a hand-tuned entry: derive a profile from its role counts.
   const f = FORMATIONS.find(x => x.id === formationId);
   if (!f) return { attack: 0, defense: 0, control: 0, cross: 0 };
   const roles = f.positions.map(p => p.role);
@@ -828,19 +888,20 @@ export function formationProfile(formationId: string): FormationProfile {
   const def = cnt(['CB', 'LB', 'RB', 'LWB', 'RWB']);
   const mid = cnt(['CDM', 'CM', 'CAM', 'LM', 'RM']);
   const wide = cnt(['LW', 'RW', 'LM', 'RM', 'LB', 'RB', 'LWB', 'RWB']);
-  return {
-    attack: fwd - 2,    // 3 forwards (4-3-3/3-4-3) = +1 · 2 = 0 · 1 (4-2-3-1) = -1
-    defense: def - 4,   // 5 at the back (5-3-2) = +1 · 4 = 0 · 3 (3-x-x) = -1
-    control: mid - 4,   // 5 mids (4-2-3-1/3-5-2) = +1 · 4 = 0 · 3 (4-3-3/5-3-2) = -1
-    cross: wide - 4,    // wide shapes = 0 · narrow (3-5-2/5-3-2 = 2 wide) = -2
-  };
+  return { attack: fwd - 2, defense: def - 4, control: mid - 4, cross: wide - 4 };
 }
 
 // ── Tactic (play-style) effects — SHARED so the engine and the display never drift ──
 // Each tactic now has a richer attribute footprint (not a single stat) AND a profile
 // (attack/defense/control) that shapes how many and how good its chances are.
 export function tacticStatBonus(playStyle: string, attr: string): number {
+  const core = attr === 'pace' || attr === 'shooting' || attr === 'passing'
+    || attr === 'dribbling' || attr === 'defending' || attr === 'physical';
   switch (playStyle) {
+    // Balanced is a real CHOICE, not the absence of one: a well-drilled side with no weak spot —
+    // a modest +2 across every core stat (same total budget as the specialists, just no peak), so
+    // it isn't strictly dominated by tactics that hand out free stats.
+    case 'balanced':       return core ? 2 : 0;
     case 'possession':     return attr === 'passing' ? 5 : attr === 'vision' ? 5 : attr === 'dribbling' ? 3 : 0;
     case 'counter':        return (attr === 'pace' || attr === 'shooting') ? 5 : attr === 'defending' ? 2 : 0;
     case 'high_press':     return attr === 'physical' ? 5 : attr === 'defending' ? 3 : attr === 'pace' ? 2 : 0;
@@ -856,7 +917,7 @@ export function tacticProfile(playStyle: string): { attack: number; defense: num
   switch (playStyle) {
     case 'possession':     return { attack: 0, defense: 0, control: 2 };   // patient, owns the midfield
     case 'counter':        return { attack: 1, defense: 1, control: -1 };  // sits in, hits fast (fewer but better chances)
-    case 'high_press':     return { attack: 1, defense: 0, control: 1 };   // aggressive and chaotic both ways
+    case 'high_press':     return { attack: 1, defense: -1, control: 1 };  // aggressive: wins it high, but the high line leaves space behind
     case 'defensive':      return { attack: -2, defense: 3, control: -1 }; // few chances, very hard to break down
     case 'all_out_attack': return { attack: 3, defense: -3, control: 0 };  // floods forward, wide open at the back
     default:               return { attack: 0, defense: 0, control: 0 };
@@ -949,11 +1010,11 @@ export function runMatchSimulation(
   const awayChem = getChemistryBonus(away.totalChemistry);
 
   // Midfield passing ratings (constant across the match) feed chance quality.
-  const homeMid = teamMidfieldPassing(home);
-  const awayMid = teamMidfieldPassing(away);
+  const homeMid = teamPlaymaking(home);
+  const awayMid = teamPlaymaking(away);
 
-  const homeFormBonus = homeFormation.counters.includes(away.formationId) ? 5 : 0;
-  const awayFormBonus = awayFormation.counters.includes(home.formationId) ? 5 : 0;
+  const homeFormBonus = homeFormation.counters.includes(away.formationId) ? FORMATION_COUNTER_BONUS : 0;
+  const awayFormBonus = awayFormation.counters.includes(home.formationId) ? FORMATION_COUNTER_BONUS : 0;
 
   // Formation shape + tactic both shape how each side creates/concedes chances.
   const homeProf = formationProfile(home.formationId);
@@ -982,23 +1043,29 @@ export function runMatchSimulation(
   const matchTempo = 0.7 + Math.random() * 0.6;       // 0.70 .. 1.30
   const matchAggression = 0.55 + Math.random() * 0.9; // 0.55 .. 1.45
 
+  // Base team strength is CONSTANT across the match (squad, chemistry, coach, captain…), so
+  // compute it ONCE here instead of every minute. Only the score-dependent Ferguson swing and
+  // the host edge are applied per-minute below.
+  const homeBaseStrength = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus) + zidaneBonus(home);
+  const awayBaseStrength = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus) + zidaneBonus(away);
+
   for (let minute = startMinute + 1; minute <= endMinute; minute++) {
     const isKeyEventMinute = KEY_MINUTES.includes(minute);
 
-    const homeStrength = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus) +
-      zidaneBonus(home) +
+    const homeStrength = homeBaseStrength +
       (fergusonActive(home, homeGoals, awayGoals) ? 10 : 0) +
       (isFinal ? 0 : HOME_ADVANTAGE); // neutral venue for the final → no host edge
-    const awayStrength = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus) +
-      zidaneBonus(away) +
+    const awayStrength = awayBaseStrength +
       (fergusonActive(away, awayGoals, homeGoals) ? 10 : 0);
 
     const homeMomBonus = (homeMomentum - 50) * 0.25;
     const awayMomBonus = (awayMomentum - 50) * 0.25;
 
-    // Attacking FORMATIONS take a little more of the territory (subtle ±). The tactic's
-    // attacking intent is NOT applied here (that would let it hog possession AND concede
-    // less) — it lifts the team's own chance quality below, while leaving it exposed.
+    // Who carries the play this minute. An attacking shape pushes more territory (+attack), so it
+    // ATTACKS more often (chance volume). The price for that volume is paid in formMod below: an
+    // attacking shape's negative DEFENSE makes the chances it concedes far deadlier — so attack vs
+    // defense is a real trade-off (more/own chances vs leakier when caught out), not pure upside.
+    // The tactic's attacking intent is NOT applied here (it lifts own chance quality below instead).
     const homeAttack = homeStrength + homeMomBonus + homeProf.attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
     const awayAttack = awayStrength + awayMomBonus + awayProf.attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
 
@@ -1029,8 +1096,7 @@ export function runMatchSimulation(
         const fkGk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
         const taker = getFreeKickTaker(attackTeam);
         const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-        const skill = (takerShoot + taker.composure) / 2;
-        const goalChance = Math.max(0.015, Math.min(0.11, (skill - 80) / 140));
+        const goalChance = freeKickGoalChance(takerShoot, taker.composure);
         const r = Math.random();
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
 
@@ -1287,7 +1353,10 @@ export function runMatchSimulation(
         const defTac = homeAttacks ? awayTac : homeTac;
         const formMod = ((atkProf.control + atkTac.control) - (defProf.control + defTac.control)) * 1.2
           + atkTac.attack * 1.6                          // attacking intent → better own chances
-          - (defProf.defense + defTac.defense) * 2.2;    // ...but an open tactic (defense<0) is exposed
+          - defProf.defense * 3.6                        // FORMATION defense: a deep block crushes chance quality,
+                                                         //   an exposed back line (defense<0) leaks deadly chances —
+                                                         //   strong enough to pay back the attacking shape's volume edge
+          - defTac.defense * 2.2;                        // tactic defensive intent (already tuned)
         const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, attackTeam.playStyle) + formMod;
         const chance = resolveOpenPlayChance({
           atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
@@ -1503,6 +1572,7 @@ export function runMatchSimulation(
   matchStats.homePos = computePossession(
     homeBaseStr, awayBaseStr, matchStats.homeShots, matchStats.awayShots,
     home.playStyle ?? 'balanced', away.playStyle ?? 'balanced',
+    homeProf.control, awayProf.control,
   );
   matchStats.awayPos = 100 - matchStats.homePos;
 
@@ -1521,6 +1591,26 @@ export function runMatchSimulation(
     stats: matchStats,
     playerStats,
   };
+}
+
+// Direct free-kick conversion chance — scales with the taker's shooting AND composure,
+// floored (0.015) and capped (0.11) so free kicks stay rare. Exported so the balance
+// suite can assert composure actually moves the needle (it's too rare to sample in-sim).
+export function freeKickGoalChance(shooting: number, composure: number): number {
+  const skill = (shooting + composure) / 2;
+  return Math.max(0.015, Math.min(0.11, (skill - 80) / 140));
+}
+
+// Penalty conversion chance — a DIFFERENCE model (taker composure vs keeper shot-stopping)
+// instead of a ratio, which used to saturate ~70% for everyone. `comp` already includes the
+// designated +5 and penalty traits (Cobrador +8, Frio na Final / Especialista +10 each), so a
+// real taker sits ≈90 (plain) to ≈120 (full specialist) — the curve is centred on 100 (a good
+// designated taker, ~62%) and moves ~1.2%/point of composure and ~1.1%/point of keeper rating,
+// so even a 110 taker keeps differentiating instead of pinning the ceiling. Clamped to stay sane.
+export function penaltyGoalChance(comp: number, gkRef: number): number {
+  // Tuned on a strong keeper (gkRef 90): the composure ladder 80/85/90/95/100/110/120 lands on
+  // 60/64/68/72/76/84/92%. ~0.8%/point of composure, ~1.1%/point of keeper rating.
+  return Math.max(0.42, Math.min(0.94, 0.79 + (comp - 90) * 0.008 - (gkRef - 80) * 0.011));
 }
 
 export function simulateMatch(
@@ -1725,12 +1815,24 @@ export function simulateRemainingMatch(
 export const CAPTAIN_BOOST = 3;
 const CAPTAIN_STATS: (keyof Player)[] = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'];
 export function captainBestStat(team: Team): keyof Player | null {
-  const starters = team.players.slice(0, 11) as PlayerCard[];
+  return captainBestStatFromStarters(team.players.slice(0, 11), team.captain);
+}
+
+// Same rule as captainBestStat, but takes the starters + captain id directly so the squad
+// UI (which holds a plain Player list, not a Team) can reuse the EXACT engine logic.
+export function captainBestStatFromStarters(starters: Player[], captainId?: string): keyof Player | null {
   if (starters.length === 0) return null;
-  let cap = team.captain ? starters.find(p => p.id === team.captain) : undefined;
+  let cap = captainId ? starters.find(p => p.id === captainId) : undefined;
   if (!cap) cap = [...starters].sort((a, b) => b.overall - a.overall)[0]; // bot / unset → best player
   if (!cap) return null;
   return CAPTAIN_STATS.reduce((best, s) => ((cap![s] as number) > (cap![best] as number) ? s : best), CAPTAIN_STATS[0]);
+}
+
+// Convenience for the UI: the captain boost object (stat + amount) to feed getPlayerEffectiveStats,
+// or null when there are no starters. Mirrors what the match engine builds per side.
+export function captainBoostFromStarters(starters: Player[], captainId?: string): { stat: string; amount: number } | null {
+  const stat = captainBestStatFromStarters(starters, captainId);
+  return stat ? { stat: stat as string, amount: CAPTAIN_BOOST } : null;
 }
 
 export function calculateTeamStrength(
@@ -1739,23 +1841,36 @@ export function calculateTeamStrength(
   chemBonus: { passing: number; pace: number; special: boolean },
   formationBonus: number,
 ): number {
-  const starters = team.players.slice(0, 11);
+  const starters = team.players.slice(0, 11) as PlayerCard[];
   // Guard against an empty lineup (would otherwise divide by zero → NaN strength).
   if (starters.length === 0) return 0;
-  // Captain leadership: +CAPTAIN_BOOST to their best stat, for every teammate.
+  // Captain leadership: +CAPTAIN_BOOST on the captain's best stat, for every teammate.
   const capStat = captainBestStat(team);
+  const captainBoost = capStat ? { stat: capStat as string, amount: CAPTAIN_BOOST } : undefined;
   const avgStrength = starters.reduce((sum, p) => {
-    const v = (s: keyof Player) => (p[s] as number) + (capStat === s ? CAPTAIN_BOOST : 0);
-    // GKs are evaluated on shot-stopping attributes (defending + physical) rather than
-    // the 6-stat average that inflates/deflates them due to low shooting/dribbling.
+    // Strength is built from the EFFECTIVE attributes (not raw): individual + global chemistry,
+    // the coach, traits, the captain and perfect-chem are all folded in via getEffectiveAttribute,
+    // so a buff that helps in a duel also helps win territory. TACTIC is deliberately excluded
+    // (the '__neutral__' play-style yields no tactic bonus — NOT 'balanced', which now carries its
+    // own +2 buff) — tactics already shape possession + chance quality, so letting them tilt strength
+    // too would double-count them and distort each tactic's risk/reward.
+    const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, '', chemBonus, '__neutral__', { captainBoost });
+    // GKs are evaluated on shot-stopping attributes (defending + physical), not the outfield
+    // blend that low shooting/dribbling would distort. Outfielders use the six core stats PLUS
+    // vision at half weight — playmaking is a real "control the game" signal. Composure is
+    // deliberately NOT here: it's a clutch / dead-ball stat (penalties, free kicks), with no
+    // open-play role, so it shouldn't tilt possession/territory.
     const base = p.position === 'GK'
       ? (v('defending') * 1.5 + v('physical') + v('pace') * 0.5) / 3
-      : (v('pace') + v('shooting') + v('passing') + v('dribbling') + v('defending') + v('physical')) / 6;
-    const chemMod = p.isOOP ? 0.85 : (p.chemistryScore >= 3 ? 1.10 : p.chemistryScore === 2 ? 1.06 : p.chemistryScore === 1 ? 1.03 : 1.00);
-    return sum + base * chemMod;
+      : (v('pace') + v('shooting') + v('passing') + v('dribbling') + v('defending') + v('physical')
+          + v('vision') * 0.5) / 6.5;
+    return sum + base;
   }, 0) / starters.length;
 
-  let strength = avgStrength + formationBonus + chemBonus.passing + (chemBonus.special ? 5 : 0);
+  // formationBonus is the formation-matchup edge (team-level, not a per-player attribute), so it
+  // stays added on top. Individual/global chemistry, captain and perfect-chem already live inside
+  // the effective attributes above — adding them here too would double-count.
+  let strength = avgStrength + formationBonus;
   
   if (team.isBot && team.botStrength !== undefined) {
     // Bronze (~0.45) → 0.75x, Gold (~0.75) → 0.91x, Immortal (~0.97) → 1.03x
@@ -1800,7 +1915,7 @@ export function getPenaltyOrder(team: Team): PlayerCard[] {
 function penaltyKickGoal(taker: PlayerCard, gk: PlayerCard, designatedTakerId: string): boolean {
   const comp = taker.composure + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
   const gkRef = gk.defending + getGoalkeeperTraitBonus(gk.traits);
-  return Math.random() < comp / (comp + gkRef * 0.5);
+  return Math.random() < penaltyGoalChance(comp, gkRef);
 }
 
 export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<string, PlayerMatchStat>): {
@@ -1884,7 +1999,9 @@ const DRAFT_OPTIONS_COUNT = 6;
 // special, or to receive a wildcard extra trait. These ALWAYS clone the player
 // so the static PLAYERS pool is never mutated.
 const DRAFT_INFORM_CHANCE = 0.06;   // rare boosted card
-const INFORM_OVERALL_BOOST = 3;
+// Single boost value: "em alta" adds this to EVERY attribute. The overall rises by the
+// same amount as a CONSEQUENCE — overall is the mean of the attributes, so +N across all
+// eight is +N overall. That's why it's described to the player simply as "+N em cada atributo".
 const INFORM_STAT_BOOST = 3;
 
 function clampStat(v: number): number {
@@ -1892,20 +2009,22 @@ function clampStat(v: number): number {
 }
 
 function applyDraftVariant(p: Player): Player {
-  // In-form ("em alta"): rare boosted special — +overall/+stats AND a guaranteed extra
-  // trait (minimum 2), so it feels distinctly loaded.
+  // In-form ("em alta"): rare boosted special — +N to every attribute (overall follows)
+  // AND a guaranteed extra trait (minimum 2), so it feels distinctly loaded.
   if (Math.random() < DRAFT_INFORM_CHANCE) {
     return {
       ...p,
       inForm: true,
       baseOverall: p.overall,
-      overall: clampStat(p.overall + INFORM_OVERALL_BOOST),
+      overall: clampStat(p.overall + INFORM_STAT_BOOST),
       pace: clampStat(p.pace + INFORM_STAT_BOOST),
       shooting: clampStat(p.shooting + INFORM_STAT_BOOST),
       passing: clampStat(p.passing + INFORM_STAT_BOOST),
       dribbling: clampStat(p.dribbling + INFORM_STAT_BOOST),
       defending: clampStat(p.defending + INFORM_STAT_BOOST),
       physical: clampStat(p.physical + INFORM_STAT_BOOST),
+      vision: clampStat(p.vision + INFORM_STAT_BOOST),
+      composure: clampStat(p.composure + INFORM_STAT_BOOST),
       traits: rollPlayerTraits(p.position, p.rarity, 2),
     };
   }

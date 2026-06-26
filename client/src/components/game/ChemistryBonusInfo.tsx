@@ -34,7 +34,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
         <div className="flex flex-wrap gap-1.5 items-center">
           {b.passing > 0 && <Chip text={`+${b.passing * 2} Passe`} />}
           {b.pace > 0 && <Chip text={`+${b.pace * 2} Ritmo`} />}
-          {b.special && <Chip text="✨ Química perfeita" />}
+          {b.special && <Chip text="✨ +3 em todos (química perfeita)" />}
         </div>
       ) : (
         <div className="text-[10px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
@@ -47,7 +47,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
           const isActive = activeTier?.min === t.min;
           return (
             <span key={t.min} style={{ color: isActive ? '#E8C84A' : '#5A5A6A', fontWeight: isActive ? 800 : 500 }}>
-              {t.label} → +{t.pas} Passe{t.rit > 0 ? `, +${t.rit} Ritmo` : ''}{t.special ? ' ✨' : ''}
+              {t.label} → +{t.pas} Passe{t.rit > 0 ? `, +${t.rit} Ritmo` : ''}{t.special ? ', +3 em todos ✨' : ''}
             </span>
           );
         })}

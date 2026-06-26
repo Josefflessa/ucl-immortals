@@ -37,11 +37,14 @@ describe('getEffectiveAttribute', () => {
     expect(b - a).toBe(6);
   });
 
-  it('applies the play-style bonus', () => {
+  it('applies the play-style bonus (vs a neutral baseline)', () => {
     const card = asCard(outfield, { traits: [] });
-    const balanced = getEffectiveAttribute(card, 'defending', coach, '', noChem, 'balanced');
+    // Neutral baseline (no tactic) — an unknown play-style hits the default (zero) branch.
+    const neutral = getEffectiveAttribute(card, 'defending', coach, '', noChem, '__neutral__');
     const defensive = getEffectiveAttribute(card, 'defending', coach, '', noChem, 'defensive');
-    expect(defensive - balanced).toBe(8);
+    const balanced = getEffectiveAttribute(card, 'defending', coach, '', noChem, 'balanced');
+    expect(defensive - neutral).toBe(8);  // the defensive tactic adds +8 defending
+    expect(balanced - neutral).toBe(2);   // balanced is a real choice now: +2 to every core stat
   });
 
   it('applies conditional traits only with the right context', () => {

@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { generateBotTeam } from './gameEngine';
+import { generateBotTeam, freeKickGoalChance, penaltyGoalChance } from './gameEngine';
 import { TACTICS, FORMATIONS, COACHES } from './gameData';
 import {
   aggregateMatches, deriveMetrics, topScorelines,
-  strengthCurve, tacticImpact, simulateSeason, penaltyFairness,
-  knockoutTieFavoriteRate, formationImpact, coachImpact, chemistryImpact,
+  strengthCurve, tacticImpact, tacticMatrix, simulateSeason, penaltyFairness, penaltyComposureImpact, penaltyConversionByComposure,
+  knockoutTieFavoriteRate, formationImpact, formationMatrix, coachImpact, chemistryImpact, dangerChanceStats,
   botRosterStats, botDifficultyWinRate, ratingStatProfile, ratingByResult, captainStatImpact,
-  homeAdvantageSplit, globalChemImpact,
+  homeAdvantageSplit, globalChemImpact, visionImpact,
 } from './balanceHarness';
 
 /* eslint-disable no-console */
@@ -63,7 +63,7 @@ describe('balance — match-level panorama (even teams 0.80 vs 0.80)', () => {
 
 describe('balance — strength curve (does overall matter?)', () => {
   it('a bigger rating gap means a higher win rate', () => {
-    const N = 150;
+    const N = 200;
     const rows = strengthCurve([
       { home: 0.80, away: 0.80 },
       { home: 0.85, away: 0.75 },
@@ -86,31 +86,43 @@ describe('balance — strength curve (does overall matter?)', () => {
 });
 
 describe('balance — tactic impact (each tactic has a real, distinct role)', () => {
-  it('even strength: tactics differ and behave (defensive concedes least, attacking outscores)', () => {
-    const N = 260;
-    const rows = tacticImpact(TACTICS.map(t => t.id), N);
+  it('even strength: each tactic fits its identity, and none dominates', () => {
+    const N = 200; // matches per ORDERED pair (round-robin, home+away) → bias cancelled
+    const rows = tacticMatrix(TACTICS.map(t => t.id), N);
     const byId = Object.fromEntries(rows.map(r => [r.tactic, r]));
 
-    log('\n=== IMPACTO DAS TÁTICAS (mesma força, vs Equilibrado) ===');
+    log('\n=== IMPACTO DAS TÁTICAS (todas contra todas, casa+fora — viés cancelado) ===');
+    log('  tática           PPJ   vit% emp% der% | gols pró/contra | posse% | chutes(alvo) | conv% | CS%');
     rows.forEach(r => {
-      const name = TACTICS.find(t => t.id === r.tactic)?.name ?? r.tactic;
-      log(`  ${name.padEnd(16)} vit ${pct(r.winPct)} | emp ${pct(r.drawPct)} | PPJ ${r.pointsPerGame.toFixed(2)} | gols ${r.goalsForAvg.toFixed(2)} pró / ${r.goalsAgainstAvg.toFixed(2)} contra`);
+      const name = (TACTICS.find(t => t.id === r.tactic)?.name ?? r.tactic).padEnd(16);
+      log(
+        `  ${name} ${r.ppg.toFixed(2)}  ${pct(r.winPct)} ${pct(r.drawPct)} ${pct(r.lossPct)} | ` +
+        `${r.goalsForAvg.toFixed(2)}/${r.goalsAgainstAvg.toFixed(2)} | ${r.possession.toFixed(1)}% | ` +
+        `${r.shots.toFixed(1)}(${r.sot.toFixed(1)}) | ${pct(r.conversion)} | ${pct(r.cleanSheetPct)}`,
+      );
     });
     log('');
 
-    // Every tactic viable (no auto-win / auto-lose).
-    rows.forEach(r => { expect(r.winPct).toBeGreaterThan(0.20); expect(r.winPct).toBeLessThan(0.80); });
-    // Tactics must actually DIFFER (results spread).
-    expect(Math.max(...rows.map(r => r.pointsPerGame)) - Math.min(...rows.map(r => r.pointsPerGame))).toBeGreaterThan(0.05);
-    // Each does its JOB: defensive concedes less than balanced; the attacking tactics
-    // (counter / all-out) outscore balanced.
+    // 1) BALANCE — with a fair round-robin no tactic auto-wins or auto-loses; the field stays
+    //    close to the coin-flip and the best-to-worst gap is modest (a STYLE choice, not a power one).
+    rows.forEach(r => { expect(r.winPct).toBeGreaterThan(0.25); expect(r.winPct).toBeLessThan(0.45); });
+    expect(Math.max(...rows.map(r => r.ppg)) - Math.min(...rows.map(r => r.ppg))).toBeLessThan(0.45);
+
+    // 2) IDENTITY — each tactic behaves like its description.
+    // Attacking tactics outscore the defensive shell…
+    expect(byId['all_out_attack'].goalsForAvg).toBeGreaterThan(byId['defensive'].goalsForAvg);
+    expect(byId['counter'].goalsForAvg).toBeGreaterThan(byId['defensive'].goalsForAvg);
+    // …all-out attack pays for it: it concedes clearly the most.
+    expect(byId['all_out_attack'].goalsAgainstAvg).toBeGreaterThan(byId['balanced'].goalsAgainstAvg);
+    // Defensive is the meanest (fewest conceded, most clean sheets) and the lowest-scoring.
     expect(byId['defensive'].goalsAgainstAvg).toBeLessThan(byId['balanced'].goalsAgainstAvg);
-    expect(byId['counter'].goalsForAvg).toBeGreaterThan(byId['balanced'].goalsForAvg);
-    expect(byId['all_out_attack'].goalsForAvg).toBeGreaterThan(byId['balanced'].goalsForAvg);
+    expect(byId['defensive'].cleanSheetPct).toBeGreaterThan(byId['all_out_attack'].cleanSheetPct);
+    // Possession tactic owns the ball more than the counter (which cedes it to hit on the break).
+    expect(byId['possession'].possession).toBeGreaterThan(byId['counter'].possession);
   });
 
   it('situational: as the underdog, sitting deep earns more than going gung-ho', () => {
-    const N = 260;
+    const N = 400;
     const rows = tacticImpact(['defensive', 'counter', 'all_out_attack', 'balanced'], N, 0.70, 0.85);
     const u = Object.fromEntries(rows.map(r => [r.tactic, r]));
 
@@ -127,7 +139,7 @@ describe('balance — tactic impact (each tactic has a real, distinct role)', ()
   });
 
   it('situational: as the favourite, going for it scores more than parking the bus', () => {
-    const N = 260;
+    const N = 400;
     const rows = tacticImpact(['defensive', 'all_out_attack'], N, 0.88, 0.68);
     const f = Object.fromEntries(rows.map(r => [r.tactic, r]));
 
@@ -142,35 +154,84 @@ describe('balance — tactic impact (each tactic has a real, distinct role)', ()
   });
 });
 
-describe('balance — formation impact (same squad, only the shape differs)', () => {
-  it('formations differ and behave: defensive shapes concede less, attacking shapes score more', () => {
-    const N = 220;
-    const rows = formationImpact(FORMATIONS.map(f => f.id), N);
-    const byId = Object.fromEntries(rows.map(r => [r.formation, r]));
+describe('balance — frequência de lances de perigo (chances claras por jogo)', () => {
+  it('mede quantos lances de perigo cada situação produz — e nenhuma estoura o teto', () => {
+    const N = 300;
+    const mk = (id: string, strength: number, opts: Partial<{ playStyle: string; formationId: string }> = {}) =>
+      () => ({ ...generateBotTeam(id, strength), ...opts });
 
-    log('\n=== IMPACTO DAS FORMAÇÕES (mesmo elenco, vs 4-3-3) ===');
-    rows.forEach(r =>
-      log(`  ${r.formation.padEnd(8)} vit ${pct(r.winPct)} | emp ${pct(r.drawPct)} | gols pró ${r.goalsForAvg.toFixed(2)} / contra ${r.goalsAgainstAvg.toFixed(2)}`),
+    const scenarios: { label: string; home: () => any; away: () => any }[] = [
+      { label: 'Equilíbrio (0.80 × 0.80)', home: mk('A', 0.80), away: mk('B', 0.80) },
+      { label: 'Favorito forte (0.95 × 0.55)', home: mk('A', 0.95), away: mk('B', 0.55) },
+      { label: 'Ambos Tudo pro Ataque', home: mk('A', 0.80, { playStyle: 'all_out_attack' }), away: mk('B', 0.80, { playStyle: 'all_out_attack' }) },
+      { label: 'Ambos Defensivo', home: mk('A', 0.80, { playStyle: 'defensive' }), away: mk('B', 0.80, { playStyle: 'defensive' }) },
+      { label: 'Ambos 3-4-3', home: mk('A', 0.80, { formationId: '3-4-3' }), away: mk('B', 0.80, { formationId: '3-4-3' }) },
+      { label: 'Extremo: favorito 3-4-3 ataque × azarão 5-3-2', home: mk('A', 0.95, { playStyle: 'all_out_attack', formationId: '3-4-3' }), away: mk('B', 0.60, { playStyle: 'defensive', formationId: '5-3-2' }) },
+    ];
+
+    log('\n=== FREQUÊNCIA DE LANCES DE PERIGO (chances claras = gol/defesa/perdida/pênalti) ===');
+    log('  cenário                                    perigo/jogo (mín–máx) | gols | defesas | perdidas | chutes(alvo)');
+    const rows = scenarios.map(s => ({ label: s.label, d: dangerChanceStats(s.home, s.away, N) }));
+    rows.forEach(({ label, d }) =>
+      log(
+        `  ${label.padEnd(42)} ${d.bigChancesPerGame.toFixed(1)} (${d.minBigInOneGame}–${d.maxBigInOneGame}) | ` +
+        `${d.goalsPerGame.toFixed(2)} | ${d.savesPerGame.toFixed(1)} | ${d.missesPerGame.toFixed(1)} | ` +
+        `${d.shotsPerGame.toFixed(1)}(${d.sotPerGame.toFixed(1)})`,
+      ),
     );
     log('');
 
-    // Every formation must be viable (no auto-win / auto-lose). The baseline 4-3-3 is a
-    // strong, well-rounded shape, so a niche formation can sit in the mid/high-teens.
-    rows.forEach(r => { expect(r.winPct).toBeGreaterThan(0.12); expect(r.winPct).toBeLessThan(0.80); });
-    // Formations must actually DIFFER (clear spread in effectiveness).
-    const winRange = Math.max(...rows.map(r => r.winPct)) - Math.min(...rows.map(r => r.winPct));
-    expect(winRange).toBeGreaterThan(0.08);
-    // Defensive shapes do their JOB — a back five (5-3-2) concedes clearly less than an
-    // exposed back three (3-5-2) and than a flat 4-4-2; the back three concedes more.
-    expect(byId['5-3-2'].goalsAgainstAvg).toBeLessThan(byId['3-5-2'].goalsAgainstAvg);
+    // A clear chance is a big moment — even a wide-open, end-to-end match shouldn't feel like a
+    // chance every other minute. Ceiling guards against the "perigo alto demais" the player saw.
+    rows.forEach(({ label, d }) => {
+      expect(d.bigChancesPerGame, `${label}: lances de perigo/jogo`).toBeLessThan(16);
+      expect(d.bigChancesPerGame, `${label}: lances de perigo/jogo`).toBeGreaterThan(2);
+    });
+  });
+});
+
+describe('balance — formation impact (same squad, only the shape differs)', () => {
+  it('formations differ and behave: each shape fits its identity, and none dominates', () => {
+    const N = 200; // matches per ORDERED pair → each formation plays N×(F-1)×2 games total
+    const rows = formationMatrix(FORMATIONS.map(f => f.id), N);
+    const byId = Object.fromEntries(rows.map(r => [r.formation, r]));
+
+    log('\n=== IMPACTO DAS FORMAÇÕES (todos contra todos, casa+fora — viés cancelado) ===');
+    log('  forma     PPJ   vit% emp% der% | gols pró/contra | posse% | chutes(alvo) | conv% | CS%');
+    rows.forEach(r =>
+      log(
+        `  ${r.formation.padEnd(8)} ${r.ppg.toFixed(2)}  ${pct(r.winPct)} ${pct(r.drawPct)} ${pct(r.lossPct)} | ` +
+        `${r.goalsForAvg.toFixed(2)}/${r.goalsAgainstAvg.toFixed(2)} | ${r.possession.toFixed(1)}% | ` +
+        `${r.shots.toFixed(1)}(${r.sot.toFixed(1)}) | ${pct(r.conversion)} | ${pct(r.cleanSheetPct)}`,
+      ),
+    );
+    log('');
+
+    // 1) BALANCE — no shape auto-wins or auto-loses. With a fair round-robin the whole field
+    //    should cluster near the coin-flip; the gap between best and worst stays modest.
+    rows.forEach(r => { expect(r.winPct).toBeGreaterThan(0.22); expect(r.winPct).toBeLessThan(0.45); });
+    const ppgRange = Math.max(...rows.map(r => r.ppg)) - Math.min(...rows.map(r => r.ppg));
+    expect(ppgRange).toBeLessThan(0.55); // every formation is competitive (≈ within half a PPG)
+
+    // 2) IDENTITY — each shape behaves like its description.
+    // Attacking shape (3-4-3) outscores the back-five (5-3-2)…
+    expect(byId['3-4-3'].goalsForAvg).toBeGreaterThan(byId['5-3-2'].goalsForAvg);
+    // …but pays for it: it concedes clearly more than the back-five.
+    expect(byId['3-4-3'].goalsAgainstAvg).toBeGreaterThan(byId['5-3-2'].goalsAgainstAvg);
+    // The back-five (5-3-2) is the meanest defence (fewest conceded, most clean sheets)…
     expect(byId['5-3-2'].goalsAgainstAvg).toBeLessThan(byId['4-4-2'].goalsAgainstAvg);
-    expect(byId['3-5-2'].goalsAgainstAvg).toBeGreaterThan(byId['5-3-2'].goalsAgainstAvg);
+    expect(byId['5-3-2'].cleanSheetPct).toBeGreaterThan(byId['3-4-3'].cleanSheetPct);
+    // …and the most attacking shape (3-4-3) creates the most (most shots).
+    expect(byId['3-4-3'].shots).toBeGreaterThan(byId['5-3-2'].shots);
+    // Control shapes (4-2-3-1, 3-5-2) own the ball more than the direct/defensive ones.
+    expect(byId['4-2-3-1'].possession).toBeGreaterThan(byId['5-3-2'].possession);
+    expect(byId['3-5-2'].possession).toBeGreaterThan(byId['4-3-3'].possession);
   });
 });
 
 describe('balance — coach impact (same squad, only the manager differs)', () => {
   it('coaches differ and none is broken (vs a reference coach)', () => {
-    const N = 200;
+    const N = 400;
     const rows = coachImpact(COACHES.map(c => c.id), N, 'ancelotti');
     const byId = Object.fromEntries(rows.map(r => [r.coach, r]));
 
@@ -362,7 +423,7 @@ describe('balance — buff global de química faz diferença real', () => {
   it('o buff de time todo (passe/ritmo/força) muda o jogo de forma clara', () => {
     const g = globalChemImpact(900);
     log('\n=== BUFF GLOBAL DE QUÍMICA (isolado — mesmos jogadores, só muda o buff) ===');
-    log(`  COM buff (≥90: +6 passe/+4 ritmo/+5 força) → marca ${g.highGoalsFor.toFixed(2)} | sofre ${g.highConceded.toFixed(2)} | vence ${pct(g.highWin)}`);
+    log(`  COM buff (≥90: +6 passe/+4 ritmo/+3 em todos) → marca ${g.highGoalsFor.toFixed(2)} | sofre ${g.highConceded.toFixed(2)} | vence ${pct(g.highWin)}`);
     log(`  SEM buff (<45)                              → marca ${g.noneGoalsFor.toFixed(2)} | sofre ${g.noneConceded.toFixed(2)} | vence ${pct(g.noneWin)}`);
     log(`  Δ → +${(g.highGoalsFor - g.noneGoalsFor).toFixed(2)} gol/jogo · +${pct(g.highWin - g.noneWin)} de vitória\n`);
     // O buff global vale a pena: time igual com buff cheio vence claramente mais,
@@ -412,7 +473,7 @@ describe('balance — capitão (melhor stat → +3 pra todo o time)', () => {
 
 describe('balance — bot difficulty & roster variety', () => {
   it('difficulty scales the squad, bots draw from a WIDE pool, and stronger bots win more', () => {
-    const TEAMS = 30;
+    const TEAMS = 50;
     const easy = botRosterStats(0.50, TEAMS);
     const mid = botRosterStats(0.72, TEAMS);
     const hard = botRosterStats(0.95, TEAMS);
@@ -421,7 +482,7 @@ describe('balance — bot difficulty & roster variety', () => {
     log(`  fácil (0.50)  → overall médio ${easy.avgOverall.toFixed(1)} | jogadores distintos ${easy.distinctPlayers}`);
     log(`  médio (0.72)  → overall médio ${mid.avgOverall.toFixed(1)} | jogadores distintos ${mid.distinctPlayers}`);
     log(`  difícil (0.95) → overall médio ${hard.avgOverall.toFixed(1)} | jogadores distintos ${hard.distinctPlayers}`);
-    const wr = botDifficultyWinRate(0.90, 0.60, 300);
+    const wr = botDifficultyWinRate(0.90, 0.60, 600);
     log(`  bot 0.90 vs bot 0.60 → forte vence ${pct(wr)}\n`);
 
     // Difficulty scales the squad quality (harder → clearly higher average overall).
@@ -448,5 +509,88 @@ describe('balance — penalty shootout fairness', () => {
     expect(f.homeWinPct).toBeGreaterThan(0.40);
     expect(f.homeWinPct).toBeLessThan(0.60);
     expect(f.decisivePct).toBe(1); // a shootout must always produce a winner
+  });
+});
+
+describe('balance — vision drives chance creation', () => {
+  it('a high-vision midfield creates more goals and wins more (same squad otherwise)', () => {
+    const N = 600;
+    const f = visionImpact(N);
+    log('\n=== IMPACTO DA VISÃO (' + N + ', mesmo elenco, só a visão difere; vs mesmo adversário) ===');
+    log(`  gols/jogo: visão 95 → ${f.highGoalsFor.toFixed(2)} vs visão 50 → ${f.lowGoalsFor.toFixed(2)}`);
+    log(`  vitórias: visão 95 → ${pct(f.highWin)} vs visão 50 → ${pct(f.lowWin)}\n`);
+    // Vision must move the needle now (chance creation + a slice of team strength), but
+    // modestly — it tilts, never dominates.
+    expect(f.highGoalsFor).toBeGreaterThan(f.lowGoalsFor);
+    expect(f.highWin).toBeGreaterThan(f.lowWin);
+  });
+});
+
+describe('balance — composure decides penalties & free kicks', () => {
+  it('high composure wins clearly more shootouts than an identical low-composure team', () => {
+    const N = 2000;
+    const f = penaltyComposureImpact(N);
+    log('\n=== COMPOSTURA NOS PÊNALTIS (' + N + ', times idênticos, só a compostura difere) ===');
+    log(`  CONVERSÃO por cobrança: compostura 92 → ${pct(f.highConvPct)}  |  compostura 48 → ${pct(f.lowConvPct)}`);
+    log(`  alta compostura vence ${pct(f.highWinPct)} das disputas | decisivos ${pct(f.decisivePct)}\n`);
+    expect(f.decisivePct).toBe(1);              // every shootout still resolves
+    expect(f.highConvPct).toBeGreaterThan(f.lowConvPct + 0.08); // cool head converts clearly more per kick
+    expect(f.highWinPct).toBeGreaterThan(0.58); // composure must create a REAL edge, not 50/50
+  });
+
+  it('the conversion curve is realistic across the range real takers occupy', () => {
+    const N = 1500;
+    // Real takers sit ≈85–99 effective (median base 85, p90 92, +5 designated). Include a
+    // weak value (65) for contrast — but that's not a value a real penalty taker has.
+    const curve = penaltyConversionByComposure([65, 80, 85, 90, 92, 95, 99], N);
+    log('\n=== CONVERSÃO DE PÊNALTI POR COMPOSTURA (' + N + ', vs goleiros reais) ===');
+    for (const p of curve) log(`  compostura ${p.level} → ${pct(p.convPct)}`);
+    const at = (lvl: number) => curve.find(p => p.level === lvl)!.convPct;
+    log('');
+    // End-to-end smoke test: composure still raises conversion in real shootouts. (The exact
+    // spread is compressed here vs the clean grid below — bot keepers are weak and bot takers
+    // pick up random penalty traits — so the precise targets live in the grid test.)
+    expect(at(99)).toBeGreaterThan(at(80));              // rises with composure
+    expect(at(80)).toBeGreaterThan(at(65));
+    expect(at(99) - at(65)).toBeGreaterThan(0.08);       // real end-to-end spread
+    expect(at(85)).toBeGreaterThan(0.55);
+  });
+
+  it('penalty conversion hits its targets across the whole keeper range (composure × GK)', () => {
+    const gks = [70, 75, 80, 85, 90];
+    const comps = [80, 85, 90, 95, 100, 110, 120];
+    log('\n=== PÊNALTI: CONVERSÃO (compostura × goleiro) ===');
+    log('  comp\\gk ' + gks.map(g => ('gk' + g).padStart(7)).join(''));
+    for (const c of comps) {
+      log('  ' + String(c).padEnd(7) + gks.map(g => pct(penaltyGoalChance(c, g)).padStart(7)).join(''));
+    }
+    log('');
+    // Targets pinned on a strong keeper (gk 90): the composure ladder 80→120 lands on
+    // 60 / 64 / 68 / 72 / 76 / 84 / 92%.
+    expect(penaltyGoalChance(80, 90)).toBeCloseTo(0.60, 2);
+    expect(penaltyGoalChance(90, 90)).toBeCloseTo(0.68, 2);
+    expect(penaltyGoalChance(100, 90)).toBeCloseTo(0.76, 2);
+    expect(penaltyGoalChance(110, 90)).toBeCloseTo(0.84, 2);
+    expect(penaltyGoalChance(120, 90)).toBeCloseTo(0.92, 2);
+    // The keeper carries real weight: a great shot-stopper drags conversion down a lot.
+    expect(penaltyGoalChance(95, 70) - penaltyGoalChance(95, 90)).toBeGreaterThan(0.15);
+    // Both axes monotonic — composure up ⇒ more, keeper up ⇒ less.
+    expect(penaltyGoalChance(110, 80)).toBeGreaterThan(penaltyGoalChance(80, 80));
+    expect(penaltyGoalChance(95, 75)).toBeGreaterThan(penaltyGoalChance(95, 85));
+  });
+
+  it('free-kick conversion rises with composure (same shooting)', () => {
+    const c = (comp: number) => freeKickGoalChance(90, comp);
+    log('\n=== COMPOSTURA NA FALTA (finalização 90) ===');
+    log(`  compostura 82 → ${pct(c(82))} | 90 → ${pct(c(90))} | 99 → ${pct(c(99))}\n`);
+    // monotonic in the active range — more composure, more chance
+    expect(c(82)).toBeGreaterThan(0.015);
+    expect(c(90)).toBeGreaterThan(c(82));
+    expect(c(99)).toBeGreaterThan(c(90));
+    // a cool taker converts free kicks far more than a nervous one (same shooting)
+    expect(freeKickGoalChance(88, 95)).toBeGreaterThan(freeKickGoalChance(88, 55) * 1.5);
+    // clamped to the design floor / ceiling so free kicks stay rare
+    expect(freeKickGoalChance(1, 1)).toBe(0.015);
+    expect(freeKickGoalChance(99, 99)).toBe(0.11);
   });
 });

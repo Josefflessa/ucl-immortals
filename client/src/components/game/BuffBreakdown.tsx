@@ -5,11 +5,16 @@
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
 import { EffectiveStats, ChemLinkType } from '../../lib/gameEngine';
+import { Player } from '../../lib/gameData';
+
+// Reserved "em alta" green — matches the in-form card treatment in PlayerCard.
+const IN_FORM_GREEN = '#39FF14';
 
 const ATTR_PT: Record<string, string> = {
   pace: 'RIT', shooting: 'FIN', passing: 'PAS', dribbling: 'DRI', defending: 'DEF', physical: 'FIS',
+  vision: 'VIS', composure: 'CMP',
 };
-const ATTRS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'] as const;
+const ATTRS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'] as const;
 
 type Delta = { a: string; v: number };
 
@@ -50,15 +55,23 @@ function Row({ icon, name, color, children }: { icon: string; name: string; colo
   );
 }
 
-export default function BuffBreakdown({ eff, chem, traits }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[] }) {
+export default function BuffBreakdown({ eff, chem, traits, player }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player }) {
   const chemNet = ATTRS.reduce((s, a) => s + eff.breakdown[a].chem, 0);
   const coach = collect(eff, b => b.coach);
   const traitDeltas = collect(eff, b => b.trait);
   const tactic = collect(eff, b => b.tactic);
-  const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0;
+  const captain = collect(eff, b => b.captain);
+  const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
   const showChem = chemNet !== 0 || !!chem;
   const showTraits = (traits && traits.length > 0) || traitDeltas.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0;
+  // "Em alta" boost is baked into the player's BASE stats, so it never appears as a
+  // per-stat delta in the modal — surface it here, else the +3/+3 is invisible.
+  const inFormOverall = player?.inForm ? (player.baseOverall !== undefined ? player.overall - player.baseOverall : 3) : 0;
+  // Named coach effects (e.g. "Visão de Jogo: +3 Geral") are ALREADY folded into the
+  // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
+  const activeCoach = eff.activeCoachEffects ?? [];
+  const showCaptain = captain.length > 0;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || !!player?.inForm;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -75,6 +88,19 @@ export default function BuffBreakdown({ eff, chem, traits }: { eff: EffectiveSta
         </div>
       ) : (
         <div className="divide-y" style={{ borderColor: '#141422' }}>
+          {/* EM ALTA — boosted draft card. The boost lives in the base stats, so it is
+              shown explicitly here (otherwise it would be completely invisible). */}
+          {player?.inForm && (
+            <Row icon="⚡" name="EM ALTA (CARTA TURBINADA)" color={IN_FORM_GREEN}>
+              <div className="flex flex-wrap gap-1">
+                <Chip text={`+${inFormOverall} EM CADA ATRIBUTO`} color={IN_FORM_GREEN} />
+              </div>
+              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                Já no valor base — por isso não aparece como delta acima.
+              </div>
+            </Row>
+          )}
+
           {/* INDIVIDUAL CHEMISTRY — the multiplier AND why (connections / out-of-position) */}
           {showChem && (
             <Row icon="🔗" color={chemColor}
@@ -120,6 +146,24 @@ export default function BuffBreakdown({ eff, chem, traits }: { eff: EffectiveSta
               <div className="flex flex-wrap gap-1">
                 {eff.globalChemBonus.passing > 0 && <Chip text={`+${eff.globalChemBonus.passing} PAS`} color="#C9A84C" />}
                 {eff.globalChemBonus.pace > 0 && <Chip text={`+${eff.globalChemBonus.pace} RIT`} color="#C9A84C" />}
+                {eff.globalChemBonus.special > 0 && <Chip text={`✨ +${eff.globalChemBonus.special} EM TODOS`} color="#C9A84C" />}
+              </div>
+              {eff.globalChemBonus.special > 0 && (
+                <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  Química perfeita (90+): <b style={{ color: '#E8C84A' }}>+{eff.globalChemBonus.special} em todos os atributos</b> de todos os titulares.
+                </div>
+              )}
+            </Row>
+          )}
+
+          {/* CAPTAIN — the armband lifts the captain's single best stat by +3 for the WHOLE
+              team (the captain included). Applied by the engine but never surfaced as a delta
+              before, so without this row it was an invisible buff. */}
+          {showCaptain && (
+            <Row icon="👑" name="CAPITÃO" color="#3B82F6">
+              <div className="flex flex-wrap gap-1">{chips(captain, '#3B82F6')}</div>
+              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                A melhor estatística do capitão vira <b style={{ color: '#93C5FD' }}>+{captain[0]?.v ?? 3}</b> pra todo o time — inclusive pra ele.
               </div>
             </Row>
           )}
@@ -127,6 +171,11 @@ export default function BuffBreakdown({ eff, chem, traits }: { eff: EffectiveSta
           {coach.length > 0 && (
             <Row icon="🎯" name="TREINADOR" color="#E8C84A">
               <div className="flex flex-wrap gap-1">{chips(coach, '#E8C84A')}</div>
+              {activeCoach.length > 0 && (
+                <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  Já inclui: {activeCoach.join(' · ')}
+                </div>
+              )}
             </Row>
           )}
 

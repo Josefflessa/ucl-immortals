@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT } from '../lib/gameData';
-import { calculateChemistry, getPlayerEffectiveStats, isPlayerInPosition, getCoachModifiersForPlayer, getChemistryLinks } from '../lib/gameEngine';
+import { calculateChemistry, getPlayerEffectiveStats, isPlayerInPosition, getCoachModifiersForPlayer, getChemistryLinks, captainBoostFromStarters } from '../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
 import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 import RolesSelector from '../components/game/RolesSelector';
@@ -40,6 +40,9 @@ export default function SquadReviewPage() {
 
   const chemData = calculateChemistry(starters, selectedCoachId, formationRoles, selectedFormationId);
   const chemLinks = getChemistryLinks(starters, selectedCoachId);
+  // Captain leadership applies to the starters; surface it in every effective-stat calc so
+  // the team overall and the player modal match the match engine.
+  const captainBoost = captainBoostFromStarters(starters, state.captain ?? undefined) ?? undefined;
 
   // Team overall = avg effective overall of all 11 starters
   const teamOverall = starters.length === 11
@@ -51,6 +54,7 @@ export default function SquadReviewPage() {
           selectedCoachId,
           chemData.total,
           selectedPlayStyle,
+          { captainBoost },
         );
         return sum + eff.overall;
       }, 0) / 11)
@@ -278,12 +282,22 @@ export default function SquadReviewPage() {
                 ) : (
                   <div className="text-3xl">⚽</div>
                 )}
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
                     {coach.name.toUpperCase()}
                   </div>
                   <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                     {coach.effect}
+                  </div>
+                  {/* Special ability — was missing here, so the post-draft summary under-sold
+                      the coach (e.g. Guardiola's "Visão de Jogo" never showed). */}
+                  <div className="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: '#C9A84C22', color: '#E8C84A', border: '1px solid #C9A84C44', fontFamily: 'Rajdhani, sans-serif' }}>
+                      ⚡ {coach.specialAbilityName.toUpperCase()}
+                    </span>
+                    <span className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                      {coach.specialAbility}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -346,7 +360,7 @@ export default function SquadReviewPage() {
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? player.position) : player.position;
                   const chemScore = chemData.individual[player.id] ?? 0;
                   const isOOP = isStarter ? (chemData.outOfPosition[player.id] ?? false) : false;
-                  const eff = getPlayerEffectiveStats(player, chemScore, isOOP, selectedCoachId, chemData.total, selectedPlayStyle);
+                  const eff = getPlayerEffectiveStats(player, chemScore, isOOP, selectedCoachId, chemData.total, selectedPlayStyle, { captainBoost: isStarter ? captainBoost : undefined });
 
                   const photoUrl = buildSofifaUrl(player.id, 120);
 
@@ -357,6 +371,8 @@ export default function SquadReviewPage() {
                     { label: 'DRI', base: player.dribbling, eff: eff.dribbling },
                     { label: 'DEF', base: player.defending, eff: eff.defending },
                     { label: 'FIS', base: player.physical,  eff: eff.physical },
+                    { label: 'VIS', base: player.vision,    eff: eff.vision },
+                    { label: 'CMP', base: player.composure, eff: eff.composure },
                   ];
 
                   const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
@@ -407,6 +423,11 @@ export default function SquadReviewPage() {
                                 ⚠️ FORA DE POSIÇÃO
                               </span>
                             )}
+                            {player.inForm && (
+                              <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#39FF1422', color: '#39FF14', border: '1px solid #39FF1444', fontFamily: 'Rajdhani, sans-serif' }}>
+                                ⚡ EM ALTA
+                              </span>
+                            )}
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: isStarter ? '#22C55E22' : '#3B82F622', color: isStarter ? '#22C55E' : '#3B82F6', fontFamily: 'Rajdhani, sans-serif' }}>
                               POSIÇÃO {posIdx + 1}
                             </span>
@@ -422,16 +443,19 @@ export default function SquadReviewPage() {
                         </div>
                       </div>
 
-                      {/* Stats grid */}
-                      <div className="grid grid-cols-6 border-t" style={{ borderColor: '#161626' }}>
-                        {statRows.map(({ label, base, eff: effVal }) => {
+                      {/* Stats grid — 8 attributes in 2 rows of 4 (the 6 on the card + vision
+                          & composure), so it never squishes, even on mobile. */}
+                      <div className="grid grid-cols-4 border-t" style={{ borderColor: '#161626' }}>
+                        {statRows.map(({ label, base, eff: effVal }, i) => {
                           const delta = effVal - base;
                           const statColor = delta > 0 ? '#22C55E' : delta < 0 ? '#EF4444' : '#E8D080';
+                          const rightEdge = (i + 1) % 4 === 0;
+                          const firstRow = i < 4;
                           return (
-                            <div key={label} className="flex flex-col items-center py-3 border-r last:border-r-0" style={{ borderColor: '#161626' }}>
-                              <span className="text-[8px] font-bold text-gray-600 tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
-                              <span className="text-base font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color: statColor }}>{effVal}</span>
-                              {delta !== 0 && <span className="text-[8px] font-bold" style={{ color: statColor, fontFamily: 'Rajdhani, sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
+                            <div key={label} className={`flex flex-col items-center py-3 ${rightEdge ? '' : 'border-r'} ${firstRow ? 'border-b' : ''}`} style={{ borderColor: '#161626' }}>
+                              <span className="text-[9px] font-bold text-gray-600 tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
+                              <span className="text-lg font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color: statColor }}>{effVal}</span>
+                              {delta !== 0 && <span className="text-[9px] font-bold" style={{ color: statColor, fontFamily: 'Rajdhani, sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
                             </div>
                           );
                         })}
@@ -478,7 +502,7 @@ export default function SquadReviewPage() {
 
                       {/* Per-source buff breakdown — also carries chemistry connections
                           and the named traits (identical to the "MEU TIME" screen). */}
-                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} />
+                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={player} />
                     </div>
                   );
                 })()}

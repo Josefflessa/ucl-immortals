@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, POS_PT } from '../../lib/gameData';
-import { calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, PREFERRED_FORMATION_CHEM_BONUS } from '../../lib/gameEngine';
+import { calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, PREFERRED_FORMATION_CHEM_BONUS, captainBoostFromStarters } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel } from '../../lib/traits';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import PlayerCard, { buildSofifaUrl } from './PlayerCard';
@@ -40,6 +40,9 @@ export default function LeagueSquadTab() {
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
   const chemData = calculateChemistry(xi, team.coachId, formationRoles, team.formationId);
   const chemLinks = getChemistryLinks(xi, team.coachId);
+  // Captain leadership applies to the starters — feed it into every effective-stat calc so
+  // the team overall and the player modal match the match engine.
+  const captainBoost = captainBoostFromStarters(xi, team.captain) ?? undefined;
 
   const chemColor = chemData.total >= 90 ? '#22C55E' : chemData.total >= 60 ? '#EAB308' : chemData.total >= 30 ? '#F97316' : '#EF4444';
   const activeTrios = chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean);
@@ -55,6 +58,7 @@ export default function LeagueSquadTab() {
           team.coachId,
           chemData.total,
           team.playStyle,
+          { captainBoost },
         );
         return sum + eff.overall;
       }, 0) / 11)
@@ -300,6 +304,7 @@ export default function LeagueSquadTab() {
                     team.coachId,
                     chemData.total,
                     team.playStyle,
+                    { captainBoost: selectedIndex < 11 ? captainBoost : undefined },
                   );
                   const isStarter = selectedIndex < 11;
                   const posIdx = isStarter ? selectedIndex : -1;
@@ -346,6 +351,8 @@ export default function LeagueSquadTab() {
                     { label: 'DRI', base: selectedPlayer.dribbling, eff: eff.dribbling },
                     { label: 'DEF', base: selectedPlayer.defending, eff: eff.defending },
                     { label: 'FIS', base: selectedPlayer.physical,  eff: eff.physical },
+                    { label: 'VIS', base: selectedPlayer.vision,    eff: eff.vision },
+                    { label: 'CMP', base: selectedPlayer.composure, eff: eff.composure },
                   ];
 
                   return (
@@ -367,6 +374,11 @@ export default function LeagueSquadTab() {
                                 ⚠️ FORA DE POSIÇÃO
                               </span>
                             )}
+                            {selectedPlayer.inForm && (
+                              <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#39FF1422', color: '#39FF14', border: '1px solid #39FF1444', fontFamily: 'Rajdhani, sans-serif' }}>
+                                ⚡ EM ALTA
+                              </span>
+                            )}
                           </div>
                           <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{selectedPlayer.shortName}</div>
                           <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{selectedPlayer.club} · {selectedPlayer.nation}</div>
@@ -378,16 +390,19 @@ export default function LeagueSquadTab() {
                         </div>
                       </div>
 
-                      {/* Stats grid */}
-                      <div className="grid grid-cols-6 border-t" style={{ borderColor: '#161626' }}>
-                        {statRows.map(({ label, base, eff: effVal }) => {
+                      {/* Stats grid — 8 attributes in 2 rows of 4 (the 6 on the card + vision
+                          & composure), so it never squishes, even on mobile. */}
+                      <div className="grid grid-cols-4 border-t" style={{ borderColor: '#161626' }}>
+                        {statRows.map(({ label, base, eff: effVal }, i) => {
                           const delta = effVal - base;
                           const statColor = delta > 0 ? '#22C55E' : delta < 0 ? '#EF4444' : '#E8D080';
+                          const rightEdge = (i + 1) % 4 === 0;
+                          const firstRow = i < 4;
                           return (
-                            <div key={label} className="flex flex-col items-center py-3 border-r last:border-r-0" style={{ borderColor: '#161626' }}>
-                              <span className="text-[8px] font-bold text-gray-600 tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
-                              <span className="text-base font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color: statColor }}>{effVal}</span>
-                              {delta !== 0 && <span className="text-[8px] font-bold" style={{ color: statColor, fontFamily: 'Rajdhani, sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
+                            <div key={label} className={`flex flex-col items-center py-3 ${rightEdge ? '' : 'border-r'} ${firstRow ? 'border-b' : ''}`} style={{ borderColor: '#161626' }}>
+                              <span className="text-[9px] font-bold text-gray-600 tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
+                              <span className="text-lg font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color: statColor }}>{effVal}</span>
+                              {delta !== 0 && <span className="text-[9px] font-bold" style={{ color: statColor, fontFamily: 'Rajdhani, sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
                             </div>
                           );
                         })}
@@ -432,7 +447,7 @@ export default function LeagueSquadTab() {
 
                       {/* Per-source buff breakdown — now ALSO carries the chemistry
                           connections and the named traits, so everything lives in one place. */}
-                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} />
+                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} />
                     </div>
                   );
                 })()}

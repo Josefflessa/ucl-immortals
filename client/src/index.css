@@ -178,6 +178,23 @@
   50% { opacity: 1; }
 }
 
+/* "EM ALTA" (in-form) — a neon-green highlight that travels around the card border.
+   Animating an @property <angle> keeps the conic-gradient sweep buttery vs. a transform. */
+@property --inform-ang {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes inform-sweep {
+  to { --inform-ang: 360deg; }
+}
+/* Soft neon aura breathing under the card, so it still reads as in-form
+   while the bright spot is on the far side of the border. */
+@keyframes inform-aura {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

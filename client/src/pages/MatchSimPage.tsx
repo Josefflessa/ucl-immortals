@@ -9,8 +9,8 @@ import {
   getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
   getPenaltyTaker, getPenaltyOrder, setStatIds, statKey,
-  teamMidfieldPassing, midfieldBuildUpEdge, getFreeKickTaker, getHeaderTarget, resolveOpenPlayChance, buildKeyMinutes,
-  formationProfile, tacticProfile, MATCH_NOISE, HOME_ADVANTAGE, captainBestStat, CAPTAIN_BOOST,
+  teamPlaymaking, midfieldBuildUpEdge, getFreeKickTaker, getHeaderTarget, resolveOpenPlayChance, buildKeyMinutes,
+  formationProfile, tacticProfile, MATCH_NOISE, HOME_ADVANTAGE, FORMATION_COUNTER_BONUS, captainBestStat, CAPTAIN_BOOST,
 } from '../lib/gameEngine';
 
 // Captain leadership context: their best stat is lifted +CAPTAIN_BOOST for the whole side.
@@ -460,8 +460,9 @@ export default function MatchSimPage() {
       const defTac = tacticProfile(defendTeam.playStyle ?? 'balanced');
       const formMod = ((atkProf.control + atkTac.control) - (defProf.control + defTac.control)) * 1.2
         + atkTac.attack * 1.6
-        - (defProf.defense + defTac.defense) * 2.2;
-      const buildUp = midfieldBuildUpEdge(teamMidfieldPassing(attackTeam), teamMidfieldPassing(defendTeam), attackTeam.playStyle ?? 'balanced') + formMod;
+        - defProf.defense * 3.6      // FORMATION defense crushes chance quality (mirrors gameEngine)
+        - defTac.defense * 2.2;      // tactic defensive intent
+      const buildUp = midfieldBuildUpEdge(teamPlaymaking(attackTeam), teamPlaymaking(defendTeam), attackTeam.playStyle ?? 'balanced') + formMod;
       const chance = resolveOpenPlayChance({
         atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
         gkRating: gk.defending + getGoalkeeperTraitBonus(gk.traits), approach,
@@ -748,8 +749,8 @@ export default function MatchSimPage() {
       const homeChem = getChemistryBonus(homeTeam.totalChemistry);
       const awayChem = getChemistryBonus(awayTeam.totalChemistry);
 
-      const homeFormBonus = homeFormation.counters.includes(awayTeam.formationId) ? 5 : 0;
-      const awayFormBonus = awayFormation.counters.includes(homeTeam.formationId) ? 5 : 0;
+      const homeFormBonus = homeFormation.counters.includes(awayTeam.formationId) ? FORMATION_COUNTER_BONUS : 0;
+      const awayFormBonus = awayFormation.counters.includes(homeTeam.formationId) ? FORMATION_COUNTER_BONUS : 0;
 
       const fergusonActive = (team: Team, goals: number, oppGoals: number) =>
         team.coachId === 'ferguson' && goals < oppGoals;
@@ -767,8 +768,9 @@ export default function MatchSimPage() {
       const homeMomBonus = (momentum - 50) * 0.12;
       const awayMomBonus = ((100 - momentum) - 50) * 0.12;
 
-      // Attacking FORMATIONS take a little more of the territory (the tactic's attacking
-      // intent lifts chance QUALITY below instead, so it doesn't also hog possession).
+      // Attacking FORMATIONS take more territory (+attack → more chance volume). The price is
+      // paid in chance QUALITY: an attacking shape's negative defense makes conceded chances
+      // deadlier (mirrors gameEngine). The tactic's attacking intent lifts own quality, not territory.
       const homeAtkScore = homeStrength + homeMomBonus + formationProfile(homeTeam.formationId).attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
       const awayAtkScore = awayStrength + awayMomBonus + formationProfile(awayTeam.formationId).attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
 

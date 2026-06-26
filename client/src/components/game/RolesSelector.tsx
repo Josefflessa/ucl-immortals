@@ -138,7 +138,12 @@ export default function RolesSelector({
         </span>
         <span className="rounded px-2 py-1" style={{ background: '#14142A', color: '#86B89A' }}>
           🎯 Falta: <b style={{ color: '#FFF' }}>{fkTaker ? fkTaker.shortName : '—'}</b>
-          {fkTaker?.shooting !== undefined && <span style={{ color: '#22C55E' }}> (fin. {fkTaker.shooting})</span>}
+          {fkTaker && (fkTaker.shooting !== undefined || fkTaker.composure !== undefined) && (
+            <span style={{ color: '#22C55E' }}> ({[
+              fkTaker.shooting !== undefined ? `fin. ${fkTaker.shooting}` : null,
+              fkTaker.composure !== undefined ? `comp. ${fkTaker.composure}` : null,
+            ].filter(Boolean).join(' · ')})</span>
+          )}
         </span>
       </div>
 

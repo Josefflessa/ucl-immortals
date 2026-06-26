@@ -6,18 +6,12 @@ import { useGame } from '../contexts/GameContext';
 import PlayerCard from '../components/game/PlayerCard';
 import FormationField from '../components/game/FormationField';
 import { Ban } from 'lucide-react';
-import { FORMATIONS, COACHES, Player } from '../lib/gameData';
+import { FORMATIONS, COACHES, Player, POS_PT } from '../lib/gameData';
 import { getTraitInfo, traitEffectLabel } from '../lib/traits';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 const DRAFT_TIME = 20;
 
-const POS_PT: Record<string, string> = {
-  GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
-  LWB: 'AEL', RWB: 'AED', CDM: 'VOL', CM: 'MC',
-  CAM: 'MEI', LM: 'ML', RM: 'MD',
-  LW: 'ALE', RW: 'ALD', CF: 'SS', ST: 'CA',
-};
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
 const DraftTimer = memo(function DraftTimer({
@@ -111,12 +105,26 @@ const DraftOptions = memo(function DraftOptions({
       </div>
       {selectedId && (() => {
         const sel = options.find(p => p.id === selectedId);
-        if (!sel || sel.traits.length === 0) return null;
+        if (!sel) return null;
         return (
           <div className="mx-auto mb-3 max-w-md rounded-xl px-3 py-2.5" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
-            <div className="text-[10px] font-black tracking-widest mb-1.5" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
-              ⭐ {sel.shortName.toUpperCase()} — CARACTERÍSTICAS
+            <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+              {sel.shortName.toUpperCase()}
             </div>
+            {/* Vision & composure — hidden attributes (vision drives possession/playmaking and
+                the Guardiola trigger ≥80; composure drives penalties/clutch), shown here so the
+                pick can be weighed without bloating the card. */}
+            <div className="flex items-center gap-4 mb-2 text-[11px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <span className="inline-flex items-center gap-1.5 text-gray-400" title="Visão: peso de armação — influencia quem controla a posse e dispara habilidades como a do Guardiola (Visão ≥ 80).">
+                👁️ Visão <b className="text-white">{sel.vision}</b>
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-gray-400" title="Compostura: frieza nos momentos decisivos — pênaltis e a escolha do batedor/finalizador.">
+                🧊 Compostura <b className="text-white">{sel.composure}</b>
+              </span>
+            </div>
+            {sel.traits.length > 0 && (
+            <>
+            <div className="text-[9px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⭐ CARACTERÍSTICAS</div>
             <div className="flex flex-col gap-1">
               {sel.traits.map(t => {
                 const info = getTraitInfo(t);
@@ -130,6 +138,8 @@ const DraftOptions = memo(function DraftOptions({
                 );
               })}
             </div>
+            </>
+            )}
           </div>
         );
       })()}

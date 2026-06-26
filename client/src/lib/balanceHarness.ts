@@ -177,6 +177,93 @@ export function tacticImpact(tactics: string[], n: number, ownStrength = 0.8, op
   });
 }
 
+// FAIR tactic comparison: every play-style faces every OTHER one, home and away, on the SAME
+// squad (only the tactic differs) — so the home edge cancels and no single reference skews it.
+// Rich box-score per tactic so we can see WHAT each one actually changes (possession, shot
+// volume, chance quality/conversion, clean sheets), not just win% vs balanced.
+export function tacticMatrix(tactics: string[], n: number, strength = 0.8) {
+  type Acc = {
+    games: number; w: number; d: number; l: number;
+    gf: number; ga: number; pos: number; shots: number; sot: number;
+    shotsAg: number; cs: number;
+  };
+  const acc: Record<string, Acc> = {};
+  for (const t of tactics) acc[t] = { games: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pos: 0, shots: 0, sot: 0, shotsAg: 0, cs: 0 };
+
+  const rec = (t: string, gfg: number, gag: number, pos: number, shots: number, sot: number, shotsAg: number) => {
+    const a = acc[t];
+    a.games++; a.gf += gfg; a.ga += gag; a.pos += pos; a.shots += shots; a.sot += sot; a.shotsAg += shotsAg;
+    if (gfg > gag) a.w++; else if (gfg === gag) a.d++; else a.l++;
+    if (gag === 0) a.cs++;
+  };
+
+  for (const A of tactics) {
+    for (const B of tactics) {
+      if (A === B) continue;
+      for (let i = 0; i < n; i++) {
+        const base = generateBotTeam('BASE', strength);
+        const home: Team = { ...base, id: 'home_t', playStyle: A };
+        const away: Team = { ...base, id: 'away_t', playStyle: B };
+        const r = simulateMatch(home, away);
+        const s = r.stats;
+        rec(A, r.homeGoals, r.awayGoals, s.homePos, s.homeShots, s.homeShotsOnTarget, s.awayShots);
+        rec(B, r.awayGoals, r.homeGoals, s.awayPos, s.awayShots, s.awayShotsOnTarget, s.homeShots);
+      }
+    }
+  }
+
+  return tactics.map((t) => {
+    const a = acc[t]; const g = a.games || 1;
+    return {
+      tactic: t,
+      games: a.games,
+      winPct: a.w / g, drawPct: a.d / g, lossPct: a.l / g,
+      ppg: (a.w * 3 + a.d) / g,
+      goalsForAvg: a.gf / g, goalsAgainstAvg: a.ga / g,
+      possession: a.pos / g,
+      shots: a.shots / g, sot: a.sot / g,
+      shotsAgainst: a.shotsAg / g,
+      conversion: a.sot ? a.gf / a.sot : 0,
+      cleanSheetPct: a.cs / g,
+    };
+  });
+}
+
+// ============================================================
+// DANGER-CHANCE FREQUENCY — how many clear goalscoring chances ("lances de perigo")
+// a match produces. A "danger chance" is a NARRATED big moment: a goal, a save, a clear
+// miss or a penalty — NOT every box-score shot (those include harmless off-target efforts).
+// Lets us see whether certain situations (a big favourite, all-out attack, etc.) flood the
+// match with chances.
+// ============================================================
+const DANGER_TYPES = new Set(['goal', 'save', 'miss', 'penalty']);
+export function dangerChanceStats(makeHome: () => Team, makeAway: () => Team, n: number) {
+  let bigChances = 0, goals = 0, saves = 0, misses = 0, shots = 0, sot = 0;
+  let maxBig = 0, minBig = Infinity;
+  for (let i = 0; i < n; i++) {
+    const r = simulateMatch(makeHome(), makeAway());
+    const big = r.events.filter(e => DANGER_TYPES.has(e.type)).length;
+    bigChances += big;
+    maxBig = Math.max(maxBig, big);
+    minBig = Math.min(minBig, big);
+    goals += r.homeGoals + r.awayGoals;
+    saves += r.events.filter(e => e.type === 'save').length;
+    misses += r.events.filter(e => e.type === 'miss').length;
+    shots += r.stats.homeShots + r.stats.awayShots;
+    sot += r.stats.homeShotsOnTarget + r.stats.awayShotsOnTarget;
+  }
+  return {
+    bigChancesPerGame: bigChances / n,
+    maxBigInOneGame: maxBig,
+    minBigInOneGame: minBig === Infinity ? 0 : minBig,
+    goalsPerGame: goals / n,
+    savesPerGame: saves / n,
+    missesPerGame: misses / n,
+    shotsPerGame: shots / n,
+    sotPerGame: sot / n,
+  };
+}
+
 // ============================================================
 // FORMATION IMPACT — same SQUAD, formation F vs the same squad as 4-3-3
 // (isolates the formation: only the shape differs)
@@ -194,6 +281,60 @@ export function formationImpact(formations: string[], n: number, strength = 0.8)
       else if (r.winner === null) draws++;
     }
     return { formation: f, winPct: wins / n, drawPct: draws / n, goalsForAvg: gf / n, goalsAgainstAvg: ga / n };
+  });
+}
+
+// FAIR formation comparison: a full round-robin where every formation faces every OTHER
+// formation, once at home and once away (so the home edge and the counter matchups cancel
+// out across the field). Same squad on both sides → only the SHAPE differs. Reports a rich
+// box-score per formation so we can see WHAT each shape actually changes (possession, shot
+// volume, chance quality/conversion, clean sheets), not just win% vs one reference.
+export function formationMatrix(formations: string[], n: number, strength = 0.8) {
+  type Acc = {
+    games: number; w: number; d: number; l: number;
+    gf: number; ga: number; pos: number; shots: number; sot: number;
+    shotsAg: number; cs: number; corners: number;
+  };
+  const acc: Record<string, Acc> = {};
+  for (const f of formations) acc[f] = { games: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pos: 0, shots: 0, sot: 0, shotsAg: 0, cs: 0, corners: 0 };
+
+  const rec = (f: string, gfg: number, gag: number, pos: number, shots: number, sot: number, shotsAg: number, corners: number) => {
+    const a = acc[f];
+    a.games++; a.gf += gfg; a.ga += gag; a.pos += pos; a.shots += shots; a.sot += sot; a.shotsAg += shotsAg; a.corners += corners;
+    if (gfg > gag) a.w++; else if (gfg === gag) a.d++; else a.l++;
+    if (gag === 0) a.cs++;
+  };
+
+  for (const A of formations) {
+    for (const B of formations) {
+      if (A === B) continue;
+      for (let i = 0; i < n; i++) {
+        const base = generateBotTeam('BASE', strength);
+        const home = withFormation(base, A, 'home_f');
+        const away = withFormation(base, B, 'away_f');
+        const r = simulateMatch(home, away);
+        const s = r.stats;
+        rec(A, r.homeGoals, r.awayGoals, s.homePos, s.homeShots, s.homeShotsOnTarget, s.awayShots, s.homeCorners);
+        rec(B, r.awayGoals, r.homeGoals, s.awayPos, s.awayShots, s.awayShotsOnTarget, s.homeShots, s.awayCorners);
+      }
+    }
+  }
+
+  return formations.map((f) => {
+    const a = acc[f]; const g = a.games || 1;
+    return {
+      formation: f,
+      games: a.games,
+      winPct: a.w / g, drawPct: a.d / g, lossPct: a.l / g,
+      ppg: (a.w * 3 + a.d) / g,
+      goalsForAvg: a.gf / g, goalsAgainstAvg: a.ga / g,
+      possession: a.pos / g,
+      shots: a.shots / g, sot: a.sot / g,
+      shotsAgainst: a.shotsAg / g,
+      conversion: a.sot ? a.gf / a.sot : 0,            // goals per shot on target
+      cleanSheetPct: a.cs / g,
+      corners: a.corners / g,
+    };
   });
 }
 
@@ -463,6 +604,28 @@ export function globalChemImpact(n: number): { highGoalsFor: number; noneGoalsFo
   return { highGoalsFor: hgf / n, noneGoalsFor: ngf / n, highWin: hw / n, noneWin: nw / n, highConceded: hc / n, noneConceded: nc / n };
 }
 
+// Vision impact: two squads identical except their players' VISION (95 vs 50), each played
+// against the SAME opponent — isolates how much playmaking (vision feeds chance creation +
+// team strength) lifts goals and wins. Confirms vision is no longer decorative.
+export function visionImpact(n: number, strength = 0.8): { highGoalsFor: number; lowGoalsFor: number; highWin: number; lowWin: number } {
+  const clone = (t: Team): Team => ({ ...t, players: t.players.map(p => ({ ...p })) });
+  const setVision = (base: Team, id: string, vis: number): Team => ({
+    ...base, id, players: base.players.map((p, idx) => ({ ...p, id: `${id}_${idx}`, vision: vis })),
+  });
+  let hgf = 0, lgf = 0, hw = 0, lw = 0;
+  for (let i = 0; i < n; i++) {
+    const base = generateBotTeam('Base', strength);
+    const high = setVision(base, 'HI', 95);
+    const low = setVision(base, 'LO', 50);
+    const opp = generateBotTeam('Opp', strength);
+    const r1 = simulateMatch(clone(high), clone(opp)); // paired: same opponent
+    hgf += r1.homeGoals; if (r1.winner === 'HI') hw++;
+    const r2 = simulateMatch(clone(low), clone(opp));
+    lgf += r2.homeGoals; if (r2.winner === 'LO') lw++;
+  }
+  return { highGoalsFor: hgf / n, lowGoalsFor: lgf / n, highWin: hw / n, lowWin: lw / n };
+}
+
 // Home/draw/away split between EVEN teams — measures the home advantage. With
 // isFinal=true the match is at a neutral venue, so the host edge must vanish.
 export function homeAdvantageSplit(n: number, isFinal: boolean): { homeWin: number; draw: number; awayWin: number; goalsHome: number; goalsAway: number } {
@@ -590,6 +753,57 @@ export function knockoutTieFavoriteRate(strongStr: number, weakStr: number, n: n
 // ============================================================
 // PENALTY SHOOTOUT FAIRNESS
 // ============================================================
+// Two IDENTICAL teams that differ ONLY in composure → isolates composure's effect on the
+// shootout (same GKs, same shooting, distinct player ids so nothing collides). The cool-
+// headed side should clearly win more than half.
+export function penaltyComposureImpact(n: number, strength = 0.8): {
+  highWinPct: number; decisivePct: number; highConvPct: number; lowConvPct: number;
+} {
+  const setComp = (base: Team, id: string, c: number): Team => ({
+    ...base,
+    id,
+    players: base.players.map((p, idx) => ({ ...p, id: `${id}_${idx}`, composure: c })),
+  });
+  let highWins = 0, decisive = 0;
+  let highKicks = 0, highGoals = 0, lowKicks = 0, lowGoals = 0;
+  for (let i = 0; i < n; i++) {
+    const base = generateBotTeam('Base', strength);
+    const high = setComp(base, 'HI', 92);
+    const low = setComp(base, 'LO', 48);
+    const r = simulatePenalties(high, low);
+    if (r.winner === 'HI') highWins++;
+    if (r.winner) decisive++;
+    for (const k of r.kicks) {
+      if (k.teamId === 'HI') { highKicks++; if (k.isGoal) highGoals++; }
+      else if (k.teamId === 'LO') { lowKicks++; if (k.isGoal) lowGoals++; }
+    }
+  }
+  return {
+    highWinPct: highWins / n,
+    decisivePct: decisive / n,
+    highConvPct: highKicks ? highGoals / highKicks : 0,
+    lowConvPct: lowKicks ? lowGoals / lowKicks : 0,
+  };
+}
+
+// Real penalty conversion at each composure LEVEL (both sides set to the same value, so
+// it isolates the level against real bot keepers + the designated-taker +5). Reveals how
+// flat the curve is across the range real takers actually occupy (≈85–99 effective).
+export function penaltyConversionByComposure(levels: number[], n: number, strength = 0.8): { level: number; convPct: number }[] {
+  return levels.map(level => {
+    let kicks = 0, goals = 0;
+    for (let i = 0; i < n; i++) {
+      const base = generateBotTeam('Base', strength);
+      const mk = (id: string): Team => ({
+        ...base, id, players: base.players.map((p, idx) => ({ ...p, id: `${id}_${idx}`, composure: level })),
+      });
+      const r = simulatePenalties(mk('A'), mk('B'));
+      for (const k of r.kicks) { kicks++; if (k.isGoal) goals++; }
+    }
+    return { level, convPct: kicks ? goals / kicks : 0 };
+  });
+}
+
 export function penaltyFairness(n: number, strength = 0.8) {
   let homeWins = 0, awayWins = 0, decisive = 0;
   for (let i = 0; i < n; i++) {
