@@ -189,6 +189,7 @@ export default function FormationPage() {
           {selectedFormation && (
             <motion.div
               key={selectedFormation.id}
+              className="w-full"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2 }}

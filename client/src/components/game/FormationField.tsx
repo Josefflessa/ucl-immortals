@@ -25,6 +25,11 @@ interface FormationFieldProps {
   onPlayerClick?: (player: Player, posIndex: number) => void;
   compact?: boolean;
   selectedPlayerIndex?: number | null;
+  // Match mode — when provided, each token shows the live RATING (colour-coded) plus goal/assist
+  // markers instead of the chemistry dot. Keyed by player.id (unique within a single XI).
+  ratings?: Record<string, number>;
+  goalsByPlayer?: Record<string, number>;
+  assistsByPlayer?: Record<string, number>;
 }
 
 const POSITION_COLORS: Record<string, string> = {
@@ -57,9 +62,18 @@ export default function FormationField({
   onPlayerClick,
   compact = false,
   selectedPlayerIndex = null,
+  ratings,
+  goalsByPlayer,
+  assistsByPlayer,
 }: FormationFieldProps) {
+  const ratingMode = !!ratings;
+  const ratingColor = (r: number) => r >= 8.5 ? '#d4af37' : r >= 7.5 ? '#22c55e' : r >= 6.5 ? '#e5e7eb' : r <= 5.3 ? '#ef4444' : '#f59e0b';
+  // Intrinsic aspect used for the SVG viewBox + token sizing maths. The field itself is now
+  // FLUID: it fills its container up to maxW and keeps this aspect ratio, so it never overflows
+  // on mobile (no sideways drag) and stays centred. Positions are placed in % of the field.
   const fieldWidth = compact ? 300 : 410;
   const fieldHeight = compact ? 410 : 550;
+  const maxW = compact ? 300 : 410;
 
   const getChemColor = (score: number) => {
     if (score >= 3) return '#22C55E';
@@ -70,19 +84,20 @@ export default function FormationField({
 
   return (
     <div
-      className="relative rounded-xl overflow-hidden"
+      className="relative rounded-xl overflow-hidden mx-auto"
       style={{
-        width: fieldWidth,
-        height: fieldHeight,
+        width: '100%',
+        maxWidth: maxW,
+        aspectRatio: `${fieldWidth} / ${fieldHeight}`,
         background: 'linear-gradient(180deg, #0A2A0A 0%, #0D3A0D 50%, #0A2A0A 100%)',
         border: '1px solid #1A4A1A',
       }}
     >
-      {/* Field markings */}
+      {/* Field markings — scales with the container via viewBox */}
       <svg
-        className="absolute inset-0"
-        width={fieldWidth}
-        height={fieldHeight}
+        className="absolute inset-0 w-full h-full"
+        viewBox={`0 0 ${fieldWidth} ${fieldHeight}`}
+        preserveAspectRatio="none"
         style={{ opacity: 0.3 }}
       >
         {/* Outer border */}
@@ -121,7 +136,7 @@ export default function FormationField({
           coded. Selecting a player highlights only their connections. Drawn in its own
           full-opacity SVG (the markings layer above is dimmed to 30%). */}
       {showChemLines && chemLinks && chemLinks.length > 0 && (
-        <svg className="absolute inset-0 pointer-events-none" width={fieldWidth} height={fieldHeight}>
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${fieldWidth} ${fieldHeight}`} preserveAspectRatio="none">
           {chemLinks.map((link, idx) => {
             const posA = formation.positions[link.aIndex];
             const posB = formation.positions[link.bIndex];
@@ -141,11 +156,9 @@ export default function FormationField({
         </svg>
       )}
 
-      {/* Player tokens */}
+      {/* Player tokens — positioned in % of the field so they track the fluid size */}
       {formation.positions.map((pos, index) => {
         const player = players[index];
-        const x = (pos.x / 100) * fieldWidth;
-        const y = (pos.y / 100) * fieldHeight;
         const posColor = POSITION_COLORS[pos.role] || '#8A8A9A';
         const chemScore = player ? (chemistryScores[player.id] ?? 0) : 0;
         const rarityColor = player ? getRarityColor(player.rarity) : '#555';
@@ -159,11 +172,9 @@ export default function FormationField({
           <motion.div
             key={index}
             className="absolute flex flex-col items-center"
-            style={{
-              left: x - tokenSize / 2,
-              top: y - tokenSize / 2 - (compact ? 8 : 10),
-              width: tokenSize,
-            }}
+            style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: tokenSize }}
+            // Centre the token on its (%) point, then layer framer's scale on top.
+            transformTemplate={(_, generated) => `translate(-50%, calc(-50% - ${compact ? 8 : 10}px)) ${generated}`}
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.04, duration: 0.2 }}
@@ -248,8 +259,35 @@ export default function FormationField({
               </div>
             )}
 
-            {/* Chemistry dot */}
-            {player && (
+            {/* Match mode: live rating pill + goal/assist markers · otherwise the chemistry dot */}
+            {player && ratingMode && (() => {
+              const r = ratings![player.id];
+              const g = goalsByPlayer?.[player.id] ?? 0;
+              const a = assistsByPlayer?.[player.id] ?? 0;
+              const rc = r !== undefined ? ratingColor(r) : '#8A8A9A';
+              return (
+                <div className="flex flex-col items-center mt-0.5 gap-0.5">
+                  <span
+                    className="font-black leading-none rounded px-1 py-0.5"
+                    style={{
+                      fontSize: compact ? '8px' : '10px',
+                      color: rc,
+                      background: `${rc}1f`,
+                      border: `1px solid ${rc}55`,
+                      fontFamily: 'Rajdhani, sans-serif',
+                    }}
+                  >
+                    {r !== undefined ? r.toFixed(1) : '—'}
+                  </span>
+                  {(g > 0 || a > 0) && (
+                    <span className="leading-none" style={{ fontSize: compact ? '7px' : '8px' }}>
+                      {g > 0 && `⚽${g > 1 ? g : ''}`}{a > 0 && ` 🅰${a > 1 ? a : ''}`}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+            {player && !ratingMode && (
               <div
                 className="w-1.5 h-1.5 rounded-full mt-0.5"
                 style={{ background: getChemColor(chemScore) }}

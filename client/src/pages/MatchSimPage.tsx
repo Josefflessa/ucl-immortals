@@ -25,11 +25,12 @@ import {
   penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc,
   freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc,
   cornerGoalDesc, cornerSaveDesc, cornerMissDesc,
-  flowDesc, dangerStage1Msg, celebrationMsg, saveCelebMsg, missCelebMsg, tackleCelebMsg,
+  flowDesc, dangerAttemptMsg, celebrationMsg, saveCelebMsg, missCelebMsg, tackleCelebMsg,
   Approach,
 } from '../lib/matchNarrative';
 import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
 import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
+import MatchFieldView from '../components/game/MatchFieldView';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
@@ -157,6 +158,7 @@ export default function MatchSimPage() {
     message: string;
     approach?: Approach;
     buildUp?: string;
+    gkName?: string;
   } | null>(null);
 
   const pendingGoalResult = useRef<any>(null);
@@ -284,11 +286,12 @@ export default function MatchSimPage() {
     const defender = defenders[Math.floor(Math.random() * defenders.length)] || defendTeam.players[0];
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
 
-    const widePlayer = attackTeam.players.slice(0, 11).find(p =>
-      ['LW', 'RW', 'LM', 'RM'].includes(p.position)
-    ) || attackTeam.players.slice(0, 11).find(p =>
-      ['CAM', 'CM'].includes(p.position)
-    ) || attacker;
+    // Wide creator must be someone OTHER than the attacker (no "Fulano cruza para Fulano").
+    const xiAtk = attackTeam.players.slice(0, 11);
+    const widePlayer = xiAtk.find(p => p.id !== attacker.id && ['LW', 'RW', 'LM', 'RM'].includes(p.position))
+      || xiAtk.find(p => p.id !== attacker.id && ['CAM', 'CM'].includes(p.position))
+      || xiAtk.find(p => p.id !== attacker.id)
+      || attacker;
 
     const homeIsLosing = homeScore < awayScore;
     const awayIsLosing = awayScore < homeScore;
@@ -817,25 +820,15 @@ export default function MatchSimPage() {
           setIsPlaying(false);
           pendingGoalResult.current = result;
 
-          const attackingTeam = result.attackTeamId === homeTeam.id ? homeTeam : awayTeam;
-          const dangerMsg = dangerStage1Msg(
-            result.approach,
-            attackingTeam.name,
-            result.attackerName,
-            result.defenderName,
-            result.isGoal,
-            result.isSaveResult,
-          );
-
           setDangerState({
             stage: 1,
             teamId: result.attackTeamId,
             attacker: result.attackerName,
             defender: result.defenderName,
             type: 'attack',
-            message: dangerMsg,
+            message: result.buildUpMsg, // stage 1 = the build-up (the move develops, no shot yet)
             approach: result.approach,
-            buildUp: result.buildUpMsg,
+            gkName: result.gkName,
           });
         } else {
           // Silent resolution
@@ -866,9 +859,9 @@ export default function MatchSimPage() {
           attacker: fkResult.attackerName,
           defender: fkResult.defenderName,
           type: 'attack',
-          message: dangerStage1Msg(fkResult.approach, attackTeam.name, fkResult.attackerName, fkResult.defenderName, fkResult.isGoal, fkResult.isSaveResult),
+          message: fkResult.buildUpMsg, // stage 1 = build-up
           approach: fkResult.approach,
-          buildUp: fkResult.buildUpMsg,
+          gkName: fkResult.gkName,
         });
       } else if (dangerCooldownOk && Math.random() < 0.01) {
         // Corner header at a non-key minute (~0.7/match) — same 3-stage suspense. Same cooldown gate.
@@ -882,9 +875,9 @@ export default function MatchSimPage() {
           attacker: chResult.attackerName,
           defender: chResult.defenderName,
           type: 'attack',
-          message: dangerStage1Msg(chResult.approach, attackTeam.name, chResult.attackerName, chResult.defenderName, chResult.isGoal, chResult.isSaveResult),
+          message: chResult.buildUpMsg, // stage 1 = build-up
           approach: chResult.approach,
-          buildUp: chResult.buildUpMsg,
+          gkName: chResult.gkName,
         });
       } else {
         // Flow/Commentary events (30% chance, context-aware)
@@ -965,7 +958,10 @@ export default function MatchSimPage() {
         setDangerState(prev => prev ? {
           ...prev,
           stage: 2,
-          message: prev.buildUp ?? `🤺 ${prev.attacker} parte para cima de ${prev.defender} — duelo decisivo!`,
+          // Stage 2 = the decisive ATTEMPT (he shoots/heads), building on the stage-1 build-up.
+          message: prev.approach
+            ? dangerAttemptMsg(prev.approach, prev.attacker, prev.defender, prev.gkName ?? prev.defender)
+            : `⚽ A bola viaja perigosamente em direção ao gol...!`,
         } : null);
       }, 1500);
       return () => clearTimeout(timer);
@@ -1169,11 +1165,9 @@ export default function MatchSimPage() {
             attacker: isOwnGoal ? ogName : attackerName,
             defender: gkName,
             type: 'attack',
-            message: isOwnGoal
-              ? `⚠️ Cruzamento perigoso na área do ${defTeam.name} — todo cuidado é pouco!`
-              : dangerStage1Msg(replayApproach, atkTeam.name, attackerName, gkName, isGoalOutcome, isSaveOutcome),
-            approach: replayApproach,
-            buildUp: replayBuildUp,
+            message: replayBuildUp, // stage 1 = build-up
+            approach: isOwnGoal ? undefined : replayApproach, // own goals skip the "attempt" beat
+            gkName,
           });
         } else if (otherEvs.length === 0) {
           setMomentumHistory(h => [...h, momentum]);
@@ -2123,7 +2117,7 @@ export default function MatchSimPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0b0b14] border rounded-2xl p-5 max-w-md w-full max-h-[85vh] flex flex-col"
+              className="bg-[#0b0b14] border rounded-2xl p-4 sm:p-5 max-w-lg w-full max-h-[90vh] flex flex-col"
               style={{ borderColor: squadModal === 'mine' ? '#c9a84c55' : '#6366f155' }}
             >
               <div className="flex items-center justify-between mb-4 flex-shrink-0">
@@ -2146,11 +2140,28 @@ export default function MatchSimPage() {
                 </button>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
-                {(squadModal === 'mine' ? myTeam : oppTeam).players.map(p => {
-                  const st = getDisplayStat(p.statId!);
-                  return renderSquadRow(p, getDisplayRating(p.statId!), st?.goals ?? 0, st?.assists ?? 0);
-                })}
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                {(() => {
+                  const t = squadModal === 'mine' ? myTeam : oppTeam;
+                  const ratings: Record<string, number> = {};
+                  const goalsByPlayer: Record<string, number> = {};
+                  const assistsByPlayer: Record<string, number> = {};
+                  t.players.forEach(p => {
+                    const st = getDisplayStat(p.statId!);
+                    ratings[p.id] = getDisplayRating(p.statId!);
+                    goalsByPlayer[p.id] = st?.goals ?? 0;
+                    assistsByPlayer[p.id] = st?.assists ?? 0;
+                  });
+                  return (
+                    <MatchFieldView
+                      team={t}
+                      ratings={ratings}
+                      goalsByPlayer={goalsByPlayer}
+                      assistsByPlayer={assistsByPlayer}
+                      accent={squadModal === 'mine' ? '#C9A84C' : '#818CF8'}
+                    />
+                  );
+                })()}
               </div>
             </motion.div>
           </div>

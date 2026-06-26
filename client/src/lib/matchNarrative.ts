@@ -72,30 +72,40 @@ export function buildUpDesc(
       `⚽ Jogada coletiva! ${wide} abre pelo lado e cruza para ${atk} dentro da área...`,
       `📐 ${atk} se posiciona na segunda trave aguardando o cruzamento de ${wide}...`,
       `🏃 ${wide} para no fundo, levanta na cabeça de ${atk} na área...`,
+      `🎯 ${wide} cobra da ponta e a bola sobra na área para ${atk}...`,
+      `↗️ ${wide} cruza fechado e ${atk} aparece entre os zagueiros...`,
     ]);
     case 'through': return pick([
       `🔑 Passe em profundidade! ${atk} escapa nas costas de ${def} e avança sozinho...`,
       `⚡ ${wide} enxerga o movimento de ${atk} nas costas da zaga e passa!`,
       `🎯 Lance de ruptura — ${atk} recebe cara a cara com o goleiro...`,
       `🏃 ${atk} pede a bola no corredor central e escapa em velocidade de ${def}...`,
+      `🔑 ${atk} tabela com ${wide} e parte nas costas de ${def}...`,
+      `🎯 Lançamento por cima da defesa — ${atk} domina dentro da área...`,
     ]);
     case 'dribble': return pick([
       `💨 ${atk} recebe de frente para ${def} e decide partir para o drible!`,
       `⚡ Encarada! ${atk} tenta superar ${def} em duelo individual...`,
       `🏃 ${atk} acelera pela esquerda tentando deixar ${def} para trás...`,
       `💡 ${atk} finta para direita, para para esquerda — ${def} está perdido!`,
+      `🔥 ${atk} corta para o meio em cima de ${def} buscando o espaço...`,
+      `💨 ${atk} encara ${def} de frente e parte para cima com a bola dominada...`,
     ]);
     case 'longrange': return pick([
       `💣 ${atk} domina fora da área e avalia o chute de longe...`,
       `🔭 ${atk} com espaço a 25 metros — vai arriscar?`,
       `🎯 ${atk} se livra da marcação na intermediária e olha para o gol!`,
       `⚡ Bola no pé de ${atk} a longa distância — o goleiro se posiciona...`,
+      `💣 ${atk} recebe na intermediária, ajeita o corpo e prepara o chute...`,
+      `🔭 A defesa recua e dá espaço para ${atk} armar de longe...`,
     ]);
     case 'counter': return pick([
       `⚡ CONTRA-ATAQUE! ${teamName} rouba a bola no meio e sai em velocidade!`,
       `🏃 Transição rápida! ${atk} lidera o contra com ${wide} na ponta!`,
       `💨 Bola recuperada — ${atk} parte em disparada com a zaga desorganizada!`,
       `🔥 ${teamName} quebra a pressão e sai em dois contra um!`,
+      `⚡ Bola recuperada! ${teamName} dispara no contra-ataque com ${atk}...`,
+      `💨 ${atk} conduz no campo aberto com a defesa correndo atrás...`,
     ]);
   }
 }
@@ -497,6 +507,45 @@ export function flowDesc(
   ]);
 }
 
+// ─── Danger sequence (MatchSimPage dangerState) — a clean 3-beat arc ──────────
+// 1) build-up (buildUpDesc) → 2) the ATTEMPT (dangerAttemptMsg, below) → 3) the outcome.
+// Stage 2 shows the shot/header being TAKEN to build tension, but never reveals goal/save/miss
+// (that is stage 3). This keeps the three beats connected and in the right order.
+export function dangerAttemptMsg(approach: Approach, atk: string, def: string, gk: string): string {
+  switch (approach) {
+    case 'cross': return pick([
+      `⚽ ${atk} sobe mais alto que a marcação e CABECEIA em direção ao gol...!`,
+      `⚽ A bola é alçada na área e ${atk} testa de cabeça com perigo...!`,
+      `⚽ ${atk} se joga na segunda trave e completa o cruzamento de primeira...!`,
+      `⚽ Subida poderosa de ${atk}, que cabeceia firme no canto...!`,
+    ]);
+    case 'through': return pick([
+      `⚽ ${atk} chega CARA A CARA com ${gk} e finaliza...!`,
+      `⚽ Sozinho na frente do gol, ${atk} bate para o fundo das redes...!`,
+      `⚽ ${atk} invade a área nas costas da zaga e conclui...!`,
+      `⚽ Na saída de ${gk}, ${atk} tenta o toque por baixo...!`,
+    ]);
+    case 'dribble': return pick([
+      `⚽ ${atk} passa por ${def} e ARRISCA a finalização...!`,
+      `⚽ ${atk} limpa a marcação dentro da área e solta a perna...!`,
+      `⚽ Drible desconcertante e ${atk} bate cruzado...!`,
+      `⚽ ${atk} deixa ${def} para trás e finaliza de primeira...!`,
+    ]);
+    case 'longrange': return pick([
+      `⚽ ${atk} ARMA O CHUTE e solta uma bomba de longe...!`,
+      `⚽ Sem espaço para entrar, ${atk} arrisca de fora da área...!`,
+      `⚽ ${atk} ajeita o corpo e chuta forte da intermediária...!`,
+      `⚽ De muito longe, ${atk} tenta encobrir ${gk}...!`,
+    ]);
+    case 'counter': return pick([
+      `⚽ O contra-ataque termina com ${atk} invadindo a área e FINALIZANDO...!`,
+      `⚽ ${atk} chega na frente do goleiro após o contra e bate...!`,
+      `⚽ Saída em velocidade! ${atk} conclui o contra-ataque...!`,
+      `⚽ ${atk} carrega no contra e arremata em direção ao gol de ${gk}...!`,
+    ]);
+  }
+}
+
 // ─── Stage 1 danger message (MatchSimPage dangerState) ───────────────────────
 
 export function dangerStage1Msg(
@@ -554,22 +603,27 @@ export function celebrationMsg(
     case 'cross': return pick([
       `⚽ GOOOOOL! ${atkName} de cabeça! ${teamName.toUpperCase()} marca! ${score}`,
       `⚽ GOOOOOOL! Que cabeceio de ${atkName}! ${score}`,
+      `⚽ GOOOOOL! ${atkName} subiu na área e testou firme — não deu pro goleiro! ${score}`,
     ]);
     case 'through': return pick([
       `⚽ GOOOOOL! ${atkName} saiu livre e não perdoou! ${teamName.toUpperCase()} na frente! ${score}`,
       `⚽ GOOOOOOL! Cara a cara com o goleiro — ${atkName} faz o gol! ${score}`,
+      `⚽ GOOOOOL! ${atkName} recebeu nas costas da zaga e bateu na saída do goleiro! ${score}`,
     ]);
     case 'dribble': return pick([
       `⚽ GOOOOOL! ${atkName} DEIXOU O DEFENSOR NO CHÃO E MARCOU! ${score}`,
       `⚽ GOOOOOOL! Drible espetacular de ${atkName}! ${teamName.toUpperCase()} MARCA! ${score}`,
+      `⚽ GOOOOOL! ${atkName} limpou a marcação e bateu no cantinho! ${score}`,
     ]);
     case 'longrange': return pick([
       `⚽ GOOOOOL! QUE GOLAÇO DE ${atkName}! Bomba de fora da área! ${score}`,
       `⚽ GOOOOOOL DE FORA! ${atkName} não deu chance ao goleiro! ${score}`,
+      `⚽ GOOOOOL! ${atkName} armou da intermediária e mandou no ângulo! ${score}`,
     ]);
     case 'counter': return pick([
       `⚽ GOOOOOL! Contra-ataque mortal de ${teamName.toUpperCase()}! ${atkName} marca! ${score}`,
       `⚽ GOOOOOOL EM TRANSIÇÃO! ${atkName} liquida no contra! ${score}`,
+      `⚽ GOOOOOL! Saída rápida e ${atkName} concluiu antes da defesa voltar! ${score}`,
     ]);
   }
 }
@@ -589,6 +643,8 @@ export function saveCelebMsg(gkName: string, atkName: string): string {
     `🧤 DEFESAÇA DE ${gkName}! Impediu o gol de ${atkName}!`,
     `🧤 ${gkName} VOA E SALVA! Que reflexo incrível!`,
     `🧤 INCRÍVEL! ${gkName} mantém o placar impedindo ${atkName}!`,
+    `🧤 PAREDÃO! ${gkName} espalma a finalização de ${atkName}!`,
+    `🧤 QUE DEFESA! ${gkName} se estica todo e tira de ${atkName}!`,
   ]);
 }
 
@@ -597,5 +653,7 @@ export function missCelebMsg(atkName: string): string {
     `❌ PARA FORA! ${atkName} perdeu grande chance!`,
     `💥 NA TRAVE! Que azar de ${atkName}!`,
     `❌ ${atkName} finalizou mas mandou pela linha de fundo!`,
+    `❌ ISOLOU! ${atkName} pegou mal e mandou por cima do gol!`,
+    `❌ QUE PERDIDA! ${atkName} tinha o gol na cara e desperdiçou!`,
   ]);
 }

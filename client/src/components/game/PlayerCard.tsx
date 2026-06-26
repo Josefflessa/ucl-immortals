@@ -260,7 +260,16 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   origi           : { id: 213135, ver: 25 },
   long            : { id: 169216, ver: 23 },
   carroll         : { id: 182836, ver: 25 },
-  giroud          : { id: 178509, ver: 26 }
+  giroud          : { id: 178509, ver: 26 },
+  // ── EXPANSÃO LOTE 1 (fotos verificadas via CDN; sem foto confiável = sem mapeamento → placeholder
+  //    limpo: schmeichel, zoff, beckenbauer, baresi, lizarazu só têm id custom de 8 dígitos sem imagem).
+  kahn            : { id: 488,    ver: 8 },  // FIFA 08 (EA nunca o lançou como Icon)
+  cafu            : { id: 5003,   ver: 25 },
+  stam            : { id: 5740,   ver: 25 },
+  thuram          : { id: 1615,   ver: 25 },
+  lucio           : { id: 107715, ver: 14 },
+  keylor_navas    : { id: 193041, ver: 24 },
+  lloris          : { id: 167948, ver: 25 }
 };
 
 const NATION_CODES: Record<string, string> = {
@@ -342,7 +351,13 @@ const CLUB_CRESTS: Record<string, string> = {
 };
 
 export function getBasePlayerId(playerId: string): string {
-  return Object.keys(SOFIFA_MAPPING).find(key => playerId === key || playerId.startsWith(key + '_')) || playerId.split('_')[0];
+  // Exact match always wins — otherwise 'gabriel_jesus' would match the 'gabriel' prefix first
+  // (key order) and steal Gabriel Magalhães' photo. Only fall back to a prefix for true variants
+  // (e.g. 'messi_2' → 'messi'), preferring the LONGEST matching prefix.
+  if (SOFIFA_MAPPING[playerId]) return playerId;
+  const prefixMatches = Object.keys(SOFIFA_MAPPING).filter(key => playerId.startsWith(key + '_'));
+  if (prefixMatches.length) return prefixMatches.sort((a, b) => b.length - a.length)[0];
+  return playerId.split('_')[0];
 }
 
 export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null {
@@ -350,7 +365,8 @@ export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string 
   const m = SOFIFA_MAPPING[baseId];
   if (!m) return null;
   const padded = String(m.id).padStart(6, '0');
-  return `https://cdn.sofifa.net/players/${padded.slice(0,3)}/${padded.slice(3,6)}/${m.ver}_${size}.png`;
+  const v = String(m.ver).padStart(2, '0'); // single-digit editions (e.g. FIFA 08) need "08", not "8"
+  return `https://cdn.sofifa.net/players/${padded.slice(0,3)}/${padded.slice(3,6)}/${v}_${size}.png`;
 }
 
 // Per-rarity visual identity. Each tier has a DISTINCT silhouette so they never read
@@ -423,14 +439,15 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
   const urls: string[] = [];
   if (m) {
     const padded = String(m.id).padStart(6, '0');
+    const v = String(m.ver).padStart(2, '0'); // "08" not "8"
     const prefix = `https://cdn.sofifa.net/players/${padded.slice(0,3)}/${padded.slice(3,6)}`;
     if (lowRes) {
-      urls.push(`${prefix}/${m.ver}_120.png`);
+      urls.push(`${prefix}/${v}_120.png`);
     } else {
-      urls.push(`${prefix}/${m.ver}_360.png`);
+      urls.push(`${prefix}/${v}_360.png`);
       if (m.ver > 23) urls.push(`${prefix}/23_360.png`);
       if (m.ver > 22) urls.push(`${prefix}/22_360.png`);
-      urls.push(`${prefix}/${m.ver}_120.png`);
+      urls.push(`${prefix}/${v}_120.png`);
     }
   }
 

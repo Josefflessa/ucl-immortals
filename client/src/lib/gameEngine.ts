@@ -1225,11 +1225,14 @@ export function runMatchSimulation(
       const defender = defenders[Math.floor(Math.random() * defenders.length)] || defendTeam.players[0];
       const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
 
-      const widePlayer = attackTeam.players.slice(0, 11).find(p =>
-        ['LW', 'RW', 'LM', 'RM'].includes(p.position)
-      ) || attackTeam.players.slice(0, 11).find(p =>
-        ['CAM', 'CM'].includes(p.position)
-      ) || attacker;
+      // The wide creator must be SOMEONE ELSE — never the attacker himself, or the build-up
+      // reads "Fulano cruza para Fulano... Fulano cabeceia" (happens when the attacker is a
+      // winger, or in a team with no other wide option). Only the degenerate 1-player team falls back.
+      const xiAtk = attackTeam.players.slice(0, 11);
+      const widePlayer = xiAtk.find(p => p.id !== attacker.id && ['LW', 'RW', 'LM', 'RM'].includes(p.position))
+        || xiAtk.find(p => p.id !== attacker.id && ['CAM', 'CM'].includes(p.position))
+        || xiAtk.find(p => p.id !== attacker.id)
+        || attacker;
 
       let approach: Approach = selectApproach(attackTeam.playStyle ?? 'balanced');
       // Narrow formations (3-5-2 / 5-3-2) cross far less — swap some crosses for
