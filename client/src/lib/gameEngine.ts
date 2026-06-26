@@ -753,7 +753,7 @@ export function getEffectiveAttribute(
 //  - GK_SAVE_EDGE: extra edge for the keeper in the shot-vs-keeper duel.
 //  - ON_TARGET_RESISTANCE: higher = fewer shots on target (denominator of the
 //    accuracy curve atkShooting/(atkShooting + resistance)). Both raise = fewer goals.
-export const GK_SAVE_EDGE = 8;
+export const GK_SAVE_EDGE = 11;
 export const ON_TARGET_RESISTANCE = 48;
 // Per-minute randomness in deciding which team attacks. Lower = team strength
 // matters more. Tuned to 20 via the harness: favorites clearly win more (champion
@@ -780,8 +780,8 @@ export const FORMATION_COUNTER_BONUS = 3;
 // quiet game with few corners) instead of fixed averages.
 const FLAVOR_SHOT_RATE = 0.20;  // base chance the attacking side takes an extra attempt this minute
 const FLAVOR_FOUL_RATE = 0.24;  // base chance of a foul this minute
-export const FREE_KICK_CHANCE = 0.07; // fraction of fouls that are dangerous → a direct free kick
-export const CORNER_CHANCE = 0.12;    // fraction of corners that produce a header chance
+export const FREE_KICK_CHANCE = 0.10; // fraction of fouls that are dangerous → a direct free kick
+export const CORNER_CHANCE = 0.14;    // fraction of corners that produce a header chance
 // Momentum gained/lost by the team that scores. Lower = leads snowball less, so
 // fewer blowouts and more balanced (drawn) games.
 export const GOAL_MOMENTUM_SWING = 8;
@@ -831,22 +831,26 @@ export function resolveOpenPlayChance(p: {
   return { outcome: shootScore > gkScore ? 'goal' : 'save', onTarget: true, shotType };
 }
 
-// Key-event minutes for ONE match — jittered so every game has its own rhythm
-// instead of chances always landing on the same fixed minutes. Count is preserved
-// (~14 over 90', ~19 with extra time) so the goal rate is unchanged. Shared by the
-// engine and the live sim.
+// Key-event minutes for ONE match — the clear goalscoring chances ("lances de perigo").
+// Jittered so every game has its own rhythm, but with a guaranteed MINIMUM SPACING so chances
+// never land back-to-back (the old ±45% jitter let two fire within a minute of each other, which
+// made matches feel like a chance every other minute). Fewer, better-spaced chances → a calmer,
+// more realistic pace. Shared by the engine and the live sim.
 export function buildKeyMinutes(isKnockout: boolean): number[] {
   const cap = isKnockout ? 120 : 90;
-  const target = isKnockout ? 19 : 14;            // SAME count as the old fixed list → same goal rate
+  const target = isKnockout ? 17 : 13;            // clear (open-play) chances per match
+  const minGap = 3;                                // never two clear chances within 3' → still no back-to-back
   const gap = cap / (target + 1);
-  const set = new Set<number>();
+  const mins: number[] = [];
   for (let i = 1; i <= target; i++) {
-    let m = Math.round(gap * i + (Math.random() * 2 - 1) * gap * 0.45); // jitter ±45% of the gap
+    let m = Math.round(gap * i + (Math.random() * 2 - 1) * gap * 0.30); // gentler jitter (±30% of the gap)
     m = Math.max(3, Math.min(cap, m));
-    while (set.has(m)) m = Math.min(cap, m + 1);  // avoid duplicate minutes
-    set.add(m);
+    const prev = mins[mins.length - 1];
+    if (prev !== undefined && m - prev < minGap) m = prev + minGap;     // push apart to keep the spacing
+    if (m > cap) break;                                                 // pushed past full time → stop early
+    mins.push(m);
   }
-  return Array.from(set).sort((a, b) => a - b);
+  return mins;
 }
 
 // Tactical fingerprint derived from a formation's SHAPE (how many defenders/
@@ -1037,6 +1041,17 @@ export function runMatchSimulation(
 
   const KEY_MINUTES = buildKeyMinutes(isKnockout);
 
+  // Global danger cooldown: a dead-ball danger (free kick / corner header) never fires within
+  // DANGER_COOLDOWN minutes of a KEY chance or of another dead-ball danger — so chances never
+  // pile up back-to-back. Key chances are already spaced by buildKeyMinutes; this keeps the
+  // RANDOM flavour dangers from landing right on top of them.
+  const DANGER_COOLDOWN = 2;
+  let lastFlavorDangerMin = -DANGER_COOLDOWN;
+  // Hard ceiling on clear chances per match — once reached, further dangers resolve quietly,
+  // so a match never floods past this many "lances de perigo" no matter how the dice fall.
+  const MAX_DANGER = isKnockout ? 18 : 15;
+  let dangerCount = 0;
+
   let lastKeyCtx: LastKeyCtx = null;
 
   // Per-match character so each box-score is different (tempo & aggression vary).
@@ -1084,6 +1099,11 @@ export function runMatchSimulation(
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
 
+    // A dead-ball danger may fire this minute only if we're clear of any key chance and of the
+    // last flavour danger (the cooldown) — this is what stops chances clustering / coming back-to-back.
+    const nearKeyMinute = KEY_MINUTES.some(k => Math.abs(k - minute) < DANGER_COOLDOWN);
+    const flavorDangerOk = !nearKeyMinute && (minute - lastFlavorDangerMin >= DANGER_COOLDOWN) && dangerCount < MAX_DANGER;
+
     // ── Flavour box-score + dead-ball play ──
     // The defending side fouls the attacking side this minute.
     if (Math.random() < FLAVOR_FOUL_RATE * matchAggression) {
@@ -1092,7 +1112,9 @@ export function runMatchSimulation(
       // A fraction of fouls are dangerous → a DIRECT FREE KICK (a real chance).
       // Conversion is deliberately low (free kicks rarely go in), scaled by the
       // taker's shooting+composure, so this adds drama without inflating scores.
-      if (Math.random() < FREE_KICK_CHANCE) {
+      if (flavorDangerOk && Math.random() < FREE_KICK_CHANCE) {
+        lastFlavorDangerMin = minute;
+        dangerCount++;
         const fkGk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
         const taker = getFreeKickTaker(attackTeam);
         const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
@@ -1143,8 +1165,12 @@ export function runMatchSimulation(
         if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++;
 
         // A fraction of corners produce a header chance (set-piece goal). Conversion
-        // is moderate, scaled by the aerial target's shooting + physical.
-        if (Math.random() < CORNER_CHANCE) {
+        // is moderate, scaled by the aerial target's shooting + physical. The cooldown is
+        // re-checked LIVE here (not the minute-start flavorDangerOk) so a corner can't fire in
+        // the same minute as a free kick — keeping the spacing and the cap exact.
+        if (dangerCount < MAX_DANGER && !nearKeyMinute && (minute - lastFlavorDangerMin >= DANGER_COOLDOWN) && Math.random() < CORNER_CHANCE) {
+          lastFlavorDangerMin = minute;
+          dangerCount++;
           const cgk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
           const header = getHeaderTarget(attackTeam);
           const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx) + header.physical) / 2;
@@ -1187,7 +1213,7 @@ export function runMatchSimulation(
       // else: off target — no further stat
     }
 
-    if (isKeyEventMinute) {
+    if (isKeyEventMinute && dangerCount < MAX_DANGER) {
       const attackers = attackTeam.players.slice(0, 11).filter(p =>
         ['ST', 'CF', 'LW', 'RW', 'CAM'].includes(p.position)
       );
@@ -1214,6 +1240,7 @@ export function runMatchSimulation(
       const isLuckEvent = Math.random() < 0.04;
 
       if (isLuckEvent) {
+        dangerCount++; // a luck event always resolves into a clear chance (goal / penalty / woodwork)
         const randLuck = Math.random();
 
         if (randLuck < 0.15) {
@@ -1364,6 +1391,7 @@ export function runMatchSimulation(
         });
 
         if (chance.outcome !== 'duel') {
+          dangerCount++; // a shot (goal / save / miss) is a clear chance — counts toward the cap
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
           if (playerStats[attacker.statId!]) playerStats[attacker.statId!].shots++;
 
@@ -1873,8 +1901,9 @@ export function calculateTeamStrength(
   let strength = avgStrength + formationBonus;
   
   if (team.isBot && team.botStrength !== undefined) {
-    // Bronze (~0.45) → 0.75x, Gold (~0.75) → 0.91x, Immortal (~0.97) → 1.03x
-    const multiplier = 0.50 + team.botStrength * 0.55;
+    // Bot strength multiplier — buffed across the board (+0.08 base) so every tier is tougher:
+    // Bronze (~0.45) → 0.83x · Prata (~0.62) → 0.92x · Ouro (~0.75) → 0.99x · Lendário (~0.88) → 1.06x · Imortal (~0.97) → 1.11x
+    const multiplier = 0.58 + team.botStrength * 0.55;
     strength = strength * multiplier;
   }
 

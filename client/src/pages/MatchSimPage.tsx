@@ -162,6 +162,7 @@ export default function MatchSimPage() {
   const pendingGoalResult = useRef<any>(null);
   const pendingReplayGoals = useRef<any>(null); // buffered goal events for replay danger sequence
   const keyMinutesRef = useRef<number[] | null>(null); // jittered key-event minutes for THIS match
+  const lastDangerMinRef = useRef<number>(-10); // last minute a danger sequence fired → enforces the cooldown
 
   // Interactive Penalty Shootout state
   const [penaltyMode, setPenaltyMode] = useState(false);
@@ -794,6 +795,11 @@ export default function MatchSimPage() {
 
       if (!keyMinutesRef.current) keyMinutesRef.current = buildKeyMinutes(isKnockout);
       const isKeyEvent = keyMinutesRef.current.includes(nextMin);
+      // A dead-ball danger may fire only when we're clear of any key chance (past OR upcoming)
+      // and of the last danger — the cooldown that stops chances clustering / coming back-to-back.
+      const DANGER_COOLDOWN = 4;
+      const nearKey = keyMinutesRef.current.some(k => Math.abs(k - nextMin) < DANGER_COOLDOWN);
+      const dangerCooldownOk = !nearKey && (nextMin - lastDangerMinRef.current >= DANGER_COOLDOWN);
 
       if (isKeyEvent) {
         const result = simulateKeyEvent(nextMin, homeAttacks);
@@ -807,6 +813,7 @@ export default function MatchSimPage() {
         );
 
         if (isSuspenseWorthy) {
+          lastDangerMinRef.current = nextMin;
           setIsPlaying(false);
           pendingGoalResult.current = result;
 
@@ -845,9 +852,11 @@ export default function MatchSimPage() {
             return nextMom;
           });
         }
-      } else if (Math.random() < 0.02) {
+      } else if (dangerCooldownOk && Math.random() < 0.02) {
         // Dangerous free kick at a non-key minute (~1.5/match) — runs through the
-        // same 3-stage suspense as a normal danger play.
+        // same 3-stage suspense as a normal danger play. Gated by the cooldown so it never
+        // lands right on top of a key chance / another danger (no back-to-back).
+        lastDangerMinRef.current = nextMin;
         const fkResult = simulateFreeKick(nextMin, homeAttacks);
         setIsPlaying(false);
         pendingGoalResult.current = fkResult;
@@ -861,8 +870,9 @@ export default function MatchSimPage() {
           approach: fkResult.approach,
           buildUp: fkResult.buildUpMsg,
         });
-      } else if (Math.random() < 0.01) {
-        // Corner header at a non-key minute (~0.7/match) — same 3-stage suspense.
+      } else if (dangerCooldownOk && Math.random() < 0.01) {
+        // Corner header at a non-key minute (~0.7/match) — same 3-stage suspense. Same cooldown gate.
+        lastDangerMinRef.current = nextMin;
         const chResult = simulateCornerHeader(nextMin, homeAttacks);
         setIsPlaying(false);
         pendingGoalResult.current = chResult;
