@@ -165,14 +165,20 @@ export default function FormationField({
         const initials = player ? (PLAYER_INITIALS[player.id] || player.shortName.slice(0, 2).toUpperCase()) : '?';
         const photoUrl = player ? buildSofifaUrl(player.id, 120) : null;
         const tokenSize = compact ? 34 : 48;
+        // Match (rating) mode: a more compact token with the rating/goals OVERLAID on the photo
+        // (not stacked below), so cards never overlap their neighbours on tight formations.
+        const photoSize = ratingMode ? (compact ? 30 : 40) : tokenSize;
 
         const isSelected = selectedPlayerIndex === index;
+        const r = player ? ratings?.[player.id] : undefined;
+        const g = player ? (goalsByPlayer?.[player.id] ?? 0) : 0;
+        const a = player ? (assistsByPlayer?.[player.id] ?? 0) : 0;
 
         return (
           <motion.div
             key={index}
             className="absolute flex flex-col items-center"
-            style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: tokenSize }}
+            style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: photoSize }}
             // Centre the token on its (%) point, then layer framer's scale on top.
             transformTemplate={(_, generated) => `translate(-50%, calc(-50% - ${compact ? 8 : 10}px)) ${generated}`}
             initial={{ opacity: 0, scale: 0.5 }}
@@ -180,39 +186,71 @@ export default function FormationField({
             transition={{ delay: index * 0.04, duration: 0.2 }}
             onClick={() => player && onPlayerClick?.(player, index)}
           >
-            {/* Player circle */}
-            <div
-              className="rounded-full flex items-center justify-center font-bold cursor-pointer overflow-hidden"
-              style={{
-                width: tokenSize,
-                height: tokenSize,
-                background: player
-                  ? `radial-gradient(circle, ${rarityColor}33 0%, #0F0F1A 100%)`
-                  : '#1A1A2A',
-                border: isSelected ? '2px solid #FFF' : `2px solid ${player ? rarityColor : '#333'}`,
-                boxShadow: isSelected
-                  ? '0 0 12px #FFF'
-                  : player && player.rarity === 'immortal'
-                    ? `0 0 12px ${rarityColor}88`
-                    : player ? `0 0 6px ${rarityColor}44` : 'none',
-                fontSize: compact ? '10px' : '13px',
-                color: isSelected ? '#FFF' : (player ? rarityColor : '#555'),
-              }}
-            >
-              {player && photoUrl ? (
-                <img
-                  src={photoUrl}
-                  alt={player.shortName}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover rounded-full"
-                  style={{ objectPosition: 'center top', scale: '1.25', transform: 'translateY(1px)' }}
-                />
-              ) : (
-                initials
-              )}
+            {/* Player circle (relative so the rating / goal badges can overlay it in match mode) */}
+            <div className="relative" style={{ width: photoSize, height: photoSize }}>
+              <div
+                className="rounded-full flex items-center justify-center font-bold cursor-pointer overflow-hidden w-full h-full"
+                style={{
+                  background: player
+                    ? `radial-gradient(circle, ${rarityColor}33 0%, #0F0F1A 100%)`
+                    : '#1A1A2A',
+                  border: isSelected ? '2px solid #FFF' : `2px solid ${player ? rarityColor : '#333'}`,
+                  boxShadow: isSelected
+                    ? '0 0 12px #FFF'
+                    : player && player.rarity === 'immortal'
+                      ? `0 0 12px ${rarityColor}88`
+                      : player ? `0 0 6px ${rarityColor}44` : 'none',
+                  fontSize: compact ? '10px' : '13px',
+                  color: isSelected ? '#FFF' : (player ? rarityColor : '#555'),
+                }}
+              >
+                {player && photoUrl ? (
+                  <img
+                    src={photoUrl}
+                    alt={player.shortName}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover rounded-full"
+                    style={{ objectPosition: 'center top', scale: '1.25', transform: 'translateY(1px)' }}
+                  />
+                ) : (
+                  initials
+                )}
+              </div>
+
+              {/* Match mode — rating badge over the bottom edge, goals/assists at the top-right */}
+              {ratingMode && player && (() => {
+                const rc = r !== undefined ? ratingColor(r) : '#8A8A9A';
+                return (
+                  <>
+                    <span
+                      className="absolute left-1/2 font-black leading-none rounded"
+                      style={{
+                        bottom: -6, transform: 'translateX(-50%)',
+                        fontSize: compact ? '7.5px' : '9px', padding: '1px 3px',
+                        color: rc, background: '#0b0b14', border: `1px solid ${rc}`,
+                        fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {r !== undefined ? r.toFixed(1) : '—'}
+                    </span>
+                    {(g > 0 || a > 0) && (
+                      <span
+                        className="absolute leading-none rounded-full"
+                        style={{
+                          top: -4, right: -4, fontSize: compact ? '7px' : '8px', padding: '0 2px',
+                          background: '#0b0b14', border: '1px solid #ffffff33', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {g > 0 ? `⚽${g > 1 ? g : ''}` : ''}{a > 0 ? `🅰${a > 1 ? a : ''}` : ''}
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
-            {/* Position badge */}
+            {/* Position badge — squad screens only (in a live match the position is obvious from the spot) */}
+            {!ratingMode && (
             <div
               className="text-center font-bold mt-0.5 flex flex-col items-center gap-0.5"
               style={{
@@ -240,6 +278,7 @@ export default function FormationField({
                 );
               })()}
             </div>
+            )}
 
             {/* Player name */}
             {player && (
@@ -249,44 +288,16 @@ export default function FormationField({
                   fontSize: compact ? '6px' : '7px',
                   color: '#CCC',
                   textShadow: '0 1px 3px rgba(0,0,0,0.9)',
-                  maxWidth: tokenSize + 16,
+                  maxWidth: ratingMode ? photoSize + 8 : photoSize + 18, // tighter in match mode → never overlaps a neighbour
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
+                  marginTop: ratingMode ? (compact ? 7 : 8) : 2, // clear the overlapping rating badge
                 }}
               >
                 {player.shortName}
               </div>
             )}
-
-            {/* Match mode: live rating pill + goal/assist markers · otherwise the chemistry dot */}
-            {player && ratingMode && (() => {
-              const r = ratings![player.id];
-              const g = goalsByPlayer?.[player.id] ?? 0;
-              const a = assistsByPlayer?.[player.id] ?? 0;
-              const rc = r !== undefined ? ratingColor(r) : '#8A8A9A';
-              return (
-                <div className="flex flex-col items-center mt-0.5 gap-0.5">
-                  <span
-                    className="font-black leading-none rounded px-1 py-0.5"
-                    style={{
-                      fontSize: compact ? '8px' : '10px',
-                      color: rc,
-                      background: `${rc}1f`,
-                      border: `1px solid ${rc}55`,
-                      fontFamily: 'Rajdhani, sans-serif',
-                    }}
-                  >
-                    {r !== undefined ? r.toFixed(1) : '—'}
-                  </span>
-                  {(g > 0 || a > 0) && (
-                    <span className="leading-none" style={{ fontSize: compact ? '7px' : '8px' }}>
-                      {g > 0 && `⚽${g > 1 ? g : ''}`}{a > 0 && ` 🅰${a > 1 ? a : ''}`}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
             {player && !ratingMode && (
               <div
                 className="w-1.5 h-1.5 rounded-full mt-0.5"
