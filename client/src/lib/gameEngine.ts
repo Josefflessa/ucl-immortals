@@ -184,8 +184,9 @@ export function calculateChemistry(
     const player = players[i];
     const formationRole = formationRoles?.[i];
 
-    // If we know the formation role, check if player fits it
-    const isOOP = formationRole ? !isPlayerInPosition(player, formationRole) : false;
+    // If we know the formation role, check if player fits it. 🃏 Coringa is NEVER out of position
+    // (no stat debuff, no chemistry loss) — so it's treated as in-position everywhere downstream.
+    const isOOP = player.coringa ? false : (formationRole ? !isPlayerInPosition(player, formationRole) : false);
     outOfPosition[player.id] = isOOP;
 
     // Out-of-position players are forced to chemistry=0
@@ -210,6 +211,9 @@ export function calculateChemistry(
       ) score += 2;
       // Historical partners
       else if (player.historicalPartners?.includes(other.id)) score += 1;
+      // 🌍 Nômade — a nation link with anyone they're NOT already connected to. Checked LAST so it
+      // never doubles a link nor downgrades a stronger one (e.g. a +2 shared-coach bond).
+      else if (player.nomade || other.nomade) score += 1;
     }
 
     // Coach bond
@@ -238,7 +242,12 @@ export function calculateChemistry(
   const coachFormBonus = (formationId && COACHES.find(c => c.id === coachId)?.preferredFormation === formationId)
     ? PREFERRED_FORMATION_CHEM_BONUS : 0;
 
-  const total = Math.min(100, Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus);
+  // 🧱 Pilar lifts the team's chemistry · 🐺 Lobo Solitário drains it (per such player in the XI).
+  const pilarBonus = players.filter(p => p.pilar).length * PILAR_CHEM_BONUS;
+  const loboPenalty = players.filter(p => p.lobo).length * LOBO_CHEM_PENALTY;
+
+  const total = Math.max(0, Math.min(100,
+    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty));
 
   return { individual, total, trios, outOfPosition };
 }
@@ -259,6 +268,7 @@ export function getChemistryLinks(players: (Player | undefined)[], coachId: stri
       else if (a.nation === b.nation) type = 'nation';
       else if (a.historicalCoaches?.includes(coachId) && b.historicalCoaches?.includes(coachId)) type = 'coach';
       else if (a.historicalPartners?.includes(b.id) || b.historicalPartners?.includes(a.id)) type = 'partner';
+      else if (a.nomade || b.nomade) type = 'nation'; // 🌍 Nômade — nation link only where none exists
       if (type) links.push({ aIndex: i, bIndex: j, type });
     }
   }
@@ -2030,36 +2040,61 @@ const DRAFT_OPTIONS_COUNT = 6;
 // Each card in the draft pool has a small chance to spawn as a boosted "in-form"
 // special, or to receive a wildcard extra trait. These ALWAYS clone the player
 // so the static PLAYERS pool is never mutated.
-const DRAFT_INFORM_CHANCE = 0.06;   // rare boosted card
+const DRAFT_INFORM_CHANCE = 0.06;   // ⚡ Em alta — rare boosted card
+// Extra special variants (mutually exclusive with each other and with "em alta"):
+const DRAFT_LOBO_CHANCE = 0.04;     // 🐺 Lobo Solitário
+const DRAFT_CORINGA_CHANCE = 0.04;  // 🃏 Coringa
+const DRAFT_NOMADE_CHANCE = 0.04;   // 🌍 Nômade
+const DRAFT_PILAR_CHANCE = 0.04;    // 🧱 Pilar
 // Single boost value: "em alta" adds this to EVERY attribute. The overall rises by the
 // same amount as a CONSEQUENCE — overall is the mean of the attributes, so +N across all
 // eight is +N overall. That's why it's described to the player simply as "+N em cada atributo".
 const INFORM_STAT_BOOST = 3;
+const LOBO_STAT_BOOST = 6;           // Lobo Solitário: a BIGGER personal boost (double the in-form)…
+export const LOBO_CHEM_PENALTY = 12; // …paid for with this much TEAM chemistry per lone wolf.
+export const PILAR_CHEM_BONUS = 12;  // Pilar: lifts the team's total chemistry by this much.
 
 function clampStat(v: number): number {
   return Math.max(1, Math.min(99, v));
 }
 
 function applyDraftVariant(p: Player): Player {
-  // In-form ("em alta"): rare boosted special — +N to every attribute (overall follows)
-  // AND a guaranteed extra trait (minimum 2), so it feels distinctly loaded.
-  if (Math.random() < DRAFT_INFORM_CHANCE) {
+  const r = Math.random();
+  let acc = DRAFT_INFORM_CHANCE;
+
+  // ⚡ Em alta: +N to every attribute (overall follows) AND a guaranteed extra trait.
+  if (r < acc) {
+    const b = INFORM_STAT_BOOST;
     return {
-      ...p,
-      inForm: true,
-      baseOverall: p.overall,
-      overall: clampStat(p.overall + INFORM_STAT_BOOST),
-      pace: clampStat(p.pace + INFORM_STAT_BOOST),
-      shooting: clampStat(p.shooting + INFORM_STAT_BOOST),
-      passing: clampStat(p.passing + INFORM_STAT_BOOST),
-      dribbling: clampStat(p.dribbling + INFORM_STAT_BOOST),
-      defending: clampStat(p.defending + INFORM_STAT_BOOST),
-      physical: clampStat(p.physical + INFORM_STAT_BOOST),
-      vision: clampStat(p.vision + INFORM_STAT_BOOST),
-      composure: clampStat(p.composure + INFORM_STAT_BOOST),
+      ...p, inForm: true, baseOverall: p.overall,
+      overall: clampStat(p.overall + b), pace: clampStat(p.pace + b), shooting: clampStat(p.shooting + b),
+      passing: clampStat(p.passing + b), dribbling: clampStat(p.dribbling + b), defending: clampStat(p.defending + b),
+      physical: clampStat(p.physical + b), vision: clampStat(p.vision + b), composure: clampStat(p.composure + b),
       traits: rollPlayerTraits(p.position, p.rarity, 2),
     };
   }
+
+  // 🐺 Lobo Solitário: a bigger personal boost than "em alta", but it drains the team's
+  // chemistry (applied in calculateChemistry). baseOverall stored for the "+N" display.
+  acc += DRAFT_LOBO_CHANCE;
+  if (r < acc) {
+    const b = LOBO_STAT_BOOST;
+    return {
+      ...p, lobo: true, baseOverall: p.overall,
+      overall: clampStat(p.overall + b), pace: clampStat(p.pace + b), shooting: clampStat(p.shooting + b),
+      passing: clampStat(p.passing + b), dribbling: clampStat(p.dribbling + b), defending: clampStat(p.defending + b),
+      physical: clampStat(p.physical + b), vision: clampStat(p.vision + b), composure: clampStat(p.composure + b),
+      traits: rollPlayerTraits(p.position, p.rarity, 2),
+    };
+  }
+
+  // 🃏 Coringa · 🌍 Nômade · 🧱 Pilar — pure flags (no stat change); their effect lives in calculateChemistry.
+  acc += DRAFT_CORINGA_CHANCE;
+  if (r < acc) return { ...p, coringa: true, traits: rollPlayerTraits(p.position, p.rarity) };
+  acc += DRAFT_NOMADE_CHANCE;
+  if (r < acc) return { ...p, nomade: true, traits: rollPlayerTraits(p.position, p.rarity) };
+  acc += DRAFT_PILAR_CHANCE;
+  if (r < acc) return { ...p, pilar: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };

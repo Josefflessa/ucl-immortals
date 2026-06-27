@@ -400,7 +400,9 @@ describe('balance — sistema de NOTAS dos jogadores (profissional)', () => {
   });
 
   it('as estatísticas por jogo continuam realistas', () => {
-    expect(p.perMatch.goals).toBeGreaterThan(2.5);
+    // Floor at 2.4: the elite gap-fill defenders (GK/CB 88+) pulled high-strength scoring down to
+    // ~2.6 goals/game — realistic for two ~90-rated sides, and clear of the ~2.5 sampling edge.
+    expect(p.perMatch.goals).toBeGreaterThan(2.4);
     expect(p.perMatch.goals).toBeLessThan(4.5);
     expect(p.perMatch.shots).toBeGreaterThan(16);
     expect(p.perMatch.shots).toBeLessThan(36);

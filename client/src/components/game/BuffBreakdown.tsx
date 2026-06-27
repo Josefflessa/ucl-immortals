@@ -6,9 +6,7 @@
 // the match engine actually uses.
 import { EffectiveStats, ChemLinkType } from '../../lib/gameEngine';
 import { Player } from '../../lib/gameData';
-
-// Reserved "em alta" green — matches the in-form card treatment in PlayerCard.
-const IN_FORM_GREEN = '#39FF14';
+import { getCardVariant } from './PlayerCard';
 
 const ATTR_PT: Record<string, string> = {
   pace: 'RIT', shooting: 'FIN', passing: 'PAS', dribbling: 'DRI', defending: 'DEF', physical: 'FIS',
@@ -64,14 +62,17 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
   const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
   const showChem = chemNet !== 0 || !!chem;
   const showTraits = (traits && traits.length > 0) || traitDeltas.length > 0;
-  // "Em alta" boost is baked into the player's BASE stats, so it never appears as a
-  // per-stat delta in the modal — surface it here, else the +3/+3 is invisible.
-  const inFormOverall = player?.inForm ? (player.baseOverall !== undefined ? player.overall - player.baseOverall : 3) : 0;
+  // Special draft variant (em alta / lobo / coringa / nômade / pilar) — surfaced here so its
+  // effect is visible. The stat boost (em alta / lobo) lives in the BASE stats, so it never
+  // shows as a per-stat delta below; the chem effects (coringa/nômade/pilar/lobo) live in the team total.
+  const variant = player ? getCardVariant(player) : null;
+  const variantBoost = player?.baseOverall !== undefined ? (player.overall - player.baseOverall) : (player?.inForm ? 3 : player?.lobo ? 6 : 0);
+  const variantColor = variant?.color === '#FFFFFF' ? '#E5E7EB' : (variant?.color ?? '#9AA8C8');
   // Named coach effects (e.g. "Visão de Jogo: +3 Geral") are ALREADY folded into the
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || !!player?.inForm;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || !!variant;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -88,15 +89,23 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
         </div>
       ) : (
         <div className="divide-y" style={{ borderColor: '#141422' }}>
-          {/* EM ALTA — boosted draft card. The boost lives in the base stats, so it is
-              shown explicitly here (otherwise it would be completely invisible). */}
-          {player?.inForm && (
-            <Row icon="⚡" name="EM ALTA (CARTA TURBINADA)" color={IN_FORM_GREEN}>
+          {/* SPECIAL DRAFT VARIANT — em alta / lobo / coringa / nômade / pilar. Stat boosts live in
+              the base stats and chem effects in the team total, so neither shows as a delta above. */}
+          {variant && player && (
+            <Row icon={variant.icon} name={`${variant.label} (CARTA ESPECIAL)`} color={variantColor}>
               <div className="flex flex-wrap gap-1">
-                <Chip text={`+${inFormOverall} EM CADA ATRIBUTO`} color={IN_FORM_GREEN} />
+                {variantBoost > 0 && <Chip text={`+${variantBoost} EM CADA ATRIBUTO`} color={variantColor} />}
+                {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
+                {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
+                {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
+                {player.nomade && <Chip text="QUALQUER NAÇÃO NA QUÍMICA" color={variantColor} />}
               </div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                Já no valor base — por isso não aparece como delta acima.
+                {player.coringa ? 'Joga em qualquer posição sem penalidade de stats nem química.'
+                  : player.nomade ? 'Forma vínculo de química com jogadores de qualquer nação.'
+                  : player.pilar ? 'Eleva a QUÍMICA GERAL do time (o número total) só por estar na escalação.'
+                  : player.lobo ? 'Boost individual forte — mas reduz a QUÍMICA GERAL do time (o número total).'
+                  : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
             </Row>
           )}

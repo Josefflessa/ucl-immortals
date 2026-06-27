@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, POS_PT } from '../../lib/gameData';
-import { calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, PREFERRED_FORMATION_CHEM_BONUS, captainBoostFromStarters } from '../../lib/gameEngine';
+import { calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel } from '../../lib/traits';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import PlayerCard, { buildSofifaUrl } from './PlayerCard';
@@ -111,6 +111,28 @@ export default function LeagueSquadTab() {
             ✓ Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do técnico ({coach.name})
           </div>
         )}
+        {/* Cartas especiais que mexem na QUÍMICA GERAL (total) do time — Pilar (+) e Lobo Solitário (−). */}
+        {(() => {
+          const pilars = xi.filter(p => p?.pilar);
+          const lobos = xi.filter(p => p?.lobo);
+          if (pilars.length === 0 && lobos.length === 0) return null;
+          return (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {pilars.map(p => (
+                <span key={p.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px]"
+                  style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'Rajdhani, sans-serif' }}>
+                  🧱 {p.shortName} <b>+{PILAR_CHEM_BONUS}</b> química geral
+                </span>
+              ))}
+              {lobos.map(p => (
+                <span key={p.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px]"
+                  style={{ background: '#EF444418', border: '1px solid #EF444440', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                  🐺 {p.shortName} <b>−{LOBO_CHEM_PENALTY}</b> química geral
+                </span>
+              ))}
+            </div>
+          );
+        })()}
         {activeTrios.length > 0 && (
           <div className="mt-3 text-xs" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
             ⭐ {activeTrios.map(t => t?.name).join(' · ')}

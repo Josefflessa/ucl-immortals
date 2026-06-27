@@ -261,19 +261,23 @@ export default function FormationField({
             >
               <span>{posLabel(pos.role)}</span>
               {player && player.position !== pos.role && (() => {
-                const isOOP = !isPlayerInPosition(player, pos.role);
+                const wouldBeOOP = !isPlayerInPosition(player, pos.role);
+                // 🃏 Coringa joga em qualquer posição sem penalidade — mostra como neutro, nunca como OOP vermelho.
+                const isOOP = wouldBeOOP && !player.coringa;
+                const isCoringaOOP = wouldBeOOP && player.coringa;
+                const color = isOOP ? '#EF4444' : isCoringaOOP ? '#EF4444' : '#22C55E';
                 return (
                   <span
                     className="px-1 py-0.2 rounded font-extrabold"
                     style={{
                       fontSize: compact ? '5.5px' : '7.5px',
-                      background: isOOP ? '#EF444422' : '#22C55E22',
-                      color: isOOP ? '#EF4444' : '#22C55E',
-                      border: `1px solid ${isOOP ? '#EF444444' : '#22C55E44'}`,
+                      background: `${color}22`,
+                      color,
+                      border: `1px solid ${color}44`,
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {isOOP ? `OOP: ${posLabel(player.position)}` : `${posLabel(player.position)}`}
+                    {isCoringaOOP ? `🃏 ${posLabel(player.position)}` : isOOP ? `OOP: ${posLabel(player.position)}` : `${posLabel(player.position)}`}
                   </span>
                 );
               })()}

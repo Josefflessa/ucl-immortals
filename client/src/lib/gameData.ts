@@ -30,7 +30,12 @@ export interface Player {
   // cards produced during the draft). See gameEngine.applyDraftVariant.
   rolledTrait?: string; // extra "wildcard" trait granted randomly in the draft
   inForm?: boolean;     // rare boosted "in-form" special card
-  baseOverall?: number; // original overall before the in-form boost (for display)
+  baseOverall?: number; // original overall before the in-form / lobo boost (for display)
+  // Special draft variants (rolled at draft time, mutually exclusive — see gameEngine.applyDraftVariant):
+  lobo?: boolean;       // 🐺 Lobo Solitário — big personal boost, but drains TEAM chemistry
+  coringa?: boolean;    // 🃏 Coringa — immune to the out-of-position penalty (stats & chemistry)
+  nomade?: boolean;     // 🌍 Nômade — counts as ANY nation for chemistry links
+  pilar?: boolean;      // 🧱 Pilar — lifts the whole team's chemistry just by being in the XI
 }
 
 export interface CoachBonus {
@@ -3875,22 +3880,23 @@ export const PLAYERS: Player[] = [
     pace: 58, shooting: 22, passing: 58, dribbling: 32, defending: 92, physical: 86,
     composure: 96, vision: 70,
     traits: [],
-    historicalPartners: ['lizarazu'],
+    historicalPartners: ['lahm'],
   },
   {
-    id: 'schmeichel', shortName: 'Schmeichel', fullName: 'Peter Schmeichel', position: 'GK',
-    nation: 'Dinamarca', club: 'Man United', season: '1998/99', rarity: 'legendary', overall: 89,
-    pace: 56, shooting: 25, passing: 55, dribbling: 30, defending: 91, physical: 88,
-    composure: 92, vision: 68,
+    id: 'de_gea', shortName: 'De Gea', fullName: 'David de Gea', position: 'GK',
+    nation: 'Espanha', club: 'Man United', season: '2017/18', rarity: 'legendary', overall: 89,
+    pace: 56, shooting: 20, passing: 60, dribbling: 36, defending: 90, physical: 80,
+    composure: 88, vision: 70,
     traits: [],
-    historicalPartners: ['keane', 'stam'],
+    historicalPartners: ['stam'],
   },
   {
-    id: 'zoff', shortName: 'Zoff', fullName: 'Dino Zoff', position: 'GK',
-    nation: 'Itália', club: 'Juventus', season: '1982/83', rarity: 'legendary', overall: 89,
-    pace: 50, shooting: 18, passing: 52, dribbling: 26, defending: 91, physical: 80,
-    composure: 97, vision: 66,
+    id: 'e_martinez', shortName: 'E. Martínez', fullName: 'Emiliano Martínez', position: 'GK',
+    nation: 'Argentina', club: 'Aston Villa', season: '2022/23', rarity: 'gold', overall: 87,
+    pace: 58, shooting: 22, passing: 58, dribbling: 38, defending: 88, physical: 84,
+    composure: 88, vision: 66,
     traits: [],
+    historicalPartners: ['messi'],
   },
   {
     id: 'keylor_navas', shortName: 'K. Navas', fullName: 'Keylor Navas', position: 'GK',
@@ -3907,27 +3913,28 @@ export const PLAYERS: Player[] = [
     traits: [],
   },
   {
-    id: 'beckenbauer', shortName: 'Beckenbauer', fullName: 'Franz Beckenbauer', position: 'CB', secondaryPositions: ['CDM'],
-    nation: 'Alemanha', club: 'Bayern Munich', season: '1971/72', rarity: 'legendary', overall: 93,
-    pace: 78, shooting: 60, passing: 85, dribbling: 80, defending: 90, physical: 82,
-    composure: 95, vision: 88,
+    id: 'pique', shortName: 'Piqué', fullName: 'Gerard Piqué', position: 'CB',
+    nation: 'Espanha', club: 'Barcelona', season: '2014/15', rarity: 'gold', overall: 88,
+    pace: 72, shooting: 55, passing: 78, dribbling: 70, defending: 88, physical: 82,
+    composure: 86, vision: 74,
     traits: [],
+    historicalPartners: ['puyol', 'busquets'],
   },
   {
-    id: 'baresi', shortName: 'Baresi', fullName: 'Franco Baresi', position: 'CB',
-    nation: 'Itália', club: 'Milan', season: '1988/89', rarity: 'legendary', overall: 91,
-    pace: 78, shooting: 45, passing: 75, dribbling: 68, defending: 92, physical: 82,
-    composure: 94, vision: 75,
+    id: 'hummels', shortName: 'Hummels', fullName: 'Mats Hummels', position: 'CB',
+    nation: 'Alemanha', club: 'Dortmund', season: '2013/14', rarity: 'gold', overall: 88,
+    pace: 74, shooting: 52, passing: 76, dribbling: 64, defending: 89, physical: 85,
+    composure: 86, vision: 70,
     traits: [],
-    historicalPartners: ['maldini'],
+    historicalPartners: ['kimmich'],
   },
   {
-    id: 'lizarazu', shortName: 'Lizarazu', fullName: 'Bixente Lizarazu', position: 'LB', secondaryPositions: ['LWB'],
-    nation: 'França', club: 'Bayern Munich', season: '2001/02', rarity: 'gold', overall: 88,
-    pace: 85, shooting: 55, passing: 78, dribbling: 78, defending: 86, physical: 80,
-    composure: 84, vision: 74,
+    id: 'jordi_alba', shortName: 'Jordi Alba', fullName: 'Jordi Alba Ramos', position: 'LB', secondaryPositions: ['LWB'],
+    nation: 'Espanha', club: 'Barcelona', season: '2014/15', rarity: 'gold', overall: 88,
+    pace: 90, shooting: 60, passing: 82, dribbling: 82, defending: 80, physical: 68,
+    composure: 82, vision: 80,
     traits: [],
-    historicalPartners: ['kahn'],
+    historicalPartners: ['messi', 'iniesta', 'busquets'],
   },
   {
     id: 'cafu', shortName: 'Cafu', fullName: 'Marcos Cafu', position: 'RB', secondaryPositions: ['RWB'],
@@ -3950,7 +3957,7 @@ export const PLAYERS: Player[] = [
     pace: 78, shooting: 45, passing: 62, dribbling: 58, defending: 89, physical: 88,
     composure: 86, vision: 60,
     traits: [],
-    historicalPartners: ['keane', 'schmeichel'],
+    historicalPartners: ['keane', 'de_gea'],
   },
   {
     id: 'thuram', shortName: 'Thuram', fullName: 'Lilian Thuram', position: 'CB', secondaryPositions: ['RB'],
