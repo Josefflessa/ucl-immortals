@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { GameProvider, useGame } from "./contexts/GameContext";
 import ErrorBoundary from "./components/ErrorBoundary";
+import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
 import SetupPage from "./pages/SetupPage";
 import CoachPage from "./pages/CoachPage";
@@ -41,6 +42,7 @@ function App() {
           <Toaster />
           <GameProvider>
             <GameRouter />
+            <InstallPrompt />
           </GameProvider>
         </TooltipProvider>
       </ThemeProvider>
