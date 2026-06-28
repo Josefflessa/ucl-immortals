@@ -3,7 +3,8 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gamepad2, Trophy, Plus, LogIn, LogOut, Swords, FlaskConical, Target, ListOrdered, BarChart3 } from 'lucide-react';
+import { Gamepad2, Trophy, Plus, LogIn, LogOut, Swords, FlaskConical, Target, ListOrdered, BarChart3, BookOpen } from 'lucide-react';
+import HowToPlayModal from '../components/game/HowToPlayModal';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
 
@@ -23,6 +24,7 @@ export default function MenuPage() {
   } = useGame();
 
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
+  const [showGuide, setShowGuide] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
 
@@ -253,7 +255,7 @@ export default function MenuPage() {
                 }}
               >
                 <span className="inline-flex items-center justify-center gap-2.5">
-                  <Gamepad2 size={22} strokeWidth={2.5} /> JOGAR SOLO (CARREIRA)
+                  <Gamepad2 size={22} strokeWidth={2.5} /> JOGAR SOLO
                 </span>
               </button>
 
@@ -269,6 +271,21 @@ export default function MenuPage() {
               >
                 <span className="inline-flex items-center justify-center gap-2.5">
                   <Trophy size={22} strokeWidth={2.5} /> MULTIPLAYER ONLINE
+                </span>
+              </button>
+
+              <button
+                onClick={() => setShowGuide(true)}
+                className="py-3 rounded-xl font-black text-sm tracking-widest uppercase transition-all hover:scale-[1.02]"
+                style={{
+                  fontFamily: 'Rajdhani, sans-serif',
+                  background: '#0F0F1A',
+                  color: '#9AA8C8',
+                  border: '1px solid #2A2A3A',
+                }}
+              >
+                <span className="inline-flex items-center justify-center gap-2">
+                  <BookOpen size={16} strokeWidth={2.5} /> COMO JOGAR
                 </span>
               </button>
             </motion.div>
@@ -484,6 +501,8 @@ export default function MenuPage() {
           Sem cadastro · Sem login · Cada sessão começa do zero
         </motion.p>
       </div>
+
+      <HowToPlayModal open={showGuide} onClose={() => setShowGuide(false)} />
     </div>
   );
 }

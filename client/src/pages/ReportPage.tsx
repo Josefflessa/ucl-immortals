@@ -5,11 +5,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
-import { FORMATIONS, getRarityColor, getRarityGlow, POS_PT } from '../lib/gameData';
+import { FORMATIONS, COACHES, getTacticById, getRarityColor, getRarityGlow, POS_PT } from '../lib/gameData';
 import {
   calculateChemistry,
   getAllPlayedMatchResults,
   getPlayerSeasonStats,
+  getPlayerEffectiveStats,
 } from '../lib/gameEngine';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
@@ -173,6 +174,27 @@ export default function ReportPage() {
   }, []);
 
   const starters = playerTeam?.players.slice(0, 11) ?? [];
+
+  // ── Extra campaign metrics ────────────────────────────────────────────────
+  const games = playerResults.length;
+  const goalDiff = totalGoals - goalsAgainst;
+  const aproveitamento = games > 0 ? Math.round(((wins * 3 + draws) / (games * 3)) * 100) : 0;
+  const cleanSheets = playerResults.filter((r: any) => (r.homeTeamId === localTeamId ? r.awayGoals : r.homeGoals) === 0).length;
+  const biggestWin = useMemo(() => {
+    const margins = playerResults
+      .filter((r: any) => r.winner === localTeamId)
+      .map((r: any) => {
+        const gf = r.homeTeamId === localTeamId ? r.homeGoals : r.awayGoals;
+        const ga = r.homeTeamId === localTeamId ? r.awayGoals : r.homeGoals;
+        return { gf, ga, m: gf - ga };
+      });
+    return margins.sort((a: any, b: any) => b.m - a.m)[0] ?? null;
+  }, [playerResults, localTeamId]);
+  const coach = COACHES.find(c => c.id === playerTeam?.coachId);
+  const tacticName = getTacticById(playerTeam?.playStyle).name;
+  const teamOverall = (playerTeam && chemData && starters.length === 11)
+    ? Math.round(starters.reduce((s, p) => s + getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, playerTeam.coachId, chemData.total, playerTeam.playStyle).overall, 0) / 11)
+    : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -408,6 +430,49 @@ export default function ReportPage() {
                 <div key={s.label} className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
                   <span className="text-xs font-bold" style={{ color: s.color, fontFamily: 'Rajdhani, sans-serif' }}>{s.label}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Ficha da campanha — team meta + advanced stats */}
+        {phase >= 3 && playerTeam && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="rounded-xl overflow-hidden"
+            style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
+          >
+            <div className="px-5 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
+              <span className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>FICHA DA CAMPANHA</span>
+            </div>
+            {/* Team identity */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0" style={{ borderColor: '#1A1A2A' }}>
+              {[
+                { l: 'TÉCNICO', v: coach?.name ?? '—', c: '#A78BFA' },
+                { l: 'FORMAÇÃO', v: playerTeam.formationId, c: '#fff' },
+                { l: 'TÁTICA', v: tacticName, c: '#4FC3F7' },
+                { l: 'OVERALL', v: teamOverall != null ? `${teamOverall}` : '—', c: '#E8C84A' },
+              ].map(m => (
+                <div key={m.l} className="px-4 py-3" style={{ borderColor: '#1A1A2A' }}>
+                  <div className="text-[9px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{m.l}</div>
+                  <div className="text-sm font-black truncate mt-0.5" style={{ color: m.c, fontFamily: 'Rajdhani, sans-serif' }}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+            {/* Advanced stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 border-t" style={{ borderColor: '#1A1A2A' }}>
+              {[
+                { l: 'SALDO DE GOLS', v: `${goalDiff > 0 ? '+' : ''}${goalDiff}`, c: goalDiff >= 0 ? '#22C55E' : '#EF4444' },
+                { l: 'APROVEITAMENTO', v: `${aproveitamento}%`, c: '#22C55E' },
+                { l: 'JOGOS S/ SOFRER', v: `${cleanSheets}`, c: '#3B82F6' },
+                { l: 'MAIOR VITÓRIA', v: biggestWin ? `${biggestWin.gf}–${biggestWin.ga}` : '—', c: '#C9A84C' },
+              ].map(m => (
+                <div key={m.l} className="px-4 py-3 border-r" style={{ borderColor: '#1A1A2A' }}>
+                  <div className="text-lg font-black leading-none" style={{ color: m.c, fontFamily: 'Bebas Neue, sans-serif' }}>{m.v}</div>
+                  <div className="text-[9px] font-bold tracking-widest mt-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{m.l}</div>
                 </div>
               ))}
             </div>
