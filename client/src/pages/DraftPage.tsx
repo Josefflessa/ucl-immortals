@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useGame } from '../contexts/GameContext';
-import PlayerCard from '../components/game/PlayerCard';
+import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 import FormationField from '../components/game/FormationField';
 import { Ban } from 'lucide-react';
 import { FORMATIONS, COACHES, Player, POS_PT } from '../lib/gameData';
@@ -306,15 +306,24 @@ export default function DraftPage() {
         </div>
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
           {[...state.draftHistory].reverse().map((pick, idx) => (
-            <div 
+            <div
               key={idx}
-              className="flex items-center justify-between p-2 rounded bg-[#08080f] border border-[#171725] text-xs"
+              className="flex items-center gap-2.5 p-2 rounded bg-[#08080f] border border-[#171725] text-xs"
             >
+              {/* Player photo (older picks may lack playerId → fallback to a ball glyph) */}
+              <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d]" style={{ border: '1px solid #2A2A3A' }}>
+                {(() => {
+                  const photo = pick.playerId ? buildSofifaUrl(pick.playerId, 120) : null;
+                  return photo
+                    ? <img src={photo} alt={pick.playerName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} referrerPolicy="no-referrer" />
+                    : <span className="text-sm">⚽</span>;
+                })()}
+              </div>
               <div className="min-w-0 flex-1">
                 <span className="text-[#C9A84C] font-bold block truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {pick.teamName}
                 </span>
-                <span className="text-white font-extrabold" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-white font-extrabold block truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {pick.playerName}
                 </span>
               </div>

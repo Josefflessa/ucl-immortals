@@ -225,9 +225,9 @@ export default function ShopTab() {
                         {team.players.map(p => {
                           const c = trainCost(p.trainCount ?? 0);
                           return (
-                            <button key={p.id} onClick={() => setSelPlayerId(p.id)} className="relative transition-transform hover:scale-[1.05]">
+                            <button key={p.id} onClick={() => setSelPlayerId(p.id)} className="flex flex-col items-center gap-1 transition-transform hover:scale-[1.05]">
                               <PlayerCard player={p} compact />
-                              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-black px-1 rounded" style={{ background: '#34D39922', color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>💰{c}</span>
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#34D39922', color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>💰 {c}</span>
                             </button>
                           );
                         })}

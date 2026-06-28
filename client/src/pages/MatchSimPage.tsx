@@ -9,7 +9,7 @@ import {
   getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
   getPenaltyTaker, getPenaltyOrder, setStatIds, statKey,
-  teamPlaymaking, midfieldBuildUpEdge, getFreeKickTaker, getHeaderTarget, resolveOpenPlayChance, buildKeyMinutes,
+  teamPlaymaking, midfieldBuildUpEdge, getFreeKickTaker, getHeaderTarget, resolveOpenPlayChance, buildKeyMinutes, penaltyGoalChance,
   formationProfile, tacticProfile, MATCH_NOISE, HOME_ADVANTAGE, FORMATION_COUNTER_BONUS, captainBestStat, CAPTAIN_BOOST,
 } from '../lib/gameEngine';
 
@@ -387,7 +387,13 @@ export default function MatchSimPage() {
         messageStage3 = `⚽ GOLAÇO DO ${attackTeam.name.toUpperCase()}! Que míssil de ${attacker.shortName}! ${newHG}-${newAG}`;
       } else if (randLuck < 0.86) {
         const taker = getPenaltyTaker(attackTeam);
-        const isPenaltyGoal = Math.random() < 0.76;
+        // Same model as the engine/shootout: taker's EFFECTIVE composure (+ traits + designated
+        // bonus) vs the keeper's EFFECTIVE shot-stopping — never a flat rate.
+        const penComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)
+          + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
+        const penGkRef = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle ?? 'balanced', defendCtx)
+          + getGoalkeeperTraitBonus(gk.traits);
+        const isPenaltyGoal = Math.random() < penaltyGoalChance(penComp, penGkRef);
         if (isPenaltyGoal) {
           isGoal = true;
           if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
@@ -469,7 +475,7 @@ export default function MatchSimPage() {
       const buildUp = midfieldBuildUpEdge(teamPlaymaking(attackTeam), teamPlaymaking(defendTeam), attackTeam.playStyle ?? 'balanced') + formMod;
       const chance = resolveOpenPlayChance({
         atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
-        gkRating: gk.defending + getGoalkeeperTraitBonus(gk.traits), approach,
+        gkRating: getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle ?? 'balanced', defendCtx) + getGoalkeeperTraitBonus(gk.traits), approach,
       });
 
       if (chance.outcome !== 'duel') {
@@ -599,7 +605,8 @@ export default function MatchSimPage() {
     const taker = getFreeKickTaker(attackTeam);
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
     const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-    const skill = (takerShoot + taker.composure) / 2;
+    const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
+    const skill = (takerShoot + takerComp) / 2;
     const goalChance = Math.max(0.015, Math.min(0.11, (skill - 80) / 140));
     const r = Math.random();
 
@@ -664,7 +671,8 @@ export default function MatchSimPage() {
 
     const header = getHeaderTarget(attackTeam);
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
-    const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx) + header.physical) / 2;
+    const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)
+      + getEffectiveAttribute(header, 'physical', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)) / 2;
     const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
     const r = Math.random();
 
@@ -1264,11 +1272,15 @@ export default function MatchSimPage() {
     const taker = order[takerIdx % order.length];
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
 
-    const composure = taker.composure + getPenaltyComposureBonus(taker.traits);
-    const gkReflexes = gk.defending + getGoalkeeperTraitBonus(gk.traits);
-
-    const goalChance = composure / (composure + gkReflexes * 0.45);
-    const isGoal = Math.random() < goalChance;
+    const attackCoach = COACHES.find(c => c.id === attackTeam.coachId)!;
+    const defendCoach = COACHES.find(c => c.id === defendTeam.coachId)!;
+    // Same model as the engine/auto shootout: EFFECTIVE composure (+ traits + designated bonus)
+    // vs the keeper's EFFECTIVE shot-stopping.
+    const composure = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', getChemistryBonus(attackTeam.totalChemistry), attackTeam.playStyle ?? 'balanced')
+      + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
+    const gkReflexes = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', getChemistryBonus(defendTeam.totalChemistry), defendTeam.playStyle ?? 'balanced')
+      + getGoalkeeperTraitBonus(gk.traits);
+    const isGoal = Math.random() < penaltyGoalChance(composure, gkReflexes);
 
     let desc = "";
     if (isGoal) {

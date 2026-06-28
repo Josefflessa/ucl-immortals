@@ -633,7 +633,15 @@ export function teamPlaymaking(team: Team): number {
   const mids = xi.filter(p => ['CM', 'CAM', 'CDM', 'LM', 'RM'].includes(p.position));
   const pool = mids.length > 0 ? mids : xi;
   if (pool.length === 0) return 70;
-  return pool.reduce((s, p) => s + p.passing * 0.65 + p.vision * 0.35, 0) / pool.length;
+  // EFFECTIVE passing/vision (coach, chemistry, traits, training, captain, tactic) — so a buffed
+  // midfield really does create better chances, matching the attributes the duels already use.
+  const coach = COACHES.find(c => c.id === team.coachId)!;
+  const chemBonus = getChemistryBonus(team.totalChemistry);
+  const capStat = captainBestStat(team);
+  const captainBoost = capStat ? { stat: capStat as string, amount: CAPTAIN_BOOST } : undefined;
+  const eff = (p: PlayerCard, attr: 'passing' | 'vision') =>
+    getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, team.playStyle ?? 'balanced', { captainBoost });
+  return pool.reduce((s, p) => s + eff(p as PlayerCard, 'passing') * 0.65 + eff(p as PlayerCard, 'vision') * 0.35, 0) / pool.length;
 }
 
 // Build-up edge added to the attacker's chance-creation score: midfield-control gap
@@ -772,7 +780,7 @@ export function getEffectiveAttribute(
 //  - GK_SAVE_EDGE: extra edge for the keeper in the shot-vs-keeper duel.
 //  - ON_TARGET_RESISTANCE: higher = fewer shots on target (denominator of the
 //    accuracy curve atkShooting/(atkShooting + resistance)). Both raise = fewer goals.
-export const GK_SAVE_EDGE = 11;
+export const GK_SAVE_EDGE = 7;
 export const ON_TARGET_RESISTANCE = 48;
 // Per-minute randomness in deciding which team attacks. Lower = team strength
 // matters more. Tuned to 20 via the harness: favorites clearly win more (champion
@@ -1137,7 +1145,8 @@ export function runMatchSimulation(
         const fkGk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
         const taker = getFreeKickTaker(attackTeam);
         const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-        const goalChance = freeKickGoalChance(takerShoot, taker.composure);
+        const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
+        const goalChance = freeKickGoalChance(takerShoot, takerComp);
         const r = Math.random();
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
 
@@ -1192,7 +1201,8 @@ export function runMatchSimulation(
           dangerCount++;
           const cgk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
           const header = getHeaderTarget(attackTeam);
-          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx) + header.physical) / 2;
+          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)
+            + getEffectiveAttribute(header, 'physical', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)) / 2;
           const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
           const r2 = Math.random();
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
@@ -1329,7 +1339,14 @@ export function runMatchSimulation(
             || takers[0]
             || attackTeam.players[0];
           if (!taker) continue; // degenerate: team has no players at all — skip this minute
-          const isPenGoal = Math.random() < 0.76;
+          // Conversion follows the SAME model as the shootout (penaltyGoalChance): the taker's
+          // EFFECTIVE composure (+ penalty traits + designated bonus) vs the keeper's EFFECTIVE
+          // shot-stopping — never a flat rate, so buffs and a strong/weak keeper actually matter.
+          const penComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle, attackCtx)
+            + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
+          const penGkRef = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defendCtx)
+            + getGoalkeeperTraitBonus(gk.traits);
+          const isPenGoal = Math.random() < penaltyGoalChance(penComp, penGkRef);
           if (isPenGoal) {
             if (homeAttacks) homeGoals++; else awayGoals++;
             if (playerStats[taker.statId!]) { playerStats[taker.statId!].goals++; playerStats[taker.statId!].rating += 1.0; }
@@ -1409,7 +1426,7 @@ export function runMatchSimulation(
         const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, attackTeam.playStyle) + formMod;
         const chance = resolveOpenPlayChance({
           atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
-          gkRating: gk.defending + getGoalkeeperTraitBonus(gk.traits), approach,
+          gkRating: getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defendCtx) + getGoalkeeperTraitBonus(gk.traits), approach,
         });
 
         if (chance.outcome !== 'duel') {
@@ -1961,11 +1978,14 @@ export function getPenaltyOrder(team: Team): PlayerCard[] {
   return [...ordered, ...keepers];
 }
 
-// Resolves a single penalty kick: taker composure (+ frieza traits, + designated
-// bonus) vs the keeper's shot-stopping (+ Reflexo Felino). Returns whether it went in.
-function penaltyKickGoal(taker: PlayerCard, gk: PlayerCard, designatedTakerId: string): boolean {
-  const comp = taker.composure + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
-  const gkRef = gk.defending + getGoalkeeperTraitBonus(gk.traits);
+// Resolves a single penalty kick: taker EFFECTIVE composure (+ frieza traits, + designated
+// bonus) vs the keeper's EFFECTIVE shot-stopping (+ Reflexo Felino). Returns whether it went in.
+type PenCtx = { coach: Coach; chem: { passing: number; pace: number; special: boolean }; playStyle: string };
+function penaltyKickGoal(taker: PlayerCard, takerCtx: PenCtx, gk: PlayerCard, gkCtx: PenCtx, designatedTakerId: string): boolean {
+  const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle)
+    + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
+  const gkRef = getEffectiveAttribute(gk, 'defending', gkCtx.coach, 'Defesa', gkCtx.chem, gkCtx.playStyle)
+    + getGoalkeeperTraitBonus(gk.traits);
   return Math.random() < penaltyGoalChance(comp, gkRef);
 }
 
@@ -1985,6 +2005,9 @@ export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<
   const awayGK = away.players.find(p => p.position === 'GK') || away.players[0];
   const homeTakerId = getPenaltyTaker(home).id;
   const awayTakerId = getPenaltyTaker(away).id;
+  // Per-team context so each kick uses EFFECTIVE composure/defending (coach, chemistry, traits…).
+  const homeCtx: PenCtx = { coach: COACHES.find(c => c.id === home.coachId)!, chem: getChemistryBonus(home.totalChemistry), playStyle: home.playStyle ?? 'balanced' };
+  const awayCtx: PenCtx = { coach: COACHES.find(c => c.id === away.coachId)!, chem: getChemistryBonus(away.totalChemistry), playStyle: away.playStyle ?? 'balanced' };
 
   // Best-of-5, kick by kick, stopping as soon as the result is mathematically
   // decided (as in a real shootout — no pointless extra kicks).
@@ -1997,14 +2020,14 @@ export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<
 
   for (let i = 0; i < 5 && !decided; i++) {
     const homeTaker = homeTakers[homeKicks % homeTakers.length];
-    const homeGoal = penaltyKickGoal(homeTaker, awayGK, homeTakerId);
+    const homeGoal = penaltyKickGoal(homeTaker, homeCtx, awayGK, awayCtx, homeTakerId);
     if (homeGoal) homeScore++;
     homeKicks++;
     kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoal });
     if (clinched()) { decided = true; break; }
 
     const awayTaker = awayTakers[awayKicks % awayTakers.length];
-    const awayGoal = penaltyKickGoal(awayTaker, homeGK, awayTakerId);
+    const awayGoal = penaltyKickGoal(awayTaker, awayCtx, homeGK, homeCtx, awayTakerId);
     if (awayGoal) awayScore++;
     awayKicks++;
     kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoal });
@@ -2017,8 +2040,8 @@ export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<
       const homeTaker = homeTakers[(5 + sd) % homeTakers.length];
       const awayTaker = awayTakers[(5 + sd) % awayTakers.length];
 
-      const homeGoalSD = penaltyKickGoal(homeTaker, awayGK, homeTakerId);
-      const awayGoalSD = penaltyKickGoal(awayTaker, homeGK, awayTakerId);
+      const homeGoalSD = penaltyKickGoal(homeTaker, homeCtx, awayGK, awayCtx, homeTakerId);
+      const awayGoalSD = penaltyKickGoal(awayTaker, awayCtx, homeGK, homeCtx, awayTakerId);
 
       kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoalSD });
       kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoalSD });

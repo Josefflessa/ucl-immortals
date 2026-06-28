@@ -73,6 +73,7 @@ interface RoomState {
       round: number;
       teamName: string;
       playerName: string;
+      playerId: string;
       position: string;
       overall: number;
     }[];
@@ -188,6 +189,7 @@ function applyDraftPick(room: RoomState, activePlayer: RoomPlayer, chosenPlayer:
     round: currentRound,
     teamName: activePlayer.name,
     playerName: chosenPlayer.shortName,
+    playerId: chosenPlayer.id,
     position: chosenPlayer.position,
     overall: chosenPlayer.overall,
   });
@@ -640,6 +642,34 @@ export function registerSocketHandlers(io: Server) {
         }
       }
       socket.emit("room_updated", room); // only this player's own lineup changed
+    });
+
+    // Swap two players in this player's squad (bench ↔ starter, or reorder the XI). Mirrors the
+    // solo SWAP_PLAYER_TEAM: recompute chemistry/OOP and drop captain/taker roles that fell out
+    // of the XI, so the authoritative simulation uses the new lineup.
+    socket.on("swap_player_team", ({ roomCode, indexA, indexB }: { roomCode: string; indexA: number; indexB: number }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const players = [...player.team.players];
+      if (indexA < 0 || indexB < 0 || indexA >= players.length || indexB >= players.length || indexA === indexB) return;
+      const tmp = players[indexA]; players[indexA] = players[indexB]; players[indexB] = tmp;
+
+      const starters = players.slice(0, 11);
+      let captain = player.team.captain;
+      let penaltyTaker = player.team.penaltyTaker;
+      let freeKickTaker = player.team.freeKickTaker;
+      if (captain && !starters.some(p => p.id === captain)) captain = undefined;
+      if (penaltyTaker && !starters.some(p => p.id === penaltyTaker)) penaltyTaker = undefined;
+      if (freeKickTaker && !starters.some(p => p.id === freeKickTaker)) freeKickTaker = undefined;
+
+      player.team = rebuildTeamChemistry({ ...player.team, players, captain, penaltyTaker, freeKickTaker });
+      // Keep the RoomPlayer role fields in sync (they seed future set_match_roles / rebuilds).
+      player.captain = captain ?? null;
+      player.penaltyTaker = penaltyTaker ?? null;
+      player.freeKickTaker = freeKickTaker ?? null;
+      socket.emit("room_updated", room); // only this player's own team changed
     });
 
     // ============================================================

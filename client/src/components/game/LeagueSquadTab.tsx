@@ -5,7 +5,7 @@ import { useGame } from '../../contexts/GameContext';
 import SquadEditor from './SquadEditor';
 
 export default function LeagueSquadTab() {
-  const { state, dispatch, setMatchRolesOnline } = useGame();
+  const { state, dispatch, setMatchRolesOnline, swapPlayerTeamOnline } = useGame();
   const team = state.playerTeam;
   if (!team) return null;
   const online = state.mode === 'online';
@@ -37,7 +37,9 @@ export default function LeagueSquadTab() {
       onSetFreeKickTaker={(id) => online
         ? setMatchRolesOnline(cap, pen, id)
         : dispatch({ type: 'SET_PLAYER_TEAM_FREE_KICK_TAKER', playerId: id })}
-      onSwap={(a, b) => dispatch({ type: 'SWAP_PLAYER_TEAM', indexA: a, indexB: b })}
+      onSwap={(a, b) => online
+        ? swapPlayerTeamOnline(a, b)
+        : dispatch({ type: 'SWAP_PLAYER_TEAM', indexA: a, indexB: b })}
     />
   );
 }

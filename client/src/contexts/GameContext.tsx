@@ -1014,6 +1014,7 @@ interface GameContextType {
   shopBuyPlayerOnline: (player: Player, kind: 'star' | 'scout') => void;
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
+  swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   pickReinforcementOnline: (player: Player) => void;
   dismissReinforcementOnline: () => void;
 }
@@ -1201,6 +1202,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopTrainOnline = useCallback((playerId: string, attr: TrainAttr) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_train", { roomCode: state.roomCode, playerId, attr });
   }, [state.roomCode]);
+  const swapPlayerTeamOnline = useCallback((indexA: number, indexB: number) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("swap_player_team", { roomCode: state.roomCode, indexA, indexB });
+  }, [state.roomCode]);
   const pickReinforcementOnline = useCallback((player: Player) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("pick_reinforcement", { roomCode: state.roomCode, player });
   }, [state.roomCode]);
@@ -1258,7 +1262,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopTrainOnline,
-    pickReinforcementOnline, dismissReinforcementOnline,
+    swapPlayerTeamOnline, pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state, dispatch]);
 
