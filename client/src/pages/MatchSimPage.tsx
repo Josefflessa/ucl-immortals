@@ -1521,6 +1521,16 @@ export default function MatchSimPage() {
     }
   };
 
+  // Spectators (watching someone else's tie) can bail out at any moment — they aren't forced to
+  // watch the whole match. Returns to the bracket; never notifies the advance-gate, never alters
+  // any result (the tie is server-authoritative).
+  const handleExitSpectator = () => {
+    dispatch({
+      type: 'FINISH_KNOCKOUT_MATCH',
+      result: replayResult ?? { homeTeamId: homeTeam.id, awayTeamId: awayTeam.id, homeGoals: homeScore, awayGoals: awayScore, events, winner: null, stats: getProgressiveStats() },
+    });
+  };
+
   // Helper helper to get progressive stats with ball possession
   const getProgressiveStats = () => {
     const getMidfielderPassing = (t: Team) => {
@@ -1772,6 +1782,22 @@ export default function MatchSimPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Spectator bar: watching someone else's tie → leave whenever you want ── */}
+      {state.spectating && (
+        <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 relative z-20" style={{ background: '#0c0c16', borderBottom: '1px solid #171725' }}>
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
+            👁️ Assistindo como espectador
+          </span>
+          <button
+            onClick={handleExitSpectator}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black tracking-wider transition-all active:scale-95"
+            style={{ fontFamily: 'Rajdhani, sans-serif', background: '#1a1a2e', border: '1px solid #2A2A3A', color: '#CFCFE0' }}
+          >
+            ✕ SAIR DO JOGO
+          </button>
+        </div>
+      )}
 
       {/* ── 2. SCOREBOARD HEADER ── */}
       <div className="flex-shrink-0 border-b relative z-10" style={{ background: '#0b0b14', borderColor: '#171725' }}>

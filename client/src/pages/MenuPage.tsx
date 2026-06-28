@@ -1,9 +1,9 @@
 // UCL Immortals — Menu Page
 // Design: Dark Premium Gaming UI — hero with stadium background, gold accents
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gamepad2, Trophy, Plus, LogIn, Wifi, LogOut, Swords, FlaskConical, Target, ListOrdered, BarChart3 } from 'lucide-react';
+import { Gamepad2, Trophy, Plus, LogIn, LogOut, Swords, FlaskConical, Target, ListOrdered, BarChart3 } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
 
@@ -25,15 +25,6 @@ export default function MenuPage() {
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
-  const [serverIp, setServerIp] = useState<string | null>(null);
-
-  // Fetch local server IP for mobile convenience
-  useEffect(() => {
-    fetch('/api/server-info')
-      .then(res => res.json())
-      .then(data => setServerIp(data.ip))
-      .catch(() => {});
-  }, []);
 
   const handlePlaySolo = () => {
     if (!playerName.trim()) return;
@@ -390,15 +381,6 @@ export default function MenuPage() {
                   </span>
                 </button>
               </div>
-
-              {serverIp && (
-                <div className="p-3 rounded-lg border text-center text-[10px] text-gray-400 mt-2" style={{ background: '#0C0C16', borderColor: '#1F1F35', fontFamily: 'Rajdhani, sans-serif' }}>
-                  <span className="inline-flex items-center gap-1.5"><Wifi size={12} /> Celular no mesmo Wi-Fi? Conecte em:</span>
-                  <div className="font-bold text-[#C9A84C] text-sm mt-1 select-all">
-                    http://{serverIp}:3000
-                  </div>
-                </div>
-              )}
 
               <button
                 onClick={() => setMenuMode('selection')}

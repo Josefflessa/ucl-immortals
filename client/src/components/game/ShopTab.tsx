@@ -221,13 +221,13 @@ export default function ShopTab() {
                   !selPlayer ? (
                     <div>
                       <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o jogador para treinar:</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
                         {team.players.map(p => {
                           const c = trainCost(p.trainCount ?? 0);
                           return (
-                            <button key={p.id} onClick={() => setSelPlayerId(p.id)} className="flex flex-col items-center gap-1 transition-transform hover:scale-[1.05]">
+                            <button key={p.id} onClick={() => setSelPlayerId(p.id)} className="flex flex-col items-center gap-1.5 transition-transform hover:scale-[1.05]">
                               <PlayerCard player={p} compact />
-                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#34D39922', color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>💰 {c}</span>
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#34D39922', color: '#34D399', border: '1px solid #34D39944', fontFamily: 'Rajdhani, sans-serif' }}>💰 {c}</span>
                             </button>
                           );
                         })}

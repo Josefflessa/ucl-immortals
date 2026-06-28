@@ -2643,7 +2643,7 @@ export const PLAYERS: Player[] = [
     pace: 90, shooting: 82, passing: 87, dribbling: 94, defending: 38, physical: 66,
     composure: 88, vision: 89,
     traits: [],
-    historicalCoaches: ['guardiola'],
+    historicalCoaches: [],
     historicalPartners: ['pele', 'socrates'],
   },
   {

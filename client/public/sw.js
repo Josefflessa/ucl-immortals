@@ -3,7 +3,7 @@
 // Deliberately conservative: it only ever touches same-origin GET navigations (the HTML shell),
 // always trying the NETWORK FIRST so online users get fresh, hashed assets. Everything else —
 // API calls, socket.io/websockets, cross-origin fonts/images — is left completely untouched.
-const CACHE = 'ucl-shell-v1';
+const CACHE = 'ucl-shell-v2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
