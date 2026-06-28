@@ -8,6 +8,7 @@ import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
 import LeagueSquadTab from '../components/game/LeagueSquadTab';
+import ShopTab from '../components/game/ShopTab';
 import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
 import BracketTab from '../components/game/BracketTab';
 import PlayerAvatar from '../components/game/PlayerAvatar';
@@ -18,7 +19,8 @@ const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEC
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline } = useGame();
+  const online = state.mode === 'online';
 
   const handleLeaveRoom = () => {
     if (window.confirm('Sair da sala? Você deixará o torneio online. Para voltar, é só entrar de novo com o mesmo código e nome enquanto a sala existir.')) {
@@ -27,7 +29,7 @@ export default function LeaguePage() {
   };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
-  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers'>('fixtures');
+  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
 
   // This page is the season HUB for BOTH phases: league (rounds + standings) and
@@ -347,6 +349,7 @@ export default function LeaguePage() {
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'MEUS JOGOS' },
+                { id: 'shop', label: `🛒 LOJA · 💰${state.points}` },
               ]
             : [
                 { id: 'fixtures', label: `RODADA ${leagueRound}` },
@@ -354,6 +357,7 @@ export default function LeaguePage() {
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'MEUS JOGOS' },
+                { id: 'shop', label: `🛒 LOJA · 💰${state.points}` },
               ]
           ).map(tab => (
             <button
@@ -829,6 +833,8 @@ export default function LeaguePage() {
         {/* Gestão do time */}
         {activeTab === 'squad' && <LeagueSquadTab />}
 
+        {activeTab === 'shop' && <ShopTab />}
+
         {/* Results */}
         {activeTab === 'results' && (
           <motion.div
@@ -932,13 +938,33 @@ export default function LeaguePage() {
                 </div>
               </div>
 
+              {/* Points earned this match */}
+              {state.lastMatchPoints && (
+                <div className="mx-4 sm:mx-6 mt-4 rounded-xl px-4 py-3 flex items-center justify-between flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg,#0d1a10,#0B0B14)', border: '1px solid #34D39955' }}>
+                  <div>
+                    <div className="text-[11px] font-black tracking-widest" style={{ color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>
+                      💰 PONTOS DA PARTIDA
+                    </div>
+                    <div className="text-[10px] mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                      {state.lastMatchPoints.outcome === 'win' ? 'Vitória' : state.lastMatchPoints.outcome === 'draw' ? 'Empate' : 'Derrota'} +{state.lastMatchPoints.base}
+                      {state.lastMatchPoints.gdBonus > 0 && ` · saldo +${state.lastMatchPoints.gdBonus}`}
+                      {state.lastMatchPoints.goalsBonus > 0 && ` · gols +${state.lastMatchPoints.goalsBonus}`}
+                      {state.lastMatchPoints.csBonus > 0 && ` · sem sofrer +${state.lastMatchPoints.csBonus}`}
+                      {` · use na aba 🛒 LOJA`}
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#34D399' }}>+{state.lastMatchPoints.total}</div>
+                </div>
+              )}
+
               {/* Options */}
               <div className="px-4 sm:px-6 py-5 overflow-y-auto flex-1 min-h-0">
                 <div className="flex flex-wrap justify-center gap-2.5 sm:gap-4">
                   {state.reinforcementOptions.map(option => (
                     <button
                       key={option.id}
-                      onClick={() => dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
+                      onClick={() => online ? pickReinforcementOnline(option) : dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
                       className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none"
                       title={`Contratar ${option.shortName} para o banco`}
                     >
@@ -954,7 +980,7 @@ export default function LeaguePage() {
                   👆 Toque num card para contratar
                 </span>
                 <button
-                  onClick={() => dispatch({ type: 'DISMISS_REINFORCEMENT' })}
+                  onClick={() => online ? dismissReinforcementOnline() : dispatch({ type: 'DISMISS_REINFORCEMENT' })}
                   className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
                   style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2A2A3A', background: 'transparent', color: '#8A8A9A' }}
                 >

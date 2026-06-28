@@ -13,8 +13,9 @@ import {
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
   LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
   getAllPlayedMatchResults, createKnockoutBracket,
-  advanceKnockoutBracket, playActiveKnockoutLeg,
+  advanceKnockoutBracket, playActiveKnockoutLeg, applyShopVariant,
 } from '../lib/gameEngine';
+import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from '../lib/shop';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem } from '../lib/storage';
 
 // ============================================================
@@ -80,6 +81,9 @@ export interface GameState {
   freeKickTaker: string | null;
   // End-of-round reinforcement (solo league): 6 random players, pick 1 → joins the bench.
   reinforcementOptions: Player[] | null;
+  // Shop economy (solo league): points earned per match, spent in the LOJA tab.
+  points: number;
+  lastMatchPoints: MatchPoints | null; // shown once after a match (the "+X pontos" summary)
 
   // Online Multiplayer fields
   mode: 'solo' | 'online';
@@ -153,6 +157,10 @@ type GameAction =
   | { type: 'SET_PLAYER_TEAM_FORMATION'; formationId: string }
   | { type: 'PICK_REINFORCEMENT'; player: Player }
   | { type: 'DISMISS_REINFORCEMENT' }
+  | { type: 'SHOP_CHANGE_COACH'; coachId: string }
+  | { type: 'SHOP_BUY_PLAYER'; player: Player; kind: 'star' | 'scout' }
+  | { type: 'SHOP_TURBINAR'; playerId: string; variant: ShopVariant }
+  | { type: 'SHOP_TRAIN'; playerId: string; attr: TrainAttr }
   | { type: 'START_LEAGUE' }
   | { type: 'SIMULATE_LEAGUE' }
   | { type: 'START_KNOCKOUT' }
@@ -202,6 +210,8 @@ const initialState: GameState = {
   penaltyTaker: null,
   freeKickTaker: null,
   reinforcementOptions: null,
+  points: 0,
+  lastMatchPoints: null,
 
   // Online Multiplayer fields
   mode: 'solo',
@@ -451,6 +461,68 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'DISMISS_REINFORCEMENT':
       return { ...state, reinforcementOptions: null };
 
+    // ── SHOP (solo league) ──────────────────────────────────────────────
+    case 'SHOP_CHANGE_COACH': {
+      if (!state.playerTeam) return state;
+      const cost = SHOP_COSTS.changeCoach;
+      if (state.points < cost || state.playerTeam.coachId === action.coachId) return state;
+      // Coach drives chemistry links + buffs → recompute the team.
+      return {
+        ...state,
+        points: state.points - cost,
+        playerTeam: rebuildTeamChemistry({ ...state.playerTeam, coachId: action.coachId }),
+      };
+    }
+
+    case 'SHOP_BUY_PLAYER': {
+      if (!state.playerTeam) return state;
+      const cost = action.kind === 'star' ? SHOP_COSTS.starPack : SHOP_COSTS.scout;
+      if (state.points < cost) return state;
+      if (state.playerTeam.players.some(p => p.id === action.player.id)) return state; // no duplicates
+      // Joins the BENCH (like a reinforcement); the XI is untouched until substituted in.
+      const card: PlayerCard = { ...action.player, chemistryScore: 0, isOOP: false };
+      return {
+        ...state,
+        points: state.points - cost,
+        playerTeam: { ...state.playerTeam, players: [...state.playerTeam.players, card] },
+      };
+    }
+
+    case 'SHOP_TURBINAR': {
+      if (!state.playerTeam) return state;
+      const cost = SHOP_COSTS.turbinar;
+      const target = state.playerTeam.players.find(p => p.id === action.playerId);
+      if (!target || state.points < cost) return state;
+      // One special variant per card — refuse if it already has one.
+      if (target.inForm || target.lobo || target.coringa || target.nomade || target.pilar) return state;
+      const newPlayers = state.playerTeam.players.map(p =>
+        p.id === action.playerId ? ({ ...applyShopVariant(p, action.variant) } as PlayerCard) : p);
+      return {
+        ...state,
+        points: state.points - cost,
+        playerTeam: rebuildTeamChemistry({ ...state.playerTeam, players: newPlayers }),
+      };
+    }
+
+    case 'SHOP_TRAIN': {
+      if (!state.playerTeam) return state;
+      const target = state.playerTeam.players.find(p => p.id === action.playerId);
+      if (!target) return state;
+      const cost = trainCost(target.trainCount ?? 0);
+      if (state.points < cost) return state;
+      const newPlayers = state.playerTeam.players.map(p => {
+        if (p.id !== action.playerId) return p;
+        const boosts = { ...(p.trainBoosts ?? {}) };
+        boosts[action.attr] = (boosts[action.attr] ?? 0) + TRAIN_BOOST;
+        return { ...p, trainBoosts: boosts, trainCount: (p.trainCount ?? 0) + 1 };
+      });
+      return {
+        ...state,
+        points: state.points - cost,
+        playerTeam: { ...state.playerTeam, players: newPlayers },
+      };
+    }
+
     case 'START_LEAGUE': {
       // Build player team
       const starters = state.draftedPlayers.slice(0, 11).filter((p): p is Player => p !== null && p !== undefined);
@@ -642,6 +714,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const ownedIds = state.playerTeam.players.map(p => p.id);
       const reinforcementOptions = generateDraftOptions([], ownedIds);
 
+      // Award shop points for the player's performance (W/D/L + goal diff + goals + clean sheet).
+      const matchPoints = computeMatchPoints(action.result, state.playerTeam.id);
+
       return {
         ...state,
         phase: 'league',
@@ -651,6 +726,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatch: null,
         currentMatchTeams: null,
         reinforcementOptions,
+        points: state.points + matchPoints.total,
+        lastMatchPoints: matchPoints,
       };
     }
 
@@ -841,6 +918,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         // Local player sync
         playerName: me ? me.name : state.playerName,
         playerTeam: me ? me.team : state.playerTeam,
+        // Shop points + end-of-round reinforcement are server-authoritative online → mirror the
+        // local player's balance, last-match summary and pending reinforcement offer.
+        points: me ? (me.points ?? 0) : state.points,
+        lastMatchPoints: me ? (me.lastMatchPoints ?? null) : state.lastMatchPoints,
+        reinforcementOptions: me ? (me.reinforcementOptions ?? null) : state.reinforcementOptions,
         draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),
         selectedCoachId: keepLocalPicks ? state.selectedCoachId : (me ? me.coachId : state.selectedCoachId),
         selectedFormationId: keepLocalPicks ? state.selectedFormationId : (me ? me.formationId : state.selectedFormationId),
@@ -928,6 +1010,12 @@ interface GameContextType {
   disconnectOnline: () => void;
   // Each player emits this when they finish watching their match replay
   notifyMatchWatchedOnline: (type: 'league' | 'knockout') => void;
+  shopChangeCoachOnline: (coachId: string) => void;
+  shopBuyPlayerOnline: (player: Player, kind: 'star' | 'scout') => void;
+  shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
+  shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
+  pickReinforcementOnline: (player: Player) => void;
+  dismissReinforcementOnline: () => void;
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -1100,6 +1188,26 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.roomCode]);
 
+  // ── Shop (online): emit to the server, which validates + broadcasts the new team/points ──
+  const shopChangeCoachOnline = useCallback((coachId: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_change_coach", { roomCode: state.roomCode, coachId });
+  }, [state.roomCode]);
+  const shopBuyPlayerOnline = useCallback((player: Player, kind: 'star' | 'scout') => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_buy_player", { roomCode: state.roomCode, player, kind });
+  }, [state.roomCode]);
+  const shopTurbinarOnline = useCallback((playerId: string, variant: ShopVariant) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_turbinar", { roomCode: state.roomCode, playerId, variant });
+  }, [state.roomCode]);
+  const shopTrainOnline = useCallback((playerId: string, attr: TrainAttr) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_train", { roomCode: state.roomCode, playerId, attr });
+  }, [state.roomCode]);
+  const pickReinforcementOnline = useCallback((player: Player) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("pick_reinforcement", { roomCode: state.roomCode, player });
+  }, [state.roomCode]);
+  const dismissReinforcementOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("dismiss_reinforcement", { roomCode: state.roomCode });
+  }, [state.roomCode]);
+
   const disconnectOnline = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -1149,6 +1257,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
+    shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopTrainOnline,
+    pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state, dispatch]);
 

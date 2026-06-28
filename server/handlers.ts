@@ -12,6 +12,10 @@ import {
   createKnockoutBracket,
   playActiveKnockoutLeg,
   advanceKnockoutBracket,
+  rebuildTeamChemistry,
+  applyShopVariant,
+  generateStarPackOptions,
+  generateScoutOptions,
   Team,
   PlayerCard,
   MatchResult,
@@ -21,6 +25,7 @@ import {
 } from "../client/src/lib/gameEngine.js";
 
 import { FORMATIONS, DIFFICULTY_LEVELS, Player } from "../client/src/lib/gameData.js";
+import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from "../client/src/lib/shop.js";
 
 interface RoomPlayer {
   socketId: string;
@@ -37,6 +42,9 @@ interface RoomPlayer {
   team: Team | null;
   ready: boolean;
   connected: boolean;
+  points: number; // shop currency, earned per league match
+  lastMatchPoints: MatchPoints | null;    // last round's points breakdown (shown once)
+  reinforcementOptions: Player[] | null;   // end-of-round free pick (1 of 6 → bench)
 }
 
 interface RoomState {
@@ -142,6 +150,7 @@ function scheduleRoomCleanupIfEmpty(room: RoomState): void {
     cleanupTimers.delete(room.code);
     const cur = rooms.get(room.code);
     if (cur && !cur.players.some(p => p.connected)) {
+      clearDraftTurnTimer(room.code);
       rooms.delete(room.code);
       console.log(`Room ${room.code} deleted (all players left)`);
     }
@@ -224,6 +233,46 @@ function autoPickDisconnected(io: Server, room: RoomState): void {
   if (picked) io.to(room.code).emit("room_updated", room);
 }
 
+// ── Draft turn timer ── auto-picks for a CONNECTED player who sits idle on their turn, so a
+// single AFK player can't freeze the whole draft. (Disconnected players are covered separately
+// by autoPickDisconnected.) Kept off RoomState so the timer object is never serialized.
+const draftTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const DRAFT_TURN_MS = 30 * 1000;
+
+function clearDraftTurnTimer(code: string): void {
+  const t = draftTurnTimers.get(code);
+  if (t) { clearTimeout(t); draftTurnTimers.delete(code); }
+}
+
+// (Re)arm the idle-turn timer for whoever is on the clock. No-op when the draft is over or the
+// active player is disconnected. Safe to call after any draft state change — it always resets.
+function scheduleDraftTurnTimer(io: Server, room: RoomState): void {
+  clearDraftTurnTimer(room.code);
+  if (room.phase !== 'draft') return;
+  const active = room.players.find(p => p.id === room.draftState.draftOrder[room.draftState.turnIndex]);
+  if (!active || !active.connected) return;
+  const timer = setTimeout(() => {
+    draftTurnTimers.delete(room.code);
+    const cur = rooms.get(room.code);
+    if (!cur || cur.phase !== 'draft') return;
+    const ds = cur.draftState;
+    const a = cur.players.find(p => p.id === ds.draftOrder[ds.turnIndex]);
+    if (!a) return;
+    let options = ds.currentOptionsByPlayer[a.id];
+    if (!options || options.length === 0) {
+      options = generateDraftOptions(getNeededPositions(a.formationId, a.draftedPlayers), ds.alreadyDraftedIds);
+      ds.currentOptionsByPlayer[a.id] = options;
+    }
+    if (options[0]) {
+      applyDraftPick(cur, a, options[0]);
+      io.to(cur.code).emit("room_updated", cur);
+      autoPickDisconnected(io, cur);     // next player might be offline
+      scheduleDraftTurnTimer(io, cur);   // arm for the new active player
+    }
+  }, DRAFT_TURN_MS);
+  draftTurnTimers.set(room.code, timer);
+}
+
 export function registerSocketHandlers(io: Server) {
   io.on("connection", (socket: Socket) => {
     console.log(`Socket connected: ${socket.id}`);
@@ -251,7 +300,10 @@ export function registerSocketHandlers(io: Server) {
             freeKickTaker: null,
             team: null,
             ready: false,
-            connected: true
+            connected: true,
+            points: 0,
+            lastMatchPoints: null,
+            reinforcementOptions: null
           }
         ],
         botTeams: [],
@@ -292,6 +344,13 @@ export function registerSocketHandlers(io: Server) {
       // Check if player name already exists (Reconnect Scenario)
       const existingPlayer = room.players.find(p => p.name.toLowerCase() === playerName.trim().toLowerCase());
       if (existingPlayer) {
+        // Only treat a name match as a RECONNECT if that player is actually offline. If they're
+        // still connected, this is a different person with a clashing name — reject it, otherwise
+        // they'd hijack the original player's seat (steal their socket/team).
+        if (existingPlayer.connected) {
+          socket.emit("error_message", "Já existe um jogador com esse nome nesta sala. Escolha outro nome.");
+          return;
+        }
         existingPlayer.socketId = socket.id;
         existingPlayer.connected = true;
         cancelRoomCleanup(code);
@@ -300,7 +359,7 @@ export function registerSocketHandlers(io: Server) {
         socket.emit("joined_room", { roomCode: code, player: existingPlayer, roomState: room });
         io.to(code).emit("room_updated", room);
         // A reconnected player may have been the one we were waiting on for a pick.
-        if (room.phase === 'draft') autoPickDisconnected(io, room);
+        if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
         console.log(`Player reconnected: ${playerName} to ${code}`);
         return;
       }
@@ -329,7 +388,10 @@ export function registerSocketHandlers(io: Server) {
         freeKickTaker: null,
         team: null,
         ready: false,
-        connected: true
+        connected: true,
+        points: 0,
+        lastMatchPoints: null,
+        reinforcementOptions: null
       };
 
       room.players.push(newPlayer);
@@ -408,7 +470,7 @@ export function registerSocketHandlers(io: Server) {
 
       io.to(roomCode).emit("room_updated", room);
       // If the draft just started on a disconnected player, don't stall.
-      if (room.phase === 'draft') autoPickDisconnected(io, room);
+      if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
     });
 
     // Player picks a card
@@ -431,6 +493,7 @@ export function registerSocketHandlers(io: Server) {
       io.to(roomCode).emit("room_updated", room);
       // If the turn landed on someone who has disconnected, keep the draft moving.
       autoPickDisconnected(io, room);
+      scheduleDraftTurnTimer(io, room); // arm the idle timer for the new active player
     });
 
     // Player vetoes current draft options
@@ -450,6 +513,7 @@ export function registerSocketHandlers(io: Server) {
       room.draftState.currentOptionsByPlayer[activePlayerId] = options;
 
       io.to(roomCode).emit("room_updated", room);
+      scheduleDraftTurnTimer(io, room); // fresh time after a veto
     });
 
     // Player submits squad review (captain, penalty taker)
@@ -468,8 +532,10 @@ export function registerSocketHandlers(io: Server) {
       if (formationId) player.formationId = formationId; // formation can be changed post-draft
       player.ready = true;
 
-      // Check if all players are ready
-      const allReady = room.players.every(p => p.ready);
+      // Start once every CONNECTED player is ready — a player who dropped during squad review
+      // must not freeze the whole room forever. Their team is still built below from the lineup
+      // the draft already completed for them.
+      const allReady = room.players.every(p => p.ready || !p.connected);
       if (allReady) {
         // Build Team objects for all humans
         room.players.forEach(p => {
@@ -573,7 +639,100 @@ export function registerSocketHandlers(io: Server) {
           player.team.totalChemistry = chemData.total;
         }
       }
-      io.to(roomCode).emit("room_updated", room);
+      socket.emit("room_updated", room); // only this player's own lineup changed
+    });
+
+    // ============================================================
+    // SHOP — spend points (earned per league match) on this player's own team.
+    // Server is authoritative: it validates the cost, mutates the player's team and
+    // re-broadcasts. The local client then sees the change + new balance via room_updated.
+    // ============================================================
+    socket.on("shop_change_coach", ({ roomCode, coachId }: { roomCode: string; coachId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const cost = SHOP_COSTS.changeCoach;
+      if (player.points < cost || player.team.coachId === coachId) return;
+      player.points -= cost;
+      player.coachId = coachId;
+      player.team.coachId = coachId;
+      player.team = rebuildTeamChemistry(player.team);
+      socket.emit("room_updated", room); // only this player's own team changed
+    });
+
+    socket.on("shop_buy_player", ({ roomCode, player: chosen, kind }: { roomCode: string; player: Player; kind: 'star' | 'scout' }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || !chosen) return;
+      const cost = kind === 'star' ? SHOP_COSTS.starPack : SHOP_COSTS.scout;
+      if (player.points < cost) return;
+      if (player.team.players.some(p => p.id === chosen.id)) return;          // no duplicates
+      if (kind === 'star' && chosen.overall < 88) return;                     // star pack is 88+
+      player.points -= cost;
+      const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
+      player.team.players = [...player.team.players, card];
+      socket.emit("room_updated", room); // only this player's own bench changed
+    });
+
+    socket.on("shop_turbinar", ({ roomCode, playerId, variant }: { roomCode: string; playerId: string; variant: ShopVariant }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const cost = SHOP_COSTS.turbinar;
+      const target = player.team.players.find(p => p.id === playerId);
+      if (!target || player.points < cost) return;
+      if (target.inForm || target.lobo || target.coringa || target.nomade || target.pilar) return; // one per card
+      player.points -= cost;
+      player.team.players = player.team.players.map(p =>
+        p.id === playerId ? ({ ...applyShopVariant(p, variant), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
+      player.team = rebuildTeamChemistry(player.team);
+      socket.emit("room_updated", room); // only this player's own team changed
+    });
+
+    socket.on("shop_train", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: TrainAttr }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const target = player.team.players.find(p => p.id === playerId);
+      if (!target) return;
+      const cost = trainCost(target.trainCount ?? 0);
+      if (player.points < cost) return;
+      player.points -= cost;
+      player.team.players = player.team.players.map(p => {
+        if (p.id !== playerId) return p;
+        const boosts = { ...(p.trainBoosts ?? {}) };
+        boosts[attr] = (boosts[attr] ?? 0) + TRAIN_BOOST;
+        return { ...p, trainBoosts: boosts, trainCount: (p.trainCount ?? 0) + 1 };
+      });
+      socket.emit("room_updated", room); // only this player's own team changed
+    });
+
+    // End-of-round reinforcement (free pick, same as solo): 1 of 6 → bench.
+    socket.on("pick_reinforcement", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || !chosen) return;
+      // Must be one of the offered options and not already owned.
+      if (player.reinforcementOptions?.some(o => o.id === chosen.id) && !player.team.players.some(p => p.id === chosen.id)) {
+        const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
+        player.team.players = [...player.team.players, card];
+      }
+      player.reinforcementOptions = null;
+      socket.emit("room_updated", room); // only this player's own bench changed
+    });
+
+    socket.on("dismiss_reinforcement", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player) return;
+      player.reinforcementOptions = null;
+      socket.emit("room_updated", room); // only this player's own state changed
     });
 
     // ============================================================
@@ -610,6 +769,20 @@ export function registerSocketHandlers(io: Server) {
         room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
         // Reset watch confirmations so the new round requires fresh confirmation
         room.watchedRoundPlayers = [];
+        // Award shop points + offer the end-of-round reinforcement to each human (same as solo).
+        room.players.forEach(p => {
+          if (!p.team) return;
+          const fixture = room.leagueFixtures.find(f =>
+            f.round === room.leagueRound && f.result &&
+            (f.homeTeamId === p.team!.id || f.awayTeamId === p.team!.id));
+          if (fixture?.result) {
+            const mp = computeMatchPoints(fixture.result, p.team.id);
+            p.points += mp.total;
+            p.lastMatchPoints = mp;
+          }
+          const ownedIds = p.team.players.map(pl => pl.id);
+          p.reinforcementOptions = generateDraftOptions([], ownedIds);
+        });
       }
 
       io.to(roomCode).emit("room_updated", room);
@@ -738,6 +911,7 @@ export function registerSocketHandlers(io: Server) {
       const room = rooms.get(roomCode);
       if (!room || !isHost(room, socket.id)) return;
 
+      clearDraftTurnTimer(roomCode);
       room.phase = 'lobby';
       room.players.forEach(p => {
         p.draftedPlayers = Array(11).fill(undefined);
@@ -748,6 +922,9 @@ export function registerSocketHandlers(io: Server) {
         p.playStyle = 'balanced';
         p.team = null;
         p.ready = false;
+        p.points = 0;
+        p.lastMatchPoints = null;
+        p.reinforcementOptions = null;
       });
       room.botTeams = [];
       room.leagueFixtures = [];
@@ -784,6 +961,7 @@ export function registerSocketHandlers(io: Server) {
           room.players.splice(idx, 1);
           if (room.players.length === 0) {
             cancelRoomCleanup(code);
+            clearDraftTurnTimer(code);
             rooms.delete(code);
             console.log(`Room ${code} deleted (empty)`);
             return;
@@ -799,7 +977,7 @@ export function registerSocketHandlers(io: Server) {
         room.players[idx].connected = false;
         recomputeHost(room);
         io.to(code).emit("room_updated", room);
-        if (room.phase === 'draft') autoPickDisconnected(io, room);
+        if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
         scheduleRoomCleanupIfEmpty(room);
       });
     });

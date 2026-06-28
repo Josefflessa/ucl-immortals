@@ -59,6 +59,7 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
   const traitDeltas = collect(eff, b => b.trait);
   const tactic = collect(eff, b => b.tactic);
   const captain = collect(eff, b => b.captain);
+  const train = collect(eff, b => b.train);
   const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
   const showChem = chemNet !== 0 || !!chem;
   const showTraits = (traits && traits.length > 0) || traitDeltas.length > 0;
@@ -72,7 +73,7 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || !!variant;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || !!variant;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -213,6 +214,17 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
           {tactic.length > 0 && (
             <Row icon="📋" name="TÁTICA (ESTILO)" color="#4FC3F7">
               <div className="flex flex-wrap gap-1">{chips(tactic, '#4FC3F7')}</div>
+            </Row>
+          )}
+
+          {/* TREINO — permanent per-attribute boost bought in the shop. Stacks with no cap and
+              already flows into the effective overall (it's a delta like any other buff). */}
+          {train.length > 0 && (
+            <Row icon="💪" name="TREINO (LOJA)" color="#34D399">
+              <div className="flex flex-wrap gap-1">{chips(train, '#34D399')}</div>
+              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                Melhoria permanente comprada na loja — soma direto no atributo (sem teto) e reflete no geral.
+              </div>
             </Row>
           )}
         </div>

@@ -286,6 +286,7 @@ export interface StatBreakdown {
   tactic: number;     // play-style (tactic) bonus
   globalChem: number; // team-wide chemistry bonus (passing/pace only)
   captain: number;    // captain leadership bonus (+CAPTAIN_BOOST on the captain's best stat, for everyone)
+  train: number;      // 💪 shop "Treino" — permanent, stacking per-attribute boost
 }
 
 export interface EffectiveStats {
@@ -534,8 +535,12 @@ export function getPlayerEffectiveStats(
   const captainBonus = (attr: AttrKey): number =>
     context?.captainBoost && attr === context.captainBoost.stat ? context.captainBoost.amount : 0;
 
+  // 💪 Shop "Treino": a permanent, stacking per-attribute boost (no cap), same nature as the
+  // other additive buffs — it feeds the per-attribute delta and therefore the effective overall.
+  const trainBonus = (attr: AttrKey): number => player.trainBoosts?.[attr] ?? 0;
+
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -561,6 +566,7 @@ export function getPlayerEffectiveStats(
     tactic: styleBonus(attr),
     globalChem: globalChem(attr),
     captain: captainBonus(attr),
+    train: trainBonus(attr),
   });
 
   // Effective overall = base overall + the MEAN change across ALL EIGHT attributes (the six
@@ -751,6 +757,9 @@ export function getEffectiveAttribute(
 
   // Trait attribute bonuses (data-driven from the trait catalog)
   base += getTraitAttributeBonus(player.traits, attribute as AttrKey, context);
+
+  // 💪 Shop "Treino": permanent, stacking per-attribute boost bought in the shop (no cap).
+  base += (player.trainBoosts?.[attribute as keyof NonNullable<Player['trainBoosts']>] ?? 0);
 
   return Math.max(1, base);
 }
@@ -2180,6 +2189,39 @@ export function generateDraftOptions(
   const result = guaranteed ? [guaranteed, ...rest] : rest.slice(0, DRAFT_OPTIONS_COUNT);
   // Shuffle the final list so the guaranteed pick isn't always first
   return withDraftVariants(result.sort(() => Math.random() - 0.5));
+}
+
+// ── Shop packs ──────────────────────────────────────────────────────────────
+// "Pacote do Craque": 3 elite (overall ≥ 88) players the team doesn't already own. Plain
+// cards (no random draft variant) — what you see is what you buy.
+const STAR_PACK_MIN_OVERALL = 88;
+export function generateStarPackOptions(ownedIds: string[]): Player[] {
+  let pool = PLAYERS.filter(p => !ownedIds.includes(p.id) && p.overall >= STAR_PACK_MIN_OVERALL);
+  if (pool.length < 3) pool = PLAYERS.filter(p => !ownedIds.includes(p.id)).sort((a, b) => b.overall - a.overall);
+  return shuffleWithRarityWeight(pool).slice(0, 3).map(p => ({ ...p }));
+}
+
+// "Caça-Talentos": 4 players that can fill a chosen position, that the team doesn't own.
+export function generateScoutOptions(position: string, ownedIds: string[]): Player[] {
+  let pool = PLAYERS.filter(p =>
+    !ownedIds.includes(p.id) && (p.position === position || (p.secondaryPositions ?? []).includes(position)));
+  if (pool.length < 4) pool = PLAYERS.filter(p => !ownedIds.includes(p.id));
+  return shuffleWithRarityWeight(pool).slice(0, 4).map(p => ({ ...p }));
+}
+
+// "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
+// but is deterministic (the player picks which) and preserves the card's existing traits.
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar'): Player {
+  if (variant === 'inForm' || variant === 'lobo') {
+    const b = variant === 'inForm' ? INFORM_STAT_BOOST : LOBO_STAT_BOOST;
+    return {
+      ...player, [variant]: true, baseOverall: player.baseOverall ?? player.overall,
+      overall: clampStat(player.overall + b), pace: clampStat(player.pace + b), shooting: clampStat(player.shooting + b),
+      passing: clampStat(player.passing + b), dribbling: clampStat(player.dribbling + b), defending: clampStat(player.defending + b),
+      physical: clampStat(player.physical + b), vision: clampStat(player.vision + b), composure: clampStat(player.composure + b),
+    };
+  }
+  return { ...player, [variant]: true };
 }
 
 export function getNeededPositions(

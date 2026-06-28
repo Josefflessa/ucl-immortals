@@ -36,6 +36,13 @@ export interface Player {
   coringa?: boolean;    // 🃏 Coringa — immune to the out-of-position penalty (stats & chemistry)
   nomade?: boolean;     // 🌍 Nômade — counts as ANY nation for chemistry links
   pilar?: boolean;      // 🧱 Pilar — lifts the whole team's chemistry just by being in the XI
+  trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
+  // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
+  // engine and the effective-overall like any other buff, and is shown in the player modal).
+  trainBoosts?: {
+    pace?: number; shooting?: number; passing?: number; dribbling?: number;
+    defending?: number; physical?: number; vision?: number; composure?: number;
+  };
 }
 
 export interface CoachBonus {

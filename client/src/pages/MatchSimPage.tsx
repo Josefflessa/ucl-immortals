@@ -249,7 +249,7 @@ export default function MatchSimPage() {
 
   // Time tick speed
   const getTickDuration = () => {
-    if (broadcastMode) return 250; // fixed live-broadcast pace online (≈4x, same for all)
+    if (broadcastMode) return 222; // fixed live-broadcast pace online (≈4.5x, same for all)
     if (speed === 1) return 1000;
     if (speed === 2) return 500;
     return 250;
