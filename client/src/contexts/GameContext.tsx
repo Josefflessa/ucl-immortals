@@ -83,7 +83,8 @@ export interface GameState {
   reinforcementOptions: Player[] | null;
   // Shop economy (solo league): points earned per match, spent in the LOJA tab.
   points: number;
-  lastMatchPoints: MatchPoints | null; // shown once after a match (the "+X pontos" summary)
+  lastMatchPoints: MatchPoints | null; // shown once after a LEAGUE match (in the reinforcement modal)
+  knockoutPointsPopup: MatchPoints | null; // transient "+X pontos" popup after a KNOCKOUT leg (no reinforcement there)
 
   // Online Multiplayer fields
   mode: 'solo' | 'online';
@@ -171,6 +172,7 @@ type GameAction =
   | { type: 'PLAY_KNOCKOUT_LEG' }
   | { type: 'ADVANCE_KNOCKOUT' }
   | { type: 'FINISH_KNOCKOUT_MATCH'; result: MatchResult }
+  | { type: 'DISMISS_KO_POINTS' }
   | { type: 'SET_CURRENT_MATCH'; result: MatchResult; teams: [Team, Team] }
   | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } }; spectator?: boolean }
   | { type: 'CLEAR_CURRENT_MATCH' }
@@ -212,6 +214,7 @@ const initialState: GameState = {
   reinforcementOptions: null,
   points: 0,
   lastMatchPoints: null,
+  knockoutPointsPopup: null,
 
   // Online Multiplayer fields
   mode: 'solo',
@@ -801,6 +804,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Both modes: the tie result is already computed by the engine and the
       // bracket advances via ADVANCE_KNOCKOUT (solo) / the host (online). Watching
       // a leg only returns to the bracket. The leg was marked watched on open.
+      // Award shop points for the player's OWN leg (ida & volta) — but NOT the final (the season
+      // is over after it, nothing left to spend on) and NOT while spectating someone else's tie.
+      // No reinforcement in the knockout (that's league-only). The client computes the points in
+      // both modes to drive the post-match popup; SOLO also credits the balance here, while ONLINE
+      // credits it server-side (play_knockout_round) to stay authoritative.
+      const isFinal = state.knockoutBracket?.currentRound === 'final';
+      let points = state.points;
+      let popup: MatchPoints | null = null;
+      if (!state.spectating && !isFinal && state.playerTeam && action.result &&
+          (action.result.homeTeamId === state.playerTeam.id || action.result.awayTeamId === state.playerTeam.id)) {
+        const mp = computeMatchPoints(action.result, state.playerTeam.id);
+        popup = mp;
+        if (state.mode !== 'online') points += mp.total;
+      }
       return {
         ...state,
         phase: 'knockout',
@@ -809,8 +826,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatch: null,
         currentMatchTeams: null,
         currentMatchResult: null,
+        points,
+        knockoutPointsPopup: popup,
       };
     }
+
+    case 'DISMISS_KO_POINTS':
+      return { ...state, knockoutPointsPopup: null };
 
     case 'SET_CURRENT_MATCH':
       return { ...state, currentMatch: action.result, currentMatchTeams: action.teams };

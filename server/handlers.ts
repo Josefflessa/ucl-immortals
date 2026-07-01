@@ -12,10 +12,9 @@ import {
   createKnockoutBracket,
   playActiveKnockoutLeg,
   advanceKnockoutBracket,
+  getActiveKnockoutMatches,
   rebuildTeamChemistry,
   applyShopVariant,
-  generateStarPackOptions,
-  generateScoutOptions,
   Team,
   PlayerCard,
   MatchResult,
@@ -882,12 +881,29 @@ export function registerSocketHandlers(io: Server) {
       const allTeams = [...allHumanTeams, ...room.botTeams];
       const resolve = (id: string) => allTeams.find(t => t.id === id);
 
+      // Which leg is being played now (playActiveKnockoutLeg may bump currentLeg 1→2 afterwards).
+      const isFinalRound = room.knockoutBracket.currentRound === 'final';
+      const legPlayed = room.knockoutBracket.currentLeg;
+
       // Plays the current leg (ida or volta) of every tie in the active round.
       // Knockout results live in the bracket only — they are NOT pushed into
       // leagueResults (season stats read the legs directly from the bracket).
       playActiveKnockoutLeg(room.knockoutBracket, resolve);
       // Reset watch confirmations for this new leg
       room.watchedKnockoutLegPlayers = [];
+
+      // Award shop points for each human's OWN leg (ida & volta) — same as the league, but with
+      // NO reinforcement (league-only) and NO points for the FINAL (season's over, nothing to spend).
+      if (!isFinalRound) {
+        const ties = getActiveKnockoutMatches(room.knockoutBracket);
+        room.players.forEach(p => {
+          if (!p.team) return;
+          const tie = ties.find((t: any) => t.homeTeamId === p.team!.id || t.awayTeamId === p.team!.id);
+          if (!tie) return;
+          const legRes = legPlayed === 1 ? tie.leg1 : tie.leg2;
+          if (legRes) p.points += computeMatchPoints(legRes, p.team.id).total;
+        });
+      }
 
       io.to(roomCode).emit("room_updated", room);
     });

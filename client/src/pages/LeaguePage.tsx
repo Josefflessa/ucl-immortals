@@ -991,6 +991,47 @@ export default function LeaguePage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Post-match points popup (knockout — there's no reinforcement modal there) ── */}
+      <AnimatePresence>
+        {state.knockoutPointsPopup && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(6,6,14,0.9)', backdropFilter: 'blur(3px)' }}
+            onClick={() => dispatch({ type: 'DISMISS_KO_POINTS' })}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl overflow-hidden text-center"
+              style={{ background: '#0B0B14', border: '1px solid #34D39955', boxShadow: '0 0 50px rgba(52,211,153,0.18)' }}
+            >
+              <div className="px-6 pt-6 pb-2">
+                <div className="text-[11px] font-black tracking-widest" style={{ color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>💰 PONTOS DA PARTIDA</div>
+                <div className="text-6xl font-black leading-none mt-2" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#34D399' }}>
+                  +{state.knockoutPointsPopup.total}
+                </div>
+                <div className="text-[12px] mt-3 leading-relaxed" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                  {state.knockoutPointsPopup.outcome === 'win' ? 'Vitória' : state.knockoutPointsPopup.outcome === 'draw' ? 'Empate' : 'Derrota'} +{state.knockoutPointsPopup.base}
+                  {state.knockoutPointsPopup.gdBonus > 0 && ` · saldo +${state.knockoutPointsPopup.gdBonus}`}
+                  {state.knockoutPointsPopup.goalsBonus > 0 && ` · gols +${state.knockoutPointsPopup.goalsBonus}`}
+                  {state.knockoutPointsPopup.csBonus > 0 && ` · sem sofrer +${state.knockoutPointsPopup.csBonus}`}
+                </div>
+                <div className="text-[11px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Gaste na aba 🛒 LOJA</div>
+              </div>
+              <button
+                onClick={() => dispatch({ type: 'DISMISS_KO_POINTS' })}
+                className="w-full py-3.5 mt-3 font-black tracking-widest text-sm"
+                style={{ fontFamily: 'Rajdhani, sans-serif', background: '#34D39918', color: '#34D399', borderTop: '1px solid #34D39933' }}
+              >
+                OK
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

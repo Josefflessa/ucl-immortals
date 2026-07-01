@@ -168,7 +168,7 @@ export default function ShopTab() {
                         <button key={pos} onClick={() => pickScoutPosition(pos)}
                           className="py-3 rounded-lg font-black text-sm transition-all hover:border-[#38BDF8]/60 active:scale-95"
                           style={{ fontFamily: 'Bebas Neue, sans-serif', background: '#07070f', border: '1px solid #1A1A2A', color: '#FFF' }}>
-                          {pos}
+                          {POS_PT[pos] ?? pos}
                         </button>
                       ))}
                     </div>

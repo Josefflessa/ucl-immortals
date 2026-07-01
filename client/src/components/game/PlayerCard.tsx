@@ -112,7 +112,7 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   azpilicueta     : { id: 184432, ver: 25 },
   gullit          : { id: 214100, ver: 24 },
   beckham         : { id: 250,    ver: 25 }, // ✅ FIXED — correto David Beckham
-  keane           : { id: 238384, ver: 24 },
+  keane           : { id: 239600, ver: 24 }, // ✅ FIXED — Roy Keane ICON (EA id 239600)
   rijkaard        : { id: 214098, ver: 25 }, // ✅ FIXED — correto Frank Rijkaard
   matthaus        : { id: 238435, ver: 21 }, // ✅ FIXED — correto Lothar Matthäus
   dalglish        : { id: 247699, ver: 22 }, // ✅ FIXED — correto Kenny Dalglish
