@@ -191,6 +191,16 @@
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
+/* 🩸 Mártir — somber pulsing border (sacrifice). */
+@keyframes martir-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+/* ❤️ Ídolo — warm glow that gently breathes (club idol). */
+@keyframes idolo-halo {
+  0%, 100% { filter: brightness(0.9); opacity: 0.7; }
+  50% { filter: brightness(1.25); opacity: 1; }
+}
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {

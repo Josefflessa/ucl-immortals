@@ -18,6 +18,7 @@ import {
   AttrKey, getTraitAttributeBonus, getGoalkeeperTraitBonus,
   getPenaltyComposureBonus, hasOopRelief, rollPlayerTraits,
 } from './traits';
+import { BOT_CREST_MAP } from './crests';
 
 // ============================================================
 // TYPES
@@ -57,6 +58,7 @@ export interface Team {
   totalChemistry: number;
   isBot: boolean;
   botStrength?: number;
+  crestId?: string; // selected club crest (see lib/crests.ts); undefined → initials badge
 }
 
 export interface MatchEvent {
@@ -287,6 +289,7 @@ export interface StatBreakdown {
   globalChem: number; // team-wide chemistry bonus (passing/pace only)
   captain: number;    // captain leadership bonus (+CAPTAIN_BOOST on the captain's best stat, for everyone)
   train: number;      // 💪 shop "Treino" — permanent, stacking per-attribute boost
+  char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
 export interface EffectiveStats {
@@ -420,8 +423,8 @@ export function getCoachModifiersForPlayer(
       modifiers.activeEffects.push("Goleiro Mourinho: +5 Defesa");
     }
     if (isKnockout && isDefender) {
-      modifiers.defending += 10;
-      modifiers.activeEffects.push("Muralha Mourinho: +10 Defesa");
+      modifiers.defending += 6;
+      modifiers.activeEffects.push("Muralha Mourinho: +6 Defesa");
     }
   } else if (coachId === 'ancelotti') {
     if (player.overall >= 85) {
@@ -502,6 +505,8 @@ export function getPlayerEffectiveStats(
     // The captain's single best attribute is boosted by +amount for EVERY teammate
     // (and the captain himself). Mirrors getEffectiveAttribute so the modal matches the engine.
     captainBoost?: { stat: string; amount: number };
+    // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
+    charBoosts?: CharBoostMap;
   }
 ): EffectiveStats {
   const effectiveChem = isOOP ? 0 : chemScore;
@@ -524,7 +529,7 @@ export function getPlayerEffectiveStats(
   // Global chemistry bonus, same as the engine: +passing/+pace by tier, PLUS a flat +3
   // to every attribute once the team hits perfect chemistry (90+, chemBonus.special).
   const globalChem = (attr: AttrKey): number => {
-    let v = chemBonus.special ? 3 : 0;
+    let v = chemBonus.special;
     if (attr === 'passing') v += chemBonus.passing * 2;
     if (attr === 'pace') v += chemBonus.pace * 2;
     return v;
@@ -539,8 +544,12 @@ export function getPlayerEffectiveStats(
   // other additive buffs — it feeds the per-attribute delta and therefore the effective overall.
   const trainBonus = (attr: AttrKey): number => player.trainBoosts?.[attr] ?? 0;
 
+  // 🩸❤️🪑 Team-effect characteristics buffing THIS player (Mártir/Ídolo/12º Homem).
+  const charB = context?.charBoosts?.[player.id];
+  const charBonus = (attr: AttrKey): number => charB ? (charB.flatAll + (charB.perStat[attr] ?? 0)) : 0;
+
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + charBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -567,6 +576,7 @@ export function getPlayerEffectiveStats(
     globalChem: globalChem(attr),
     captain: captainBonus(attr),
     train: trainBonus(attr),
+    char: charBonus(attr),
   });
 
   // Effective overall = base overall + the MEAN change across ALL EIGHT attributes (the six
@@ -599,7 +609,7 @@ export function getPlayerEffectiveStats(
     overallMod,
     activeCoachEffects: modifiers.activeEffects,
     chemMult,
-    globalChemBonus: { passing: chemBonus.passing * 2, pace: chemBonus.pace * 2, special: chemBonus.special ? 3 : 0 },
+    globalChemBonus: { passing: chemBonus.passing * 2, pace: chemBonus.pace * 2, special: chemBonus.special },
     breakdown: {
       pace: mkBreak(player.pace, modifiers.pace, 'pace'),
       shooting: mkBreak(player.shooting, modifiers.shooting, 'shooting'),
@@ -613,12 +623,54 @@ export function getPlayerEffectiveStats(
   };
 }
 
-export function getChemistryBonus(total: number): { passing: number; pace: number; special: boolean } {
-  if (total >= 90) return { passing: 3, pace: 2, special: true };
-  if (total >= 75) return { passing: 2, pace: 1, special: false };
-  if (total >= 60) return { passing: 1, pace: 1, special: false };
-  if (total >= 45) return { passing: 1, pace: 0, special: false };
-  return { passing: 0, pace: 0, special: false };
+// `special` = flat "+N to EVERY attribute" awarded at each chemistry milestone (tiered): a gelled
+// team gets steadily stronger, peaking at +5 for perfect chemistry (90+).
+export function getChemistryBonus(total: number): { passing: number; pace: number; special: number } {
+  if (total >= 90) return { passing: 3, pace: 2, special: 5 };
+  if (total >= 75) return { passing: 2, pace: 1, special: 3 };
+  if (total >= 60) return { passing: 1, pace: 1, special: 2 };
+  if (total >= 45) return { passing: 1, pace: 0, special: 1 };
+  return { passing: 0, pace: 0, special: 0 };
+}
+
+// ── Team-effect characteristics (Mártir 🩸 / Ídolo ❤️ / 12º Homem 🪑) ──────────────
+// These buff OTHER players. computeCharacteristicBoosts returns, per XI player id, the extra
+// attribute points they get from teammates' characteristics (stackable). The buffs then flow
+// through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
+export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>> };
+export type CharBoostMap = Record<string, CharBoost>;
+
+export function computeCharacteristicBoosts(players: (Player | undefined)[]): CharBoostMap {
+  const map: CharBoostMap = {};
+  const xi = players.slice(0, 11).filter((p): p is Player => !!p);
+  const add = (id: string, flat: number, stat?: AttrKey, amt = 0) => {
+    const b = map[id] ?? (map[id] = { flatAll: 0, perStat: {} });
+    b.flatAll += flat;
+    if (stat) b.perStat[stat] = (b.perStat[stat] ?? 0) + amt;
+  };
+  // ❤️ Ídolo — +2 em todos os atributos a cada titular do MESMO CLUBE (ele incluso).
+  for (const idol of xi) {
+    if (!idol.idolo) continue;
+    for (const mate of xi) if (mate.club === idol.club) add(mate.id, 2);
+  }
+  // 🩸 Mártir — +3 em tudo aos 2 titulares escolhidos (ou 2 maiores overalls além dele). Acumulável.
+  for (const m of xi) {
+    if (!m.martir) continue;
+    let targets = (m.martirTargets ?? []).filter(id => id !== m.id && xi.some(p => p.id === id)).slice(0, 2);
+    if (targets.length < 2) {
+      const fill = xi.filter(p => p.id !== m.id && !targets.includes(p.id))
+        .sort((a, b) => b.overall - a.overall).map(p => p.id);
+      targets = [...targets, ...fill].slice(0, 2);
+    }
+    for (const id of targets) add(id, 3);
+  }
+  // 🪑 12º Homem — no BANCO (índice ≥11): +1 compostura e +2 visão a todo o XI.
+  for (let i = 11; i < players.length; i++) {
+    const p = players[i];
+    if (!p?.decimoHomem) continue;
+    for (const mate of xi) { add(mate.id, 0, 'composure', 1); add(mate.id, 0, 'vision', 2); }
+  }
+  return map;
 }
 
 // Average passing of a team's midfield (central + wide mids) — a proxy for who
@@ -639,8 +691,9 @@ export function teamPlaymaking(team: Team): number {
   const chemBonus = getChemistryBonus(team.totalChemistry);
   const capStat = captainBestStat(team);
   const captainBoost = capStat ? { stat: capStat as string, amount: CAPTAIN_BOOST } : undefined;
+  const charBoosts = computeCharacteristicBoosts(team.players);
   const eff = (p: PlayerCard, attr: 'passing' | 'vision') =>
-    getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, team.playStyle ?? 'balanced', { captainBoost });
+    getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, team.playStyle ?? 'balanced', { captainBoost, charBoosts });
   return pool.reduce((s, p) => s + eff(p as PlayerCard, 'passing') * 0.65 + eff(p as PlayerCard, 'vision') * 0.35, 0) / pool.length;
 }
 
@@ -720,7 +773,7 @@ export function getEffectiveAttribute(
   attribute: keyof Player,
   coach: Coach,
   phase: string,
-  chemBonus: { passing: number; pace: number; special: boolean },
+  chemBonus: { passing: number; pace: number; special: number },
   playStyle: string,
   context?: {
     isKnockout?: boolean;
@@ -728,6 +781,8 @@ export function getEffectiveAttribute(
     isLosing?: boolean;
     // The captain's single best attribute is boosted by +amount for EVERY teammate.
     captainBoost?: { stat: string; amount: number };
+    // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
+    charBoosts?: CharBoostMap;
   }
 ): number {
   let base = player[attribute] as number;
@@ -744,7 +799,7 @@ export function getEffectiveAttribute(
   // Perfect team chemistry (90+): a flat +3 to EVERY attribute, for every starter — the
   // reward for a fully gelled XI. Lives here so it flows through both the match engine and
   // the modal (replaces the old flat +5 on team strength, which was an invisible team-only buff).
-  if (chemBonus.special) base += 3;
+  base += chemBonus.special;
 
   // Coach bonuses (using the new unified modifiers function)
   const modifiers = getCoachModifiersForPlayer(player, coach.id, {
@@ -768,6 +823,10 @@ export function getEffectiveAttribute(
 
   // 💪 Shop "Treino": permanent, stacking per-attribute boost bought in the shop (no cap).
   base += (player.trainBoosts?.[attribute as keyof NonNullable<Player['trainBoosts']>] ?? 0);
+
+  // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
+  const cb = context?.charBoosts?.[player.id];
+  if (cb) base += cb.flatAll + (cb.perStat[attribute as AttrKey] ?? 0);
 
   return Math.max(1, base);
 }
@@ -1057,6 +1116,9 @@ export function runMatchSimulation(
   const awayCapStat = captainBestStat(away);
   const homeCaptainBoost = homeCapStat ? { stat: homeCapStat as string, amount: CAPTAIN_BOOST } : undefined;
   const awayCaptainBoost = awayCapStat ? { stat: awayCapStat as string, amount: CAPTAIN_BOOST } : undefined;
+  // 🩸❤️🪑 Team-effect characteristics — computed once per side (constant across the match).
+  const homeCharBoosts = computeCharacteristicBoosts(home.players);
+  const awayCharBoosts = computeCharacteristicBoosts(away.players);
 
   const matchStats = { ...initialStats };
 
@@ -1121,8 +1183,8 @@ export function runMatchSimulation(
 
     const homeIsLosing = homeGoals < awayGoals;
     const awayIsLosing = awayGoals < homeGoals;
-    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost };
-    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost };
+    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts };
+    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
 
@@ -1905,7 +1967,7 @@ export function captainBoostFromStarters(starters: Player[], captainId?: string)
 export function calculateTeamStrength(
   team: Team,
   coach: Coach,
-  chemBonus: { passing: number; pace: number; special: boolean },
+  chemBonus: { passing: number; pace: number; special: number },
   formationBonus: number,
 ): number {
   const starters = team.players.slice(0, 11) as PlayerCard[];
@@ -1914,6 +1976,7 @@ export function calculateTeamStrength(
   // Captain leadership: +CAPTAIN_BOOST on the captain's best stat, for every teammate.
   const capStat = captainBestStat(team);
   const captainBoost = capStat ? { stat: capStat as string, amount: CAPTAIN_BOOST } : undefined;
+  const charBoosts = computeCharacteristicBoosts(team.players);
   const avgStrength = starters.reduce((sum, p) => {
     // Strength is built from the EFFECTIVE attributes (not raw): individual + global chemistry,
     // the coach, traits, the captain and perfect-chem are all folded in via getEffectiveAttribute,
@@ -1921,7 +1984,7 @@ export function calculateTeamStrength(
     // (the '__neutral__' play-style yields no tactic bonus — NOT 'balanced', which now carries its
     // own +2 buff) — tactics already shape possession + chance quality, so letting them tilt strength
     // too would double-count them and distort each tactic's risk/reward.
-    const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, '', chemBonus, '__neutral__', { captainBoost });
+    const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, '', chemBonus, '__neutral__', { captainBoost, charBoosts });
     // GKs are evaluated on shot-stopping attributes (defending + physical), not the outfield
     // blend that low shooting/dribbling would distort. Outfielders use the six core stats PLUS
     // vision at half weight — playmaking is a real "control the game" signal. Composure is
@@ -1980,7 +2043,7 @@ export function getPenaltyOrder(team: Team): PlayerCard[] {
 
 // Resolves a single penalty kick: taker EFFECTIVE composure (+ frieza traits, + designated
 // bonus) vs the keeper's EFFECTIVE shot-stopping (+ Reflexo Felino). Returns whether it went in.
-type PenCtx = { coach: Coach; chem: { passing: number; pace: number; special: boolean }; playStyle: string };
+type PenCtx = { coach: Coach; chem: { passing: number; pace: number; special: number }; playStyle: string };
 function penaltyKickGoal(taker: PlayerCard, takerCtx: PenCtx, gk: PlayerCard, gkCtx: PenCtx, designatedTakerId: string): boolean {
   const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle)
     + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
@@ -2078,6 +2141,10 @@ const DRAFT_LOBO_CHANCE = 0.04;     // 🐺 Lobo Solitário
 const DRAFT_CORINGA_CHANCE = 0.04;  // 🃏 Coringa
 const DRAFT_NOMADE_CHANCE = 0.04;   // 🌍 Nômade
 const DRAFT_PILAR_CHANCE = 0.04;    // 🧱 Pilar
+const DRAFT_MARTIR_CHANCE = 0.03;   // 🩸 Mártir
+const DRAFT_IDOLO_CHANCE = 0.03;    // ❤️ Ídolo
+const DRAFT_DECIMO_CHANCE = 0.03;   // 🪑 12º Homem
+const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 // Single boost value: "em alta" adds this to EVERY attribute. The overall rises by the
 // same amount as a CONSEQUENCE — overall is the mean of the attributes, so +N across all
 // eight is +N overall. That's why it's described to the player simply as "+N em cada atributo".
@@ -2127,6 +2194,24 @@ function applyDraftVariant(p: Player): Player {
   if (r < acc) return { ...p, nomade: true, traits: rollPlayerTraits(p.position, p.rarity) };
   acc += DRAFT_PILAR_CHANCE;
   if (r < acc) return { ...p, pilar: true, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🩸 Mártir: sacrifica-se (−6 em tudo) pra dar +3 em tudo a 2 titulares (efeito em computeCharacteristicBoosts).
+  acc += DRAFT_MARTIR_CHANCE;
+  if (r < acc) {
+    const b = MARTIR_STAT_PENALTY;
+    return {
+      ...p, martir: true, baseOverall: p.overall,
+      overall: clampStat(p.overall - b), pace: clampStat(p.pace - b), shooting: clampStat(p.shooting - b),
+      passing: clampStat(p.passing - b), dribbling: clampStat(p.dribbling - b), defending: clampStat(p.defending - b),
+      physical: clampStat(p.physical - b), vision: clampStat(p.vision - b), composure: clampStat(p.composure - b),
+      traits: rollPlayerTraits(p.position, p.rarity),
+    };
+  }
+  // ❤️ Ídolo · 🪑 12º Homem — flags puras; efeito em computeCharacteristicBoosts.
+  acc += DRAFT_IDOLO_CHANCE;
+  if (r < acc) return { ...p, idolo: true, traits: rollPlayerTraits(p.position, p.rarity) };
+  acc += DRAFT_DECIMO_CHANCE;
+  if (r < acc) return { ...p, decimoHomem: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -2234,9 +2319,10 @@ export function generateScoutOptions(position: string, ownedIds: string[]): Play
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar'): Player {
-  if (variant === 'inForm' || variant === 'lobo') {
-    const b = variant === 'inForm' ? INFORM_STAT_BOOST : LOBO_STAT_BOOST;
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem'): Player {
+  if (variant === 'inForm' || variant === 'lobo' || variant === 'martir') {
+    // inForm/lobo add to every attribute; martir SUBTRACTS from every attribute.
+    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : -MARTIR_STAT_PENALTY;
     return {
       ...player, [variant]: true, baseOverall: player.baseOverall ?? player.overall,
       overall: clampStat(player.overall + b), pace: clampStat(player.pace + b), shooting: clampStat(player.shooting + b),
@@ -2320,6 +2406,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
     totalChemistry: chemData.total,
     isBot: true,
     botStrength: difficulty,
+    crestId: BOT_CREST_MAP[name],
   };
 }
 

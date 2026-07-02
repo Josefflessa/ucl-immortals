@@ -7,10 +7,10 @@ import { getChemistryBonus } from '../../lib/gameEngine';
 // Bonus is applied as chemBonus.{passing,pace} * 2 in both the engine and the
 // effective-stats preview, so the real stat points are double the raw tier value.
 const TIERS = [
-  { min: 90, label: '90+', pas: 6, rit: 4, special: true },
-  { min: 75, label: '75+', pas: 4, rit: 2, special: false },
-  { min: 60, label: '60+', pas: 2, rit: 2, special: false },
-  { min: 45, label: '45+', pas: 2, rit: 0, special: false },
+  { min: 90, label: '90+', pas: 6, rit: 4, special: 5 },
+  { min: 75, label: '75+', pas: 4, rit: 2, special: 3 },
+  { min: 60, label: '60+', pas: 2, rit: 2, special: 2 },
+  { min: 45, label: '45+', pas: 2, rit: 0, special: 1 },
 ];
 
 const Chip = ({ text }: { text: string }) => (
@@ -34,7 +34,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
         <div className="flex flex-wrap gap-1.5 items-center">
           {b.passing > 0 && <Chip text={`+${b.passing * 2} Passe`} />}
           {b.pace > 0 && <Chip text={`+${b.pace * 2} Ritmo`} />}
-          {b.special && <Chip text="✨ +3 em todos (química perfeita)" />}
+          {b.special > 0 && <Chip text={`✨ +${b.special} em todos`} />}
         </div>
       ) : (
         <div className="text-[10px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
@@ -47,7 +47,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
           const isActive = activeTier?.min === t.min;
           return (
             <span key={t.min} style={{ color: isActive ? '#E8C84A' : '#5A5A6A', fontWeight: isActive ? 800 : 500 }}>
-              {t.label} → +{t.pas} Passe{t.rit > 0 ? `, +${t.rit} Ritmo` : ''}{t.special ? ', +3 em todos ✨' : ''}
+              {t.label} → +{t.pas} Passe{t.rit > 0 ? `, +${t.rit} Ritmo` : ''}{t.special > 0 ? `, +${t.special} em todos ✨` : ''}
             </span>
           );
         })}

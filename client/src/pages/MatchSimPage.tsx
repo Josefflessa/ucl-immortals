@@ -11,6 +11,7 @@ import {
   getPenaltyTaker, getPenaltyOrder, setStatIds, statKey,
   teamPlaymaking, midfieldBuildUpEdge, getFreeKickTaker, getHeaderTarget, resolveOpenPlayChance, buildKeyMinutes, penaltyGoalChance,
   formationProfile, tacticProfile, MATCH_NOISE, HOME_ADVANTAGE, FORMATION_COUNTER_BONUS, captainBestStat, CAPTAIN_BOOST,
+  computeCharacteristicBoosts,
 } from '../lib/gameEngine';
 
 // Captain leadership context: their best stat is lifted +CAPTAIN_BOOST for the whole side.
@@ -18,6 +19,8 @@ const captainBoostCtx = (team: Team) => {
   const s = captainBestStat(team);
   return s ? { stat: s as string, amount: CAPTAIN_BOOST } : undefined;
 };
+// 🩸❤️🪑 Team-effect characteristics (Mártir/Ídolo/12º Homem) — per-player boosts for this side.
+const charBoostsCtx = (team: Team) => computeCharacteristicBoosts(team.players);
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';
 import {
   selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
@@ -31,6 +34,7 @@ import {
 import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
 import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 import MatchFieldView from '../components/game/MatchFieldView';
+import Crest from '../components/game/Crest';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
@@ -297,8 +301,8 @@ export default function MatchSimPage() {
     const awayIsLosing = awayScore < homeScore;
     const attackIsLosing = homeAttacks ? homeIsLosing : awayIsLosing;
     const defendIsLosing = homeAttacks ? awayIsLosing : homeIsLosing;
-    const attackCtx = { isKnockout, isFinal, isLosing: attackIsLosing, captainBoost: captainBoostCtx(attackTeam) };
-    const defendCtx = { isKnockout, isFinal, isLosing: defendIsLosing, captainBoost: captainBoostCtx(defendTeam) };
+    const attackCtx = { isKnockout, isFinal, isLosing: attackIsLosing, captainBoost: captainBoostCtx(attackTeam), charBoosts: charBoostsCtx(attackTeam) };
+    const defendCtx = { isKnockout, isFinal, isLosing: defendIsLosing, captainBoost: captainBoostCtx(defendTeam), charBoosts: charBoostsCtx(defendTeam) };
 
     const atkProf = formationProfile(attackTeam.formationId);
     const defProf = formationProfile(defendTeam.formationId);
@@ -600,7 +604,7 @@ export default function MatchSimPage() {
     const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
     const attackCoach = homeAttacks ? homeCoach : awayCoach;
     const attackChem = getChemistryBonus(attackTeam.totalChemistry);
-    const attackCtx = { isKnockout, isFinal, isLosing: homeAttacks ? homeScore < awayScore : awayScore < homeScore, captainBoost: captainBoostCtx(attackTeam) };
+    const attackCtx = { isKnockout, isFinal, isLosing: homeAttacks ? homeScore < awayScore : awayScore < homeScore, captainBoost: captainBoostCtx(attackTeam), charBoosts: charBoostsCtx(attackTeam) };
 
     const taker = getFreeKickTaker(attackTeam);
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
@@ -667,7 +671,7 @@ export default function MatchSimPage() {
     const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
     const attackCoach = homeAttacks ? homeCoach : awayCoach;
     const attackChem = getChemistryBonus(attackTeam.totalChemistry);
-    const attackCtx = { isKnockout, isFinal, isLosing: homeAttacks ? homeScore < awayScore : awayScore < homeScore, captainBoost: captainBoostCtx(attackTeam) };
+    const attackCtx = { isKnockout, isFinal, isLosing: homeAttacks ? homeScore < awayScore : awayScore < homeScore, captainBoost: captainBoostCtx(attackTeam), charBoosts: charBoostsCtx(attackTeam) };
 
     const header = getHeaderTarget(attackTeam);
     const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
@@ -1805,9 +1809,12 @@ export default function MatchSimPage() {
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
             {/* Home team metadata */}
             <div className="flex-1 text-right pr-2 sm:pr-6 min-w-0">
-              <h2 className="font-black text-white truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
-                {homeTeam.name.toUpperCase()}
-              </h2>
+              <div className="flex items-center justify-end gap-2 min-w-0">
+                <h2 className="font-black text-white truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
+                  {homeTeam.name.toUpperCase()}
+                </h2>
+                <Crest crestId={homeTeam.crestId} name={homeTeam.name} size={30} />
+              </div>
               <span className="text-[10px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#c9a84c' }}>
                 {homeTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
               </span>
@@ -1835,9 +1842,12 @@ export default function MatchSimPage() {
 
             {/* Away team metadata */}
             <div className="flex-1 text-left pl-2 sm:pl-6 min-w-0">
-              <h2 className="font-black text-white truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
-                {awayTeam.name.toUpperCase()}
-              </h2>
+              <div className="flex items-center justify-start gap-2 min-w-0">
+                <Crest crestId={awayTeam.crestId} name={awayTeam.name} size={30} />
+                <h2 className="font-black text-white truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
+                  {awayTeam.name.toUpperCase()}
+                </h2>
+              </div>
               <span className="text-[10px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#c9a84c' }}>
                 {awayTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
               </span>
@@ -2150,11 +2160,12 @@ export default function MatchSimPage() {
       {/* ── 4. SQUAD MODAL ── */}
       <AnimatePresence>
         {squadModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }}>
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 14 }}
+              transition={{ duration: 0.18 }}
               className="bg-[#0b0b14] border rounded-2xl p-4 sm:p-5 max-w-lg w-full max-h-[90vh] flex flex-col"
               style={{ borderColor: squadModal === 'mine' ? '#c9a84c55' : '#6366f155' }}
             >
@@ -2209,7 +2220,7 @@ export default function MatchSimPage() {
       {/* ── Live tactic change (solo) ── */}
       <AnimatePresence>
         {showTactics && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" onClick={() => setShowTactics(false)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }} onClick={() => setShowTactics(false)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2248,10 +2259,10 @@ export default function MatchSimPage() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(4,4,10,0.95)', backdropFilter: 'blur(10px)' }}
+            style={{ background: 'rgba(4,4,10,0.97)' }}
           >
             <motion.div
-              initial={{ scale: 0.92, y: 20 }} animate={{ scale: 1, y: 0 }}
+              initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
               className="w-full max-w-xl rounded-3xl overflow-hidden"
               style={{ background: 'linear-gradient(165deg,#12121f 0%,#0a0a14 100%)', border: '1px solid rgba(255,215,0,0.28)', boxShadow: '0 0 60px rgba(255,215,0,0.12)' }}
             >

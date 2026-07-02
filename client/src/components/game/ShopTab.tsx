@@ -10,15 +10,15 @@ import { generateStarPackOptions, generateScoutOptions } from '../../lib/gameEng
 import { SHOP_COSTS, trainCost, TRAIN_BOOST, TRAIN_ATTRS, TURBINAR_VARIANTS, ShopVariant, TrainAttr } from '../../lib/shop';
 import PlayerCard from './PlayerCard';
 
-type ItemId = 'coach' | 'turbinar' | 'star' | 'scout' | 'train';
+type ItemId = 'coach' | 'turbinar' | 'star' | 'scout' | 'train' | 'reroll';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
 
 function hasVariant(p: Player) {
-  return !!(p.inForm || p.lobo || p.coringa || p.nomade || p.pilar);
+  return !!(p.inForm || p.lobo || p.coringa || p.nomade || p.pilar || p.martir || p.idolo || p.decimoHomem);
 }
 
 export default function ShopTab() {
-  const { state, dispatch, shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopTrainOnline } = useGame();
+  const { state, dispatch, shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
   const team = state.playerTeam;
   const points = state.points;
   const online = state.mode === 'online';
@@ -34,6 +34,7 @@ export default function ShopTab() {
   const buyPlayer = (player: Player, kind: 'star' | 'scout') => online ? shopBuyPlayerOnline(player, kind) : dispatch({ type: 'SHOP_BUY_PLAYER', player, kind });
   const buyTurbinar = (playerId: string, variant: ShopVariant) => online ? shopTurbinarOnline(playerId, variant) : dispatch({ type: 'SHOP_TURBINAR', playerId, variant });
   const buyTrain = (playerId: string, attr: TrainAttr) => online ? shopTrainOnline(playerId, attr) : dispatch({ type: 'SHOP_TRAIN', playerId, attr });
+  const buyReroll = () => online ? shopBuyRerollOnline() : dispatch({ type: 'SHOP_BUY_REROLL' });
   const ownedIds = team.players.map(p => p.id);
   const selPlayer = team.players.find(p => p.id === selPlayerId) ?? null;
 
@@ -45,9 +46,11 @@ export default function ShopTab() {
     { id: 'star', icon: '🌟', name: 'PACOTE DO CRAQUE', cost: SHOP_COSTS.starPack, color: '#F59E0B', desc: 'Escolha 1 de 3 jogadores de overall 88+. Entra no banco.' },
     { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: 'Escolha 1 de 4 jogadores da posição que você precisa.' },
     { id: 'train', icon: '💪', name: 'TREINO INTENSIVO', cost: 'dyn', color: '#34D399', desc: `+${TRAIN_BOOST} permanente num atributo (sem teto). Custo sobe a cada treino no mesmo jogador.` },
+    { id: 'reroll', icon: '🔄', name: 'REROLL DE REFORÇO', cost: SHOP_COSTS.reroll, color: '#F472B6', desc: `Re-sorteia as opções do reforço pós-partida. Acumula entre rodadas. Você tem: ${state.reinforcementRerolls}.` },
   ];
 
   const openItem = (id: ItemId) => {
+    if (id === 'reroll') { if (points >= SHOP_COSTS.reroll) buyReroll(); return; } // compra direta, sem modal
     if (id === 'star') {
       if (points < SHOP_COSTS.starPack) return;
       setPackOptions(generateStarPackOptions(ownedIds));
@@ -105,8 +108,8 @@ export default function ShopTab() {
         {active && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
-            style={{ background: 'rgba(6,6,14,0.95)', backdropFilter: 'blur(3px)' }} onClick={close}>
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            style={{ background: 'rgba(6,6,14,0.96)' }} onClick={close}>
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 14 }} transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col max-h-[90vh]"
               style={{ background: '#0B0B14', border: '1px solid #C9A84C55', boxShadow: '0 0 50px rgba(201,168,76,0.18)' }}>
@@ -180,12 +183,19 @@ export default function ShopTab() {
                   !selPlayer ? (
                     <div>
                       <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o jogador que vai receber a carta especial:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {team.players.map(p => (
-                          <button key={p.id} onClick={() => !hasVariant(p) && setSelPlayerId(p.id)} disabled={hasVariant(p)}
-                            className="disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-[1.05]" title={hasVariant(p) ? 'Já tem uma carta especial' : ''}>
-                            <PlayerCard player={p} compact />
-                          </button>
+                      <div className="space-y-3">
+                        {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
+                          <div key={g.t}>
+                            <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
+                            <div className="flex flex-wrap gap-2">
+                              {g.list.map(p => (
+                                <button key={p.id} onClick={() => !hasVariant(p) && setSelPlayerId(p.id)} disabled={hasVariant(p)}
+                                  className="disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-[1.05]" title={hasVariant(p) ? 'Já tem uma carta especial' : ''}>
+                                  <PlayerCard player={p} compact lite />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
                       <p className="text-[10px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Jogadores que já têm uma carta especial ficam desabilitados (uma por carta).</p>
@@ -221,16 +231,23 @@ export default function ShopTab() {
                   !selPlayer ? (
                     <div>
                       <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o jogador para treinar:</p>
-                      <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
-                        {team.players.map(p => {
-                          const c = trainCost(p.trainCount ?? 0);
-                          return (
-                            <button key={p.id} onClick={() => setSelPlayerId(p.id)} className="flex flex-col items-center gap-1.5 transition-transform hover:scale-[1.05]">
-                              <PlayerCard player={p} compact />
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#34D39922', color: '#34D399', border: '1px solid #34D39944', fontFamily: 'Rajdhani, sans-serif' }}>💰 {c}</span>
-                            </button>
-                          );
-                        })}
+                      <div className="space-y-3">
+                        {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
+                          <div key={g.t}>
+                            <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
+                            <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
+                              {g.list.map(p => {
+                                const c = trainCost(p.trainCount ?? 0);
+                                return (
+                                  <button key={p.id} onClick={() => setSelPlayerId(p.id)} className="flex flex-col items-center gap-1.5 transition-transform hover:scale-[1.05]">
+                                    <PlayerCard player={p} compact lite />
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#34D39922', color: '#34D399', border: '1px solid #34D39944', fontFamily: 'Rajdhani, sans-serif' }}>💰 {c}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ) : (() => {

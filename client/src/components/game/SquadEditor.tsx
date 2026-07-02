@@ -9,6 +9,7 @@ import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT }
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
+  computeCharacteristicBoosts,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel } from '../../lib/traits';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
@@ -33,6 +34,7 @@ export interface SquadEditorProps {
   onSetPenaltyTaker: (id: string) => void;
   onSetFreeKickTaker: (id: string) => void;
   onSwap: (indexA: number, indexB: number) => void;
+  onSetMartirTargets?: (playerId: string, targetIds: string[]) => void; // 🩸 pick the 2 buffed teammates
   showCoachCard?: boolean;           // the manager card (default on)
   footer?: React.ReactNode;          // host-specific action (e.g. "INICIAR DRAFT")
 }
@@ -40,7 +42,7 @@ export interface SquadEditorProps {
 export default function SquadEditor({
   players, coachId, formationId, playStyle,
   captain, penaltyTaker, freeKickTaker,
-  onSetFormation, onSetPlayStyle, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap,
+  onSetFormation, onSetPlayStyle, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets,
   showCoachCard = true, footer,
 }: SquadEditorProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -53,13 +55,14 @@ export default function SquadEditor({
   const chemData = calculateChemistry(xi, coachId, formationRoles, formationId);
   const chemLinks = getChemistryLinks(xi, coachId);
   const captainBoost = captainBoostFromStarters(xi, captain ?? undefined) ?? undefined;
+  const charBoosts = computeCharacteristicBoosts(players); // 🩸❤️🪑 team-effect characteristics
 
   const chemColor = chemData.total >= 90 ? '#22C55E' : chemData.total >= 60 ? '#EAB308' : chemData.total >= 30 ? '#F97316' : '#EF4444';
   const activeTrios = chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean);
 
   const teamOverall = xi.length === 11
     ? Math.round(xi.reduce((sum, p) => {
-        const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost });
+        const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts });
         return sum + eff.overall;
       }, 0) / 11)
     : null;
@@ -249,10 +252,10 @@ export default function SquadEditor({
       {/* Premium Player Modal */}
       <AnimatePresence>
         {selectedIndex !== null && selectedPlayer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }}>
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               className="bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
             >
               <div className="flex items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
@@ -268,7 +271,7 @@ export default function SquadEditor({
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {(() => {
                   const isStarter = selectedIndex < 11;
-                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined });
+                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts });
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
                   const photoUrl = buildSofifaUrl(selectedPlayer.id, 120);
@@ -380,12 +383,43 @@ export default function SquadEditor({
                   );
                 })()}
 
-                {/* Swap candidates list */}
+                {/* 🩸 Mártir — pick the 2 XI teammates who get +3 (in-league only; post-draft uses auto). */}
+                {selectedPlayer.martir && onSetMartirTargets && selectedIndex < 11 && (() => {
+                  const others = players.slice(0, 11).filter(p => p.id !== selectedPlayer.id);
+                  const current = (selectedPlayer.martirTargets ?? []).filter(id => others.some(o => o.id === id));
+                  const toggle = (id: string) => {
+                    let next = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+                    if (next.length > 2) next = next.slice(next.length - 2);
+                    onSetMartirTargets(selectedPlayer.id, next);
+                  };
+                  return (
+                    <div className="rounded-xl p-3" style={{ background: '#1a0808', border: '1px solid #B91C1C55' }}>
+                      <div className="text-[11px] font-black tracking-widest" style={{ color: '#F87171', fontFamily: 'Rajdhani, sans-serif' }}>🩸 SACRIFÍCIO DO MÁRTIR</div>
+                      <p className="text-[11px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                        Escolha até <b style={{ color: '#fff' }}>2 titulares</b> que recebem <b style={{ color: '#F87171' }}>+3 em todos os atributos</b>.
+                        {current.length < 2 && <> Sem escolher, vai automático pros 2 de maior overall.</>}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {others.map(o => {
+                          const sel = current.includes(o.id);
+                          return (
+                            <button key={o.id} onClick={() => toggle(o.id)}
+                              className="text-[11px] font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
+                              style={{ background: sel ? '#B91C1C33' : '#07070f', color: sel ? '#F87171' : '#9A9AAA', border: `1px solid ${sel ? '#B91C1C' : '#1A1A2A'}`, fontFamily: 'Rajdhani, sans-serif' }}>
+                              {sel ? '✓ ' : ''}{o.shortName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Swap candidates list — grouped Titulares / Reservas so trocas ficam claras */}
                 <div className="space-y-3">
                   <div className="text-xs font-bold text-[#8A8A9A] tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TROCAR COM:</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {players.map((candidate, idx) => {
-                      if (idx === selectedIndex) return null;
+                  {(() => {
+                    const renderCandidate = (candidate: Player, idx: number) => {
                       const preview = getChemPreview(idx);
                       const isStarter = idx < 11;
                       const diffColor = preview.diff > 0 ? '#22C55E' : preview.diff < 0 ? '#EF4444' : '#8A8A9A';
@@ -400,14 +434,13 @@ export default function SquadEditor({
                           style={{ background: '#07070f' }}>
                           <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d]" style={{ border: `1.5px solid ${getRarityColor(candidate.rarity)}` }}>
                             {photoUrl
-                              ? <img src={photoUrl} alt={candidate.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} />
+                              ? <img src={photoUrl} alt={candidate.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} loading="lazy" referrerPolicy="no-referrer" />
                               : <span className="text-sm font-bold" style={{ color: getRarityColor(candidate.rarity) }}>⚽</span>}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[9px] font-black px-1.5 py-0.5 rounded text-white" style={{ background: '#222', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[candidate.position] ?? candidate.position}</span>
                               <span className="text-[9px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GER: {candidate.overall}</span>
-                              <span className="text-[8px] font-bold px-1 py-0.5 rounded" style={{ background: isStarter ? '#22C55E22' : '#3B82F622', color: isStarter ? '#22C55E' : '#3B82F6', fontFamily: 'Rajdhani, sans-serif' }}>POS. {idx + 1}</span>
                               {hasBuffs && <span className="text-[8px] font-black px-1 py-0.5 rounded" style={{ background: '#C9A84C22', color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>⚡ BUFF</span>}
                             </div>
                             <div className="text-sm font-black text-white truncate mt-0.5" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{candidate.shortName.toUpperCase()}</div>
@@ -418,8 +451,23 @@ export default function SquadEditor({
                           </div>
                         </div>
                       );
-                    })}
-                  </div>
+                    };
+                    const starters = players.map((c, i) => ({ c, i })).filter(({ i }) => i < 11 && i !== selectedIndex);
+                    const bench = players.map((c, i) => ({ c, i })).filter(({ i }) => i >= 11 && i !== selectedIndex);
+                    const Section = ({ title, color, items }: { title: string; color: string; items: { c: Player; i: number }[] }) =>
+                      items.length === 0 ? null : (
+                        <div className="space-y-2">
+                          <div className="text-[10px] font-black tracking-widest" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{title}</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{items.map(({ c, i }) => renderCandidate(c, i))}</div>
+                        </div>
+                      );
+                    return (
+                      <div className="space-y-4">
+                        <Section title="TITULARES" color="#22C55E" items={starters} />
+                        <Section title="🪑 RESERVAS / BANCO" color="#818CF8" items={bench} />
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

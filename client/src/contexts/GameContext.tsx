@@ -25,6 +25,7 @@ export type GamePhase =
   | 'menu'           // Home screen
   | 'lobby'          // Multiplayer lobby
   | 'setup'          // Choose name, difficulty
+  | 'crest'          // Choose club crest
   | 'coach'          // Choose coach
   | 'formation'      // Choose formation
   | 'draft'          // Draft players
@@ -42,6 +43,7 @@ export interface RoomPlayer {
   socketId: string;
   id: string; // e.g. "player_0"
   name: string;
+  crestId?: string | null; // selected club crest
   coachId: string;
   formationId: string;
   draftedPlayers: (Player | undefined)[];
@@ -73,6 +75,7 @@ export interface GameState {
   report: ImmortalReport | null;
   champion: string | null;
   draftedPlayers: (Player | undefined)[];
+  selectedCrestId: string | null;
   selectedCoachId: string;
   selectedFormationId: string;
   selectedPlayStyle: string;
@@ -85,6 +88,7 @@ export interface GameState {
   points: number;
   lastMatchPoints: MatchPoints | null; // shown once after a LEAGUE match (in the reinforcement modal)
   knockoutPointsPopup: MatchPoints | null; // transient "+X pontos" popup after a KNOCKOUT leg (no reinforcement there)
+  reinforcementRerolls: number; // 🔄 re-roll tokens for the reinforcement pick (persist across rounds)
 
   // Online Multiplayer fields
   mode: 'solo' | 'online';
@@ -137,6 +141,7 @@ export interface KnockoutMatch {
 // ============================================================
 type GameAction =
   | { type: 'SET_PHASE'; phase: GamePhase }
+  | { type: 'SET_CREST'; crestId: string | null }
   | { type: 'SET_PLAYER_NAME'; name: string }
   | { type: 'SET_DIFFICULTY'; difficulty: string }
   | { type: 'SET_COACH'; coachId: string }
@@ -153,6 +158,7 @@ type GameAction =
   | { type: 'SWAP_PLAYERS'; indexA: number; indexB: number }
   | { type: 'SWAP_PLAYER_TEAM'; indexA: number; indexB: number }
   | { type: 'SET_PLAYER_TEAM_CAPTAIN'; playerId: string }
+  | { type: 'SET_PLAYER_TEAM_MARTIR_TARGETS'; playerId: string; targetIds: string[] }
   | { type: 'SET_PLAYER_TEAM_PENALTY_TAKER'; playerId: string }
   | { type: 'SET_PLAYER_TEAM_FREE_KICK_TAKER'; playerId: string }
   | { type: 'SET_PLAYER_TEAM_FORMATION'; formationId: string }
@@ -162,6 +168,8 @@ type GameAction =
   | { type: 'SHOP_BUY_PLAYER'; player: Player; kind: 'star' | 'scout' }
   | { type: 'SHOP_TURBINAR'; playerId: string; variant: ShopVariant }
   | { type: 'SHOP_TRAIN'; playerId: string; attr: TrainAttr }
+  | { type: 'SHOP_BUY_REROLL' }
+  | { type: 'REROLL_REINFORCEMENT' }
   | { type: 'START_LEAGUE' }
   | { type: 'SIMULATE_LEAGUE' }
   | { type: 'START_KNOCKOUT' }
@@ -205,6 +213,7 @@ const initialState: GameState = {
   report: null,
   champion: null,
   draftedPlayers: [],
+  selectedCrestId: null,
   selectedCoachId: 'guardiola',
   selectedFormationId: '4-3-3',
   selectedPlayStyle: 'balanced',
@@ -215,6 +224,7 @@ const initialState: GameState = {
   points: 0,
   lastMatchPoints: null,
   knockoutPointsPopup: null,
+  reinforcementRerolls: 0,
 
   // Online Multiplayer fields
   mode: 'solo',
@@ -240,6 +250,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'SET_PHASE':
       return { ...state, phase: action.phase };
+
+    case 'SET_CREST':
+      return { ...state, selectedCrestId: action.crestId };
 
     case 'SET_PLAYER_NAME':
       return { ...state, playerName: action.name };
@@ -427,6 +440,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         playerTeam: { ...state.playerTeam, captain: action.playerId },
       };
 
+    case 'SET_PLAYER_TEAM_MARTIR_TARGETS': {
+      if (!state.playerTeam) return state;
+      // Which 2 XI teammates a Mártir sacrifices for (the +3 recipients).
+      const players = state.playerTeam.players.map(p =>
+        p.id === action.playerId ? { ...p, martirTargets: action.targetIds } : p);
+      return { ...state, playerTeam: { ...state.playerTeam, players } };
+    }
+
     case 'SET_PLAYER_TEAM_PENALTY_TAKER':
       if (!state.playerTeam) return state;
       return {
@@ -497,7 +518,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const target = state.playerTeam.players.find(p => p.id === action.playerId);
       if (!target || state.points < cost) return state;
       // One special variant per card — refuse if it already has one.
-      if (target.inForm || target.lobo || target.coringa || target.nomade || target.pilar) return state;
+      if (target.inForm || target.lobo || target.coringa || target.nomade || target.pilar || target.martir || target.idolo || target.decimoHomem) return state;
       const newPlayers = state.playerTeam.players.map(p =>
         p.id === action.playerId ? ({ ...applyShopVariant(p, action.variant) } as PlayerCard) : p);
       return {
@@ -523,6 +544,22 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         points: state.points - cost,
         playerTeam: { ...state.playerTeam, players: newPlayers },
+      };
+    }
+
+    case 'SHOP_BUY_REROLL': {
+      if (state.points < SHOP_COSTS.reroll) return state;
+      return { ...state, points: state.points - SHOP_COSTS.reroll, reinforcementRerolls: state.reinforcementRerolls + 1 };
+    }
+
+    case 'REROLL_REINFORCEMENT': {
+      // Re-sortear as opções de reforço, consumindo 1 token. Só faz sentido com o modal aberto.
+      if (state.reinforcementRerolls <= 0 || !state.playerTeam || !state.reinforcementOptions) return state;
+      const ownedIds = state.playerTeam.players.map(p => p.id);
+      return {
+        ...state,
+        reinforcementRerolls: state.reinforcementRerolls - 1,
+        reinforcementOptions: generateDraftOptions([], ownedIds),
       };
     }
 
@@ -563,6 +600,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         freeKickTaker: state.freeKickTaker ?? undefined,
         totalChemistry: chemData.total,
         isBot: false,
+        crestId: state.selectedCrestId ?? undefined,
       };
 
       // Generate bot teams
@@ -945,7 +983,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         points: me ? (me.points ?? 0) : state.points,
         lastMatchPoints: me ? (me.lastMatchPoints ?? null) : state.lastMatchPoints,
         reinforcementOptions: me ? (me.reinforcementOptions ?? null) : state.reinforcementOptions,
+        reinforcementRerolls: me ? (me.reinforcementRerolls ?? 0) : state.reinforcementRerolls,
         draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),
+        selectedCrestId: keepLocalPicks ? state.selectedCrestId : (me ? (me.crestId ?? state.selectedCrestId) : state.selectedCrestId),
         selectedCoachId: keepLocalPicks ? state.selectedCoachId : (me ? me.coachId : state.selectedCoachId),
         selectedFormationId: keepLocalPicks ? state.selectedFormationId : (me ? me.formationId : state.selectedFormationId),
         selectedPlayStyle: keepLocalPicks ? state.selectedPlayStyle : (me ? (me.playStyle ?? 'balanced') : state.selectedPlayStyle),
@@ -1017,7 +1057,7 @@ interface GameContextType {
   joinRoom: (roomCode: string, playerName: string) => void;
   setDifficultyOnline: (difficulty: string) => void;
   startSetupOnline: () => void;
-  submitSetupOnline: (coachId: string, formationId: string) => void;
+  submitSetupOnline: (coachId: string, formationId: string, crestId?: string | null) => void;
   draftPickOnline: (playerId: string) => void;
   draftVetoOnline: () => void;
   submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string) => void;
@@ -1037,6 +1077,9 @@ interface GameContextType {
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
+  martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
+  shopBuyRerollOnline: () => void;
+  rerollReinforcementOnline: () => void;
   pickReinforcementOnline: (player: Player) => void;
   dismissReinforcementOnline: () => void;
 }
@@ -1137,9 +1180,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.roomCode]);
 
-  const submitSetupOnline = useCallback((coachId: string, formationId: string) => {
+  const submitSetupOnline = useCallback((coachId: string, formationId: string, crestId?: string | null) => {
     if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("submit_setup", { roomCode: state.roomCode, coachId, formationId });
+      socketRef.current.emit("submit_setup", { roomCode: state.roomCode, coachId, formationId, crestId });
     }
   }, [state.roomCode]);
 
@@ -1227,6 +1270,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const swapPlayerTeamOnline = useCallback((indexA: number, indexB: number) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("swap_player_team", { roomCode: state.roomCode, indexA, indexB });
   }, [state.roomCode]);
+  const martirTargetsOnline = useCallback((playerId: string, targetIds: string[]) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("set_martir_targets", { roomCode: state.roomCode, playerId, targetIds });
+  }, [state.roomCode]);
+  const shopBuyRerollOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_buy_reroll", { roomCode: state.roomCode });
+  }, [state.roomCode]);
+  const rerollReinforcementOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("reroll_reinforcement", { roomCode: state.roomCode });
+  }, [state.roomCode]);
   const pickReinforcementOnline = useCallback((player: Player) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("pick_reinforcement", { roomCode: state.roomCode, player });
   }, [state.roomCode]);
@@ -1284,7 +1336,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopTrainOnline,
-    swapPlayerTeamOnline, pickReinforcementOnline, dismissReinforcementOnline,
+    swapPlayerTeamOnline, martirTargetsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
+    pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state, dispatch]);
 

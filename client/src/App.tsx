@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
 import SetupPage from "./pages/SetupPage";
+import CrestPage from "./pages/CrestPage";
 import CoachPage from "./pages/CoachPage";
 import FormationPage from "./pages/FormationPage";
 import DraftPage from "./pages/DraftPage";
@@ -21,6 +22,7 @@ function GameRouter() {
     case 'menu':
     case 'lobby': return <MenuPage />;
     case 'setup': return <SetupPage />;
+    case 'crest': return <CrestPage />;
     case 'coach': return <CoachPage />;
     case 'formation': return <FormationPage />;
     case 'draft': return <DraftPage />;

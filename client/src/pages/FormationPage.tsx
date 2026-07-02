@@ -22,7 +22,7 @@ export default function FormationPage() {
 
   const handleContinue = () => {
     if (state.mode === 'online') {
-      submitSetupOnline(state.selectedCoachId, state.selectedFormationId);
+      submitSetupOnline(state.selectedCoachId, state.selectedFormationId, state.selectedCrestId);
     } else {
       dispatch({ type: 'START_DRAFT' });
     }

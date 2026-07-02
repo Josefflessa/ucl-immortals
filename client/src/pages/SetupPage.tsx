@@ -15,7 +15,7 @@ export default function SetupPage() {
   };
 
   const handleContinue = () => {
-    dispatch({ type: 'SET_PHASE', phase: 'coach' });
+    dispatch({ type: 'SET_PHASE', phase: 'crest' });
   };
 
   return (

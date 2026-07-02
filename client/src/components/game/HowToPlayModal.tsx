@@ -109,8 +109,13 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
           </Card>
           <Card>
             <H>Individual (0–3) e Total (0–100)</H>
-            <P>Cada jogador tem uma química individual de <b style={{ color: '#FFF' }}>0 a 3</b> (multiplicador de até +10% nos atributos). A soma vira a química <b style={{ color: '#FFF' }}>total do time (0–100)</b>.</P>
-            <div className="mt-2"><Chip color="#22C55E">Química perfeita (90+): +3 em TODOS os atributos de todos os titulares</Chip></div>
+            <P>Cada jogador tem uma química individual de <b style={{ color: '#FFF' }}>0 a 3</b> (multiplicador de até +10% nos atributos). A soma vira a química <b style={{ color: '#FFF' }}>total do time (0–100)</b>, que dá um bônus em TODOS os atributos de todos os titulares, subindo a cada marco:</P>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Chip color="#22C55E">45+ → +1</Chip>
+              <Chip color="#22C55E">60+ → +2</Chip>
+              <Chip color="#22C55E">75+ → +3</Chip>
+              <Chip color="#22C55E">90+ → +5 (perfeita)</Chip>
+            </div>
           </Card>
           <Card accent="#EF444444">
             <H>⚠️ Fora de posição</H>
@@ -277,12 +282,12 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="fixed inset-0 z-[90] flex items-center justify-center p-2 sm:p-4"
-          style={{ background: 'rgba(5,5,14,0.92)', backdropFilter: 'blur(4px)' }}
+          style={{ background: 'rgba(5,5,14,0.94)' }}
           onClick={onClose}
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
-            transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+            initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 14 }}
+            transition={{ duration: 0.18 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col"
             style={{ background: '#08080F', border: `1px solid ${GOLD}55`, boxShadow: '0 0 60px rgba(0,0,0,0.7)', maxHeight: '92vh' }}

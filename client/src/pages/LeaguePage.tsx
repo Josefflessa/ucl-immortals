@@ -13,13 +13,29 @@ import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
 import BracketTab from '../components/game/BracketTab';
 import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerCard from '../components/game/PlayerCard';
+import Crest from '../components/game/Crest';
 import { POS_PT } from '../lib/gameData';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
+// Anti-spoiler placeholder: shown instead of position/standings/stats/bracket while other
+// players are still watching their match this round (durations vary, so results must stay hidden).
+function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
+  return (
+    <div className="rounded-xl p-8 text-center" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
+      <div className="text-4xl mb-3">🔒</div>
+      <div className="text-base font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Bebas Neue, sans-serif' }}>{label}</div>
+      <div className="text-xs mt-2 leading-relaxed" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+        Liberado quando <b style={{ color: '#FFF' }}>todos saírem da partida</b> desta rodada
+        {waiting > 0 ? <> — aguardando <b style={{ color: '#E8C84A' }}>{waiting}</b> jogador(es).</> : '.'}
+      </div>
+    </div>
+  );
+}
+
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline } = useGame();
   const online = state.mode === 'online';
 
   const handleLeaveRoom = () => {
@@ -97,6 +113,18 @@ export default function LeaguePage() {
   // ONLINE: hide ALL scores until every player has confirmed watching the replay.
   // This prevents the host (or anyone else) from seeing results before others finish.
   const hideRoundScore = state.mode === 'online' && !allPlayersWatched;
+
+  // Knockout equivalent: everyone in the active tie round must have watched the leg.
+  const koMatches = isKnockout && state.knockoutBracket ? getActiveKnockoutMatches(state.knockoutBracket) : [];
+  const koHumans = state.mode === 'online' ? state.onlinePlayers.filter(p => koMatches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id)) : [];
+  const koAllWatched = koHumans.length === 0 || koHumans.every(p => state.onlineWatchedPlayers.includes(p.id));
+
+  // Unified anti-spoiler gate: the POSITION notice, CLASSIFICAÇÃO, ESTATÍSTICAS and (knockout)
+  // CHAVEAMENTO only reveal/update once EVERYONE in the round has left their match.
+  const spoilerLock = state.mode === 'online' && (isKnockout ? !koAllWatched : !allPlayersWatched);
+  const spoilerWaiting = isKnockout
+    ? koHumans.filter(p => !state.onlineWatchedPlayers.includes(p.id)).length
+    : waitingForCount;
 
   // Check if player's match in this round is already played
   const playerFixture = currentRoundFixtures.find(
@@ -285,7 +313,13 @@ export default function LeaguePage() {
 
       <div className="flex-1 px-3 sm:px-4 py-4 max-w-4xl mx-auto w-full">
         {/* Player summary card — league standing only (irrelevant in the knockout) */}
-        {!isKnockout && playerStanding && (
+        {/* ONLINE anti-spoiler: while others are still watching, hide the position/qualification. */}
+        {!isKnockout && spoilerLock && (
+          <div className="mb-6">
+            <SpoilerLock waiting={spoilerWaiting} label="POSIÇÃO E CLASSIFICAÇÃO OCULTAS" />
+          </div>
+        )}
+        {!isKnockout && !spoilerLock && playerStanding && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -305,7 +339,8 @@ export default function LeaguePage() {
                 {playerPosition}º
               </div>
               <div>
-                <div className="text-lg font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
+                <div className="text-lg font-black flex items-center gap-2" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
+                  <Crest crestId={playerTeam?.crestId} name={playerTeam?.name} size={26} />
                   {playerTeam?.name}
                 </div>
                 <div className="text-xs" style={{
@@ -378,7 +413,9 @@ export default function LeaguePage() {
 
         {/* Matches tab — knockout shows the bracket ties; league shows round fixtures */}
         {activeTab === 'fixtures' && isKnockout && <KnockoutTiesTab />}
-        {activeTab === 'bracket' && isKnockout && <BracketTab />}
+        {activeTab === 'bracket' && isKnockout && (spoilerLock
+          ? <SpoilerLock waiting={spoilerWaiting} label="CHAVEAMENTO OCULTO" />
+          : <BracketTab />)}
         {activeTab === 'fixtures' && !isKnockout && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -593,7 +630,10 @@ export default function LeaguePage() {
         )}
 
         {/* Standings table — league only (knockout has no table) */}
-        {activeTab === 'standings' && !isKnockout && (
+        {activeTab === 'standings' && !isKnockout && spoilerLock && (
+          <SpoilerLock waiting={spoilerWaiting} label="CLASSIFICAÇÃO OCULTA" />
+        )}
+        {activeTab === 'standings' && !isKnockout && !spoilerLock && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -623,11 +663,8 @@ export default function LeaguePage() {
               const isEliminated = i >= 24;
 
               return (
-                <motion.div
+                <div
                   key={entry.teamId}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.02 }}
                   className="grid gap-0 px-3 sm:px-4 py-2 sm:py-2.5 items-center"
                   style={{
                     gridTemplateColumns: '1.5rem 1fr 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem',
@@ -651,6 +688,7 @@ export default function LeaguePage() {
                     {isDirectQual && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: '#22C55E' }} />}
                     {isPlayoff && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: '#3B82F6' }} />}
                     {isEliminated && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: '#EF4444' }} />}
+                    <Crest crestId={allTeams.find(t => t.id === entry.teamId)?.crestId} name={entry.teamName} size={18} />
                     <span className="text-xs sm:text-sm font-semibold truncate"
                       style={{
                         fontFamily: 'Rajdhani, sans-serif',
@@ -670,7 +708,7 @@ export default function LeaguePage() {
                     style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
                     {entry.points}
                   </div>
-                </motion.div>
+                </div>
               );
             })}
             </div>
@@ -678,7 +716,10 @@ export default function LeaguePage() {
         )}
 
         {/* Estatísticas da Temporada */}
-        {activeTab === 'scorers' && (
+        {activeTab === 'scorers' && spoilerLock && (
+          <SpoilerLock waiting={spoilerWaiting} label="ESTATÍSTICAS OCULTAS" />
+        )}
+        {activeTab === 'scorers' && !spoilerLock && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
             {/* Sub-tabs scrollable on mobile */}
             <div className="flex gap-1.5 p-1 rounded-xl bg-[#09090f] border border-[#1A1A2A] overflow-x-auto scrollbar-none">
@@ -769,11 +810,8 @@ export default function LeaguePage() {
                       }
 
                       return (
-                        <motion.div
+                        <div
                           key={`${statsSubTab}-${player.id}`}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.03 }}
                           className="flex items-center gap-4 px-4 py-3"
                           style={{
                             background: isPlayerTeam ? '#14142A' : i % 2 === 0 ? '#0A0A14' : '#080810',
@@ -820,7 +858,7 @@ export default function LeaguePage() {
                               {metricLabel}
                             </div>
                           </div>
-                        </motion.div>
+                        </div>
                       );
                     })}
                   </div>
@@ -864,7 +902,7 @@ export default function LeaguePage() {
                     key={i}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                    transition={{ delay: Math.min(i * 0.04, 0.25) }}
                     className="flex items-center gap-4 px-4 py-3 rounded-xl"
                     style={{
                       background: '#0F0F1A',
@@ -912,13 +950,14 @@ export default function LeaguePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
-            style={{ background: 'rgba(6,6,14,0.95)', backdropFilter: 'blur(3px)' }}
+            style={{ background: 'rgba(6,6,14,0.96)' }}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col max-h-[92vh]"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col max-h-[95vh]"
               style={{ background: '#0B0B14', border: '1px solid #C9A84C55', boxShadow: '0 0 50px rgba(201,168,76,0.18)' }}
             >
               {/* Header */}
@@ -958,17 +997,17 @@ export default function LeaguePage() {
                 </div>
               )}
 
-              {/* Options */}
-              <div className="px-4 sm:px-6 py-5 overflow-y-auto flex-1 min-h-0">
-                <div className="flex flex-wrap justify-center gap-2.5 sm:gap-4">
+              {/* Options — bigger full cards (light, no animations) */}
+              <div className="px-4 sm:px-6 py-6 overflow-y-auto flex-1 min-h-0">
+                <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
                   {state.reinforcementOptions.map(option => (
                     <button
                       key={option.id}
                       onClick={() => online ? pickReinforcementOnline(option) : dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
-                      className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none"
+                      className="transition-transform hover:scale-[1.05] active:scale-[0.97] focus:outline-none"
                       title={`Contratar ${option.shortName} para o banco`}
                     >
-                      <PlayerCard player={option} compact lite />
+                      <PlayerCard player={option} lite />
                     </button>
                   ))}
                 </div>
@@ -976,16 +1015,27 @@ export default function LeaguePage() {
 
               {/* Footer */}
               <div className="px-5 sm:px-6 py-4 flex-shrink-0 flex items-center justify-between gap-3" style={{ borderTop: '1px solid #1d1d2f' }}>
-                <span className="text-[11px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                   👆 Toque num card para contratar
                 </span>
-                <button
-                  onClick={() => online ? dismissReinforcementOnline() : dispatch({ type: 'DISMISS_REINFORCEMENT' })}
-                  className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
-                  style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2A2A3A', background: 'transparent', color: '#8A8A9A' }}
-                >
-                  Pular reforço
-                </button>
+                <div className="flex items-center gap-2 ml-auto">
+                  {state.reinforcementRerolls > 0 && (
+                    <button
+                      onClick={() => online ? rerollReinforcementOnline() : dispatch({ type: 'REROLL_REINFORCEMENT' })}
+                      className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all active:scale-95"
+                      style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #F472B655', background: '#F472B618', color: '#F472B6' }}
+                    >
+                      🔄 Re-sortear ({state.reinforcementRerolls})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => online ? dismissReinforcementOnline() : dispatch({ type: 'DISMISS_REINFORCEMENT' })}
+                    className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+                    style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2A2A3A', background: 'transparent', color: '#8A8A9A' }}
+                  >
+                    Pular reforço
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -998,7 +1048,7 @@ export default function LeaguePage() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(6,6,14,0.9)', backdropFilter: 'blur(3px)' }}
+            style={{ background: 'rgba(6,6,14,0.93)' }}
             onClick={() => dispatch({ type: 'DISMISS_KO_POINTS' })}
           >
             <motion.div

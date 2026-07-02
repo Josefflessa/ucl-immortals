@@ -60,6 +60,7 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
   const tactic = collect(eff, b => b.tactic);
   const captain = collect(eff, b => b.captain);
   const train = collect(eff, b => b.train);
+  const char = collect(eff, b => b.char);
   const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
   const showChem = chemNet !== 0 || !!chem;
   const showTraits = (traits && traits.length > 0) || traitDeltas.length > 0;
@@ -73,7 +74,7 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || !!variant;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || char.length > 0 || !!variant;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -160,7 +161,7 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
               </div>
               {eff.globalChemBonus.special > 0 && (
                 <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  Química perfeita (90+): <b style={{ color: '#E8C84A' }}>+{eff.globalChemBonus.special} em todos os atributos</b> de todos os titulares.
+                  Bônus de química do time: <b style={{ color: '#E8C84A' }}>+{eff.globalChemBonus.special} em todos os atributos</b> de todos os titulares (sobe a cada marco, +5 na química perfeita).
                 </div>
               )}
             </Row>
@@ -224,6 +225,16 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
               <div className="flex flex-wrap gap-1">{chips(train, '#34D399')}</div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 Melhoria permanente comprada na loja — soma direto no atributo (sem teto) e reflete no geral.
+              </div>
+            </Row>
+          )}
+
+          {/* 🩸❤️🪑 Buff recebido de características de companheiros (Mártir/Ídolo/12º Homem). */}
+          {char.length > 0 && (
+            <Row icon="🤝" name="CARACTERÍSTICA DO TIME" color="#F472B6">
+              <div className="flex flex-wrap gap-1">{chips(char, '#F472B6')}</div>
+              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                Bônus concedido por companheiro(s) com característica de time (🩸 Mártir · ❤️ Ídolo · 🪑 12º Homem).
               </div>
             </Row>
           )}

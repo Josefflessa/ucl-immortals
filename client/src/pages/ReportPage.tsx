@@ -11,7 +11,10 @@ import {
   getAllPlayedMatchResults,
   getPlayerSeasonStats,
   getPlayerEffectiveStats,
+  getChemistryLinks,
 } from '../lib/gameEngine';
+import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
+import Crest from '../components/game/Crest';
 
 const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
@@ -559,6 +562,7 @@ export default function ReportPage() {
             style={{ background: '#0F0F1A', border: `1px solid ${isChampion ? '#C9A84C55' : '#1A1A2A'}` }}
           >
             <div className="px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: '#1A1A2A', background: isChampion ? '#C9A84C11' : 'transparent' }}>
+              <Crest crestId={playerTeam.crestId} name={playerTeam.name} size={22} />
               <span className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
                 {isChampion ? '🏆 ' : ''}ELENCO — {playerTeam.name}
               </span>
@@ -568,7 +572,33 @@ export default function ReportPage() {
                 </span>
               )}
             </div>
-            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {/* XI no campo, com as linhas de química (mesmo clube / nação / técnico / dupla) */}
+            {formation && starters.length === 11 && chemData && (
+              <div className="p-4 pb-2">
+                <FormationField
+                  formation={formation}
+                  players={starters}
+                  chemistryScores={chemData.individual}
+                  showChemLines
+                  chemLinks={getChemistryLinks(starters, playerTeam.coachId)}
+                />
+                {/* Legenda das conexões */}
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 mt-3">
+                  {([
+                    { t: 'club' as const, l: 'Mesmo clube' },
+                    { t: 'nation' as const, l: 'Mesma nação' },
+                    { t: 'coach' as const, l: 'Mesmo técnico' },
+                    { t: 'partner' as const, l: 'Dupla histórica' },
+                  ]).map(({ t, l }) => (
+                    <div key={t} className="flex items-center gap-1.5">
+                      <span className="inline-block w-4 h-0.5 rounded" style={{ background: CHEM_LINK_COLOR[t] }} />
+                      <span className="text-[10px] font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{l}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="p-4 pt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
               {starters.map((pl, i) => (
                 <motion.div
                   key={pl.id}

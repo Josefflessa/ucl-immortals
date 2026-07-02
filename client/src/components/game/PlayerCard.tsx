@@ -17,8 +17,8 @@ interface PlayerCardProps {
 // ver = FIFA edition year (e.g. 25 = FIFA 25, 24 = FIFA 24). Higher = better face scan quality.
 export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   // ── IMMORTALS ──────────────────────────────────────────────────────────────
-  messi:           { id: 158023, ver: 24 }, // FIFA 24 — sharp photorealistic Messi
-  cristiano:       { id: 20801,  ver: 24 }, // FIFA 24 — best CR7 scan
+  messi:           { id: 158023, ver: 16 }, // FIFA 16 — Messi no auge (Barça), combina com a carta
+  cristiano:       { id: 20801,  ver: 15 }, // FIFA 15 — CR7 no auge (Real Madrid)
   // ── LEGENDARY ──────────────────────────────────────────────────────────────
   xavi:            { id: 10535,  ver: 23 }, // FIFA 23 — recent FUT Heroes version
   iniesta:         { id: 41,     ver: 22 }, // ✅ CDN-verified (185427=Ørjan Nyland!) FIXED
@@ -50,7 +50,7 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   milito:          { id: 262271, ver: 25 }, // ✅ FIXED — correto Diego Milito
   zanetti:         { id: 1041,   ver: 24 }, // ✅ CDN-verified — was 1168 FIXED
   schweinsteiger:  { id: 121944, ver: 24 }, // FIFA 24 — FUT Icon
-  neymar:          { id: 190871, ver: 24 }, // FIFA 24
+  neymar:          { id: 190871, ver: 16 }, // FIFA 16 — Neymar no auge (Barça, MSN)
   suarez:          { id: 176580, ver: 24 }, // FIFA 24
   puyol:           { id: 13038,  ver: 24 }, // ✅ CDN-verified — was 41 FIXED
   chiellini:       { id: 138956, ver: 24 }, // ✅ CDN-verified (was Tony McMahon!) FIXED
@@ -273,7 +273,144 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   de_gea          : { id: 193080, ver: 25 },
   e_martinez      : { id: 202811, ver: 25 },
   pique           : { id: 152729, ver: 23 },
-  hummels         : { id: 178603, ver: 25 }
+  hummels         : { id: 178603, ver: 25 },
+  // ── +134 new players (sofifa-verified) ──
+  l_insigne: { id: 198219, ver: 25 },
+  p_aubameyang: { id: 188567, ver: 25 },
+  c_immobile: { id: 192387, ver: 25 },
+  d_mertens: { id: 175943, ver: 25 },
+  alex_sandro: { id: 191043, ver: 24 },
+  douglas_costa: { id: 190483, ver: 21 },
+  m_reus: { id: 188350, ver: 25 },
+  m_benatia: { id: 177509, ver: 22 },
+  s_milinkovic_savic: { id: 223848, ver: 25 },
+  d_alaba: { id: 197445, ver: 25 },
+  koke: { id: 193747, ver: 25 },
+  y_brahimi: { id: 184267, ver: 19 },
+  a_vidal: { id: 181872, ver: 25 },
+  i_perisic: { id: 181458, ver: 25 },
+  e_dzeko: { id: 180930, ver: 25 },
+  b_matuidi: { id: 170890, ver: 25 },
+  alex_telles: { id: 212462, ver: 25 },
+  william_carvalho: { id: 207566, ver: 25 },
+  f_thauvin: { id: 204970, ver: 25 },
+  jose_callejon: { id: 185020, ver: 24 },
+  m_mandzukic: { id: 181783, ver: 21 },
+  sergio_asenjo: { id: 178750, ver: 24 },
+  e_banega: { id: 178562, ver: 25 },
+  jonas: { id: 176769, ver: 19 },
+  k_schmeichel: { id: 163587, ver: 25 },
+  quaresma: { id: 20775, ver: 22 },
+  t_lemar: { id: 213565, ver: 25 },
+  k_coman: { id: 213345, ver: 25 },
+  q_promes: { id: 208808, ver: 22 },
+  y_carrasco: { id: 208418, ver: 25 },
+  j_pickford: { id: 204935, ver: 25 },
+  danilo_pereira: { id: 200888, ver: 25 },
+  f_acerbi: { id: 199845, ver: 25 },
+  rodrigo: { id: 198329, ver: 25 },
+  neto: { id: 194404, ver: 25 },
+  h_mkhitaryan: { id: 192883, ver: 25 },
+  marcos_alonso: { id: 192638, ver: 25 },
+  d_subasic: { id: 192593, ver: 23 },
+  b_dost: { id: 189068, ver: 24 },
+  juan_mata: { id: 178088, ver: 25 },
+  rui_patricio: { id: 178005, ver: 25 },
+  r_jarstein: { id: 104389, ver: 23 },
+  gelson_martins: { id: 227055, ver: 25 },
+  goncalo_guedes: { id: 224411, ver: 25 },
+  pau_lopez: { id: 221087, ver: 25 },
+  l_hernandez: { id: 220814, ver: 25 },
+  f_bernardeschi: { id: 212404, ver: 25 },
+  j_brandt: { id: 212194, ver: 25 },
+  samu_castillejo: { id: 210617, ver: 25 },
+  t_partey: { id: 209989, ver: 25 },
+  j_vardy: { id: 208830, ver: 25 },
+  e_forsberg: { id: 208448, ver: 25 },
+  e_visca: { id: 205678, ver: 25 },
+  a_florenzi: { id: 203551, ver: 25 },
+  t_meunier: { id: 202371, ver: 25 },
+  s_sane: { id: 201956, ver: 22 },
+  luis_alberto: { id: 198706, ver: 24 },
+  willian_jose: { id: 195093, ver: 24 },
+  j_pastore: { id: 191180, ver: 23 },
+  r_burki: { id: 189117, ver: 25 },
+  s_nzonzi: { id: 187936, ver: 24 },
+  marlos: { id: 187754, ver: 22 },
+  g_sigur_sson: { id: 184484, ver: 25 },
+  s_giovinco: { id: 184431, ver: 22 },
+  l_fejsa: { id: 183376, ver: 22 },
+  a_guardado: { id: 171897, ver: 24 },
+  s_sirigu: { id: 168435, ver: 25 },
+  e_viviano: { id: 168354, ver: 24 },
+  m_politano: { id: 216409, ver: 25 },
+  a_correa: { id: 214997, ver: 25 },
+  t_strakosha: { id: 212151, ver: 25 },
+  e_hysaj: { id: 210864, ver: 25 },
+  ricardo_pereira: { id: 210243, ver: 25 },
+  r_guerreiro: { id: 209889, ver: 25 },
+  b_davies: { id: 205923, ver: 25 },
+  a_milik: { id: 205175, ver: 25 },
+  m_sabitzer: { id: 204923, ver: 25 },
+  b_mendy: { id: 204884, ver: 25 },
+  s_vrsaljko: { id: 203890, ver: 23 },
+  k_bellarabi: { id: 202857, ver: 23 },
+  f_ghoulam: { id: 201454, ver: 25 },
+  j_ilicic: { id: 200647, ver: 23 },
+  x_shaqiri: { id: 193348, ver: 25 },
+  j_corona: { id: 193165, ver: 24 },
+  e_salvio: { id: 190972, ver: 25 },
+  s_kagawa: { id: 189358, ver: 23 },
+  m_lanzini: { id: 188988, ver: 25 },
+  l_stindl: { id: 187072, ver: 24 },
+  o_toprak: { id: 185239, ver: 24 },
+  d_perotti: { id: 183900, ver: 22 },
+  f_muslera: { id: 182494, ver: 25 },
+  m_valbuena: { id: 177326, ver: 22 },
+  k_boateng: { id: 173909, ver: 23 },
+  l_piszczek: { id: 173771, ver: 21 },
+  d_wass: { id: 172522, ver: 25 },
+  e_lamela: { id: 170368, ver: 25 },
+  d_rose: { id: 169595, ver: 23 },
+  c_vela: { id: 169416, ver: 25 },
+  a_valencia: { id: 167905, ver: 21 },
+  manuel_fernandes: { id: 157960, ver: 22 },
+  h_herrera: { id: 156519, ver: 25 },
+  raffael: { id: 144622, ver: 20 },
+  m_gomez: { id: 239207, ver: 25 },
+  h_aouar: { id: 234906, ver: 25 },
+  m_almiron: { id: 230977, ver: 25 },
+  a_onana: { id: 226753, ver: 25 },
+  m_acuna: { id: 224334, ver: 25 },
+  m_vecino: { id: 219985, ver: 25 },
+  k_balde: { id: 215785, ver: 25 },
+  g_rulli: { id: 215316, ver: 25 },
+  m_ginter: { id: 207862, ver: 25 },
+  l_shaw: { id: 205988, ver: 25 },
+  z_feddal: { id: 205705, ver: 23 },
+  t_inui: { id: 205114, ver: 22 },
+  m_batshuayi: { id: 204529, ver: 25 },
+  t_vaclik: { id: 204120, ver: 24 },
+  p_kaderabek: { id: 203605, ver: 25 },
+  j_vestergaard: { id: 202849, ver: 25 },
+  m_badelj: { id: 201144, ver: 25 },
+  ismaily: { id: 201119, ver: 25 },
+  n_schulz: { id: 200536, ver: 23 },
+  l_muriel: { id: 199110, ver: 25 },
+  v_aboubakar: { id: 199069, ver: 25 },
+  s_aurier: { id: 197853, ver: 24 },
+  j_matip: { id: 197061, ver: 24 },
+  a_yarmolenko: { id: 194794, ver: 25 },
+  r_rodriguez: { id: 193352, ver: 25 },
+  d_blind: { id: 190815, ver: 25 },
+  j_zoet: { id: 190778, ver: 25 },
+  a_ljajic: { id: 190544, ver: 24 },
+  l_de_jong: { id: 189805, ver: 25 },
+  n_nkoulou: { id: 188829, ver: 24 },
+  r_boudebouz: { id: 188388, ver: 24 },
+  c_stuani: { id: 186537, ver: 25 },
+  rogerio_ceni: { id: 21570, ver: 15 }, // ✅ CDN-verified — Ceni era São Paulo (EA nunca fez ícone dele)
+  zico:         { id: 166691, ver: 24 }, // ✅ CDN-verified — Zico ícone EA (retrato sépia de lenda)
 };
 
 const NATION_CODES: Record<string, string> = {
@@ -497,15 +634,21 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
 // layered ON TOP of the untouched rarity card (an animated border highlight + outer aura), so a
 // special card is unmistakable: ⚡ Em alta (verde) · 🐺 Lobo (roxo) · 🃏 Coringa (vermelho)
 // · 🌍 Nômade (azul) · 🧱 Pilar (branco).
-const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string }> = {
-  inForm:  { color: '#39FF14', icon: '⚡', label: 'EM ALTA' },
-  lobo:    { color: '#A855F7', icon: '🐺', label: 'LOBO SOLITÁRIO' },
-  coringa: { color: '#EF4444', icon: '🃏', label: 'CORINGA' },
-  nomade:  { color: '#3B82F6', icon: '🌍', label: 'NÔMADE' },
-  pilar:   { color: '#FFFFFF', icon: '🧱', label: 'PILAR' },
+// `treatment` drives a DISTINCT visual family: the 5 original variants share the rotating conic
+// ring; the 3 team-effect ones (Mártir/Ídolo/12º Homem) get their own looks (pulse / halo / calm).
+type VariantTreatment = 'ring' | 'pulse' | 'halo' | 'calm';
+const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string; treatment: VariantTreatment }> = {
+  inForm:  { color: '#39FF14', icon: '⚡', label: 'EM ALTA', treatment: 'ring' },
+  lobo:    { color: '#A855F7', icon: '🐺', label: 'LOBO SOLITÁRIO', treatment: 'ring' },
+  coringa: { color: '#EF4444', icon: '🃏', label: 'CORINGA', treatment: 'ring' },
+  nomade:  { color: '#3B82F6', icon: '🌍', label: 'NÔMADE', treatment: 'ring' },
+  pilar:   { color: '#FFFFFF', icon: '🧱', label: 'PILAR', treatment: 'ring' },
+  martir:      { color: '#B91C1C', icon: '🩸', label: 'MÁRTIR', treatment: 'pulse' },
+  idolo:       { color: '#F59E0B', icon: '❤️', label: 'ÍDOLO', treatment: 'halo' },
+  decimoHomem: { color: '#14B8A6', icon: '🪑', label: '12º HOMEM', treatment: 'calm' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar'] as const;
-export function getCardVariant(player: Player): { key: string; color: string; icon: string; label: string } | null {
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem'] as const;
+export function getCardVariant(player: Player): { key: string; color: string; icon: string; label: string; treatment: VariantTreatment } | null {
   for (const key of VARIANT_ORDER) {
     if ((player as unknown as Record<string, unknown>)[key]) return { key, ...VARIANT_STYLE[key] };
   }
@@ -520,6 +663,9 @@ function variantDesc(player: Player): string {
   if (player.coringa) return 'CORINGA: joga em qualquer posição sem perder estatísticas nem química';
   if (player.nomade) return 'NÔMADE: conta como qualquer nação na química';
   if (player.pilar) return 'PILAR: +12 na QUÍMICA GERAL do time';
+  if (player.martir) return 'MÁRTIR: −6 em cada atributo nele, mas dá +3 em tudo a 2 titulares';
+  if (player.idolo) return 'ÍDOLO: +2 em cada atributo aos titulares do MESMO CLUBE que ele';
+  if (player.decimoHomem) return '12º HOMEM: no banco, dá +1 compostura e +2 visão a todo o time';
   return '';
 }
 
@@ -552,6 +698,24 @@ function VariantRing({ radius, thickness, color }: { radius: number; thickness: 
   );
 }
 
+// Picks the border/glow treatment for a variant. The 5 original variants use the rotating ring;
+// the 3 team-effect ones each get a DISTINCT look so they read as a different family:
+//  · 🩸 pulse  — somber blood-red border that pulses (sacrifice)
+//  · ❤️ halo   — warm breathing glow (club idol)
+//  · 🪑 calm   — plain static border, no animation (a quiet reserve)
+function VariantDecor({ radius, thickness, color, treatment }: { radius: number; thickness: number; color: string; treatment: VariantTreatment }) {
+  if (treatment === 'ring') return <VariantRing radius={radius} thickness={thickness} color={color} />;
+  const common = { borderRadius: radius } as const;
+  if (treatment === 'pulse') {
+    return <div className="absolute inset-0 pointer-events-none z-20" style={{ ...common, border: `${thickness + 0.5}px solid ${color}`, boxShadow: `inset 0 0 9px ${color}55`, animation: 'martir-pulse 1.8s ease-in-out infinite' }} />;
+  }
+  if (treatment === 'halo') {
+    return <div className="absolute inset-0 pointer-events-none z-20" style={{ ...common, border: `${thickness}px solid ${color}`, boxShadow: `inset 0 0 14px ${color}55`, animation: 'idolo-halo 2.6s ease-in-out infinite' }} />;
+  }
+  // 'calm'
+  return <div className="absolute inset-0 pointer-events-none z-20" style={{ ...common, border: `${thickness}px solid ${color}` }} />;
+}
+
 function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0 }: PlayerCardProps) {
   const baseColor = getRarityColor(player.rarity);
   // The card's visual identity is driven PURELY by rarity. A special draft variant never
@@ -582,7 +746,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       >
         {!lite && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: theme.pattern, backgroundSize: theme.patternSize ?? 'auto', opacity: (theme.patternOpacity ?? 1) * 0.7 }} />}
         {theme.isPremium && !lite && <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(120deg,transparent 30%,rgba(255,255,255,.07) 50%,transparent 70%)', animation: 'shimmer 2.8s infinite ease-in-out' }} />}
-        {variant && !lite && <VariantRing radius={12} thickness={1.5} color={variant.color} />}
+        {variant && !lite && <VariantDecor radius={12} thickness={1.5} color={variant.color} treatment={variant.treatment} />}
 
         {/* Top: OVR + POS + flag */}
         <div className="flex items-center justify-between px-1.5 pt-1.5 flex-shrink-0 z-10">
@@ -665,7 +829,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       {theme.isPremium && !lite && <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(120deg,transparent 25%,rgba(255,255,255,.07) 50%,transparent 75%)', animation: 'shimmer 3s infinite ease-in-out' }} />}
 
       {/* Special-variant travelling neon border (rarity fill below stays untouched) */}
-      {variant && !lite && <VariantRing radius={16} thickness={2} color={variant.color} />}
+      {variant && !lite && <VariantDecor radius={16} thickness={2} color={variant.color} treatment={variant.treatment} />}
 
       {/* ── TOP ROW — compact to maximise photo space ── */}
       <div className="relative z-10 flex items-start justify-between px-3 pt-2.5 flex-shrink-0">

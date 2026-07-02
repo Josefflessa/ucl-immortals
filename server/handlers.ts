@@ -30,6 +30,7 @@ interface RoomPlayer {
   socketId: string;
   id: string;
   name: string;
+  crestId?: string | null; // selected club crest (see client/src/lib/crests)
   coachId: string;
   formationId: string;
   playStyle: string;
@@ -44,6 +45,7 @@ interface RoomPlayer {
   points: number; // shop currency, earned per league match
   lastMatchPoints: MatchPoints | null;    // last round's points breakdown (shown once)
   reinforcementOptions: Player[] | null;   // end-of-round free pick (1 of 6 → bench)
+  reinforcementRerolls: number;            // 🔄 tokens to re-roll the reinforcement (persist across rounds)
 }
 
 interface RoomState {
@@ -304,7 +306,8 @@ export function registerSocketHandlers(io: Server) {
             connected: true,
             points: 0,
             lastMatchPoints: null,
-            reinforcementOptions: null
+            reinforcementOptions: null,
+            reinforcementRerolls: 0
           }
         ],
         botTeams: [],
@@ -392,7 +395,8 @@ export function registerSocketHandlers(io: Server) {
         connected: true,
         points: 0,
         lastMatchPoints: null,
-        reinforcementOptions: null
+        reinforcementOptions: null,
+        reinforcementRerolls: 0
       };
 
       room.players.push(newPlayer);
@@ -421,7 +425,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Player submits coach & formation
-    socket.on("submit_setup", ({ roomCode, coachId, formationId }) => {
+    socket.on("submit_setup", ({ roomCode, coachId, formationId, crestId }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
 
@@ -430,6 +434,7 @@ export function registerSocketHandlers(io: Server) {
 
       player.coachId = coachId;
       player.formationId = formationId;
+      player.crestId = crestId ?? null;
       player.ready = true;
 
       // Check if all players have submitted setup
@@ -568,7 +573,8 @@ export function registerSocketHandlers(io: Server) {
             penaltyTaker: p.penaltyTaker ?? undefined,
             freeKickTaker: p.freeKickTaker ?? undefined,
             totalChemistry: chemData.total,
-            isBot: false
+            isBot: false,
+            crestId: p.crestId ?? undefined
           };
         });
 
@@ -671,6 +677,18 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room); // only this player's own team changed
     });
 
+    // 🩸 Mártir — set which (up to 2) XI teammates receive the +3. Validated against the CURRENT XI.
+    socket.on("set_martir_targets", ({ roomCode, playerId, targetIds }: { roomCode: string; playerId: string; targetIds: string[] }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const starterIds = new Set(player.team.players.slice(0, 11).map(p => p.id));
+      const valid = (targetIds || []).filter(id => id !== playerId && starterIds.has(id)).slice(0, 2);
+      player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, martirTargets: valid } : p);
+      socket.emit("room_updated", room); // only this player's own team changed
+    });
+
     // ============================================================
     // SHOP — spend points (earned per league match) on this player's own team.
     // Server is authoritative: it validates the cost, mutates the player's team and
@@ -713,7 +731,7 @@ export function registerSocketHandlers(io: Server) {
       const cost = SHOP_COSTS.turbinar;
       const target = player.team.players.find(p => p.id === playerId);
       if (!target || player.points < cost) return;
-      if (target.inForm || target.lobo || target.coringa || target.nomade || target.pilar) return; // one per card
+      if (target.inForm || target.lobo || target.coringa || target.nomade || target.pilar || target.martir || target.idolo || target.decimoHomem) return; // one per card
       player.points -= cost;
       player.team.players = player.team.players.map(p =>
         p.id === playerId ? ({ ...applyShopVariant(p, variant), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
@@ -738,6 +756,29 @@ export function registerSocketHandlers(io: Server) {
         return { ...p, trainBoosts: boosts, trainCount: (p.trainCount ?? 0) + 1 };
       });
       socket.emit("room_updated", room); // only this player's own team changed
+    });
+
+    // 🔄 Buy a reinforcement re-roll token (unlimited; persists across rounds).
+    socket.on("shop_buy_reroll", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || player.points < SHOP_COSTS.reroll) return;
+      player.points -= SHOP_COSTS.reroll;
+      player.reinforcementRerolls += 1;
+      socket.emit("room_updated", room);
+    });
+
+    // 🔄 Spend a token to re-roll THIS player's reinforcement options.
+    socket.on("reroll_reinforcement", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || player.reinforcementRerolls <= 0 || !player.reinforcementOptions) return;
+      player.reinforcementRerolls -= 1;
+      const ownedIds = player.team.players.map(p => p.id);
+      player.reinforcementOptions = generateDraftOptions([], ownedIds);
+      socket.emit("room_updated", room);
     });
 
     // End-of-round reinforcement (free pick, same as solo): 1 of 6 → bench.
@@ -971,6 +1012,7 @@ export function registerSocketHandlers(io: Server) {
         p.points = 0;
         p.lastMatchPoints = null;
         p.reinforcementOptions = null;
+        p.reinforcementRerolls = 0;
       });
       room.botTeams = [];
       room.leagueFixtures = [];

@@ -5,7 +5,7 @@ import { useGame } from '../../contexts/GameContext';
 import SquadEditor from './SquadEditor';
 
 export default function LeagueSquadTab() {
-  const { state, dispatch, setMatchRolesOnline, swapPlayerTeamOnline } = useGame();
+  const { state, dispatch, setMatchRolesOnline, swapPlayerTeamOnline, martirTargetsOnline } = useGame();
   const team = state.playerTeam;
   if (!team) return null;
   const online = state.mode === 'online';
@@ -40,6 +40,9 @@ export default function LeagueSquadTab() {
       onSwap={(a, b) => online
         ? swapPlayerTeamOnline(a, b)
         : dispatch({ type: 'SWAP_PLAYER_TEAM', indexA: a, indexB: b })}
+      onSetMartirTargets={(playerId, targetIds) => online
+        ? martirTargetsOnline(playerId, targetIds)
+        : dispatch({ type: 'SET_PLAYER_TEAM_MARTIR_TARGETS', playerId, targetIds })}
     />
   );
 }
