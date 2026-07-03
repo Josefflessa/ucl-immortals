@@ -149,7 +149,7 @@ export default function SetupPage() {
               boxShadow: '0 0 30px rgba(201,168,76,0.3)',
             }}
           >
-            ESCOLHER TREINADOR →
+            ESCOLHER ESCUDO →
           </motion.button>
         </motion.div>
       </div>

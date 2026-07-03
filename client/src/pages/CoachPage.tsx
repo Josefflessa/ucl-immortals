@@ -45,13 +45,13 @@ export default function CoachPage() {
         </span>
         {/* Progress */}
         <div className="ml-auto flex items-center gap-2">
-          {['Dificuldade', 'Treinador', 'Formação', 'Draft'].map((step, i) => (
+          {['Dificuldade', 'Escudo', 'Treinador', 'Formação', 'Draft'].map((step, i) => (
             <div key={step} className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full" style={{
-                background: i === 1 ? '#C9A84C' : i < 1 ? '#22C55E' : '#333'
+                background: i === 2 ? '#C9A84C' : i < 2 ? '#22C55E' : '#333'
               }} />
               <span className="text-xs hidden sm:block" style={{
-                color: i === 1 ? '#C9A84C' : i < 1 ? '#22C55E' : '#555',
+                color: i === 2 ? '#C9A84C' : i < 2 ? '#22C55E' : '#555',
                 fontFamily: 'Rajdhani, sans-serif',
               }}>{step}</span>
             </div>
