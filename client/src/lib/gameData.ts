@@ -42,6 +42,8 @@ export interface Player {
   idolo?: boolean;      // ❤️ Ídolo — +2 em tudo a cada titular do MESMO CLUBE que ele
   decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 compostura e +2 visão a todo o XI
   pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +4 em tudo na FASE DE LIGA, −5 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
+  noe?: boolean;         // 🛟 Noé — só quando é o ÚNICO titular do XI com característica: +10 em tudo NELE + 30 na química geral
+  forasteiro?: boolean;  // 🧳 Forasteiro — +5 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).

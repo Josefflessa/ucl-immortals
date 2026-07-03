@@ -8,6 +8,7 @@ import {
   getPenaltyTaker, getPenaltyOrder, computeStandings, generateLeagueFixtures, buildKeyMinutes,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
   PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant,
+  calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture,
 } from './gameEngine';
 import { PLAYERS, COACHES, FORMATIONS, type Player } from './gameData';
@@ -143,6 +144,73 @@ describe('char boosts flow through getEffectiveAttribute (engine = the buff)', (
     const noChem = getChemistryBonus(0);
     const eff = (ctx?: object) => getEffectiveAttribute(card(t), 'pace', COACHES[0], '', noChem, '__neutral__', ctx);
     expect(eff({ charBoosts }) - eff({})).toBe(3);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('🛟 Noé — só rende como ÚNICO titular com característica (+10 e +30 química)', () => {
+  const xiOf = (extra: Player[]) => [...extra, ...Array.from({ length: 11 - extra.length }, () => mkP())];
+
+  it('+10 em tudo quando é o único carimbado do XI', () => {
+    const noe = mkP({ id: 'noe', noe: true });
+    const boosts = computeCharacteristicBoosts(xiOf([noe]));
+    expect(boosts['noe']?.flatAll).toBe(NOE_STAT_BOOST);
+  });
+
+  it('desliga se QUALQUER outro titular tem característica', () => {
+    const noe = mkP({ id: 'noe', noe: true });
+    const other = mkP({ id: 'p', pilar: true });
+    const boosts = computeCharacteristicBoosts(xiOf([noe, other]));
+    expect(boosts['noe']?.flatAll ?? 0).toBe(0);
+  });
+
+  it('dois Noés se cancelam (nenhum é "o único")', () => {
+    const a = mkP({ id: 'a', noe: true }), b = mkP({ id: 'b', noe: true });
+    const boosts = computeCharacteristicBoosts(xiOf([a, b]));
+    expect(boosts['a']?.flatAll ?? 0).toBe(0);
+    expect(boosts['b']?.flatAll ?? 0).toBe(0);
+  });
+
+  it('+30 na química geral quando ativo (e nada quando desligado)', () => {
+    // XI com nação/clube DISTINTOS → química base baixa, pra o +30 não estourar o teto (100).
+    const plainXI = Array.from({ length: 11 }, (_, i) => mkP({ id: `n${i}`, nation: `Nat${i}`, club: `Club${i}` }));
+    const noeXI = plainXI.map(p => p.id === 'n0' ? { ...p, noe: true } : p);
+    const base = calculateChemistry(plainXI, 'default').total;
+    const withNoe = calculateChemistry(noeXI, 'default').total;
+    expect(withNoe - base).toBe(NOE_CHEM_BONUS);
+    // com outro carimbado no XI, o +30 não vale
+    const noeXIblocked = noeXI.map(p => p.id === 'n1' ? { ...p, pilar: true } : p);
+    const blocked = calculateChemistry(noeXIblocked, 'default').total;
+    expect(blocked - base).toBeLessThan(NOE_CHEM_BONUS);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('🧳 Forasteiro — +5 como único do país E do clube', () => {
+  const filler = () => mkP({ nation: 'Fillerland', club: 'Filler FC' }); // todos iguais entre si
+
+  it('+5 quando ninguém compartilha nação nem clube', () => {
+    const f = mkP({ id: 'f', forasteiro: true, nation: 'Solônia', club: 'Solo FC' });
+    const xi = [f, ...Array.from({ length: 10 }, filler)];
+    // fillers compartilham nação/clube entre si, mas não com o Forasteiro
+    const boosts = computeCharacteristicBoosts(xi);
+    expect(boosts['f']?.flatAll).toBe(FORASTEIRO_STAT_BOOST);
+  });
+
+  it('desliga se compartilha o CLUBE com um titular', () => {
+    const f = mkP({ id: 'f', forasteiro: true, nation: 'Solônia', club: 'Shared FC' });
+    const mate = mkP({ nation: 'Outra', club: 'Shared FC' });
+    const xi = [f, mate, ...Array.from({ length: 9 }, filler)];
+    const boosts = computeCharacteristicBoosts(xi);
+    expect(boosts['f']?.flatAll ?? 0).toBe(0);
+  });
+
+  it('desliga se compartilha a NAÇÃO com um titular', () => {
+    const f = mkP({ id: 'f', forasteiro: true, nation: 'Shared', club: 'Solo FC' });
+    const mate = mkP({ nation: 'Shared', club: 'Outro FC' });
+    const xi = [f, mate, ...Array.from({ length: 9 }, filler)];
+    const boosts = computeCharacteristicBoosts(xi);
+    expect(boosts['f']?.flatAll ?? 0).toBe(0);
   });
 });
 

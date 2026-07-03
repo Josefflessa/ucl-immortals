@@ -668,8 +668,10 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   idolo:       { color: '#F59E0B', icon: '❤️', label: 'ÍDOLO', treatment: 'halo' },
   decimoHomem: { color: '#14B8A6', icon: '🪑', label: '12º HOMEM', treatment: 'calm' },
   pipoqueiro:  { color: '#EC4899', icon: '🍿', label: 'PIPOQUEIRO', treatment: 'ring' },
+  noe:         { color: '#22D3EE', icon: '🛟', label: 'NOÉ', treatment: 'ring' },
+  forasteiro:  { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro'] as const;
 export function getCardVariant(player: Player): { key: string; color: string; icon: string; label: string; treatment: VariantTreatment } | null {
   for (const key of VARIANT_ORDER) {
     if ((player as unknown as Record<string, unknown>)[key]) return { key, ...VARIANT_STYLE[key] };
@@ -688,6 +690,8 @@ function variantDesc(player: Player): string {
   if (player.idolo) return 'ÍDOLO: +2 em cada atributo aos titulares do MESMO CLUBE que ele';
   if (player.decimoHomem) return '12º HOMEM: no banco, dá +1 compostura e +2 visão a todo o time';
   if (player.pipoqueiro) return 'PIPOQUEIRO: +4 em cada atributo na FASE DE LIGA, mas −5 no MATA-MATA';
+  if (player.noe) return 'NOÉ: +10 em cada atributo NELE e +30 na química geral — só enquanto for o ÚNICO titular com característica';
+  if (player.forasteiro) return 'FORASTEIRO: +5 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   return '';
 }
 

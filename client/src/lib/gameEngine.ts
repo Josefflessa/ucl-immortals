@@ -247,9 +247,12 @@ export function calculateChemistry(
   // 🧱 Pilar lifts the team's chemistry · 🐺 Lobo Solitário drains it (per such player in the XI).
   const pilarBonus = players.filter(p => p.pilar).length * PILAR_CHEM_BONUS;
   const loboPenalty = players.filter(p => p.lobo).length * LOBO_CHEM_PENALTY;
+  // 🛟 Noé — +30 na química geral, SÓ quando ele é o único titular com característica (põe o time na arca).
+  const cardedXI = players.slice(0, 11).filter((p): p is Player => !!p && hasVariant(p));
+  const noeBonus = (cardedXI.length === 1 && cardedXI[0].noe) ? NOE_CHEM_BONUS : 0;
 
   const total = Math.max(0, Math.min(100,
-    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty));
+    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus));
 
   return { individual, total, trios, outOfPosition };
 }
@@ -642,7 +645,7 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>> };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
@@ -678,6 +681,22 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     const p = players[i];
     if (!p?.decimoHomem) continue;
     for (const mate of xi) contribute(mate.id, { type: 'decimoHomem', fromId: p.id, fromName: p.shortName, flatAll: 0, perStat: { composure: 1, vision: 2 } });
+  }
+  // 🛟 Noé — SÓ rende se ele é o ÚNICO titular do XI com característica: +10 em tudo NELE.
+  // (o +30 de química vive em calculateChemistry). Dois Noés no XI se cancelam (nenhum é "o único").
+  const carded = xi.filter(hasVariant);
+  if (carded.length === 1 && carded[0].noe) {
+    const n = carded[0];
+    contribute(n.id, { type: 'noe', fromId: n.id, fromName: n.shortName, flatAll: NOE_STAT_BOOST, perStat: {}, self: true });
+  }
+  // 🧳 Forasteiro — +5 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
+  for (const f of xi) {
+    if (!f.forasteiro) continue;
+    const soloNation = xi.filter(p => p.nation === f.nation).length === 1;
+    const soloClub = xi.filter(p => p.club === f.club).length === 1;
+    if (soloNation && soloClub) {
+      contribute(f.id, { type: 'forasteiro', fromId: f.id, fromName: f.shortName, flatAll: FORASTEIRO_STAT_BOOST, perStat: {}, self: true });
+    }
   }
   return map;
 }
@@ -2163,11 +2182,20 @@ const DRAFT_MARTIR_CHANCE = 0.03;   // 🩸 Mártir
 const DRAFT_IDOLO_CHANCE = 0.03;    // ❤️ Ídolo
 const DRAFT_DECIMO_CHANCE = 0.03;   // 🪑 12º Homem
 const DRAFT_PIPOQUEIRO_CHANCE = 0.03; // 🍿 Pipoqueiro
+const DRAFT_NOE_CHANCE = 0.02;        // 🛟 Noé — raro (é MUITO forte)
+const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 // 🍿 Pipoqueiro — o anti-Pilar: brilha na fase de liga, "pipoca" (some) no mata-mata. Aplicado em
 // RUNTIME (depende de context.isKnockout), por isso NÃO é assado no stat base como o Em Alta/Lobo.
 export const PIPOQUEIRO_LEAGUE_BOOST = 4;   // +4 em cada atributo na FASE DE LIGA
 export const PIPOQUEIRO_KO_PENALTY = 5;     // −5 em cada atributo no MATA-MATA
+// 🛟 Noé — só rende quando é o ÚNICO titular do XI com característica: +10 em tudo NELE e +30 na
+// química geral do time (ele "põe todo mundo na arca"). Condição/efeitos em computeCharacteristicBoosts
+// (atributos) e calculateChemistry (o +30). O custo é estrutural: abrir mão de toda outra característica.
+export const NOE_STAT_BOOST = 10;
+export const NOE_CHEM_BONUS = 30;
+// 🧳 Forasteiro — o anti-química: +5 em tudo quando é o ÚNICO titular do seu país E do seu clube.
+export const FORASTEIRO_STAT_BOOST = 5;
 // Single boost value: "em alta" adds this to EVERY attribute. The overall rises by the
 // same amount as a CONSEQUENCE — overall is the mean of the attributes, so +N across all
 // eight is +N overall. That's why it's described to the player simply as "+N em cada atributo".
@@ -2238,6 +2266,11 @@ function applyDraftVariant(p: Player): Player {
   // 🍿 Pipoqueiro — flag pura; efeito (runtime, por fase) em getEffectiveAttribute/getPlayerEffectiveStats.
   acc += DRAFT_PIPOQUEIRO_CHANCE;
   if (r < acc) return { ...p, pipoqueiro: true, traits: rollPlayerTraits(p.position, p.rarity) };
+  // 🛟 Noé · 🧳 Forasteiro — flags puras; efeito (por composição do XI) em computeCharacteristicBoosts.
+  acc += DRAFT_NOE_CHANCE;
+  if (r < acc) return { ...p, noe: true, traits: rollPlayerTraits(p.position, p.rarity) };
+  acc += DRAFT_FORASTEIRO_CHANCE;
+  if (r < acc) return { ...p, forasteiro: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -2345,7 +2378,7 @@ export function generateScoutOptions(position: string, ownedIds: string[]): Play
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro'): Player {
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro'): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir') {
     // inForm/lobo add to every attribute; martir SUBTRACTS from every attribute.
     const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : -MARTIR_STAT_PENALTY;
@@ -2362,7 +2395,7 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
 export function hasVariant(p: Player): boolean {
-  return !!(p.inForm || p.lobo || p.coringa || p.nomade || p.pilar || p.martir || p.idolo || p.decimoHomem || p.pipoqueiro);
+  return !!(p.inForm || p.lobo || p.coringa || p.nomade || p.pilar || p.martir || p.idolo || p.decimoHomem || p.pipoqueiro || p.noe || p.forasteiro);
 }
 
 // Loja "Remover Característica": strips whatever special variant a card has, so the player can then
@@ -2385,6 +2418,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
+  delete p.noe; delete p.forasteiro;
   return p;
 }
 

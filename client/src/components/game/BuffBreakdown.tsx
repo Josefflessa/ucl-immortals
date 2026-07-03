@@ -58,9 +58,14 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   martir: { icon: '🩸', label: 'MÁRTIR', color: '#B91C1C' },
   idolo: { icon: '❤️', label: 'ÍDOLO', color: '#F59E0B' },
   decimoHomem: { icon: '🪑', label: '12º HOMEM', color: '#14B8A6' },
+  noe: { icon: '🛟', label: 'NOÉ', color: '#22D3EE' },
+  forasteiro: { icon: '🧳', label: 'FORASTEIRO', color: '#A3E635' },
 };
 
-export default function BuffBreakdown({ eff, chem, traits, player, charBoost }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost }) {
+export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean }) {
+  // 🪑 12º Homem só rende NO BANCO — se estiver jogando, fica sem efeito. Sinaliza esse estado
+  // (é a única característica cujo efeito liga/desliga de um jeito contraintuitivo).
+  const decimoInactive = !!player?.decimoHomem && isStarter === true;
   const chemNet = ATTRS.reduce((s, a) => s + eff.breakdown[a].chem, 0);
   const coach = collect(eff, b => b.coach);
   const traitDeltas = collect(eff, b => b.trait);
@@ -101,15 +106,23 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost }: 
           {/* SPECIAL DRAFT VARIANT — em alta / lobo / coringa / nômade / pilar. Stat boosts live in
               the base stats and chem effects in the team total, so neither shows as a delta above. */}
           {variant && player && (
-            <Row icon={variant.icon} name={`${variant.label} (CARTA ESPECIAL)`} color={variantColor}>
+            <Row icon={variant.icon}
+              name={variant.key === 'decimoHomem'
+                ? `12º HOMEM ${decimoInactive ? '(INATIVO — ESTÁ JOGANDO)' : '(ATIVO — NO BANCO)'}`
+                : `${variant.label} (CARTA ESPECIAL)`}
+              color={decimoInactive ? '#6A6A7A' : variantColor}>
               <div className="flex flex-wrap gap-1">
                 {variantBoost > 0 && <Chip text={`+${variantBoost} EM CADA ATRIBUTO`} color={variantColor} />}
                 {player.martir && <Chip text="−6 EM CADA ATRIBUTO" color="#EF4444" />}
                 {player.martir && <Chip text="+3 EM TUDO A 2 TITULARES" color="#22C55E" />}
                 {player.idolo && <Chip text="+2 EM TUDO AOS TITULARES DO MESMO CLUBE" color="#22C55E" />}
-                {player.decimoHomem && <Chip text="+2 VIS · +1 CMP AO TIME (NO BANCO)" color="#22C55E" />}
+                {player.decimoHomem && !decimoInactive && <Chip text="+2 VIS · +1 CMP AO TIME (NO BANCO)" color="#22C55E" />}
+                {player.decimoHomem && decimoInactive && <Chip text="SEM EFEITO — PRECISA ESTAR NO BANCO" color="#EF4444" />}
                 {player.pipoqueiro && <Chip text="+4 EM TUDO NA LIGA" color="#22C55E" />}
                 {player.pipoqueiro && <Chip text="−5 EM TUDO NO MATA-MATA" color="#EF4444" />}
+                {player.noe && <Chip text="+10 EM TUDO (SÓ SE ÚNICO C/ CARACT.)" color="#22C55E" />}
+                {player.noe && <Chip text="+30 QUÍMICA GERAL DO TIME" color={variantColor} />}
+                {player.forasteiro && <Chip text="+5 EM TUDO (ÚNICO DO PAÍS E CLUBE)" color="#22C55E" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
                 {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
@@ -124,7 +137,9 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost }: 
                           : player.idolo ? 'Dá +2 em cada atributo aos titulares do MESMO CLUBE que ele.'
                             : player.martir ? '−6 em cada atributo nele (já no valor base); em troca, dá +3 em tudo a 2 titulares escolhidos.'
                               : player.pipoqueiro ? '+4 em tudo na FASE DE LIGA, mas −5 em tudo no MATA-MATA. Craque de campeonato que some no jogo grande.'
-                                : 'Já no valor base — por isso não aparece como delta acima.'}
+                                : player.noe ? 'Só rende enquanto for o ÚNICO titular com característica: +10 em tudo nele e +30 na química geral (põe o time inteiro na arca). Qualquer outro especial no XI desliga.'
+                                  : player.forasteiro ? 'Quando é o ÚNICO do seu país E do seu clube no XI, ganha +5 em tudo — transforma a química baixa em vantagem.'
+                                    : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
             </Row>
           )}
@@ -252,7 +267,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost }: 
             ? charBoost.sources.map((src, i) => {
               const vis = TEAMCHAR[src.type];
               return (
-                <Row key={i} icon={vis.icon} name={`${vis.label} — de ${src.fromName}`} color={vis.color}>
+                <Row key={i} icon={vis.icon} name={src.self ? `${vis.label} (ATIVO)` : `${vis.label} — de ${src.fromName}`} color={vis.color}>
                   <div className="flex flex-wrap gap-1">
                     {src.flatAll > 0 && <Chip text={`+${src.flatAll} EM CADA ATRIBUTO`} color={vis.color} />}
                     {Object.entries(src.perStat as Record<string, number>).map(([k, v]) => (
@@ -262,7 +277,9 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost }: 
                   <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     {src.type === 'martir' ? `Sacrifício do ${src.fromName} (Mártir): +3 em tudo pra você.`
                       : src.type === 'idolo' ? `${src.fromName} (Ídolo) do mesmo clube: +2 em cada atributo.`
-                        : `${src.fromName} (12º Homem) no banco: +1 compostura e +2 visão.`}
+                        : src.type === 'noe' ? 'Noé ATIVO: é o único titular com característica → +10 em tudo (e +30 na química geral do time).'
+                          : src.type === 'forasteiro' ? 'Forasteiro ATIVO: único do seu país e clube no XI → +5 em tudo.'
+                            : `${src.fromName} (12º Homem) no banco: +1 compostura e +2 visão.`}
                   </div>
                 </Row>
               );
