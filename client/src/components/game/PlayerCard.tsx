@@ -571,6 +571,15 @@ function getCardTheme(rarity: string): {
   }
 }
 
+// Texturas de fundo por raridade (public/cards). WebP otimizado (~9–84 KB cada).
+const RARITY_FILE: Record<string, string> = {
+  immortal: 'bg-imortal', legendary: 'bg-lendario', gold: 'bg-ouro', silver: 'bg-prata', bronze: 'bg-bronze',
+};
+function cardTexture(rarity: string): string {
+  const base = RARITY_FILE[rarity] ?? RARITY_FILE.bronze;
+  return `/cards/${base}.webp`;
+}
+
 // Dedicated Player Photo using SoFIFA transparent high-res assets
 // Fallback chain: latest_ver_360 → latest_ver_120 → ver23_360 → ver22_360 → placeholder
 function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: string; fullName: string; size: number; lowRes?: boolean }) {
