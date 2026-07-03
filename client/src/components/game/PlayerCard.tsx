@@ -721,18 +721,19 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         <div className="absolute inset-0" style={{ ...frameMask('90% 91%'), zIndex: 2, backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         <div className="absolute inset-0" style={{ ...frameMask('90% 91%'), zIndex: 3, background: 'linear-gradient(0deg,rgba(0,0,0,.62),transparent 44%)' }} />
 
-        <div className="absolute inset-0 flex flex-col" style={{ color: '#f7eeca', zIndex: 4 }}>
-          {/* Top: OVR + POS + ícone da característica */}
-          <div className="flex items-start justify-between px-2 pt-2 flex-shrink-0">
+        {/* conteúdo recortado pelo escudo (nada vaza pra cima da moldura) */}
+        <div className="absolute inset-0 flex flex-col" style={{ ...frameMask('90% 91%'), color: '#f7eeca', zIndex: 4 }}>
+          {/* Top: OVR + POS + ícone da característica (empurrado pra dentro do entalhe do topo) */}
+          <div className="flex items-start justify-between px-2.5 flex-shrink-0" style={{ paddingTop: '13%' }}>
             <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
-              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 18, lineHeight: 1 }}>{player.overall}</span>
+              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 17, lineHeight: 1 }}>{player.overall}</span>
               <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
             </div>
             {variant && <span style={{ fontSize: 10, lineHeight: 1, textShadow: `0 0 6px ${variant.color}` }}>{variant.icon}</span>}
           </div>
 
           {/* Foto */}
-          <div className="flex-1 flex items-end justify-center overflow-hidden mx-1" style={{ minHeight: 0 }}>
+          <div className="flex-1 flex items-end justify-center overflow-hidden mx-2" style={{ minHeight: 0 }}>
             {hasPhoto ? (
               <PlayerPhoto playerId={player.id} fullName={player.fullName} size={50} lowRes />
             ) : (
@@ -741,7 +742,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           </div>
 
           {/* Nome + química */}
-          <div className="flex flex-col items-center flex-shrink-0 pb-2 px-1">
+          <div className="flex flex-col items-center flex-shrink-0 px-2" style={{ paddingBottom: '11%' }}>
             <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9, fontWeight: 800, color: '#fff', textShadow: '0 1px 2px #000', letterSpacing: '0.04em' }}>
               {player.shortName.toUpperCase()}
             </div>
@@ -786,7 +787,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 3, backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
       {/* scrims p/ legibilidade sobre texturas claras/escuras */}
       <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 4, background:
-        'linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),linear-gradient(0deg,rgba(0,0,0,.62) 0%,rgba(0,0,0,0) 32%),radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%)' }} />
+        'linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 46%),radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%)' }} />
 
       {/* CONTEÚDO (layout FUT) */}
       <div className="absolute inset-0" style={{ color: '#f7eeca', zIndex: 5 }}>
@@ -804,24 +805,24 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         </div>
         {/* chip de raridade (mesmo estilo de hoje, sem emoji) */}
         <div className="absolute" style={{ top: '52%', left: '50%', transform: 'translateX(-50%)', padding: '2px 11px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: theme.isPremium ? '#1f1500' : '#0a0a0a', background: theme.ribbon, border: '1px solid rgba(0,0,0,.35)', boxShadow: '0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25)', fontFamily: 'Rajdhani,sans-serif' }}>{theme.label}</div>
-        {/* nome */}
-        <div className="absolute text-center" style={{ top: '56.5%', left: '13%', right: '13%', background: 'linear-gradient(90deg,rgba(0,0,0,.12),rgba(0,0,0,.58) 50%,rgba(0,0,0,.12))', borderRadius: 8, padding: '3px 0 5px', borderBottom: '2px solid rgba(255,255,255,.14)' }}>
-          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: 20, color: '#fff', textShadow: '0 2px 6px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
+        {/* nome — sem painel; linha fina embaixo + sombra forte pra legibilidade */}
+        <div className="absolute text-center" style={{ top: '57.5%', left: '12%', right: '12%', paddingBottom: 4, borderBottom: '2px solid rgba(255,255,255,.22)' }}>
+          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: 21, color: '#fff', textShadow: '0 2px 5px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
         </div>
-        {/* 6 stats */}
-        <div className="absolute" style={{ top: '68%', left: '12%', right: '12%', background: 'rgba(0,0,0,.4)', borderRadius: 10, padding: '6px 4px' }}>
+        {/* 6 stats — sem painel; sombra forte */}
+        <div className="absolute" style={{ top: '69%', left: '10%', right: '10%' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', fontVariantNumeric: 'tabular-nums' }}>
             {([['PAC', player.pace],['SHO', player.shooting],['PAS', player.passing],['DRI', player.dribbling],['DEF', player.defending],['PHY', player.physical]] as [string, number][]).map(([k, v]) => (
-              <div key={k} className="flex flex-col items-center" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.8)' }}>
-                <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, opacity: .78 }}>{k}</span>
-                <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, fontSize: 17 }}>{v}</span>
+              <div key={k} className="flex flex-col items-center" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)' }}>
+                <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, opacity: .82 }}>{k}</span>
+                <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, fontSize: 18 }}>{v}</span>
               </div>
             ))}
           </div>
         </div>
-        {/* chip de característica (mesmo estilo de hoje, sem animação) */}
+        {/* chip de característica (menor) */}
         {variant && (
-          <div className="absolute inline-flex items-center" style={{ top: '81.5%', left: '50%', transform: 'translateX(-50%)', gap: 6, padding: '4px 13px', borderRadius: 999, fontSize: 12.5, fontWeight: 900, letterSpacing: '.12em', whiteSpace: 'nowrap', color: '#fff', background: `linear-gradient(90deg,#0008,${variant.color},#0008)`, border: '1px solid rgba(0,0,0,.45)', boxShadow: `0 0 12px color-mix(in srgb,${variant.color} 70%,transparent)`, textShadow: '0 1px 2px rgba(0,0,0,.9)', fontFamily: 'Rajdhani,sans-serif' }} title={variantDesc(player)}>
+          <div className="absolute inline-flex items-center" style={{ top: '82.5%', left: '50%', transform: 'translateX(-50%)', gap: 5, padding: '2.5px 10px', borderRadius: 999, fontSize: 10.5, fontWeight: 900, letterSpacing: '.1em', whiteSpace: 'nowrap', color: '#fff', background: `linear-gradient(90deg,#0008,${variant.color},#0008)`, border: '1px solid rgba(0,0,0,.45)', boxShadow: `0 0 10px color-mix(in srgb,${variant.color} 65%,transparent)`, textShadow: '0 1px 2px rgba(0,0,0,.9)', fontFamily: 'Rajdhani,sans-serif' }} title={variantDesc(player)}>
             <span>{variant.icon}</span> {variant.label}
           </div>
         )}
