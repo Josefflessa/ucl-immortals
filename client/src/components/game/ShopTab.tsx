@@ -5,62 +5,71 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
-import { COACHES, POS_PT, Player } from '../../lib/gameData';
-import { generateStarPackOptions, generateScoutOptions, hasVariant } from '../../lib/gameEngine';
+import { COACHES, POS_PT, Player, UNIQUE_CARDS } from '../../lib/gameData';
+import { generateStarPackOptions, generateScoutOptions, hasVariant, canAddVariant, variantCount } from '../../lib/gameEngine';
+import type { VariantFlag } from '../../lib/gameEngine';
 import { SHOP_COSTS, trainCost, TRAIN_BOOST, TRAIN_ATTRS, TURBINAR_VARIANTS, ShopVariant, TrainAttr } from '../../lib/shop';
-import PlayerCard, { getCardVariant } from './PlayerCard';
+import PlayerCard, { getCardVariants } from './PlayerCard';
 
-type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'train' | 'reroll';
+type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'train' | 'reroll' | 'unique';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
 
 export default function ShopTab() {
-  const { state, dispatch, shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
+  const { state, dispatch, shopChangeCoachOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
   const team = state.playerTeam;
   const points = state.points;
   const online = state.mode === 'online';
+  const pendingPack = state.pendingPack; // 🛒 pacote JÁ PAGO (Craque/Caça-Talentos) aguardando escolha
   const [active, setActive] = useState<ItemId | null>(null);
-  const [packOptions, setPackOptions] = useState<Player[]>([]);
-  const [scoutPos, setScoutPos] = useState<string | null>(null);
   const [selPlayerId, setSelPlayerId] = useState<string | null>(null);
+  const [uniqueWarn, setUniqueWarn] = useState<string | null>(null); // aviso "pontos insuficientes" na loja de únicas
 
   if (!team) return null;
 
   // Solo mutates local state via the reducer; online emits to the authoritative server.
   const buyCoach = (coachId: string) => online ? shopChangeCoachOnline(coachId) : dispatch({ type: 'SHOP_CHANGE_COACH', coachId });
-  const buyPlayer = (player: Player, kind: 'star' | 'scout') => online ? shopBuyPlayerOnline(player, kind) : dispatch({ type: 'SHOP_BUY_PLAYER', player, kind });
+  const buyPlayer = (player: Player, kind: 'unique') => online ? shopBuyPlayerOnline(player, kind) : dispatch({ type: 'SHOP_BUY_PLAYER', player, kind });
+  // 🛒 Pacote: COBRA ao abrir (open) → guarda; a escolha (pick) é grátis. Impede re-sortear de graça.
+  const openPack = (kind: 'star' | 'scout', options: Player[]) => online ? shopOpenPackOnline(kind, options) : dispatch({ type: 'SHOP_OPEN_PACK', kind, options });
+  const pickPack = (player: Player) => online ? shopPickPackOnline(player) : dispatch({ type: 'SHOP_PICK_PACK', player });
   const buyTurbinar = (playerId: string, variant: ShopVariant) => online ? shopTurbinarOnline(playerId, variant) : dispatch({ type: 'SHOP_TURBINAR', playerId, variant });
-  const removeVariant = (playerId: string) => online ? shopRemoveVariantOnline(playerId) : dispatch({ type: 'SHOP_REMOVE_VARIANT', playerId });
+  const removeVariant = (playerId: string, variantKey?: VariantFlag) => online ? shopRemoveVariantOnline(playerId, variantKey) : dispatch({ type: 'SHOP_REMOVE_VARIANT', playerId, variantKey });
   const buyTrain = (playerId: string, attr: TrainAttr) => online ? shopTrainOnline(playerId, attr) : dispatch({ type: 'SHOP_TRAIN', playerId, attr });
   const buyReroll = () => online ? shopBuyRerollOnline() : dispatch({ type: 'SHOP_BUY_REROLL' });
   const ownedIds = team.players.map(p => p.id);
   const selPlayer = team.players.find(p => p.id === selPlayerId) ?? null;
 
-  const close = () => { setActive(null); setPackOptions([]); setScoutPos(null); setSelPlayerId(null); };
+  const close = () => { setActive(null); setSelPlayerId(null); setUniqueWarn(null); };
 
   const ITEMS: { id: ItemId; icon: string; name: string; cost: number | 'dyn'; color: string; desc: string }[] = [
+    { id: 'unique', icon: '⭐', name: 'CARTAS ÚNICAS', cost: SHOP_COSTS.uniqueCard, color: '#F0E6C0', desc: 'Lendas de raridade ÚNICA — overall 99, visual exclusivo. Aceitam 2 características. Uma de cada.' },
     { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: SHOP_COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
     { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador. Só em quem NÃO tem característica.' },
     { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: SHOP_COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
-    { id: 'star', icon: '🌟', name: 'PACOTE DO CRAQUE', cost: SHOP_COSTS.starPack, color: '#F59E0B', desc: 'Escolha 1 de 3 jogadores de overall 88+. Entra no banco.' },
-    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: 'Escolha 1 de 4 jogadores da posição que você precisa.' },
+    { id: 'star', icon: '🌟', name: 'PACOTE DO CRAQUE', cost: SHOP_COSTS.starPack, color: '#F59E0B', desc: 'Paga ao abrir e escolhe 1 de 3 jogadores (overall 88+). Entra no banco.' },
+    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: 'Paga ao abrir e escolhe 1 de 4 da posição que você precisa.' },
     { id: 'train', icon: '💪', name: 'TREINO INTENSIVO', cost: 'dyn', color: '#34D399', desc: `+${TRAIN_BOOST} permanente num atributo (sem teto). Custo sobe a cada treino no mesmo jogador.` },
     { id: 'reroll', icon: '🔄', name: 'REROLL DE REFORÇO', cost: SHOP_COSTS.reroll, color: '#F472B6', desc: `Re-sorteia as opções do reforço pós-partida. Acumula entre rodadas. Você tem: ${state.reinforcementRerolls}.` },
   ];
 
   const openItem = (id: ItemId) => {
     if (id === 'reroll') { if (points >= SHOP_COSTS.reroll) buyReroll(); return; } // compra direta, sem modal
+    // Se já tem um pacote PAGO pendente, abre ELE (força escolher antes de abrir outro).
+    if ((id === 'star' || id === 'scout') && pendingPack) {
+      setSelPlayerId(null); setActive(pendingPack.kind);
+      return;
+    }
     if (id === 'star') {
       if (points < SHOP_COSTS.starPack) return;
-      setPackOptions(generateStarPackOptions(ownedIds));
+      openPack('star', generateStarPackOptions(ownedIds)); // COBRA ao abrir
     }
     setSelPlayerId(null);
-    setScoutPos(null);
     setActive(id);
   };
 
   const pickScoutPosition = (pos: string) => {
-    setScoutPos(pos);
-    setPackOptions(generateScoutOptions(pos, ownedIds));
+    if (points < SHOP_COSTS.scout) return;
+    openPack('scout', generateScoutOptions(pos, ownedIds)); // COBRA ao abrir
   };
 
   return (
@@ -79,13 +88,15 @@ export default function ShopTab() {
         {ITEMS.map(item => {
           const cost = item.cost === 'dyn' ? trainCost(0) : item.cost;
           const affordable = points >= cost;
+          // Cartas Únicas: sempre dá pra ABRIR (ver as cartas) mesmo sem dinheiro — a cobrança é ao comprar.
+          const canOpen = affordable || item.id === 'unique';
           return (
             <button
               key={item.id}
-              onClick={() => affordable && openItem(item.id)}
-              disabled={!affordable}
+              onClick={() => canOpen && openItem(item.id)}
+              disabled={!canOpen}
               className="text-left rounded-xl p-4 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: '#0F0F1A', border: `1px solid ${affordable ? item.color + '55' : '#1A1A2A'}` }}
+              style={{ background: '#0F0F1A', border: `1px solid ${(affordable || item.id === 'unique') ? item.color + '55' : '#1A1A2A'}` }}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-2xl">{item.icon}</span>
@@ -95,7 +106,8 @@ export default function ShopTab() {
               </div>
               <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{item.name}</div>
               <div className="text-[11px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{item.desc}</div>
-              {!affordable && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Pontos insuficientes</div>}
+              {!affordable && item.id !== 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Pontos insuficientes</div>}
+              {!affordable && item.id === 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#F0E6C0', fontFamily: 'Rajdhani, sans-serif' }}>👀 Ver as cartas</div>}
             </button>
           );
         })}
@@ -121,6 +133,46 @@ export default function ShopTab() {
               </div>
 
               <div className="px-4 sm:px-6 py-5 overflow-y-auto flex-1 min-h-0">
+                {/* ⭐ CARTAS ÚNICAS — lendas 99 overall, raridade Única */}
+                {active === 'unique' && (
+                  <div>
+                    <p className="text-xs mb-2" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                      Lendas de raridade <b style={{ color: '#F0E6C0' }}>ÚNICA</b> — <b style={{ color: '#FFF' }}>overall 99</b>, visual exclusivo. −{SHOP_COSTS.uniqueCard} pontos cada · uma de cada, entra no banco.
+                    </p>
+                    <div className="mb-3 text-[11px] font-bold px-3 py-2 rounded-lg flex items-start gap-2" style={{ background: '#F0E6C014', border: '1px solid #F0E6C033', color: '#EAD9A0', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <span className="text-sm leading-none">✨</span>
+                      <span>Diferencial das Únicas: podem carregar <b style={{ color: '#F0E6C0' }}>DUAS características</b> ao mesmo tempo (as demais só uma). Aplique-as depois em <b style={{ color: '#E8C84A' }}>Turbinar Carta</b>.</span>
+                    </div>
+                    {uniqueWarn && (
+                      <div className="mb-3 text-[11px] font-bold px-3 py-2 rounded-lg" style={{ background: '#EF444422', border: '1px solid #EF444455', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                        ⚠️ {uniqueWarn}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-5 justify-items-center">
+                      {UNIQUE_CARDS.map(card => {
+                        const owned = ownedIds.includes(card.id);
+                        const afford = points >= SHOP_COSTS.uniqueCard;
+                        return (
+                          <div key={card.id} className="flex flex-col items-center gap-2">
+                            <PlayerCard player={card} lite scale={0.82} />
+                            <button
+                              onClick={() => {
+                                if (owned) return;
+                                if (afford) { buyPlayer(card, 'unique'); close(); }
+                                else setUniqueWarn(`Pontos insuficientes — você tem ${points}, e ${card.shortName} custa ${SHOP_COSTS.uniqueCard}.`);
+                              }}
+                              disabled={owned}
+                              className="text-xs font-black px-4 py-1.5 rounded-lg tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-transform active:scale-95"
+                              style={{ fontFamily: 'Bebas Neue, sans-serif', background: owned ? '#1A1A2A' : '#F0E6C0', color: owned ? '#8A8A9A' : '#0A0A14', border: owned ? '1px solid #2A2A3A' : 'none', opacity: (!owned && !afford) ? 0.72 : 1 }}>
+                              {owned ? 'JÁ TEM' : `💰 ${SHOP_COSTS.uniqueCard}`}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* TROCAR TÉCNICO */}
                 {active === 'coach' && (
                   <div className="space-y-2">
@@ -140,18 +192,16 @@ export default function ShopTab() {
                   </div>
                 )}
 
-                {/* PACOTE DO CRAQUE / CAÇA-TALENTOS pack options */}
-                {(active === 'star' || (active === 'scout' && scoutPos)) && (
+                {/* PACOTE DO CRAQUE / CAÇA-TALENTOS — escolha do pacote JÁ PAGO */}
+                {(active === 'star' || active === 'scout') && pendingPack && (
                   <div>
                     <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                      {active === 'star'
-                        ? <>Escolha <b style={{ color: '#FFF' }}>1 craque</b> (−{SHOP_COSTS.starPack} pontos) — entra no seu banco.</>
-                        : <>Posição <b style={{ color: '#FFF' }}>{POS_PT[scoutPos!] ?? scoutPos}</b> · escolha 1 (−{SHOP_COSTS.scout} pontos).</>}
+                      Pacote <b style={{ color: '#22C55E' }}>já pago</b> ✓ — escolha <b style={{ color: '#FFF' }}>1</b> pra entrar no seu banco.
                     </p>
                     <div className="flex flex-wrap justify-center gap-2.5 sm:gap-4">
-                      {packOptions.map(option => (
+                      {pendingPack.options.map(option => (
                         <button key={option.id}
-                          onClick={() => { buyPlayer(option, active === 'star' ? 'star' : 'scout'); close(); }}
+                          onClick={() => { pickPack(option); close(); }}
                           className="transition-transform hover:scale-[1.06] active:scale-[0.97]">
                           <PlayerCard player={option} compact lite />
                         </button>
@@ -160,8 +210,8 @@ export default function ShopTab() {
                   </div>
                 )}
 
-                {/* CAÇA-TALENTOS position picker */}
-                {active === 'scout' && !scoutPos && (
+                {/* CAÇA-TALENTOS position picker (só antes de pagar o pacote) */}
+                {active === 'scout' && !pendingPack && (
                   <div>
                     <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Qual posição você precisa reforçar?</p>
                     <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
@@ -187,8 +237,9 @@ export default function ShopTab() {
                             <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
                             <div className="flex flex-wrap gap-2">
                               {g.list.map(p => (
-                                <button key={p.id} onClick={() => !hasVariant(p) && setSelPlayerId(p.id)} disabled={hasVariant(p)}
-                                  className="disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-[1.05]" title={hasVariant(p) ? 'Já tem uma carta especial' : ''}>
+                                <button key={p.id} onClick={() => canAddVariant(p) && setSelPlayerId(p.id)} disabled={!canAddVariant(p)}
+                                  className="disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-[1.05]"
+                                  title={!canAddVariant(p) ? 'Já atingiu o máximo de características' : (variantCount(p) === 1 ? '⭐ Única: pode receber a 2ª característica' : '')}>
                                   <PlayerCard player={p} compact lite />
                                 </button>
                               ))}
@@ -196,15 +247,17 @@ export default function ShopTab() {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[10px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Jogadores que já têm uma carta especial ficam desabilitados (uma por carta).</p>
+                      <p className="text-[10px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Uma característica por carta — as <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter <b>duas</b>. Quem já atingiu o limite fica desabilitado.</p>
                     </div>
                   ) : (
                     <div>
                       <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                        Carta especial para <b style={{ color: '#C9A84C' }}>{selPlayer.shortName}</b> (−{SHOP_COSTS.turbinar} pontos):
+                        {variantCount(selPlayer) === 1
+                          ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> ⭐ (−{SHOP_COSTS.turbinar} pontos):</>
+                          : <>Carta especial para <b style={{ color: '#C9A84C' }}>{selPlayer.shortName}</b> (−{SHOP_COSTS.turbinar} pontos):</>}
                       </p>
                       <div className="space-y-2">
-                        {TURBINAR_VARIANTS.map(v => {
+                        {TURBINAR_VARIANTS.filter(v => !(selPlayer as unknown as Record<string, unknown>)[v.key]).map(v => {
                           const color = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
                           return (
                             <button key={v.key} onClick={() => { buyTurbinar(selPlayer.id, v.key as ShopVariant); close(); }}
@@ -236,7 +289,7 @@ export default function ShopTab() {
                   return (
                     <div>
                       <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                        Remover a característica de quem? (−{SHOP_COSTS.removeVariant} pontos). Depois é só aplicar outra em <b style={{ color: '#E8C84A' }}>Turbinar Carta</b>.
+                        Clique na <b style={{ color: '#F87171' }}>característica</b> que quer remover (−{SHOP_COSTS.removeVariant} pontos). Cartas <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter duas — some só a que você escolher.
                       </p>
                       <div className="space-y-3">
                         {groups.map(g => g.list.length === 0 ? null : (
@@ -244,15 +297,24 @@ export default function ShopTab() {
                             <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
                             <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
                               {g.list.map(p => {
-                                const v = getCardVariant(p);
-                                const vc = v?.color === '#FFFFFF' ? '#E5E7EB' : (v?.color ?? '#9AA8C8');
+                                const vs = getCardVariants(p);
                                 return (
-                                  <button key={p.id} onClick={() => { removeVariant(p.id); close(); }}
-                                    className="flex flex-col items-center gap-1.5 transition-transform hover:scale-[1.05]"
-                                    title={`Remover ${v?.label ?? 'característica'}`}>
+                                  <div key={p.id} className="flex flex-col items-center gap-1.5">
                                     <PlayerCard player={p} compact lite />
-                                    {v && <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}44`, fontFamily: 'Rajdhani, sans-serif' }}>{v.icon} {v.label}</span>}
-                                  </button>
+                                    <div className="flex flex-wrap justify-center gap-1" style={{ maxWidth: 120 }}>
+                                      {vs.map(v => {
+                                        const vc = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
+                                        return (
+                                          <button key={v.key} onClick={() => { removeVariant(p.id, v.key as VariantFlag); close(); }}
+                                            className="text-[10px] font-black px-2 py-0.5 rounded-full transition-transform hover:scale-[1.08] active:scale-95"
+                                            title={`Remover ${v.label}`}
+                                            style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}55`, fontFamily: 'Rajdhani, sans-serif' }}>
+                                            🧹 {v.icon} {v.label}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
                                 );
                               })}
                             </div>

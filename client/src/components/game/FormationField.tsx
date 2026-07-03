@@ -167,7 +167,7 @@ export default function FormationField({
         const tokenSize = compact ? 34 : 48;
         // Match (rating) mode: a more compact token with the rating/goals OVERLAID on the photo
         // (not stacked below), so cards never overlap their neighbours on tight formations.
-        const photoSize = ratingMode ? (compact ? 30 : 40) : tokenSize;
+        const photoSize = ratingMode ? (compact ? 33 : 44) : tokenSize;
 
         const isSelected = selectedPlayerIndex === index;
         const r = player ? ratings?.[player.id] : undefined;

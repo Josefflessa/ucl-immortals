@@ -14,6 +14,10 @@ import BracketTab from '../components/game/BracketTab';
 import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerCard from '../components/game/PlayerCard';
 import Crest from '../components/game/Crest';
+import MatchDetailsModal from '../components/game/MatchDetailsModal';
+import BetSlipModal from '../components/game/BetSlipModal';
+import { buildLeagueMatchKey, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
+import type { MatchResult, Team } from '../lib/gameEngine';
 import { POS_PT } from '../lib/gameData';
 
 const LOGO_URL = '/icons/logo_ucl.png';
@@ -35,7 +39,7 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline } = useGame();
   const online = state.mode === 'online';
 
   const handleLeaveRoom = () => {
@@ -47,6 +51,20 @@ export default function LeaguePage() {
   const { allTeams, localTeamId, getTeamName } = useTeams();
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
+  // HISTÓRICO: alterna entre "MEUS JOGOS" (do jogador) e "RODADAS ANTERIORES" (todos os resultados por rodada)
+  const [resultsSubTab, setResultsSubTab] = useState<'mine' | 'rounds'>('mine');
+  const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null);
+  // 🎯 Palpite — slip aberto (qual partida) e helpers de teto/consulta.
+  const [betSlip, setBetSlip] = useState<{ matchKey: string; homeName: string; awayName: string } | null>(null);
+  // 🔍 "Ver Detalhes" de uma partida (placar + gols + campo dos 2 times c/ notas finais)
+  const [detailsMatch, setDetailsMatch] = useState<{ result: MatchResult; homeTeam?: Team; awayTeam?: Team; homeName: string; awayName: string } | null>(null);
+  const openMatchDetails = (result: MatchResult) => setDetailsMatch({
+    result,
+    homeTeam: getTeamById(result.homeTeamId),
+    awayTeam: getTeamById(result.awayTeamId),
+    homeName: getTeamById(result.homeTeamId)?.name ?? result.homeTeamId,
+    awayName: getTeamById(result.awayTeamId)?.name ?? result.awayTeamId,
+  });
 
   // This page is the season HUB for BOTH phases: league (rounds + standings) and
   // knockout (ties + bracket). Shared tabs — ESTATÍSTICAS, MEU TIME, MEUS JOGOS —
@@ -89,6 +107,46 @@ export default function LeaguePage() {
     [leagueResults, state.knockoutBracket, playerTeam?.id]
   );
 
+  // RODADAS ANTERIORES: períodos disputados — rodadas 1-8 da liga + as fases do mata-mata.
+  const koShort = (r: string): string => ({ playoffs: 'PLAY', round16: 'OIT', quarters: 'QF', semis: 'SF', final: 'FIN' } as Record<string, string>)[r] ?? r;
+  const historyPeriods = useMemo(() => {
+    const periods: { key: string; label: string; kind: 'league' | 'ko'; round?: number; koRound?: string }[] = [];
+    for (let r = 1; r <= 8; r++) {
+      if (leagueFixtures.some(f => f.round === r && f.played)) periods.push({ key: `L${r}`, label: `R${r}`, kind: 'league', round: r });
+    }
+    const b = state.knockoutBracket;
+    if (b) {
+      const koRounds: [string, any[]][] = [
+        ['playoffs', b.playoffs ?? []],
+        ['round16', b.round16 ?? []],
+        ['quarters', b.quarterFinals ?? []],
+        ['semis', b.semiFinals ?? []],
+        ['final', b.final ? [b.final] : []],
+      ];
+      for (const [rk, ties] of koRounds) {
+        if (ties.some((t: any) => t.leg1 || t.result || t.played)) periods.push({ key: rk, label: koShort(rk), kind: 'ko', koRound: rk });
+      }
+    }
+    return periods;
+  }, [leagueFixtures, state.knockoutBracket]);
+  const historyKey = selectedHistoryKey && historyPeriods.some(p => p.key === selectedHistoryKey)
+    ? selectedHistoryKey
+    : (historyPeriods.length ? historyPeriods[historyPeriods.length - 1].key : null);
+  const historyPeriod = historyPeriods.find(p => p.key === historyKey) ?? null;
+  const historyFixtures = useMemo(
+    () => historyPeriod?.kind === 'league' ? leagueFixtures.filter(f => f.round === historyPeriod.round) : [],
+    [leagueFixtures, historyPeriod]
+  );
+  const historyKoTies = useMemo(() => {
+    const b = state.knockoutBracket;
+    if (!b || historyPeriod?.kind !== 'ko') return [] as any[];
+    const map: Record<string, any[]> = {
+      playoffs: b.playoffs ?? [], round16: b.round16 ?? [], quarters: b.quarterFinals ?? [],
+      semis: b.semiFinals ?? [], final: b.final ? [b.final] : [],
+    };
+    return map[historyPeriod.koRound!] ?? [];
+  }, [state.knockoutBracket, historyPeriod]);
+
   const playerStanding = leagueStandings.find(s => s.teamId === playerTeam?.id);
   const playerPosition = leagueStandings.findIndex(s => s.teamId === playerTeam?.id) + 1;
   // New UCL format: 1–8 qualify straight to the Round of 16, 9–24 go to the
@@ -99,6 +157,12 @@ export default function LeaguePage() {
 
   // Filter fixtures for the current round
   const currentRoundFixtures = leagueFixtures.filter(f => f.round === leagueRound);
+
+  // 🎯 Palpite — helpers (usam state.bets + rodada atual)
+  const bets = state.bets ?? [];
+  const betPrefix = `L${leagueRound}:`;
+  const remainingCap = BET_ROUND_CAP - roundStakeUsed(bets, betPrefix);
+  const betFor = (matchKey: string): Bet | undefined => bets.find(b => b.matchKey === matchKey);
 
   // Online: which human players still need to watch their match before host can advance
   const humanPlayersWithMatch = state.mode === 'online'
@@ -151,10 +215,6 @@ export default function LeaguePage() {
       homeTeamId: myFixture.homeTeamId,
       awayTeamId: myFixture.awayTeamId,
     });
-  };
-
-  const handleSimulateBots = () => {
-    dispatch({ type: 'SIMULATE_BOT_MATCHES' });
   };
 
   // ONLINE host only: simulate the entire round on the server at once.
@@ -383,7 +443,7 @@ export default function LeaguePage() {
                 { id: 'bracket', label: 'CHAVEAMENTO' },
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU TIME' },
-                { id: 'results', label: 'MEUS JOGOS' },
+                { id: 'results', label: 'HISTÓRICO' },
                 { id: 'shop', label: `🛒 LOJA · 💰${state.points}` },
               ]
             : [
@@ -391,7 +451,7 @@ export default function LeaguePage() {
                 { id: 'standings', label: 'CLASSIFICAÇÃO' },
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU TIME' },
-                { id: 'results', label: 'MEUS JOGOS' },
+                { id: 'results', label: 'HISTÓRICO' },
                 { id: 'shop', label: `🛒 LOJA · 💰${state.points}` },
               ]
           ).map(tab => (
@@ -426,15 +486,6 @@ export default function LeaguePage() {
               <span className="text-xs font-bold tracking-widest text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 PARTIDAS DA RODADA
               </span>
-              {!allFixturesPlayed && state.mode !== 'online' && (
-                <button
-                  onClick={handleSimulateBots}
-                  className="text-xs font-bold text-yellow-500 hover:underline"
-                  style={{ fontFamily: 'Rajdhani, sans-serif' }}
-                >
-                  ⚡ Simular outros jogos da rodada
-                </button>
-              )}
             </div>
 
             {currentRoundFixtures.map((fixture, idx) => {
@@ -458,13 +509,14 @@ export default function LeaguePage() {
               return (
                 <div
                   key={idx}
-                  className="p-4 rounded-xl flex items-center justify-between transition-all"
+                  className="p-4 rounded-xl transition-all"
                   style={{
                     background: isMyFixture ? 'linear-gradient(135deg, #14142a, #0b0b14)' : isHumanMatch ? 'linear-gradient(135deg, #0f0f1f, #0a0a18)' : '#0F0F1A',
                     border: isMyFixture ? '1px solid #c9a84c55' : isHumanMatch ? '1px solid #6366f155' : '1px solid #1A1A2A',
                     boxShadow: isMyFixture ? '0 0 15px rgba(201, 168, 76, 0.1)' : 'none',
                   }}
                 >
+                 <div className="flex items-center justify-between">
                   {/* Home Team */}
                   <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
                     <span className="font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: homeColor }}>{homeName}</span>
@@ -474,21 +526,22 @@ export default function LeaguePage() {
                   {/* Score / VS */}
                   <div className="w-28 text-center flex flex-col items-center justify-center">
                     {fixture.played && fixture.result && !hideRoundScore ? (
-                      <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                        {fixture.result.homeGoals} - {fixture.result.awayGoals}
-                      </span>
+                      <>
+                        <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                          {fixture.result.homeGoals} - {fixture.result.awayGoals}
+                        </span>
+                        {fixture.result.playerStats && (
+                          <button onClick={() => openMatchDetails(fixture.result!)}
+                            className="mt-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125"
+                            style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+                            🔍 Detalhes
+                          </button>
+                        )}
+                      </>
                     ) : hideRoundScore && fixture.played ? (
                       <span className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: isMyFixture ? '#C9A84C' : isHumanMatch ? '#6366f1' : '#4A4A5A' }}>
                         {isMyFixture ? '⚽ AO VIVO' : '🔒'}
                       </span>
-                    ) : isMyFixture && state.mode !== 'online' ? (
-                      <button
-                        onClick={handlePlayPlayerMatch}
-                        className="px-3 py-1 rounded bg-yellow-500 hover:bg-yellow-400 text-black text-xs font-bold uppercase tracking-wider"
-                        style={{ fontFamily: 'Rajdhani, sans-serif' }}
-                      >
-                        ⚽ JOGAR
-                      </button>
                     ) : (
                       <span className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: isMyFixture ? '#C9A84C' : isHumanMatch ? '#6366f1' : '#4A4A5A' }}>
                         {isMyFixture ? '⚽ VS' : isHumanMatch ? '👥 VS' : 'VS'}
@@ -501,6 +554,32 @@ export default function LeaguePage() {
                     <Crest crestId={allTeams.find(t => t.id === fixture.awayTeamId)?.crestId} name={awayName} size={22} />
                     <span className="font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: awayColor }}>{awayName}</span>
                   </div>
+                 </div>
+
+                  {/* 🎯 Palpite — botão (pré-jogo) / badge de resultado (pós-revelação) */}
+                  {(() => {
+                    const matchKey = buildLeagueMatchKey(leagueRound, fixture.homeTeamId, fixture.awayTeamId);
+                    const myBet = betFor(matchKey);
+                    if (fixture.played) {
+                      if (!myBet) return null;
+                      if (hideRoundScore || !myBet.revealed) {
+                        return <div className="mt-2 text-center text-[10px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>🎯 palpite em andamento</div>;
+                      }
+                      const txt = myBet.tier === 'exact' ? `✅ Palpite: placar exato (+${myBet.payout})`
+                        : myBet.tier === 'outcome' ? `✅ Palpite: resultado certo (+${myBet.payout})`
+                          : `❌ Palpite perdido (−${myBet.stake})`;
+                      return <div className="mt-2 text-center text-[11px] font-black" style={{ color: myBet.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
+                    }
+                    return (
+                      <div className="mt-2 text-center">
+                        <button onClick={() => setBetSlip({ matchKey, homeName, awayName })}
+                          className="px-3 py-1 rounded-lg text-[11px] font-black tracking-wider transition-transform hover:scale-[1.03]"
+                          style={{ fontFamily: 'Rajdhani, sans-serif', background: myBet ? '#C9A84C22' : '#0F0F1A', color: '#E8C84A', border: '1px solid #C9A84C55' }}>
+                          {myBet ? `🎯 Palpite: ${myBet.homeGoals}-${myBet.awayGoals} · ${myBet.stake} (editar)` : '🎯 Palpitar'}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -588,16 +667,17 @@ export default function LeaguePage() {
                 )}
               </motion.div>
             ) : (
-              isPlayerMatchPlayed && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-6"
-                >
-                  {leagueRound < 8 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6"
+              >
+                {!isPlayerMatchPlayed ? (
+                  /* Solo: o botão de JOGAR fica embaixo dos confrontos (igual ao host no online). */
+                  <>
                     <button
-                      onClick={handleAdvanceRound}
-                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
+                      onClick={handlePlayPlayerMatch}
+                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
                       style={{
                         fontFamily: 'Bebas Neue, sans-serif',
                         background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
@@ -605,28 +685,41 @@ export default function LeaguePage() {
                         boxShadow: '0 0 25px rgba(201,168,76,0.3)',
                       }}
                     >
-                      AVANÇAR PARA A RODADA {leagueRound + 1} →
+                      ▶ JOGAR RODADA {leagueRound}
                     </button>
-                  ) : (
-                    <button
-                      onClick={handleAdvanceKnockout}
-                      disabled={!qualifies}
-                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all"
-                      style={{
-                        fontFamily: 'Bebas Neue, sans-serif',
-                        background: qualifies
-                          ? 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)'
-                          : '#1A1A2A',
-                        color: qualifies ? '#000' : '#555',
-                        boxShadow: qualifies ? '0 0 25px rgba(34,197,94,0.3)' : 'none',
-                        cursor: qualifies ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      {qualifies ? '🏆 AVANÇAR PARA O MATA-MATA →' : '❌ ELIMINADO — FORA DO TOP 24'}
-                    </button>
-                  )}
-                </motion.div>
-              )
+                  </>
+                ) : leagueRound < 8 ? (
+                  <button
+                    onClick={handleAdvanceRound}
+                    className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
+                    style={{
+                      fontFamily: 'Bebas Neue, sans-serif',
+                      background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
+                      color: '#080810',
+                      boxShadow: '0 0 25px rgba(201,168,76,0.3)',
+                    }}
+                  >
+                    AVANÇAR PARA A RODADA {leagueRound + 1} →
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleAdvanceKnockout}
+                    disabled={!qualifies}
+                    className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all"
+                    style={{
+                      fontFamily: 'Bebas Neue, sans-serif',
+                      background: qualifies
+                        ? 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)'
+                        : '#1A1A2A',
+                      color: qualifies ? '#000' : '#555',
+                      boxShadow: qualifies ? '0 0 25px rgba(34,197,94,0.3)' : 'none',
+                      cursor: qualifies ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {qualifies ? '🏆 AVANÇAR PARA O MATA-MATA →' : '❌ ELIMINADO — FORA DO TOP 24'}
+                  </button>
+                )}
+              </motion.div>
             )}
           </motion.div>
         )}
@@ -880,8 +973,21 @@ export default function LeaguePage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-2"
+            className="space-y-3"
           >
+            {/* Sub-abas do HISTÓRICO */}
+            <div className="flex gap-2">
+              {([['mine', 'MEUS JOGOS'], ['rounds', 'RODADAS ANTERIORES']] as const).map(([id, label]) => (
+                <button key={id} onClick={() => setResultsSubTab(id)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider transition-all"
+                  style={{ fontFamily: 'Rajdhani, sans-serif', background: resultsSubTab === id ? '#C9A84C22' : '#0F0F1A', color: resultsSubTab === id ? '#E8C84A' : '#8A8A9A', border: `1px solid ${resultsSubTab === id ? '#C9A84C66' : '#1A1A2A'}` }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {resultsSubTab === 'mine' ? (
+            <div className="space-y-2">
             <div className="text-xs font-bold tracking-widest mb-3"
               style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
               SEUS RESULTADOS ({playerResults.length} jogos disputados)
@@ -898,6 +1004,8 @@ export default function LeaguePage() {
                 const oppName = getTeamName(isHome ? result.awayTeamId : result.homeTeamId);
                 const won = myGoals > oppGoals;
                 const drew = myGoals === oppGoals;
+                const rc = won ? '#22C55E' : drew ? '#EAB308' : '#EF4444';
+                const oppCrest = getTeamById(isHome ? result.awayTeamId : result.homeTeamId)?.crestId;
 
                 return (
                   <motion.div
@@ -905,39 +1013,178 @@ export default function LeaguePage() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: Math.min(i * 0.04, 0.25) }}
-                    className="flex items-center gap-4 px-4 py-3 rounded-xl"
-                    style={{
-                      background: '#0F0F1A',
-                      border: `1px solid ${won ? '#22C55E22' : drew ? '#EAB30822' : '#EF444422'}`,
-                    }}
+                    className="relative flex items-center gap-3 pl-4 pr-3 py-3 rounded-xl overflow-hidden"
+                    style={{ background: 'linear-gradient(135deg,#12121e,#0b0b14)', border: `1px solid ${rc}33` }}
                   >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm"
-                      style={{
-                        fontFamily: 'Bebas Neue, sans-serif',
-                        background: won ? '#22C55E22' : drew ? '#EAB30822' : '#EF444422',
-                        color: won ? '#22C55E' : drew ? '#EAB308' : '#EF4444',
-                      }}>
+                    {/* barra de resultado */}
+                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: rc }} />
+                    {/* V / E / D */}
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center font-black flex-shrink-0"
+                      style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 18, background: `${rc}1f`, color: rc, border: `1px solid ${rc}44` }}>
                       {won ? 'V' : drew ? 'E' : 'D'}
                     </div>
-                    <div className="flex-1">
-                      <span style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif', fontSize: '13px' }}>
-                        {isHome ? 'vs' : '@'}
-                      </span>
-                      {' '}
-                      <span style={{ color: '#FFFFFF', fontFamily: 'Rajdhani, sans-serif', fontSize: '13px', fontWeight: 'bold' }}>
+                    {/* escudo do adversário */}
+                    <Crest crestId={oppCrest} name={oppName} size={30} />
+                    {/* adversário + mando */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                        {isHome ? '🏠 Em casa' : '✈️ Fora'}
+                      </div>
+                      <div className="text-sm font-black truncate" style={{ color: '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>
                         {oppName}
-                      </span>
+                      </div>
                     </div>
-                    <div className="text-xl font-black"
-                      style={{
-                        fontFamily: 'Bebas Neue, sans-serif',
-                        color: won ? '#22C55E' : drew ? '#EAB308' : '#EF4444',
-                      }}>
-                      {myGoals} - {oppGoals}
+                    {/* placar + detalhes */}
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <div className="text-2xl font-black leading-none tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif', color: rc }}>
+                        {myGoals} <span style={{ opacity: .5 }}>-</span> {oppGoals}
+                      </div>
+                      {result.playerStats && (
+                        <button onClick={() => openMatchDetails(result)}
+                          className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125"
+                          style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+                          🔍 Detalhes
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
               })
+            )}
+            </div>
+            ) : (
+            /* ─── RODADAS ANTERIORES: escolha a rodada e veja TODOS os resultados ─── */
+            <div className="space-y-3">
+              {historyPeriods.length === 0 ? (
+                <div className="py-8 text-center text-xs text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  Nenhuma rodada disputada ainda.
+                </div>
+              ) : (
+                <>
+                  {/* Seletor de período: rodadas da liga (R1-8) + fases do mata-mata */}
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    {historyPeriods.map(p => {
+                      const isActive = p.key === historyKey;
+                      return (
+                        <button key={p.key} onClick={() => setSelectedHistoryKey(p.key)}
+                          className="flex-shrink-0 h-9 px-2.5 rounded-lg text-sm font-black transition-all"
+                          style={{ fontFamily: 'Bebas Neue, sans-serif', minWidth: 36, letterSpacing: '.03em',
+                            background: isActive ? '#C9A84C' : '#0F0F1A',
+                            color: isActive ? '#080810' : (p.kind === 'ko' ? '#818CF8' : '#C9A84C'),
+                            border: `1px solid ${isActive ? '#C9A84C' : (p.kind === 'ko' ? '#6366f133' : '#1A1A2A')}` }}>
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="text-xs font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                    RESULTADOS · {historyPeriod?.kind === 'league' ? `RODADA ${historyPeriod.round} DE 8` : knockoutRoundLabel(historyPeriod?.koRound ?? '')}
+                  </div>
+
+                  {historyPeriod?.kind === 'league' ? (
+                    /* Jogos da rodada de liga escolhida */
+                    <div className="space-y-2">
+                      {historyFixtures.map((fixture, idx) => {
+                        const roundHidden = !isKnockout && historyPeriod.round === leagueRound && hideRoundScore;
+                        const homeName = getTeamName(fixture.homeTeamId);
+                        const awayName = getTeamName(fixture.awayTeamId);
+                        const isPlayer = fixture.homeTeamId === playerTeam?.id || fixture.awayTeamId === playerTeam?.id;
+                        return (
+                          <div key={idx} className="p-3 rounded-xl flex items-center justify-between"
+                            style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : '#1A1A2A'}` }}>
+                            <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+                              <span className="font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: fixture.homeTeamId === playerTeam?.id ? '#C9A84C' : '#FFF' }}>{homeName}</span>
+                              <Crest crestId={allTeams.find(t => t.id === fixture.homeTeamId)?.crestId} name={homeName} size={22} />
+                            </div>
+                            <div className="w-24 text-center flex flex-col items-center justify-center">
+                              {fixture.played && fixture.result && !roundHidden ? (
+                                <>
+                                  <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                                    {fixture.result.homeGoals} - {fixture.result.awayGoals}
+                                  </span>
+                                  {fixture.result.playerStats && (
+                                    <button onClick={() => openMatchDetails(fixture.result!)}
+                                      className="mt-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125"
+                                      style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+                                      🔍 Detalhes
+                                    </button>
+                                  )}
+                                </>
+                              ) : roundHidden && fixture.played ? (
+                                <span className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#4A4A5A' }}>🔒</span>
+                              ) : (
+                                <span className="text-xs font-bold text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>—</span>
+                              )}
+                            </div>
+                            <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
+                              <Crest crestId={allTeams.find(t => t.id === fixture.awayTeamId)?.crestId} name={awayName} size={22} />
+                              <span className="font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: fixture.awayTeamId === playerTeam?.id ? '#C9A84C' : '#FFF' }}>{awayName}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Confrontos do mata-mata (ida/volta ou jogo único) — agregado + detalhes de cada perna */
+                    <div className="space-y-2">
+                      {historyKoTies.map((tie: any, idx: number) => {
+                        const koRoundHidden = state.mode === 'online' && historyPeriod?.koRound === state.knockoutBracket?.currentRound && !koAllWatched;
+                        const homeName = getTeamName(tie.homeTeamId);
+                        const awayName = getTeamName(tie.awayTeamId);
+                        const isPlayer = tie.homeTeamId === playerTeam?.id || tie.awayTeamId === playerTeam?.id;
+                        const single = !!tie.isSingleLeg;
+                        const l1 = tie.leg1, l2 = tie.leg2;
+                        const detBtn = 'px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125';
+                        const detStyle = { background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' } as const;
+                        return (
+                          <div key={idx} className="p-3 rounded-xl"
+                            style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : '#1A1A2A'}` }}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+                                <span className="font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: tie.homeTeamId === playerTeam?.id ? '#C9A84C' : '#FFF' }}>{homeName}</span>
+                                <Crest crestId={allTeams.find(t => t.id === tie.homeTeamId)?.crestId} name={homeName} size={22} />
+                              </div>
+                              <div className="w-20 text-center">
+                                {koRoundHidden ? (
+                                  <span className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#4A4A5A' }}>🔒</span>
+                                ) : tie.result ? (
+                                  <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{tie.result.homeGoals} - {tie.result.awayGoals}</span>
+                                ) : l1 ? (
+                                  <span className="text-lg font-black tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>{l1.homeGoals} - {l1.awayGoals}</span>
+                                ) : (
+                                  <span className="text-sm font-bold text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>VS</span>
+                                )}
+                              </div>
+                              <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
+                                <Crest crestId={allTeams.find(t => t.id === tie.awayTeamId)?.crestId} name={awayName} size={22} />
+                                <span className="font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: tie.awayTeamId === playerTeam?.id ? '#C9A84C' : '#FFF' }}>{awayName}</span>
+                              </div>
+                            </div>
+                            {!koRoundHidden && (l1 || l2 || tie.result) && (
+                              <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
+                                {single ? (
+                                  tie.result?.playerStats && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(tie.result)}>🔍 Detalhes</button>
+                                ) : (
+                                  <>
+                                    {l1 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l1)}>👁 Ida</button>}
+                                    {l2 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l2)}>👁 Volta</button>}
+                                  </>
+                                )}
+                                {tie.result?.winner && (
+                                  <span className="text-[10px] font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
+                                    {getTeamName(tie.result.winner)} avança{tie.result.penaltyWinner ? ` · pên ${tie.result.homePenalties}-${tie.result.awayPenalties}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
             )}
           </motion.div>
         )}
@@ -1084,6 +1331,43 @@ export default function LeaguePage() {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* 🔍 Ver Detalhes da partida (rodada / MEUS JOGOS) */}
+      {detailsMatch && (
+        <MatchDetailsModal
+          result={detailsMatch.result}
+          homeTeam={detailsMatch.homeTeam}
+          awayTeam={detailsMatch.awayTeam}
+          homeName={detailsMatch.homeName}
+          awayName={detailsMatch.awayName}
+          onClose={() => setDetailsMatch(null)}
+        />
+      )}
+
+      {/* 🎯 Slip de palpite */}
+      <AnimatePresence>
+        {betSlip && (() => {
+          const myBet = betFor(betSlip.matchKey);
+          const capLeft = remainingCap + (myBet?.stake ?? 0); // editar reaproveita o próprio stake
+          return (
+            <BetSlipModal
+              homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
+              remainingCap={capLeft} points={state.points}
+              onConfirm={(hg, ag, stake) => {
+                if (online) shopPlaceBetOnline(betSlip.matchKey, hg, ag, stake);
+                else dispatch({ type: 'PLACE_BET', matchKey: betSlip.matchKey, homeGoals: hg, awayGoals: ag, stake });
+                setBetSlip(null);
+              }}
+              onCancelBet={myBet ? () => {
+                if (online) shopCancelBetOnline(betSlip.matchKey);
+                else dispatch({ type: 'CANCEL_BET', matchKey: betSlip.matchKey });
+                setBetSlip(null);
+              } : undefined}
+              onClose={() => setBetSlip(null)}
+            />
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

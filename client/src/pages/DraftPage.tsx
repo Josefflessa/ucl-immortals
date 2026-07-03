@@ -143,7 +143,7 @@ const DraftOptions = memo(function DraftOptions({
             </div>
             {sel.traits.length > 0 && (
             <>
-            <div className="text-[9px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⭐ CARACTERÍSTICAS</div>
+            <div className="text-[9px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>🎯 ESTILOS DE JOGO</div>
             <div className="flex flex-col gap-1">
               {sel.traits.map(t => {
                 const info = getTraitInfo(t);

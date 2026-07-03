@@ -13,9 +13,11 @@ import {
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
   LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
   getAllPlayedMatchResults, createKnockoutBracket,
-  advanceKnockoutBracket, playActiveKnockoutLeg, applyShopVariant, hasVariant, stripVariant,
+  advanceKnockoutBracket, playActiveKnockoutLeg, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
 } from '../lib/gameEngine';
+import type { VariantFlag } from '../lib/gameEngine';
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from '../lib/shop';
+import { Bet, buildLeagueMatchKey, canPlaceStake, settleBet } from '../lib/bets';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem } from '../lib/storage';
 
 // ============================================================
@@ -89,6 +91,11 @@ export interface GameState {
   lastMatchPoints: MatchPoints | null; // shown once after a LEAGUE match (in the reinforcement modal)
   knockoutPointsPopup: MatchPoints | null; // transient "+X pontos" popup after a KNOCKOUT leg (no reinforcement there)
   reinforcementRerolls: number; // 🔄 re-roll tokens for the reinforcement pick (persist across rounds)
+  // 🛒 Pacote da loja JÁ PAGO na abertura (Pacote do Craque / Caça-Talentos): fica guardado até você
+  // escolher 1 → impede re-sortear de graça abrindo/fechando o modal. A escolha em si é grátis.
+  pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null;
+  // 🎯 Palpites (apostas de pontos). Escrow já debitado ao apostar; crédito só na revelação.
+  bets: Bet[];
 
   // Online Multiplayer fields
   mode: 'solo' | 'online';
@@ -139,7 +146,7 @@ export interface KnockoutMatch {
 // ============================================================
 // ACTIONS
 // ============================================================
-type GameAction =
+export type GameAction =
   | { type: 'SET_PHASE'; phase: GamePhase }
   | { type: 'SET_CREST'; crestId: string | null }
   | { type: 'SET_PLAYER_NAME'; name: string }
@@ -165,12 +172,16 @@ type GameAction =
   | { type: 'PICK_REINFORCEMENT'; player: Player }
   | { type: 'DISMISS_REINFORCEMENT' }
   | { type: 'SHOP_CHANGE_COACH'; coachId: string }
-  | { type: 'SHOP_BUY_PLAYER'; player: Player; kind: 'star' | 'scout' }
+  | { type: 'SHOP_BUY_PLAYER'; player: Player; kind: 'unique' } // compra direta (carta Única)
+  | { type: 'SHOP_OPEN_PACK'; kind: 'star' | 'scout'; options: Player[] } // COBRA ao abrir; guarda as opções
+  | { type: 'SHOP_PICK_PACK'; player: Player } // escolhe 1 do pacote já pago (grátis) → banco
   | { type: 'SHOP_TURBINAR'; playerId: string; variant: ShopVariant }
-  | { type: 'SHOP_REMOVE_VARIANT'; playerId: string }
+  | { type: 'SHOP_REMOVE_VARIANT'; playerId: string; variantKey?: VariantFlag }
   | { type: 'SHOP_TRAIN'; playerId: string; attr: TrainAttr }
   | { type: 'SHOP_BUY_REROLL' }
   | { type: 'REROLL_REINFORCEMENT' }
+  | { type: 'PLACE_BET'; matchKey: string; homeGoals: number; awayGoals: number; stake: number }
+  | { type: 'CANCEL_BET'; matchKey: string }
   | { type: 'START_LEAGUE' }
   | { type: 'SIMULATE_LEAGUE' }
   | { type: 'START_KNOCKOUT' }
@@ -226,6 +237,8 @@ const initialState: GameState = {
   lastMatchPoints: null,
   knockoutPointsPopup: null,
   reinforcementRerolls: 0,
+  pendingPack: null,
+  bets: [],
 
   // Online Multiplayer fields
   mode: 'solo',
@@ -247,7 +260,7 @@ const initialState: GameState = {
 // ============================================================
 // REDUCER
 // ============================================================
-function gameReducer(state: GameState, action: GameAction): GameState {
+export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'SET_PHASE':
       return { ...state, phase: action.phase };
@@ -500,11 +513,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'SHOP_BUY_PLAYER': {
+      // Compra direta (carta Única) — cobra na hora, entra no banco.
       if (!state.playerTeam) return state;
-      const cost = action.kind === 'star' ? SHOP_COSTS.starPack : SHOP_COSTS.scout;
+      const cost = SHOP_COSTS.uniqueCard;
       if (state.points < cost) return state;
       if (state.playerTeam.players.some(p => p.id === action.player.id)) return state; // no duplicates
-      // Joins the BENCH (like a reinforcement); the XI is untouched until substituted in.
       const card: PlayerCard = { ...action.player, chemistryScore: 0, isOOP: false };
       return {
         ...state,
@@ -513,13 +526,32 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'SHOP_OPEN_PACK': {
+      // COBRA ao abrir o pacote (impede re-sortear de graça). Guarda as opções até a escolha.
+      if (!state.playerTeam || state.pendingPack) return state; // um pacote pendente por vez
+      const cost = action.kind === 'star' ? SHOP_COSTS.starPack : SHOP_COSTS.scout;
+      if (state.points < cost) return state;
+      return { ...state, points: state.points - cost, pendingPack: { kind: action.kind, options: action.options } };
+    }
+
+    case 'SHOP_PICK_PACK': {
+      // Escolhe 1 do pacote JÁ PAGO (sem cobrar de novo) → banco, e limpa o pacote.
+      if (!state.playerTeam || !state.pendingPack) return state;
+      const chosen = action.player;
+      const valid = state.pendingPack.options.some(o => o.id === chosen.id)
+        && !state.playerTeam.players.some(p => p.id === chosen.id);
+      if (!valid) return { ...state, pendingPack: null };
+      const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
+      return { ...state, pendingPack: null, playerTeam: { ...state.playerTeam, players: [...state.playerTeam.players, card] } };
+    }
+
     case 'SHOP_TURBINAR': {
       if (!state.playerTeam) return state;
       const cost = SHOP_COSTS.turbinar;
       const target = state.playerTeam.players.find(p => p.id === action.playerId);
       if (!target || state.points < cost) return state;
-      // One special variant per card — refuse if it already has one.
-      if (hasVariant(target)) return state;
+      // Uma característica por carta (Únicas: até duas) — recusa se já atingiu o limite.
+      if (!canAddVariant(target)) return state;
       const newPlayers = state.playerTeam.players.map(p =>
         p.id === action.playerId ? ({ ...applyShopVariant(p, action.variant) } as PlayerCard) : p);
       return {
@@ -536,7 +568,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Only meaningful (and only charged) if the card actually HAS a characteristic.
       if (!target || state.points < cost || !hasVariant(target)) return state;
       const newPlayers = state.playerTeam.players.map(p =>
-        p.id === action.playerId ? stripVariant(p) : p);
+        p.id === action.playerId ? (action.variantKey ? stripSpecificVariant(p, action.variantKey) : stripVariant(p)) : p);
       return {
         ...state,
         points: state.points - cost,
@@ -577,6 +609,28 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         reinforcementRerolls: state.reinforcementRerolls - 1,
         reinforcementOptions: generateDraftOptions([], ownedIds),
       };
+    }
+
+    case 'PLACE_BET': {
+      // 🎯 Aposta (escrow): debita o stake AGORA. Editar o mesmo jogo ajusta pela diferença.
+      if (!state.playerTeam || action.stake <= 0) return state;
+      // Teto por rodada de liga (prefixo Lr:) ou compartilhado nas pernas do mata-mata (prefixo K).
+      const prefix = action.matchKey.startsWith('K') ? 'K' : `L${state.leagueRound}:`;
+      const existing = state.bets.find(b => b.matchKey === action.matchKey);
+      const escrowDelta = action.stake - (existing?.stake ?? 0); // >0 debita mais, <0 devolve
+      if (escrowDelta > state.points) return state;               // saldo insuficiente
+      if (!canPlaceStake(state.bets, prefix, action.matchKey, action.stake)) return state; // teto da rodada
+      const bet: Bet = { matchKey: action.matchKey, homeGoals: action.homeGoals, awayGoals: action.awayGoals, stake: action.stake };
+      const bets = existing
+        ? state.bets.map(b => b.matchKey === action.matchKey ? bet : b)
+        : [...state.bets, bet];
+      return { ...state, points: state.points - escrowDelta, bets };
+    }
+
+    case 'CANCEL_BET': {
+      const existing = state.bets.find(b => b.matchKey === action.matchKey);
+      if (!existing || existing.settled) return state; // não cancela depois de travado/liquidado
+      return { ...state, points: state.points + existing.stake, bets: state.bets.filter(b => b.matchKey !== action.matchKey) };
     }
 
     case 'START_LEAGUE': {
@@ -774,6 +828,19 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Award shop points for the player's performance (W/D/L + goal diff + goals + clean sheet).
       const matchPoints = computeMatchPoints(action.result, state.playerTeam.id);
 
+      // 🎯 Palpite: liquida e CREDITA os palpites da rodada agora (no solo, o fim da partida é a
+      // revelação — o jogador viu o seu jogo ao vivo e os demais foram simulados aqui).
+      const betPrefix = `L${state.leagueRound}:`;
+      let betWinnings = 0;
+      const settledBets = state.bets.map(b => {
+        if (b.revealed || !b.matchKey.startsWith(betPrefix)) return b;
+        const fx = allFixtures.find(f => buildLeagueMatchKey(f.round, f.homeTeamId, f.awayTeamId) === b.matchKey);
+        if (!fx?.result) return b;
+        const r = settleBet(b, fx.result);
+        betWinnings += r.payout;
+        return { ...b, settled: true, revealed: true, won: r.won, tier: r.tier, payout: r.payout };
+      });
+
       return {
         ...state,
         phase: 'league',
@@ -783,8 +850,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatch: null,
         currentMatchTeams: null,
         reinforcementOptions,
-        points: state.points + matchPoints.total,
+        points: state.points + matchPoints.total + betWinnings,
         lastMatchPoints: matchPoints,
+        bets: settledBets,
       };
     }
 
@@ -872,6 +940,30 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         popup = mp;
         if (state.mode !== 'online') points += mp.total;
       }
+
+      // 🎯 Palpite (mata-mata, SOLO): liquida+credita as pernas já jogadas cujo resultado existe.
+      // (No online o servidor credita no gate de "todos assistiram a perna".)
+      let koBets = state.bets;
+      if (state.mode !== 'online' && state.knockoutBracket) {
+        const b = state.knockoutBracket as any;
+        const koTies: any[] = [
+          ...(b.playoffs ?? []), ...(b.round16 ?? []),
+          ...b.quarterFinals, ...b.semiFinals, ...(b.final ? [b.final] : []),
+        ];
+        let koWinnings = 0;
+        koBets = state.bets.map(bet => {
+          if (bet.revealed || !bet.matchKey.startsWith('K')) return bet;
+          const [id, legStr] = bet.matchKey.slice(1).split(':');
+          const tie = koTies.find(t => t.id === id);
+          const res = tie ? (Number(legStr) === 2 ? tie.leg2 : (tie.leg1 ?? tie.result)) : undefined;
+          if (!res) return bet;
+          const r = settleBet(bet, res);
+          koWinnings += r.payout;
+          return { ...bet, settled: true, revealed: true, won: r.won, tier: r.tier, payout: r.payout };
+        });
+        points += koWinnings;
+      }
+
       return {
         ...state,
         phase: 'knockout',
@@ -882,6 +974,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatchResult: null,
         points,
         knockoutPointsPopup: popup,
+        bets: koBets,
       };
     }
 
@@ -1000,6 +1093,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         lastMatchPoints: me ? (me.lastMatchPoints ?? null) : state.lastMatchPoints,
         reinforcementOptions: me ? (me.reinforcementOptions ?? null) : state.reinforcementOptions,
         reinforcementRerolls: me ? (me.reinforcementRerolls ?? 0) : state.reinforcementRerolls,
+        pendingPack: me ? (me.pendingPack ?? null) : state.pendingPack,
+        bets: me ? (me.bets ?? []) : state.bets,
         draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),
         selectedCrestId: keepLocalPicks ? state.selectedCrestId : (me ? (me.crestId ?? state.selectedCrestId) : state.selectedCrestId),
         selectedCoachId: keepLocalPicks ? state.selectedCoachId : (me ? me.coachId : state.selectedCoachId),
@@ -1089,9 +1184,13 @@ interface GameContextType {
   // Each player emits this when they finish watching their match replay
   notifyMatchWatchedOnline: (type: 'league' | 'knockout') => void;
   shopChangeCoachOnline: (coachId: string) => void;
-  shopBuyPlayerOnline: (player: Player, kind: 'star' | 'scout') => void;
+  shopBuyPlayerOnline: (player: Player, kind: 'unique') => void;
+  shopOpenPackOnline: (kind: 'star' | 'scout', options: Player[]) => void;
+  shopPickPackOnline: (player: Player) => void;
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
-  shopRemoveVariantOnline: (playerId: string) => void;
+  shopRemoveVariantOnline: (playerId: string, variantKey?: VariantFlag) => void;
+  shopPlaceBetOnline: (matchKey: string, homeGoals: number, awayGoals: number, stake: number) => void;
+  shopCancelBetOnline: (matchKey: string) => void;
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
@@ -1275,8 +1374,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopChangeCoachOnline = useCallback((coachId: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_change_coach", { roomCode: state.roomCode, coachId });
   }, [state.roomCode]);
-  const shopBuyPlayerOnline = useCallback((player: Player, kind: 'star' | 'scout') => {
+  const shopBuyPlayerOnline = useCallback((player: Player, kind: 'unique') => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_buy_player", { roomCode: state.roomCode, player, kind });
+  }, [state.roomCode]);
+  const shopOpenPackOnline = useCallback((kind: 'star' | 'scout', options: Player[]) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_open_pack", { roomCode: state.roomCode, kind, options });
+  }, [state.roomCode]);
+  const shopPickPackOnline = useCallback((player: Player) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_pick_pack", { roomCode: state.roomCode, player });
   }, [state.roomCode]);
   const shopTurbinarOnline = useCallback((playerId: string, variant: ShopVariant) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_turbinar", { roomCode: state.roomCode, playerId, variant });
@@ -1284,8 +1389,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopTrainOnline = useCallback((playerId: string, attr: TrainAttr) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_train", { roomCode: state.roomCode, playerId, attr });
   }, [state.roomCode]);
-  const shopRemoveVariantOnline = useCallback((playerId: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_remove_variant", { roomCode: state.roomCode, playerId });
+  const shopRemoveVariantOnline = useCallback((playerId: string, variantKey?: VariantFlag) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_remove_variant", { roomCode: state.roomCode, playerId, variantKey });
+  }, [state.roomCode]);
+  const shopPlaceBetOnline = useCallback((matchKey: string, homeGoals: number, awayGoals: number, stake: number) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("place_bet", { roomCode: state.roomCode, matchKey, homeGoals, awayGoals, stake });
+  }, [state.roomCode]);
+  const shopCancelBetOnline = useCallback((matchKey: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("cancel_bet", { roomCode: state.roomCode, matchKey });
   }, [state.roomCode]);
   const swapPlayerTeamOnline = useCallback((indexA: number, indexB: number) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("swap_player_team", { roomCode: state.roomCode, indexA, indexB });
@@ -1355,7 +1466,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline,
+    shopChangeCoachOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -4,7 +4,7 @@
 // same multi-version fallback chain as the card and lands on a placeholder.
 
 import { useState } from 'react';
-import { SOFIFA_MAPPING, getBasePlayerId } from './PlayerCard';
+import { SOFIFA_MAPPING, getBasePlayerId, UNIQUE_STYLE } from './PlayerCard';
 import { getRarityColor } from '../../lib/gameData';
 
 interface PlayerAvatarProps {
@@ -24,9 +24,13 @@ export default function PlayerAvatar({
   ring = true,
   fallback,
 }: PlayerAvatarProps) {
-  const m = SOFIFA_MAPPING[getBasePlayerId(playerId)];
+  // ⭐ Carta Única: render próprio (não a foto da carta-base).
+  const uniq = UNIQUE_STYLE[playerId];
+  const m = uniq ? null : SOFIFA_MAPPING[getBasePlayerId(playerId)];
   const urls: string[] = [];
-  if (m) {
+  if (uniq) {
+    urls.push(uniq.render);
+  } else if (m) {
     const padded = String(m.id).padStart(6, '0');
     const prefix = `https://cdn.sofifa.net/players/${padded.slice(0, 3)}/${padded.slice(3, 6)}`;
     urls.push(`${prefix}/${m.ver}_120.png`);

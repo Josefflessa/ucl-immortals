@@ -18,263 +18,262 @@ interface PlayerCardProps {
 // ver = FIFA edition year (e.g. 25 = FIFA 25, 24 = FIFA 24). Higher = better face scan quality.
 export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   // ── IMMORTALS ──────────────────────────────────────────────────────────────
-  messi:           { id: 158023, ver: 16 }, // FIFA 16 — Messi no auge (Barça), combina com a carta
-  cristiano:       { id: 20801,  ver: 15 }, // FIFA 15 — CR7 no auge (Real Madrid)
+  messi: { id: 158023, ver: 16 }, // FIFA 16 — Messi no auge (Barça), combina com a carta
+  cristiano: { id: 20801, ver: 15 }, // FIFA 15 — CR7 no auge (Real Madrid)
   // ── LEGENDARY ──────────────────────────────────────────────────────────────
-  xavi:            { id: 10535,  ver: 23 }, // FIFA 23 — recent FUT Heroes version
-  iniesta:         { id: 41,     ver: 22 }, // ✅ CDN-verified (185427=Ørjan Nyland!) FIXED
-  modric:          { id: 177003, ver: 25 }, // FIFA 25 — still active
-  ramos:           { id: 155862, ver: 24 }, // FIFA 24
-  pirlo:           { id: 7763,   ver: 25 }, // ✅ CDN-verified
-  kaka:            { id: 138449, ver: 23 }, // FIFA 23 — FUT Icon
-  maldini:         { id: 238439, ver: 25 }, // ✅ CDN-verified (was Nainggolan 178518!) FIXED
-  nesta:           { id: 1088,   ver: 24 }, // ✅ CDN-verified
-  buffon:          { id: 1179,   ver: 23 }, // ✅ CDN-verified (ver24 missing, ver23 works)
-  neuer:           { id: 167495, ver: 25 }, // FIFA 25 — still active
-  drogba:          { id: 31432,  ver: 24 }, // ✅ CDN-verified — was 41236 (=Ibrahimovic!) FIXED
-  henry:           { id: 1625,   ver: 24 }, // FIFA 24 — FUT Icon
-  benzema:         { id: 165153, ver: 24 }, // FIFA 24
-  casillas:        { id: 5479,   ver: 25 }, // ✅ CDN-verified (was van der Sar 51539!) FIXED
+  xavi: { id: 10535, ver: 23 }, // FIFA 23 — recent FUT Heroes version
+  iniesta: { id: 41, ver: 22 }, // ✅ CDN-verified (185427=Ørjan Nyland!) FIXED
+  modric: { id: 177003, ver: 25 }, // FIFA 25 — still active
+  ramos: { id: 155862, ver: 24 }, // FIFA 24
+  pirlo: { id: 7763, ver: 25 }, // ✅ CDN-verified
+  kaka: { id: 138449, ver: 23 }, // FIFA 23 — FUT Icon
+  maldini: { id: 238439, ver: 25 }, // ✅ CDN-verified (was Nainggolan 178518!) FIXED
+  nesta: { id: 1088, ver: 24 }, // ✅ CDN-verified
+  buffon: { id: 1179, ver: 23 }, // ✅ CDN-verified (ver24 missing, ver23 works)
+  neuer: { id: 167495, ver: 25 }, // FIFA 25 — still active
+  drogba: { id: 31432, ver: 24 }, // ✅ CDN-verified — was 41236 (=Ibrahimovic!) FIXED
+  henry: { id: 1625, ver: 24 }, // FIFA 24 — FUT Icon
+  benzema: { id: 165153, ver: 24 }, // FIFA 24
+  casillas: { id: 5479, ver: 25 }, // ✅ CDN-verified (was van der Sar 51539!) FIXED
   // ── GOLD ───────────────────────────────────────────────────────────────────
-  alonso:          { id: 45197,  ver: 25 }, // ✅ CDN-verified (was Peter Crouch 51257!) FIXED
-  busquets:        { id: 189511, ver: 24 }, // FIFA 24
-  alves:           { id: 146530, ver: 23 }, // ✅ CDN-verified (was Jesús Navas!) FIXED
-  marcelo:         { id: 176676, ver: 22 }, // ✅ CDN-verified (ver23 missing, ver22 works)
-  lahm:            { id: 121939, ver: 24 }, // FIFA 24 — FUT Icon
-  ribery:          { id: 156616, ver: 23 }, // FIFA 23 — FUT Heroes
-  robben:          { id: 9014,   ver: 21 }, // ✅ CDN-verified (ver21 only) FIXED
-  lampard:         { id: 242930, ver: 22 }, // ✅ FIXED — correto Icon Lampard
-  gerrard:         { id: 13743,  ver: 25 }, // ✅ CDN-verified (was Matt Ritchie!) FIXED
-  terry:           { id: 13732,  ver: 18 }, // ✅ CDN-verified (ver18 only) FIXED
-  cech:            { id: 48940,  ver: 24 }, // FIFA 24 — FUT Icon
-  sneijder:        { id: 139869, ver: 18 }, // ✅ CDN-verified (was Fernandinho 135507!) FIXED
-  milito:          { id: 262271, ver: 25 }, // ✅ FIXED — correto Diego Milito
-  zanetti:         { id: 1041,   ver: 24 }, // ✅ CDN-verified — was 1168 FIXED
-  schweinsteiger:  { id: 121944, ver: 24 }, // FIFA 24 — FUT Icon
-  neymar:          { id: 190871, ver: 16 }, // FIFA 16 — Neymar no auge (Barça, MSN)
-  suarez:          { id: 176580, ver: 24 }, // FIFA 24
-  puyol:           { id: 13038,  ver: 24 }, // ✅ CDN-verified — was 41 FIXED
-  chiellini:       { id: 138956, ver: 24 }, // ✅ CDN-verified (was Tony McMahon!) FIXED
-  rooney:          { id: 54050,  ver: 24 }, // FIFA 24 — FUT Icon
-  giggs:           { id: 241,    ver: 22 }, // ✅ CDN-verified (ver22 only)
-  scholes:         { id: 246,    ver: 24 }, // ✅ CDN-verified — was 244 FIXED
-  vidic:           { id: 140601, ver: 25 }, // ✅ FIXED — correto Nemanja Vidić
-  kompany:         { id: 139720, ver: 20 }, // ✅ CDN-verified (ver20 only)
-  silva_david:     { id: 168542, ver: 23 }, // ✅ CDN-verified (ver24 missing, ver23 works)
+  alonso: { id: 45197, ver: 25 }, // ✅ CDN-verified (was Peter Crouch 51257!) FIXED
+  busquets: { id: 189511, ver: 24 }, // FIFA 24
+  alves: { id: 146530, ver: 23 }, // ✅ CDN-verified (was Jesús Navas!) FIXED
+  marcelo: { id: 176676, ver: 22 }, // ✅ CDN-verified (ver23 missing, ver22 works)
+  lahm: { id: 121939, ver: 24 }, // FIFA 24 — FUT Icon
+  ribery: { id: 156616, ver: 23 }, // FIFA 23 — FUT Heroes
+  robben: { id: 9014, ver: 21 }, // ✅ CDN-verified (ver21 only) FIXED
+  lampard: { id: 242930, ver: 22 }, // ✅ FIXED — correto Icon Lampard
+  gerrard: { id: 13743, ver: 25 }, // ✅ CDN-verified (was Matt Ritchie!) FIXED
+  terry: { id: 13732, ver: 18 }, // ✅ CDN-verified (ver18 only) FIXED
+  cech: { id: 48940, ver: 24 }, // FIFA 24 — FUT Icon
+  sneijder: { id: 139869, ver: 18 }, // ✅ CDN-verified (was Fernandinho 135507!) FIXED
+  milito: { id: 262271, ver: 25 }, // ✅ FIXED — correto Diego Milito
+  zanetti: { id: 1041, ver: 24 }, // ✅ CDN-verified — was 1168 FIXED
+  schweinsteiger: { id: 121944, ver: 24 }, // FIFA 24 — FUT Icon
+  neymar: { id: 190871, ver: 16 }, // FIFA 16 — Neymar no auge (Barça, MSN)
+  suarez: { id: 176580, ver: 24 }, // FIFA 24
+  puyol: { id: 13038, ver: 24 }, // ✅ CDN-verified — was 41 FIXED
+  chiellini: { id: 138956, ver: 24 }, // ✅ CDN-verified (was Tony McMahon!) FIXED
+  rooney: { id: 54050, ver: 24 }, // FIFA 24 — FUT Icon
+  giggs: { id: 241, ver: 22 }, // ✅ CDN-verified (ver22 only)
+  scholes: { id: 246, ver: 24 }, // ✅ CDN-verified — was 244 FIXED
+  vidic: { id: 140601, ver: 25 }, // ✅ FIXED — correto Nemanja Vidić
+  kompany: { id: 139720, ver: 20 }, // ✅ CDN-verified (ver20 only)
+  silva_david: { id: 168542, ver: 23 }, // ✅ CDN-verified (ver24 missing, ver23 works)
   // ── SILVER ─────────────────────────────────────────────────────────────────
-  valdes:          { id: 193080, ver: 17 }, // ✅ FIXED — correto Víctor Valdés
-  fabregas:        { id: 162895, ver: 23 }, // ✅ CDN-verified
-  pedro:           { id: 189509, ver: 23 }, // ✅ CDN-verified
-  evra            : { id: 52091,  ver: 18 }, // ✅ FIXED — correto Patrice Evra
-  maicon:          { id: 135455, ver: 25 }, // ✅ CDN-verified FIXED
-  villa:           { id: 113422, ver: 20 }, // ✅ CDN-verified (ver20 only)
-  torres:          { id: 49369,  ver: 22 }, // ✅ CDN-verified (ver22 only) — was ver24 FIXED
-  aguero:          { id: 153079, ver: 22 }, // ✅ CDN-verified (ver22 only)
-  bale:            { id: 173731, ver: 23 }, // ✅ CDN-verified
-  seedorf:         { id: 1256,   ver: 24 }, // ✅ CDN-verified — was 139056 FIXED
-  pires:           { id: 1605,   ver: 25 }, // ✅ CDN-verified (was 184035) FIXED
-  bergkamp:        { id: 238388, ver: 24 }, // ✅ CDN-verified FIXED
-  cannavaro:       { id: 1183,   ver: 24 }, // ✅ CDN-verified — was 186398 FIXED
-  tevez:           { id: 143001, ver: 21 }, // ✅ CDN-verified (ver21 only),
-  vandersar       : { id: 51539, ver: 25 },
-  courtois        : { id: 192119, ver: 25 },
-  terstegen       : { id: 192448, ver: 25 },
-  alisson         : { id: 212831, ver: 25 },
-  ederson         : { id: 210257, ver: 25 },
-  donnarumma      : { id: 230621, ver: 25 },
-  oblak           : { id: 200389, ver: 25 },
-  szczesny        : { id: 186153, ver: 25 },
-  sommer          : { id: 177683, ver: 25 }, // ✅ FIXED — correto Yann Sommer
-  edouard_mendy   : { id: 234642, ver: 25 }, // ✅ FIXED2 — correto Édouard Mendy
-  roberto_carlos  : { id: 238430, ver: 25 }, // ✅ FIXED — correto Roberto Carlos
-  vandijk         : { id: 203376, ver: 25 },
-  rubendias       : { id: 239818, ver: 25 }, // ✅ FIXED — correto Rúben Dias
-  marquinhos      : { id: 207865, ver: 25 },
-  araujo          : { id: 253163, ver: 25 }, // ✅ FIXED — correto Ronald Araújo
-  militao         : { id: 240130, ver: 25 }, // ✅ FIXED — correto Éder Militão
-  rudiger         : { id: 205452, ver: 25 },
-  thiago_silva    : { id: 164240, ver: 24 },
-  david_luiz      : { id: 179944, ver: 21 },
-  christensen     : { id: 213661, ver: 25 },
-  blanc           : { id: 238443, ver: 25 }, // ✅ FIXED — correto Laurent Blanc
-  carvalho        : { id: 3622,   ver: 25 }, // ✅ FIXED — correto Ricardo Carvalho
-  marquez         : { id: 26709,  ver: 25 }, // ✅ FIXED — correto Rafael Márquez
-  koeman          : { id: 167680, ver: 25 }, // ✅ FIXED — correto Ronald Koeman
-  cole_ashley     : { id: 34079,  ver: 25 }, // ✅ FIXED — correto Ashley Cole
-  theo_hernandez  : { id: 232656, ver: 25 },
-  grimaldo        : { id: 210035, ver: 25 }, // ✅ FIXED2 — correto Alejandro Grimaldo
-  riise           : { id: 274967, ver: 25 }, // ✅ FIXED — correto John Arne Riise
-  robertson       : { id: 216267, ver: 25 },
-  hakimi          : { id: 235212, ver: 25 },
-  walker          : { id: 188377, ver: 25 },
-  carvajal        : { id: 204963, ver: 25 },
-  frimpong        : { id: 253149, ver: 25 }, // ✅ FIXED — correto Jeremie Frimpong
-  reece_james     : { id: 211522, ver: 25 }, // ✅ FIXED — correto Reece James
-  azpilicueta     : { id: 184432, ver: 25 },
-  gullit          : { id: 214100, ver: 24 },
-  beckham         : { id: 250,    ver: 25 }, // ✅ FIXED — correto David Beckham
-  keane           : { id: 239600, ver: 24 }, // ✅ FIXED — Roy Keane ICON (EA id 239600)
-  rijkaard        : { id: 214098, ver: 25 }, // ✅ FIXED — correto Frank Rijkaard
-  matthaus        : { id: 238435, ver: 21 }, // ✅ FIXED — correto Lothar Matthäus
-  dalglish        : { id: 247699, ver: 22 }, // ✅ FIXED — correto Kenny Dalglish
-  hagi            : { id: 166124, ver: 22 }, // ✅ FIXED2 — correto Gheorghe Hagi
-  socrates        : { id: 190046, ver: 25 }, // ✅ FIXED — correto Sócrates
-  deco            : { id: 246508, ver: 25 }, // ✅ FIXED3 — correto Deco
-  veron           : { id: 7518,   ver: 20 }, // ✅ FIXED — correto Verón
-  zola            : { id: 239110, ver: 24 }, // ✅ FIXED — correto Gianfranco Zola
-  ruicosta        : { id: 1025,   ver: 25 }, // ✅ FIXED — correto Rui Costa
-  abedipele       : { id: 167425, ver: 24 }, // ✅ FIXED — correto Abedi Pelé
-  rodri           : { id: 231866, ver: 25 },
-  gundogan        : { id: 186942, ver: 25 },
-  kroos           : { id: 182521, ver: 24 },
-  kimmich         : { id: 212622, ver: 25 }, // ✅ FIXED — correto Joshua Kimmich
-  goretzka        : { id: 209658, ver: 25 },
-  bruno_fernandes : { id: 212198, ver: 25 },
-  odegaard        : { id: 222665, ver: 25 },
-  barella         : { id: 224232, ver: 25 }, // ✅ FIXED — correto Nicolò Barella
-  calhanoglu      : { id: 208128, ver: 25 }, // ✅ FIXED — correto Hakan Çalhanoğlu
-  dejong          : { id: 228702, ver: 25 },
-  pedri           : { id: 251854, ver: 25 }, // ✅ FIXED — correto Pedri
-  casemiro        : { id: 200145, ver: 25 },
-  wirtz           : { id: 256630, ver: 25 },
-  xhaka           : { id: 199503, ver: 25 }, // ✅ FIXED — correto Granit Xhaka
-  kante           : { id: 215914, ver: 25 },
-  jorginho        : { id: 205498, ver: 25 }, // ✅ FIXED — correto Jorginho
-  kovacic         : { id: 207410, ver: 25 },
-  ronaldo_nazario : { id: 37576, ver: 25 },
-  ibrahimovic     : { id: 41236, ver: 23 },
-  rivaldo         : { id: 242950, ver: 24 }, // ✅ FIXED — correto Rivaldo (ver24)
-  cruyff          : { id: 190045, ver: 25 }, // ✅ FIXED2 — correto Johan Cruyff
-  nistelrooy      : { id: 10264,  ver: 25 }, // ✅ FIXED — correto Ruud van Nistelrooy
-  inzaghi         : { id: 238382, ver: 24 },
-  owen            : { id: 5419,   ver: 22 }, // ✅ FIXED2 — correto Michael Owen
-  stoichkov       : { id: 239541, ver: 23 }, // ✅ FIXED3 — ver25 era 404; ver23 carrega (rosto conferido)
-  butragueno      : { id: 238419, ver: 24 },
-  garrincha       : { id: 247553, ver: 22 }, // ✅ FIXED — correto Garrincha
-  pele            : { id: 237067, ver: 24 }, // EA id 237067 (fut.gg) — fallback p/ placeholder se 404
-  maradona        : { id: 190042, ver: 22 }, // ✅ FIXED — was 237073 (404); 190042 = Maradona (CDN-verified, FIFA 22)
-  etoo            : { id: 9676,   ver: 24 }, // ✅ FIXED — correto Samuel Eto'o
-  cantona         : { id: 167198, ver: 22 }, // ✅ FIXED — correto Eric Cantona
-  kewell          : { id: 266801, ver: 23 }, // ✅ FIXED — correto Harry Kewell
-  voller          : { id: 166676, ver: 25 }, // ✅ FIXED — correto Rudi Völler
-  papin           : { id: 167134, ver: 25 }, // ✅ FIXED — correto Jean-Pierre Papin
-  haaland         : { id: 239085, ver: 25 },
-  mbappe          : { id: 231747, ver: 25 },
-  vinicius        : { id: 238794, ver: 25 },
-  bellingham      : { id: 252371, ver: 25 },
-  salah           : { id: 209331, ver: 25 },
-  kane            : { id: 202126, ver: 25 },
-  lewandowski     : { id: 188545, ver: 25 },
-  griezmann       : { id: 194765, ver: 25 },
-  bernardo_silva  : { id: 218667, ver: 25 },
-  saka            : { id: 246669, ver: 24 }, // ✅ FIXED — correto Bukayo Saka
-  rice            : { id: 234378, ver: 25 },
-  martinelli      : { id: 251566, ver: 25 },
-  gabriel         : { id: 232580, ver: 25 },
-  gabriel_jesus   : { id: 230666, ver: 25 },
-  lautaro         : { id: 231478, ver: 25 },
-  leao            : { id: 241721, ver: 25 },
-  dimaria         : { id: 183898, ver: 25 },
-  son             : { id: 200104, ver: 25 },
-  foden           : { id: 237692, ver: 21 }, // ✅ FIXED — correto Phil Foden
-  dembele         : { id: 231443, ver: 25 },
-  alexis_sanchez  : { id: 184941, ver: 25 },
-  lukaku          : { id: 192505, ver: 25 },
-  hazard          : { id: 183277, ver: 25 },
-  trent           : { id: 231281, ver: 25 },
-  cavani          : { id: 179813, ver: 25 },
-  willian         : { id: 180403, ver: 25 },
-  diego_costa     : { id: 179844, ver: 23 },
+  valdes: { id: 193080, ver: 17 }, // ✅ FIXED — correto Víctor Valdés
+  fabregas: { id: 162895, ver: 23 }, // ✅ CDN-verified
+  pedro: { id: 189509, ver: 23 }, // ✅ CDN-verified
+  evra: { id: 52091, ver: 18 }, // ✅ FIXED — correto Patrice Evra
+  maicon: { id: 135455, ver: 25 }, // ✅ CDN-verified FIXED
+  villa: { id: 113422, ver: 20 }, // ✅ CDN-verified (ver20 only)
+  torres: { id: 49369, ver: 22 }, // ✅ CDN-verified (ver22 only) — was ver24 FIXED
+  aguero: { id: 153079, ver: 22 }, // ✅ CDN-verified (ver22 only)
+  bale: { id: 173731, ver: 23 }, // ✅ CDN-verified
+  seedorf: { id: 1256, ver: 24 }, // ✅ CDN-verified — was 139056 FIXED
+  pires: { id: 1605, ver: 25 }, // ✅ CDN-verified (was 184035) FIXED
+  bergkamp: { id: 238388, ver: 24 }, // ✅ CDN-verified FIXED
+  cannavaro: { id: 1183, ver: 24 }, // ✅ CDN-verified — was 186398 FIXED
+  tevez: { id: 143001, ver: 21 }, // ✅ CDN-verified (ver21 only),
+  vandersar: { id: 51539, ver: 25 },
+  courtois: { id: 192119, ver: 25 },
+  terstegen: { id: 192448, ver: 25 },
+  alisson: { id: 212831, ver: 25 },
+  ederson: { id: 210257, ver: 25 },
+  donnarumma: { id: 230621, ver: 25 },
+  oblak: { id: 200389, ver: 25 },
+  szczesny: { id: 186153, ver: 25 },
+  sommer: { id: 177683, ver: 25 }, // ✅ FIXED — correto Yann Sommer
+  edouard_mendy: { id: 234642, ver: 25 }, // ✅ FIXED2 — correto Édouard Mendy
+  roberto_carlos: { id: 238430, ver: 25 }, // ✅ FIXED — correto Roberto Carlos
+  vandijk: { id: 203376, ver: 25 },
+  rubendias: { id: 239818, ver: 25 }, // ✅ FIXED — correto Rúben Dias
+  marquinhos: { id: 207865, ver: 25 },
+  araujo: { id: 253163, ver: 25 }, // ✅ FIXED — correto Ronald Araújo
+  militao: { id: 240130, ver: 25 }, // ✅ FIXED — correto Éder Militão
+  rudiger: { id: 205452, ver: 25 },
+  thiago_silva: { id: 164240, ver: 24 },
+  david_luiz: { id: 179944, ver: 21 },
+  christensen: { id: 213661, ver: 25 },
+  blanc: { id: 238443, ver: 25 }, // ✅ FIXED — correto Laurent Blanc
+  carvalho: { id: 3622, ver: 25 }, // ✅ FIXED — correto Ricardo Carvalho
+  marquez: { id: 26709, ver: 25 }, // ✅ FIXED — correto Rafael Márquez
+  koeman: { id: 167680, ver: 25 }, // ✅ FIXED — correto Ronald Koeman
+  cole_ashley: { id: 34079, ver: 25 }, // ✅ FIXED — correto Ashley Cole
+  theo_hernandez: { id: 232656, ver: 25 },
+  grimaldo: { id: 210035, ver: 25 }, // ✅ FIXED2 — correto Alejandro Grimaldo
+  riise: { id: 274967, ver: 25 }, // ✅ FIXED — correto John Arne Riise
+  robertson: { id: 216267, ver: 25 },
+  hakimi: { id: 235212, ver: 25 },
+  walker: { id: 188377, ver: 25 },
+  carvajal: { id: 204963, ver: 25 },
+  frimpong: { id: 253149, ver: 25 }, // ✅ FIXED — correto Jeremie Frimpong
+  reece_james: { id: 211522, ver: 25 }, // ✅ FIXED — correto Reece James
+  azpilicueta: { id: 184432, ver: 25 },
+  gullit: { id: 214100, ver: 24 },
+  beckham: { id: 250, ver: 25 }, // ✅ FIXED — correto David Beckham
+  rijkaard: { id: 214098, ver: 25 }, // ✅ FIXED — correto Frank Rijkaard
+  matthaus: { id: 238435, ver: 21 }, // ✅ FIXED — correto Lothar Matthäus
+  dalglish: { id: 247699, ver: 22 }, // ✅ FIXED — correto Kenny Dalglish
+  hagi: { id: 166124, ver: 22 }, // ✅ FIXED2 — correto Gheorghe Hagi
+  socrates: { id: 190046, ver: 25 }, // ✅ FIXED — correto Sócrates
+  deco: { id: 246508, ver: 25 }, // ✅ FIXED3 — correto Deco
+  veron: { id: 7518, ver: 20 }, // ✅ FIXED — correto Verón
+  zola: { id: 239110, ver: 24 }, // ✅ FIXED — correto Gianfranco Zola
+  ruicosta: { id: 1025, ver: 25 }, // ✅ FIXED — correto Rui Costa
+  abedipele: { id: 167425, ver: 24 }, // ✅ FIXED — correto Abedi Pelé
+  rodri: { id: 231866, ver: 25 },
+  gundogan: { id: 186942, ver: 25 },
+  kroos: { id: 182521, ver: 24 },
+  kimmich: { id: 212622, ver: 25 }, // ✅ FIXED — correto Joshua Kimmich
+  goretzka: { id: 209658, ver: 25 },
+  bruno_fernandes: { id: 212198, ver: 25 },
+  odegaard: { id: 222665, ver: 25 },
+  barella: { id: 224232, ver: 25 }, // ✅ FIXED — correto Nicolò Barella
+  calhanoglu: { id: 208128, ver: 25 }, // ✅ FIXED — correto Hakan Çalhanoğlu
+  dejong: { id: 228702, ver: 25 },
+  pedri: { id: 251854, ver: 25 }, // ✅ FIXED — correto Pedri
+  casemiro: { id: 200145, ver: 25 },
+  wirtz: { id: 256630, ver: 25 },
+  xhaka: { id: 199503, ver: 25 }, // ✅ FIXED — correto Granit Xhaka
+  kante: { id: 215914, ver: 25 },
+  jorginho: { id: 205498, ver: 25 }, // ✅ FIXED — correto Jorginho
+  kovacic: { id: 207410, ver: 25 },
+  ronaldo_nazario: { id: 37576, ver: 25 },
+  ibrahimovic: { id: 41236, ver: 23 },
+  rivaldo: { id: 242950, ver: 24 }, // ✅ FIXED — correto Rivaldo (ver24)
+  cruyff: { id: 190045, ver: 25 }, // ✅ FIXED2 — correto Johan Cruyff
+  nistelrooy: { id: 10264, ver: 25 }, // ✅ FIXED — correto Ruud van Nistelrooy
+  inzaghi: { id: 238382, ver: 24 },
+  owen: { id: 5419, ver: 22 }, // ✅ FIXED2 — correto Michael Owen
+  stoichkov: { id: 239541, ver: 23 }, // ✅ FIXED3 — ver25 era 404; ver23 carrega (rosto conferido)
+  butragueno: { id: 238419, ver: 24 },
+  garrincha: { id: 247553, ver: 22 }, // ✅ FIXED — correto Garrincha
+  pele: { id: 237067, ver: 24 }, // EA id 237067 (fut.gg) — fallback p/ placeholder se 404
+  maradona: { id: 190042, ver: 22 }, // ✅ FIXED — was 237073 (404); 190042 = Maradona (CDN-verified, FIFA 22)
+  etoo: { id: 9676, ver: 24 }, // ✅ FIXED — correto Samuel Eto'o
+  cantona: { id: 167198, ver: 22 }, // ✅ FIXED — correto Eric Cantona
+  kewell: { id: 266801, ver: 23 }, // ✅ FIXED — correto Harry Kewell
+  voller: { id: 166676, ver: 25 }, // ✅ FIXED — correto Rudi Völler
+  papin: { id: 167134, ver: 25 }, // ✅ FIXED — correto Jean-Pierre Papin
+  haaland: { id: 239085, ver: 25 },
+  mbappe: { id: 231747, ver: 25 },
+  vinicius: { id: 238794, ver: 25 },
+  bellingham: { id: 252371, ver: 25 },
+  salah: { id: 209331, ver: 25 },
+  kane: { id: 202126, ver: 25 },
+  lewandowski: { id: 188545, ver: 25 },
+  griezmann: { id: 194765, ver: 25 },
+  bernardo_silva: { id: 218667, ver: 25 },
+  saka: { id: 246669, ver: 24 }, // ✅ FIXED — correto Bukayo Saka
+  rice: { id: 234378, ver: 25 },
+  martinelli: { id: 251566, ver: 25 },
+  gabriel: { id: 232580, ver: 25 },
+  gabriel_jesus: { id: 230666, ver: 25 },
+  lautaro: { id: 231478, ver: 25 },
+  leao: { id: 241721, ver: 25 },
+  dimaria: { id: 183898, ver: 25 },
+  son: { id: 200104, ver: 25 },
+  foden: { id: 237692, ver: 21 }, // ✅ FIXED — correto Phil Foden
+  dembele: { id: 231443, ver: 25 },
+  alexis_sanchez: { id: 184941, ver: 25 },
+  lukaku: { id: 192505, ver: 25 },
+  hazard: { id: 183277, ver: 25 },
+  trent: { id: 231281, ver: 25 },
+  cavani: { id: 179813, ver: 25 },
+  willian: { id: 180403, ver: 25 },
+  diego_costa: { id: 179844, ver: 23 },
   // ── BRASILEIRÃO / HISTÓRICOS ───────────────────────────────────────────────
-  filipe_luis     : { id: 164169, ver: 21 }, // ✅ FIXED — Filipe Luís
-  guerrero        : { id: 183666, ver: 22 },
-  gustavo_gomez   : { id: 226226, ver: 23 },
-  felipe_melo     : { id: 135475, ver: 18 }, // ✅ FIXED — Felipe Melo
-  pedro_g         : { id: 244589, ver: 20 },
-  ganso           : { id: 187688, ver: 17 },
-  lucas_moura     : { id: 200949, ver: 23 },
-  fernandinho     : { id: 135507, ver: 22 },
-  tardelli        : { id: 138456, ver: 20 }, // ✅ FIXED — Diego Tardelli
-  alexandre_pato  : { id: 180175, ver: 23 }, // ✅ FIXED — Alexandre Pato
-  luiz_adriano    : { id: 180826, ver: 16 }, // ✅ FIXED — was 176600 (pessoa errada); 180826 = Luiz Adriano (Milan, FIFA 16)
-  bernard         : { id: 205525, ver: 20 },
-  diego_alves     : { id: 165580, ver: 22 }, // ✅ FIXED — Diego Alves
-  miranda         : { id: 168609, ver: 19 }, // ✅ FIXED — Miranda
-  julio_cesar     : { id: 48717, ver: 18 }, // ✅ FIXED — Júlio César
-  ramires         : { id: 186146, ver: 20 },
-  oscar           : { id: 188152, ver: 17 },
-  giuliano        : { id: 198033, ver: 18 },
-  taison          : { id: 188803, ver: 21 }, // ✅ FIXED — Taison
-  luiz_gustavo    : { id: 185103, ver: 20 },
-  rafinha         : { id: 168607, ver: 19 },
-  felipe_anderson : { id: 210008, ver: 20 },
-  lucas_leiva     : { id: 176266, ver: 20 },
-  paulinho        : { id: 187961, ver: 19 },
+  filipe_luis: { id: 164169, ver: 21 }, // ✅ FIXED — Filipe Luís
+  guerrero: { id: 183666, ver: 22 },
+  gustavo_gomez: { id: 226226, ver: 23 },
+  felipe_melo: { id: 135475, ver: 18 }, // ✅ FIXED — Felipe Melo
+  pedro_g: { id: 244589, ver: 20 },
+  ganso: { id: 187688, ver: 17 },
+  lucas_moura: { id: 200949, ver: 23 },
+  fernandinho: { id: 135507, ver: 22 },
+  tardelli: { id: 138456, ver: 20 }, // ✅ FIXED — Diego Tardelli
+  alexandre_pato: { id: 180175, ver: 23 }, // ✅ FIXED — Alexandre Pato
+  luiz_adriano: { id: 180826, ver: 16 }, // ✅ FIXED — was 176600 (pessoa errada); 180826 = Luiz Adriano (Milan, FIFA 16)
+  bernard: { id: 205525, ver: 20 },
+  diego_alves: { id: 165580, ver: 22 }, // ✅ FIXED — Diego Alves
+  miranda: { id: 168609, ver: 19 }, // ✅ FIXED — Miranda
+  julio_cesar: { id: 48717, ver: 18 }, // ✅ FIXED — Júlio César
+  ramires: { id: 186146, ver: 20 },
+  oscar: { id: 188152, ver: 17 },
+  giuliano: { id: 198033, ver: 18 },
+  taison: { id: 188803, ver: 21 }, // ✅ FIXED — Taison
+  luiz_gustavo: { id: 185103, ver: 20 },
+  rafinha: { id: 168607, ver: 19 },
+  felipe_anderson: { id: 210008, ver: 20 },
+  lucas_leiva: { id: 176266, ver: 20 },
+  paulinho: { id: 187961, ver: 19 },
   // ── NEW PLAYERS (all CDN-verified: curl 200 image/png, correct person) ──────
-  zidane          : { id: 1397,   ver: 26 }, // ✅ visual-verified (real Zidane face)
-  ronaldinho      : { id: 28130,  ver: 26 }, // ✅ visual-verified
-  figo            : { id: 5589,   ver: 26 }, // ✅ visual-verified
-  totti           : { id: 1238,   ver: 26 }, // ✅ visual-verified
-  delpiero        : { id: 1075,   ver: 24 }, // ✅ visual-verified
-  shevchenko      : { id: 13128,  ver: 26 }, // ✅ visual-verified
-  musiala         : { id: 256790, ver: 26 },
-  mane            : { id: 208722, ver: 26 },
-  coutinho        : { id: 189242, ver: 24 },
-  firmino         : { id: 201942, ver: 25 },
-  james           : { id: 198710, ver: 26 },
-  mahrez          : { id: 204485, ver: 26 },
-  mount           : { id: 233064, ver: 26 },
-  sterling        : { id: 202652, ver: 26 },
-  sancho          : { id: 233049, ver: 26 },
-  verratti        : { id: 199556, ver: 24 },
-  brozovic        : { id: 216352, ver: 26 },
-  eriksen         : { id: 190460, ver: 26 },
-  grealish        : { id: 206517, ver: 26 },
-  caballero       : { id: 139062, ver: 23 },
-  fabianski       : { id: 164835, ver: 26 },
-  foster          : { id: 163155, ver: 24 },
-  heurelho        : { id: 135451, ver: 20 },
-  mertesacker     : { id: 53612,  ver: 18 },
-  monreal         : { id: 177604, ver: 22 },
-  zabaleta        : { id: 142784, ver: 20 },
-  smalling        : { id: 189881, ver: 26 },
-  evans           : { id: 169588, ver: 25 },
-  young           : { id: 152908, ver: 26 },
-  clyne           : { id: 190456, ver: 26 },
-  mustafi         : { id: 192227, ver: 23 },
-  rojo            : { id: 201862, ver: 26 },
-  bailly          : { id: 225508, ver: 26 },
-  jones           : { id: 194957, ver: 23 },
-  chambers        : { id: 205989, ver: 26 },
-  holding         : { id: 228295, ver: 26 },
-  milner          : { id: 138412, ver: 26 },
-  henderson       : { id: 183711, ver: 26 },
-  matic           : { id: 191202, ver: 26 },
-  fellaini        : { id: 176944, ver: 24 },
-  gueye           : { id: 193474, ver: 26 },
-  ramsey          : { id: 186561, ver: 25 },
-  elneny          : { id: 211454, ver: 24 },
-  walcott         : { id: 164859, ver: 23 },
-  benteke         : { id: 184111, ver: 26 },
-  defoe           : { id: 50542,  ver: 22 },
-  sturridge       : { id: 171833, ver: 20 },
-  origi           : { id: 213135, ver: 25 },
-  long            : { id: 169216, ver: 23 },
-  carroll         : { id: 182836, ver: 25 },
-  giroud          : { id: 178509, ver: 26 },
+  zidane: { id: 1397, ver: 26 }, // ✅ visual-verified (real Zidane face)
+  ronaldinho: { id: 28130, ver: 26 }, // ✅ visual-verified
+  figo: { id: 5589, ver: 26 }, // ✅ visual-verified
+  totti: { id: 1238, ver: 26 }, // ✅ visual-verified
+  delpiero: { id: 1075, ver: 24 }, // ✅ visual-verified
+  shevchenko: { id: 13128, ver: 26 }, // ✅ visual-verified
+  musiala: { id: 256790, ver: 26 },
+  mane: { id: 208722, ver: 26 },
+  coutinho: { id: 189242, ver: 24 },
+  firmino: { id: 201942, ver: 25 },
+  james: { id: 198710, ver: 26 },
+  mahrez: { id: 204485, ver: 26 },
+  mount: { id: 233064, ver: 26 },
+  sterling: { id: 202652, ver: 26 },
+  sancho: { id: 233049, ver: 26 },
+  verratti: { id: 199556, ver: 24 },
+  brozovic: { id: 216352, ver: 26 },
+  eriksen: { id: 190460, ver: 26 },
+  grealish: { id: 206517, ver: 26 },
+  caballero: { id: 139062, ver: 23 },
+  fabianski: { id: 164835, ver: 26 },
+  foster: { id: 163155, ver: 24 },
+  heurelho: { id: 135451, ver: 20 },
+  mertesacker: { id: 53612, ver: 18 },
+  monreal: { id: 177604, ver: 22 },
+  zabaleta: { id: 142784, ver: 20 },
+  smalling: { id: 189881, ver: 26 },
+  evans: { id: 169588, ver: 25 },
+  young: { id: 152908, ver: 26 },
+  clyne: { id: 190456, ver: 26 },
+  mustafi: { id: 192227, ver: 23 },
+  rojo: { id: 201862, ver: 26 },
+  bailly: { id: 225508, ver: 26 },
+  jones: { id: 194957, ver: 23 },
+  chambers: { id: 205989, ver: 26 },
+  holding: { id: 228295, ver: 26 },
+  milner: { id: 138412, ver: 26 },
+  henderson: { id: 183711, ver: 26 },
+  matic: { id: 191202, ver: 26 },
+  fellaini: { id: 176944, ver: 24 },
+  gueye: { id: 193474, ver: 26 },
+  ramsey: { id: 186561, ver: 25 },
+  elneny: { id: 211454, ver: 24 },
+  walcott: { id: 164859, ver: 23 },
+  benteke: { id: 184111, ver: 26 },
+  defoe: { id: 50542, ver: 22 },
+  sturridge: { id: 171833, ver: 20 },
+  origi: { id: 213135, ver: 25 },
+  long: { id: 169216, ver: 23 },
+  carroll: { id: 182836, ver: 25 },
+  giroud: { id: 178509, ver: 26 },
   // ── EXPANSÃO LOTE 1 — todas as fotos verificadas via CDN (HTTP 200 no id oficial do jogador).
-  kahn            : { id: 488,    ver: 8 },  // FIFA 08 (EA nunca o lançou como Icon)
-  cafu            : { id: 5003,   ver: 25 },
-  stam            : { id: 5740,   ver: 25 },
-  thuram          : { id: 1615,   ver: 25 },
-  lucio           : { id: 107715, ver: 14 },
-  keylor_navas    : { id: 193041, ver: 24 },
-  lloris          : { id: 167948, ver: 25 },
-  jordi_alba      : { id: 189332, ver: 23 },
-  de_gea          : { id: 193080, ver: 25 },
-  e_martinez      : { id: 202811, ver: 25 },
-  pique           : { id: 152729, ver: 23 },
-  hummels         : { id: 178603, ver: 25 },
+  kahn: { id: 488, ver: 8 },  // FIFA 08 (EA nunca o lançou como Icon)
+  cafu: { id: 5003, ver: 25 },
+  stam: { id: 5740, ver: 25 },
+  thuram: { id: 1615, ver: 25 },
+  lucio: { id: 107715, ver: 14 },
+  keylor_navas: { id: 193041, ver: 24 },
+  lloris: { id: 167948, ver: 25 },
+  jordi_alba: { id: 189332, ver: 23 },
+  de_gea: { id: 193080, ver: 25 },
+  e_martinez: { id: 202811, ver: 25 },
+  pique: { id: 152729, ver: 23 },
+  hummels: { id: 178603, ver: 25 },
   // ── +134 new players (sofifa-verified) ──
   l_insigne: { id: 198219, ver: 25 },
   p_aubameyang: { id: 188567, ver: 25 },
@@ -411,35 +410,35 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   r_boudebouz: { id: 188388, ver: 24 },
   c_stuani: { id: 186537, ver: 25 },
   rogerio_ceni: { id: 21570, ver: 15 }, // ✅ CDN-verified — Ceni era São Paulo (EA nunca fez ícone dele)
-  zico:         { id: 166691, ver: 24 }, // ✅ CDN-verified — Zico ícone EA (retrato sépia de lenda)
+  zico: { id: 166691, ver: 24 }, // ✅ CDN-verified — Zico ícone EA (retrato sépia de lenda)
 };
 
 const NATION_CODES: Record<string, string> = {
-  'Argentina':        'ar',
-  'Portugal':         'pt',
-  'Espanha':          'es',
-  'Croácia':          'hr',
-  'Itália':           'it',
-  'Brasil':           'br',
-  'Alemanha':         'de',
-  'Costa do Marfim':  'ci',
-  'França':           'fr',
-  'Holanda':          'nl',
-  'Inglaterra':       'gb-eng',
+  'Argentina': 'ar',
+  'Portugal': 'pt',
+  'Espanha': 'es',
+  'Croácia': 'hr',
+  'Itália': 'it',
+  'Brasil': 'br',
+  'Alemanha': 'de',
+  'Costa do Marfim': 'ci',
+  'França': 'fr',
+  'Holanda': 'nl',
+  'Inglaterra': 'gb-eng',
   'República Tcheca': 'cz',
-  'País de Gales':    'gb-wls',
-  'Sérvia':           'rs',
-  'Bélgica':          'be',
-  'Uruguai':          'uy',
-  'Ucrânia':          'ua',
-  'Senegal':          'sn',
-  'Colômbia':         'co',
-  'Argélia':          'dz',
-  'Dinamarca':        'dk',
-  'Polônia':          'pl',
+  'País de Gales': 'gb-wls',
+  'Sérvia': 'rs',
+  'Bélgica': 'be',
+  'Uruguai': 'uy',
+  'Ucrânia': 'ua',
+  'Senegal': 'sn',
+  'Colômbia': 'co',
+  'Argélia': 'dz',
+  'Dinamarca': 'dk',
+  'Polônia': 'pl',
   'Irlanda do Norte': 'gb-nir',
-  'Egito':            'eg',
-  'Irlanda':          'ie',
+  'Egito': 'eg',
+  'Irlanda': 'ie',
 };
 
 // PT-BR position abbreviations (single source of truth lives in gameData/POS_PT)
@@ -503,12 +502,15 @@ export function getBasePlayerId(playerId: string): string {
 }
 
 export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null {
+  // ⭐ Cartas Únicas têm render PRÓPRIO — nunca cair na foto da carta-base (ex.: kaka_unico ≠ kaka).
+  const u = UNIQUE_STYLE[playerId];
+  if (u) return u.render;
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
   if (!m) return null;
   const padded = String(m.id).padStart(6, '0');
   const v = String(m.ver).padStart(2, '0'); // single-digit editions (e.g. FIFA 08) need "08", not "8"
-  return `https://cdn.sofifa.net/players/${padded.slice(0,3)}/${padded.slice(3,6)}/${v}_${size}.png`;
+  return `https://cdn.sofifa.net/players/${padded.slice(0, 3)}/${padded.slice(3, 6)}/${v}_${size}.png`;
 }
 
 // Per-rarity visual identity. Each tier has a DISTINCT silhouette so they never read
@@ -524,7 +526,16 @@ function getCardTheme(rarity: string): {
   ribbon: string; pattern: string; patternOpacity: number; patternSize?: string;
 } {
   switch (rarity) {
-    case 'immortal':  return {
+    case 'unique': return {
+      bg: 'radial-gradient(135% 90% at 50% -6%,#FFFDF2 0%,#E9DBA6 10%,#8a7636 30%,#2a230f 60%,#0c0a04 100%)',
+      border: '#F3E9C4', glow: '0 0 40px rgba(240,230,192,.6),0 0 14px rgba(255,255,240,.35),inset 0 0 26px rgba(240,230,192,.2)',
+      accent: '#F3E9C4', badgeBg: 'rgba(243,233,196,.16)', statColor: '#FBF3D8', nameGlow: 'rgba(243,233,196,.7)',
+      isPremium: true, label: 'ÚNICA', icon: '⭐',
+      ribbon: 'linear-gradient(90deg,#6f5f26,#F0E6C0 42%,#fffef5 50%,#F0E6C0 58%,#6f5f26)',
+      pattern: 'repeating-conic-gradient(from 0deg at 50% 24%,rgba(255,250,220,.12) 0deg 1.2deg,rgba(255,250,220,0) 1.2deg 10deg)',
+      patternOpacity: 1,
+    };
+    case 'immortal': return {
       bg: 'radial-gradient(135% 90% at 50% -6%,#FFF0B0 0%,#C99A18 8%,#6e520a 22%,#2c1f04 48%,#140d04 76%,#070401 100%)',
       border: '#FFE680', glow: '0 0 44px rgba(255,215,0,.62),0 0 14px rgba(255,250,220,.30),inset 0 0 28px rgba(255,215,0,.22)',
       accent: '#FFE07A', badgeBg: 'rgba(255,225,120,.16)', statColor: '#FFEFAE', nameGlow: 'rgba(255,231,150,.7)',
@@ -542,7 +553,7 @@ function getCardTheme(rarity: string): {
       pattern: 'repeating-linear-gradient(90deg,rgba(255,160,70,.07) 0 1px,transparent 1px 7px),linear-gradient(180deg,rgba(255,150,50,.05),transparent 55%)',
       patternOpacity: 1,
     };
-    case 'gold':      return {
+    case 'gold': return {
       bg: 'linear-gradient(158deg,#08070c 0%,#1a1408 44%,#2c2212 82%,#0a0710 100%)',
       border: '#D4B25A', glow: '0 0 18px rgba(201,168,76,.26),inset 0 0 11px rgba(201,168,76,.08)',
       accent: '#E0C268', badgeBg: 'rgba(201,168,76,.12)', statColor: '#F0DC98', nameGlow: 'rgba(201,168,76,.38)',
@@ -551,7 +562,7 @@ function getCardTheme(rarity: string): {
       pattern: 'repeating-linear-gradient(122deg,rgba(212,178,90,.06) 0 1px,transparent 1px 8px),repeating-linear-gradient(122deg,rgba(212,178,90,.03) 0 1px,transparent 1px 3px)',
       patternOpacity: 1,
     };
-    case 'silver':    return {
+    case 'silver': return {
       bg: 'linear-gradient(158deg,#06060c 0%,#11131f 50%,#232734 86%,#070710 100%)',
       border: '#B7BCCC', glow: '0 0 12px rgba(183,188,204,.16),inset 0 0 10px rgba(183,188,204,.07)',
       accent: '#CCD2E2', badgeBg: 'rgba(183,188,204,.12)', statColor: '#E2E6F2', nameGlow: 'rgba(183,188,204,.34)',
@@ -560,7 +571,7 @@ function getCardTheme(rarity: string): {
       pattern: 'repeating-linear-gradient(90deg,rgba(190,196,212,.06) 0 1px,transparent 1px 5px)',
       patternOpacity: 1,
     };
-    default:          return {
+    default: return {
       bg: 'linear-gradient(158deg,#0a0402 0%,#1c0f06 52%,#2c190d 88%,#0a0402 100%)',
       border: '#C77B3A', glow: '0 0 11px rgba(205,127,50,.18),inset 0 0 10px rgba(205,127,50,.07)',
       accent: '#DD9659', badgeBg: 'rgba(205,127,50,.12)', statColor: '#EAB084', nameGlow: 'rgba(205,127,50,.32)',
@@ -584,13 +595,28 @@ export function cardTexture(rarity: string): string {
 // Por raridade: cor do anel metálico, glow, e o FILTRO que tinge a moldura dourada do frame
 // (a moldura base é dourada; tingimos p/ bronze/prata; ouro/lendário/imortal ficam douradas).
 const RARITY_VIS: Record<string, { ring: string; glow: string; frameFilter: string }> = {
-  bronze:    { ring: '#C77B3A', glow: 'rgba(205,127,50,.5)',  frameFilter: 'sepia(1) saturate(1.9) hue-rotate(-12deg) brightness(.92)' },
-  silver:    { ring: '#B7BCCC', glow: 'rgba(183,188,204,.42)', frameFilter: 'grayscale(1) brightness(1.45) contrast(.95)' },
-  gold:      { ring: '#D4B25A', glow: 'rgba(201,168,76,.5)',  frameFilter: 'none' },
+  unique: { ring: '#F0E6C0', glow: 'rgba(240,230,192,.6)', frameFilter: 'brightness(1.12) saturate(1.04)' },
+  bronze: { ring: '#C77B3A', glow: 'rgba(205,127,50,.5)', frameFilter: 'sepia(1) saturate(1.9) hue-rotate(-12deg) brightness(.92)' },
+  silver: { ring: '#B7BCCC', glow: 'rgba(183,188,204,.42)', frameFilter: 'grayscale(1) brightness(1.45) contrast(.95)' },
+  gold: { ring: '#D4B25A', glow: 'rgba(201,168,76,.5)', frameFilter: 'none' },
   legendary: { ring: '#FF9E3C', glow: 'rgba(255,150,40,.55)', frameFilter: 'brightness(1.06) saturate(1.1)' },
-  immortal:  { ring: '#FFE680', glow: 'rgba(255,215,0,.65)',  frameFilter: 'brightness(1.16) saturate(1.15)' },
+  immortal: { ring: '#FFE680', glow: 'rgba(255,215,0,.65)', frameFilter: 'brightness(1.16) saturate(1.15)' },
 };
 const rarityVis = (r: string) => RARITY_VIS[r] ?? RARITY_VIS.bronze;
+
+// ⭐ CARTAS ÚNICAS — tratamento premium por carta: MESMA moldura de escudo das outras, mas com
+// textura de fundo, foto (render próprio) e COR DE FONTE (letra/número) exclusivas de cada uma.
+// Chave = id da carta (ver UNIQUE_CARDS em gameData). `font` combina com o fundo (o Cruyff é claro
+// → fonte mais escura). `ring` é a cor do anel metálico. Fáceis de ajustar.
+// photoX/photoY = canto sup-esq do render em % da carta; photoW = largura do render em % da carta
+// (altura é automática, mantém a proporção). Valores ajustados no editor local (scratchpad).
+export const UNIQUE_STYLE: Record<string, { texture: string; render: string; font: string; ring: string; photoX: number; photoY: number; photoW: number }> = {
+  kaka_unico: { texture: '/cards/kaka_unico.webp', render: '/players/unico/kaka.webp', font: '#F6DE93', ring: '#E8C84A', photoX: 5, photoY: -2, photoW: 100 },
+  henry_unico: { texture: '/cards/henry_unico.webp', render: '/players/unico/henry.webp', font: '#EAF4FF', ring: '#57C7EF', photoX: 8, photoY: 0, photoW: 130 },
+  neymar_unico: { texture: '/cards/neymar_unico.webp', render: '/players/unico/neymar.webp', font: '#F7E08C', ring: '#E8C84A', photoX: 2, photoY: 15, photoW: 90 },
+  cruyff_unico: { texture: '/cards/cruyff_unico.webp', render: '/players/unico/cruyff.webp', font: '#2A2310', ring: '#CBA94E', photoX: 7, photoY: -4, photoW: 100 },
+  buffon_unico: { texture: '/cards/buffon_unico.webp', render: '/players/unico/buffon.webp', font: '#ECD7A6', ring: '#B58B48', photoX: 7, photoY: -5, photoW: 100 },
+};
 
 // Dedicated Player Photo using SoFIFA transparent high-res assets
 // Fallback chain: latest_ver_360 → latest_ver_120 → ver23_360 → ver22_360 → placeholder
@@ -599,10 +625,14 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
   const m = SOFIFA_MAPPING[baseId];
 
   const urls: string[] = [];
-  if (m) {
+  // ⭐ Carta Única: render próprio (auto-hospedado), sem cadeia do sofifa.
+  const uniqRender = UNIQUE_STYLE[playerId]?.render;
+  if (uniqRender) {
+    urls.push(uniqRender);
+  } else if (m) {
     const padded = String(m.id).padStart(6, '0');
     const v = String(m.ver).padStart(2, '0'); // "08" not "8"
-    const prefix = `https://cdn.sofifa.net/players/${padded.slice(0,3)}/${padded.slice(3,6)}`;
+    const prefix = `https://cdn.sofifa.net/players/${padded.slice(0, 3)}/${padded.slice(3, 6)}`;
     if (lowRes) {
       urls.push(`${prefix}/${v}_120.png`);
     } else {
@@ -659,24 +689,29 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
 // ring; the 3 team-effect ones (Mártir/Ídolo/12º Homem) get their own looks (pulse / halo / calm).
 type VariantTreatment = 'ring' | 'pulse' | 'halo' | 'calm';
 const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string; treatment: VariantTreatment }> = {
-  inForm:  { color: '#39FF14', icon: '⚡', label: 'EM ALTA', treatment: 'ring' },
-  lobo:    { color: '#A855F7', icon: '🐺', label: 'LOBO SOLITÁRIO', treatment: 'ring' },
+  inForm: { color: '#39FF14', icon: '⚡', label: 'EM ALTA', treatment: 'ring' },
+  lobo: { color: '#A855F7', icon: '🐺', label: 'LOBO SOLITÁRIO', treatment: 'ring' },
   coringa: { color: '#EF4444', icon: '🃏', label: 'CORINGA', treatment: 'ring' },
-  nomade:  { color: '#3B82F6', icon: '🌍', label: 'NÔMADE', treatment: 'ring' },
-  pilar:   { color: '#FFFFFF', icon: '🧱', label: 'PILAR', treatment: 'ring' },
-  martir:      { color: '#B91C1C', icon: '🩸', label: 'MÁRTIR', treatment: 'pulse' },
-  idolo:       { color: '#F59E0B', icon: '❤️', label: 'ÍDOLO', treatment: 'halo' },
+  nomade: { color: '#3B82F6', icon: '🌍', label: 'NÔMADE', treatment: 'ring' },
+  pilar: { color: '#FFFFFF', icon: '🧱', label: 'PILAR', treatment: 'ring' },
+  martir: { color: '#B91C1C', icon: '🩸', label: 'MÁRTIR', treatment: 'pulse' },
+  idolo: { color: '#F59E0B', icon: '❤️', label: 'ÍDOLO', treatment: 'halo' },
   decimoHomem: { color: '#14B8A6', icon: '🪑', label: '12º HOMEM', treatment: 'calm' },
-  pipoqueiro:  { color: '#EC4899', icon: '🍿', label: 'PIPOQUEIRO', treatment: 'ring' },
-  noe:         { color: '#22D3EE', icon: '🛟', label: 'NOÉ', treatment: 'ring' },
-  forasteiro:  { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
+  pipoqueiro: { color: '#EC4899', icon: '🍿', label: 'PIPOQUEIRO', treatment: 'ring' },
+  noe: { color: '#22D3EE', icon: '🛟', label: 'NOÉ', treatment: 'ring' },
+  forasteiro: { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
 };
 const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro'] as const;
-export function getCardVariant(player: Player): { key: string; color: string; icon: string; label: string; treatment: VariantTreatment } | null {
+export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
+export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
     if ((player as unknown as Record<string, unknown>)[key]) return { key, ...VARIANT_STYLE[key] };
   }
   return null;
+}
+// TODAS as características da carta (Únicas podem ter 2). A 1ª ainda define anel/glow.
+export function getCardVariants(player: Player): CardVariant[] {
+  return VARIANT_ORDER.filter(k => (player as unknown as Record<string, unknown>)[k]).map(k => ({ key: k, ...VARIANT_STYLE[k] }));
 }
 
 // Short effect description for the card badge tooltip.
@@ -700,8 +735,14 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
   const variant = getCardVariant(player);
+  const variants = getCardVariants(player);           // todas (Únicas podem ter 2)
+  // ⭐ DUAS características (só Únicas): a moldura fica na cor da 1ª e uma linha no centro na cor da 2ª.
+  const normCol = (c?: string) => (c === '#FFFFFF' ? '#E5E7EB' : c ?? null);
+  const dualCol0 = variants.length >= 2 ? normCol(variants[0].color) : null;
+  const dualCol1 = variants.length >= 2 ? normCol(variants[1].color) : null;
+  const uniq = UNIQUE_STYLE[player.id];               // ⭐ carta Única (textura/fonte/render próprios)
   const baseId = getBasePlayerId(player.id);
-  const hasPhoto = !!SOFIFA_MAPPING[baseId];
+  const hasPhoto = !!uniq || !!SOFIFA_MAPPING[baseId];
 
   // ─── COMPACT CARD (escudo leve) ──────────────────────────────────────────
   // Caminho enxuto: 1 camada de textura achatada, sem anel metálico/scrim/border-SVG/glow pesados
@@ -713,7 +754,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       whileTap: onClick ? { scale: 0.97 } : {},
     };
     const cvis = rarityVis(player.rarity);
-    const cRing = variant ? variant.color : cvis.ring;
+    const cRing = dualCol0 ?? (uniq ? uniq.ring : (variant ? variant.color : cvis.ring));
     return (
       <CompactWrapper
         {...compactMotion}
@@ -723,43 +764,64 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       >
         {/* borda em COR SÓLIDA (característica, ou raridade se não tiver) — máscara do escudo cheia */}
         <div className="absolute inset-0" style={{ ...frameMask('100% 100%'), zIndex: 0, background: cRing }} />
+        {/* ⭐ 2ª característica: linha vertical no centro da moldura (some no interior, aparece no topo/base) */}
+        {dualCol1 && <div className="absolute inset-0" style={{ ...frameMask('100% 100%'), zIndex: 0, background: `linear-gradient(90deg, transparent calc(50% - 1.5px), ${dualCol1} calc(50% - 1.5px), ${dualCol1} calc(50% + 1.5px), transparent calc(50% + 1.5px))` }} />}
         {/* interior numa ÚNICA camada (scrims + textura + fallback empilhados; máscara só → mais leve) */}
-        <div className="absolute inset-0" style={{ ...frameMask('93% 94%'), zIndex: 1, background:
-          `linear-gradient(180deg,rgba(0,0,0,.34),transparent 28%),` +
-          `linear-gradient(0deg,rgba(0,0,0,.58),transparent 40%),` +
-          `url(${cardTexture(player.rarity)}) center/cover no-repeat,` +
-          `${theme.bg}` }} />
+        <div className="absolute inset-0" style={{
+          ...frameMask('93% 94%'), zIndex: 1, background:
+            `linear-gradient(180deg,rgba(0,0,0,.34),transparent 28%),` +
+            `linear-gradient(0deg,rgba(0,0,0,.58),transparent 40%),` +
+            `url(${uniq ? uniq.texture : cardTexture(player.rarity)}) center/cover no-repeat,` +
+            `${theme.bg}`
+        }} />
+
+        {/* ⭐ Cartas Únicas: render posicionado (mesmo photoX/Y/W da carta grande — % funciona em qualquer tamanho) */}
+        {uniq && (
+          <div className="absolute inset-0" style={{ ...frameMask('93% 94%'), zIndex: 2, overflow: 'hidden' }}>
+            <img src={uniq.render} alt={player.fullName} referrerPolicy="no-referrer"
+              style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
+          </div>
+        )}
 
         {/* conteúdo (layout original): OVR+POS no topo, emoji, foto, nome embaixo */}
-        <div className="absolute inset-0 flex flex-col" style={{ color: '#f7eeca', zIndex: 4 }}>
+        <div className="absolute inset-0 flex flex-col" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 4 }}>
           {/* Topo: OVR + POS (esq) e emoji da característica (dir) — descido um tiquinho */}
           <div className="flex items-start justify-between flex-shrink-0" style={{ paddingTop: '19%', paddingLeft: '13%', paddingRight: '10%' }}>
             <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
-              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 18, lineHeight: 1 }}>{player.overall}</span>
+              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: uniq ? uniq.font : '#fff', fontSize: 18, lineHeight: 1 }}>{player.overall}</span>
               <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
             </div>
-            {variant && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 19, height: 19, borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,0,0,.6) 48%, rgba(0,0,0,0) 76%)', fontSize: 11, lineHeight: 1, textShadow: `0 0 5px ${variant.color}` }}>{variant.icon}</span>
+            {variants.length > 0 && (
+              <div className="flex flex-col items-center" style={{ gap: 1 }}>
+                {variants.map(v => (
+                  <span key={v.key} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,0,0,.6) 48%, rgba(0,0,0,0) 76%)', fontSize: 10.5, lineHeight: 1, textShadow: `0 0 5px ${v.color}` }}>{v.icon}</span>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* Foto */}
+          {/* Foto (cartas normais; as Únicas usam o render posicionado acima) */}
           <div className="flex-1 flex items-end justify-center overflow-hidden" style={{ minHeight: 0, marginLeft: '10%', marginRight: '10%' }}>
-            {hasPhoto ? (
+            {!uniq && (hasPhoto ? (
               <PlayerPhoto playerId={player.id} fullName={player.fullName} size={50} lowRes />
             ) : (
               <span style={{ fontSize: 22, opacity: 0.2 }}>⚽</span>
-            )}
+            ))}
           </div>
 
-          {/* Nome + química (embaixo). Sem química (draft/loja/banco) sobe foto+nome com mais folga. */}
-          <div className="flex flex-col items-center flex-shrink-0" style={{ paddingBottom: showChemistry ? '12%' : '19%', paddingLeft: '12%', paddingRight: '12%' }}>
-            <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9.5, fontWeight: 800, color: '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
+          {/* Nome + país/clube + química (embaixo). Sem química (draft/loja/banco) sobe foto+nome com mais folga. */}
+          <div className="flex flex-col items-center flex-shrink-0" style={{ paddingBottom: showChemistry ? '14%' : '19%', paddingLeft: '10%', paddingRight: '10%' }}>
+            {/* bandeira (país) + escudo (clube) — ajudam a ler a química no MEU TIME */}
+            <div className="flex items-center justify-center gap-1 mb-0.5">
+              {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
+              {CLUB_CRESTS[player.club] && <img src={CLUB_CRESTS[player.club]} alt={player.club} referrerPolicy="no-referrer" style={{ width: 12, height: 12, objectFit: 'contain', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.7))' }} />}
+            </div>
+            <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
               {player.shortName.toUpperCase()}
             </div>
             {showChemistry && (
               <div className="flex gap-0.5 mt-0.5">
-                {[0,1,2].map(i => (
+                {[0, 1, 2].map(i => (
                   <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: i < chemScore ? '#22C55E' : '#1a1a2e', boxShadow: i < chemScore ? '0 0 4px #22C55E' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
                 ))}
               </div>
@@ -777,8 +839,8 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
     whileTap: onClick ? { scale: 0.97 } : {},
   };
   const vis = rarityVis(player.rarity);
-  const ringColor = variant ? variant.color : vis.ring;
-  const glowColor = selected ? 'rgba(255,255,255,.75)' : (variant ? variant.color : vis.glow);
+  const ringColor = dualCol0 ?? (uniq ? uniq.ring : (variant ? variant.color : vis.ring));
+  const glowColor = selected ? 'rgba(255,255,255,.75)' : (dualCol0 ?? (uniq ? uniq.ring : (variant ? variant.color : vis.glow)));
   const INSET = '94.5% 95.5%';
 
   const fullCard = (
@@ -792,17 +854,29 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       <img src={FRAME_URL} alt="" className="absolute inset-0" style={{ width: '100%', height: '100%', objectFit: 'fill', zIndex: 0, pointerEvents: 'none', filter: vis.frameFilter }} />
       {/* anel metálico (raridade ou característica) — máscara cheia, revela na banda entre borda e textura */}
       <div className="absolute inset-0" style={{ ...frameMask('98% 98.5%'), zIndex: 1, background: ringGradient(ringColor) }} />
+      {/* ⭐ 2ª característica: linha vertical no centro do anel (cor da 2ª carta) */}
+      {dualCol1 && <div className="absolute inset-0" style={{ ...frameMask('98% 98.5%'), zIndex: 1, background: `linear-gradient(90deg, transparent calc(50% - 2px), ${dualCol1} calc(50% - 2px), ${dualCol1} calc(50% + 2px), transparent calc(50% + 2px))` }} />}
       {/* interior numa ÚNICA camada (scrims + textura + fallback do tema empilhados no mesmo background,
           uma máscara só → menos camadas compostas, mesmo visual, mais leve) */}
-      <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 2, background:
-        `linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),` +
-        `linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 46%),` +
-        `radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%),` +
-        `url(${cardTexture(player.rarity)}) center/cover no-repeat,` +
-        `${theme.bg}` }} />
+      <div className="absolute inset-0" style={{
+        ...frameMask(INSET), zIndex: 2, background:
+          `linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),` +
+          `linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 46%),` +
+          `radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%),` +
+          `url(${uniq ? uniq.texture : cardTexture(player.rarity)}) center/cover no-repeat,` +
+          `${theme.bg}`
+      }} />
+
+      {/* ⭐ Cartas Únicas: render posicionado por carta (x/y/largura), ATRÁS do conteúdo (OVR/nome/stats por cima). */}
+      {uniq && (
+        <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 3, overflow: 'hidden' }}>
+          <img src={uniq.render} alt={player.fullName} referrerPolicy="no-referrer"
+            style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
+        </div>
+      )}
 
       {/* CONTEÚDO (layout FUT) */}
-      <div className="absolute inset-0" style={{ color: '#f7eeca', zIndex: 5 }}>
+      <div className="absolute inset-0" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 5 }}>
         {/* rail: OVR → posição → bandeira → escudo do clube */}
         <div className="absolute flex flex-col items-center" style={{ left: '6%', top: '15%', width: 46, gap: 4, textShadow: '0 2px 5px rgba(0,0,0,.85)' }}>
           <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .8 }}>{player.overall}</span>
@@ -811,31 +885,37 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
           {CLUB_CRESTS[player.club] && <img src={CLUB_CRESTS[player.club]} alt={player.club} referrerPolicy="no-referrer" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
         </div>
-        {/* foto */}
-        <div className="absolute flex items-end justify-center" style={{ right: '9%', top: '8%', width: '58%', height: '44%' }}>
-          {hasPhoto ? <PlayerPhoto playerId={player.id} fullName={player.fullName} size={150} lowRes={lite} /> : <span style={{ fontSize: 40, opacity: .2 }}>⚽</span>}
-        </div>
+        {/* foto (cartas normais; as Únicas usam o render grande atrás do conteúdo) */}
+        {!uniq && (
+          <div className="absolute flex items-end justify-center" style={{ right: '9%', top: '8%', width: '58%', height: '44%' }}>
+            {hasPhoto ? <PlayerPhoto playerId={player.id} fullName={player.fullName} size={150} lowRes={lite} /> : <span style={{ fontSize: 40, opacity: .2 }}>⚽</span>}
+          </div>
+        )}
         {/* chip de raridade (mesmo estilo de hoje, sem emoji) */}
         <div className="absolute" style={{ top: '52%', left: '50%', transform: 'translateX(-50%)', padding: '2px 11px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: theme.isPremium ? '#1f1500' : '#0a0a0a', background: theme.ribbon, border: '1px solid rgba(0,0,0,.35)', boxShadow: '0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25)', fontFamily: 'Rajdhani,sans-serif' }}>{theme.label}</div>
         {/* nome — sem painel; linha fina embaixo + sombra forte pra legibilidade */}
         <div className="absolute text-center" style={{ top: '57.5%', left: '12%', right: '12%', paddingBottom: 4, borderBottom: '2px solid rgba(255,255,255,.22)' }}>
-          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: 21, color: '#fff', textShadow: '0 2px 5px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
+          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: 21, color: uniq ? uniq.font : '#fff', textShadow: '0 2px 5px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
         </div>
         {/* 6 stats — sem painel; sombra forte */}
         <div className="absolute" style={{ top: '69%', left: '10%', right: '10%' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', fontVariantNumeric: 'tabular-nums' }}>
-            {([['PAC', player.pace],['SHO', player.shooting],['PAS', player.passing],['DRI', player.dribbling],['DEF', player.defending],['PHY', player.physical]] as [string, number][]).map(([k, v]) => (
-              <div key={k} className="flex flex-col items-center" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)' }}>
+            {([['RIT', player.pace], ['FIN', player.shooting], ['PAS', player.passing], ['DRI', player.dribbling], ['DEF', player.defending], ['FIS', player.physical]] as [string, number][]).map(([k, v]) => (
+              <div key={k} className="flex flex-col items-center" style={{ color: uniq ? uniq.font : '#fff', textShadow: '0 1px 3px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)' }}>
                 <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, opacity: .82 }}>{k}</span>
                 <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, fontSize: 18 }}>{v}</span>
               </div>
             ))}
           </div>
         </div>
-        {/* chip de característica (menor) */}
-        {variant && (
-          <div className="absolute inline-flex items-center" style={{ top: '82.5%', left: '50%', transform: 'translateX(-50%)', gap: 5, padding: '2.5px 10px', borderRadius: 999, fontSize: 10.5, fontWeight: 900, letterSpacing: '.1em', whiteSpace: 'nowrap', color: '#fff', background: `linear-gradient(90deg,#0008,${variant.color},#0008)`, border: '1px solid rgba(0,0,0,.45)', boxShadow: `0 0 10px color-mix(in srgb,${variant.color} 65%,transparent)`, textShadow: '0 1px 2px rgba(0,0,0,.9)', fontFamily: 'Rajdhani,sans-serif' }} title={variantDesc(player)}>
-            <span>{variant.icon}</span> {variant.label}
+        {/* chip(s) de característica — Únicas podem ter 2 (empilhadas) */}
+        {variants.length > 0 && (
+          <div className="absolute flex flex-col items-center" style={{ top: '82.5%', left: '50%', transform: 'translateX(-50%)', gap: 3, width: 'max-content' }} title={variantDesc(player)}>
+            {variants.map(v => (
+              <div key={v.key} className="inline-flex items-center" style={{ gap: 4, padding: variants.length > 1 ? '1.5px 8px' : '2.5px 10px', borderRadius: 999, fontSize: variants.length > 1 ? 8.5 : 10.5, fontWeight: 900, letterSpacing: '.1em', whiteSpace: 'nowrap', color: '#fff', background: `linear-gradient(90deg,#0008,${v.color},#0008)`, border: '1px solid rgba(0,0,0,.45)', boxShadow: `0 0 9px color-mix(in srgb,${v.color} 62%,transparent)`, textShadow: '0 1px 2px rgba(0,0,0,.9)', fontFamily: 'Rajdhani,sans-serif' }}>
+                <span>{v.icon}</span> {v.label}
+              </div>
+            ))}
           </div>
         )}
       </div>

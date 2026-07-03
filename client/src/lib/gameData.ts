@@ -1,7 +1,7 @@
 // UCL Immortals — Game Data
 // Players, Coaches, Formations, Historical Trios
 
-export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal';
+export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
 
 export interface Player {
@@ -108,6 +108,7 @@ export interface DifficultyLevel {
 // ============================================================
 export function getRarityColor(rarity: Rarity): string {
   switch (rarity) {
+    case 'unique': return '#F0E6C0';
     case 'immortal': return '#FFD700';
     case 'legendary': return '#FF8C00';
     case 'gold': return '#C9A84C';
@@ -118,6 +119,7 @@ export function getRarityColor(rarity: Rarity): string {
 
 export function getRarityGlow(rarity: Rarity): string {
   switch (rarity) {
+    case 'unique': return '0 0 28px rgba(240,230,192,0.55), 0 0 56px rgba(240,230,192,0.22)';
     case 'immortal': return '0 0 25px rgba(255,215,0,0.5), 0 0 50px rgba(255,215,0,0.2)';
     case 'legendary': return '0 0 20px rgba(255,140,0,0.4)';
     case 'gold': return '0 0 12px rgba(201,168,76,0.3)';
@@ -125,6 +127,25 @@ export function getRarityGlow(rarity: Rarity): string {
     case 'bronze': return '0 0 6px rgba(205,127,50,0.2)';
   }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// CARTAS ÚNICAS — raridade "Única": só compráveis na loja (700 pts), overall 99,
+// perfil de elite realista, textura de fundo e cor de fonte próprias por carta
+// (ver UNIQUE_STYLE em PlayerCard). NÃO entram no draft nem nos bots (pool separado).
+// Posição/nação/clube batem com a carta-base pra a química funcionar normal.
+// ════════════════════════════════════════════════════════════════════════════
+export const UNIQUE_CARDS: Player[] = [
+  { id: 'kaka_unico', shortName: 'Kaká', fullName: 'Ricardo Izecson dos Santos Leite', position: 'CAM', secondaryPositions: ['CM', 'ST'], nation: 'Brasil', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 92, shooting: 93, passing: 94, dribbling: 95, defending: 60, physical: 82, vision: 96, composure: 95, traits: [] },
+  { id: 'henry_unico', shortName: 'Henry', fullName: 'Thierry Daniel Henry', position: 'ST', secondaryPositions: ['LW'], nation: 'França', club: 'Arsenal', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 98, shooting: 98, passing: 86, dribbling: 96, defending: 52, physical: 90, vision: 90, composure: 97, traits: [] },
+  { id: 'neymar_unico', shortName: 'Neymar', fullName: 'Neymar da Silva Santos Júnior', position: 'LW', secondaryPositions: ['ST', 'CAM'], nation: 'Brasil', club: 'Barcelona', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 96, shooting: 93, passing: 89, dribbling: 99, defending: 40, physical: 68, vision: 94, composure: 95, traits: [] },
+  { id: 'cruyff_unico', shortName: 'Cruyff', fullName: 'Johan Cruyff', position: 'CF', secondaryPositions: ['CAM', 'LW'], nation: 'Holanda', club: 'Ajax', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 90, shooting: 92, passing: 94, dribbling: 95, defending: 60, physical: 78, vision: 97, composure: 95, traits: [] },
+  { id: 'buffon_unico', shortName: 'Buffon', fullName: 'Gianluigi Buffon', position: 'GK', nation: 'Itália', club: 'Juventus', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 60, shooting: 45, passing: 75, dribbling: 68, defending: 96, physical: 88, vision: 86, composure: 96, traits: [] },
+];
 
 export function getPositionGroup(position: string): PositionGroup {
   if (position === 'GK') return 'GK';
@@ -144,7 +165,7 @@ export const POS_PT: Record<string, string> = {
   GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
   LWB: 'AE', RWB: 'AD', CDM: 'VOL', CM: 'MC',
   CAM: 'MEI', LM: 'ML', RM: 'MD',
-  LW: 'PE', RW: 'PD', CF: 'SS', ST: 'CA',
+  LW: 'PE', RW: 'PD', CF: 'SA', ST: 'CA',
 };
 
 // ============================================================
@@ -2050,22 +2071,6 @@ export const PLAYERS: Player[] = [
     traits: [],
     historicalCoaches: ['ferguson', 'ancelotti'],
     historicalPartners: ['ronaldo_nazario', 'figo', 'ramos'],
-  },
-  {
-    id: 'keane',
-    shortName: 'Keane',
-    fullName: 'Roy Keane',
-    position: 'CDM',
-    nation: 'Inglaterra',
-    club: 'Manchester United',
-    season: '1998/99',
-    rarity: 'legendary',
-    overall: 89,
-    pace: 74, shooting: 70, passing: 81, dribbling: 77, defending: 88, physical: 89,
-    composure: 88, vision: 76,
-    traits: [],
-    historicalCoaches: ['ferguson'],
-    historicalPartners: ['scholes', 'giggs', 'beckham'],
   },
   {
     id: 'rijkaard',
@@ -3989,7 +3994,7 @@ export const PLAYERS: Player[] = [
     pace: 78, shooting: 45, passing: 62, dribbling: 58, defending: 89, physical: 88,
     composure: 86, vision: 60,
     traits: [],
-    historicalPartners: ['keane', 'de_gea'],
+    historicalPartners: ['de_gea'],
   },
   {
     id: 'thuram', shortName: 'Thuram', fullName: 'Lilian Thuram', position: 'CB', secondaryPositions: ['RB'],

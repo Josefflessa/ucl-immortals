@@ -14,7 +14,8 @@ import {
   advanceKnockoutBracket,
   getActiveKnockoutMatches,
   rebuildTeamChemistry,
-  applyShopVariant, hasVariant, stripVariant,
+  applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
+  VariantFlag,
   Team,
   PlayerCard,
   MatchResult,
@@ -23,8 +24,9 @@ import {
   KnockoutBracket
 } from "../client/src/lib/gameEngine.js";
 
-import { FORMATIONS, DIFFICULTY_LEVELS, Player } from "../client/src/lib/gameData.js";
+import { FORMATIONS, DIFFICULTY_LEVELS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from "../client/src/lib/shop.js";
+import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
 
 interface RoomPlayer {
   socketId: string;
@@ -46,6 +48,9 @@ interface RoomPlayer {
   lastMatchPoints: MatchPoints | null;    // last round's points breakdown (shown once)
   reinforcementOptions: Player[] | null;   // end-of-round free pick (1 of 6 → bench)
   reinforcementRerolls: number;            // 🔄 tokens to re-roll the reinforcement (persist across rounds)
+  pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null; // 🛒 pacote JÁ PAGO na abertura (escolha grátis)
+  bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação)
+  pendingMatchPoints?: number;        // pontos da partida calculados, NÃO creditados até a revelação
 }
 
 interface RoomState {
@@ -138,6 +143,43 @@ function knockoutWatchStatus(room: RoomState): { allWatched: boolean; waiting: s
     .filter(p => humanIdsInRound.includes(p.id) && !room.watchedKnockoutLegPlayers.includes(p.id))
     .map(p => p.name);
   return { allWatched, waiting };
+}
+
+// 🎯 Revelação da rodada de LIGA: quando todos os humanos conectados com jogo na rodada já
+// assistiram, credita de uma vez os pontos da partida (pendentes) + os ganhos dos palpites.
+// Idempotente: zera pendingMatchPoints e marca bets revealed após creditar.
+function creditLeagueRoundIfAllWatched(room: RoomState): void {
+  const roundFixtures = room.leagueFixtures.filter(f => f.round === room.leagueRound);
+  const withFixture = room.players.filter(p => p.connected && roundFixtures.some(f => f.homeTeamId === p.id || f.awayTeamId === p.id));
+  const allWatched = withFixture.length > 0 && withFixture.every(p => room.watchedRoundPlayers.includes(p.id));
+  if (!allWatched) return;
+  const betPrefix = `L${room.leagueRound}:`;
+  room.players.forEach(p => {
+    if (p.pendingMatchPoints != null) { p.points += p.pendingMatchPoints; p.pendingMatchPoints = undefined; }
+    p.bets = p.bets.map(b => {
+      if (b.settled && !b.revealed && b.matchKey.startsWith(betPrefix)) {
+        p.points += b.payout ?? 0;
+        return { ...b, revealed: true };
+      }
+      return b;
+    });
+  });
+}
+
+// 🎯 Revelação da PERNA do mata-mata: mesmo princípio, atrelado ao knockoutWatchStatus.
+function creditKnockoutLegIfAllWatched(room: RoomState): void {
+  if (!room.knockoutBracket) return;
+  if (!knockoutWatchStatus(room).allWatched) return;
+  room.players.forEach(p => {
+    if (p.pendingMatchPoints != null) { p.points += p.pendingMatchPoints; p.pendingMatchPoints = undefined; }
+    p.bets = p.bets.map(b => {
+      if (b.settled && !b.revealed && b.matchKey.startsWith('K')) {
+        p.points += b.payout ?? 0;
+        return { ...b, revealed: true };
+      }
+      return b;
+    });
+  });
 }
 
 // Schedule deletion of a room once every player has disconnected; cancelled if
@@ -307,7 +349,9 @@ export function registerSocketHandlers(io: Server) {
             points: 0,
             lastMatchPoints: null,
             reinforcementOptions: null,
-            reinforcementRerolls: 0
+            reinforcementRerolls: 0,
+            pendingPack: null,
+            bets: []
           }
         ],
         botTeams: [],
@@ -396,7 +440,9 @@ export function registerSocketHandlers(io: Server) {
         points: 0,
         lastMatchPoints: null,
         reinforcementOptions: null,
-        reinforcementRerolls: 0
+        reinforcementRerolls: 0,
+        pendingPack: null,
+        bets: []
       };
 
       room.players.push(newPlayer);
@@ -708,19 +754,54 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room); // only this player's own team changed
     });
 
-    socket.on("shop_buy_player", ({ roomCode, player: chosen, kind }: { roomCode: string; player: Player; kind: 'star' | 'scout' }) => {
+    // ⭐ Carta Única — compra direta (só essa passa por aqui; Craque/Caça-Talentos usam open/pick).
+    socket.on("shop_buy_player", ({ roomCode, player: chosen, kind }: { roomCode: string; player: Player; kind: 'unique' }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !chosen) return;
-      const cost = kind === 'star' ? SHOP_COSTS.starPack : SHOP_COSTS.scout;
+      if (!player || !player.team || !chosen || kind !== 'unique') return;
+      const cost = SHOP_COSTS.uniqueCard;
       if (player.points < cost) return;
       if (player.team.players.some(p => p.id === chosen.id)) return;          // no duplicates
-      if (kind === 'star' && chosen.overall < 88) return;                     // star pack is 88+
+      // usa a definição AUTORITATIVA do servidor (não confia nos stats do cliente).
+      const toAdd = UNIQUE_CARDS.find(u => u.id === chosen.id);
+      if (!toAdd) return;
       player.points -= cost;
-      const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
+      const card: PlayerCard = { ...toAdd, chemistryScore: 0, isOOP: false };
       player.team.players = [...player.team.players, card];
       socket.emit("room_updated", room); // only this player's own bench changed
+    });
+
+    // 🛒 Abrir pacote (Craque/Caça-Talentos): COBRA aqui e guarda as opções → impede re-sortear de graça.
+    socket.on("shop_open_pack", ({ roomCode, kind, options }: { roomCode: string; kind: 'star' | 'scout'; options: Player[] }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || player.pendingPack) return;              // um pacote pendente por vez
+      if (kind !== 'star' && kind !== 'scout') return;
+      if (!Array.isArray(options) || options.length === 0) return;
+      const cost = kind === 'star' ? SHOP_COSTS.starPack : SHOP_COSTS.scout;
+      if (player.points < cost) return;
+      if (kind === 'star' && options.some(o => o.overall < 88)) return;       // pacote do craque = 88+
+      player.points -= cost;
+      player.pendingPack = { kind, options };
+      socket.emit("room_updated", room);
+    });
+
+    // 🛒 Escolher 1 do pacote JÁ PAGO (sem cobrar de novo) → banco.
+    socket.on("shop_pick_pack", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || !player.pendingPack || !chosen) return;
+      const valid = player.pendingPack.options.some(o => o.id === chosen.id)
+        && !player.team.players.some(p => p.id === chosen.id);
+      player.pendingPack = null;
+      if (valid) {
+        const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
+        player.team.players = [...player.team.players, card];
+      }
+      socket.emit("room_updated", room);
     });
 
     socket.on("shop_turbinar", ({ roomCode, playerId, variant }: { roomCode: string; playerId: string; variant: ShopVariant }) => {
@@ -731,7 +812,7 @@ export function registerSocketHandlers(io: Server) {
       const cost = SHOP_COSTS.turbinar;
       const target = player.team.players.find(p => p.id === playerId);
       if (!target || player.points < cost) return;
-      if (hasVariant(target)) return; // one per card
+      if (!canAddVariant(target)) return; // 1 por carta (Únicas: até 2)
       player.points -= cost;
       player.team.players = player.team.players.map(p =>
         p.id === playerId ? ({ ...applyShopVariant(p, variant), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
@@ -740,7 +821,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🧹 Remove a card's characteristic (so a new one can be applied via Turbinar).
-    socket.on("shop_remove_variant", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+    socket.on("shop_remove_variant", ({ roomCode, playerId, variantKey }: { roomCode: string; playerId: string; variantKey?: VariantFlag }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -750,9 +831,57 @@ export function registerSocketHandlers(io: Server) {
       if (!target || player.points < cost || !hasVariant(target)) return;
       player.points -= cost;
       player.team.players = player.team.players.map(p =>
-        p.id === playerId ? ({ ...stripVariant(p), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
+        p.id === playerId ? ({ ...(variantKey ? stripSpecificVariant(p, variantKey) : stripVariant(p)), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
       player.team = rebuildTeamChemistry(player.team);
       socket.emit("room_updated", room); // only this player's own team changed
+    });
+
+    // 🎯 PALPITE — apostar/editar. Escrow debitado na hora; validado no servidor (fundos, teto,
+    // fase, e a partida-alvo ainda não jogada). Só o autor recebe o room_updated (não vaza).
+    socket.on("place_bet", ({ roomCode, matchKey, homeGoals, awayGoals, stake }: { roomCode: string; matchKey: string; homeGoals: number; awayGoals: number; stake: number }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player) return;
+      if (!Number.isInteger(stake) || stake <= 0 || !Number.isInteger(homeGoals) || !Number.isInteger(awayGoals) || homeGoals < 0 || awayGoals < 0) return;
+
+      // A partida-alvo tem que existir, ser da rodada/perna ativa e ainda NÃO ter sido jogada.
+      let prefix: string;
+      if (room.phase === 'league') {
+        const fx = room.leagueFixtures.find(f => buildLeagueMatchKey(f.round, f.homeTeamId, f.awayTeamId) === matchKey);
+        if (!fx || fx.round !== room.leagueRound || fx.played) return;
+        prefix = `L${room.leagueRound}:`;
+      } else if (room.phase === 'knockout' && room.knockoutBracket) {
+        const leg = room.knockoutBracket.currentLeg;
+        const active = getActiveKnockoutMatches(room.knockoutBracket) as any[];
+        const tie = active.find(m => buildKnockoutMatchKey(m.id, leg) === matchKey);
+        const legPlayed = tie && (leg === 2 ? !!tie.leg2 : !!(tie.leg1 || tie.result));
+        if (!tie || legPlayed) return;
+        prefix = 'K'; // teto compartilhado entre as pernas ativas do mata-mata
+      } else {
+        return;
+      }
+
+      const existing = player.bets.find(b => b.matchKey === matchKey);
+      const escrowDelta = stake - (existing?.stake ?? 0);
+      if (escrowDelta > player.points) return;
+      if (!canPlaceStake(player.bets, prefix, matchKey, stake)) return;
+      const bet: Bet = { matchKey, homeGoals, awayGoals, stake };
+      player.bets = existing ? player.bets.map(b => b.matchKey === matchKey ? bet : b) : [...player.bets, bet];
+      player.points -= escrowDelta;
+      socket.emit("room_updated", room);
+    });
+
+    socket.on("cancel_bet", ({ roomCode, matchKey }: { roomCode: string; matchKey: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player) return;
+      const existing = player.bets.find(b => b.matchKey === matchKey);
+      if (!existing || existing.settled) return;
+      player.points += existing.stake;
+      player.bets = player.bets.filter(b => b.matchKey !== matchKey);
+      socket.emit("room_updated", room);
     });
 
     socket.on("shop_train", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: TrainAttr }) => {
@@ -863,9 +992,19 @@ export function registerSocketHandlers(io: Server) {
             (f.homeTeamId === p.team!.id || f.awayTeamId === p.team!.id));
           if (fixture?.result) {
             const mp = computeMatchPoints(fixture.result, p.team.id);
-            p.points += mp.total;
-            p.lastMatchPoints = mp;
+            // FIX anti-spoiler: NÃO credita agora; guarda como pendente até a revelação.
+            p.pendingMatchPoints = mp.total;
+            p.lastMatchPoints = mp; // resumo do PRÓPRIO jogo (exibido após assistir; não é spoiler)
           }
+          // 🎯 Liquida (sem creditar) os palpites da rodada deste jogador.
+          const betPrefix = `L${room.leagueRound}:`;
+          p.bets = p.bets.map(b => {
+            if (b.revealed || b.settled || !b.matchKey.startsWith(betPrefix)) return b;
+            const bfx = room.leagueFixtures.find(f => buildLeagueMatchKey(f.round, f.homeTeamId, f.awayTeamId) === b.matchKey);
+            if (!bfx?.result) return b;
+            const r = settleBet(b, bfx.result);
+            return { ...b, settled: true, won: r.won, tier: r.tier, payout: r.payout };
+          });
           const ownedIds = p.team.players.map(pl => pl.id);
           p.reinforcementOptions = generateDraftOptions([], ownedIds);
         });
@@ -951,16 +1090,31 @@ export function registerSocketHandlers(io: Server) {
 
       // Award shop points for each human's OWN leg (ida & volta) — same as the league, but with
       // NO reinforcement (league-only) and NO points for the FINAL (season's over, nothing to spend).
+      // FIX anti-spoiler: pontos vão pra pendingMatchPoints (creditados só quando todos assistirem).
+      const ties = getActiveKnockoutMatches(room.knockoutBracket) as any[];
       if (!isFinalRound) {
-        const ties = getActiveKnockoutMatches(room.knockoutBracket);
         room.players.forEach(p => {
           if (!p.team) return;
           const tie = ties.find((t: any) => t.homeTeamId === p.team!.id || t.awayTeamId === p.team!.id);
           if (!tie) return;
           const legRes = legPlayed === 1 ? tie.leg1 : tie.leg2;
-          if (legRes) p.points += computeMatchPoints(legRes, p.team.id).total;
+          if (legRes) p.pendingMatchPoints = computeMatchPoints(legRes, p.team.id).total;
         });
       }
+
+      // 🎯 Liquida (sem creditar) os palpites da perna recém-jogada de cada jogador.
+      room.players.forEach(p => {
+        p.bets = p.bets.map(b => {
+          if (b.revealed || b.settled || !b.matchKey.startsWith('K')) return b;
+          const [id, legStr] = b.matchKey.slice(1).split(':');
+          if (Number(legStr) !== legPlayed) return b;
+          const tie = ties.find((t: any) => t.id === id);
+          const legRes = tie ? (legPlayed === 2 ? tie.leg2 : (tie.leg1 ?? tie.result)) : undefined;
+          if (!legRes) return b;
+          const r = settleBet(b, legRes);
+          return { ...b, settled: true, won: r.won, tier: r.tier, payout: r.payout };
+        });
+      });
 
       io.to(roomCode).emit("room_updated", room);
     });
@@ -1000,10 +1154,12 @@ export function registerSocketHandlers(io: Server) {
         if (!room.watchedRoundPlayers.includes(player.id)) {
           room.watchedRoundPlayers.push(player.id);
         }
+        creditLeagueRoundIfAllWatched(room); // 🎯 revela pontos+palpites quando todos assistiram
       } else {
         if (!room.watchedKnockoutLegPlayers.includes(player.id)) {
           room.watchedKnockoutLegPlayers.push(player.id);
         }
+        creditKnockoutLegIfAllWatched(room);
       }
 
       io.to(roomCode).emit("room_updated", room);
@@ -1029,6 +1185,8 @@ export function registerSocketHandlers(io: Server) {
         p.lastMatchPoints = null;
         p.reinforcementOptions = null;
         p.reinforcementRerolls = 0;
+        p.bets = [];
+        p.pendingMatchPoints = undefined;
       });
       room.botTeams = [];
       room.leagueFixtures = [];

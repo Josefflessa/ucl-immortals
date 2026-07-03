@@ -13,7 +13,7 @@ import {
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel } from '../../lib/traits';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
-import PlayerCard, { buildSofifaUrl, cardTexture } from './PlayerCard';
+import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE } from './PlayerCard';
 import RolesSelector from './RolesSelector';
 import TacticSelector from './TacticSelector';
 import FormationSelector from './FormationSelector';
@@ -259,8 +259,8 @@ export default function SquadEditor({
               transition={{ duration: 0.18, ease: 'easeOut' }}
               className="relative bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
             >
-              {/* Fundo: textura da raridade da carta do jogador, com véu leve p/ legibilidade */}
-              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${cardTexture(selectedPlayer.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
+              {/* Fundo: textura da carta do jogador (a Única usa a sua própria), com véu leve p/ legibilidade */}
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
               <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, background: 'linear-gradient(180deg,rgba(9,9,16,.52),rgba(9,9,16,.6))' }} />
 
               <div className="relative z-10 flex items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
@@ -279,7 +279,7 @@ export default function SquadEditor({
                   const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout });
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
-                  const photoUrl = buildSofifaUrl(selectedPlayer.id, 120);
+                  const photoUrl = UNIQUE_STYLE[selectedPlayer.id]?.render ?? buildSofifaUrl(selectedPlayer.id, 120);
                   const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
                   const linkLabels: Record<string, string> = { club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica' };
                   const selLinks = posIdx >= 0
@@ -319,7 +319,7 @@ export default function SquadEditor({
                       <div className="flex items-center gap-4 p-4">
                         <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#10101d', border: `2px solid ${getRarityColor(selectedPlayer.rarity)}` }}>
                           {photoUrl
-                            ? <img src={photoUrl} alt={selectedPlayer.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} />
+                            ? <img src={photoUrl} alt={selectedPlayer.shortName} referrerPolicy="no-referrer" className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} />
                             : <span className="text-2xl" style={{ color: getRarityColor(selectedPlayer.rarity) }}>⚽</span>}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -429,7 +429,7 @@ export default function SquadEditor({
                       const isStarter = idx < 11;
                       const diffColor = preview.diff > 0 ? '#22C55E' : preview.diff < 0 ? '#EF4444' : '#8A8A9A';
                       const diffLabel = preview.diff > 0 ? `+${preview.diff}` : `${preview.diff}`;
-                      const photoUrl = buildSofifaUrl(candidate.id, 120);
+                      const photoUrl = UNIQUE_STYLE[candidate.id]?.render ?? buildSofifaUrl(candidate.id, 120);
                       const candidateMods = getCoachModifiersForPlayer(candidate, coachId);
                       const hasBuffs = candidateMods.activeEffects.length > 0;
                       return (

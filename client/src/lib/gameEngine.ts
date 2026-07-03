@@ -2394,8 +2394,20 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro'] as const;
+export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
-  return !!(p.inForm || p.lobo || p.coringa || p.nomade || p.pilar || p.martir || p.idolo || p.decimoHomem || p.pipoqueiro || p.noe || p.forasteiro);
+  return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
+}
+export function variantCount(p: Player): number {
+  return VARIANT_FLAGS.filter(f => (p as unknown as Record<string, unknown>)[f]).length;
+}
+// ⭐ Cartas Únicas podem ter DUAS características (o diferencial delas); as demais, só uma.
+export function maxVariantsFor(p: Player): number {
+  return p.rarity === 'unique' ? 2 : 1;
+}
+export function canAddVariant(p: Player): boolean {
+  return variantCount(p) < maxVariantsFor(p);
 }
 
 // Loja "Remover Característica": strips whatever special variant a card has, so the player can then
@@ -2419,6 +2431,30 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
   delete p.noe; delete p.forasteiro;
+  return p;
+}
+
+// Loja "Remover Característica" quando a carta tem DUAS (só Únicas): remove APENAS a escolhida,
+// preservando a outra. Reverte o efeito de stat da variante baked que sai (Em Alta/Lobo somaram,
+// Mártir subtraiu) e só descarta o baseOverall se não sobrar nenhuma outra variante baked.
+const BAKED_DELTA: Partial<Record<VariantFlag, number>> = {
+  inForm: INFORM_STAT_BOOST, lobo: LOBO_STAT_BOOST, martir: -MARTIR_STAT_PENALTY,
+};
+export function stripSpecificVariant<T extends Player>(player: T, variant: VariantFlag): T {
+  const p: T = { ...player };
+  const d = BAKED_DELTA[variant] ?? 0;
+  if (d !== 0 && p.baseOverall !== undefined) {
+    p.pace = clampStat(p.pace - d); p.shooting = clampStat(p.shooting - d);
+    p.passing = clampStat(p.passing - d); p.dribbling = clampStat(p.dribbling - d);
+    p.defending = clampStat(p.defending - d); p.physical = clampStat(p.physical - d);
+    p.vision = clampStat(p.vision - d); p.composure = clampStat(p.composure - d);
+    p.overall = clampStat(p.overall - d);
+    // baseOverall só faz sentido enquanto AINDA houver alguma variante baked ativa
+    const otherBaked = (['inForm', 'lobo', 'martir'] as const).some(k => k !== variant && p[k]);
+    if (!otherBaked) delete p.baseOverall;
+  }
+  delete (p as unknown as Record<string, unknown>)[variant];
+  if (variant === 'martir') delete p.martirTargets;
   return p;
 }
 

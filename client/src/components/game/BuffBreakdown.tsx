@@ -66,6 +66,10 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   // 🪑 12º Homem só rende NO BANCO — se estiver jogando, fica sem efeito. Sinaliza esse estado
   // (é a única característica cujo efeito liga/desliga de um jeito contraintuitivo).
   const decimoInactive = !!player?.decimoHomem && isStarter === true;
+  // 🛟 Noé · 🧳 Forasteiro — condicionais: só valem quando a condição do XI bate. A fonte só entra
+  // em charBoost quando está ATIVO, então a ausência dela = INATIVO agora.
+  const noeInactive = !!player?.noe && !charBoost?.sources.some(s => s.type === 'noe');
+  const forasteiroInactive = !!player?.forasteiro && !charBoost?.sources.some(s => s.type === 'forasteiro');
   const chemNet = ATTRS.reduce((s, a) => s + eff.breakdown[a].chem, 0);
   const coach = collect(eff, b => b.coach);
   const traitDeltas = collect(eff, b => b.trait);
@@ -107,10 +111,11 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
               the base stats and chem effects in the team total, so neither shows as a delta above. */}
           {variant && player && (
             <Row icon={variant.icon}
-              name={variant.key === 'decimoHomem'
-                ? `12º HOMEM ${decimoInactive ? '(INATIVO — ESTÁ JOGANDO)' : '(ATIVO — NO BANCO)'}`
-                : `${variant.label} (CARTA ESPECIAL)`}
-              color={decimoInactive ? '#6A6A7A' : variantColor}>
+              name={variant.key === 'decimoHomem' ? `12º HOMEM ${decimoInactive ? '(INATIVO — ESTÁ JOGANDO)' : '(ATIVO — NO BANCO)'}`
+                : variant.key === 'noe' ? `NOÉ ${noeInactive ? '(INATIVO)' : '(ATIVO)'}`
+                  : variant.key === 'forasteiro' ? `FORASTEIRO ${forasteiroInactive ? '(INATIVO)' : '(ATIVO)'}`
+                    : `${variant.label} (CARTA ESPECIAL)`}
+              color={(decimoInactive || noeInactive || forasteiroInactive) ? '#6A6A7A' : variantColor}>
               <div className="flex flex-wrap gap-1">
                 {variantBoost > 0 && <Chip text={`+${variantBoost} EM CADA ATRIBUTO`} color={variantColor} />}
                 {player.martir && <Chip text="−6 EM CADA ATRIBUTO" color="#EF4444" />}
@@ -120,9 +125,11 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.decimoHomem && decimoInactive && <Chip text="SEM EFEITO — PRECISA ESTAR NO BANCO" color="#EF4444" />}
                 {player.pipoqueiro && <Chip text="+4 EM TUDO NA LIGA" color="#22C55E" />}
                 {player.pipoqueiro && <Chip text="−5 EM TUDO NO MATA-MATA" color="#EF4444" />}
-                {player.noe && <Chip text="+10 EM TUDO (SÓ SE ÚNICO C/ CARACT.)" color="#22C55E" />}
-                {player.noe && <Chip text="+30 QUÍMICA GERAL DO TIME" color={variantColor} />}
-                {player.forasteiro && <Chip text="+5 EM TUDO (ÚNICO DO PAÍS E CLUBE)" color="#22C55E" />}
+                {player.noe && !noeInactive && <Chip text="+10 EM TUDO" color="#22C55E" />}
+                {player.noe && !noeInactive && <Chip text="+30 QUÍMICA GERAL DO TIME" color={variantColor} />}
+                {player.noe && noeInactive && <Chip text={isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — NÃO É O ÚNICO C/ CARACTERÍSTICA'} color="#EF4444" />}
+                {player.forasteiro && !forasteiroInactive && <Chip text="+5 EM TUDO" color="#22C55E" />}
+                {player.forasteiro && forasteiroInactive && <Chip text={isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — COMPARTILHA PAÍS OU CLUBE'} color="#EF4444" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
                 {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
@@ -224,7 +231,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
 
           {/* TRAITS — each one named, with what it grants and a flavour line */}
           {showTraits && (
-            <Row icon="✨" name="TRAITS" color="#A78BFA">
+            <Row icon="🎯" name="ESTILOS DE JOGO" color="#A78BFA">
               {traits && traits.length > 0 ? (
                 <div className="space-y-1">
                   {traits.map(t => (
