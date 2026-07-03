@@ -2,6 +2,7 @@ import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, getRarityColor, POS_PT } from '../../lib/gameData';
 import { traitEffectLabel } from '../../lib/traits';
+import { ShieldBorder, ringGradient } from './CardShield';
 
 interface PlayerCardProps {
   player: Player;
@@ -580,6 +581,16 @@ function cardTexture(rarity: string): string {
   return `/cards/${base}.webp`;
 }
 
+// Cores do anel/borda/glow por raridade (o anel metálico e o contorno do escudo usam isto).
+const RARITY_VIS: Record<string, { ring: string; border: string; innerBorder?: string; glow: string }> = {
+  bronze:    { ring: '#C77B3A', border: '#C77B3A', glow: 'rgba(205,127,50,.42)' },
+  silver:    { ring: '#B7BCCC', border: '#B7BCCC', glow: 'rgba(183,188,204,.38)' },
+  gold:      { ring: '#D4B25A', border: '#E0C268', glow: 'rgba(201,168,76,.45)' },
+  legendary: { ring: '#FF9E3C', border: '#FFB152', innerBorder: '#7a3d02', glow: 'rgba(255,150,40,.5)' },
+  immortal:  { ring: '#FFE680', border: '#FFF0B0', innerBorder: '#FFFFFF', glow: 'rgba(255,215,0,.55)' },
+};
+const rarityVis = (r: string) => RARITY_VIS[r] ?? RARITY_VIS.bronze;
+
 // Dedicated Player Photo using SoFIFA transparent high-res assets
 // Fallback chain: latest_ver_360 → latest_ver_120 → ver23_360 → ver22_360 → placeholder
 function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: string; fullName: string; size: number; lowRes?: boolean }) {
@@ -739,196 +750,139 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   const baseId = getBasePlayerId(player.id);
   const hasPhoto = !!SOFIFA_MAPPING[baseId];
 
-  // ─── COMPACT CARD ────────────────────────────────────────────────────────
+  // ─── COMPACT CARD (escudo leve) ──────────────────────────────────────────
+  // Caminho enxuto: 1 camada de textura achatada, sem anel metálico/scrim/border-SVG/glow pesados
+  // (aparece em grades com muitos cards → tem que ser leve e não travar o scroll).
   if (compact) {
     const CompactWrapper = lite ? 'div' : motion.div;
     const compactMotion = lite ? {} : {
       whileHover: onClick ? { scale: 1.06, y: -3 } : {},
       whileTap: onClick ? { scale: 0.97 } : {},
     };
+    const cvis = rarityVis(player.rarity);
+    const cRing = variant ? variant.color : cvis.ring;
+    const CLIPc = { clipPath: 'url(#uclCardShield)', WebkitClipPath: 'url(#uclCardShield)' } as const;
     return (
       <CompactWrapper
         {...compactMotion}
         onClick={onClick}
-        className={`relative select-none rounded-xl overflow-hidden flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
-        style={{ width: 80, height: 112, background: theme.bg, border: selected ? '2px solid #fff' : `1.5px solid ${theme.border}`, boxShadow: (selected ? '0 0 18px rgba(255,255,255,.7)' : theme.glow) + variantAura }}
+        className={`relative select-none flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
+        style={{ width: 80, height: 116, filter: selected ? 'drop-shadow(0 0 8px rgba(255,255,255,.7))' : `drop-shadow(0 0 5px ${cRing}66)` }}
       >
-        {!lite && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: theme.pattern, backgroundSize: theme.patternSize ?? 'auto', opacity: (theme.patternOpacity ?? 1) * 0.7 }} />}
-        {theme.isPremium && !lite && <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(120deg,transparent 30%,rgba(255,255,255,.07) 50%,transparent 70%)', animation: 'shimmer 2.8s infinite ease-in-out' }} />}
-        {variant && !lite && <VariantDecor radius={12} thickness={1.5} color={variant.color} treatment={variant.treatment} />}
+        {/* anel (cor sólida) atrás */}
+        <div className="absolute inset-0" style={{ ...CLIPc, background: cRing }} />
+        {/* fallback do tema + textura achatada (uma camada) */}
+        <div className="absolute inset-0" style={{ ...CLIPc, transform: 'scale(0.9)', transformOrigin: 'center', background: theme.bg }} />
+        <div className="absolute inset-0" style={{ ...CLIPc, transform: 'scale(0.9)', transformOrigin: 'center', backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        <div className="absolute inset-0" style={{ ...CLIPc, transform: 'scale(0.9)', transformOrigin: 'center', background: 'linear-gradient(0deg,rgba(0,0,0,.62),transparent 44%)' }} />
 
-        {/* Top: OVR + POS + flag */}
-        <div className="flex items-center justify-between px-1.5 pt-1.5 flex-shrink-0 z-10">
-          <div className="flex flex-col leading-none">
-            <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 17, lineHeight: 1 }}>{player.overall}</span>
-            <span style={{ fontFamily: 'Rajdhani,sans-serif', color: theme.accent, fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
-            {variant && <span style={{ color: variant.color, fontSize: 9, lineHeight: 1, marginTop: 1, textShadow: `0 0 6px ${variant.color}` }}>{variant.icon}</span>}
+        <div className="absolute inset-0 flex flex-col" style={{ ...CLIPc, color: '#f7eeca' }}>
+          {/* Top: OVR + POS + ícone da característica */}
+          <div className="flex items-start justify-between px-2 pt-2 flex-shrink-0">
+            <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
+              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 18, lineHeight: 1 }}>{player.overall}</span>
+              <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
+            </div>
+            {variant && <span style={{ fontSize: 10, lineHeight: 1, textShadow: `0 0 6px ${variant.color}` }}>{variant.icon}</span>}
           </div>
-          <div className="flex items-center gap-1.5">
-            {getFlagUrl(player.nation) && (
-              <img 
-                src={getFlagUrl(player.nation)!} 
-                alt={player.nation} 
-                className="w-4 h-3 object-cover rounded-[1px] border border-white/10"
-              />
-            )}
-            {CLUB_CRESTS[player.club] && (
-              <img 
-                src={CLUB_CRESTS[player.club]} 
-                alt={player.club} 
-                className="w-4 h-4 object-contain filter drop-shadow(0 1px 2px rgba(0,0,0,0.5))"
-              />
+
+          {/* Foto */}
+          <div className="flex-1 flex items-end justify-center overflow-hidden mx-1" style={{ minHeight: 0 }}>
+            {hasPhoto ? (
+              <PlayerPhoto playerId={player.id} fullName={player.fullName} size={50} lowRes />
+            ) : (
+              <span style={{ fontSize: 22, opacity: 0.2 }}>⚽</span>
             )}
           </div>
-        </div>
 
-        {/* Photo zone — fits exactly inside container, aligned to bottom */}
-        <div className="flex-1 flex items-end justify-center overflow-hidden mx-1 pb-1" style={{ minHeight: 0 }}>
-          {hasPhoto ? (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'end', justifyContent: 'center' }}>
-              <PlayerPhoto playerId={player.id} fullName={player.fullName} size={50} lowRes={lite} />
+          {/* Nome + química */}
+          <div className="flex flex-col items-center flex-shrink-0 pb-2 px-1">
+            <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9, fontWeight: 800, color: '#fff', textShadow: '0 1px 2px #000', letterSpacing: '0.04em' }}>
+              {player.shortName.toUpperCase()}
             </div>
-          ) : (
-            <span style={{ fontSize: 24, opacity: 0.2 }}>⚽</span>
-          )}
-        </div>
-
-        {/* Name + chemistry */}
-        <div className="flex flex-col items-center flex-shrink-0 pb-1 px-1 z-10">
-          <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,.6)', borderRadius: 4, padding: '1px 2px', letterSpacing: '0.04em' }}>
-            {player.shortName.toUpperCase()}
+            {showChemistry && (
+              <div className="flex gap-0.5 mt-0.5">
+                {[0,1,2].map(i => (
+                  <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: i < chemScore ? '#22C55E' : '#1a1a2e', boxShadow: i < chemScore ? '0 0 4px #22C55E' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
+                ))}
+              </div>
+            )}
           </div>
-          {showChemistry && (
-            <div className="flex gap-0.5 mt-0.5">
-              {[0,1,2].map(i => (
-                <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: i < chemScore ? '#22C55E' : '#1a1a2e', boxShadow: i < chemScore ? '0 0 4px #22C55E' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
-              ))}
-            </div>
-          )}
         </div>
-        {!lite && <style>{`@keyframes shimmer{0%,100%{opacity:.4}50%{opacity:1}}`}</style>}
       </CompactWrapper>
     );
   }
 
-  // ─── FULL CARD (200 × 340) ───────────────────────────────────────────────
+  // ─── FULL CARD (escudo FUT) ──────────────────────────────────────────────
   const CardWrapper = lite ? 'div' : motion.div;
   const cardMotionProps = lite ? {} : {
-    whileHover: { scale: 1.04, y: -5 },
+    whileHover: { scale: 1.03, y: -4 },
     whileTap: onClick ? { scale: 0.97 } : {},
   };
+  const vis = rarityVis(player.rarity);
+  const ringColor = variant ? variant.color : vis.ring;
+  const glowColor = selected ? 'rgba(255,255,255,.75)' : (variant ? variant.color : vis.glow);
+  const CLIP = { clipPath: 'url(#uclCardShield)', WebkitClipPath: 'url(#uclCardShield)' } as const;
+  const INSET = { transform: 'scale(0.93)', transformOrigin: 'center' } as const;
 
   return (
     <CardWrapper
       {...cardMotionProps}
       onClick={onClick}
-      className={`relative select-none rounded-2xl overflow-hidden flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
-      style={{ width: 200, height: 340, background: theme.bg, border: selected ? '3px solid #fff' : `2px solid ${theme.border}`, boxShadow: (selected ? '0 0 36px rgba(255,255,255,.8),inset 0 0 18px rgba(255,255,255,.1)' : theme.glow) + variantAura }}
+      className={`relative select-none flex ${onClick ? 'cursor-pointer' : ''}`}
+      style={{ width: 200, height: 300, filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 8px 14px rgba(0,0,0,.5))` }}
     >
-      {/* Per-rarity texture pattern */}
-      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: theme.pattern, backgroundSize: theme.patternSize ?? 'auto', opacity: theme.patternOpacity ?? 1 }} />
+      {/* anel metálico (raridade ou característica) — escudo cheio */}
+      <div className="absolute inset-0" style={{ ...CLIP, background: ringGradient(ringColor) }} />
+      {/* fallback do interior (gradiente do tema) — aparece se a textura falhar */}
+      <div className="absolute inset-0" style={{ ...CLIP, ...INSET, background: theme.bg }} />
+      {/* textura da raridade — escudo levemente menor, revela o anel na volta */}
+      <div className="absolute inset-0" style={{ ...CLIP, ...INSET, backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+      {/* scrims p/ legibilidade sobre texturas claras/escuras */}
+      <div className="absolute inset-0" style={{ ...CLIP, ...INSET, background:
+        'linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),linear-gradient(0deg,rgba(0,0,0,.62) 0%,rgba(0,0,0,0) 34%),radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.4),transparent 70%)' }} />
 
-      {/* Rarity glow blob */}
-      <div className="absolute pointer-events-none" style={{ top: -40, left: -40, width: 150, height: 150, borderRadius: '50%', background: baseColor, filter: 'blur(55px)', opacity: theme.isPremium ? .26 : .16 }} />
-
-      {/* Top sheen edge */}
-      <div className="absolute inset-x-0 top-0 h-px pointer-events-none" style={{ background: `linear-gradient(90deg,transparent,${theme.accent}88,transparent)` }} />
-
-      {/* Shimmer */}
-      {theme.isPremium && !lite && <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(120deg,transparent 25%,rgba(255,255,255,.07) 50%,transparent 75%)', animation: 'shimmer 3s infinite ease-in-out' }} />}
-
-      {/* Special-variant travelling neon border (rarity fill below stays untouched) */}
-      {variant && !lite && <VariantDecor radius={16} thickness={2} color={variant.color} treatment={variant.treatment} />}
-
-      {/* ── TOP ROW — compact to maximise photo space ── */}
-      <div className="relative z-10 flex items-start justify-between px-3 pt-2.5 flex-shrink-0">
-        <div className="flex flex-col items-start leading-none">
-          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .88, color: '#fff', textShadow: `0 0 22px ${theme.nameGlow}` }}>{player.overall}</span>
-          <span className="mt-1 px-1.5 py-0.5 rounded-md uppercase" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 10, fontWeight: 900, letterSpacing: '0.08em', color: theme.accent, background: theme.badgeBg, border: `1px solid ${theme.border}55` }}>{posLabel(player.position)}</span>
+      {/* CONTEÚDO (layout FUT) */}
+      <div className="absolute inset-0" style={{ color: '#f7eeca', ...CLIP }}>
+        {/* rail: OVR → posição → bandeira → escudo do clube */}
+        <div className="absolute flex flex-col items-center" style={{ left: '6%', top: '15%', width: 46, gap: 4, textShadow: '0 2px 5px rgba(0,0,0,.85)' }}>
+          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .8 }}>{player.overall}</span>
+          <span style={{ fontFamily: 'Rajdhani,sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
+          <div style={{ width: 30, height: 1, background: 'rgba(247,238,202,.55)', margin: '3px 0' }} />
+          {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
+          {CLUB_CRESTS[player.club] && <img src={CLUB_CRESTS[player.club]} alt={player.club} referrerPolicy="no-referrer" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
         </div>
-        <div className="flex flex-col items-end gap-1.5 leading-none">
-          <div className="flex items-center gap-1.5">
-            {getFlagUrl(player.nation) && (
-              <img 
-                src={getFlagUrl(player.nation)!} 
-                alt={player.nation} 
-                className="w-5.5 h-3.5 object-cover rounded-[2px] border border-white/10 filter drop-shadow(0 1px 2px rgba(0,0,0,0.4))"
-              />
-            )}
-            {CLUB_CRESTS[player.club] && (
-              <img 
-                src={CLUB_CRESTS[player.club]} 
-                alt={player.club} 
-                className="w-6 h-6 object-contain filter drop-shadow(0 2px 4px rgba(0,0,0,0.5))"
-              />
-            )}
-          </div>
-          <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded" style={{ fontFamily: 'Rajdhani,sans-serif', color: '#6a6a8a', background: 'rgba(0,0,0,.45)', border: '1px solid rgba(255,255,255,.05)' }}>{player.season}</span>
-          <span className="text-[9px] font-extrabold tracking-wider uppercase truncate max-w-[90px] text-right" style={{ fontFamily: 'Rajdhani,sans-serif', color: theme.accent, opacity: .85 }}>{player.club}</span>
+        {/* foto */}
+        <div className="absolute flex items-end justify-center" style={{ right: '9%', top: '8%', width: '58%', height: '44%' }}>
+          {hasPhoto ? <PlayerPhoto playerId={player.id} fullName={player.fullName} size={150} lowRes={lite} /> : <span style={{ fontSize: 40, opacity: .2 }}>⚽</span>}
         </div>
-      </div>
-
-      {/* ── PHOTO ZONE — tall flex-1 for maximum photo size ── */}
-      <div className="relative flex-1 flex items-end justify-center overflow-visible mx-1 mt-0 mb-0" style={{ minHeight: 0 }}>
-        {hasPhoto ? (
-          <div style={{ width: '100%', height: '115%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
-            <PlayerPhoto playerId={player.id} fullName={player.fullName} size={180} lowRes={lite} />
+        {/* chip de raridade (mesmo estilo de hoje, sem emoji) */}
+        <div className="absolute" style={{ top: '52%', left: '50%', transform: 'translateX(-50%)', padding: '2px 11px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: theme.isPremium ? '#1f1500' : '#0a0a0a', background: theme.ribbon, border: '1px solid rgba(0,0,0,.35)', boxShadow: '0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25)', fontFamily: 'Rajdhani,sans-serif' }}>{theme.label}</div>
+        {/* nome */}
+        <div className="absolute text-center" style={{ top: '56.5%', left: '13%', right: '13%', background: 'linear-gradient(90deg,rgba(0,0,0,.12),rgba(0,0,0,.58) 50%,rgba(0,0,0,.12))', borderRadius: 8, padding: '3px 0 5px', borderBottom: '2px solid rgba(255,255,255,.14)' }}>
+          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: 20, color: '#fff', textShadow: '0 2px 6px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
+        </div>
+        {/* 6 stats */}
+        <div className="absolute" style={{ top: '68%', left: '12%', right: '12%', background: 'rgba(0,0,0,.4)', borderRadius: 10, padding: '6px 4px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', fontVariantNumeric: 'tabular-nums' }}>
+            {([['PAC', player.pace],['SHO', player.shooting],['PAS', player.passing],['DRI', player.dribbling],['DEF', player.defending],['PHY', player.physical]] as [string, number][]).map(([k, v]) => (
+              <div key={k} className="flex flex-col items-center" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.8)' }}>
+                <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, opacity: .78 }}>{k}</span>
+                <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, fontSize: 17 }}>{v}</span>
+              </div>
+            ))}
           </div>
-        ) : (
-          <div className="flex items-center justify-center w-full h-full" style={{ fontSize: 56, opacity: .15 }}>⚽</div>
+        </div>
+        {/* chip de característica (mesmo estilo de hoje, sem animação) */}
+        {variant && (
+          <div className="absolute inline-flex items-center" style={{ top: '81.5%', left: '50%', transform: 'translateX(-50%)', gap: 6, padding: '4px 13px', borderRadius: 999, fontSize: 12.5, fontWeight: 900, letterSpacing: '.12em', whiteSpace: 'nowrap', color: '#fff', background: `linear-gradient(90deg,#0008,${variant.color},#0008)`, border: '1px solid rgba(0,0,0,.45)', boxShadow: `0 0 12px color-mix(in srgb,${variant.color} 70%,transparent)`, textShadow: '0 1px 2px rgba(0,0,0,.9)', fontFamily: 'Rajdhani,sans-serif' }} title={variantDesc(player)}>
+            <span>{variant.icon}</span> {variant.label}
+          </div>
         )}
       </div>
 
-      {/* ── RARITY RIBBON ── */}
-      <div className="flex-shrink-0 mx-2 flex justify-center" style={{ zIndex: 6, marginBottom: -6 }}>
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full" style={{ background: theme.ribbon, boxShadow: `0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25)`, border: '1px solid rgba(0,0,0,.35)' }}>
-          <span style={{ fontSize: 8, lineHeight: 1, color: theme.isPremium ? '#3a2600' : '#000', filter: theme.isPremium ? 'none' : 'opacity(.7)' }}>{theme.icon}</span>
-          <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 900, letterSpacing: '0.16em', color: theme.isPremium ? '#1f1500' : '#0a0a0a' }}>{theme.label}</span>
-        </span>
-      </div>
-
-      {/* ── SPECIAL-VARIANT BADGE (special draft card) ── */}
-      {variant && (
-        <div className="flex-shrink-0 mx-2 flex justify-center" style={{ zIndex: 6, marginTop: 4 }}>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: `linear-gradient(90deg,#0008,${variant.color},#0008)`, boxShadow: `0 0 12px ${variant.color}b3`, border: '1px solid rgba(0,0,0,.4)' }}
-            title={variantDesc(player)}>
-            <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 900, letterSpacing: '0.14em', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,.9)' }}>{variant.icon} {variant.label}</span>
-          </span>
-        </div>
-      )}
-
-      {/* ── NAME BANNER ── */}
-      <div className="flex-shrink-0 mx-2 mb-1.5 pt-2.5 pb-1.5 rounded-xl text-center" style={{ background: 'linear-gradient(90deg,rgba(0,0,0,.85) 0%,rgba(0,0,0,.95) 50%,rgba(0,0,0,.85) 100%)', border: `1px solid ${theme.border}22`, boxShadow: `0 0 14px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04)`, zIndex: 5 }}>
-        <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 20, letterSpacing: '0.08em', color: '#fff', textShadow: `0 0 16px ${theme.nameGlow}` }}>{player.shortName.toUpperCase()}</span>
-      </div>
-
-      {/* ── STATS (the 6 core on the card; vision & composure live in the detail/modal) ── */}
-      <div className="flex-shrink-0 mx-2 mb-1.5 rounded-xl animate-fade-in" style={{ background: 'rgba(0,0,0,.35)', border: `1px solid ${theme.border}18`, display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', zIndex: 5 }}>
-        {[{l:'RIT',v:player.pace},{l:'FIN',v:player.shooting},{l:'PAS',v:player.passing},{l:'DRI',v:player.dribbling},{l:'DEF',v:player.defending},{l:'FIS',v:player.physical}].map((s,i) => (
-          <div key={i} className="flex flex-col items-center py-1.5">
-            <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 700, color: '#555577', letterSpacing: '0.05em' }}>{s.l}</span>
-            <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 13, fontWeight: 900, color: theme.statColor, lineHeight: 1.1 }}>{s.v}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* ── TRAITS FOOTER ── */}
-      <div className="flex-shrink-0 flex justify-center items-center gap-1 pb-2.5 px-2 text-[7.5px]" style={{ zIndex: 5 }}>
-        {player.traits.length > 0
-          ? (player.rolledTrait
-              ? [player.rolledTrait, ...player.traits.filter(t => t !== player.rolledTrait)]
-              : player.traits
-            ).slice(0,2).map((t,i) => {
-              const eff = traitEffectLabel(t);
-              const isRolled = t === player.rolledTrait;
-              return (
-              <span key={i} className="font-bold px-1.5 py-0.5 rounded-full truncate" style={{ fontFamily: 'Rajdhani,sans-serif', color: isRolled ? '#E8C84A' : 'rgba(255,255,255,.5)', background: isRolled ? 'rgba(201,168,76,.12)' : 'rgba(255,255,255,.04)', border: `1px solid ${isRolled ? 'rgba(201,168,76,.5)' : 'rgba(255,255,255,.08)'}`, maxWidth: 85 }} title={`${isRolled ? 'Trait extra! ' : ''}${t}${eff ? ` — ${eff}` : ''}`}>{isRolled ? '✨' : '⭐'} {t}</span>
-            ); })
-          : <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: theme.accent, opacity: .7 }}>{player.rarity.toUpperCase()}</span>
-        }
-      </div>
-
-      {!lite && <style>{`@keyframes shimmer{0%,100%{opacity:.4}50%{opacity:1}}`}</style>}
+      {/* borda do escudo por cima de tudo */}
+      <ShieldBorder stroke={selected ? '#fff' : vis.border} width={player.rarity === 'immortal' ? 4 : player.rarity === 'legendary' ? 3.2 : 2.4} innerStroke={selected ? '#fff' : vis.innerBorder} />
     </CardWrapper>
   );
 }
