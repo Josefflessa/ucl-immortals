@@ -14,6 +14,7 @@ import SquadReviewPage from "./pages/SquadReviewPage";
 import LeaguePage from "./pages/LeaguePage";
 import ReportPage from "./pages/ReportPage";
 import MatchSimPage from "./pages/MatchSimPage";
+import { CardShieldDefs } from "./components/game/CardShield";
 
 function GameRouter() {
   const { state } = useGame();
@@ -43,6 +44,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <GameProvider>
+            <CardShieldDefs />
             <GameRouter />
             <InstallPrompt />
           </GameProvider>
