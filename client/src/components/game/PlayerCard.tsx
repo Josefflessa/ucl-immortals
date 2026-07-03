@@ -1,7 +1,6 @@
 import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
-import { Player, getRarityColor, POS_PT } from '../../lib/gameData';
-import { traitEffectLabel } from '../../lib/traits';
+import { Player, POS_PT } from '../../lib/gameData';
 import { ShieldBorder, ringGradient } from './CardShield';
 
 interface PlayerCardProps {
@@ -674,7 +673,6 @@ export function getCardVariant(player: Player): { key: string; color: string; ic
   }
   return null;
 }
-const variantGlow = (c: string) => `0 0 22px ${c}99,0 0 7px ${c}77`;
 
 // Short effect description for the card badge tooltip.
 function variantDesc(player: Player): string {
@@ -689,64 +687,11 @@ function variantDesc(player: Player): string {
   return '';
 }
 
-// Neon highlight that travels around the card border via a rotating conic-gradient,
-// masked to show only the border band. Sits above the card content (border only).
-function VariantRing({ radius, thickness, color }: { radius: number; thickness: number; color: string }) {
-  return (
-    <div
-      className="absolute inset-0 pointer-events-none z-20 overflow-hidden"
-      style={{
-        borderRadius: radius,
-        padding: thickness,
-        WebkitMask: 'linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0)',
-        WebkitMaskComposite: 'xor',
-        maskComposite: 'exclude',
-      }}
-    >
-      {/* Static conic-gradient ROTATED via transform (GPU-composited) — no per-frame gradient
-          repaint, so it stays smooth even with many cards on screen. */}
-      <div
-        className="absolute top-1/2 left-1/2"
-        style={{
-          width: '170%',
-          height: '170%',
-          background: `conic-gradient(transparent 0deg 285deg,${color} 330deg,#ffffff 348deg,${color} 360deg)`,
-          animation: 'inform-spin 2.4s linear infinite',
-        }}
-      />
-    </div>
-  );
-}
-
-// Picks the border/glow treatment for a variant. The 5 original variants use the rotating ring;
-// the 3 team-effect ones each get a DISTINCT look so they read as a different family:
-//  · 🩸 pulse  — somber blood-red border that pulses (sacrifice)
-//  · ❤️ halo   — warm breathing glow (club idol)
-//  · 🪑 calm   — plain static border, no animation (a quiet reserve)
-function VariantDecor({ radius, thickness, color, treatment }: { radius: number; thickness: number; color: string; treatment: VariantTreatment }) {
-  if (treatment === 'ring') return <VariantRing radius={radius} thickness={thickness} color={color} />;
-  const common = { borderRadius: radius } as const;
-  if (treatment === 'pulse') {
-    return <div className="absolute inset-0 pointer-events-none z-20" style={{ ...common, border: `${thickness + 0.5}px solid ${color}`, boxShadow: `inset 0 0 9px ${color}55`, animation: 'martir-pulse 1.8s ease-in-out infinite' }} />;
-  }
-  if (treatment === 'halo') {
-    return <div className="absolute inset-0 pointer-events-none z-20" style={{ ...common, border: `${thickness}px solid ${color}`, boxShadow: `inset 0 0 14px ${color}55`, animation: 'idolo-halo 2.6s ease-in-out infinite' }} />;
-  }
-  // 'calm'
-  return <div className="absolute inset-0 pointer-events-none z-20" style={{ ...common, border: `${thickness}px solid ${color}` }} />;
-}
-
 function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0 }: PlayerCardProps) {
-  const baseColor = getRarityColor(player.rarity);
-  // The card's visual identity is driven PURELY by rarity. A special draft variant never
-  // touches the rarity theme — it adds a reserved coloured border highlight + aura on top
-  // (see VARIANT_STYLE / VariantRing), so the tier stays readable and is never mistaken
-  // for another rarity (e.g. Immortal).
+  // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
+  // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
-  // Steady neon aura appended to the rarity glow. box-shadow renders OUTSIDE the card,
-  // so overflow-hidden never clips it. Skipped while `selected` (white halo owns the edge).
   const variant = getCardVariant(player);
-  const variantAura = variant && !selected ? `,${variantGlow(variant.color)}` : '';
   const baseId = getBasePlayerId(player.id);
   const hasPhoto = !!SOFIFA_MAPPING[baseId];
 
