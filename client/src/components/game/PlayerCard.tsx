@@ -1,7 +1,7 @@
 import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
-import { ShieldBorder, ringGradient } from './CardShield';
+import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 
 interface PlayerCardProps {
   player: Player;
@@ -580,13 +580,14 @@ function cardTexture(rarity: string): string {
   return `/cards/${base}.webp`;
 }
 
-// Cores do anel/borda/glow por raridade (o anel metálico e o contorno do escudo usam isto).
-const RARITY_VIS: Record<string, { ring: string; border: string; innerBorder?: string; glow: string }> = {
-  bronze:    { ring: '#C77B3A', border: '#C77B3A', glow: 'rgba(205,127,50,.42)' },
-  silver:    { ring: '#B7BCCC', border: '#B7BCCC', glow: 'rgba(183,188,204,.38)' },
-  gold:      { ring: '#D4B25A', border: '#E0C268', glow: 'rgba(201,168,76,.45)' },
-  legendary: { ring: '#FF9E3C', border: '#FFB152', innerBorder: '#7a3d02', glow: 'rgba(255,150,40,.5)' },
-  immortal:  { ring: '#FFE680', border: '#FFF0B0', innerBorder: '#FFFFFF', glow: 'rgba(255,215,0,.55)' },
+// Por raridade: cor do anel metálico, glow, e o FILTRO que tinge a moldura dourada do frame
+// (a moldura base é dourada; tingimos p/ bronze/prata; ouro/lendário/imortal ficam douradas).
+const RARITY_VIS: Record<string, { ring: string; glow: string; frameFilter: string }> = {
+  bronze:    { ring: '#C77B3A', glow: 'rgba(205,127,50,.5)',  frameFilter: 'sepia(1) saturate(1.9) hue-rotate(-12deg) brightness(.92)' },
+  silver:    { ring: '#B7BCCC', glow: 'rgba(183,188,204,.42)', frameFilter: 'grayscale(1) brightness(1.45) contrast(.95)' },
+  gold:      { ring: '#D4B25A', glow: 'rgba(201,168,76,.5)',  frameFilter: 'none' },
+  legendary: { ring: '#FF9E3C', glow: 'rgba(255,150,40,.55)', frameFilter: 'brightness(1.06) saturate(1.1)' },
+  immortal:  { ring: '#FFE680', glow: 'rgba(255,215,0,.65)',  frameFilter: 'brightness(1.16) saturate(1.15)' },
 };
 const rarityVis = (r: string) => RARITY_VIS[r] ?? RARITY_VIS.bronze;
 
@@ -706,22 +707,21 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
     };
     const cvis = rarityVis(player.rarity);
     const cRing = variant ? variant.color : cvis.ring;
-    const CLIPc = { clipPath: 'url(#uclCardShield)', WebkitClipPath: 'url(#uclCardShield)' } as const;
     return (
       <CompactWrapper
         {...compactMotion}
         onClick={onClick}
         className={`relative select-none flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
-        style={{ width: 80, height: 116, filter: selected ? 'drop-shadow(0 0 8px rgba(255,255,255,.7))' : `drop-shadow(0 0 5px ${cRing}66)` }}
+        style={{ width: 80, height: 124, filter: selected ? 'drop-shadow(0 0 8px rgba(255,255,255,.7))' : `drop-shadow(0 0 5px ${cRing}66)` }}
       >
-        {/* anel (cor sólida) atrás */}
-        <div className="absolute inset-0" style={{ ...CLIPc, background: cRing }} />
-        {/* fallback do tema + textura achatada (uma camada) */}
-        <div className="absolute inset-0" style={{ ...CLIPc, transform: 'scale(0.9)', transformOrigin: 'center', background: theme.bg }} />
-        <div className="absolute inset-0" style={{ ...CLIPc, transform: 'scale(0.9)', transformOrigin: 'center', backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-        <div className="absolute inset-0" style={{ ...CLIPc, transform: 'scale(0.9)', transformOrigin: 'center', background: 'linear-gradient(0deg,rgba(0,0,0,.62),transparent 44%)' }} />
+        {/* moldura do escudo tingida por raridade */}
+        <img src={FRAME_URL} alt="" className="absolute inset-0" style={{ width: '100%', height: '100%', objectFit: 'fill', zIndex: 0, pointerEvents: 'none', filter: cvis.frameFilter }} />
+        {/* fallback do tema + textura recortada (caminho leve: 1 textura, sem anel/scrim pesados) */}
+        <div className="absolute inset-0" style={{ ...frameMask('90% 91%'), zIndex: 1, background: theme.bg }} />
+        <div className="absolute inset-0" style={{ ...frameMask('90% 91%'), zIndex: 2, backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        <div className="absolute inset-0" style={{ ...frameMask('90% 91%'), zIndex: 3, background: 'linear-gradient(0deg,rgba(0,0,0,.62),transparent 44%)' }} />
 
-        <div className="absolute inset-0 flex flex-col" style={{ ...CLIPc, color: '#f7eeca' }}>
+        <div className="absolute inset-0 flex flex-col" style={{ color: '#f7eeca', zIndex: 4 }}>
           {/* Top: OVR + POS + ícone da característica */}
           <div className="flex items-start justify-between px-2 pt-2 flex-shrink-0">
             <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
@@ -767,28 +767,29 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   const vis = rarityVis(player.rarity);
   const ringColor = variant ? variant.color : vis.ring;
   const glowColor = selected ? 'rgba(255,255,255,.75)' : (variant ? variant.color : vis.glow);
-  const CLIP = { clipPath: 'url(#uclCardShield)', WebkitClipPath: 'url(#uclCardShield)' } as const;
-  const INSET = { transform: 'scale(0.93)', transformOrigin: 'center' } as const;
+  const INSET = '94.5% 95.5%';
 
   return (
     <CardWrapper
       {...cardMotionProps}
       onClick={onClick}
       className={`relative select-none flex ${onClick ? 'cursor-pointer' : ''}`}
-      style={{ width: 200, height: 300, filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 8px 14px rgba(0,0,0,.5))` }}
+      style={{ width: 200, height: 324, filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 8px 14px rgba(0,0,0,.5))` }}
     >
-      {/* anel metálico (raridade ou característica) — escudo cheio */}
-      <div className="absolute inset-0" style={{ ...CLIP, background: ringGradient(ringColor) }} />
+      {/* moldura do escudo (contorno + borda dourada reais), tingida por raridade */}
+      <img src={FRAME_URL} alt="" className="absolute inset-0" style={{ width: '100%', height: '100%', objectFit: 'fill', zIndex: 0, pointerEvents: 'none', filter: vis.frameFilter }} />
+      {/* anel metálico (raridade ou característica) — máscara cheia, revela na banda entre borda e textura */}
+      <div className="absolute inset-0" style={{ ...frameMask('98% 98.5%'), zIndex: 1, background: ringGradient(ringColor) }} />
       {/* fallback do interior (gradiente do tema) — aparece se a textura falhar */}
-      <div className="absolute inset-0" style={{ ...CLIP, ...INSET, background: theme.bg }} />
-      {/* textura da raridade — escudo levemente menor, revela o anel na volta */}
-      <div className="absolute inset-0" style={{ ...CLIP, ...INSET, backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+      <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 2, background: theme.bg }} />
+      {/* textura da raridade — recortada um pouco menor (fica dentro da borda) */}
+      <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 3, backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
       {/* scrims p/ legibilidade sobre texturas claras/escuras */}
-      <div className="absolute inset-0" style={{ ...CLIP, ...INSET, background:
-        'linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),linear-gradient(0deg,rgba(0,0,0,.62) 0%,rgba(0,0,0,0) 34%),radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.4),transparent 70%)' }} />
+      <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 4, background:
+        'linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),linear-gradient(0deg,rgba(0,0,0,.62) 0%,rgba(0,0,0,0) 32%),radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%)' }} />
 
       {/* CONTEÚDO (layout FUT) */}
-      <div className="absolute inset-0" style={{ color: '#f7eeca', ...CLIP }}>
+      <div className="absolute inset-0" style={{ color: '#f7eeca', zIndex: 5 }}>
         {/* rail: OVR → posição → bandeira → escudo do clube */}
         <div className="absolute flex flex-col items-center" style={{ left: '6%', top: '15%', width: 46, gap: 4, textShadow: '0 2px 5px rgba(0,0,0,.85)' }}>
           <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .8 }}>{player.overall}</span>
@@ -825,9 +826,6 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           </div>
         )}
       </div>
-
-      {/* borda do escudo por cima de tudo */}
-      <ShieldBorder stroke={selected ? '#fff' : vis.border} width={player.rarity === 'immortal' ? 4 : player.rarity === 'legendary' ? 3.2 : 2.4} innerStroke={selected ? '#fff' : vis.innerBorder} />
     </CardWrapper>
   );
 }

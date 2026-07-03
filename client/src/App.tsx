@@ -14,10 +14,8 @@ import SquadReviewPage from "./pages/SquadReviewPage";
 import LeaguePage from "./pages/LeaguePage";
 import ReportPage from "./pages/ReportPage";
 import MatchSimPage from "./pages/MatchSimPage";
-import { CardShieldDefs } from "./components/game/CardShield";
-
-// Pré-carrega as texturas das cartas uma vez (cacheia; evita "flash" na primeira carta).
-['bg-bronze', 'bg-prata', 'bg-ouro', 'bg-lendario', 'bg-imortal'].forEach((n) => {
+// Pré-carrega a moldura + texturas das cartas uma vez (cacheia; evita "flash" na primeira carta).
+['card-frame', 'bg-bronze', 'bg-prata', 'bg-ouro', 'bg-lendario', 'bg-imortal'].forEach((n) => {
   const img = new Image();
   img.src = `/cards/${n}.webp`;
 });
@@ -50,7 +48,6 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <GameProvider>
-            <CardShieldDefs />
             <GameRouter />
             <InstallPrompt />
           </GameProvider>
