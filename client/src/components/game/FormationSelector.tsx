@@ -5,6 +5,7 @@
 
 import { FORMATIONS } from '../../lib/gameData';
 import { formationProfile } from '../../lib/gameEngine';
+import ImpactMeter from './ImpactMeter';
 
 interface Tag { label: string; color: string; }
 
@@ -84,6 +85,9 @@ export default function FormationSelector({ value, onChange }: Props) {
         </div>
         <div style={{ color: '#22C55E' }}>✓ {active.strengths.join(' · ')}</div>
         <div className="mt-0.5" style={{ color: '#EF4444' }}>✗ {active.weaknesses.join(' · ')}</div>
+        <div className="mt-2">
+          <ImpactMeter profile={formationProfile(active.id)} />
+        </div>
       </div>
     </div>
   );

@@ -548,8 +548,12 @@ export function getPlayerEffectiveStats(
   const charB = context?.charBoosts?.[player.id];
   const charBonus = (attr: AttrKey): number => charB ? (charB.flatAll + (charB.perStat[attr] ?? 0)) : 0;
 
+  // 🍿 Pipoqueiro — +N em tudo na fase de liga, −N no mata-mata (mesma regra do getEffectiveAttribute).
+  const pipoqBonus = (_attr: AttrKey): number =>
+    player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
+
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + charBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -637,21 +641,26 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // These buff OTHER players. computeCharacteristicBoosts returns, per XI player id, the extra
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
-export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>> };
+// Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>> };
+export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
 export function computeCharacteristicBoosts(players: (Player | undefined)[]): CharBoostMap {
   const map: CharBoostMap = {};
   const xi = players.slice(0, 11).filter((p): p is Player => !!p);
-  const add = (id: string, flat: number, stat?: AttrKey, amt = 0) => {
-    const b = map[id] ?? (map[id] = { flatAll: 0, perStat: {} });
-    b.flatAll += flat;
-    if (stat) b.perStat[stat] = (b.perStat[stat] ?? 0) + amt;
+  const slot = (id: string) => map[id] ?? (map[id] = { flatAll: 0, perStat: {}, sources: [] });
+  // Registra uma contribuição: soma no total (flatAll/perStat, que o motor lê) E guarda a fonte.
+  const contribute = (id: string, src: CharSource) => {
+    const b = slot(id);
+    b.flatAll += src.flatAll;
+    for (const k in src.perStat) b.perStat[k as AttrKey] = (b.perStat[k as AttrKey] ?? 0) + (src.perStat[k as AttrKey] ?? 0);
+    b.sources.push(src);
   };
   // ❤️ Ídolo — +2 em todos os atributos a cada titular do MESMO CLUBE (ele incluso).
   for (const idol of xi) {
     if (!idol.idolo) continue;
-    for (const mate of xi) if (mate.club === idol.club) add(mate.id, 2);
+    for (const mate of xi) if (mate.club === idol.club) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: 2, perStat: {} });
   }
   // 🩸 Mártir — +3 em tudo aos 2 titulares escolhidos (ou 2 maiores overalls além dele). Acumulável.
   for (const m of xi) {
@@ -662,13 +671,13 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
         .sort((a, b) => b.overall - a.overall).map(p => p.id);
       targets = [...targets, ...fill].slice(0, 2);
     }
-    for (const id of targets) add(id, 3);
+    for (const id of targets) contribute(id, { type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: 3, perStat: {} });
   }
   // 🪑 12º Homem — no BANCO (índice ≥11): +1 compostura e +2 visão a todo o XI.
   for (let i = 11; i < players.length; i++) {
     const p = players[i];
     if (!p?.decimoHomem) continue;
-    for (const mate of xi) { add(mate.id, 0, 'composure', 1); add(mate.id, 0, 'vision', 2); }
+    for (const mate of xi) contribute(mate.id, { type: 'decimoHomem', fromId: p.id, fromName: p.shortName, flatAll: 0, perStat: { composure: 1, vision: 2 } });
   }
   return map;
 }
@@ -828,6 +837,9 @@ export function getEffectiveAttribute(
   const cb = context?.charBoosts?.[player.id];
   if (cb) base += cb.flatAll + (cb.perStat[attribute as AttrKey] ?? 0);
 
+  // 🍿 Pipoqueiro — brilha na fase de liga (+N em tudo), some no mata-mata (−N em tudo).
+  if (player.pipoqueiro) base += context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST;
+
   return Math.max(1, base);
 }
 
@@ -841,6 +853,10 @@ export function getEffectiveAttribute(
 //    accuracy curve atkShooting/(atkShooting + resistance)). Both raise = fewer goals.
 export const GK_SAVE_EDGE = 7;
 export const ON_TARGET_RESISTANCE = 48;
+// Global weight of FORMATION + TACTIC on results (chance volume + chance quality). 1.0 = baseline;
+// >1 makes the shape/style choice matter more (squad strength is untouched). Applied to every
+// formation/tactic scalar so the whole tactical contribution scales linearly by this factor.
+export const TACTICAL_INFLUENCE = 1.2;
 // Per-minute randomness in deciding which team attacks. Lower = team strength
 // matters more. Tuned to 20 via the harness: favorites clearly win more (champion
 // avg strength-rank ~8 of 36, vs ~18.5 random) while upsets stay common (a rank
@@ -951,19 +967,19 @@ export interface FormationProfile { attack: number; defense: number; control: nu
 // (shifts the chance mix between crosses and through-balls). Validated by the round-robin in
 // balance.test.ts ("formation impact"). Magnitudes stay small — the shape TILTS, never decides.
 const FORMATION_PROFILES: Record<string, FormationProfile> = {
-  // Attacking, wide, well-rounded: takes territory but leaves a little space behind.
-  '4-3-3':   { attack: 1,  defense: -1, control: 0,  cross: 0 },
+  // Attacking, wide, well-rounded: takes territory, leaves just a LITTLE space behind (mild cost).
+  '4-3-3':   { attack: 0.4, defense: 0, control: 0,  cross: 0 },
   // Patient control: double pivot is solid, the midfield owns the ball, but it's not direct.
-  '4-2-3-1': { attack: -1, defense: 1,  control: 1,  cross: 0 },
+  '4-2-3-1': { attack: -0.5, defense: 1, control: 0.75, cross: 0 },
   // Classic and compact: two banks of four are defensively organised (+defense), with no special
   // attacking or midfield tilt — the dependable all-rounder.
-  '4-4-2':   { attack: 0,  defense: 1,  control: 0,  cross: 0 },
+  '4-4-2':   { attack: 0,  defense: 0.75, control: 0, cross: 0 },
   // Midfield dominance through the middle, but only three at the back → ball-hungry yet exposed.
-  '3-5-2':   { attack: 0,  defense: -1, control: 2,  cross: -2 },
-  // All-out attack: floods forward (most chances) and is wide open at the back (most exposed).
-  '3-4-3':   { attack: 2,  defense: -2, control: 0,  cross: 1 },
+  '3-5-2':   { attack: 0,  defense: -0.25, control: 1.5, cross: -2 },
+  // All-out attack: floods forward (most chances) and is wide open at the back (MOST exposed).
+  '3-4-3':   { attack: 2,  defense: -2.5, control: 0,  cross: 1 },
   // Impenetrable back five that cedes the ball and hits on the counter: fewest chances, meanest D.
-  '5-3-2':   { attack: -1, defense: 2,  control: -1, cross: -2 },
+  '5-3-2':   { attack: -1, defense: 2,  control: 0,  cross: -2 },
 };
 
 export function formationProfile(formationId: string): FormationProfile {
@@ -1005,11 +1021,12 @@ export function tacticStatBonus(playStyle: string, attr: string): number {
 // (defense = lower opponent chance quality), and midfield grip (control = build-up).
 export function tacticProfile(playStyle: string): { attack: number; defense: number; control: number } {
   switch (playStyle) {
-    case 'possession':     return { attack: 0, defense: 0, control: 2 };   // patient, owns the midfield
-    case 'counter':        return { attack: 1, defense: 1, control: -1 };  // sits in, hits fast (fewer but better chances)
+    case 'possession':     return { attack: 0, defense: 0, control: 1 };   // patient, owns the midfield
+    case 'counter':        return { attack: 1, defense: 0, control: -1 };  // sits in, hits fast (fewer but better chances)
     case 'high_press':     return { attack: 1, defense: -1, control: 1 };  // aggressive: wins it high, but the high line leaves space behind
-    case 'defensive':      return { attack: -2, defense: 3, control: -1 }; // few chances, very hard to break down
-    case 'all_out_attack': return { attack: 3, defense: -3, control: 0 };  // floods forward, wide open at the back
+    case 'defensive':      return { attack: -2, defense: 2, control: -1 }; // few chances, very hard to break down
+    case 'all_out_attack': return { attack: 3, defense: -3.5, control: 0 }; // floods forward, wide open at the back
+    case 'balanced':       return { attack: 0, defense: 0, control: 0.5 }; // well-drilled, slight midfield presence, no weak spot
     default:               return { attack: 0, defense: 0, control: 0 };
   }
 }
@@ -1170,8 +1187,8 @@ export function runMatchSimulation(
     // attacking shape's negative DEFENSE makes the chances it concedes far deadlier — so attack vs
     // defense is a real trade-off (more/own chances vs leakier when caught out), not pure upside.
     // The tactic's attacking intent is NOT applied here (it lifts own chance quality below instead).
-    const homeAttack = homeStrength + homeMomBonus + homeProf.attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
-    const awayAttack = awayStrength + awayMomBonus + awayProf.attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
+    const homeAttack = homeStrength + homeMomBonus + homeProf.attack * 2 * TACTICAL_INFLUENCE + (Math.random() * 2 - 1) * MATCH_NOISE;
+    const awayAttack = awayStrength + awayMomBonus + awayProf.attack * 2 * TACTICAL_INFLUENCE + (Math.random() * 2 - 1) * MATCH_NOISE;
 
     const homeAttacks = homeAttack > awayAttack;
     const attackTeam = homeAttacks ? home : away;
@@ -1479,12 +1496,13 @@ export function runMatchSimulation(
         const defProf = homeAttacks ? awayProf : homeProf;
         const atkTac = homeAttacks ? homeTac : awayTac;
         const defTac = homeAttacks ? awayTac : homeTac;
-        const formMod = ((atkProf.control + atkTac.control) - (defProf.control + defTac.control)) * 1.2
+        const formMod = (((atkProf.control + atkTac.control) - (defProf.control + defTac.control)) * 1.2
           + atkTac.attack * 1.6                          // attacking intent → better own chances
           - defProf.defense * 3.6                        // FORMATION defense: a deep block crushes chance quality,
                                                          //   an exposed back line (defense<0) leaks deadly chances —
                                                          //   strong enough to pay back the attacking shape's volume edge
-          - defTac.defense * 2.2;                        // tactic defensive intent (already tuned)
+          - defTac.defense * 2.2                         // tactic defensive intent (already tuned)
+          ) * TACTICAL_INFLUENCE;                        // global weight of formation/tactic on chance quality
         const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, attackTeam.playStyle) + formMod;
         const chance = resolveOpenPlayChance({
           atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
@@ -2144,7 +2162,12 @@ const DRAFT_PILAR_CHANCE = 0.04;    // 🧱 Pilar
 const DRAFT_MARTIR_CHANCE = 0.03;   // 🩸 Mártir
 const DRAFT_IDOLO_CHANCE = 0.03;    // ❤️ Ídolo
 const DRAFT_DECIMO_CHANCE = 0.03;   // 🪑 12º Homem
+const DRAFT_PIPOQUEIRO_CHANCE = 0.03; // 🍿 Pipoqueiro
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
+// 🍿 Pipoqueiro — o anti-Pilar: brilha na fase de liga, "pipoca" (some) no mata-mata. Aplicado em
+// RUNTIME (depende de context.isKnockout), por isso NÃO é assado no stat base como o Em Alta/Lobo.
+export const PIPOQUEIRO_LEAGUE_BOOST = 4;   // +4 em cada atributo na FASE DE LIGA
+export const PIPOQUEIRO_KO_PENALTY = 5;     // −5 em cada atributo no MATA-MATA
 // Single boost value: "em alta" adds this to EVERY attribute. The overall rises by the
 // same amount as a CONSEQUENCE — overall is the mean of the attributes, so +N across all
 // eight is +N overall. That's why it's described to the player simply as "+N em cada atributo".
@@ -2212,6 +2235,9 @@ function applyDraftVariant(p: Player): Player {
   if (r < acc) return { ...p, idolo: true, traits: rollPlayerTraits(p.position, p.rarity) };
   acc += DRAFT_DECIMO_CHANCE;
   if (r < acc) return { ...p, decimoHomem: true, traits: rollPlayerTraits(p.position, p.rarity) };
+  // 🍿 Pipoqueiro — flag pura; efeito (runtime, por fase) em getEffectiveAttribute/getPlayerEffectiveStats.
+  acc += DRAFT_PIPOQUEIRO_CHANCE;
+  if (r < acc) return { ...p, pipoqueiro: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -2319,7 +2345,7 @@ export function generateScoutOptions(position: string, ownedIds: string[]): Play
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem'): Player {
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro'): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir') {
     // inForm/lobo add to every attribute; martir SUBTRACTS from every attribute.
     const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : -MARTIR_STAT_PENALTY;
@@ -2331,6 +2357,35 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
     };
   }
   return { ...player, [variant]: true };
+}
+
+// Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
+// to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
+export function hasVariant(p: Player): boolean {
+  return !!(p.inForm || p.lobo || p.coringa || p.nomade || p.pilar || p.martir || p.idolo || p.decimoHomem || p.pipoqueiro);
+}
+
+// Loja "Remover Característica": strips whatever special variant a card has, so the player can then
+// apply a different one. Reverts the baked stat boost of the stat-changing variants (Em Alta/Lobo add,
+// Mártir subtracts) via the stored baseOverall, then clears every variant flag.
+export function stripVariant<T extends Player>(player: T): T {
+  const p: T = { ...player };
+  if (p.baseOverall !== undefined && (p.inForm || p.lobo || p.martir)) {
+    const delta = p.overall - p.baseOverall; // +N for Em Alta/Lobo, −N for Mártir
+    p.pace = clampStat(p.pace - delta);
+    p.shooting = clampStat(p.shooting - delta);
+    p.passing = clampStat(p.passing - delta);
+    p.dribbling = clampStat(p.dribbling - delta);
+    p.defending = clampStat(p.defending - delta);
+    p.physical = clampStat(p.physical - delta);
+    p.vision = clampStat(p.vision - delta);
+    p.composure = clampStat(p.composure - delta);
+    p.overall = p.baseOverall;
+  }
+  delete p.baseOverall;
+  delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
+  delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
+  return p;
 }
 
 export function getNeededPositions(

@@ -9,8 +9,7 @@ import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
-const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
+const LOGO_URL = '/icons/logo_ucl.png';
 
 export default function MenuPage() {
   const {
@@ -174,64 +173,58 @@ export default function MenuPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ background: '#080810' }}>
-      {/* Background */}
-      <div className="absolute inset-0" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'center bottom', opacity: 0.4 }} />
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(8,8,16,0.3) 0%, rgba(8,8,16,0.6) 50%, rgba(8,8,16,0.95) 100%)' }} />
-
-      {/* Floating particles */}
-      {[...Array(12)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute rounded-full"
-          style={{
-            width: Math.random() * 3 + 1,
-            height: Math.random() * 3 + 1,
-            background: '#C9A84C',
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            opacity: Math.random() * 0.6 + 0.2,
-          }}
-          animate={{
-            y: [0, -30, 0],
-            opacity: [0.2, 0.8, 0.2],
-          }}
-          transition={{
-            duration: 3 + Math.random() * 4,
-            repeat: Infinity,
-            delay: Math.random() * 3,
-            ease: 'easeInOut',
-          }}
-        />
-      ))}
+      {/* Background — estádio + gradiente + brilho dourado + vinheta (atmosfera premium) */}
+      <div className="absolute inset-0" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'center bottom', opacity: 0.38 }} />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(8,8,16,0.35) 0%, rgba(8,8,16,0.6) 45%, rgba(8,8,16,0.97) 100%)' }} />
+      {/* brilho dourado radial atrás do herói */}
+      <div className="absolute inset-x-0 top-0 h-[70vh] pointer-events-none" style={{ background: 'radial-gradient(60% 55% at 50% 32%, rgba(201,168,76,0.16), transparent 70%)' }} />
+      {/* vinheta */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(3,3,8,0.85) 100%)' }} />
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4">
-        {/* Logo */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8, y: -20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mb-6"
+        {/* Eyebrow */}
+        <motion.span
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-[10px] sm:text-xs font-bold uppercase mb-3"
+          style={{ fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.42em', color: '#B79A54' }}
         >
-          <img src={LOGO_URL} alt="UCL Immortals" className="w-14 h-14 sm:w-16 sm:h-16 object-contain" />
-          <div className="text-center sm:text-left">
-            <h1 className="font-black leading-none tracking-wider text-[#C9A84C]" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2.5rem, 10vw, 4rem)', textShadow: '0 0 40px rgba(201,168,76,0.5), 0 2px 4px rgba(0,0,0,0.8)' }}>
-              UCL
-            </h1>
-            <h1 className="font-black leading-none tracking-wider text-white" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2.5rem, 10vw, 4rem)', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-              IMMORTALS
-            </h1>
+          Ultimate Champions League
+        </motion.span>
+
+        {/* Logo (herói) + título */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85, y: -14 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="flex flex-col items-center"
+        >
+          <div className="relative flex items-center justify-center">
+            <div className="absolute pointer-events-none" style={{ width: 240, height: 240, background: 'radial-gradient(circle, rgba(201,168,76,0.22), transparent 62%)', filter: 'blur(4px)' }} />
+            <img src={LOGO_URL} alt="UCL Immortals" className="relative w-36 h-36 sm:w-44 sm:h-44 object-contain" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
           </div>
+          <h1 className="mt-2 font-black leading-[0.85] tracking-wider text-center" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2.8rem, 11vw, 4.6rem)' }}>
+            <span className="block text-[#E8C84A]" style={{ textShadow: '0 0 44px rgba(201,168,76,0.55), 0 2px 4px rgba(0,0,0,0.85)' }}>UCL</span>
+            <span className="block text-white" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.85)' }}>IMMORTALS</span>
+          </h1>
         </motion.div>
 
-        {/* Trophy */}
+        {/* Régua + tagline */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="mb-8"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.25, duration: 0.6 }}
+          className="flex flex-col items-center mt-4 mb-7"
         >
-          <img src={TROPHY_URL} alt="Trophy" className="w-32 h-40 object-contain" style={{ filter: 'drop-shadow(0 0 30px rgba(201,168,76,0.4))' }} />
+          <div className="h-px w-40 sm:w-56" style={{ background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)' }} />
+          <p className="mt-3 text-center text-sm sm:text-base" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#AFB4C6', maxWidth: '34ch' }}>
+            Monte seu time de lendas. Conquiste a <span className="font-bold text-[#E8C84A]">imortalidade</span>.
+          </p>
         </motion.div>
+
+        {/* (troféu removido) */}
 
         {/* Dynamic Mode Forms */}
         <AnimatePresence mode="wait">
@@ -479,9 +472,9 @@ export default function MenuPage() {
               key={label}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
               style={{
-                background: '#0F0F1A',
-                border: '1px solid #1B4FD833',
-                color: '#60A5FA',
+                background: 'rgba(201,168,76,0.06)',
+                border: '1px solid rgba(201,168,76,0.22)',
+                color: '#C9B471',
                 fontFamily: 'Rajdhani, sans-serif',
               }}
             >

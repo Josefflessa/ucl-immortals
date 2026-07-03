@@ -4,7 +4,7 @@
 // team-wide chemistry, the coach, the player's traits (named, with what each grants)
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
-import { EffectiveStats, ChemLinkType } from '../../lib/gameEngine';
+import { EffectiveStats, ChemLinkType, CharBoost } from '../../lib/gameEngine';
 import { Player } from '../../lib/gameData';
 import { getCardVariant } from './PlayerCard';
 
@@ -53,7 +53,14 @@ function Row({ icon, name, color, children }: { icon: string; name: string; colo
   );
 }
 
-export default function BuffBreakdown({ eff, chem, traits, player }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player }) {
+// Visual por tipo de característica de time (fonte do bônus).
+const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> = {
+  martir: { icon: '🩸', label: 'MÁRTIR', color: '#B91C1C' },
+  idolo: { icon: '❤️', label: 'ÍDOLO', color: '#F59E0B' },
+  decimoHomem: { icon: '🪑', label: '12º HOMEM', color: '#14B8A6' },
+};
+
+export default function BuffBreakdown({ eff, chem, traits, player, charBoost }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost }) {
   const chemNet = ATTRS.reduce((s, a) => s + eff.breakdown[a].chem, 0);
   const coach = collect(eff, b => b.coach);
   const traitDeltas = collect(eff, b => b.trait);
@@ -97,6 +104,12 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
             <Row icon={variant.icon} name={`${variant.label} (CARTA ESPECIAL)`} color={variantColor}>
               <div className="flex flex-wrap gap-1">
                 {variantBoost > 0 && <Chip text={`+${variantBoost} EM CADA ATRIBUTO`} color={variantColor} />}
+                {player.martir && <Chip text="−6 EM CADA ATRIBUTO" color="#EF4444" />}
+                {player.martir && <Chip text="+3 EM TUDO A 2 TITULARES" color="#22C55E" />}
+                {player.idolo && <Chip text="+2 EM TUDO AOS TITULARES DO MESMO CLUBE" color="#22C55E" />}
+                {player.decimoHomem && <Chip text="+2 VIS · +1 CMP AO TIME (NO BANCO)" color="#22C55E" />}
+                {player.pipoqueiro && <Chip text="+4 EM TUDO NA LIGA" color="#22C55E" />}
+                {player.pipoqueiro && <Chip text="−5 EM TUDO NO MATA-MATA" color="#EF4444" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
                 {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
@@ -107,6 +120,10 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
                   : player.nomade ? 'Forma vínculo de química com jogadores de qualquer nação.'
                   : player.pilar ? 'Eleva a QUÍMICA GERAL do time (o número total) só por estar na escalação.'
                   : player.lobo ? 'Boost individual forte — mas reduz a QUÍMICA GERAL do time (o número total).'
+                  : player.decimoHomem ? 'No banco, dá +1 compostura e +2 visão a todo o time. Jogando, não tem efeito.'
+                  : player.idolo ? 'Dá +2 em cada atributo aos titulares do MESMO CLUBE que ele.'
+                  : player.martir ? '−6 em cada atributo nele (já no valor base); em troca, dá +3 em tudo a 2 titulares escolhidos.'
+                  : player.pipoqueiro ? 'O anti-Pilar: +4 em tudo na FASE DE LIGA, mas −5 em tudo no MATA-MATA. Craque de campeonato que some no jogo grande.'
                   : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
             </Row>
@@ -230,14 +247,31 @@ export default function BuffBreakdown({ eff, chem, traits, player }: { eff: Effe
           )}
 
           {/* 🩸❤️🪑 Buff recebido de características de companheiros (Mártir/Ídolo/12º Homem). */}
-          {char.length > 0 && (
-            <Row icon="🤝" name="CARACTERÍSTICA DO TIME" color="#F472B6">
-              <div className="flex flex-wrap gap-1">{chips(char, '#F472B6')}</div>
-              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                Bônus concedido por companheiro(s) com característica de time (🩸 Mártir · ❤️ Ídolo · 🪑 12º Homem).
-              </div>
-            </Row>
-          )}
+          {/* CARACTERÍSTICA DO TIME — uma linha ESPECÍFICA por fonte (quem deu e quanto) */}
+          {charBoost && charBoost.sources.length > 0
+            ? charBoost.sources.map((src, i) => {
+                const vis = TEAMCHAR[src.type];
+                return (
+                  <Row key={i} icon={vis.icon} name={`${vis.label} — de ${src.fromName}`} color={vis.color}>
+                    <div className="flex flex-wrap gap-1">
+                      {src.flatAll > 0 && <Chip text={`+${src.flatAll} EM CADA ATRIBUTO`} color={vis.color} />}
+                      {Object.entries(src.perStat as Record<string, number>).map(([k, v]) => (
+                        <Chip key={k} text={`+${v} ${ATTR_PT[k] ?? k.toUpperCase()}`} color={vis.color} />
+                      ))}
+                    </div>
+                    <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      {src.type === 'martir' ? `Sacrifício do ${src.fromName} (Mártir): +3 em tudo pra você.`
+                        : src.type === 'idolo' ? `${src.fromName} (Ídolo) do mesmo clube: +2 em cada atributo.`
+                        : `${src.fromName} (12º Homem) no banco: +1 compostura e +2 visão.`}
+                    </div>
+                  </Row>
+                );
+              })
+            : char.length > 0 && (
+              <Row icon="🤝" name="CARACTERÍSTICA DO TIME" color="#F472B6">
+                <div className="flex flex-wrap gap-1">{chips(char, '#F472B6')}</div>
+              </Row>
+            )}
         </div>
       )}
     </div>

@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { CREST_CATALOG, ALL_CRESTS, getCrest } from '../lib/crests';
 
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
+const LOGO_URL = '/icons/logo_ucl.png';
 const GOLD = '#C9A84C';
 
 export default function CrestPage() {

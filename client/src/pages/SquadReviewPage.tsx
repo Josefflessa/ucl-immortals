@@ -7,7 +7,7 @@ import { useGame } from '../contexts/GameContext';
 import { Player } from '../lib/gameData';
 import SquadEditor from '../components/game/SquadEditor';
 
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
+const LOGO_URL = '/icons/logo_ucl.png';
 
 export default function SquadReviewPage() {
   const { state, dispatch, submitSquadReviewOnline } = useGame();

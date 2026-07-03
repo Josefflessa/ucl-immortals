@@ -15,6 +15,7 @@ export default function LeagueSquadTab() {
 
   return (
     <SquadEditor
+      isKnockout={state.phase === 'knockout'}
       players={team.players}
       coachId={team.coachId}
       formationId={team.formationId}

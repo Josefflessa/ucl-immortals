@@ -3,9 +3,11 @@
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { FORMATIONS, COACHES } from '../lib/gameData';
+import { formationProfile } from '../lib/gameEngine';
 import FormationField from '../components/game/FormationField';
+import ImpactMeter from '../components/game/ImpactMeter';
 
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
+const LOGO_URL = '/icons/logo_ucl.png';
 
 import { useState } from 'react';
 
@@ -144,12 +146,21 @@ export default function FormationPage() {
                     ))}
                   </div>
 
-                  {/* Matchup info */}
-                  {formation.counters.length > 0 && (
+                  {/* Impacto qualitativo (setas) */}
+                  <div className="mt-2">
+                    <ImpactMeter profile={formationProfile(formation.id)} />
+                  </div>
+
+                  {/* Matchup info — leve vantagem/desvantagem situacional (não decide o jogo) */}
+                  {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
                     <div className="mt-2 text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                      Vence: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span>
-                      {' · '}
-                      Perde: <span style={{ color: '#EF4444' }}>{formation.counteredBy.join(', ')}</span>
+                      {formation.counters.length > 0 && (
+                        <>Vantagem contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span></>
+                      )}
+                      {formation.counters.length > 0 && formation.counteredBy.length > 0 && ' · '}
+                      {formation.counteredBy.length > 0 && (
+                        <>Desvantagem contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span></>
+                      )}
                     </div>
                   )}
                 </motion.button>

@@ -13,7 +13,7 @@ import {
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
   LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
   getAllPlayedMatchResults, createKnockoutBracket,
-  advanceKnockoutBracket, playActiveKnockoutLeg, applyShopVariant,
+  advanceKnockoutBracket, playActiveKnockoutLeg, applyShopVariant, hasVariant, stripVariant,
 } from '../lib/gameEngine';
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from '../lib/shop';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem } from '../lib/storage';
@@ -167,6 +167,7 @@ type GameAction =
   | { type: 'SHOP_CHANGE_COACH'; coachId: string }
   | { type: 'SHOP_BUY_PLAYER'; player: Player; kind: 'star' | 'scout' }
   | { type: 'SHOP_TURBINAR'; playerId: string; variant: ShopVariant }
+  | { type: 'SHOP_REMOVE_VARIANT'; playerId: string }
   | { type: 'SHOP_TRAIN'; playerId: string; attr: TrainAttr }
   | { type: 'SHOP_BUY_REROLL' }
   | { type: 'REROLL_REINFORCEMENT' }
@@ -518,9 +519,24 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const target = state.playerTeam.players.find(p => p.id === action.playerId);
       if (!target || state.points < cost) return state;
       // One special variant per card — refuse if it already has one.
-      if (target.inForm || target.lobo || target.coringa || target.nomade || target.pilar || target.martir || target.idolo || target.decimoHomem) return state;
+      if (hasVariant(target)) return state;
       const newPlayers = state.playerTeam.players.map(p =>
         p.id === action.playerId ? ({ ...applyShopVariant(p, action.variant) } as PlayerCard) : p);
+      return {
+        ...state,
+        points: state.points - cost,
+        playerTeam: rebuildTeamChemistry({ ...state.playerTeam, players: newPlayers }),
+      };
+    }
+
+    case 'SHOP_REMOVE_VARIANT': {
+      if (!state.playerTeam) return state;
+      const cost = SHOP_COSTS.removeVariant;
+      const target = state.playerTeam.players.find(p => p.id === action.playerId);
+      // Only meaningful (and only charged) if the card actually HAS a characteristic.
+      if (!target || state.points < cost || !hasVariant(target)) return state;
+      const newPlayers = state.playerTeam.players.map(p =>
+        p.id === action.playerId ? stripVariant(p) : p);
       return {
         ...state,
         points: state.points - cost,
@@ -1075,6 +1091,7 @@ interface GameContextType {
   shopChangeCoachOnline: (coachId: string) => void;
   shopBuyPlayerOnline: (player: Player, kind: 'star' | 'scout') => void;
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
+  shopRemoveVariantOnline: (playerId: string) => void;
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
@@ -1267,6 +1284,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopTrainOnline = useCallback((playerId: string, attr: TrainAttr) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_train", { roomCode: state.roomCode, playerId, attr });
   }, [state.roomCode]);
+  const shopRemoveVariantOnline = useCallback((playerId: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_remove_variant", { roomCode: state.roomCode, playerId });
+  }, [state.roomCode]);
   const swapPlayerTeamOnline = useCallback((indexA: number, indexB: number) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("swap_player_team", { roomCode: state.roomCode, indexA, indexB });
   }, [state.roomCode]);
@@ -1335,7 +1355,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopTrainOnline,
+    shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps

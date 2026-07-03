@@ -14,7 +14,7 @@ import {
   advanceKnockoutBracket,
   getActiveKnockoutMatches,
   rebuildTeamChemistry,
-  applyShopVariant,
+  applyShopVariant, hasVariant, stripVariant,
   Team,
   PlayerCard,
   MatchResult,
@@ -731,10 +731,26 @@ export function registerSocketHandlers(io: Server) {
       const cost = SHOP_COSTS.turbinar;
       const target = player.team.players.find(p => p.id === playerId);
       if (!target || player.points < cost) return;
-      if (target.inForm || target.lobo || target.coringa || target.nomade || target.pilar || target.martir || target.idolo || target.decimoHomem) return; // one per card
+      if (hasVariant(target)) return; // one per card
       player.points -= cost;
       player.team.players = player.team.players.map(p =>
         p.id === playerId ? ({ ...applyShopVariant(p, variant), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
+      player.team = rebuildTeamChemistry(player.team);
+      socket.emit("room_updated", room); // only this player's own team changed
+    });
+
+    // 🧹 Remove a card's characteristic (so a new one can be applied via Turbinar).
+    socket.on("shop_remove_variant", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const cost = SHOP_COSTS.removeVariant;
+      const target = player.team.players.find(p => p.id === playerId);
+      if (!target || player.points < cost || !hasVariant(target)) return;
+      player.points -= cost;
+      player.team.players = player.team.players.map(p =>
+        p.id === playerId ? ({ ...stripVariant(p), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
       player.team = rebuildTeamChemistry(player.team);
       socket.emit("room_updated", room); // only this player's own team changed
     });

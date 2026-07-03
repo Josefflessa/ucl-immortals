@@ -49,6 +49,7 @@ export const SHOP_COSTS = {
   starPack: 350,
   scout: 220,
   reroll: 120, // 🔄 +1 token de re-sorteio do reforço (ilimitado, acumula entre rodadas)
+  removeVariant: 150, // 🧹 remove a característica de um jogador (pra poder aplicar outra)
 } as const;
 
 // ── Training (💪) — +3 to a chosen attribute, no cap. Escalating cost per player so stacking
@@ -73,7 +74,7 @@ export const TRAIN_ATTRS: { key: TrainAttr; label: string }[] = [
 ];
 
 // ── "Turbinar Carta" — the special variants the player can buy onto a card. ──
-export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem';
+export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro';
 export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: '+3 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: '+6 em todos os atributos, mas −12 na química geral do time.' },
@@ -83,4 +84,5 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'martir', icon: '🩸', label: 'Mártir', color: '#B91C1C', desc: '−6 em todos os atributos nele, mas dá +3 em tudo a 2 titulares que você escolhe.' },
   { key: 'idolo', icon: '❤️', label: 'Ídolo', color: '#F59E0B', desc: '+2 em todos os atributos a cada titular do MESMO CLUBE que ele.' },
   { key: 'decimoHomem', icon: '🪑', label: '12º Homem', color: '#14B8A6', desc: 'No banco, dá +1 compostura e +2 visão a todo o time.' },
+  { key: 'pipoqueiro', icon: '🍿', label: 'Pipoqueiro', color: '#EC4899', desc: '+4 em todos os atributos na fase de liga, mas −5 em tudo no mata-mata.' },
 ];

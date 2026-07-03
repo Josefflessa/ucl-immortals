@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
 
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
+const LOGO_URL = '/icons/logo_ucl.png';
 
 export default function SetupPage() {
   const { state, dispatch } = useGame();

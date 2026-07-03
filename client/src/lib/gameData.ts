@@ -41,6 +41,7 @@ export interface Player {
   martirTargets?: string[]; // ids dos (até 2) titulares que recebem o +3 do Mártir; vazio → 2 maiores overalls
   idolo?: boolean;      // ❤️ Ídolo — +2 em tudo a cada titular do MESMO CLUBE que ele
   decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 compostura e +2 visão a todo o XI
+  pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +4 em tudo na FASE DE LIGA, −5 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).
@@ -307,7 +308,9 @@ export const COACHES: Coach[] = [
 // ============================================================
 // FORMATIONS
 // ============================================================
-export const FORMATIONS: Formation[] = [
+// `counteredBy` é DERIVADO de `counters` (logo abaixo) pra nunca dessincronizar: se A "vence" B,
+// então B automaticamente tem A na sua desvantagem. A fonte da verdade é só `counters`.
+const FORMATIONS_BASE: Omit<Formation, 'counteredBy'>[] = [
   {
     id: '4-3-3',
     name: '4-3-3',
@@ -327,7 +330,6 @@ export const FORMATIONS: Formation[] = [
     strengths: ['Largura no ataque', 'Pressão alta eficiente', 'Equilíbrio entre defesa e ataque'],
     weaknesses: ['Vulnerável a contra-ataques', 'Flancos expostos sem LB/RB ativos'],
     counters: ['4-4-2', '3-5-2'],
-    counteredBy: ['4-2-3-1', '5-3-2'],
   },
   {
     id: '4-2-3-1',
@@ -348,7 +350,6 @@ export const FORMATIONS: Formation[] = [
     strengths: ['Sólido no meio-campo', 'Proteção defensiva dupla', 'Criatividade pelo CAM'],
     weaknesses: ['Pode ser lento no ataque', 'Depende muito do CAM'],
     counters: ['4-3-3', '4-4-2'],
-    counteredBy: ['3-4-3', '4-1-4-1'],
   },
   {
     id: '4-4-2',
@@ -369,7 +370,6 @@ export const FORMATIONS: Formation[] = [
     strengths: ['Clássico e equilibrado', 'Dupla de atacantes poderosa', 'Fácil de entender'],
     weaknesses: ['Meio-campo pode ser superado', 'Pouca criatividade central'],
     counters: ['3-5-2', '5-3-2'],
-    counteredBy: ['4-3-3', '4-2-3-1'],
   },
   {
     id: '3-5-2',
@@ -387,10 +387,9 @@ export const FORMATIONS: Formation[] = [
       { role: 'ST', x: 35, y: 18 },
       { role: 'ST', x: 65, y: 18 },
     ],
-    strengths: ['Domínio do meio-campo', 'Sólido defensivamente', 'Largura pelos alas'],
+    strengths: ['Domínio do meio-campo', 'Compacto pelo centro', 'Largura pelos alas'],
     weaknesses: ['Vulnerável aos flancos', 'Exige CBs muito bons'],
     counters: ['4-4-2', '4-2-3-1'],
-    counteredBy: ['4-3-3', '3-4-3'],
   },
   {
     id: '3-4-3',
@@ -411,7 +410,6 @@ export const FORMATIONS: Formation[] = [
     strengths: ['Ataque devastador', 'Pressão alta com 3 atacantes', 'Largura total'],
     weaknesses: ['Muito arriscado defensivamente', 'Exige alas com alta velocidade'],
     counters: ['4-2-3-1', '5-3-2'],
-    counteredBy: ['4-4-2', '4-3-3'],
   },
   {
     id: '5-3-2',
@@ -432,9 +430,15 @@ export const FORMATIONS: Formation[] = [
     strengths: ['Defesa impenetrável', 'Sólido no contra-ataque', 'Difícil de superar'],
     weaknesses: ['Ataque limitado', 'Pouca criatividade ofensiva'],
     counters: ['4-3-3', '3-4-3'],
-    counteredBy: ['3-5-2', '4-2-3-1'],
   },
 ];
+
+// FORMATIONS público: cada formação com `counteredBy` DERIVADO — quem tem esta formação em
+// `counters` automaticamente entra na desvantagem dela. Impossível dessincronizar.
+export const FORMATIONS: Formation[] = FORMATIONS_BASE.map(f => ({
+  ...f,
+  counteredBy: FORMATIONS_BASE.filter(o => o.counters.includes(f.id)).map(o => o.id),
+}));
 
 // ============================================================
 // HISTORICAL TRIOS

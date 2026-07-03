@@ -9,7 +9,7 @@ import { Ban } from 'lucide-react';
 import { FORMATIONS, COACHES, Player, POS_PT } from '../lib/gameData';
 import { getTraitInfo, traitEffectLabel } from '../lib/traits';
 
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
+const LOGO_URL = '/icons/logo_ucl.png';
 const DRAFT_TIME = 20;
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;

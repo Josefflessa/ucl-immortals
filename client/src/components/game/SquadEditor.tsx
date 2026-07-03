@@ -13,7 +13,7 @@ import {
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel } from '../../lib/traits';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
-import PlayerCard, { buildSofifaUrl } from './PlayerCard';
+import PlayerCard, { buildSofifaUrl, cardTexture } from './PlayerCard';
 import RolesSelector from './RolesSelector';
 import TacticSelector from './TacticSelector';
 import FormationSelector from './FormationSelector';
@@ -37,13 +37,14 @@ export interface SquadEditorProps {
   onSetMartirTargets?: (playerId: string, targetIds: string[]) => void; // 🩸 pick the 2 buffed teammates
   showCoachCard?: boolean;           // the manager card (default on)
   footer?: React.ReactNode;          // host-specific action (e.g. "INICIAR DRAFT")
+  isKnockout?: boolean;              // 🍿 phase: drives the Pipoqueiro league(+)/knockout(−) preview
 }
 
 export default function SquadEditor({
   players, coachId, formationId, playStyle,
   captain, penaltyTaker, freeKickTaker,
   onSetFormation, onSetPlayStyle, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets,
-  showCoachCard = true, footer,
+  showCoachCard = true, footer, isKnockout = false,
 }: SquadEditorProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
@@ -62,7 +63,7 @@ export default function SquadEditor({
 
   const teamOverall = xi.length === 11
     ? Math.round(xi.reduce((sum, p) => {
-        const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts });
+        const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout });
         return sum + eff.overall;
       }, 0) / 11)
     : null;
@@ -256,9 +257,13 @@ export default function SquadEditor({
             <motion.div
               initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
+              className="relative bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
+              {/* Fundo: textura da raridade da carta do jogador, com véu leve p/ legibilidade */}
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${cardTexture(selectedPlayer.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, background: 'linear-gradient(180deg,rgba(9,9,16,.52),rgba(9,9,16,.6))' }} />
+
+              <div className="relative z-10 flex items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
                 <div>
                   <h3 className="text-xl font-black text-white tracking-widest uppercase" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>GERENCIAR POSIÇÃO</h3>
                   <p className="text-xs text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
@@ -268,10 +273,10 @@ export default function SquadEditor({
                 <button onClick={() => setSelectedIndex(null)} className="text-gray-400 hover:text-white text-2xl font-black focus:outline-none">✕</button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              <div className="relative z-10 flex-1 overflow-y-auto p-6 space-y-5">
                 {(() => {
                   const isStarter = selectedIndex < 11;
-                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts });
+                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout });
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
                   const photoUrl = buildSofifaUrl(selectedPlayer.id, 120);
@@ -378,7 +383,7 @@ export default function SquadEditor({
                         </div>
                       )}
 
-                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} />
+                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} charBoost={charBoosts[selectedPlayer.id]} />
                     </div>
                   );
                 })()}

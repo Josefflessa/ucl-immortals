@@ -6,19 +6,15 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
 import { COACHES, POS_PT, Player } from '../../lib/gameData';
-import { generateStarPackOptions, generateScoutOptions } from '../../lib/gameEngine';
+import { generateStarPackOptions, generateScoutOptions, hasVariant } from '../../lib/gameEngine';
 import { SHOP_COSTS, trainCost, TRAIN_BOOST, TRAIN_ATTRS, TURBINAR_VARIANTS, ShopVariant, TrainAttr } from '../../lib/shop';
-import PlayerCard from './PlayerCard';
+import PlayerCard, { getCardVariant } from './PlayerCard';
 
-type ItemId = 'coach' | 'turbinar' | 'star' | 'scout' | 'train' | 'reroll';
+type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'train' | 'reroll';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
 
-function hasVariant(p: Player) {
-  return !!(p.inForm || p.lobo || p.coringa || p.nomade || p.pilar || p.martir || p.idolo || p.decimoHomem);
-}
-
 export default function ShopTab() {
-  const { state, dispatch, shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
+  const { state, dispatch, shopChangeCoachOnline, shopBuyPlayerOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
   const team = state.playerTeam;
   const points = state.points;
   const online = state.mode === 'online';
@@ -33,6 +29,7 @@ export default function ShopTab() {
   const buyCoach = (coachId: string) => online ? shopChangeCoachOnline(coachId) : dispatch({ type: 'SHOP_CHANGE_COACH', coachId });
   const buyPlayer = (player: Player, kind: 'star' | 'scout') => online ? shopBuyPlayerOnline(player, kind) : dispatch({ type: 'SHOP_BUY_PLAYER', player, kind });
   const buyTurbinar = (playerId: string, variant: ShopVariant) => online ? shopTurbinarOnline(playerId, variant) : dispatch({ type: 'SHOP_TURBINAR', playerId, variant });
+  const removeVariant = (playerId: string) => online ? shopRemoveVariantOnline(playerId) : dispatch({ type: 'SHOP_REMOVE_VARIANT', playerId });
   const buyTrain = (playerId: string, attr: TrainAttr) => online ? shopTrainOnline(playerId, attr) : dispatch({ type: 'SHOP_TRAIN', playerId, attr });
   const buyReroll = () => online ? shopBuyRerollOnline() : dispatch({ type: 'SHOP_BUY_REROLL' });
   const ownedIds = team.players.map(p => p.id);
@@ -42,7 +39,8 @@ export default function ShopTab() {
 
   const ITEMS: { id: ItemId; icon: string; name: string; cost: number | 'dyn'; color: string; desc: string }[] = [
     { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: SHOP_COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
-    { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador.' },
+    { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador. Só em quem NÃO tem característica.' },
+    { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: SHOP_COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
     { id: 'star', icon: '🌟', name: 'PACOTE DO CRAQUE', cost: SHOP_COSTS.starPack, color: '#F59E0B', desc: 'Escolha 1 de 3 jogadores de overall 88+. Entra no banco.' },
     { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: 'Escolha 1 de 4 jogadores da posição que você precisa.' },
     { id: 'train', icon: '💪', name: 'TREINO INTENSIVO', cost: 'dyn', color: '#34D399', desc: `+${TRAIN_BOOST} permanente num atributo (sem teto). Custo sobe a cada treino no mesmo jogador.` },
@@ -225,6 +223,45 @@ export default function ShopTab() {
                     </div>
                   )
                 )}
+
+                {/* REMOVER CARACTERÍSTICA — pick a player that HAS a variant */}
+                {active === 'removeVariant' && (() => {
+                  const groups = [
+                    { t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11).filter(hasVariant) },
+                    { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11).filter(hasVariant) },
+                  ];
+                  if (groups.every(g => g.list.length === 0)) {
+                    return <p className="text-xs" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Nenhum jogador tem característica pra remover.</p>;
+                  }
+                  return (
+                    <div>
+                      <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                        Remover a característica de quem? (−{SHOP_COSTS.removeVariant} pontos). Depois é só aplicar outra em <b style={{ color: '#E8C84A' }}>Turbinar Carta</b>.
+                      </p>
+                      <div className="space-y-3">
+                        {groups.map(g => g.list.length === 0 ? null : (
+                          <div key={g.t}>
+                            <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
+                            <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
+                              {g.list.map(p => {
+                                const v = getCardVariant(p);
+                                const vc = v?.color === '#FFFFFF' ? '#E5E7EB' : (v?.color ?? '#9AA8C8');
+                                return (
+                                  <button key={p.id} onClick={() => { removeVariant(p.id); close(); }}
+                                    className="flex flex-col items-center gap-1.5 transition-transform hover:scale-[1.05]"
+                                    title={`Remover ${v?.label ?? 'característica'}`}>
+                                    <PlayerCard player={p} compact lite />
+                                    {v && <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}44`, fontFamily: 'Rajdhani, sans-serif' }}>{v.icon} {v.label}</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* TREINO INTENSIVO — pick player then attribute */}
                 {active === 'train' && (

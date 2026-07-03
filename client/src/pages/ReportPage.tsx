@@ -16,7 +16,7 @@ import {
 import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
 import Crest from '../components/game/Crest';
 
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
+const LOGO_URL = '/icons/logo_ucl.png';
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
 
 // ── Stable particle data (computed once at module load) ──────────────────────

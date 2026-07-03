@@ -16,7 +16,7 @@ import PlayerCard from '../components/game/PlayerCard';
 import Crest from '../components/game/Crest';
 import { POS_PT } from '../lib/gameData';
 
-const LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-logo-LCN5rzJFFXKm2BbirdmWEt.webp';
+const LOGO_URL = '/icons/logo_ucl.png';
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 // Anti-spoiler placeholder: shown instead of position/standings/stats/bracket while other
@@ -466,8 +466,9 @@ export default function LeaguePage() {
                   }}
                 >
                   {/* Home Team */}
-                  <div className="flex-1 text-right font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: homeColor }}>
-                    {homeName}
+                  <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+                    <span className="font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: homeColor }}>{homeName}</span>
+                    <Crest crestId={allTeams.find(t => t.id === fixture.homeTeamId)?.crestId} name={homeName} size={22} />
                   </div>
 
                   {/* Score / VS */}
@@ -496,8 +497,9 @@ export default function LeaguePage() {
                   </div>
 
                   {/* Away Team */}
-                  <div className="flex-1 text-left font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: awayColor }}>
-                    {awayName}
+                  <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
+                    <Crest crestId={allTeams.find(t => t.id === fixture.awayTeamId)?.crestId} name={awayName} size={22} />
+                    <span className="font-semibold text-sm truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: awayColor }}>{awayName}</span>
                   </div>
                 </div>
               );
@@ -998,16 +1000,17 @@ export default function LeaguePage() {
               )}
 
               {/* Options — bigger full cards (light, no animations) */}
-              <div className="px-4 sm:px-6 py-6 overflow-y-auto flex-1 min-h-0">
-                <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+              {/* Opções: grade que cabe SEM rolagem (3 col no celular, 6 no PC) */}
+              <div className="px-3 sm:px-6 py-4 flex-1 min-h-0 flex items-center justify-center">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 justify-items-center">
                   {state.reinforcementOptions.map(option => (
                     <button
                       key={option.id}
                       onClick={() => online ? pickReinforcementOnline(option) : dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
-                      className="transition-transform hover:scale-[1.05] active:scale-[0.97] focus:outline-none"
+                      className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none"
                       title={`Contratar ${option.shortName} para o banco`}
                     >
-                      <PlayerCard player={option} lite />
+                      <PlayerCard player={option} compact lite />
                     </button>
                   ))}
                 </div>

@@ -5,6 +5,8 @@
 // (between-match changes).
 
 import { TACTICS, getTacticById } from '../../lib/gameData';
+import { tacticProfile } from '../../lib/gameEngine';
+import ImpactMeter from './ImpactMeter';
 
 interface TacticSelectorProps {
   value: string | undefined;
@@ -64,8 +66,13 @@ export default function TacticSelector({ value, onChange, disabled, disabledHint
         })}
       </div>
 
+      {/* Impacto qualitativo (setas) — prévia de o que a tática favorece / custa */}
+      <div className="mt-3">
+        <ImpactMeter profile={tacticProfile(active.id)} />
+      </div>
+
       {/* Active tactic explanation */}
-      <div className="mt-3 rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="mt-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
         <span className="font-black" style={{ color: '#C9A84C' }}>{active.icon} {active.name}:</span>{' '}
         {active.desc}
       </div>

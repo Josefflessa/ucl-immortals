@@ -575,7 +575,7 @@ function getCardTheme(rarity: string): {
 const RARITY_FILE: Record<string, string> = {
   immortal: 'bg-imortal', legendary: 'bg-lendario', gold: 'bg-ouro', silver: 'bg-prata', bronze: 'bg-bronze',
 };
-function cardTexture(rarity: string): string {
+export function cardTexture(rarity: string): string {
   const base = RARITY_FILE[rarity] ?? RARITY_FILE.bronze;
   return `/cards/${base}.webp`;
 }
@@ -666,8 +666,9 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   martir:      { color: '#B91C1C', icon: '🩸', label: 'MÁRTIR', treatment: 'pulse' },
   idolo:       { color: '#F59E0B', icon: '❤️', label: 'ÍDOLO', treatment: 'halo' },
   decimoHomem: { color: '#14B8A6', icon: '🪑', label: '12º HOMEM', treatment: 'calm' },
+  pipoqueiro:  { color: '#EC4899', icon: '🍿', label: 'PIPOQUEIRO', treatment: 'ring' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro'] as const;
 export function getCardVariant(player: Player): { key: string; color: string; icon: string; label: string; treatment: VariantTreatment } | null {
   for (const key of VARIANT_ORDER) {
     if ((player as unknown as Record<string, unknown>)[key]) return { key, ...VARIANT_STYLE[key] };
@@ -685,6 +686,7 @@ function variantDesc(player: Player): string {
   if (player.martir) return 'MÁRTIR: −6 em cada atributo nele, mas dá +3 em tudo a 2 titulares';
   if (player.idolo) return 'ÍDOLO: +2 em cada atributo aos titulares do MESMO CLUBE que ele';
   if (player.decimoHomem) return '12º HOMEM: no banco, dá +1 compostura e +2 visão a todo o time';
+  if (player.pipoqueiro) return 'PIPOQUEIRO: +4 em cada atributo na FASE DE LIGA, mas −5 no MATA-MATA';
   return '';
 }
 
@@ -712,28 +714,32 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {...compactMotion}
         onClick={onClick}
         className={`relative select-none flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
-        style={{ width: 80, height: 124, filter: selected ? 'drop-shadow(0 0 8px rgba(255,255,255,.7))' : `drop-shadow(0 0 5px ${cRing}66)` }}
+        style={{ width: 92, height: 146, filter: selected ? 'drop-shadow(0 0 8px rgba(255,255,255,.7))' : `drop-shadow(0 0 5px ${cRing}66)` }}
       >
-        {/* moldura do escudo tingida por raridade */}
-        <img src={FRAME_URL} alt="" className="absolute inset-0" style={{ width: '100%', height: '100%', objectFit: 'fill', zIndex: 0, pointerEvents: 'none', filter: cvis.frameFilter }} />
-        {/* fallback do tema + textura recortada (caminho leve: 1 textura, sem anel/scrim pesados) */}
-        <div className="absolute inset-0" style={{ ...frameMask('90% 91%'), zIndex: 1, background: theme.bg }} />
-        <div className="absolute inset-0" style={{ ...frameMask('90% 91%'), zIndex: 2, backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-        <div className="absolute inset-0" style={{ ...frameMask('90% 91%'), zIndex: 3, background: 'linear-gradient(0deg,rgba(0,0,0,.62),transparent 44%)' }} />
+        {/* borda em COR SÓLIDA (característica, ou raridade se não tiver) — máscara do escudo cheia */}
+        <div className="absolute inset-0" style={{ ...frameMask('100% 100%'), zIndex: 0, background: cRing }} />
+        {/* interior numa ÚNICA camada (scrims + textura + fallback empilhados; máscara só → mais leve) */}
+        <div className="absolute inset-0" style={{ ...frameMask('93% 94%'), zIndex: 1, background:
+          `linear-gradient(180deg,rgba(0,0,0,.34),transparent 28%),` +
+          `linear-gradient(0deg,rgba(0,0,0,.58),transparent 40%),` +
+          `url(${cardTexture(player.rarity)}) center/cover no-repeat,` +
+          `${theme.bg}` }} />
 
-        {/* conteúdo recortado pelo escudo (nada vaza pra cima da moldura) */}
-        <div className="absolute inset-0 flex flex-col" style={{ ...frameMask('90% 91%'), color: '#f7eeca', zIndex: 4 }}>
-          {/* Top: OVR + POS + ícone da característica (empurrado pra dentro do entalhe do topo) */}
-          <div className="flex items-start justify-between px-2.5 flex-shrink-0" style={{ paddingTop: '13%' }}>
+        {/* conteúdo (layout original): OVR+POS no topo, emoji, foto, nome embaixo */}
+        <div className="absolute inset-0 flex flex-col" style={{ color: '#f7eeca', zIndex: 4 }}>
+          {/* Topo: OVR + POS (esq) e emoji da característica (dir) — descido um tiquinho */}
+          <div className="flex items-start justify-between flex-shrink-0" style={{ paddingTop: '19%', paddingLeft: '13%', paddingRight: '10%' }}>
             <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
-              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 17, lineHeight: 1 }}>{player.overall}</span>
+              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: '#fff', fontSize: 18, lineHeight: 1 }}>{player.overall}</span>
               <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
             </div>
-            {variant && <span style={{ fontSize: 10, lineHeight: 1, textShadow: `0 0 6px ${variant.color}` }}>{variant.icon}</span>}
+            {variant && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 19, height: 19, borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,0,0,.6) 48%, rgba(0,0,0,0) 76%)', fontSize: 11, lineHeight: 1, textShadow: `0 0 5px ${variant.color}` }}>{variant.icon}</span>
+            )}
           </div>
 
           {/* Foto */}
-          <div className="flex-1 flex items-end justify-center overflow-hidden mx-2" style={{ minHeight: 0 }}>
+          <div className="flex-1 flex items-end justify-center overflow-hidden" style={{ minHeight: 0, marginLeft: '10%', marginRight: '10%' }}>
             {hasPhoto ? (
               <PlayerPhoto playerId={player.id} fullName={player.fullName} size={50} lowRes />
             ) : (
@@ -741,9 +747,9 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
             )}
           </div>
 
-          {/* Nome + química */}
-          <div className="flex flex-col items-center flex-shrink-0 px-2" style={{ paddingBottom: '11%' }}>
-            <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9, fontWeight: 800, color: '#fff', textShadow: '0 1px 2px #000', letterSpacing: '0.04em' }}>
+          {/* Nome + química (embaixo). Sem química (draft/loja/banco) sobe foto+nome com mais folga. */}
+          <div className="flex flex-col items-center flex-shrink-0" style={{ paddingBottom: showChemistry ? '12%' : '19%', paddingLeft: '12%', paddingRight: '12%' }}>
+            <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9.5, fontWeight: 800, color: '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
               {player.shortName.toUpperCase()}
             </div>
             {showChemistry && (
@@ -781,13 +787,14 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       <img src={FRAME_URL} alt="" className="absolute inset-0" style={{ width: '100%', height: '100%', objectFit: 'fill', zIndex: 0, pointerEvents: 'none', filter: vis.frameFilter }} />
       {/* anel metálico (raridade ou característica) — máscara cheia, revela na banda entre borda e textura */}
       <div className="absolute inset-0" style={{ ...frameMask('98% 98.5%'), zIndex: 1, background: ringGradient(ringColor) }} />
-      {/* fallback do interior (gradiente do tema) — aparece se a textura falhar */}
-      <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 2, background: theme.bg }} />
-      {/* textura da raridade — recortada um pouco menor (fica dentro da borda) */}
-      <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 3, backgroundImage: `url(${cardTexture(player.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-      {/* scrims p/ legibilidade sobre texturas claras/escuras */}
-      <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 4, background:
-        'linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 46%),radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%)' }} />
+      {/* interior numa ÚNICA camada (scrims + textura + fallback do tema empilhados no mesmo background,
+          uma máscara só → menos camadas compostas, mesmo visual, mais leve) */}
+      <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 2, background:
+        `linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),` +
+        `linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 46%),` +
+        `radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%),` +
+        `url(${cardTexture(player.rarity)}) center/cover no-repeat,` +
+        `${theme.bg}` }} />
 
       {/* CONTEÚDO (layout FUT) */}
       <div className="absolute inset-0" style={{ color: '#f7eeca', zIndex: 5 }}>
