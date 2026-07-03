@@ -14,6 +14,23 @@ const DRAFT_TIME = 20;
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
+// Escala responsiva dos cards de escolha: o card FULL é 200px fixo, então 2×200 estoura telas
+// ~360px e eles ficavam colados. Encolhe no mobile (2 col) e um pouco no tablet (3 col) pra
+// caber com respiro; volta ao tamanho cheio no desktop (onde há espaço de sobra).
+function useDraftCardScale(): number {
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const mMobile = window.matchMedia('(max-width: 639px)');
+    const mSm = window.matchMedia('(min-width: 640px) and (max-width: 1023px)');
+    const update = () => setScale(mMobile.matches ? 0.74 : mSm.matches ? 0.84 : 1);
+    update();
+    mMobile.addEventListener('change', update);
+    mSm.addEventListener('change', update);
+    return () => { mMobile.removeEventListener('change', update); mSm.removeEventListener('change', update); };
+  }, []);
+  return scale;
+}
+
 const DraftTimer = memo(function DraftTimer({
   round,
   onExpire,
@@ -84,14 +101,16 @@ const DraftOptions = memo(function DraftOptions({
   onSelect: (id: string) => void;
   onConfirm: (id: string) => void;
 }) {
+  const cardScale = useDraftCardScale();
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 justify-items-center mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 justify-items-center mb-6">
         {options.map(player => (
           <PlayerCard
             key={`${round}-${player.id}`}
             player={player}
             lite
+            scale={cardScale}
             selected={selectedId === player.id}
             onClick={() => {
               if (selectedId === player.id) {

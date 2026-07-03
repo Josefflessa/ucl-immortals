@@ -11,6 +11,7 @@ interface PlayerCardProps {
   lite?: boolean;
   showChemistry?: boolean;
   chemScore?: number;
+  scale?: number; // encolhe o card FULL e sua área ocupada (ex.: caber 2 por linha no mobile)
 }
 
 // SoFIFA mapping — updated to latest available FIFA version per player for best photo quality
@@ -690,7 +691,7 @@ function variantDesc(player: Player): string {
   return '';
 }
 
-function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0 }: PlayerCardProps) {
+function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, scale = 1 }: PlayerCardProps) {
   // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
@@ -776,7 +777,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   const glowColor = selected ? 'rgba(255,255,255,.75)' : (variant ? variant.color : vis.glow);
   const INSET = '94.5% 95.5%';
 
-  return (
+  const fullCard = (
     <CardWrapper
       {...cardMotionProps}
       onClick={onClick}
@@ -835,6 +836,17 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         )}
       </div>
     </CardWrapper>
+  );
+
+  if (scale === 1) return fullCard;
+  // Escala opcional: encolhe o card FULL e a área que ele ocupa (o design é fixo em px, então
+  // um wrapper de tamanho reduzido + transform:scale mantém tudo proporcional sem quebrar o layout).
+  return (
+    <div style={{ width: 200 * scale, height: 324 * scale }}>
+      <div style={{ width: 200, height: 324, transformOrigin: 'top left', transform: `scale(${scale})` }}>
+        {fullCard}
+      </div>
+    </div>
   );
 }
 

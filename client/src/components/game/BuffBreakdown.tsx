@@ -118,13 +118,13 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost }: 
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 {player.coringa ? 'Joga em qualquer posição sem penalidade de stats nem química.'
                   : player.nomade ? 'Forma vínculo de química com jogadores de qualquer nação.'
-                  : player.pilar ? 'Eleva a QUÍMICA GERAL do time (o número total) só por estar na escalação.'
-                  : player.lobo ? 'Boost individual forte — mas reduz a QUÍMICA GERAL do time (o número total).'
-                  : player.decimoHomem ? 'No banco, dá +1 compostura e +2 visão a todo o time. Jogando, não tem efeito.'
-                  : player.idolo ? 'Dá +2 em cada atributo aos titulares do MESMO CLUBE que ele.'
-                  : player.martir ? '−6 em cada atributo nele (já no valor base); em troca, dá +3 em tudo a 2 titulares escolhidos.'
-                  : player.pipoqueiro ? 'O anti-Pilar: +4 em tudo na FASE DE LIGA, mas −5 em tudo no MATA-MATA. Craque de campeonato que some no jogo grande.'
-                  : 'Já no valor base — por isso não aparece como delta acima.'}
+                    : player.pilar ? 'Eleva a QUÍMICA GERAL do time (o número total) só por estar na escalação.'
+                      : player.lobo ? 'Boost individual forte — mas reduz a QUÍMICA GERAL do time (o número total).'
+                        : player.decimoHomem ? 'No banco, dá +1 compostura e +2 visão a todo o time. Jogando, não tem efeito.'
+                          : player.idolo ? 'Dá +2 em cada atributo aos titulares do MESMO CLUBE que ele.'
+                            : player.martir ? '−6 em cada atributo nele (já no valor base); em troca, dá +3 em tudo a 2 titulares escolhidos.'
+                              : player.pipoqueiro ? '+4 em tudo na FASE DE LIGA, mas −5 em tudo no MATA-MATA. Craque de campeonato que some no jogo grande.'
+                                : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
             </Row>
           )}
@@ -250,23 +250,23 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost }: 
           {/* CARACTERÍSTICA DO TIME — uma linha ESPECÍFICA por fonte (quem deu e quanto) */}
           {charBoost && charBoost.sources.length > 0
             ? charBoost.sources.map((src, i) => {
-                const vis = TEAMCHAR[src.type];
-                return (
-                  <Row key={i} icon={vis.icon} name={`${vis.label} — de ${src.fromName}`} color={vis.color}>
-                    <div className="flex flex-wrap gap-1">
-                      {src.flatAll > 0 && <Chip text={`+${src.flatAll} EM CADA ATRIBUTO`} color={vis.color} />}
-                      {Object.entries(src.perStat as Record<string, number>).map(([k, v]) => (
-                        <Chip key={k} text={`+${v} ${ATTR_PT[k] ?? k.toUpperCase()}`} color={vis.color} />
-                      ))}
-                    </div>
-                    <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                      {src.type === 'martir' ? `Sacrifício do ${src.fromName} (Mártir): +3 em tudo pra você.`
-                        : src.type === 'idolo' ? `${src.fromName} (Ídolo) do mesmo clube: +2 em cada atributo.`
+              const vis = TEAMCHAR[src.type];
+              return (
+                <Row key={i} icon={vis.icon} name={`${vis.label} — de ${src.fromName}`} color={vis.color}>
+                  <div className="flex flex-wrap gap-1">
+                    {src.flatAll > 0 && <Chip text={`+${src.flatAll} EM CADA ATRIBUTO`} color={vis.color} />}
+                    {Object.entries(src.perStat as Record<string, number>).map(([k, v]) => (
+                      <Chip key={k} text={`+${v} ${ATTR_PT[k] ?? k.toUpperCase()}`} color={vis.color} />
+                    ))}
+                  </div>
+                  <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    {src.type === 'martir' ? `Sacrifício do ${src.fromName} (Mártir): +3 em tudo pra você.`
+                      : src.type === 'idolo' ? `${src.fromName} (Ídolo) do mesmo clube: +2 em cada atributo.`
                         : `${src.fromName} (12º Homem) no banco: +1 compostura e +2 visão.`}
-                    </div>
-                  </Row>
-                );
-              })
+                  </div>
+                </Row>
+              );
+            })
             : char.length > 0 && (
               <Row icon="🤝" name="CARACTERÍSTICA DO TIME" color="#F472B6">
                 <div className="flex flex-wrap gap-1">{chips(char, '#F472B6')}</div>
