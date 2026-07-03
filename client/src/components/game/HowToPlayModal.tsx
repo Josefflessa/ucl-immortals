@@ -226,10 +226,12 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
           <H>O que dá pra comprar</H>
           {[
             { icon: '🎓', name: 'Trocar Técnico', cost: `${SHOP_COSTS.changeCoach}`, d: 'Troca o comandante (muda buffs e estilo).' },
-            { icon: '✨', name: 'Turbinar Carta', cost: `${SHOP_COSTS.turbinar}`, d: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador.' },
+            { icon: '✨', name: 'Turbinar Carta', cost: `${SHOP_COSTS.turbinar}`, d: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador SEM característica.' },
+            { icon: '🧹', name: 'Remover Característica', cost: `${SHOP_COSTS.removeVariant}`, d: 'Tira a carta especial de um jogador — pra depois aplicar outra via Turbinar.' },
             { icon: '🌟', name: 'Pacote do Craque', cost: `${SHOP_COSTS.starPack}`, d: 'Escolhe 1 de 3 jogadores de overall 88+.' },
             { icon: '🔍', name: 'Caça-Talentos', cost: `${SHOP_COSTS.scout}`, d: 'Escolhe 1 de 4 jogadores da posição que precisar.' },
             { icon: '💪', name: 'Treino Intensivo', cost: `${trainCost(0)}+`, d: `+${TRAIN_BOOST} permanente num atributo (sem teto). Custa mais a cada treino no mesmo jogador.` },
+            { icon: '🔄', name: 'Reroll de Reforço', cost: `${SHOP_COSTS.reroll}`, d: 'Ganha um token pra re-sortear as opções do reforço pós-partida. Acumula entre rodadas.' },
           ].map(i => (
             <div key={i.name} className="flex items-center gap-3 rounded-xl p-3" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
               <span className="text-xl flex-shrink-0">{i.icon}</span>
