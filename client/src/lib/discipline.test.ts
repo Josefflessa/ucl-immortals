@@ -18,6 +18,22 @@ describe('applyMatchDiscipline', () => {
     const out = applyMatchDiscipline({}, ['t', 'o'], [res('t', 'o', [evt('red', 't', 'p')])], nameOf);
     expect(out.next[availKey('t', 'p')].banned).toBe(1);
   });
+  it('🟨🟨 vermelho por 2º amarelo → o amarelo daquele jogo NÃO acumula', () => {
+    const m = { [availKey('t', 'p')]: { yellows: 1, banned: 0, injured: 0 } };
+    const events = [
+      evt('yellow', 't', 'p'),
+      { minute: 80, type: 'red', description: '', teamId: 't', playerId: 'p', secondYellow: true },
+    ];
+    const out = applyMatchDiscipline(m, ['t', 'o'], [res('t', 'o', events)], nameOf);
+    expect(out.next[availKey('t', 'p')].yellows).toBe(1); // continua 1 (não virou 2)
+    expect(out.next[availKey('t', 'p')].banned).toBe(1);   // suspenso pelo vermelho
+  });
+  it('🟥 vermelho DIRETO não zera os amarelos acumulados', () => {
+    const m = { [availKey('t', 'p')]: { yellows: 2, banned: 0, injured: 0 } };
+    const out = applyMatchDiscipline(m, ['t', 'o'], [res('t', 'o', [evt('red', 't', 'p')])], nameOf);
+    expect(out.next[availKey('t', 'p')].yellows).toBe(2); // amarelos ficam
+    expect(out.next[availKey('t', 'p')].banned).toBe(1);
+  });
   it('decrementa quem já estava fora ANTES de aplicar o novo', () => {
     const m = { [availKey('t', 'x')]: { yellows: 0, banned: 1, injured: 0 } };
     const out = applyMatchDiscipline(m, ['t', 'o'], [res('t', 'o', [])], nameOf);

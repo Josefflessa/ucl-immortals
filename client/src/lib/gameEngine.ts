@@ -77,6 +77,7 @@ export interface MatchEvent {
   opponentId?: string;
   assisterId?: string;
   isSpecial?: boolean;
+  secondYellow?: boolean; // 🟨🟨 vermelho por 2º amarelo (o amarelo daquele jogo NÃO conta no acúmulo da temporada)
 }
 
 export interface PlayerMatchStat {
@@ -1215,7 +1216,7 @@ export function runMatchSimulation(
     if (sentOff.has(p.id)) return;
     totalCards++;
     // 🟥 narração dramática e VARIADA — vermelho direto (viés por compostura) vs segundo amarelo.
-    events.push({ minute: min, type: 'red', teamId: team.id, playerId: p.id,
+    events.push({ minute: min, type: 'red', teamId: team.id, playerId: p.id, secondYellow: reason === 'second-yellow',
       description: reason === 'second-yellow' ? secondYellowDesc(p.shortName) : straightRedDesc(p.shortName, p.composure ?? 65) });
     sentOff.add(p.id);
     const pen = p.position === 'GK' ? RED_GK_PENALTY : RED_PENALTY;

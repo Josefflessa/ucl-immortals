@@ -146,6 +146,13 @@ export function applyMatchDiscipline(
     return next[k];
   };
   for (const r of results) {
+    // 🟨🟨 Quem tomou VERMELHO POR 2º AMARELO neste jogo: os amarelos dele NÃO contam pro acúmulo
+    // da temporada (foram "consumidos" pela expulsão — como no futebol de verdade). Vermelho DIRETO
+    // não zera nem impede o acúmulo dos amarelos que o jogador já tinha.
+    const secondYellowOut = new Set<string>();
+    for (const e of r.events) {
+      if (e.type === 'red' && e.secondYellow && e.playerId) secondYellowOut.add(availKey(e.teamId, e.playerId));
+    }
     // amarelos deste jogo, por jogador
     const yellowsThis: Record<string, number> = {};
     for (const e of r.events) {
@@ -155,6 +162,7 @@ export function applyMatchDiscipline(
       }
     }
     for (const key in yellowsThis) {
+      if (secondYellowOut.has(key)) continue; // 2º amarelo → não acumula
       const [teamId, playerId] = key.split(':');
       const a = bump(teamId, playerId);
       a.yellows += yellowsThis[key];
