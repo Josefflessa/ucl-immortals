@@ -38,6 +38,11 @@ export interface SquadEditorProps {
   showCoachCard?: boolean;           // the manager card (default on)
   footer?: React.ReactNode;          // host-specific action (e.g. "INICIAR DRAFT")
   isKnockout?: boolean;              // 🍿 phase: drives the Pipoqueiro league(+)/knockout(−) preview
+  // 🟨🟥🩹 Disponibilidade (suspensão/lesão/amarelos) por playerId + ação de fisioterapia.
+  availability?: Record<string, { yellows: number; banned: number; injured: number }>;
+  onHealInjury?: (playerId: string) => void;
+  canAffordPhysio?: boolean;
+  physioCost?: number;               // 🏥 custo da fisioterapia (mostrado no botão + confirmação)
 }
 
 export default function SquadEditor({
@@ -45,8 +50,20 @@ export default function SquadEditor({
   captain, penaltyTaker, freeKickTaker,
   onSetFormation, onSetPlayStyle, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets,
   showCoachCard = true, footer, isKnockout = false,
+  availability, onHealInjury, canAffordPhysio, physioCost = 250,
 }: SquadEditorProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  // 🏥 Fisioterapia: guarda o id do jogador aguardando CONFIRMAÇÃO (nada de comprar num clique só).
+  const [confirmPhysioFor, setConfirmPhysioFor] = useState<string | null>(null);
+  // 🟨🟥🩹 Badge de disponibilidade de um jogador (ou null se está tudo certo).
+  const availBadge = (playerId: string): { txt: string; color: string } | null => {
+    const a = availability?.[playerId];
+    if (!a) return null;
+    if (a.banned > 0) return { txt: `🟥 SUSP · ${a.banned} ${a.banned === 1 ? 'JOGO' : 'JOGOS'}`, color: '#EF4444' };
+    if (a.injured > 0) return { txt: `🩹 LESÃO · ${a.injured} ${a.injured === 1 ? 'JOGO' : 'JOGOS'}`, color: '#F59E0B' };
+    if (a.yellows > 0) return { txt: `🟨×${a.yellows}`, color: '#EAB308' };
+    return null;
+  };
 
   const formation = FORMATIONS.find(f => f.id === formationId);
   const coach = COACHES.find(c => c.id === coachId);
@@ -218,10 +235,17 @@ export default function SquadEditor({
         <div className="flex-1 min-w-0">
           <div className="text-xs font-bold tracking-widest mb-3" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>TITULARES</div>
           <div className="flex flex-wrap gap-2 mb-4">
-            {xi.map((player, index) => (
-              <PlayerCard key={player.id} player={player} chemScore={chemData.individual[player.id]} showChemistry compact
-                selected={selectedIndex === index} onClick={() => setSelectedIndex(index)} />
-            ))}
+            {xi.map((player, index) => {
+              const ab = availBadge(player.id);
+              return (
+                <div key={player.id} className="relative">
+                  <PlayerCard player={player} chemScore={chemData.individual[player.id]} showChemistry compact
+                    selected={selectedIndex === index} onClick={() => setSelectedIndex(index)} />
+                  {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[8px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
+                    style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'Rajdhani, sans-serif' }}>{ab.txt}</span>}
+                </div>
+              );
+            })}
           </div>
 
           <div className="mt-5 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
@@ -231,9 +255,16 @@ export default function SquadEditor({
             {bench.length > 0 ? (
               <>
                 <div className="flex flex-wrap gap-2">
-                  {bench.map((player, i) => (
-                    <PlayerCard key={player.id} player={player} compact selected={selectedIndex === 11 + i} onClick={() => setSelectedIndex(11 + i)} />
-                  ))}
+                  {bench.map((player, i) => {
+                    const ab = availBadge(player.id);
+                    return (
+                      <div key={player.id} className="relative">
+                        <PlayerCard player={player} compact selected={selectedIndex === 11 + i} onClick={() => setSelectedIndex(11 + i)} />
+                        {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[8px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
+                          style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'Rajdhani, sans-serif' }}>{ab.txt}</span>}
+                      </div>
+                    );
+                  })}
                 </div>
                 <p className="text-[11px] mt-2" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                   Clique num reserva e escolha <b style={{ color: '#C9A84C' }}>"Trocar com"</b> um titular para colocá-lo no time.
@@ -272,6 +303,65 @@ export default function SquadEditor({
                 </div>
                 <button onClick={() => setSelectedIndex(null)} className="text-gray-400 hover:text-white text-2xl font-black focus:outline-none">✕</button>
               </div>
+
+              {/* 🟨🟥🩹 Disponibilidade + Fisioterapia */}
+              {(() => {
+                const a = availability?.[selectedPlayer.id];
+                if (!a || (a.banned === 0 && a.injured === 0 && a.yellows === 0)) return null;
+                return (
+                  <div className="relative z-10 px-6 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
+                    <div className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: a.banned ? '#FCA5A5' : a.injured ? '#FCD34D' : '#EAB308' }}>
+                      {a.banned > 0 ? `🟥 Suspenso — fora de ${a.banned} jogo(s)` : a.injured > 0 ? `🩹 Lesionado — fora de ${a.injured} jogo(s)` : `🟨 ${a.yellows} amarelo(s) acumulado(s)`}
+                    </div>
+                    {a.injured > 0 && onHealInjury && (
+                      <button disabled={!canAffordPhysio} onClick={() => setConfirmPhysioFor(selectedPlayer.id)}
+                        className="text-[11px] font-black px-3 py-1.5 rounded-lg tracking-wider disabled:opacity-40 transition-transform active:scale-95 flex items-center gap-1.5"
+                        style={{ fontFamily: 'Rajdhani, sans-serif', background: '#0E7490', color: '#ECFEFF', border: '1px solid #22D3EE55' }}
+                        title={canAffordPhysio ? undefined : `Faltam pontos (custa ${physioCost})`}>
+                        🏥 Fisioterapia · −1 jogo
+                        <span className="px-1.5 py-0.5 rounded" style={{ background: '#083344', color: '#67E8F9' }}>{physioCost} pts</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* 🏥 Confirmação da fisioterapia — evita comprar num clique só. */}
+              {confirmPhysioFor && (() => {
+                const pp = players.find(p => p.id === confirmPhysioFor);
+                if (!pp) return null;
+                const inj = availability?.[confirmPhysioFor]?.injured ?? 0;
+                return (
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.82)' }} onClick={() => setConfirmPhysioFor(null)}>
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.94, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className="w-full max-w-sm rounded-2xl p-5 text-center" style={{ background: '#0b0b14', border: '1px solid #0E7490' }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <div className="text-3xl mb-1">🏥</div>
+                      <h3 className="text-lg font-black tracking-widest uppercase mb-1" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#67E8F9' }}>Fisioterapia</h3>
+                      <p className="text-[13px] mb-1" style={{ color: '#C8D0D4', fontFamily: 'Rajdhani, sans-serif' }}>
+                        Reduzir <b style={{ color: '#FFF' }}>1 jogo</b> de lesão de <b style={{ color: '#FFF' }}>{pp.shortName}</b>?
+                      </p>
+                      <p className="text-[12px] mb-4" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
+                        Fica <b style={{ color: '#FCD34D' }}>{Math.max(0, inj - 1)} jogo(s)</b> de fora · custa <b style={{ color: '#67E8F9' }}>{physioCost} pts</b>
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={() => setConfirmPhysioFor(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#17171f', color: '#9A9AA5' }}>
+                          CANCELAR
+                        </button>
+                        <button
+                          disabled={!canAffordPhysio}
+                          onClick={() => { onHealInjury?.(confirmPhysioFor); setConfirmPhysioFor(null); }}
+                          className="flex-1 py-2.5 rounded-xl font-black tracking-widest disabled:opacity-40 transition-transform active:scale-95"
+                          style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg,#0E7490,#22D3EE)', color: '#062028' }}>
+                          CONFIRMAR
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                );
+              })()}
 
               <div className="relative z-10 flex-1 overflow-y-auto p-6 space-y-5">
                 {(() => {

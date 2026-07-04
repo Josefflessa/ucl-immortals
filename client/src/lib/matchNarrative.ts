@@ -657,3 +657,131 @@ export function missCelebMsg(atkName: string): string {
     `❌ QUE PERDIDA! ${atkName} tinha o gol na cara e desperdiçou!`,
   ]);
 }
+
+// ─── Disciplina & lesões (banco grande de variações p/ não repetir) ─────────
+
+const DISC_DEF_POS = new Set(['CB', 'LB', 'RB', 'CDM']);
+
+// Sorteio COM VIÉS (não é regra): probabilidade `pTemper` de cair no pool de "temperamento",
+// senão no de "falta técnica". Ambos sempre possíveis.
+function biasedPick(temper: string[], tactical: string[], pTemper: number): string {
+  return Math.random() < Math.max(0.05, Math.min(0.85, pTemper)) ? pick(temper) : pick(tactical);
+}
+
+// Amarelo — o TEXTO puxa (não trava) pelo perfil: compostura baixa → mais "temperamento"
+// (reclamação/cabeça quente); compostura alta ou defensor → mais "falta técnica/dividida".
+export function yellowCardDesc(player: string, composure = 65, position = '', cutDanger = false): string {
+  const temperament = [
+    `🟨 ${player} reclama demais da marcação e acaba amarelado pelo árbitro!`,
+    `🟨 Reclamação exagerada! ${player} leva amarelo por dissidência!`,
+    `🟨 ${player} perde a paciência com a arbitragem e é advertido: amarelo!`,
+    `🟨 Chutou a bola longe após o apito! ${player} leva amarelo por atraso!`,
+    `🟨 ${player} aplaude irônico a decisão do juiz e é amarelado na hora!`,
+    `🟨 Reclamação na cara do árbitro — ${player} vê o amarelo por protestar!`,
+    `🟨 ${player} se exalta com o adversário e o juiz o adverte com amarelo!`,
+    `🟨 Encara o bandeirinha e discute a marcação: amarelo para ${player}!`,
+    `🟨 ${player} bate boca com o rival após a jogada e leva o amarelo!`,
+  ];
+  const tactical = [
+    `🟨 Cartão amarelo para ${player} após uma entrada dura no meio-campo!`,
+    `🟨 ${player} chega atrasado na dividida e o árbitro não perdoa: amarelo!`,
+    `🟨 Falta tática de ${player} para cortar o contra-ataque — amarelo bem aplicado!`,
+    `🟨 ${player} segura o adversário pela camisa e vê o cartão amarelo!`,
+    `🟨 Carrinho por trás! O juiz vai ao bolso e adverte ${player} com amarelo!`,
+    `🟨 Entrada com a sola em cima do rival — amarelo para ${player}!`,
+    `🟨 ${player} comete falta na intermediária e é advertido: amarelo!`,
+    `🟨 Puxão de braço de ${player} na disputa de bola — cartão amarelo!`,
+    `🟨 ${player} derruba o adversário em velocidade e leva o amarelo!`,
+    `🟨 Trava alta de ${player}! O árbitro mostra o amarelo na hora!`,
+    `🟨 ${player} para a jogada de perigo com falta e é punido com amarelo!`,
+    `🟨 Cotovelada disfarçada de ${player} no duelo aéreo — amarelo!`,
+    `🟨 ${player} acerta a canela do adversário na dividida: amarelo!`,
+    `🟨 Falta clara de ${player} na saída de bola — cartão amarelo!`,
+    `🟨 ${player} agarra o atacante que escapava — amarelo inevitável!`,
+    `🟨 Falta para impedir o contragolpe: ${player} amarelado!`,
+    `🟨 ${player} desce o carrinho na linha lateral e o juiz adverte: amarelo!`,
+    `🟨 Empurrão de ${player} nas costas do rival — cartão amarelo!`,
+    `🟨 ${player} atinge o tornozelo do adversário e recebe o amarelo!`,
+    `🟨 ${player} corta o lançamento com falta e o árbitro anota: amarelo!`,
+    `🟨 Dividida tardia de ${player} — o juiz não hesita: cartão amarelo!`,
+    `🟨 ${player} comete a falta para segurar o ataque e vê o amarelo!`,
+    `🟨 ${player} interrompe o contra-ataque com falta esperta — amarelo profissional!`,
+    `🟨 Ataque promissor cortado! ${player} faz a falta e leva o amarelo!`,
+    `🟨 ${player} derruba o rival lançado em profundidade e é amarelado!`,
+  ];
+  let pTemper = 0.15 + (75 - composure) * 0.01;      // compostura baixa puxa temperamento
+  if (DISC_DEF_POS.has(position)) pTemper -= 0.1;     // defensor puxa pra falta técnica
+  if (cutDanger) pTemper *= 0.3;                      // cortou lance de perigo → falta é "profissional"
+  return biasedPick(temperament, tactical, pTemper);
+}
+
+// Vermelho direto — compostura baixa puxa pra "cabeça quente/violência"; alta, pra "falta
+// profissional" (último homem, impede gol). Continua sorteando dos dois (é só viés).
+export function straightRedDesc(player: string, composure = 65): string {
+  const temperament = [
+    `🟥 EXPULSÃO DIRETA! ${player} comete uma falta violentíssima e vai para o chuveiro!`,
+    `🟥 CARTÃO VERMELHO! ${player} chega com a sola na canela do rival — o juiz não titubeia!`,
+    `🟥 ${player} está EXPULSO! Entrada criminosa que revoltou o banco adversário!`,
+    `🟥 ${player} perde a cabeça e acerta uma cotovelada — expulsão imediata!`,
+    `🟥 ${player} vai com tudo, dois pés na frente, e é EXPULSO de campo!`,
+    `🟥 Confusão! ${player} se desentende com o rival e o árbitro mostra o vermelho!`,
+    `🟥 Que entrada horrível de ${player}! Expulsão sem discussão nenhuma!`,
+    `🟥 ${player} acerta a trava no peito do adversário — cartão vermelho na hora!`,
+    `🟥 Agressão flagrante! ${player} é expulso e ainda pode pegar gancho!`,
+    `🟥 ${player} decepa o rival numa arrancada e recebe o vermelho direto!`,
+  ];
+  const professional = [
+    `🟥 VERMELHO DIRETO! ${player} impede um gol claro e deixa o time com um a menos!`,
+    `🟥 Falta como último homem! ${player} derruba o atacante lançado e vê o vermelho!`,
+    `🟥 ${player} segura o adversário na cara do gol — expulso por chance clara de gol!`,
+    `🟥 CARTÃO VERMELHO para ${player}! O time joga com dez a partir de agora!`,
+    `🟥 ${player} comete pênalti e ainda impede o gol certo: vermelho direto!`,
+    `🟥 ${player} para o contra-ataque com uma falta cínica e é EXPULSO!`,
+    `🟥 O árbitro vai direto ao vermelho! ${player} deixa o gramado mais cedo!`,
+  ];
+  // Vermelho é dramático dos dois lados; compostura baixa pesa mais no temperamento.
+  const pTemper = 0.45 + (70 - composure) * 0.008;
+  return biasedPick(temperament, professional, pTemper);
+}
+
+export function secondYellowDesc(player: string): string {
+  return pick([
+    `🟥 SEGUNDO AMARELO! ${player} comete nova falta e está EXPULSO de campo!`,
+    `🟥 ${player} já estava pendurado e não perdoa: segundo amarelo e rua!`,
+    `🟥 Amarelo que vira VERMELHO! ${player} recebe o segundo e é expulso!`,
+    `🟥 ${player} repete a dose, leva o segundo amarelo e deixa o time com dez!`,
+    `🟥 Ingenuidade! ${player} faz falta boba estando amarelado — EXPULSO!`,
+    `🟥 O juiz mostra o amarelo e logo o vermelho: ${player} está fora do jogo!`,
+    `🟥 ${player} não se controla, comete o segundo cartão e é expulso!`,
+    `🟥 Segundo amarelo para ${player}! Baixa importantíssima para o time!`,
+    `🟥 ${player} chega atrasado outra vez — segundo amarelo, expulsão consumada!`,
+    `🟥 Adeus, ${player}! Pendurado, comete mais uma falta e leva o vermelho!`,
+    `🟥 ${player} para o lance com falta estando amarelado — expulso!`,
+    `🟥 Falta desnecessária! ${player} recebe o segundo amarelo e deixa o campo!`,
+  ]);
+}
+
+export function injuryDesc(player: string): string {
+  return pick([
+    `🩹 ${player} sente a coxa e cai no gramado — segue em campo, mas bem limitado!`,
+    `🩹 Pancada forte! ${player} se levanta mancando e não está mais 100%!`,
+    `🩹 ${player} torce o tornozelo numa disputa e passa a jogar sentindo dores!`,
+    `🩹 Choque de cabeças! ${player} fica atordoado e continua bastante debilitado!`,
+    `🩹 ${player} pisa em falso e sente a virilha — vai jogar no sacrifício!`,
+    `🩹 Entrada dura deixa ${player} caído; ele segue, mas visivelmente capengando!`,
+    `🩹 ${player} estica para alcançar a bola e sente a parte de trás da coxa!`,
+    `🩹 Não é câimbra! ${player} sente um estiramento e não corre mais direito!`,
+    `🩹 ${player} cai mal após dividida aérea e sente o joelho — segue limitado!`,
+    `🩹 Trombada feia! ${player} leva a pior e permanece em campo bem abaixo!`,
+    `🩹 ${player} sente um estalo na panturrilha e passa a mancar pelo gramado!`,
+    `🩹 Departamento médico de olho! ${player} se contunde e joga no limite!`,
+    `🩹 ${player} recebe uma pisada dura no pé e segue jogando com muita dor!`,
+    `🩹 Lesão muscular! ${player} leva a mão à coxa e cai de rendimento na hora!`,
+    `🩹 ${player} se machuca sozinho numa arrancada e não é mais o mesmo em campo!`,
+    `🩹 Pancada no ombro deixa ${player} sentido; ele aguenta, mas debilitado!`,
+    `🩹 ${player} força a musculatura num pique e sente na hora — segue capengando!`,
+    `🩹 Dividida forte no meio! ${player} fica no chão e volta bastante limitado!`,
+    `🩹 ${player} sente o posterior da coxa ao acelerar e reduz o ritmo drasticamente!`,
+    `🩹 Susto para a torcida: ${player} se contunde na dividida e joga machucado!`,
+  ]);
+}

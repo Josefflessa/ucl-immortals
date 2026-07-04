@@ -51,6 +51,7 @@ export const SHOP_COSTS = {
   reroll: 120, // 🔄 +1 token de re-sorteio do reforço (ilimitado, acumula entre rodadas)
   removeVariant: 150, // 🧹 remove a característica de um jogador (pra poder aplicar outra)
   uniqueCard: 700,    // ⭐ Carta Única (raridade Única, overall 99) — premium da loja
+  physio: 250,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
 } as const;
 
 // ── Training (💪) — +3 to a chosen attribute, no cap. Escalating cost per player so stacking

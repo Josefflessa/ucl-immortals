@@ -11,15 +11,17 @@ import { MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel } from 
 import MatchDetailsModal from './MatchDetailsModal';
 import BetSlipModal from './BetSlipModal';
 import { buildKnockoutMatchKey, roundStakeUsed, BET_ROUND_CAP, Bet } from '../../lib/bets';
+import { unavailableStarters } from '../../lib/discipline';
 
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
 
 export default function KnockoutTiesTab() {
-  const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline } = useGame();
+  const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
   const { knockoutBracket, playerTeam } = state;
   const online = state.mode === 'online';
   const { localTeamId, getTeamName: resolveTeamName } = useTeams();
   const [betSlip, setBetSlip] = useState<{ matchKey: string; homeName: string; awayName: string } | null>(null);
+  const [lineupWarning, setLineupWarning] = useState<string[] | null>(null); // 🚫 aviso de escalação inválida (solo)
   // 🎯 Palpite — teto compartilhado entre as pernas ativas do mata-mata (prefixo 'K').
   const bets = state.bets ?? [];
   const remainingCap = BET_ROUND_CAP - roundStakeUsed(bets, 'K');
@@ -50,8 +52,19 @@ export default function KnockoutTiesTab() {
   const currentLeg = knockoutBracket.currentLeg;
 
   const handlePlayLeg = () => {
-    if (state.mode === 'online') playKnockoutRoundOnline();
-    else dispatch({ type: 'PLAY_KNOCKOUT_LEG' });
+    if (state.mode === 'online') {
+      if (!allReadyKO) return; // host inicia só com todos prontos (o host também confirma "pronto")
+      playKnockoutRoundOnline();
+    } else {
+      if (myUnavailableKO.length > 0) { setLineupWarning(myUnavailableKO.map(u => u.shortName ?? '?')); return; }
+      dispatch({ type: 'PLAY_KNOCKOUT_LEG' });
+    }
+  };
+  // ✅ Não-host confirma pronto (só com escalação válida).
+  const handleReadyToggleKO = () => {
+    if (iAmReadyKO) { playerUnreadyOnline(); return; }
+    if (myUnavailableKO.length > 0) { setLineupWarning(myUnavailableKO.map(u => u.shortName ?? '?')); return; }
+    playerReadyOnline();
   };
   const handleAdvance = () => {
     if (state.mode === 'online') advanceKnockoutRoundOnline();
@@ -61,6 +74,19 @@ export default function KnockoutTiesTab() {
   const matches = getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[];
 
   const round = knockoutBracket.currentRound;
+
+  // 🟥🩹 Escalação: bloqueia jogar a perna com titular indisponível (sem troca automática).
+  const iPlayThisRound = matches.some(m => isPlayerTeam(m.homeTeamId) || isPlayerTeam(m.awayTeamId));
+  const myUnavailableKO = (playerTeam && iPlayThisRound) ? unavailableStarters(playerTeam, state.discipline) : [];
+  // ✅ Ready-check (online): TODOS com tie (incluindo o host) confirmam "Estou pronto".
+  const readySet = new Set(state.onlineReadyPlayers);
+  const iAmReadyKO = !!localTeamId && readySet.has(localTeamId);
+  const humansWithTie = state.mode === 'online'
+    ? state.onlinePlayers.filter(p => p.team && matches.some(m => m.homeTeamId === p.id || m.awayTeamId === p.id))
+    : [];
+  const totalReadyKO = humansWithTie.length;
+  const readyCountKO = state.onlineReadyPlayers.length;
+  const allReadyKO = readyCountKO >= totalReadyKO;
 
   // SPECTATOR: a player with no tie in this round (eliminated / didn't qualify) can
   // watch any other human's match as a live broadcast. Their watch doesn't gate anyone.
@@ -387,22 +413,49 @@ export default function KnockoutTiesTab() {
               waitingBlock
             ) : !allPlayed ? (
               <>
+                {/* SOLO: aviso se o próprio time tem indisponível (modal ao clicar em jogar). */}
+                {state.mode !== 'online' && myUnavailableKO.length > 0 && (
+                  <div className="mb-3 rounded-lg px-3 py-2 text-[11px] font-bold" style={{ background: '#241010', border: '1px solid #EF444466', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                    🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU TIME.
+                  </div>
+                )}
+                {/* ONLINE: o host também confirma "Estou pronto" (valida o próprio time). */}
+                {state.mode === 'online' && (
+                  iAmReadyKO ? (
+                    <button onClick={handleReadyToggleKO} className="w-full py-3 rounded-xl font-black text-lg tracking-widest transition-all mb-2 active:scale-[0.98]"
+                      style={{ fontFamily: 'Bebas Neue, sans-serif', background: '#0a1a0e', color: '#4ADE80', border: '1px solid #22C55E88', boxShadow: 'inset 0 3px 9px rgba(0,0,0,0.55)', transform: 'scale(0.985)' }} title="Toque para cancelar">
+                      ✅ PRONTO!
+                    </button>
+                  ) : (
+                    <button onClick={handleReadyToggleKO} className="w-full py-3 rounded-xl font-black text-lg tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98] mb-2"
+                      style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)', color: '#04140A', boxShadow: '0 4px 0 #16833f, 0 8px 18px rgba(34,197,94,0.25)' }}>
+                      ✅ ESTOU PRONTO
+                    </button>
+                  )
+                )}
+                {state.mode === 'online' && totalReadyKO > 0 && (
+                  <div className="mb-2 text-[11px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: allReadyKO ? '#22C55E' : '#C9A84C' }}>
+                    {readyCountKO}/{totalReadyKO} PRONTO{totalReadyKO !== 1 ? 'S' : ''}
+                  </div>
+                )}
                 <button
                   onClick={handlePlayLeg}
-                  className="w-full py-4 rounded-xl font-black text-lg sm:text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
+                  disabled={state.mode === 'online' && !allReadyKO}
+                  className="w-full py-4 rounded-xl font-black text-lg sm:text-xl tracking-widest shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:scale-[1.01] enabled:cursor-pointer"
                   style={{
                     fontFamily: 'Bebas Neue, sans-serif',
-                    background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
-                    color: '#080810',
-                    boxShadow: '0 0 25px rgba(201,168,76,0.3)',
+                    background: (state.mode === 'online' && !allReadyKO) ? '#1A1A2A' : 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
+                    color: (state.mode === 'online' && !allReadyKO) ? '#666' : '#080810',
+                    boxShadow: (state.mode === 'online' && !allReadyKO) ? 'none' : '0 0 25px rgba(201,168,76,0.3)',
                   }}
                 >
                   {playLabel}
                 </button>
                 <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  {isFinal
-                    ? 'A grande final é em jogo único, em campo neutro.'
-                    : `Mata-mata em ida e volta — quem avança é decidido no placar agregado.${state.mode === 'online' ? ' Todos jogam ao mesmo tempo.' : ''}`}
+                  {state.mode === 'online' && !allReadyKO
+                    ? 'Todos (você incluso) precisam confirmar que estão prontos.'
+                    : isFinal ? 'A grande final é em jogo único, em campo neutro.'
+                      : `Mata-mata em ida e volta — quem avança é decidido no placar agregado.${state.mode === 'online' ? ' Todos jogam ao mesmo tempo.' : ''}`}
                 </div>
               </>
             ) : !allPlayersWatched ? (
@@ -427,9 +480,34 @@ export default function KnockoutTiesTab() {
                 ⏳ AGUARDANDO TODOS ASSISTIREM A IDA ANTES DA VOLTA...
               </div>
             ) : !allPlayed ? (
-              <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                ⏳ AGUARDANDO O ANFITRIÃO INICIAR: {isFinal ? label : currentLeg === 1 ? `IDA — ${label}` : `VOLTA — ${label}`}...
-              </div>
+              iPlayThisRound ? (
+                /* ✅ Não-host com tie: confirma "Estou pronto" (só com escalação válida). */
+                <>
+                  {myUnavailableKO.length > 0 && (
+                    <div className="mb-3 rounded-lg px-3 py-2 text-[11px] font-bold" style={{ background: '#241010', border: '1px solid #EF444466', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                      🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU TIME.
+                    </div>
+                  )}
+                  {iAmReadyKO ? (
+                    <button onClick={handleReadyToggleKO} className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all active:scale-[0.98]"
+                      style={{ fontFamily: 'Bebas Neue, sans-serif', background: '#0a1a0e', color: '#4ADE80', border: '1px solid #22C55E88', boxShadow: 'inset 0 3px 10px rgba(0,0,0,0.55)', transform: 'scale(0.985)' }} title="Toque para cancelar">
+                      ✅ PRONTO!
+                    </button>
+                  ) : (
+                    <button onClick={handleReadyToggleKO} className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
+                      style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)', color: '#04140A', boxShadow: '0 4px 0 #16833f, 0 8px 18px rgba(34,197,94,0.25)' }}>
+                      ✅ ESTOU PRONTO
+                    </button>
+                  )}
+                  <div className="mt-2 text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                    {readyCountKO}/{totalReadyKO} pronto{totalReadyKO !== 1 ? 's' : ''} · o anfitrião inicia quando todos confirmarem.
+                  </div>
+                </>
+              ) : (
+                <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  ⏳ AGUARDANDO O ANFITRIÃO INICIAR: {isFinal ? label : currentLeg === 1 ? `IDA — ${label}` : `VOLTA — ${label}`}...
+                </div>
+              )
             ) : (
               <div className="py-2 text-sm font-bold text-green-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 👑 FASE CONCLUÍDA! AGUARDANDO O ANFITRIÃO AVANÇAR...
@@ -481,6 +559,28 @@ export default function KnockoutTiesTab() {
             />
           );
         })()}
+      </AnimatePresence>
+
+      {/* 🚫 Aviso: tentou jogar a perna com titular indisponível (solo) */}
+      <AnimatePresence>
+        {lineupWarning && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(6,6,14,0.92)' }} onClick={() => setLineupWarning(null)}>
+            <motion.div initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl overflow-hidden text-center" style={{ background: '#0B0B14', border: '1px solid #EF444455' }}>
+              <div className="px-6 pt-6 pb-2">
+                <div className="text-4xl mb-2">🚫</div>
+                <div className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</div>
+                <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.join(', ')}</b>.<br />
+                  Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar.
+                </p>
+              </div>
+              <button onClick={() => setLineupWarning(null)} className="w-full py-3.5 mt-3 font-black tracking-widest text-sm"
+                style={{ fontFamily: 'Rajdhani, sans-serif', background: '#EF444418', color: '#FCA5A5', borderTop: '1px solid #EF444433' }}>ENTENDI</button>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </>
   );

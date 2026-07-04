@@ -145,6 +145,8 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 90, shooting: 92, passing: 94, dribbling: 95, defending: 60, physical: 78, vision: 97, composure: 95, traits: [] },
   { id: 'buffon_unico', shortName: 'Buffon', fullName: 'Gianluigi Buffon', position: 'GK', nation: 'Itália', club: 'Juventus', season: 'Única', rarity: 'unique', overall: 99,
     pace: 60, shooting: 45, passing: 75, dribbling: 68, defending: 96, physical: 88, vision: 86, composure: 96, traits: [] },
+  { id: 'beckenbauer_unico', shortName: 'Beckenbauer', fullName: 'Franz Anton Beckenbauer', position: 'CB', secondaryPositions: ['CDM', 'CM'], nation: 'Alemanha', club: 'Bayern Munich', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 84, shooting: 74, passing: 91, dribbling: 85, defending: 96, physical: 88, vision: 94, composure: 97, traits: [] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {

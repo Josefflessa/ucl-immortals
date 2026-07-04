@@ -20,6 +20,7 @@ interface MatchFieldViewProps {
   ratings: Record<string, number>;          // by player.id
   goalsByPlayer?: Record<string, number>;
   assistsByPlayer?: Record<string, number>;
+  disciplineByPlayer?: Record<string, { yellow: number; red: boolean; injury: boolean }>;
   accent: string;
 }
 
@@ -38,7 +39,7 @@ function Chip({ icon, label, value, color }: { icon: string; label: string; valu
   );
 }
 
-export default function MatchFieldView({ team, ratings, goalsByPlayer, assistsByPlayer, accent }: MatchFieldViewProps) {
+export default function MatchFieldView({ team, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent }: MatchFieldViewProps) {
   const formation = FORMATIONS.find(f => f.id === team.formationId) ?? FORMATIONS[0];
   const coach = COACHES.find(c => c.id === team.coachId);
   const tactic = getTacticById(team.playStyle);
@@ -106,6 +107,7 @@ export default function MatchFieldView({ team, ratings, goalsByPlayer, assistsBy
         ratings={ratings}
         goalsByPlayer={goalsByPlayer}
         assistsByPlayer={assistsByPlayer}
+        disciplineByPlayer={disciplineByPlayer}
       />
     </div>
   );

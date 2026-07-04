@@ -15,6 +15,7 @@ import {
 } from '../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
 import Crest from '../components/game/Crest';
+import PlayerCard from '../components/game/PlayerCard';
 
 const LOGO_URL = '/icons/logo_ucl.png';
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
@@ -177,6 +178,7 @@ export default function ReportPage() {
   }, []);
 
   const starters = playerTeam?.players.slice(0, 11) ?? [];
+  const bench = playerTeam?.players.slice(11) ?? [];
 
   // ── Extra campaign metrics ────────────────────────────────────────────────
   const games = playerResults.length;
@@ -598,30 +600,31 @@ export default function ReportPage() {
                 </div>
               </div>
             )}
-            <div className="p-4 pt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {starters.map((pl, i) => (
-                <motion.div
-                  key={pl.id}
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg"
-                  style={{
-                    background: '#14142A',
-                    border: `1px solid ${getRarityColor(pl.rarity)}33`,
-                    boxShadow: pl.rarity === 'immortal' || pl.rarity === 'legendary' ? getRarityGlow(pl.rarity) : 'none',
-                  }}
-                >
-                  <div className="flex-shrink-0 w-5 h-5 rounded text-[9px] font-black flex items-center justify-center"
-                    style={{ background: getRarityColor(pl.rarity) + '33', color: getRarityColor(pl.rarity), fontFamily: 'Rajdhani, sans-serif' }}>
-                    {(POS_PT as any)[pl.position] ?? pl.position}
+            <div className="p-4 pt-2 space-y-4">
+              {/* TITULARES — cards de verdade, iguais aos do MEU TIME */}
+              <div>
+                <div className="text-xs font-black tracking-widest mb-2" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>TITULARES</div>
+                <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                  {starters.map((pl, i) => (
+                    <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
+                      <PlayerCard player={pl} compact lite />
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+              {/* RESERVAS / BANCO */}
+              {bench.length > 0 && (
+                <div className="pt-3 border-t" style={{ borderColor: '#1A1A2A' }}>
+                  <div className="text-xs font-black tracking-widest mb-2" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>🪑 RESERVAS ({bench.length})</div>
+                  <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                    {bench.map((pl, i) => (
+                      <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
+                        <PlayerCard player={pl} compact lite />
+                      </motion.div>
+                    ))}
                   </div>
-                  <span className="text-xs font-bold truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{pl.shortName}</span>
-                  <span className="ml-auto text-[10px] font-black flex-shrink-0" style={{ color: getRarityColor(pl.rarity), fontFamily: 'Bebas Neue, sans-serif' }}>
-                    {pl.overall}
-                  </span>
-                </motion.div>
-              ))}
+                </div>
+              )}
             </div>
           </motion.div>
         )}

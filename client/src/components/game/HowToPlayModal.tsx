@@ -68,7 +68,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
             <div className="space-y-3 mt-2">
               <Step n={1} title="Escolha o Técnico">Cada técnico dá buffs e uma habilidade especial diferentes (e tem uma formação preferida que rende +química).</Step>
               <Step n={2} title="Escolha a Formação inicial">Define as posições que você vai preencher no draft.</Step>
-              <Step n={3} title="Draft">Monte seu XI escolhendo entre cartas de jogadores, rodada a rodada.</Step>
+              <Step n={3} title="Draft">Monte seu XI (11 titulares) + 2 reservas pro banco, escolhendo cartas rodada a rodada. Você tem 4 vetos.</Step>
               <Step n={4} title="Revisão do elenco">Ajuste formação, tática, capitão e cobradores; veja a química.</Step>
               <Step n={5} title="Liga (8 rodadas)">Jogue contra os outros times. Ganhe pontos e um reforço grátis a cada rodada.</Step>
               <Step n={6} title="Mata-mata">Os melhores avançam para playoffs → oitavas → quartas → semis → final.</Step>

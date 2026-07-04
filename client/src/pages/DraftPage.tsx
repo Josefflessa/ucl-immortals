@@ -1,5 +1,5 @@
 // UCL Immortals — Draft Page
-// 11 rounds (titulares), 6 options each, 20s timer, 2 vetoes
+// 13 rounds (11 titulares + 2 reservas), 6 options each, 20s timer, 4 vetoes
 
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useGame } from '../contexts/GameContext';
@@ -193,7 +193,7 @@ const DraftedRoster = memo(function DraftedRoster({
   return (
     <div className="mt-6">
       <div className="text-xs font-bold tracking-widest mb-3" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-        MEU ELENCO ({filled.length}/{total})
+        MEU ELENCO ({filled.length}/{total}) <span style={{ color: '#4A4A5A' }}>· 11 titulares + 2 reservas</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {filled.map(p => (
@@ -427,26 +427,39 @@ export default function DraftPage() {
               <>
                 <div className="mb-4 flex items-center gap-3 flex-wrap">
                   <div className="flex-1">
-                    <div className="text-xs font-bold tracking-widest mb-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                      POSIÇÕES RESTANTES
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {neededPositions.map((pos, idx) => (
-                        <span
-                          key={`${pos}-${idx}`}
-                          className="font-black px-2 py-0.5 rounded"
-                          style={{
-                            fontFamily: 'Bebas Neue, sans-serif',
-                            fontSize: idx === 0 ? '0.9rem' : '0.75rem',
-                            background: '#C9A84C22',
-                            color: idx === 0 ? '#E8C84A' : '#C9A84C',
-                            border: `1px solid ${idx === 0 ? '#C9A84C88' : '#C9A84C44'}`,
-                          }}
-                        >
-                          {posLabel(pos)}
-                        </span>
-                      ))}
-                    </div>
+                    {neededPositions.length > 0 ? (
+                      <>
+                        <div className="text-xs font-bold tracking-widest mb-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                          POSIÇÕES RESTANTES
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {neededPositions.map((pos, idx) => (
+                            <span
+                              key={`${pos}-${idx}`}
+                              className="font-black px-2 py-0.5 rounded"
+                              style={{
+                                fontFamily: 'Bebas Neue, sans-serif',
+                                fontSize: idx === 0 ? '0.9rem' : '0.75rem',
+                                background: '#C9A84C22',
+                                color: idx === 0 ? '#E8C84A' : '#C9A84C',
+                                border: `1px solid ${idx === 0 ? '#C9A84C88' : '#C9A84C44'}`,
+                              }}
+                            >
+                              {posLabel(pos)}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-xs font-black tracking-widest mb-1" style={{ color: '#22D3EE', fontFamily: 'Rajdhani, sans-serif' }}>
+                          🪑 RESERVA — BANCO
+                        </div>
+                        <div className="text-[11px] font-bold" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
+                          Escolha qualquer jogador para o banco.
+                        </div>
+                      </>
+                    )}
                   </div>
                   <DraftTimer round={round} onExpire={handleAutoPick} />
                 </div>

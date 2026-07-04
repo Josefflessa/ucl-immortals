@@ -3,9 +3,10 @@
 // (or online sync) to the editor's callbacks. All the UI lives in SquadEditor.
 import { useGame } from '../../contexts/GameContext';
 import SquadEditor from './SquadEditor';
+import { SHOP_COSTS } from '../../lib/shop';
 
 export default function LeagueSquadTab() {
-  const { state, dispatch, setMatchRolesOnline, swapPlayerTeamOnline, martirTargetsOnline } = useGame();
+  const { state, dispatch, setMatchRolesOnline, swapPlayerTeamOnline, martirTargetsOnline, healInjuryOnline } = useGame();
   const team = state.playerTeam;
   if (!team) return null;
   const online = state.mode === 'online';
@@ -13,9 +14,20 @@ export default function LeagueSquadTab() {
   const pen = team.penaltyTaker ?? null;
   const fk = team.freeKickTaker ?? null;
 
+  // 🟨🟥🩹 Disponibilidade dos MEUS jogadores (mapa global → keyed por playerId).
+  const availability: Record<string, { yellows: number; banned: number; injured: number }> = {};
+  for (const p of team.players) {
+    const a = state.discipline[`${team.id}:${p.id}`];
+    if (a) availability[p.id] = a;
+  }
+
   return (
     <SquadEditor
       isKnockout={state.phase === 'knockout'}
+      availability={availability}
+      canAffordPhysio={state.points >= SHOP_COSTS.physio}
+      physioCost={SHOP_COSTS.physio}
+      onHealInjury={(playerId) => online ? healInjuryOnline(playerId) : dispatch({ type: 'HEAL_INJURY', playerId })}
       players={team.players}
       coachId={team.coachId}
       formationId={team.formationId}

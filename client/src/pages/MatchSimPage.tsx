@@ -1,17 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shirt, Eye, Play, Pause, SkipForward, Brain } from 'lucide-react';
-import TacticSelector from '../components/game/TacticSelector';
-import { getTacticById } from '../lib/gameData';
+import { Shirt, Eye, Play, Pause, SkipForward } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import {
-  Team, MatchResult, MatchEvent, simulateMatch,
-  getEffectiveAttribute, calculateTeamStrength, getChemistryBonus,
-  PlayerCard as EnginePlayerCard, PlayerMatchStat, simulateRemainingMatch, pickWeightedAssister,
-  getPenaltyTaker, getPenaltyOrder, setStatIds, statKey,
-  teamPlaymaking, midfieldBuildUpEdge, getFreeKickTaker, getHeaderTarget, resolveOpenPlayChance, buildKeyMinutes, penaltyGoalChance,
-  formationProfile, tacticProfile, MATCH_NOISE, HOME_ADVANTAGE, FORMATION_COUNTER_BONUS, captainBestStat, CAPTAIN_BOOST,
-  computeCharacteristicBoosts,
+  Team, MatchResult, MatchEvent,
+  getEffectiveAttribute, getChemistryBonus,
+  PlayerCard as EnginePlayerCard, PlayerMatchStat,
+  getPenaltyOrder, setStatIds, statKey, penaltyGoalChance,
+  captainBestStat, CAPTAIN_BOOST, computeCharacteristicBoosts,
 } from '../lib/gameEngine';
 
 // Captain leadership context: their best stat is lifted +CAPTAIN_BOOST for the whole side.
@@ -23,12 +19,7 @@ const captainBoostCtx = (team: Team) => {
 const charBoostsCtx = (team: Team) => computeCharacteristicBoosts(team.players);
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';
 import {
-  selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
-  frangoDesc, screamedDesc, deflectedDesc, woodworkDesc,
-  penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc,
-  freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc,
-  cornerGoalDesc, cornerSaveDesc, cornerMissDesc,
-  flowDesc, dangerAttemptMsg, celebrationMsg, saveCelebMsg, missCelebMsg, tackleCelebMsg,
+  selectApproach, buildUpDesc, dangerAttemptMsg, saveCelebMsg, missCelebMsg,
   Approach,
 } from '../lib/matchNarrative';
 import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
@@ -149,8 +140,6 @@ export default function MatchSimPage() {
 
   // Substitutions removed — apenas 11 titulares
   const [squadModal, setSquadModal] = useState<'mine' | 'opponent' | null>(null);
-  // Live tactic change (solo only): switch your team's mentality mid-match.
-  const [showTactics, setShowTactics] = useState(false);
 
   // Suspense-based Key Attack Danger state
   const [dangerState, setDangerState] = useState<{
@@ -195,8 +184,6 @@ export default function MatchSimPage() {
 
   const myTeam = isPlayerHome ? homeTeam : awayTeam;
   const oppTeam = isPlayerHome ? awayTeam : homeTeam;
-  const setMyTeam = isPlayerHome ? setHomeTeam : setAwayTeam;
-  const setOppTeam = isPlayerHome ? setAwayTeam : setHomeTeam;
 
   // NOTE: Spectator mode and match event streaming have been removed.
   // Each player now simulates their own match independently.
@@ -205,6 +192,10 @@ export default function MatchSimPage() {
     const rColor = rating >= 8.5 ? '#d4af37' : rating >= 7.5 ? '#22c55e' : rating <= 5.3 ? '#ef4444' : '#ffffff';
     const ringColor = getRarityColor(p.rarity);
     const photoUrl = buildSofifaUrl(p.id, 120);
+    // 🟨🟥🩹 Disciplina/lesão deste jogador NESTE jogo (derivada dos eventos já ocorridos).
+    const yc = events.filter(e => e.type === 'yellow' && e.playerId === p.id).length;
+    const isRed = events.some(e => e.type === 'red' && e.playerId === p.id);
+    const isInjured = events.some(e => e.type === 'injury' && e.playerId === p.id);
     return (
       <div
         key={p.id}
@@ -238,6 +229,10 @@ export default function MatchSimPage() {
               {assists > 1 ? `🅰×${assists}` : '🅰'}
             </span>
           )}
+          {/* 🟨🟥🩹 Cartões e lesão */}
+          {isRed && <span className="text-[11px] flex-shrink-0" title="Expulso">🟥</span>}
+          {!isRed && yc > 0 && <span className="text-[11px] flex-shrink-0" title={`${yc} amarelo(s)`}>{yc > 1 ? '🟨🟨' : '🟨'}</span>}
+          {isInjured && <span className="text-[11px] flex-shrink-0" title="Lesionado (limitado)">🩹</span>}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-sm font-black px-2 py-0.5 rounded-lg border text-center min-w-[36px]" style={{ background: '#1a1a2e', color: rColor, borderColor: '#1f1f3b', fontFamily: 'Rajdhani, sans-serif' }}>
@@ -266,697 +261,6 @@ export default function MatchSimPage() {
     setStats(prev => ({ ...prev, [key]: prev[key] + 1 }));
   };
 
-  const simulateKeyEvent = (nextMin: number, homeAttacks: boolean) => {
-    const attackTeam = homeAttacks ? homeTeam : awayTeam;
-    const defendTeam = homeAttacks ? awayTeam : homeTeam;
-
-    const homeCoach = COACHES.find(c => c.id === homeTeam.coachId)!;
-    const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
-    const homeChem = getChemistryBonus(homeTeam.totalChemistry);
-    const awayChem = getChemistryBonus(awayTeam.totalChemistry);
-    const attackCoach = homeAttacks ? homeCoach : awayCoach;
-    const defendCoach = homeAttacks ? awayCoach : homeCoach;
-    const attackChem = homeAttacks ? homeChem : awayChem;
-    const defendChem = homeAttacks ? awayChem : homeChem;
-
-    const attackers = attackTeam.players.slice(0, 11).filter(p =>
-      ['ST', 'CF', 'LW', 'RW', 'CAM'].includes(p.position)
-    );
-    const defenders = defendTeam.players.slice(0, 11).filter(p =>
-      ['CB', 'LB', 'RB', 'LWB', 'RWB', 'CDM'].includes(p.position)
-    );
-
-    const attacker = attackers[Math.floor(Math.random() * attackers.length)] || attackTeam.players[10];
-    const defender = defenders[Math.floor(Math.random() * defenders.length)] || defendTeam.players[0];
-    const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
-
-    // Wide creator must be someone OTHER than the attacker (no "Fulano cruza para Fulano").
-    const xiAtk = attackTeam.players.slice(0, 11);
-    const widePlayer = xiAtk.find(p => p.id !== attacker.id && ['LW', 'RW', 'LM', 'RM'].includes(p.position))
-      || xiAtk.find(p => p.id !== attacker.id && ['CAM', 'CM'].includes(p.position))
-      || xiAtk.find(p => p.id !== attacker.id)
-      || attacker;
-
-    const homeIsLosing = homeScore < awayScore;
-    const awayIsLosing = awayScore < homeScore;
-    const attackIsLosing = homeAttacks ? homeIsLosing : awayIsLosing;
-    const defendIsLosing = homeAttacks ? awayIsLosing : homeIsLosing;
-    const attackCtx = { isKnockout, isFinal, isLosing: attackIsLosing, captainBoost: captainBoostCtx(attackTeam), charBoosts: charBoostsCtx(attackTeam) };
-    const defendCtx = { isKnockout, isFinal, isLosing: defendIsLosing, captainBoost: captainBoostCtx(defendTeam), charBoosts: charBoostsCtx(defendTeam) };
-
-    const atkProf = formationProfile(attackTeam.formationId);
-    const defProf = formationProfile(defendTeam.formationId);
-    let approach = selectApproach(attackTeam.playStyle ?? 'balanced');
-    // Narrow formations cross less → swap some crosses for central through-balls.
-    if (atkProf.cross <= -2 && approach === 'cross' && Math.random() < 0.6) approach = 'through';
-    const bUpMsg = buildUpDesc(approach, attacker.shortName, defender.shortName, widePlayer.shortName, attackTeam.name);
-
-    let isGoal = false;
-    let isSaveResult = false;
-    let homeScoreDelta = 0;
-    let awayScoreDelta = 0;
-    let goalAlert: { teamName: string; scorer: string } | undefined;
-    let momentumShift = 0;
-    const playerStatUpdates: { statKey: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
-    const statIncrements: (keyof MatchResult['stats'])[] = [];
-    const eventsToPush: MatchEvent[] = [];
-    let messageStage3 = "";
-
-    const isLuckEvent = Math.random() < 0.04;
-
-    if (isLuckEvent) {
-      const randLuck = Math.random();
-
-      if (randLuck < 0.15) {
-        isGoal = true;
-        if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-        const newHG = homeScore + (homeAttacks ? 1 : 0);
-        const newAG = awayScore + (homeAttacks ? 0 : 1);
-        goalAlert = { teamName: attackTeam.name, scorer: 'Gol Contra' };
-        playerStatUpdates.push({ statKey: defender.statId!, updateFn: s => { s.rating -= 0.8; } });
-        eventsToPush.push({
-          minute: nextMin, type: 'goal',
-          description: ownGoalDesc(defender.shortName, gk.shortName),
-          teamId: attackTeam.id, opponentId: defender.id,
-        });
-        momentumShift = homeAttacks ? 15 : -15;
-        messageStage3 = `⚽ GOL DO ${attackTeam.name.toUpperCase()}! ${defender.shortName} faz gol contra! ${newHG}-${newAG}`;
-      } else if (randLuck < 0.30) {
-        isGoal = true;
-        if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-        const newHG = homeScore + (homeAttacks ? 1 : 0);
-        const newAG = awayScore + (homeAttacks ? 0 : 1);
-        goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
-        playerStatUpdates.push(
-          { statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.2; } },
-          { statKey: gk.statId!, updateFn: s => { s.rating -= 1.0; } }
-        );
-        eventsToPush.push({
-          minute: nextMin, type: 'goal',
-          description: frangoDesc(attacker.shortName, gk.shortName),
-          teamId: attackTeam.id, playerId: attacker.id, opponentId: gk.id,
-        });
-        momentumShift = homeAttacks ? 15 : -15;
-        messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Frangaço de ${gk.shortName}! ${newHG}-${newAG}`;
-      } else if (randLuck < 0.50) {
-        isGoal = true;
-        if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-        const newHG = homeScore + (homeAttacks ? 1 : 0);
-        const newAG = awayScore + (homeAttacks ? 0 : 1);
-        goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
-        playerStatUpdates.push(
-          { statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.2; } },
-          { statKey: defender.statId!, updateFn: s => { s.rating -= 0.3; } }
-        );
-        eventsToPush.push({
-          minute: nextMin, type: 'goal',
-          description: deflectedDesc(attacker.shortName, defender.shortName),
-          teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
-        });
-        momentumShift = homeAttacks ? 15 : -15;
-        messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Desvio fatal! ${newHG}-${newAG}`;
-      } else if (randLuck < 0.68) {
-        isGoal = true;
-        if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-        const newHG = homeScore + (homeAttacks ? 1 : 0);
-        const newAG = awayScore + (homeAttacks ? 0 : 1);
-        goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
-        playerStatUpdates.push({ statKey: attacker.statId!, updateFn: s => { s.goals++; s.rating += 1.6; } });
-        eventsToPush.push({
-          minute: nextMin, type: 'goal',
-          description: screamedDesc(attacker.shortName, gk.shortName),
-          teamId: attackTeam.id, playerId: attacker.id, opponentId: gk.id, isSpecial: true,
-        });
-        momentumShift = homeAttacks ? 20 : -20;
-        messageStage3 = `⚽ GOLAÇO DO ${attackTeam.name.toUpperCase()}! Que míssil de ${attacker.shortName}! ${newHG}-${newAG}`;
-      } else if (randLuck < 0.86) {
-        const taker = getPenaltyTaker(attackTeam);
-        // Same model as the engine/shootout: taker's EFFECTIVE composure (+ traits + designated
-        // bonus) vs the keeper's EFFECTIVE shot-stopping — never a flat rate.
-        const penComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)
-          + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
-        const penGkRef = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle ?? 'balanced', defendCtx)
-          + getGoalkeeperTraitBonus(gk.traits);
-        const isPenaltyGoal = Math.random() < penaltyGoalChance(penComp, penGkRef);
-        if (isPenaltyGoal) {
-          isGoal = true;
-          if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-          const newHG = homeScore + (homeAttacks ? 1 : 0);
-          const newAG = awayScore + (homeAttacks ? 0 : 1);
-          goalAlert = { teamName: attackTeam.name, scorer: taker.shortName };
-          playerStatUpdates.push(
-            { statKey: taker.statId!, updateFn: s => { s.goals++; s.rating += 1.0; } },
-            { statKey: defender.statId!, updateFn: s => { s.rating -= 0.2; } }
-          );
-          eventsToPush.push({
-            minute: nextMin, type: 'goal',
-            description: penaltyGoalDesc(taker.shortName, attacker.shortName, defender.shortName, gk.shortName),
-            teamId: attackTeam.id, playerId: taker.id, opponentId: gk.id,
-          });
-          momentumShift = homeAttacks ? 15 : -15;
-          messageStage3 = `⚽ GOOOOOOL DO ${attackTeam.name.toUpperCase()}! Pênalti convertido! ${newHG}-${newAG}`;
-        } else {
-          const isSaved = Math.random() < 0.5;
-          if (isSaved) {
-            isSaveResult = true;
-            statIncrements.push(homeAttacks ? 'awaySaves' : 'homeSaves');
-            playerStatUpdates.push(
-              { statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.8; } },
-              { statKey: taker.statId!, updateFn: s => { s.rating -= 0.5; } }
-            );
-            eventsToPush.push({
-              minute: nextMin, type: 'save',
-              description: penaltySaveDesc(gk.shortName, taker.shortName),
-              teamId: defendTeam.id, playerId: gk.id, opponentId: taker.id,
-            });
-            momentumShift = homeAttacks ? -8 : 8;
-            messageStage3 = saveCelebMsg(gk.shortName, taker.shortName);
-          } else {
-            playerStatUpdates.push({ statKey: taker.statId!, updateFn: s => { s.rating -= 0.6; } });
-            eventsToPush.push({
-              minute: nextMin, type: 'miss',
-              description: penaltyMissDesc(taker.shortName),
-              teamId: attackTeam.id, playerId: taker.id,
-            });
-            momentumShift = homeAttacks ? -8 : 8;
-            messageStage3 = missCelebMsg(taker.shortName);
-          }
-        }
-      } else {
-        playerStatUpdates.push({ statKey: attacker.statId!, updateFn: s => { s.shots++; s.rating += 0.1; } });
-        eventsToPush.push({
-          minute: nextMin, type: 'miss',
-          description: woodworkDesc(attacker.shortName, defender.shortName),
-          teamId: attackTeam.id, playerId: attacker.id,
-        });
-        momentumShift = homeAttacks ? 4 : -4;
-        messageStage3 = `💥 NA TRAVE! Que azar de ${attacker.shortName}!`;
-      }
-    } else {
-      // Push build-up commentary before the resolution event
-      eventsToPush.push({
-        minute: nextMin, type: 'momentum',
-        description: bUpMsg,
-        teamId: attackTeam.id,
-      });
-
-      const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-      const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-      const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-      const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle ?? 'balanced', defendCtx);
-      const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, defendTeam.playStyle ?? 'balanced', defendCtx);
-
-      // Trait effects are already baked into the effective attributes above
-      // (getEffectiveAttribute + trait catalog), so no extra bonuses here.
-      // Midfield control (passing) lifts the quality of the chance created.
-      // Formation + tactic tune chance quality (midfield battle + opponent solidity).
-      const atkTac = tacticProfile(attackTeam.playStyle ?? 'balanced');
-      const defTac = tacticProfile(defendTeam.playStyle ?? 'balanced');
-      const formMod = ((atkProf.control + atkTac.control) - (defProf.control + defTac.control)) * 1.2
-        + atkTac.attack * 1.6
-        - defProf.defense * 3.6      // FORMATION defense crushes chance quality (mirrors gameEngine)
-        - defTac.defense * 2.2;      // tactic defensive intent
-      const buildUp = midfieldBuildUpEdge(teamPlaymaking(attackTeam), teamPlaymaking(defendTeam), attackTeam.playStyle ?? 'balanced') + formMod;
-      const chance = resolveOpenPlayChance({
-        atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
-        gkRating: getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle ?? 'balanced', defendCtx) + getGoalkeeperTraitBonus(gk.traits), approach,
-      });
-
-      if (chance.outcome !== 'duel') {
-        statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
-
-        if (chance.outcome !== 'miss') {
-          statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
-
-          if (chance.outcome === 'goal') {
-            isGoal = true;
-            if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-            const newHG = homeScore + (homeAttacks ? 1 : 0);
-            const newAG = awayScore + (homeAttacks ? 0 : 1);
-            goalAlert = { teamName: attackTeam.name, scorer: attacker.shortName };
-
-            const assister = pickWeightedAssister(attackTeam, attacker.id);
-            const isImmortal = attacker.rarity === 'immortal';
-            if (assister) {
-              playerStatUpdates.push({ statKey: assister.statId!, updateFn: s => { s.assists++; s.rating += 0.8; } });
-            }
-
-            const atkGoals = homeAttacks ? newHG : newAG;
-            const defGoals = homeAttacks ? newAG : newHG;
-
-            eventsToPush.push({
-              minute: nextMin, type: 'goal',
-              description: goalDesc(approach, attacker.shortName, assister?.shortName ?? null, defender.shortName, gk.shortName, newHG, newAG, nextMin, atkGoals, defGoals, isImmortal),
-              teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
-              assisterId: assister?.id,
-              isSpecial: isImmortal || attacker.traits.includes('Frio na Final'),
-            });
-
-            playerStatUpdates.push(
-              { statKey: attacker.statId!, updateFn: s => { s.goals++; s.shotsOnTarget++; s.rating += 1.4; } },
-              { statKey: gk.statId!, updateFn: s => { s.rating -= 0.3; } },
-              { statKey: defender.statId!, updateFn: s => { s.rating -= 0.2; } }
-            );
-            defendTeam.players.slice(0, 11).forEach(p => {
-              if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && p.id !== defender.id) {
-                playerStatUpdates.push({ statKey: p.statId!, updateFn: s => { s.rating -= 0.1; } });
-              }
-            });
-
-            momentumShift = homeAttacks ? 15 : -15;
-            messageStage3 = celebrationMsg(approach, attackTeam.name, attacker.shortName, newHG, newAG);
-          } else {
-            isSaveResult = true;
-            statIncrements.push(homeAttacks ? 'awaySaves' : 'homeSaves');
-
-            const isCorner = Math.random() < 0.45;
-            if (isCorner) statIncrements.push(homeAttacks ? 'homeCorners' : 'awayCorners');
-
-            eventsToPush.push({
-              minute: nextMin, type: 'save',
-              description: saveDesc(approach, gk.shortName, attacker.shortName, isCorner),
-              teamId: defendTeam.id, playerId: gk.id, opponentId: attacker.id,
-            });
-            playerStatUpdates.push(
-              { statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.45; } },
-              { statKey: attacker.statId!, updateFn: s => { s.shotsOnTarget++; s.rating += 0.05; } }
-            );
-            const saveCreator = pickWeightedAssister(attackTeam, attacker.id);
-            if (saveCreator) playerStatUpdates.push({ statKey: saveCreator.statId!, updateFn: s => { s.keyPasses++; s.rating += 0.25; } });
-            momentumShift = homeAttacks ? -8 : 8;
-            messageStage3 = saveCelebMsg(gk.shortName, attacker.shortName);
-          }
-        } else {
-          eventsToPush.push({
-            minute: nextMin, type: 'miss',
-            description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
-            teamId: attackTeam.id, playerId: attacker.id,
-          });
-          playerStatUpdates.push({ statKey: attacker.statId!, updateFn: s => { s.shots++; s.rating -= 0.1; } });
-          const missCreator = pickWeightedAssister(attackTeam, attacker.id);
-          if (missCreator) playerStatUpdates.push({ statKey: missCreator.statId!, updateFn: s => { s.keyPasses++; s.rating += 0.15; } });
-          momentumShift = homeAttacks ? -3 : 3;
-          messageStage3 = missCelebMsg(attacker.shortName);
-        }
-      } else {
-        const duelTackle = Math.random() < 0.5;
-        playerStatUpdates.push(
-          { statKey: defender.statId!, updateFn: s => { if (duelTackle) s.tackles++; else s.interceptions++; s.rating += 0.32; } },
-          { statKey: attacker.statId!, updateFn: s => { s.rating -= 0.12; } }
-        );
-        eventsToPush.push({
-          minute: nextMin, type: 'duel',
-          description: duelDesc(approach, defender.shortName, attacker.shortName),
-          teamId: defendTeam.id, playerId: defender.id, opponentId: attacker.id,
-        });
-        momentumShift = homeAttacks ? -5 : 5;
-        messageStage3 = tackleCelebMsg(defender.shortName, attacker.shortName);
-      }
-    }
-
-    return {
-      isGoal,
-      isSaveResult,
-      homeScoreDelta,
-      awayScoreDelta,
-      goalAlert,
-      momentumShift,
-      playerStatUpdates,
-      statIncrements,
-      eventsToPush,
-      messageStage3,
-      attackerName: attacker.shortName,
-      defenderName: defender.shortName,
-      gkName: gk.shortName,
-      approach,
-      buildUpMsg: bUpMsg,
-      attackTeamId: attackTeam.id,
-    };
-  };
-
-  // Direct free kick — a fraction of fouls become a dangerous dead ball. Returns the
-  // SAME result shape as simulateKeyEvent so it flows through the 3-stage suspense.
-  // Conversion is low (free kicks rarely go in), scaled by the taker's shooting+composure.
-  const simulateFreeKick = (nextMin: number, homeAttacks: boolean) => {
-    const attackTeam = homeAttacks ? homeTeam : awayTeam;
-    const defendTeam = homeAttacks ? awayTeam : homeTeam;
-    const homeCoach = COACHES.find(c => c.id === homeTeam.coachId)!;
-    const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
-    const attackCoach = homeAttacks ? homeCoach : awayCoach;
-    const attackChem = getChemistryBonus(attackTeam.totalChemistry);
-    const attackCtx = { isKnockout, isFinal, isLosing: homeAttacks ? homeScore < awayScore : awayScore < homeScore, captainBoost: captainBoostCtx(attackTeam), charBoosts: charBoostsCtx(attackTeam) };
-
-    const taker = getFreeKickTaker(attackTeam);
-    const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
-    const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-    const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-    const skill = (takerShoot + takerComp) / 2;
-    const goalChance = Math.max(0.015, Math.min(0.11, (skill - 80) / 140));
-    const r = Math.random();
-
-    let isGoal = false, isSaveResult = false, homeScoreDelta = 0, awayScoreDelta = 0;
-    let goalAlert: { teamName: string; scorer: string } | undefined;
-    let momentumShift = 0;
-    const playerStatUpdates: { statKey: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
-    const statIncrements: (keyof MatchResult['stats'])[] = [];
-    const eventsToPush: MatchEvent[] = [];
-    let messageStage3 = '';
-
-    statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
-
-    if (r < goalChance) {
-      isGoal = true;
-      if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-      statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
-      const newHG = homeScore + (homeAttacks ? 1 : 0);
-      const newAG = awayScore + (homeAttacks ? 0 : 1);
-      goalAlert = { teamName: attackTeam.name, scorer: taker.shortName };
-      playerStatUpdates.push(
-        { statKey: taker.statId!, updateFn: s => { s.goals++; s.rating += 1.5; } },
-        { statKey: gk.statId!, updateFn: s => { s.rating -= 0.3; } },
-      );
-      eventsToPush.push({ minute: nextMin, type: 'goal', description: freeKickGoalDesc(taker.shortName, gk.shortName), teamId: attackTeam.id, playerId: taker.id, opponentId: gk.id, isSpecial: true });
-      momentumShift = homeAttacks ? 15 : -15;
-      messageStage3 = `⚽ GOLAÇO DE FALTA DO ${attackTeam.name.toUpperCase()}! ${taker.shortName} marca! ${newHG}-${newAG}`;
-    } else if (r < goalChance + 0.35) {
-      isSaveResult = true;
-      statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget', homeAttacks ? 'awaySaves' : 'homeSaves');
-      playerStatUpdates.push({ statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.5; } });
-      eventsToPush.push({ minute: nextMin, type: 'save', description: freeKickSaveDesc(gk.shortName, taker.shortName), teamId: defendTeam.id, playerId: gk.id, opponentId: taker.id });
-      momentumShift = homeAttacks ? -6 : 6;
-      messageStage3 = saveCelebMsg(gk.shortName, taker.shortName);
-    } else {
-      playerStatUpdates.push({ statKey: taker.statId!, updateFn: s => { s.rating -= 0.1; } });
-      eventsToPush.push({ minute: nextMin, type: 'miss', description: freeKickMissDesc(taker.shortName), teamId: attackTeam.id, playerId: taker.id });
-      momentumShift = homeAttacks ? -3 : 3;
-      messageStage3 = missCelebMsg(taker.shortName);
-    }
-
-    return {
-      isGoal, isSaveResult, homeScoreDelta, awayScoreDelta, goalAlert, momentumShift,
-      playerStatUpdates, statIncrements, eventsToPush, messageStage3,
-      attackerName: taker.shortName, defenderName: gk.shortName, gkName: gk.shortName,
-      approach: 'longrange' as Approach,
-      buildUpMsg: `⚠️ FALTA PERIGOSA! ${taker.shortName} ajeita a bola para a cobrança direta...`,
-      attackTeamId: attackTeam.id,
-    };
-  };
-
-  // Corner header — a fraction of corners become an aerial chance. Same result shape
-  // as simulateKeyEvent so it flows through the 3-stage suspense.
-  const simulateCornerHeader = (nextMin: number, homeAttacks: boolean) => {
-    const attackTeam = homeAttacks ? homeTeam : awayTeam;
-    const defendTeam = homeAttacks ? awayTeam : homeTeam;
-    const homeCoach = COACHES.find(c => c.id === homeTeam.coachId)!;
-    const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
-    const attackCoach = homeAttacks ? homeCoach : awayCoach;
-    const attackChem = getChemistryBonus(attackTeam.totalChemistry);
-    const attackCtx = { isKnockout, isFinal, isLosing: homeAttacks ? homeScore < awayScore : awayScore < homeScore, captainBoost: captainBoostCtx(attackTeam), charBoosts: charBoostsCtx(attackTeam) };
-
-    const header = getHeaderTarget(attackTeam);
-    const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
-    const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)
-      + getEffectiveAttribute(header, 'physical', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)) / 2;
-    const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
-    const r = Math.random();
-
-    let isGoal = false, isSaveResult = false, homeScoreDelta = 0, awayScoreDelta = 0;
-    let goalAlert: { teamName: string; scorer: string } | undefined;
-    let momentumShift = 0;
-    const playerStatUpdates: { statKey: string; updateFn: (s: PlayerMatchStat) => void }[] = [];
-    const statIncrements: (keyof MatchResult['stats'])[] = [];
-    const eventsToPush: MatchEvent[] = [];
-    let messageStage3 = '';
-
-    statIncrements.push(homeAttacks ? 'homeShots' : 'awayShots');
-
-    if (r < goalChance) {
-      isGoal = true;
-      if (homeAttacks) homeScoreDelta = 1; else awayScoreDelta = 1;
-      statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
-      const newHG = homeScore + (homeAttacks ? 1 : 0);
-      const newAG = awayScore + (homeAttacks ? 0 : 1);
-      goalAlert = { teamName: attackTeam.name, scorer: header.shortName };
-      const assister = pickWeightedAssister(attackTeam, header.id);
-      playerStatUpdates.push(
-        { statKey: header.statId!, updateFn: s => { s.goals++; s.rating += 1.4; } },
-        { statKey: gk.statId!, updateFn: s => { s.rating -= 0.3; } },
-      );
-      if (assister) playerStatUpdates.push({ statKey: assister.statId!, updateFn: s => { s.assists++; s.rating += 0.7; } });
-      eventsToPush.push({ minute: nextMin, type: 'goal', description: cornerGoalDesc(header.shortName, gk.shortName), teamId: attackTeam.id, playerId: header.id, opponentId: gk.id, assisterId: assister?.id, isSpecial: true });
-      momentumShift = homeAttacks ? 15 : -15;
-      messageStage3 = `⚽ GOL DE CABEÇA DO ${attackTeam.name.toUpperCase()}! ${header.shortName} marca no escanteio! ${newHG}-${newAG}`;
-    } else if (r < goalChance + 0.40) {
-      isSaveResult = true;
-      statIncrements.push(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget', homeAttacks ? 'awaySaves' : 'homeSaves');
-      playerStatUpdates.push({ statKey: gk.statId!, updateFn: s => { s.saves++; s.rating += 0.5; } });
-      eventsToPush.push({ minute: nextMin, type: 'save', description: cornerSaveDesc(gk.shortName, header.shortName), teamId: defendTeam.id, playerId: gk.id, opponentId: header.id });
-      momentumShift = homeAttacks ? -6 : 6;
-      messageStage3 = saveCelebMsg(gk.shortName, header.shortName);
-    } else {
-      playerStatUpdates.push({ statKey: header.statId!, updateFn: s => { s.rating -= 0.1; } });
-      eventsToPush.push({ minute: nextMin, type: 'miss', description: cornerMissDesc(header.shortName), teamId: attackTeam.id, playerId: header.id });
-      momentumShift = homeAttacks ? -3 : 3;
-      messageStage3 = missCelebMsg(header.shortName);
-    }
-
-    return {
-      isGoal, isSaveResult, homeScoreDelta, awayScoreDelta, goalAlert, momentumShift,
-      playerStatUpdates, statIncrements, eventsToPush, messageStage3,
-      attackerName: header.shortName, defenderName: gk.shortName, gkName: gk.shortName,
-      approach: 'cross' as Approach,
-      buildUpMsg: `🚩 ESCANTEIO! A bola vai na área e ${header.shortName} sobe para o cabeceio...`,
-      attackTeamId: attackTeam.id,
-    };
-  };
-
-  // 3. Clock tick runner (LOCAL simulation — disabled while replaying a server result)
-  useEffect(() => {
-    if (isReplay) return;
-    if (state.mode === 'online' && !isSimulatorHost) return;
-    if (!isPlaying || isFinished || dangerState || penaltyMode) return;
-
-    const interval = setInterval(() => {
-      const nextMin = minute + 1;
-      const finalMin = isKnockout ? 120 : 90;
-
-      // Finish condition
-      if (nextMin > finalMin) {
-        clearInterval(interval);
-        if (isKnockout && homeScore === awayScore) {
-          setPenaltyMode(true);
-          setIsPlaying(false);
-          setMinute(120);
-        } else {
-          setIsFinished(true);
-          setIsPlaying(false);
-        }
-        return;
-      }
-
-      setMinute(nextMin);
-
-      // 3.2 Match Simulation math resolver
-      const homeCoach = COACHES.find(c => c.id === homeTeam.coachId)!;
-      const awayCoach = COACHES.find(c => c.id === awayTeam.coachId)!;
-      const homeFormation = FORMATIONS.find(f => f.id === homeTeam.formationId)!;
-      const awayFormation = FORMATIONS.find(f => f.id === awayTeam.formationId)!;
-
-      const homeChem = getChemistryBonus(homeTeam.totalChemistry);
-      const awayChem = getChemistryBonus(awayTeam.totalChemistry);
-
-      const homeFormBonus = homeFormation.counters.includes(awayTeam.formationId) ? FORMATION_COUNTER_BONUS : 0;
-      const awayFormBonus = awayFormation.counters.includes(homeTeam.formationId) ? FORMATION_COUNTER_BONUS : 0;
-
-      const fergusonActive = (team: Team, goals: number, oppGoals: number) =>
-        team.coachId === 'ferguson' && goals < oppGoals;
-      const zidaneBonus = (team: Team) =>
-        team.coachId === 'zidane' && isKnockout ? (minute >= 90 ? 10 : 7) : 0;
-
-      const homeStrength = calculateTeamStrength(homeTeam, homeCoach, homeChem, homeFormBonus) +
-        zidaneBonus(homeTeam) +
-        (fergusonActive(homeTeam, homeScore, awayScore) ? 10 : 0) +
-        (isFinal ? 0 : HOME_ADVANTAGE); // neutral venue for the final → no host edge
-      const awayStrength = calculateTeamStrength(awayTeam, awayCoach, awayChem, awayFormBonus) +
-        zidaneBonus(awayTeam) +
-        (fergusonActive(awayTeam, awayScore, homeScore) ? 10 : 0);
-
-      const homeMomBonus = (momentum - 50) * 0.12;
-      const awayMomBonus = ((100 - momentum) - 50) * 0.12;
-
-      // Attacking FORMATIONS take more territory (+attack → more chance volume). The price is
-      // paid in chance QUALITY: an attacking shape's negative defense makes conceded chances
-      // deadlier (mirrors gameEngine). The tactic's attacking intent lifts own quality, not territory.
-      const homeAtkScore = homeStrength + homeMomBonus + formationProfile(homeTeam.formationId).attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
-      const awayAtkScore = awayStrength + awayMomBonus + formationProfile(awayTeam.formationId).attack * 2 + (Math.random() * 2 - 1) * MATCH_NOISE;
-
-      const homeAttacks = homeAtkScore > awayAtkScore;
-      const attackTeam = homeAttacks ? homeTeam : awayTeam;
-      const defendTeam = homeAttacks ? awayTeam : homeTeam;
-
-      // Flavour box-score (never affects the score) — mirrors the engine so the
-      // player's live match shows realistic, varied shots/fouls/corners/saves.
-      if (Math.random() < 0.24) incrementStat(homeAttacks ? 'awayFouls' : 'homeFouls');
-      if (Math.random() < 0.20) {
-        incrementStat(homeAttacks ? 'homeShots' : 'awayShots');
-        const o = Math.random();
-        if (o < 0.34) {
-          incrementStat(homeAttacks ? 'homeShotsOnTarget' : 'awayShotsOnTarget');
-          incrementStat(homeAttacks ? 'awaySaves' : 'homeSaves');
-        } else if (o < 0.62) {
-          incrementStat(homeAttacks ? 'homeCorners' : 'awayCorners');
-        }
-      }
-
-      if (!keyMinutesRef.current) keyMinutesRef.current = buildKeyMinutes(isKnockout);
-      const isKeyEvent = keyMinutesRef.current.includes(nextMin);
-      // A dead-ball danger may fire only when we're clear of any key chance (past OR upcoming)
-      // and of the last danger — the cooldown that stops chances clustering / coming back-to-back.
-      const DANGER_COOLDOWN = 4;
-      const nearKey = keyMinutesRef.current.some(k => Math.abs(k - nextMin) < DANGER_COOLDOWN);
-      const dangerCooldownOk = !nearKey && (nextMin - lastDangerMinRef.current >= DANGER_COOLDOWN);
-
-      if (isKeyEvent) {
-        const result = simulateKeyEvent(nextMin, homeAttacks);
-
-        // Suspense applies to ANY shot outcome (goal / save / miss), wherever it
-        // sits in eventsToPush. The normal play pushes a 'momentum' build-up event
-        // first, which used to hide saves/misses — so every danger sequence ended
-        // in a goal, spoiling the suspense. Now defenses and misses build tension too.
-        const isSuspenseWorthy = result.eventsToPush.some(
-          e => e.type === 'goal' || e.type === 'save' || e.type === 'miss'
-        );
-
-        if (isSuspenseWorthy) {
-          lastDangerMinRef.current = nextMin;
-          setIsPlaying(false);
-          pendingGoalResult.current = result;
-
-          setDangerState({
-            stage: 1,
-            teamId: result.attackTeamId,
-            attacker: result.attackerName,
-            defender: result.defenderName,
-            type: 'attack',
-            message: result.buildUpMsg, // stage 1 = the build-up (the move develops, no shot yet)
-            approach: result.approach,
-            gkName: result.gkName,
-          });
-        } else {
-          // Silent resolution
-          result.playerStatUpdates.forEach(update => {
-            adjustPlayerStat(update.statKey, update.updateFn);
-          });
-          result.statIncrements.forEach(key => {
-            incrementStat(key);
-          });
-          setEvents(prev => [...prev, ...result.eventsToPush]);
-          setMomentum(prev => {
-            const nextMom = Math.min(100, Math.max(0, prev + result.momentumShift));
-            setMomentumHistory(hist => [...hist, nextMom]);
-            return nextMom;
-          });
-        }
-      } else if (dangerCooldownOk && Math.random() < 0.02) {
-        // Dangerous free kick at a non-key minute (~1.5/match) — runs through the
-        // same 3-stage suspense as a normal danger play. Gated by the cooldown so it never
-        // lands right on top of a key chance / another danger (no back-to-back).
-        lastDangerMinRef.current = nextMin;
-        const fkResult = simulateFreeKick(nextMin, homeAttacks);
-        setIsPlaying(false);
-        pendingGoalResult.current = fkResult;
-        setDangerState({
-          stage: 1,
-          teamId: fkResult.attackTeamId,
-          attacker: fkResult.attackerName,
-          defender: fkResult.defenderName,
-          type: 'attack',
-          message: fkResult.buildUpMsg, // stage 1 = build-up
-          approach: fkResult.approach,
-          gkName: fkResult.gkName,
-        });
-      } else if (dangerCooldownOk && Math.random() < 0.01) {
-        // Corner header at a non-key minute (~0.7/match) — same 3-stage suspense. Same cooldown gate.
-        lastDangerMinRef.current = nextMin;
-        const chResult = simulateCornerHeader(nextMin, homeAttacks);
-        setIsPlaying(false);
-        pendingGoalResult.current = chResult;
-        setDangerState({
-          stage: 1,
-          teamId: chResult.attackTeamId,
-          attacker: chResult.attackerName,
-          defender: chResult.defenderName,
-          type: 'attack',
-          message: chResult.buildUpMsg, // stage 1 = build-up
-          approach: chResult.approach,
-          gkName: chResult.gkName,
-        });
-      } else {
-        // Flow/Commentary events (30% chance, context-aware)
-        if (Math.random() < 0.30) {
-          const homePossesses = Math.random() < (momentum / 100);
-          const possessTeam = homePossesses ? homeTeam : awayTeam;
-          const dTeam = homePossesses ? awayTeam : homeTeam;
-
-          const midPlayers = possessTeam.players.slice(0, 11).filter(p =>
-            ['MID', 'CM', 'CDM', 'CAM', 'LM', 'RM'].includes(p.position)
-          );
-          const defPlayers = dTeam.players.slice(0, 11).filter(p =>
-            ['DEF', 'CB', 'LB', 'RB', 'CDM'].includes(p.position)
-          );
-
-          const playerA = midPlayers[Math.floor(Math.random() * midPlayers.length)] || possessTeam.players[5];
-          const defPlayerA = defPlayers[Math.floor(Math.random() * defPlayers.length)] || dTeam.players[2];
-
-          const coach = COACHES.find(c => c.id === possessTeam.coachId);
-          const lastEvt = [...events].reverse().find(e => ['goal', 'save', 'miss', 'duel'].includes(e.type));
-          const lastCtxForFlow = lastEvt ? {
-            type: lastEvt.type as 'goal' | 'save' | 'miss' | 'duel',
-            teamId: lastEvt.teamId ?? possessTeam.id,
-            atkName: lastEvt.playerId ? (possessTeam.players.find(p => p.id === lastEvt.playerId)?.shortName ?? playerA.shortName) : playerA.shortName,
-            defName: defPlayerA.shortName,
-            gkName: dTeam.players.find(p => p.position === 'GK')?.shortName ?? defPlayerA.shortName,
-            approach: 'counter' as Approach,
-          } : null;
-
-          const desc = flowDesc(
-            lastCtxForFlow,
-            possessTeam.name,
-            possessTeam.id,
-            playerA.shortName,
-            defPlayerA.shortName,
-            possessTeam.playStyle ?? 'balanced',
-            coach?.id ?? '',
-            dTeam.name,
-            homeScore,
-            awayScore,
-            nextMin,
-          );
-
-          const flowEvent: MatchEvent = {
-            minute: nextMin,
-            type: 'momentum',
-            description: desc,
-            teamId: possessTeam.id,
-            playerId: playerA.id,
-          };
-          setEvents(prev => [...prev, flowEvent]);
-          adjustPlayerStat(playerA.statId!, s => { s.rating += 0.1; });
-
-          setMomentum(prev => {
-            const shift = homePossesses ? 2 : -2;
-            const nextMom = Math.min(95, Math.max(5, prev + shift));
-            setMomentumHistory(hist => [...hist, nextMom]);
-            return nextMom;
-          });
-        } else {
-          setMomentumHistory(hist => [...hist, momentum]);
-        }
-      }
-    }, getTickDuration());
-
-    return () => clearInterval(interval);
-  }, [isPlaying, isFinished, speed, minute, momentum, homeTeam, awayTeam, dangerState, penaltyMode]);
 
   // 4. Suspense / Danger sequence state runner (drives stages 1→2→3 for BOTH the
   // local sim and the online replay — stage 2 branches per mode below). This must
@@ -1406,45 +710,8 @@ export default function MatchSimPage() {
       }
       return;
     }
-
-    // Generate organic outcome for remaining minutes using the actual engine logic!
-    const result = simulateRemainingMatch(
-      homeTeam,
-      awayTeam,
-      minute,
-      homeScore,
-      awayScore,
-      events,
-      stats,
-      isKnockout,
-      isFinal
-    );
-
-    setMinute(isKnockout ? 120 : 90);
-    setHomeScore(result.homeGoals);
-    setAwayScore(result.awayGoals);
-    setEvents(result.events);
-    setStats(result.stats);
-    
-    if (result.playerStats) {
-      setPlayerMatchStats(result.playerStats);
-    }
-
-    if (isKnockout && result.homeGoals === result.awayGoals) {
-      setPenaltyMode(true);
-      setIsPlaying(false);
-      if (result.penaltyWinner) {
-        setPenaltyWinner(result.penaltyWinner);
-        setPenaltyHomeScore(result.homePenalties ?? 0);
-        setPenaltyAwayScore(result.awayPenalties ?? 0);
-      }
-    } else {
-      setIsFinished(true);
-      setIsPlaying(false);
-      if (result.winner) {
-        setPenaltyWinner(result.winner);
-      }
-    }
+    // Solo (liga e mata-mata) e online são sempre replay de um resultado do motor,
+    // então não há mais simulação local aqui — o botão PULAR só existe no replay.
   };
 
   const handleFinish = () => {
@@ -1624,6 +891,10 @@ export default function MatchSimPage() {
       } else if (e.type === 'yellow') {
         if (ak && ps[ak]) { ps[ak].yellowCards++; ps[ak].rating -= 0.5; ps[ak].fouls++; }
         if (isHome) panel.homeFouls++; else panel.awayFouls++;
+      } else if (e.type === 'red') {
+        if (ak && ps[ak]) { ps[ak].redCards++; ps[ak].rating -= 1.5; }
+      } else if (e.type === 'injury') {
+        if (ak && ps[ak]) ps[ak].rating -= 0.3;
       } else if (e.type === 'foul') {
         if (ak && ps[ak]) { ps[ak].fouls++; ps[ak].rating -= 0.1; }
         if (isHome) panel.homeFouls++; else panel.awayFouls++;
@@ -1671,6 +942,9 @@ export default function MatchSimPage() {
       case 'save': return '🧤';
       case 'sub': return '🔄';
       case 'penalty': return '🎯';
+      case 'yellow': return '🟨';
+      case 'red': return '🟥';
+      case 'injury': return '🩹';
       default: return '📢';
     }
   };
@@ -1865,9 +1139,10 @@ export default function MatchSimPage() {
               {/* Home goals */}
               <div className="flex-1 flex flex-wrap justify-end gap-x-2 sm:gap-x-3 gap-y-0.5">
                 {homeGoals.map((g, i) => {
+                  const ogName = g.opponentId ? [...homeTeam.players, ...awayTeam.players].find(p => p.id === g.opponentId)?.shortName : null;
                   const scorer = g.playerId
                     ? homeTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
-                    : 'Gol Contra'; // no playerId on a goal event ⇒ own goal
+                    : ogName ? `${ogName} (Contra)` : 'Gol Contra'; // sem playerId ⇒ gol contra (autor = opponentId)
                   return (
                     <span key={i} className="text-[10px] sm:text-[11px] font-bold text-yellow-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       ⚽ {scorer} {g.minute}'
@@ -1882,9 +1157,10 @@ export default function MatchSimPage() {
               {/* Away goals */}
               <div className="flex-1 flex flex-wrap justify-start gap-x-2 sm:gap-x-3 gap-y-0.5">
                 {awayGoals.map((g, i) => {
+                  const ogName = g.opponentId ? [...homeTeam.players, ...awayTeam.players].find(p => p.id === g.opponentId)?.shortName : null;
                   const scorer = g.playerId
                     ? awayTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
-                    : 'Gol Contra'; // no playerId on a goal event ⇒ own goal
+                    : ogName ? `${ogName} (Contra)` : 'Gol Contra'; // sem playerId ⇒ gol contra (autor = opponentId)
                   return (
                     <span key={i} className="text-[10px] sm:text-[11px] font-bold text-indigo-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       ⚽ {scorer} {g.minute}'
@@ -2012,7 +1288,7 @@ export default function MatchSimPage() {
             className="flex-1 min-h-0 basis-0 overflow-y-auto overflow-x-hidden p-3 sm:p-5 space-y-2.5 sm:space-y-3.5 scroll-smooth"
             style={{ background: '#08080f' }}
           >
-            {events.filter(event => event.type === 'goal' || event.type === 'penalty').length === 0 ? (
+            {events.filter(event => ['goal', 'penalty', 'yellow', 'red', 'injury'].includes(event.type)).length === 0 ? (
               <div className="h-full flex items-center justify-center flex-col text-center text-gray-500 py-8" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 <span className="text-5xl sm:text-6xl mb-3 animate-bounce">⚽</span>
                 <span className="text-sm sm:text-base font-bold text-white tracking-wide">ÁRBITRO APITA O INÍCIO!</span>
@@ -2020,17 +1296,22 @@ export default function MatchSimPage() {
               </div>
             ) : (
               events
-                .filter(event => event.type === 'goal' || event.type === 'penalty')
+                .filter(event => ['goal', 'penalty', 'yellow', 'red', 'injury'].includes(event.type))
                 .map((event, idx) => {
                   const isPlayerEvent = event.teamId === playerTeamId;
                   const isGoal = event.type === 'goal';
-                  const accentColor   = isPlayerEvent ? '#22c55e' : '#ef4444';
-                  const bgColor       = isPlayerEvent
-                    ? 'rgba(34, 197, 94, 0.07)'
-                    : 'rgba(239, 68, 68, 0.07)';
-                  const borderColor   = isPlayerEvent
-                    ? 'rgba(34, 197, 94, 0.25)'
-                    : 'rgba(239, 68, 68, 0.25)';
+                  const negative = event.type === 'yellow' || event.type === 'red' || event.type === 'injury';
+                  // "Favorável" = bom PARA MIM. Gol meu é bom; cartão/lesão MINHA é ruim (o inverso).
+                  const favorable = negative ? !isPlayerEvent : isPlayerEvent;
+                  const accentColor   = favorable ? '#22c55e' : '#ef4444';
+                  const bgColor       = favorable ? 'rgba(34, 197, 94, 0.07)' : 'rgba(239, 68, 68, 0.07)';
+                  const borderColor   = favorable ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+                  // Cor do texto destaca o TIPO do lance (vermelho dramático, lesão âmbar, amarelo).
+                  const descColor = isGoal ? accentColor
+                    : event.type === 'red' ? '#f87171'
+                      : event.type === 'injury' ? '#fbbf24'
+                        : event.type === 'yellow' ? '#facc15'
+                          : '#dfdfe8';
 
                   return (
                     <motion.div
@@ -2056,8 +1337,8 @@ export default function MatchSimPage() {
 
                       <div className="flex-1 min-w-0">
                         <p
-                          className="text-xs sm:text-sm font-semibold leading-snug"
-                          style={{ fontFamily: 'Rajdhani, sans-serif', color: isGoal ? accentColor : '#dfdfe8' }}
+                          className={`text-xs sm:text-sm leading-snug ${negative || isGoal ? 'font-black' : 'font-semibold'}`}
+                          style={{ fontFamily: 'Rajdhani, sans-serif', color: descColor }}
                         >
                           {stripLeadingEmoji(event.description)}
                         </p>
@@ -2067,16 +1348,13 @@ export default function MatchSimPage() {
                           style={{
                             fontFamily: 'Rajdhani, sans-serif',
                             color: accentColor,
-                            background: isPlayerEvent ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                            background: favorable ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
                           }}
                         >
-                          {isPlayerEvent ? '▲ A FAVOR' : '▼ ADVERSÁRIO'}
+                          {negative
+                            ? (isPlayerEvent ? '▼ SEU TIME' : '▲ ADVERSÁRIO')
+                            : (isPlayerEvent ? '▲ A FAVOR' : '▼ ADVERSÁRIO')}
                         </span>
-                        {event.isSpecial && (
-                          <span className="text-[10px] text-yellow-500 font-extrabold tracking-widest mt-0.5 block animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                            ✨ HABILIDADE DE IMORTAL ATIVADA
-                          </span>
-                        )}
                       </div>
                     </motion.div>
                   );
@@ -2195,11 +1473,17 @@ export default function MatchSimPage() {
                   const ratings: Record<string, number> = {};
                   const goalsByPlayer: Record<string, number> = {};
                   const assistsByPlayer: Record<string, number> = {};
+                  const disciplineByPlayer: Record<string, { yellow: number; red: boolean; injury: boolean }> = {};
                   t.players.forEach(p => {
                     const st = getDisplayStat(p.statId!);
                     ratings[p.id] = getDisplayRating(p.statId!);
                     goalsByPlayer[p.id] = st?.goals ?? 0;
                     assistsByPlayer[p.id] = st?.assists ?? 0;
+                    // 🟨🟥🩹 derivado dos eventos deste jogo
+                    const yellow = events.filter(e => e.type === 'yellow' && e.playerId === p.id).length;
+                    const red = events.some(e => e.type === 'red' && e.playerId === p.id);
+                    const injury = events.some(e => e.type === 'injury' && e.playerId === p.id);
+                    if (yellow || red || injury) disciplineByPlayer[p.id] = { yellow, red, injury };
                   });
                   return (
                     <MatchFieldView
@@ -2207,47 +1491,12 @@ export default function MatchSimPage() {
                       ratings={ratings}
                       goalsByPlayer={goalsByPlayer}
                       assistsByPlayer={assistsByPlayer}
+                      disciplineByPlayer={disciplineByPlayer}
                       accent={squadModal === 'mine' ? '#C9A84C' : '#818CF8'}
                     />
                   );
                 })()}
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Live tactic change (solo) ── */}
-      <AnimatePresence>
-        {showTactics && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }} onClick={() => setShowTactics(false)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl p-5 max-w-md w-full"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-black tracking-widest uppercase inline-flex items-center gap-2" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#818CF8' }}>
-                  <Brain size={18} /> MUDAR TÁTICA
-                </h3>
-                <button onClick={() => setShowTactics(false)} className="text-gray-400 hover:text-white text-xl font-black">✕</button>
-              </div>
-              <p className="text-[11px] mb-3" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                Vale <b style={{ color: '#FFF' }}>a partir de agora</b>, só nesta partida. {myTeam.name} está em <b style={{ color: '#C9A84C' }}>{getTacticById(myTeam.playStyle).name}</b>.
-              </p>
-              <TacticSelector
-                value={myTeam.playStyle}
-                onChange={(id) => setMyTeam(prev => ({ ...prev, playStyle: id }))}
-              />
-              <button
-                onClick={() => { setShowTactics(false); if (!isFinished && !penaltyMode) setIsPlaying(true); }}
-                className="w-full mt-3 py-3 rounded-xl font-black tracking-widest"
-                style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #C9A84C, #E8C84A)', color: '#080810' }}
-              >
-                VOLTAR AO JOGO →
-              </button>
             </motion.div>
           </div>
         )}
@@ -2423,22 +1672,6 @@ export default function MatchSimPage() {
             ))}
           </div>
 
-          {/* Live tactic change — solo only, situational mid-match decision */}
-          {!isFinished && !penaltyMode && (
-            <button
-              onClick={() => { setIsPlaying(false); setShowTactics(true); }}
-              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl font-bold text-sm tracking-wider border transition-all"
-              style={{
-                fontFamily: 'Rajdhani, sans-serif',
-                borderColor: '#6366f155',
-                background: 'linear-gradient(135deg, #14142a, #0b0b14)',
-                color: '#818CF8',
-              }}
-              title="Mudar a tática do seu time durante a partida"
-            >
-              <Brain size={15} /> TÁTICA
-            </button>
-          )}
         </div>
         )}
 

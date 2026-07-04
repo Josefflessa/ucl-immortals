@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut } from 'lucide-react';
+import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
@@ -17,6 +17,7 @@ import Crest from '../components/game/Crest';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import BetSlipModal from '../components/game/BetSlipModal';
 import { buildLeagueMatchKey, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
+import { unavailableStarters } from '../lib/discipline';
 import type { MatchResult, Team } from '../lib/gameEngine';
 import { POS_PT } from '../lib/gameData';
 
@@ -39,7 +40,7 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
   const online = state.mode === 'online';
 
   const handleLeaveRoom = () => {
@@ -50,12 +51,14 @@ export default function LeaguePage() {
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop'>('fixtures');
-  const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles'>('goals');
+  const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles' | 'cards'>('goals');
   // HISTÓRICO: alterna entre "MEUS JOGOS" (do jogador) e "RODADAS ANTERIORES" (todos os resultados por rodada)
   const [resultsSubTab, setResultsSubTab] = useState<'mine' | 'rounds'>('mine');
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null);
   // 🎯 Palpite — slip aberto (qual partida) e helpers de teto/consulta.
   const [betSlip, setBetSlip] = useState<{ matchKey: string; homeName: string; awayName: string } | null>(null);
+  // 🟥🩹 Aviso "ajuste a escalação" (solo) — lista de nomes indisponíveis no XI.
+  const [lineupWarning, setLineupWarning] = useState<string[] | null>(null);
   // 🔍 "Ver Detalhes" de uma partida (placar + gols + campo dos 2 times c/ notas finais)
   const [detailsMatch, setDetailsMatch] = useState<{ result: MatchResult; homeTeam?: Team; awayTeam?: Team; homeName: string; awayName: string } | null>(null);
   const openMatchDetails = (result: MatchResult) => setDetailsMatch({
@@ -92,12 +95,14 @@ export default function LeaguePage() {
     );
   }, [allTeams, leagueResults, state.knockoutBracket]);
 
-  const { topScorers, topAssists, topRatings, topKeepers, topTacklers } = useMemo(() => ({
+  const { topScorers, topAssists, topRatings, topKeepers, topTacklers, topCards } = useMemo(() => ({
     topScorers: [...allPlayers].filter(p => p.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals),
     topAssists: [...allPlayers].filter(p => p.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists),
     topRatings: [...allPlayers].filter(p => p.stats.played >= 1).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg),
     topKeepers: [...allPlayers].filter(p => p.position === 'GK' && p.stats.played > 0).sort((a, b) => b.stats.saves - a.stats.saves),
     topTacklers: [...allPlayers].filter(p => p.stats.tackles > 0).sort((a, b) => b.stats.tackles - a.stats.tackles),
+    topCards: [...allPlayers].filter(p => (p.stats.yellowCards + p.stats.redCards) > 0)
+      .sort((a, b) => (b.stats.redCards * 10 + b.stats.yellowCards) - (a.stats.redCards * 10 + a.stats.yellowCards)),
   }), [allPlayers]);
 
   // MEUS JOGOS spans the whole season — league rounds AND knockout legs.
@@ -164,6 +169,15 @@ export default function LeaguePage() {
   const remainingCap = BET_ROUND_CAP - roundStakeUsed(bets, betPrefix);
   const betFor = (matchKey: string): Bet | undefined => bets.find(b => b.matchKey === matchKey);
 
+  // 🟥🩹 Escalação: titulares indisponíveis do MEU time (bloqueia jogar/pronto até ajustar).
+  const myUnavailable = playerTeam ? unavailableStarters(playerTeam, state.discipline) : [];
+  // ✅ Ready-check (online): TODOS (incluindo o host) confirmam "Estou pronto"; o host inicia com todos prontos.
+  const readySet = new Set(state.onlineReadyPlayers);
+  const iAmReady = !!localTeamId && readySet.has(localTeamId);
+  const totalReady = state.mode === 'online' ? state.onlinePlayers.filter(p => !!p.team).length : 0;
+  const readyCount = state.onlineReadyPlayers.length;
+  const allReady = readyCount >= totalReady;
+
   // Online: which human players still need to watch their match before host can advance
   const humanPlayersWithMatch = state.mode === 'online'
     ? state.onlinePlayers.filter(p =>
@@ -200,6 +214,9 @@ export default function LeaguePage() {
   const allFixturesPlayed = currentRoundFixtures.every(f => f.played);
 
   const handlePlayPlayerMatch = () => {
+    // 🟥🩹 Bloqueio: não deixa jogar com titular indisponível — avisa e obriga a ajustar.
+    if (myUnavailable.length > 0) { setLineupWarning(myUnavailable.map(u => u.shortName ?? '?')); return; }
+
     // In online mode, the player's team ID is player_0, player_1 etc. not player_team
     const myPlayerId = localTeamId;
 
@@ -217,9 +234,16 @@ export default function LeaguePage() {
     });
   };
 
-  // ONLINE host only: simulate the entire round on the server at once.
+  // ONLINE host only: simulate the entire round on the server at once (só com todos prontos).
   const handlePlayRound = () => {
+    if (!allReady) return;
     playRoundOnline();
+  };
+  // ✅ Não-host aperta "Estou pronto" (só se a escalação estiver ok).
+  const handleReadyToggle = () => {
+    if (iAmReady) { playerUnreadyOnline(); return; }
+    if (myUnavailable.length > 0) { setLineupWarning(myUnavailable.map(u => u.shortName ?? '?')); return; }
+    playerReadyOnline();
   };
 
   const handleAdvanceRound = () => {
@@ -488,6 +512,50 @@ export default function LeaguePage() {
               </span>
             </div>
 
+            {/* ⚠️ Desfalques do seu time — se estiverem no XI, BLOQUEIA a rodada até ajustar (sem troca auto). */}
+            {(() => {
+              if (!playerTeam) return null;
+              const outs = playerTeam.players.filter(p => {
+                const a = state.discipline[`${playerTeam.id}:${p.id}`];
+                return a && (a.banned > 0 || a.injured > 0);
+              });
+              if (outs.length === 0) return null;
+              const inXI = new Set(myUnavailable.map(u => u.id)); // indisponíveis que estão no XI (bloqueiam)
+              const blocking = outs.some(p => inXI.has(p.id));
+              return (
+                <div className="rounded-xl px-4 py-3 mb-1" style={{ background: blocking ? '#241010' : '#1a0e0e', border: `1px solid ${blocking ? '#EF444488' : '#7f1d1d66'}` }}>
+                  <div className="text-[11px] font-black tracking-widest mb-2" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ DESFALQUES</div>
+                  <div className="flex flex-col gap-1.5">
+                    {outs.map(p => {
+                      const a = state.discipline[`${playerTeam.id}:${p.id}`];
+                      const isIn = inXI.has(p.id);
+                      const suspended = a.banned > 0;
+                      const games = suspended ? a.banned : a.injured;
+                      const gamesTxt = `${games} ${games === 1 ? 'jogo' : 'jogos'}`;
+                      return (
+                        <div key={p.id} className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm leading-none">{suspended ? '🟥' : '🩹'}</span>
+                          <span className="text-[12px] font-bold" style={{ color: isIn ? '#FCA5A5' : '#C8B0B0', fontFamily: 'Rajdhani, sans-serif' }}>{p.shortName}</span>
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider" style={{ background: suspended ? '#EF444422' : '#3B82F622', color: suspended ? '#F87171' : '#93C5FD', fontFamily: 'Rajdhani, sans-serif' }}>
+                            {suspended ? 'SUSPENSO' : 'LESIONADO'}
+                          </span>
+                          <span className="text-[11px] font-semibold" style={{ color: '#9A8080', fontFamily: 'Rajdhani, sans-serif' }}>fora por <b style={{ color: '#C8B0B0' }}>{gamesTxt}</b></span>
+                          {isIn && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider" style={{ background: '#EF4444', color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>
+                              ⚠ ESCALADO — TROQUE
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[10px] mt-2 pt-2 font-bold" style={{ color: blocking ? '#FCA5A5' : '#8A6A6A', borderTop: '1px solid #ffffff0d', fontFamily: 'Rajdhani, sans-serif' }}>
+                    {blocking ? '🚫 Você não pode jogar com um indisponível no XI — substitua na aba MEU TIME.' : '✓ Todos no banco — tudo certo. Só não escale indisponíveis no XI.'}
+                  </div>
+                </div>
+              );
+            })()}
+
             {currentRoundFixtures.map((fixture, idx) => {
               const isMyFixture = fixture.homeTeamId === localTeamId || fixture.awayTeamId === localTeamId;
               const isPlayer = fixture.homeTeamId === playerTeam?.id || fixture.awayTeamId === playerTeam?.id;
@@ -594,23 +662,42 @@ export default function LeaguePage() {
               >
                 {state.isHost ? (
                   !allFixturesPlayed ? (
-                    /* Host has not started the round yet — a single press simulates
-                       every match of the round at once on the server. */
+                    /* Host: confirma "Estou pronto" (valida o próprio time) e depois inicia a rodada. */
                     <>
+                      {iAmReady ? (
+                        <button onClick={handleReadyToggle}
+                          className="w-full py-3 rounded-xl font-black text-lg tracking-widest transition-all mb-2 active:scale-[0.98]"
+                          style={{ fontFamily: 'Bebas Neue, sans-serif', background: '#0a1a0e', color: '#4ADE80', border: '1px solid #22C55E88', boxShadow: 'inset 0 3px 9px rgba(0,0,0,0.55)', transform: 'scale(0.985)' }}
+                          title="Toque para cancelar">
+                          ✅ PRONTO!
+                        </button>
+                      ) : (
+                        <button onClick={handleReadyToggle}
+                          className="w-full py-3 rounded-xl font-black text-lg tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98] mb-2"
+                          style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)', color: '#04140A', boxShadow: '0 4px 0 #16833f, 0 8px 18px rgba(34,197,94,0.25)' }}>
+                          ✅ ESTOU PRONTO
+                        </button>
+                      )}
+                      {totalReady > 0 && (
+                        <div className="mb-2 text-[11px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: allReady ? '#22C55E' : '#C9A84C' }}>
+                          {readyCount}/{totalReady} PRONTO{totalReady !== 1 ? 'S' : ''}
+                        </div>
+                      )}
                       <button
                         onClick={handlePlayRound}
-                        className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
+                        disabled={!allReady}
+                        className="w-full py-4 rounded-xl font-black text-xl tracking-widest shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:scale-[1.01] enabled:cursor-pointer"
                         style={{
                           fontFamily: 'Bebas Neue, sans-serif',
-                          background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
-                          color: '#080810',
-                          boxShadow: '0 0 25px rgba(201,168,76,0.3)',
+                          background: allReady ? 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)' : '#1A1A2A',
+                          color: allReady ? '#080810' : '#666',
+                          boxShadow: allReady ? '0 0 25px rgba(201,168,76,0.3)' : 'none',
                         }}
                       >
                         ▶ JOGAR RODADA {leagueRound}
                       </button>
                       <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                        Todas as partidas da rodada começam ao mesmo tempo para todos.
+                        {allReady ? 'Todas as partidas começam ao mesmo tempo para todos.' : 'Todos (você incluso) precisam confirmar que estão prontos.'}
                       </div>
                     </>
                   ) : !allPlayersWatched ? (
@@ -651,9 +738,26 @@ export default function LeaguePage() {
                   )
                 ) : (
                   !allFixturesPlayed ? (
-                    <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                      ⏳ AGUARDANDO O ANFITRIÃO INICIAR A RODADA {leagueRound}...
-                    </div>
+                    /* ✅ Não-host: confirma "Estou pronto" (só com escalação válida). */
+                    <>
+                      {iAmReady ? (
+                        <button onClick={handleReadyToggle}
+                          className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all active:scale-[0.98]"
+                          style={{ fontFamily: 'Bebas Neue, sans-serif', background: '#0a1a0e', color: '#4ADE80', border: '1px solid #22C55E88', boxShadow: 'inset 0 3px 10px rgba(0,0,0,0.55)', transform: 'scale(0.985)' }}
+                          title="Toque para cancelar">
+                          ✅ PRONTO!
+                        </button>
+                      ) : (
+                        <button onClick={handleReadyToggle}
+                          className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)', color: '#04140A', boxShadow: '0 4px 0 #16833f, 0 8px 18px rgba(34,197,94,0.25)' }}>
+                          ✅ ESTOU PRONTO
+                        </button>
+                      )}
+                      <div className="mt-2 text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                        {readyCount}/{totalReady} pronto{totalReady !== 1 ? 's' : ''} · o anfitrião inicia quando todos confirmarem.
+                      </div>
+                    </>
                   ) : (
                     <div className="py-2 text-sm font-bold text-green-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       👑 RODADA CONCLUÍDA! AGUARDANDO O ANFITRIÃO AVANÇAR...
@@ -824,6 +928,7 @@ export default function LeaguePage() {
                 { id: 'ratings', label: 'NOTA MÉDIA', Icon: Star },
                 { id: 'keepers', label: 'GOLEIROS', Icon: Hand },
                 { id: 'tackles', label: 'DESARMES', Icon: Swords },
+                { id: 'cards', label: 'DISCIPLINA', Icon: AlertTriangle },
               ].map(({ id, label, Icon }) => {
                 const isActive = statsSubTab === id;
                 return (
@@ -853,6 +958,7 @@ export default function LeaguePage() {
                   {statsSubTab === 'ratings' && 'MELHORES NOTAS DA TEMPORADA (MÍN. 1 JOGO)'}
                   {statsSubTab === 'keepers' && 'GOLEIROS COM MAIS DEFESAS REALIZADAS'}
                   {statsSubTab === 'tackles' && 'LÍDERES EM DESARMES DO CAMPEONATO'}
+                  {statsSubTab === 'cards' && 'DISCIPLINA — MAIS CARTÕES DA TEMPORADA'}
                 </span>
                 <span className="text-[9px] font-black text-yellow-500 tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   UCL IMMORTALS LEAGUE
@@ -865,6 +971,7 @@ export default function LeaguePage() {
                   if (statsSubTab === 'assists') return topAssists;
                   if (statsSubTab === 'ratings') return topRatings;
                   if (statsSubTab === 'keepers') return topKeepers;
+                  if (statsSubTab === 'cards') return topCards;
                   return topTacklers;
                 };
 
@@ -902,6 +1009,9 @@ export default function LeaguePage() {
                       } else if (statsSubTab === 'tackles') {
                         metricVal = player.stats.tackles;
                         metricLabel = metricVal === 1 ? 'desarme' : 'desarmes';
+                      } else if (statsSubTab === 'cards') {
+                        metricVal = `${player.stats.yellowCards}🟨${player.stats.redCards > 0 ? ` ${player.stats.redCards}🟥` : ''}`;
+                        metricLabel = 'cartões';
                       }
 
                       return (
@@ -1368,6 +1478,31 @@ export default function LeaguePage() {
             />
           );
         })()}
+      </AnimatePresence>
+
+      {/* 🚫 Aviso: tentou jogar com titular indisponível (solo) */}
+      <AnimatePresence>
+        {lineupWarning && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(6,6,14,0.92)' }} onClick={() => setLineupWarning(null)}>
+            <motion.div initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl overflow-hidden text-center" style={{ background: '#0B0B14', border: '1px solid #EF444455' }}>
+              <div className="px-6 pt-6 pb-2">
+                <div className="text-4xl mb-2">🚫</div>
+                <div className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</div>
+                <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.join(', ')}</b>.<br />
+                  Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar a rodada.
+                </p>
+              </div>
+              <button onClick={() => setLineupWarning(null)}
+                className="w-full py-3.5 mt-3 font-black tracking-widest text-sm"
+                style={{ fontFamily: 'Rajdhani, sans-serif', background: '#EF444418', color: '#FCA5A5', borderTop: '1px solid #EF444433' }}>
+                ENTENDI
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );

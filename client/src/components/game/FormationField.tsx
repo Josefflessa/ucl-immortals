@@ -30,6 +30,8 @@ interface FormationFieldProps {
   ratings?: Record<string, number>;
   goalsByPlayer?: Record<string, number>;
   assistsByPlayer?: Record<string, number>;
+  // 🟨🟥🩹 Disciplina/lesão por jogador (durante a partida). Expulso é escurecido + 🟥; lesionado 🩹.
+  disciplineByPlayer?: Record<string, { yellow: number; red: boolean; injury: boolean }>;
 }
 
 const POSITION_COLORS: Record<string, string> = {
@@ -65,6 +67,7 @@ export default function FormationField({
   ratings,
   goalsByPlayer,
   assistsByPlayer,
+  disciplineByPlayer,
 }: FormationFieldProps) {
   const ratingMode = !!ratings;
   const ratingColor = (r: number) => r >= 8.5 ? '#d4af37' : r >= 7.5 ? '#22c55e' : r >= 6.5 ? '#e5e7eb' : r <= 5.3 ? '#ef4444' : '#f59e0b';
@@ -173,6 +176,8 @@ export default function FormationField({
         const r = player ? ratings?.[player.id] : undefined;
         const g = player ? (goalsByPlayer?.[player.id] ?? 0) : 0;
         const a = player ? (assistsByPlayer?.[player.id] ?? 0) : 0;
+        const disc = player ? disciplineByPlayer?.[player.id] : undefined;
+        const sentOff = !!disc?.red;
 
         return (
           <motion.div
@@ -191,6 +196,9 @@ export default function FormationField({
               <div
                 className="rounded-full flex items-center justify-center font-bold cursor-pointer overflow-hidden w-full h-full"
                 style={{
+                  // Expulso: só a FOTO fica escurecida/cinza — os badges (nota, 🟥) seguem coloridos.
+                  opacity: sentOff ? 0.4 : 1,
+                  filter: sentOff ? 'grayscale(1)' : 'none',
                   background: player
                     ? `radial-gradient(circle, ${rarityColor}33 0%, #0F0F1A 100%)`
                     : '#1A1A2A',
@@ -235,13 +243,20 @@ export default function FormationField({
                     </span>
                     {(g > 0 || a > 0) && (
                       <span
-                        className="absolute leading-none rounded-full"
+                        className="absolute leading-none rounded-full font-black"
                         style={{
-                          top: -4, right: -4, fontSize: compact ? '7px' : '8px', padding: '0 2px',
-                          background: '#0b0b14', border: '1px solid #ffffff33', whiteSpace: 'nowrap',
+                          top: -5, right: -5, fontSize: compact ? '9px' : '11px', padding: '1px 3px',
+                          background: '#0b0b14', border: '1px solid #ffffff44', whiteSpace: 'nowrap',
+                          fontFamily: 'Rajdhani, sans-serif',
                         }}
                       >
                         {g > 0 ? `⚽${g > 1 ? g : ''}` : ''}{a > 0 ? `🅰${a > 1 ? a : ''}` : ''}
+                      </span>
+                    )}
+                    {/* 🟨🟥🩹 Disciplina/lesão — canto superior esquerdo */}
+                    {disc && (disc.red || disc.injury || disc.yellow > 0) && (
+                      <span className="absolute leading-none" style={{ top: -5, left: -5, fontSize: compact ? '9px' : '11px', whiteSpace: 'nowrap' }}>
+                        {disc.red ? '🟥' : disc.yellow > 1 ? '🟨🟨' : disc.yellow === 1 ? '🟨' : ''}{disc.injury ? '🩹' : ''}
                       </span>
                     )}
                   </>

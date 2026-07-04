@@ -4,7 +4,7 @@
 // Reutilizável na rodada da liga, no MEUS JOGOS e no mata-mata (substitui a antiga narração).
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MatchResult, Team } from '../../lib/gameEngine';
+import { MatchResult, MatchEvent, Team } from '../../lib/gameEngine';
 import MatchFieldView from './MatchFieldView';
 import Crest from './Crest';
 
@@ -29,11 +29,17 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
   const homeGoals = goalEvents.filter(g => g.teamId === result.homeTeamId);
   const awayGoals = goalEvents.filter(g => g.teamId === result.awayTeamId);
 
+  // Nome do autor do gol. Gol contra não tem playerId — o zagueiro vem em opponentId → "Nome (Contra)".
+  const scorerLabel = (g: MatchEvent): string =>
+    g.playerId ? (nameById[g.playerId] ?? '?')
+      : g.opponentId && nameById[g.opponentId] ? `${nameById[g.opponentId]} (Contra)` : 'Gol Contra';
+
   // Notas/gols/assistências FINAIS por jogador (do time selecionado), keyed por player.id.
   const team = side === 'home' ? homeTeam : awayTeam;
   const ratings: Record<string, number> = {};
   const goalsByPlayer: Record<string, number> = {};
   const assistsByPlayer: Record<string, number> = {};
+  const disciplineByPlayer: Record<string, { yellow: number; red: boolean; injury: boolean }> = {};
   if (result.playerStats && team) {
     for (const st of Object.values(result.playerStats)) {
       if (st.teamId !== team.id) continue;
@@ -41,6 +47,15 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
       goalsByPlayer[st.playerId] = st.goals;
       assistsByPlayer[st.playerId] = st.assists;
     }
+  }
+  if (team) for (const e of result.events) {
+    if (e.teamId !== team.id || !e.playerId) continue;
+    const d = disciplineByPlayer[e.playerId] ?? { yellow: 0, red: false, injury: false };
+    if (e.type === 'yellow') d.yellow++;
+    else if (e.type === 'red') d.red = true;
+    else if (e.type === 'injury') d.injury = true;
+    else continue;
+    disciplineByPlayer[e.playerId] = d;
   }
 
   return (
@@ -75,25 +90,53 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
         </div>
 
         <div className="overflow-y-auto flex-1 min-h-0 p-4">
-          {/* Gols */}
-          {goalEvents.length > 0 && (
-            <div className="grid grid-cols-2 gap-x-4 mb-4 pb-3" style={{ borderBottom: '1px solid #16162a' }}>
-              <div className="flex flex-col items-end gap-0.5">
-                {homeGoals.map((g, i) => (
-                  <div key={i} className="text-[12px]" style={{ color: '#E8D8A0', fontFamily: 'Rajdhani, sans-serif' }}>
-                    {g.playerId ? (nameById[g.playerId] ?? '?') : '?'} <span style={{ color: '#8A8A9A' }}>{g.minute}'</span> ⚽
+          {/* Gols + Cartões/lesões — SEMPRE no mesmo bloco, com UMA linha entre eles só quando os
+              dois existem (layout consistente entre partidas). */}
+          {(() => {
+            const hasDisc = result.events.some(e => e.type === 'yellow' || e.type === 'red' || e.type === 'injury');
+            if (goalEvents.length === 0 && !hasDisc) return null;
+            const ic = (t: string) => t === 'yellow' ? '🟨' : t === 'red' ? '🟥' : '🩹';
+            return (
+              <div className="mb-4 pb-3" style={{ borderBottom: '1px solid #16162a' }}>
+                {goalEvents.length > 0 && (
+                  <div className="grid grid-cols-2 gap-x-4">
+                    <div className="flex flex-col items-end gap-0.5">
+                      {homeGoals.map((g, i) => (
+                        <div key={i} className="text-[12px]" style={{ color: '#E8D8A0', fontFamily: 'Rajdhani, sans-serif' }}>
+                          {scorerLabel(g)} <span style={{ color: '#8A8A9A' }}>{g.minute}'</span> ⚽
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-col items-start gap-0.5">
+                      {awayGoals.map((g, i) => (
+                        <div key={i} className="text-[12px]" style={{ color: '#E8D8A0', fontFamily: 'Rajdhani, sans-serif' }}>
+                          ⚽ <span style={{ color: '#8A8A9A' }}>{g.minute}'</span> {scorerLabel(g)}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-              <div className="flex flex-col items-start gap-0.5">
-                {awayGoals.map((g, i) => (
-                  <div key={i} className="text-[12px]" style={{ color: '#E8D8A0', fontFamily: 'Rajdhani, sans-serif' }}>
-                    ⚽ <span style={{ color: '#8A8A9A' }}>{g.minute}'</span> {g.playerId ? (nameById[g.playerId] ?? '?') : '?'}
+                )}
+                {goalEvents.length > 0 && hasDisc && <div className="my-2.5" style={{ borderTop: '1px solid #16162a' }} />}
+                {hasDisc && (
+                  <div className="grid grid-cols-2 gap-x-4">
+                    {(['home', 'away'] as const).map(sd => {
+                      const tid = sd === 'home' ? result.homeTeamId : result.awayTeamId;
+                      const list = result.events.filter(e => (e.type === 'yellow' || e.type === 'red' || e.type === 'injury') && e.teamId === tid);
+                      return (
+                        <div key={sd} className={`flex flex-col gap-0.5 ${sd === 'home' ? 'items-end' : 'items-start'}`}>
+                          {list.map((e, i) => (
+                            <div key={i} className="text-[11px]" style={{ color: '#B8B8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+                              {sd === 'away' && <>{ic(e.type)} </>}<span style={{ color: '#8A8A9A' }}>{e.minute}'</span> {e.playerId ? (nameById[e.playerId] ?? '?') : '?'}{sd === 'home' && <> {ic(e.type)}</>}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Alternar entre os dois times */}
           <div className="flex gap-2 mb-3">
@@ -108,7 +151,7 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           </div>
 
           {team ? (
-            <MatchFieldView team={team} ratings={ratings} goalsByPlayer={goalsByPlayer} assistsByPlayer={assistsByPlayer} accent={side === 'home' ? '#C9A84C' : '#818CF8'} />
+            <MatchFieldView team={team} ratings={ratings} goalsByPlayer={goalsByPlayer} assistsByPlayer={assistsByPlayer} disciplineByPlayer={disciplineByPlayer} accent={side === 'home' ? '#C9A84C' : '#818CF8'} />
           ) : (
             <div className="py-8 text-center text-xs text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>Escalação indisponível.</div>
           )}

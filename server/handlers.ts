@@ -27,6 +27,7 @@ import {
 import { FORMATIONS, DIFFICULTY_LEVELS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from "../client/src/lib/shop.js";
 import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
+import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters } from "../client/src/lib/discipline.js";
 
 interface RoomPlayer {
   socketId: string;
@@ -70,6 +71,8 @@ interface RoomState {
   // Synchronization: which human players have confirmed watching the current round/leg
   watchedRoundPlayers: string[];
   watchedKnockoutLegPlayers: string[];
+  readyPlayers: string[];    // ✅ jogadores (não-host) que confirmaram "Estou pronto" p/ a rodada/perna atual
+  discipline: DisciplineMap; // 🟨🟥🩹 disponibilidade por jogador (todos os times)
   draftState: {
     round: number;
     turnIndex: number;
@@ -338,8 +341,8 @@ export function registerSocketHandlers(io: Server) {
             coachId: 'guardiola',
             formationId: '4-3-3',
             playStyle: 'balanced',
-            draftedPlayers: Array(11).fill(undefined),
-            vetoesLeft: 2,
+            draftedPlayers: Array(13).fill(undefined), // 11 titulares + 2 reservas
+            vetoesLeft: 4,
             captain: null,
             penaltyTaker: null,
             freeKickTaker: null,
@@ -363,6 +366,8 @@ export function registerSocketHandlers(io: Server) {
         champion: null,
         watchedRoundPlayers: [],
         watchedKnockoutLegPlayers: [],
+        readyPlayers: [],
+        discipline: {},
         draftState: {
           round: 1,
           turnIndex: 0,
@@ -429,8 +434,8 @@ export function registerSocketHandlers(io: Server) {
         coachId: 'guardiola',
         formationId: '4-3-3',
         playStyle: 'balanced',
-        draftedPlayers: Array(11).fill(undefined),
-        vetoesLeft: 2,
+        draftedPlayers: Array(13).fill(undefined), // 11 titulares + 2 reservas
+        vetoesLeft: 4,
         captain: null,
         penaltyTaker: null,
         freeKickTaker: null,
@@ -486,10 +491,10 @@ export function registerSocketHandlers(io: Server) {
       // Check if all players have submitted setup
       const allReady = room.players.every(p => p.ready);
       if (allReady) {
-        // Build Snake Draft Order for 11 rounds
+        // Build Snake Draft Order for 13 rounds (11 titulares + 2 reservas)
         const numPlayers = room.players.length;
         const draftOrder: string[] = [];
-        for (let round = 1; round <= 11; round++) {
+        for (let round = 1; round <= 13; round++) {
           if (round % 2 !== 0) {
             for (let i = 0; i < numPlayers; i++) {
               draftOrder.push(room.players[i].id);
@@ -720,7 +725,13 @@ export function registerSocketHandlers(io: Server) {
       player.captain = captain ?? null;
       player.penaltyTaker = penaltyTaker ?? null;
       player.freeKickTaker = freeKickTaker ?? null;
-      socket.emit("room_updated", room); // only this player's own team changed
+      // ✅ Mudou a escalação → precisa reconfirmar "Estou pronto".
+      if (room.readyPlayers.includes(player.id)) {
+        room.readyPlayers = room.readyPlayers.filter(id => id !== player.id);
+        io.to(roomCode).emit("room_updated", room);
+      } else {
+        socket.emit("room_updated", room);
+      }
     });
 
     // 🩸 Mártir — set which (up to 2) XI teammates receive the +3. Validated against the CURRENT XI.
@@ -884,6 +895,19 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room);
     });
 
+    // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador do time do autor (paga PHYSIO_COST).
+    socket.on("heal_injury", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || player.points < SHOP_COSTS.physio) return;
+      const key = `${player.team.id}:${playerId}`;
+      if (!room.discipline[key] || room.discipline[key].injured <= 0) return;
+      player.points -= SHOP_COSTS.physio;
+      room.discipline = healInjury(room.discipline, player.team.id, playerId);
+      socket.emit("room_updated", room);
+    });
+
     socket.on("shop_train", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: TrainAttr }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
@@ -958,10 +982,37 @@ export function registerSocketHandlers(io: Server) {
     // current round at once (single source of truth) so the scores/data are
     // identical on every device. Each human then watches their own match as a
     // deterministic replay of the result the server produced here.
+    // ✅ "Estou pronto" — um jogador NÃO-host confirma que está pronto p/ a rodada. Só pode com
+    // escalação válida (nenhum suspenso/lesionado no XI); senão avisa o porquê.
+    socket.on("player_ready", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const bad = unavailableStarters(player.team, room.discipline);
+      if (bad.length > 0) { socket.emit("ready_blocked", { players: bad.map((u: any) => u.shortName) }); return; }
+      if (!room.readyPlayers.includes(player.id)) room.readyPlayers.push(player.id);
+      io.to(roomCode).emit("room_updated", room); // todos veem a contagem
+    });
+    socket.on("player_unready", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player) return;
+      room.readyPlayers = room.readyPlayers.filter(id => id !== player.id);
+      io.to(roomCode).emit("room_updated", room);
+    });
+
     socket.on("play_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'league') return;
       if (!isHost(room, socket.id)) return;
+
+      // ✅ TODOS os jogadores com jogo na rodada (INCLUINDO o host) precisam ter apertado "Estou
+      // pronto" — e o próprio player_ready valida a escalação de cada um ao confirmar.
+      const withFixture = room.players.filter(p => p.connected && p.team
+        && room.leagueFixtures.some(f => f.round === room.leagueRound && (f.homeTeamId === p.id || f.awayTeamId === p.id)));
+      if (!withFixture.every(p => room.readyPlayers.includes(p.id))) return; // ainda faltam prontos
 
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
@@ -972,7 +1023,8 @@ export function registerSocketHandlers(io: Server) {
           const home = allTeams.find(t => t.id === f.homeTeamId);
           const away = allTeams.find(t => t.id === f.awayTeamId);
           if (!home || !away) return f;
-          const result = simulateMatch(home, away);
+          // 🟨🟥🩹 Bots resolvem a escalação (humanos já estão válidos pelo bloqueio acima).
+          const result = simulateMatch(resolveAvailableLineup(home, room.discipline).team, resolveAvailableLineup(away, room.discipline).team);
           room.leagueResults.push(result);
           simulatedAny = true;
           return { ...f, played: true, result };
@@ -981,9 +1033,16 @@ export function registerSocketHandlers(io: Server) {
       });
 
       if (simulatedAny) {
+        // 🟨🟥🩹 Aplica a disciplina da rodada (todos os times que jogaram).
+        const roundFx = room.leagueFixtures.filter(f => f.round === room.leagueRound && f.result);
+        const roundTeamIds = Array.from(new Set(roundFx.flatMap(f => [f.homeTeamId, f.awayTeamId])));
+        const nameOf = (teamId: string, playerId: string) => allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
+        room.discipline = applyMatchDiscipline(room.discipline, roundTeamIds, roundFx.map(f => f.result!), nameOf).next;
+
         room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
         // Reset watch confirmations so the new round requires fresh confirmation
         room.watchedRoundPlayers = [];
+        room.readyPlayers = []; // ✅ próxima rodada exige "prontos" de novo
         // Award shop points + offer the end-of-round reinforcement to each human (same as solo).
         room.players.forEach(p => {
           if (!p.team) return;
@@ -1045,6 +1104,7 @@ export function registerSocketHandlers(io: Server) {
         // (play-offs → R16 → quarters → semis → final).
         room.phase = 'knockout';
         room.knockoutBracket = createKnockoutBracket(room.leagueStandings);
+        room.discipline = resetYellowsForKnockout(room.discipline); // 🟨 amarelos zeram no mata-mata
       }
 
       io.to(roomCode).emit("room_updated", room);
@@ -1073,9 +1133,19 @@ export function registerSocketHandlers(io: Server) {
         }
       }
 
+      // ✅ Ready-check do mata-mata: TODOS com tie na rodada (incluindo o host) prontos.
+      const activeTies = getActiveKnockoutMatches(room.knockoutBracket) as any[];
+      const koWithTie = room.players.filter(p => p.connected && p.team
+        && activeTies.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id));
+      if (!koWithTie.every(p => room.readyPlayers.includes(p.id))) return;
+
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
-      const resolve = (id: string) => allTeams.find(t => t.id === id);
+      // 🟨🟥🩹 Resolve as escalações contra a disciplina antes de simular a perna (bots inclusos).
+      const resolve = (id: string) => {
+        const t = allTeams.find(tm => tm.id === id);
+        return t ? resolveAvailableLineup(t, room.discipline).team : undefined;
+      };
 
       // Which leg is being played now (playActiveKnockoutLeg may bump currentLeg 1→2 afterwards).
       const isFinalRound = room.knockoutBracket.currentRound === 'final';
@@ -1084,9 +1154,19 @@ export function registerSocketHandlers(io: Server) {
       // Plays the current leg (ida or volta) of every tie in the active round.
       // Knockout results live in the bracket only — they are NOT pushed into
       // leagueResults (season stats read the legs directly from the bracket).
-      playActiveKnockoutLeg(room.knockoutBracket, resolve);
+      playActiveKnockoutLeg(room.knockoutBracket, resolve as any);
       // Reset watch confirmations for this new leg
       room.watchedKnockoutLegPlayers = [];
+      room.readyPlayers = []; // ✅ próxima perna/rodada exige "prontos" de novo
+
+      // 🟨🟥🩹 Aplica a disciplina da PERNA recém-jogada.
+      {
+        const active = getActiveKnockoutMatches(room.knockoutBracket) as any[];
+        const legResults = active.map((t: any) => legPlayed === 2 ? t.leg2 : t.leg1).filter(Boolean);
+        const koTeamIds = Array.from(new Set(active.flatMap((t: any) => [t.homeTeamId, t.awayTeamId]))) as string[];
+        const nameOf = (teamId: string, playerId: string) => allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
+        room.discipline = applyMatchDiscipline(room.discipline, koTeamIds, legResults, nameOf).next;
+      }
 
       // Award shop points for each human's OWN leg (ida & volta) — same as the league, but with
       // NO reinforcement (league-only) and NO points for the FINAL (season's over, nothing to spend).
@@ -1197,6 +1277,8 @@ export function registerSocketHandlers(io: Server) {
       room.champion = null;
       room.watchedRoundPlayers = [];
       room.watchedKnockoutLegPlayers = [];
+      room.readyPlayers = [];
+      room.discipline = {};
       room.draftState = {
         round: 1,
         turnIndex: 0,

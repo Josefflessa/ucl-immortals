@@ -13,11 +13,13 @@ import {
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
   LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
   getAllPlayedMatchResults, createKnockoutBracket,
-  advanceKnockoutBracket, playActiveKnockoutLeg, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
+  advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
 } from '../lib/gameEngine';
 import type { VariantFlag } from '../lib/gameEngine';
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from '../lib/shop';
 import { Bet, buildLeagueMatchKey, canPlaceStake, settleBet } from '../lib/bets';
+import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury } from '../lib/discipline';
+import { PHYSIO_COST } from '../lib/discipline';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem } from '../lib/storage';
 
 // ============================================================
@@ -96,6 +98,8 @@ export interface GameState {
   pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null;
   // 🎯 Palpites (apostas de pontos). Escrow já debitado ao apostar; crédito só na revelação.
   bets: Bet[];
+  // 🟨🟥🩹 Disciplina & lesões — disponibilidade por jogador (todos os times), carrega entre jogos.
+  discipline: DisciplineMap;
 
   // Online Multiplayer fields
   mode: 'solo' | 'online';
@@ -116,6 +120,7 @@ export interface GameState {
   spectating: boolean;
   // IDs of players who have confirmed watching the current round/leg (from server)
   onlineWatchedPlayers: string[];
+  onlineReadyPlayers: string[]; // ✅ jogadores que apertaram "Estou pronto" p/ a rodada/perna atual
   // Names the host is still waiting on before advancing (from the server's
   // advance_blocked event); null when not blocked.
   advanceBlocked: string[] | null;
@@ -182,6 +187,7 @@ export type GameAction =
   | { type: 'REROLL_REINFORCEMENT' }
   | { type: 'PLACE_BET'; matchKey: string; homeGoals: number; awayGoals: number; stake: number }
   | { type: 'CANCEL_BET'; matchKey: string }
+  | { type: 'HEAL_INJURY'; playerId: string }
   | { type: 'START_LEAGUE' }
   | { type: 'SIMULATE_LEAGUE' }
   | { type: 'START_KNOCKOUT' }
@@ -239,6 +245,7 @@ const initialState: GameState = {
   reinforcementRerolls: 0,
   pendingPack: null,
   bets: [],
+  discipline: {},
 
   // Online Multiplayer fields
   mode: 'solo',
@@ -254,6 +261,7 @@ const initialState: GameState = {
   watchedKnockoutMatches: [],
   spectating: false,
   onlineWatchedPlayers: [],
+  onlineReadyPlayers: [],
   advanceBlocked: null,
 };
 
@@ -292,15 +300,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const options = generateDraftOptions(needed, []);
       const draftState: DraftState = {
         round: 1,
-        totalRounds: 11,
+        totalRounds: 13,          // 11 titulares + 2 reservas (banco)
         currentOptions: options,
         selectedPlayers: [],
-        vetoesLeft: 2,
+        vetoesLeft: 4,
         formationId: state.selectedFormationId,
         coachId: state.selectedCoachId,
         neededPositions: needed,
       };
-      return { ...state, phase: 'draft', draftState, draftedPlayers: Array(11).fill(undefined) };
+      return { ...state, phase: 'draft', draftState, draftedPlayers: Array(13).fill(undefined) };
     }
 
     case 'DRAFT_PLAYER': {
@@ -633,6 +641,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, points: state.points + existing.stake, bets: state.bets.filter(b => b.matchKey !== action.matchKey) };
     }
 
+    case 'HEAL_INJURY': {
+      // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador do time (custa PHYSIO_COST).
+      if (!state.playerTeam || state.points < SHOP_COSTS.physio) return state;
+      const key = `${state.playerTeam.id}:${action.playerId}`;
+      if (!state.discipline[key] || state.discipline[key].injured <= 0) return state;
+      return { ...state, points: state.points - SHOP_COSTS.physio, discipline: healInjury(state.discipline, state.playerTeam.id, action.playerId) };
+    }
+
     case 'START_LEAGUE': {
       // Build player team
       const starters = state.draftedPlayers.slice(0, 11).filter((p): p is Player => p !== null && p !== undefined);
@@ -772,11 +788,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       if (!homeTeam || !awayTeam) return state;
 
+      // 🟨🟥🩹 Resolve as escalações contra a disciplina (suspensos/lesionados fora; reserva promovido).
+      const rHome = resolveAvailableLineup(homeTeam, state.discipline).team;
+      const rAway = resolveAvailableLineup(awayTeam, state.discipline).team;
+
+      // Um único motor de simulação: no solo, pré-computa o resultado autoritativo (gols +
+      // cartões + lesões + força) e entra em modo replay no MatchSimPage — igual mata-mata.
+      // No online o replay é aberto por WATCH_ONLINE_MATCH com o resultado do servidor;
+      // aqui preservamos o currentMatchResult existente pra não interferir.
+      const currentMatchResult = state.mode === 'online'
+        ? state.currentMatchResult
+        : simulateMatch(rHome, rAway);
+
       return {
         ...state,
         phase: 'match_sim',
         currentMatch: null,
-        currentMatchTeams: [homeTeam, awayTeam],
+        currentMatchTeams: [rHome, rAway],
+        currentMatchResult,
       };
     }
 
@@ -805,16 +834,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return f;
       });
 
-      // Automatically simulate other matches in the same round if not already done
+      // Automatically simulate other matches in the same round if not already done.
+      // 🟨🟥🩹 Bots também resolvem a escalação contra a disciplina (suspensos/lesionados fora).
       allFixtures = allFixtures.map(f => {
         if (f.round === state.leagueRound && !f.played) {
-          const home = allTeams.find(t => t.id === f.homeTeamId)!;
-          const away = allTeams.find(t => t.id === f.awayTeamId)!;
+          const home = resolveAvailableLineup(allTeams.find(t => t.id === f.homeTeamId)!, state.discipline).team;
+          const away = resolveAvailableLineup(allTeams.find(t => t.id === f.awayTeamId)!, state.discipline).team;
           const result = simulateMatch(home, away);
           return { ...f, played: true, result };
         }
         return f;
       });
+
+      // 🟨🟥🩹 Aplica a disciplina da RODADA (todos os times que jogaram) — decrementa quem cumpriu e
+      // aplica as novas suspensões/lesões deste jogo (valem no PRÓXIMO).
+      const roundFx = allFixtures.filter(f => f.round === state.leagueRound && f.result);
+      const roundTeamIds = Array.from(new Set(roundFx.flatMap(f => [f.homeTeamId, f.awayTeamId])));
+      const nameOf = (teamId: string, playerId: string) =>
+        allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
+      const disc = applyMatchDiscipline(state.discipline, roundTeamIds, roundFx.map(f => f.result!), nameOf);
 
       const standings = computeStandings(allTeams, allFixtures);
       // Collect ALL played results across all rounds to preserve stats
@@ -849,10 +887,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         leagueResults: results,
         currentMatch: null,
         currentMatchTeams: null,
+        currentMatchResult: null,
         reinforcementOptions,
         points: state.points + matchPoints.total + betWinnings,
         lastMatchPoints: matchPoints,
         bets: settledBets,
+        discipline: disc.next,
       };
     }
 
@@ -890,7 +930,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.playerTeam) return state;
       // Full UCL knockout: play-offs (9–24) → R16 (incl. top 8) → QF → SF → Final.
       const bracket = createKnockoutBracket(state.leagueStandings) as KnockoutBracket;
-      return { ...state, knockoutBracket: bracket, phase: 'knockout' };
+      // 🟨 Amarelos acumulados zeram ao entrar no mata-mata (suspensões/lesões em curso continuam).
+      return { ...state, knockoutBracket: bracket, phase: 'knockout', discipline: resetYellowsForKnockout(state.discipline) };
     }
 
     case 'PLAY_KNOCKOUT_LEG': {
@@ -900,8 +941,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.knockoutBracket || !state.playerTeam) return state;
       const allTeams = [state.playerTeam, ...state.botTeams];
       const bracket: KnockoutBracket = JSON.parse(JSON.stringify(state.knockoutBracket));
-      playActiveKnockoutLeg(bracket as any, (id: string) => allTeams.find(t => t.id === id));
-      return { ...state, knockoutBracket: bracket };
+      // 🟨🟥🩹 Resolve as escalações contra a disciplina antes de simular a perna (bots inclusos).
+      const resolveFn = (id: string) => {
+        const t = allTeams.find(tm => tm.id === id);
+        return t ? resolveAvailableLineup(t, state.discipline).team : undefined;
+      };
+      playActiveKnockoutLeg(bracket as any, resolveFn as any);
+      // Aplica a disciplina da PERNA recém-jogada (times da rodada ativa).
+      const active = getActiveKnockoutMatches(bracket) as any[];
+      const legNum = state.knockoutBracket.currentLeg;
+      const legResults = active.map(t => legNum === 2 ? t.leg2 : t.leg1).filter(Boolean);
+      const koTeamIds = Array.from(new Set(active.flatMap(t => [t.homeTeamId, t.awayTeamId])));
+      const koNameOf = (teamId: string, playerId: string) =>
+        allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
+      const disc = applyMatchDiscipline(state.discipline, koTeamIds, legResults, koNameOf);
+      return { ...state, knockoutBracket: bracket, discipline: disc.next };
     }
 
     case 'ADVANCE_KNOCKOUT': {
@@ -1033,7 +1087,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           const needed = getNeededPositions(activePlayer.formationId, activePlayer.draftedPlayers);
           draftState = {
             round: roomState.draftState.round,
-            totalRounds: 11,
+            totalRounds: 13,        // 11 titulares + 2 reservas (banco)
             currentOptions,
             selectedPlayers: [],
             vetoesLeft: activePlayer.vetoesLeft,
@@ -1083,6 +1137,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         onlineWatchedPlayers: roomState.phase === 'league'
           ? (roomState.watchedRoundPlayers || [])
           : (roomState.watchedKnockoutLegPlayers || []),
+        onlineReadyPlayers: roomState.readyPlayers || [],
 
         // Local player sync
         playerName: me ? me.name : state.playerName,
@@ -1095,6 +1150,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         reinforcementRerolls: me ? (me.reinforcementRerolls ?? 0) : state.reinforcementRerolls,
         pendingPack: me ? (me.pendingPack ?? null) : state.pendingPack,
         bets: me ? (me.bets ?? []) : state.bets,
+        discipline: roomState.discipline ?? state.discipline,
         draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),
         selectedCrestId: keepLocalPicks ? state.selectedCrestId : (me ? (me.crestId ?? state.selectedCrestId) : state.selectedCrestId),
         selectedCoachId: keepLocalPicks ? state.selectedCoachId : (me ? me.coachId : state.selectedCoachId),
@@ -1191,6 +1247,9 @@ interface GameContextType {
   shopRemoveVariantOnline: (playerId: string, variantKey?: VariantFlag) => void;
   shopPlaceBetOnline: (matchKey: string, homeGoals: number, awayGoals: number, stake: number) => void;
   shopCancelBetOnline: (matchKey: string) => void;
+  healInjuryOnline: (playerId: string) => void;
+  playerReadyOnline: () => void;
+  playerUnreadyOnline: () => void;
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
@@ -1398,6 +1457,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopCancelBetOnline = useCallback((matchKey: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("cancel_bet", { roomCode: state.roomCode, matchKey });
   }, [state.roomCode]);
+  const healInjuryOnline = useCallback((playerId: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("heal_injury", { roomCode: state.roomCode, playerId });
+  }, [state.roomCode]);
+  const playerReadyOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("player_ready", { roomCode: state.roomCode });
+  }, [state.roomCode]);
+  const playerUnreadyOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("player_unready", { roomCode: state.roomCode });
+  }, [state.roomCode]);
   const swapPlayerTeamOnline = useCallback((indexA: number, indexB: number) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("swap_player_team", { roomCode: state.roomCode, indexA, indexB });
   }, [state.roomCode]);
@@ -1466,7 +1534,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    shopChangeCoachOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, shopTrainOnline,
+    shopChangeCoachOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
