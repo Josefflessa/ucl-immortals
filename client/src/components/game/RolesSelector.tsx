@@ -47,6 +47,9 @@ const CAP_STATS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'phy
 const STAT_LABELS: Record<string, string> = {
   pace: 'Ritmo', shooting: 'Finalização', passing: 'Passe', dribbling: 'Drible', defending: 'Defesa', physical: 'Físico',
 };
+// 🗣️ Capitão Nato: se o jogador tem a característica, o bônus de capitão vem DOBRADO.
+const capBoostOf = (p: RoleablePlayer): number =>
+  CAPTAIN_BOOST * ((p as unknown as Record<string, unknown>).capitaoNato ? 2 : 1);
 function captainBestStatOf(p: RoleablePlayer): { stat: string; label: string; value: number } {
   let best: string = CAP_STATS[0], bestV = (p as unknown as Record<string, number>)[CAP_STATS[0]] ?? 0;
   for (const s of CAP_STATS) {
@@ -130,7 +133,7 @@ export default function RolesSelector({
       <div className="flex flex-wrap gap-2 mb-3 text-[11px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
         <span className="rounded px-2 py-1" style={{ background: '#14142A', color: '#9AA8C8' }}>
           🅒 Capitão atual: <b style={{ color: '#FFF' }}>{captain ? captain.shortName : '—'}</b>
-          {captain && <span style={{ color: '#3B82F6' }}> (+{CAPTAIN_BOOST} {captainBestStatOf(captain).label} pra todo o time)</span>}
+          {captain && <span style={{ color: '#3B82F6' }}> (+{capBoostOf(captain)} {captainBestStatOf(captain).label} pra todo o time{(captain as unknown as Record<string, unknown>).capitaoNato ? ' · 🗣️ Capitão Nato' : ''})</span>}
         </span>
         <span className="rounded px-2 py-1" style={{ background: '#14142A', color: '#B8A875' }}>
           ⚽ Pênalti: <b style={{ color: '#FFF' }}>{taker ? taker.shortName : '—'}</b>
@@ -184,7 +187,7 @@ export default function RolesSelector({
 
               <button
                 onClick={() => onSetCaptain(p.id)}
-                title={`Capitão → +${CAPTAIN_BOOST} ${captainBestStatOf(p).label} pra todo o time${isSuggestedCap ? ' (sugerido)' : ''}`}
+                title={`Capitão → +${capBoostOf(p)} ${captainBestStatOf(p).label} pra todo o time${(p as unknown as Record<string, unknown>).capitaoNato ? ' (🗣️ Capitão Nato: dobrado)' : ''}${isSuggestedCap ? ' (sugerido)' : ''}`}
                 className="text-[10px] font-black px-2 py-1 rounded transition-all flex-shrink-0"
                 style={{
                   fontFamily: 'Rajdhani, sans-serif',

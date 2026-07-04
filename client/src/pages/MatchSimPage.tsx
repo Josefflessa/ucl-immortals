@@ -7,14 +7,11 @@ import {
   getEffectiveAttribute, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat,
   getPenaltyOrder, setStatIds, statKey, penaltyGoalChance,
-  captainBestStat, CAPTAIN_BOOST, computeCharacteristicBoosts,
+  captainBoostForTeam, computeCharacteristicBoosts,
 } from '../lib/gameEngine';
 
-// Captain leadership context: their best stat is lifted +CAPTAIN_BOOST for the whole side.
-const captainBoostCtx = (team: Team) => {
-  const s = captainBestStat(team);
-  return s ? { stat: s as string, amount: CAPTAIN_BOOST } : undefined;
-};
+// Captain leadership context: their best stat is lifted for the whole side (🗣️ Capitão Nato dobra).
+const captainBoostCtx = (team: Team) => captainBoostForTeam(team) ?? undefined;
 // 🩸❤️🪑 Team-effect characteristics (Mártir/Ídolo/12º Homem) — per-player boosts for this side.
 const charBoostsCtx = (team: Team) => computeCharacteristicBoosts(team.players);
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';

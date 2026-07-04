@@ -49,6 +49,11 @@ export default function LeaguePage() {
       disconnectOnline();
     }
   };
+  const handleLeaveSolo = () => {
+    if (window.confirm('Sair do jogo? Você vai perder o progresso desta temporada e voltar à tela inicial.')) {
+      dispatch({ type: 'RESET_GAME' });
+    }
+  };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market'>('fixtures');
@@ -358,16 +363,14 @@ export default function LeaguePage() {
               </span>
             </div>
           )}
-          {state.roomCode && (
-            <button
-              onClick={handleLeaveRoom}
-              title="Sair da sala"
-              className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-red-500/80 hover:text-red-400 border border-red-500/30 hover:border-red-400/60 rounded-md px-2 py-1 transition-all"
-              style={{ fontFamily: 'Rajdhani, sans-serif' }}
-            >
-              <LogOut size={13} /> <span className="hidden sm:inline">Sair</span>
-            </button>
-          )}
+          <button
+            onClick={online ? handleLeaveRoom : handleLeaveSolo}
+            title={online ? 'Sair da sala' : 'Sair do jogo'}
+            className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-red-500/80 hover:text-red-400 border border-red-500/30 hover:border-red-400/60 rounded-md px-2 py-1 transition-all"
+            style={{ fontFamily: 'Rajdhani, sans-serif' }}
+          >
+            <LogOut size={13} /> <span className="hidden sm:inline">Sair</span>
+          </button>
         </div>
       </div>
 
