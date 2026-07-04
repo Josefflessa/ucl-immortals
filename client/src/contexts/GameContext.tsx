@@ -16,10 +16,11 @@ import {
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
 } from '../lib/gameEngine';
 import type { VariantFlag } from '../lib/gameEngine';
-import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from '../lib/shop';
+import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue } from '../lib/shop';
 import { Bet, buildLeagueMatchKey, canPlaceStake, settleBet } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
+import { MarketListing } from '../lib/market';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem } from '../lib/storage';
 
 // ============================================================
@@ -121,6 +122,7 @@ export interface GameState {
   // IDs of players who have confirmed watching the current round/leg (from server)
   onlineWatchedPlayers: string[];
   onlineReadyPlayers: string[]; // ✅ jogadores que apertaram "Estou pronto" p/ a rodada/perna atual
+  onlineMarket: MarketListing[]; // 🏪 anúncios do mercado online (compartilhado pela sala)
   // Names the host is still waiting on before advancing (from the server's
   // advance_blocked event); null when not blocked.
   advanceBlocked: string[] | null;
@@ -188,6 +190,7 @@ export type GameAction =
   | { type: 'PLACE_BET'; matchKey: string; homeGoals: number; awayGoals: number; stake: number }
   | { type: 'CANCEL_BET'; matchKey: string }
   | { type: 'HEAL_INJURY'; playerId: string }
+  | { type: 'SELL_PLAYER'; playerId: string }
   | { type: 'START_LEAGUE' }
   | { type: 'SIMULATE_LEAGUE' }
   | { type: 'START_KNOCKOUT' }
@@ -262,6 +265,7 @@ const initialState: GameState = {
   spectating: false,
   onlineWatchedPlayers: [],
   onlineReadyPlayers: [],
+  onlineMarket: [],
   advanceBlocked: null,
 };
 
@@ -494,6 +498,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'PICK_REINFORCEMENT': {
       if (!state.playerTeam) return { ...state, reinforcementOptions: null };
+      // 🛡️ Anti-duplo-clique: só pega se ainda há oferta ativa, se o escolhido é uma das opções
+      // atuais e se ainda não está no elenco. Um 2º clique rápido cai aqui com options=null → no-op.
+      const valid = !!state.reinforcementOptions
+        && state.reinforcementOptions.some(o => o.id === action.player.id)
+        && !state.playerTeam.players.some(p => p.id === action.player.id);
+      if (!valid) return { ...state, reinforcementOptions: null };
       // The reinforcement joins the BENCH (index 11+). The XI is untouched, so chemistry
       // stays the same until the manager substitutes him in via the MEU TIME screen.
       const card: PlayerCard = { ...action.player, chemistryScore: 0, isOOP: false };
@@ -647,6 +657,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const key = `${state.playerTeam.id}:${action.playerId}`;
       if (!state.discipline[key] || state.discipline[key].injured <= 0) return state;
       return { ...state, points: state.points - SHOP_COSTS.physio, discipline: healInjury(state.discipline, state.playerTeam.id, action.playerId) };
+    }
+
+    case 'SELL_PLAYER': {
+      // 🏪 Mercado (solo): vende uma RESERVA (índice ≥ 11) por pontos. Titular não é vendável.
+      if (state.mode === 'online' || !state.playerTeam) return state;
+      const idx = state.playerTeam.players.findIndex(p => p.id === action.playerId);
+      if (idx < 11) return state; // -1 (não achou) ou titular (0-10): bloqueia
+      const sold = state.playerTeam.players[idx];
+      const players = state.playerTeam.players.filter((_, i) => i !== idx);
+      // limpa a disciplina (suspensão/lesão) do vendido, se houver
+      const discipline = { ...state.discipline };
+      delete discipline[`${state.playerTeam.id}:${sold.id}`];
+      return {
+        ...state,
+        points: state.points + sellValue(sold.rarity),
+        playerTeam: { ...state.playerTeam, players },
+        discipline,
+      };
     }
 
     case 'START_LEAGUE': {
@@ -1138,6 +1166,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ? (roomState.watchedRoundPlayers || [])
           : (roomState.watchedKnockoutLegPlayers || []),
         onlineReadyPlayers: roomState.readyPlayers || [],
+        onlineMarket: roomState.market || [],
 
         // Local player sync
         playerName: me ? me.name : state.playerName,
@@ -1248,6 +1277,10 @@ interface GameContextType {
   shopPlaceBetOnline: (matchKey: string, homeGoals: number, awayGoals: number, stake: number) => void;
   shopCancelBetOnline: (matchKey: string) => void;
   healInjuryOnline: (playerId: string) => void;
+  marketSellOnline: (playerId: string) => void;
+  marketListOnline: (playerId: string, price: number) => void;
+  marketCancelOnline: (listingId: string) => void;
+  marketBuyOnline: (listingId: string) => void;
   playerReadyOnline: () => void;
   playerUnreadyOnline: () => void;
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
@@ -1460,6 +1493,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const healInjuryOnline = useCallback((playerId: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("heal_injury", { roomCode: state.roomCode, playerId });
   }, [state.roomCode]);
+  const marketSellOnline = useCallback((playerId: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("market_sell", { roomCode: state.roomCode, playerId });
+  }, [state.roomCode]);
+  const marketListOnline = useCallback((playerId: string, price: number) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("market_list", { roomCode: state.roomCode, playerId, price });
+  }, [state.roomCode]);
+  const marketCancelOnline = useCallback((listingId: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("market_cancel", { roomCode: state.roomCode, listingId });
+  }, [state.roomCode]);
+  const marketBuyOnline = useCallback((listingId: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("market_buy", { roomCode: state.roomCode, listingId });
+  }, [state.roomCode]);
   const playerReadyOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("player_ready", { roomCode: state.roomCode });
   }, [state.roomCode]);
@@ -1534,7 +1579,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    shopChangeCoachOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
+    shopChangeCoachOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps

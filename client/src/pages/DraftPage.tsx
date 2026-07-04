@@ -427,7 +427,10 @@ export default function DraftPage() {
               <>
                 <div className="mb-4 flex items-center gap-3 flex-wrap">
                   <div className="flex-1">
-                    {neededPositions.length > 0 ? (
+                    {/* Ainda escolhendo TITULARES enquanto tiver menos de 11 picks (o banco só começa
+                        depois dos 11). Gate por contagem de picks — não por neededPositions, que pode
+                        vir vazio por outros motivos no online. */}
+                    {draftedPlayers.filter(Boolean).length < 11 ? (
                       <>
                         <div className="text-xs font-bold tracking-widest mb-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                           POSIÇÕES RESTANTES

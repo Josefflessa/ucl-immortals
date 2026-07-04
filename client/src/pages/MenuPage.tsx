@@ -152,8 +152,8 @@ export default function MenuPage() {
             ) : (
               <div className="mt-4 pt-4 border-t text-center" style={{ borderColor: '#1A1A2A' }}>
                 <div className="flex items-center justify-center gap-2 mb-2 text-xs font-bold text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  <div className="w-4 h-4 rounded-full border-2 border-t-transparent border-yellow-500 animate-spin" />
-                  AGUARDANDO O ANFITRIÃO INICIAR O JOGO...
+                  <div className="w-4 h-4 rounded-full border-2 border-t-transparent border-yellow-500 animate-spin flex-shrink-0" />
+                  <span>AGUARDANDO O ANFITRIÃO INICIAR O JOGO...</span>
                 </div>
               </div>
             )}

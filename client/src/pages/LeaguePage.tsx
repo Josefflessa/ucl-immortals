@@ -8,6 +8,7 @@ import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
 import LeagueSquadTab from '../components/game/LeagueSquadTab';
+import MarketTab from '../components/game/MarketTab';
 import ShopTab from '../components/game/ShopTab';
 import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
 import BracketTab from '../components/game/BracketTab';
@@ -50,7 +51,7 @@ export default function LeaguePage() {
   };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
-  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop'>('fixtures');
+  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles' | 'cards'>('goals');
   // HISTÓRICO: alterna entre "MEUS JOGOS" (do jogador) e "RODADAS ANTERIORES" (todos os resultados por rodada)
   const [resultsSubTab, setResultsSubTab] = useState<'mine' | 'rounds'>('mine');
@@ -469,6 +470,7 @@ export default function LeaguePage() {
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'HISTÓRICO' },
                 { id: 'shop', label: `🛒 LOJA · 💰${state.points}` },
+                { id: 'market', label: '🏪 MERCADO' },
               ]
             : [
                 { id: 'fixtures', label: `RODADA ${leagueRound}` },
@@ -477,6 +479,7 @@ export default function LeaguePage() {
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'HISTÓRICO' },
                 { id: 'shop', label: `🛒 LOJA · 💰${state.points}` },
+                { id: 'market', label: '🏪 MERCADO' },
               ]
           ).map(tab => (
             <button
@@ -1075,6 +1078,7 @@ export default function LeaguePage() {
 
         {/* Gestão do time */}
         {activeTab === 'squad' && <LeagueSquadTab />}
+        {activeTab === 'market' && <MarketTab />}
 
         {activeTab === 'shop' && <ShopTab />}
 

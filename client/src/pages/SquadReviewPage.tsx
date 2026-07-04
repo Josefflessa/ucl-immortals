@@ -26,10 +26,10 @@ export default function SquadReviewPage() {
 
   if (online && isReady) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: '#080810' }}>
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center" style={{ background: '#080810' }}>
         <img src={LOGO_URL} alt="UCL Logo" className="w-16 h-16 object-contain mb-4 animate-pulse" />
-        <div className="flex items-center gap-2 text-white font-bold text-lg" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-          <div className="w-5 h-5 rounded-full border-2 border-t-transparent border-[#C9A84C] animate-spin" />
+        <div className="w-6 h-6 rounded-full border-2 border-t-transparent border-[#C9A84C] animate-spin mb-3" />
+        <div className="text-white font-bold text-lg max-w-xs sm:max-w-md leading-snug" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
           AGUARDANDO DEMAIS JOGADORES CONFIRMAREM ESCALAÇÃO...
         </div>
       </div>

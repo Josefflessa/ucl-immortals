@@ -25,9 +25,10 @@ import {
 } from "../client/src/lib/gameEngine.js";
 
 import { FORMATIONS, DIFFICULTY_LEVELS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
-import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr } from "../client/src/lib/shop.js";
+import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue } from "../client/src/lib/shop.js";
 import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters } from "../client/src/lib/discipline.js";
+import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
 
 interface RoomPlayer {
   socketId: string;
@@ -73,6 +74,7 @@ interface RoomState {
   watchedKnockoutLegPlayers: string[];
   readyPlayers: string[];    // ✅ jogadores (não-host) que confirmaram "Estou pronto" p/ a rodada/perna atual
   discipline: DisciplineMap; // 🟨🟥🩹 disponibilidade por jogador (todos os times)
+  market: MarketListing[];   // 🏪 anúncios do mercado online (jogadores em escrow, fora dos elencos)
   draftState: {
     round: number;
     turnIndex: number;
@@ -91,6 +93,7 @@ interface RoomState {
 }
 
 const rooms = new Map<string, RoomState>();
+let marketSeq = 0; // 🏪 sequência de ids de anúncio do mercado (único no processo)
 
 function generateRoomCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -368,6 +371,7 @@ export function registerSocketHandlers(io: Server) {
         watchedKnockoutLegPlayers: [],
         readyPlayers: [],
         discipline: {},
+        market: [],
         draftState: {
           round: 1,
           turnIndex: 0,
@@ -936,6 +940,69 @@ export function registerSocketHandlers(io: Server) {
       player.points -= SHOP_COSTS.reroll;
       player.reinforcementRerolls += 1;
       socket.emit("room_updated", room);
+    });
+
+    // 🏪 Mercado — VENDER uma reserva PRA BANCA por valor fixo (igual o solo). Só pontos + banco mudam.
+    socket.on("market_sell", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const idx = player.team.players.findIndex(p => p.id === playerId);
+      if (idx < 11) return; // só reserva (índice ≥ 11)
+      const sold = player.team.players[idx];
+      player.team.players = player.team.players.filter((_, i) => i !== idx);
+      delete room.discipline[`${player.team.id}:${playerId}`];
+      player.points += sellValue(sold.rarity);
+      socket.emit("room_updated", room);
+    });
+
+    // 🏪 Mercado online — ANUNCIAR uma reserva (escrow: sai do banco do vendedor).
+    socket.on("market_list", ({ roomCode, playerId, price }: { roomCode: string; playerId: string; price: number }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const seller = room.players.find(p => p.socketId === socket.id);
+      if (!seller || !seller.team) return;
+      const idx = seller.team.players.findIndex(p => p.id === playerId);
+      if (idx < 11) return; // só reserva (índice ≥ 11); -1 ou titular bloqueia
+      const player = seller.team.players[idx];
+      if (typeof price !== 'number' || price < marketMinPrice(player)) return;
+      // escrow: tira do elenco e limpa a disciplina do jogador
+      seller.team.players = seller.team.players.filter((_, i) => i !== idx);
+      delete room.discipline[`${seller.team.id}:${playerId}`];
+      room.market.push({ id: `m${++marketSeq}`, sellerId: seller.id, sellerName: seller.name, player, price });
+      io.to(room.code).emit("room_updated", room);
+    });
+
+    // 🏪 Mercado online — CANCELAR um anúncio (devolve o jogador pro banco do vendedor).
+    socket.on("market_cancel", ({ roomCode, listingId }: { roomCode: string; listingId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const seller = room.players.find(p => p.socketId === socket.id);
+      const li = room.market.find(l => l.id === listingId);
+      if (!seller || !seller.team || !li || li.sellerId !== seller.id) return;
+      seller.team.players.push({ ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard);
+      room.market = room.market.filter(l => l.id !== listingId);
+      io.to(room.code).emit("room_updated", room);
+    });
+
+    // 🏪 Mercado online — COMPRAR um anúncio (transfere jogador + pontos, atômico).
+    socket.on("market_buy", ({ roomCode, listingId }: { roomCode: string; listingId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const buyer = room.players.find(p => p.socketId === socket.id);
+      const li = room.market.find(l => l.id === listingId);
+      if (!buyer || !buyer.team || !li) return;
+      if (buyer.id === li.sellerId) return;                                  // não compra o próprio
+      if (buyer.points < li.price) return;                                   // sem saldo
+      if (buyer.team.players.some(p => p.id === li.player.id)) return;       // já tem o jogador
+      const seller = room.players.find(p => p.id === li.sellerId);
+      if (!seller) return;                                                   // vendedor saiu da sala → aborta (não some pontos)
+      buyer.points -= li.price;
+      seller.points += li.price;
+      buyer.team.players.push({ ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard);
+      room.market = room.market.filter(l => l.id !== listingId);
+      io.to(room.code).emit("room_updated", room);
     });
 
     // 🔄 Spend a token to re-roll THIS player's reinforcement options.

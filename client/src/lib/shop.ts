@@ -54,6 +54,20 @@ export const SHOP_COSTS = {
   physio: 250,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
 } as const;
 
+// 🏪 Mercado (venda solo): quanto o jogador recebe ao vender uma RESERVA, por raridade.
+// Calibrado modesto vs. ganho por partida (~100-150 pts) pra recompensar sem virar farm.
+export const SELL_VALUES: Record<string, number> = {
+  bronze: 30,
+  silver: 60,
+  gold: 100,
+  legendary: 180,
+  immortal: 250,
+  unique: 400,
+};
+export function sellValue(rarity: string): number {
+  return SELL_VALUES[rarity] ?? SELL_VALUES.bronze;
+}
+
 // ── Training (💪) — +3 to a chosen attribute, no cap. Escalating cost per player so stacking
 // everything on one star is expensive (≈ a whole league for +12), while spreading is cheap. ──
 export const TRAIN_BOOST = 3;
