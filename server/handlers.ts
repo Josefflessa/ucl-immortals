@@ -14,7 +14,7 @@ import {
   advanceKnockoutBracket,
   getActiveKnockoutMatches,
   rebuildTeamChemistry,
-  applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
+  applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
   VariantFlag,
   Team,
   PlayerCard,
@@ -1118,9 +1118,12 @@ export function registerSocketHandlers(io: Server) {
             (f.homeTeamId === p.team!.id || f.awayTeamId === p.team!.id));
           if (fixture?.result) {
             const mp = computeMatchPoints(fixture.result, p.team.id);
+            // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
+            const magMult = magnataPointMultiplier(p.team.players);
+            const earned = Math.round(mp.total * magMult);
             // FIX anti-spoiler: NÃO credita agora; guarda como pendente até a revelação.
-            p.pendingMatchPoints = mp.total;
-            p.lastMatchPoints = mp; // resumo do PRÓPRIO jogo (exibido após assistir; não é spoiler)
+            p.pendingMatchPoints = earned;
+            p.lastMatchPoints = magMult > 1 ? { ...mp, total: earned } : mp; // resumo do PRÓPRIO jogo (não é spoiler)
           }
           // 🎯 Liquida (sem creditar) os palpites da rodada deste jogador.
           const betPrefix = `L${room.leagueRound}:`;

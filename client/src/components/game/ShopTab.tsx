@@ -23,6 +23,9 @@ export default function ShopTab() {
   const [active, setActive] = useState<ItemId | null>(null);
   const [selPlayerId, setSelPlayerId] = useState<string | null>(null);
   const [uniqueWarn, setUniqueWarn] = useState<string | null>(null); // aviso "pontos insuficientes" na loja de únicas
+  // 🛒 Confirmação de compra (premium) — reutilizada por todas as compras significativas da loja.
+  const [confirmCfg, setConfirmCfg] = useState<null | { title: string; message: string; onConfirm: () => void }>(null);
+  const askConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmCfg({ title, message, onConfirm });
 
   if (!team) return null;
 
@@ -61,7 +64,11 @@ export default function ShopTab() {
     }
     if (id === 'star') {
       if (points < SHOP_COSTS.starPack) return;
-      openPack('star', generateStarPackOptions(ownedIds)); // COBRA ao abrir
+      askConfirm('Pacote do Craque', `Abrir o Pacote do Craque por 💰 ${SHOP_COSTS.starPack}? (você escolhe 1 de 3)`, () => {
+        openPack('star', generateStarPackOptions(ownedIds)); // COBRA ao abrir
+        setSelPlayerId(null); setActive('star');
+      });
+      return;
     }
     setSelPlayerId(null);
     setActive(id);
@@ -69,7 +76,9 @@ export default function ShopTab() {
 
   const pickScoutPosition = (pos: string) => {
     if (points < SHOP_COSTS.scout) return;
-    openPack('scout', generateScoutOptions(pos, ownedIds)); // COBRA ao abrir
+    askConfirm('Caça-Talentos', `Abrir o Caça-Talentos de ${POS_PT[pos] ?? pos} por 💰 ${SHOP_COSTS.scout}? (você escolhe 1 de 4)`, () => {
+      openPack('scout', generateScoutOptions(pos, ownedIds)); // COBRA ao abrir
+    });
   };
 
   return (
@@ -158,7 +167,7 @@ export default function ShopTab() {
                             <button
                               onClick={() => {
                                 if (owned) return;
-                                if (afford) { buyPlayer(card, 'unique'); close(); }
+                                if (afford) askConfirm('Carta Única', `Comprar ${card.shortName} (Única, 99) por 💰 ${SHOP_COSTS.uniqueCard}?`, () => { buyPlayer(card, 'unique'); close(); });
                                 else setUniqueWarn(`Pontos insuficientes — você tem ${points}, e ${card.shortName} custa ${SHOP_COSTS.uniqueCard}.`);
                               }}
                               disabled={owned}
@@ -178,7 +187,7 @@ export default function ShopTab() {
                   <div className="space-y-2">
                     <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o novo técnico (−{SHOP_COSTS.changeCoach} pontos):</p>
                     {COACHES.filter(c => c.id !== team.coachId).map(c => (
-                      <button key={c.id} onClick={() => { buyCoach(c.id); close(); }}
+                      <button key={c.id} onClick={() => askConfirm('Trocar Técnico', `Trocar o comandante para ${c.name} por 💰 ${SHOP_COSTS.changeCoach}?`, () => { buyCoach(c.id); close(); })}
                         className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all hover:border-[#C9A84C]/60 active:scale-[0.99]"
                         style={{ background: '#07070f', border: '1px solid #1A1A2A' }}>
                         {c.photoUrl && <img src={c.photoUrl} alt={c.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" style={{ objectPosition: 'center top', border: '1px solid #C9A84C44' }} />}
@@ -260,7 +269,7 @@ export default function ShopTab() {
                         {TURBINAR_VARIANTS.filter(v => !(selPlayer as unknown as Record<string, unknown>)[v.key]).map(v => {
                           const color = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
                           return (
-                            <button key={v.key} onClick={() => { buyTurbinar(selPlayer.id, v.key as ShopVariant); close(); }}
+                            <button key={v.key} onClick={() => askConfirm('Turbinar Carta', `Aplicar ${v.label} em ${selPlayer.shortName} por 💰 ${SHOP_COSTS.turbinar}?`, () => { buyTurbinar(selPlayer.id, v.key as ShopVariant); close(); })}
                               className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all active:scale-[0.99]"
                               style={{ background: '#07070f', border: `1px solid ${color}44` }}>
                               <span className="text-2xl">{v.icon}</span>
@@ -305,7 +314,7 @@ export default function ShopTab() {
                                       {vs.map(v => {
                                         const vc = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
                                         return (
-                                          <button key={v.key} onClick={() => { removeVariant(p.id, v.key as VariantFlag); close(); }}
+                                          <button key={v.key} onClick={() => askConfirm('Remover Característica', `Remover ${v.label} de ${p.shortName} por 💰 ${SHOP_COSTS.removeVariant}?`, () => { removeVariant(p.id, v.key as VariantFlag); close(); })}
                                             className="text-[10px] font-black px-2 py-0.5 rounded-full transition-transform hover:scale-[1.08] active:scale-95"
                                             title={`Remover ${v.label}`}
                                             style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}55`, fontFamily: 'Rajdhani, sans-serif' }}>
@@ -379,6 +388,36 @@ export default function ShopTab() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🛒 Confirmação de compra (premium) — acima do modal do item */}
+      <AnimatePresence>
+        {confirmCfg && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setConfirmCfg(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.94 }}
+              className="w-full max-w-sm rounded-2xl p-5 text-center" style={{ background: '#0b0b14', border: '1px solid #C9A84C77' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="text-3xl mb-1">🛒</div>
+              <h3 className="text-lg font-black tracking-widest uppercase mb-1" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>{confirmCfg.title}</h3>
+              <p className="text-[13px] mb-2" style={{ color: '#C8D0D4', fontFamily: 'Rajdhani, sans-serif' }}>{confirmCfg.message}</p>
+              <p className="text-[11px] mb-4" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>Seu saldo: 💰 {points}</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmCfg(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#17171f', color: '#9A9AA5' }}>
+                  CANCELAR
+                </button>
+                <button
+                  onClick={() => { const fn = confirmCfg.onConfirm; setConfirmCfg(null); fn(); }}
+                  className="flex-1 py-2.5 rounded-xl font-black tracking-widest transition-transform active:scale-95"
+                  style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg,#C9A84C,#E8C84A)', color: '#080810' }}
+                >
+                  CONFIRMAR
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

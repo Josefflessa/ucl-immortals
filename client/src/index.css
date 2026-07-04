@@ -125,6 +125,7 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Rajdhani', sans-serif;
+    overscroll-behavior-y: none; /* 📱 reforça o bloqueio do pull-to-refresh no mobile */
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -199,6 +200,9 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* 📱 Impede o "pull-to-refresh" (arrastar pra baixo recarrega sem querer) e o
+     efeito de elástico no mobile — sem atrapalhar a rolagem normal da página. */
+  overscroll-behavior-y: none;
 }
 
 /* Branded text selection */

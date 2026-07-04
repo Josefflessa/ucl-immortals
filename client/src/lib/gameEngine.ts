@@ -667,10 +667,11 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     for (const k in src.perStat) b.perStat[k as AttrKey] = (b.perStat[k as AttrKey] ?? 0) + (src.perStat[k as AttrKey] ?? 0);
     b.sources.push(src);
   };
-  // ❤️ Ídolo — +2 em todos os atributos a cada titular do MESMO CLUBE (ele incluso).
+  // ❤️ Ídolo — +2 em todos os atributos a cada OUTRO titular do MESMO CLUBE (NÃO a ele: o ídolo
+  // inspira os companheiros de clube, não a si mesmo).
   for (const idol of xi) {
     if (!idol.idolo) continue;
-    for (const mate of xi) if (mate.club === idol.club) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: 2, perStat: {} });
+    for (const mate of xi) if (mate.id !== idol.id && mate.club === idol.club) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: 2, perStat: {} });
   }
   // 🩸 Mártir — +3 em tudo aos 2 titulares escolhidos (ou 2 maiores overalls além dele). Acumulável.
   for (const m of xi) {
@@ -724,8 +725,7 @@ export function teamPlaymaking(team: Team): number {
   // midfield really does create better chances, matching the attributes the duels already use.
   const coach = COACHES.find(c => c.id === team.coachId)!;
   const chemBonus = getChemistryBonus(team.totalChemistry);
-  const capStat = captainBestStat(team);
-  const captainBoost = capStat ? { stat: capStat as string, amount: CAPTAIN_BOOST } : undefined;
+  const captainBoost = captainBoostForTeam(team) ?? undefined;
   const charBoosts = computeCharacteristicBoosts(team.players);
   const eff = (p: PlayerCard, attr: 'passing' | 'vision') =>
     getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, team.playStyle ?? 'balanced', { captainBoost, charBoosts });
@@ -1155,10 +1155,8 @@ export function runMatchSimulation(
   const homeTac = tacticProfile(home.playStyle);
   const awayTac = tacticProfile(away.playStyle);
   // Captain leadership — computed once per side (the best stat is fixed for the match).
-  const homeCapStat = captainBestStat(home);
-  const awayCapStat = captainBestStat(away);
-  const homeCaptainBoost = homeCapStat ? { stat: homeCapStat as string, amount: CAPTAIN_BOOST } : undefined;
-  const awayCaptainBoost = awayCapStat ? { stat: awayCapStat as string, amount: CAPTAIN_BOOST } : undefined;
+  const homeCaptainBoost = captainBoostForTeam(home) ?? undefined;
+  const awayCaptainBoost = captainBoostForTeam(away) ?? undefined;
   // 🩸❤️🪑 Team-effect characteristics — computed once per side (constant across the match).
   const homeCharBoosts = computeCharacteristicBoosts(home.players);
   const awayCharBoosts = computeCharacteristicBoosts(away.players);
@@ -2098,7 +2096,15 @@ export function captainBestStatFromStarters(starters: Player[], captainId?: stri
 // or null when there are no starters. Mirrors what the match engine builds per side.
 export function captainBoostFromStarters(starters: Player[], captainId?: string): { stat: string; amount: number } | null {
   const stat = captainBestStatFromStarters(starters, captainId);
-  return stat ? { stat: stat as string, amount: CAPTAIN_BOOST } : null;
+  if (!stat) return null;
+  // 🗣️ Capitão Nato: se o capitão do time tem a característica, o bônus vem DOBRADO.
+  let cap = captainId ? starters.find(p => p.id === captainId) : undefined;
+  if (!cap) cap = [...starters].sort((a, b) => b.overall - a.overall)[0];
+  return { stat: stat as string, amount: CAPTAIN_BOOST * (cap?.capitaoNato ? 2 : 1) };
+}
+// Mesmo bônus, a partir de um Team (usado pelo motor e pelo display).
+export function captainBoostForTeam(team: Team): { stat: string; amount: number } | null {
+  return captainBoostFromStarters(team.players.slice(0, 11), team.captain);
 }
 
 export function calculateTeamStrength(
@@ -2114,9 +2120,8 @@ export function calculateTeamStrength(
   if (disc?.sentOff && disc.sentOff.size > 0) starters = starters.filter(p => !disc.sentOff!.has(p.id));
   // Guard against an empty lineup (would otherwise divide by zero → NaN strength).
   if (starters.length === 0) return 0;
-  // Captain leadership: +CAPTAIN_BOOST on the captain's best stat, for every teammate.
-  const capStat = captainBestStat(team);
-  const captainBoost = capStat ? { stat: capStat as string, amount: CAPTAIN_BOOST } : undefined;
+  // Captain leadership: +CAPTAIN_BOOST on the captain's best stat, for every teammate (🗣️ Capitão Nato dobra).
+  const captainBoost = captainBoostForTeam(team) ?? undefined;
   const charBoosts = computeCharacteristicBoosts(team.players);
   const avgStrength = starters.reduce((sum, p) => {
     // Strength is built from the EFFECTIVE attributes (not raw): individual + global chemistry,
@@ -2289,7 +2294,16 @@ const DRAFT_DECIMO_CHANCE = 0.03;   // 🪑 12º Homem
 const DRAFT_PIPOQUEIRO_CHANCE = 0.03; // 🍿 Pipoqueiro
 const DRAFT_NOE_CHANCE = 0.02;        // 🛟 Noé — raro (é MUITO forte)
 const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
+const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
+const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
+const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
+// 🤑 Magnata — titular multiplica os PONTOS da partida de LIGA por isto (não empilha: 1+ magnatas → 1 só).
+export const MAGNATA_POINT_MULT = 1.5;
+// Pontos de LIGA ×MAGNATA_POINT_MULT se QUALQUER titular (0-10) for Magnata; senão ×1 (não empilha).
+export function magnataPointMultiplier(starters: (Player | undefined)[]): number {
+  return starters.slice(0, 11).some(p => p?.magnata) ? MAGNATA_POINT_MULT : 1;
+}
 // 🍿 Pipoqueiro — o anti-Pilar: brilha na fase de liga, "pipoca" (some) no mata-mata. Aplicado em
 // RUNTIME (depende de context.isKnockout), por isso NÃO é assado no stat base como o Em Alta/Lobo.
 export const PIPOQUEIRO_LEAGUE_BOOST = 4;   // +4 em cada atributo na FASE DE LIGA
@@ -2309,8 +2323,10 @@ const LOBO_STAT_BOOST = 6;           // Lobo Solitário: a BIGGER personal boost
 export const LOBO_CHEM_PENALTY = 12; // …paid for with this much TEAM chemistry per lone wolf.
 export const PILAR_CHEM_BONUS = 12;  // Pilar: lifts the team's total chemistry by this much.
 
+// Aplica o +N/−N das características assadas no BASE (Em Alta/Lobo/Mártir/Magnata). SEM teto de 99:
+// o base pode passar de 99 (o efetivo já era livre). Mantém só o PISO de 1 (nenhum stat vira 0/negativo).
 function clampStat(v: number): number {
-  return Math.max(1, Math.min(99, v));
+  return Math.max(1, v);
 }
 
 function applyDraftVariant(p: Player): Player {
@@ -2376,6 +2392,23 @@ function applyDraftVariant(p: Player): Player {
   if (r < acc) return { ...p, noe: true, traits: rollPlayerTraits(p.position, p.rarity) };
   acc += DRAFT_FORASTEIRO_CHANCE;
   if (r < acc) return { ...p, forasteiro: true, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🗣️ Capitão Nato — flag pura; efeito (dobra o bônus de capitão SE for o capitão) em captainBoostFromStarters.
+  acc += DRAFT_CAPITAO_CHANCE;
+  if (r < acc) return { ...p, capitaoNato: true, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🤑 Magnata — sacrifica −5 em tudo, mas multiplica os pontos da partida de liga (efeito em magnataPointMultiplier).
+  acc += DRAFT_MAGNATA_CHANCE;
+  if (r < acc) {
+    const b = MAGNATA_STAT_PENALTY;
+    return {
+      ...p, magnata: true, baseOverall: p.overall,
+      overall: clampStat(p.overall - b), pace: clampStat(p.pace - b), shooting: clampStat(p.shooting - b),
+      passing: clampStat(p.passing - b), dribbling: clampStat(p.dribbling - b), defending: clampStat(p.defending - b),
+      physical: clampStat(p.physical - b), vision: clampStat(p.vision - b), composure: clampStat(p.composure - b),
+      traits: rollPlayerTraits(p.position, p.rarity),
+    };
+  }
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -2483,10 +2516,10 @@ export function generateScoutOptions(position: string, ownedIds: string[]): Play
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro'): Player {
-  if (variant === 'inForm' || variant === 'lobo' || variant === 'martir') {
-    // inForm/lobo add to every attribute; martir SUBTRACTS from every attribute.
-    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : -MARTIR_STAT_PENALTY;
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata'): Player {
+  if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
+    // inForm/lobo add to every attribute; martir/magnata SUBTRACT from every attribute.
+    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : -MAGNATA_STAT_PENALTY;
     return {
       ...player, [variant]: true, baseOverall: player.baseOverall ?? player.overall,
       overall: clampStat(player.overall + b), pace: clampStat(player.pace + b), shooting: clampStat(player.shooting + b),
@@ -2499,7 +2532,7 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -2520,8 +2553,8 @@ export function canAddVariant(p: Player): boolean {
 // Mártir subtracts) via the stored baseOverall, then clears every variant flag.
 export function stripVariant<T extends Player>(player: T): T {
   const p: T = { ...player };
-  if (p.baseOverall !== undefined && (p.inForm || p.lobo || p.martir)) {
-    const delta = p.overall - p.baseOverall; // +N for Em Alta/Lobo, −N for Mártir
+  if (p.baseOverall !== undefined && (p.inForm || p.lobo || p.martir || p.magnata)) {
+    const delta = p.overall - p.baseOverall; // +N for Em Alta/Lobo, −N for Mártir/Magnata
     p.pace = clampStat(p.pace - delta);
     p.shooting = clampStat(p.shooting - delta);
     p.passing = clampStat(p.passing - delta);
@@ -2535,7 +2568,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
-  delete p.noe; delete p.forasteiro;
+  delete p.noe; delete p.forasteiro; delete p.capitaoNato; delete p.magnata;
   return p;
 }
 

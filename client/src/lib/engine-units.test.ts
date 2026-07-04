@@ -9,6 +9,7 @@ import {
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
   PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST,
+  captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture,
 } from './gameEngine';
 import { PLAYERS, COACHES, FORMATIONS, type Player } from './gameData';
@@ -82,16 +83,37 @@ describe('getChemistryLinks — link typing & priority', () => {
 describe('computeCharacteristicBoosts — team-effect characteristics', () => {
   const xiOf = (players: Player[]) => players; // helper for readability
 
-  it('❤️ Ídolo gives +2 to every SAME-CLUB starter (himself included)', () => {
+  it('❤️ Ídolo gives +2 to every OTHER same-club starter (NOT himself)', () => {
     const idol = mkP({ id: 'idol', club: 'ACME', idolo: true });
     const mate = mkP({ id: 'mate', club: 'ACME' });
     const other = mkP({ id: 'other', club: 'OTHER' });
     const rest = Array.from({ length: 8 }, () => mkP({ club: 'OTHER' }));
     const map = computeCharacteristicBoosts(xiOf([idol, mate, other, ...rest]));
     expect(map['mate'].flatAll).toBe(2);
-    expect(map['idol'].flatAll).toBe(2);   // ele incluso
+    expect(map['idol']?.flatAll ?? 0).toBe(0);   // NÃO buffa ele mesmo
     expect(map['other']?.flatAll ?? 0).toBe(0);
     expect(map['mate'].sources[0]).toMatchObject({ type: 'idolo', fromId: 'idol', flatAll: 2 });
+  });
+
+  it('🗣️ Capitão Nato DOBRA o bônus de capitão quando é o capitão', () => {
+    const cap = mkP({ id: 'cap', capitaoNato: true, pace: 90 }); // pace = melhor stat
+    const rest = Array.from({ length: 10 }, (_, i) => mkP({ id: `p${i}` }));
+    const starters = [cap, ...rest];
+    // Ele é o capitão → dobrado.
+    expect(captainBoostFromStarters(starters, 'cap')?.amount).toBe(CAPTAIN_BOOST * 2);
+    // Outro é o capitão → normal (a característica só vale se ELE for o capitão).
+    expect(captainBoostFromStarters(starters, 'p0')?.amount).toBe(CAPTAIN_BOOST);
+  });
+
+  it('🤑 Magnata multiplica os pontos de liga por 1.5 (titular) e NÃO empilha', () => {
+    const mag = mkP({ id: 'm1', magnata: true });
+    const mag2 = mkP({ id: 'm2', magnata: true });
+    const rest = Array.from({ length: 10 }, (_, i) => mkP({ id: `r${i}` }));
+    expect(magnataPointMultiplier(rest.slice(0, 11))).toBe(1);                 // sem magnata → ×1
+    expect(magnataPointMultiplier([mag, ...rest])).toBe(MAGNATA_POINT_MULT);   // 1 magnata → ×1.5
+    expect(magnataPointMultiplier([mag, mag2, ...rest])).toBe(MAGNATA_POINT_MULT); // 2 magnatas → ainda ×1.5 (não empilha)
+    const eleven = Array.from({ length: 11 }, (_, i) => mkP({ id: `e${i}` }));
+    expect(magnataPointMultiplier([...eleven, mag])).toBe(1); // magnata no BANCO (índice 11) → não conta
   });
 
   it('🩸 Mártir gives +3 to its two chosen starters, and stacks', () => {

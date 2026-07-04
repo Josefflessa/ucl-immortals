@@ -701,8 +701,10 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   pipoqueiro: { color: '#EC4899', icon: '🍿', label: 'PIPOQUEIRO', treatment: 'ring' },
   noe: { color: '#22D3EE', icon: '🛟', label: 'NOÉ', treatment: 'ring' },
   forasteiro: { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
+  capitaoNato: { color: '#F97316', icon: '🗣️', label: 'CAPITÃO NATO', treatment: 'ring' },
+  magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -723,11 +725,13 @@ function variantDesc(player: Player): string {
   if (player.nomade) return 'NÔMADE: conta como qualquer nação na química';
   if (player.pilar) return 'PILAR: +12 na QUÍMICA GERAL do time';
   if (player.martir) return 'MÁRTIR: −6 em cada atributo nele, mas dá +3 em tudo a 2 titulares';
-  if (player.idolo) return 'ÍDOLO: +2 em cada atributo aos titulares do MESMO CLUBE que ele';
+  if (player.idolo) return 'ÍDOLO: +2 em cada atributo aos OUTROS titulares do mesmo clube (não a ele)';
   if (player.decimoHomem) return '12º HOMEM: no banco, dá +1 compostura e +2 visão a todo o time';
   if (player.pipoqueiro) return 'PIPOQUEIRO: +4 em cada atributo na FASE DE LIGA, mas −5 no MATA-MATA';
   if (player.noe) return 'NOÉ: +10 em cada atributo NELE e +30 na química geral — só enquanto for o ÚNICO titular com característica';
   if (player.forasteiro) return 'FORASTEIRO: +5 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
+  if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
+  if (player.magnata) return 'MAGNATA: titular multiplica os pontos da partida de LIGA por 1.5 (mas −5 em cada atributo nele)';
   return '';
 }
 

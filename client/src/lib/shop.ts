@@ -50,7 +50,7 @@ export const SHOP_COSTS = {
   scout: 220,
   reroll: 120, // 🔄 +1 token de re-sorteio do reforço (ilimitado, acumula entre rodadas)
   removeVariant: 150, // 🧹 remove a característica de um jogador (pra poder aplicar outra)
-  uniqueCard: 700,    // ⭐ Carta Única (raridade Única, overall 99) — premium da loja
+  uniqueCard: 750,    // ⭐ Carta Única (raridade Única, overall 99) — premium da loja
   physio: 250,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
 } as const;
 
@@ -90,7 +90,7 @@ export const TRAIN_ATTRS: { key: TrainAttr; label: string }[] = [
 ];
 
 // ── "Turbinar Carta" — the special variants the player can buy onto a card. ──
-export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro';
+export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata';
 export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: '+3 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: '+6 em todos os atributos, mas −12 na química geral do time.' },
@@ -103,4 +103,6 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'pipoqueiro', icon: '🍿', label: 'Pipoqueiro', color: '#EC4899', desc: '+4 em todos os atributos na fase de liga, mas −5 em tudo no mata-mata.' },
   { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: '+10 em tudo NELE e +30 na química geral — SÓ enquanto for o único titular com característica.' },
   { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: '+5 em tudo quando é o único titular do seu país E do seu clube.' },
+  { key: 'capitaoNato', icon: '🗣️', label: 'Capitão Nato', color: '#F97316', desc: 'Se for o CAPITÃO do time, o bônus de capitão vem DOBRADO.' },
+  { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os pontos da partida de LIGA por 1.5. Mas −5 em todos os atributos nele.' },
 ];

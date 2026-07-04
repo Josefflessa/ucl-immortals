@@ -9,7 +9,7 @@ import {
 } from '../lib/gameData';
 import {
   Team, PlayerCard, MatchResult, StandingsEntry, DraftState, ImmortalReport,
-  calculateChemistry, generateDraftOptions, getNeededPositions,
+  calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier,
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
   LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
   getAllPlayedMatchResults, createKnockoutBracket,
@@ -893,6 +893,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       // Award shop points for the player's performance (W/D/L + goal diff + goals + clean sheet).
       const matchPoints = computeMatchPoints(action.result, state.playerTeam.id);
+      // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
+      const magMult = magnataPointMultiplier(state.playerTeam.players);
+      const earnedPoints = Math.round(matchPoints.total * magMult);
 
       // 🎯 Palpite: liquida e CREDITA os palpites da rodada agora (no solo, o fim da partida é a
       // revelação — o jogador viu o seu jogo ao vivo e os demais foram simulados aqui).
@@ -917,8 +920,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatchTeams: null,
         currentMatchResult: null,
         reinforcementOptions,
-        points: state.points + matchPoints.total + betWinnings,
-        lastMatchPoints: matchPoints,
+        points: state.points + earnedPoints + betWinnings,
+        lastMatchPoints: magMult > 1 ? { ...matchPoints, total: earnedPoints } : matchPoints,
         bets: settledBets,
         discipline: disc.next,
       };

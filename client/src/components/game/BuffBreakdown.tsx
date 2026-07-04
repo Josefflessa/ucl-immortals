@@ -120,7 +120,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {variantBoost > 0 && <Chip text={`+${variantBoost} EM CADA ATRIBUTO`} color={variantColor} />}
                 {player.martir && <Chip text="−6 EM CADA ATRIBUTO" color="#EF4444" />}
                 {player.martir && <Chip text="+3 EM TUDO A 2 TITULARES" color="#22C55E" />}
-                {player.idolo && <Chip text="+2 EM TUDO AOS TITULARES DO MESMO CLUBE" color="#22C55E" />}
+                {player.idolo && <Chip text="+2 EM TUDO AOS OUTROS DO MESMO CLUBE (NÃO A ELE)" color="#22C55E" />}
                 {player.decimoHomem && !decimoInactive && <Chip text="+2 VIS · +1 CMP AO TIME (NO BANCO)" color="#22C55E" />}
                 {player.decimoHomem && decimoInactive && <Chip text="SEM EFEITO — PRECISA ESTAR NO BANCO" color="#EF4444" />}
                 {player.pipoqueiro && <Chip text="+4 EM TUDO NA LIGA" color="#22C55E" />}
@@ -130,6 +130,9 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.noe && noeInactive && <Chip text={isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — NÃO É O ÚNICO C/ CARACTERÍSTICA'} color="#EF4444" />}
                 {player.forasteiro && !forasteiroInactive && <Chip text="+5 EM TUDO" color="#22C55E" />}
                 {player.forasteiro && forasteiroInactive && <Chip text={isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — COMPARTILHA PAÍS OU CLUBE'} color="#EF4444" />}
+                {player.capitaoNato && <Chip text="🗣️ BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)" color="#F97316" />}
+                {player.magnata && <Chip text="🤑 PONTOS DE LIGA ×1.5 (TITULAR)" color="#16A34A" />}
+                {player.magnata && <Chip text="−5 EM TUDO" color="#EF4444" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
                 {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
@@ -141,12 +144,14 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                     : player.pilar ? 'Eleva a QUÍMICA GERAL do time (o número total) só por estar na escalação.'
                       : player.lobo ? 'Boost individual forte — mas reduz a QUÍMICA GERAL do time (o número total).'
                         : player.decimoHomem ? 'No banco, dá +1 compostura e +2 visão a todo o time. Jogando, não tem efeito.'
-                          : player.idolo ? 'Dá +2 em cada atributo aos titulares do MESMO CLUBE que ele.'
+                          : player.idolo ? 'Dá +2 em cada atributo aos OUTROS titulares do mesmo clube — não a ele mesmo.'
                             : player.martir ? '−6 em cada atributo nele (já no valor base); em troca, dá +3 em tudo a 2 titulares escolhidos.'
                               : player.pipoqueiro ? '+4 em tudo na FASE DE LIGA, mas −5 em tudo no MATA-MATA. Craque de campeonato que some no jogo grande.'
                                 : player.noe ? 'Só rende enquanto for o ÚNICO titular com característica: +10 em tudo nele e +30 na química geral (põe o time inteiro na arca). Qualquer outro especial no XI desliga.'
                                   : player.forasteiro ? 'Quando é o ÚNICO do seu país E do seu clube no XI, ganha +5 em tudo — transforma a química baixa em vantagem.'
-                                    : 'Já no valor base — por isso não aparece como delta acima.'}
+                                    : player.capitaoNato ? 'Se for o CAPITÃO do time, o bônus de capitão (a melhor stat dele, dada a todos) vem DOBRADO.'
+                                      : player.magnata ? 'Como titular, multiplica os pontos da partida de LIGA por 1.5 — em troca de −5 em cada atributo nele.'
+                                        : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
             </Row>
           )}
