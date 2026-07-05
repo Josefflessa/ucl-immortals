@@ -6,10 +6,11 @@ import SquadEditor from './SquadEditor';
 import { SHOP_COSTS } from '../../lib/shop';
 
 export default function LeagueSquadTab() {
-  const { state, dispatch, setMatchRolesOnline, swapPlayerTeamOnline, martirTargetsOnline, healInjuryOnline } = useGame();
+  const { state, dispatch, setMatchRolesOnline, swapPlayerTeamOnline, martirTargetsOnline, healInjuryOnline, evolveCoachPrimeOnline, setEvolvePointOnline, resetEvolvePointsOnline } = useGame();
   const team = state.playerTeam;
   if (!team) return null;
   const online = state.mode === 'online';
+  const wins = state.leagueStandings.find(s => s.teamId === team.id)?.won ?? 0;
   const cap = team.captain ?? null;
   const pen = team.penaltyTaker ?? null;
   const fk = team.freeKickTaker ?? null;
@@ -28,6 +29,12 @@ export default function LeagueSquadTab() {
       canAffordPhysio={state.points >= SHOP_COSTS.physio}
       physioCost={SHOP_COSTS.physio}
       onHealInjury={(playerId) => online ? healInjuryOnline(playerId) : dispatch({ type: 'HEAL_INJURY', playerId })}
+      coachPrime={team.coachPrime}
+      points={state.points}
+      wins={wins}
+      onEvolvePrime={() => online ? evolveCoachPrimeOnline() : dispatch({ type: 'EVOLVE_COACH_PRIME' })}
+      onSetEvolvePoint={(playerId, attr, delta) => online ? setEvolvePointOnline(playerId, attr, delta) : dispatch({ type: 'SET_EVOLVE_POINT', playerId, attr, delta })}
+      onResetEvolvePoints={(playerId) => online ? resetEvolvePointsOnline(playerId) : dispatch({ type: 'RESET_EVOLVE_POINTS', playerId })}
       players={team.players}
       coachId={team.coachId}
       formationId={team.formationId}

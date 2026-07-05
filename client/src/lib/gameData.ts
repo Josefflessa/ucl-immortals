@@ -53,6 +53,12 @@ export interface Player {
     pace?: number; shooting?: number; passing?: number; dribbling?: number;
     defending?: number; physical?: number; vision?: number; composure?: number;
   };
+  // ⭐ Carta Evoluída (jogou EVOLVE_GAMES como titular): progresso + pontos livres distribuídos.
+  appearances?: number;
+  evolvePoints?: {
+    pace?: number; shooting?: number; passing?: number; dribbling?: number;
+    defending?: number; physical?: number; vision?: number; composure?: number;
+  };
 }
 
 export interface CoachBonus {
@@ -177,6 +183,17 @@ export const POS_PT: Record<string, string> = {
   CAM: 'MEI', LM: 'ML', RM: 'MD',
   LW: 'PE', RW: 'PD', CF: 'SA', ST: 'CA',
 };
+
+// Secundárias PADRÃO por posição nativa (vizinhança realista). `secondaryPositions` explícito vence.
+export const SECONDARY_ADJACENCY: Record<string, string[]> = {
+  GK: [], CB: ['CDM'], LB: ['LWB', 'LM'], RB: ['RWB', 'RM'],
+  LWB: ['LB', 'LM'], RWB: ['RB', 'RM'], CDM: ['CM', 'CB'], CM: ['CDM', 'CAM'],
+  CAM: ['CM', 'CF'], LM: ['LW', 'LWB'], RM: ['RW', 'RWB'],
+  LW: ['LM', 'CF'], RW: ['RM', 'CF'], CF: ['ST', 'CAM'], ST: ['CF'],
+};
+export function effectiveSecondaries(p: { position: string; secondaryPositions?: string[] }): string[] {
+  return p.secondaryPositions ?? SECONDARY_ADJACENCY[p.position] ?? [];
+}
 
 // ============================================================
 // TACTICS (PLAY STYLE)
@@ -2519,6 +2536,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Ronaldo',
     fullName: 'Ronaldo Luís Nazário de Lima',
     position: 'ST',
+    secondaryPositions: ['CF', 'RW'],
     nation: 'Brasil',
     club: 'Real Madrid',
     season: '2002/03',
@@ -2568,6 +2586,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Cruyff',
     fullName: 'Johan Cruyff',
     position: 'CF',
+    secondaryPositions: ['CAM', 'LW', 'ST'],
     nation: 'Holanda',
     club: 'Ajax',
     season: '1971/72',

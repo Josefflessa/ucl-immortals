@@ -4,7 +4,7 @@
 import {
   Player, Coach, Formation,
   PLAYERS, COACHES, FORMATIONS, HISTORICAL_TRIOS,
-  getPositionGroup,
+  getPositionGroup, effectiveSecondaries,
 } from './gameData';
 import {
   selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
@@ -20,6 +20,7 @@ import {
   getPenaltyComposureBonus, hasOopRelief, rollPlayerTraits,
 } from './traits';
 import { BOT_CREST_MAP } from './crests';
+import { Stadium, stadiumFor } from './stadium';
 import {
   yellowChance, injuryChanceFromFoul, randomInjuryChance, tacticAggression, formationAggression,
   CARD_POS_MULT, STRAIGHT_RED_PROB, RED_PENALTY, RED_GK_PENALTY, INJURY_DEBUFF,
@@ -33,6 +34,7 @@ import {
 export interface PlayerCard extends Player {
   chemistryScore: number; // 0-3
   isOOP: boolean;
+  isSecondary?: boolean; // jogando numa posição secundária (−7%)
   // Per-MATCH unique stat key ("teamId::playerId"). The same player (same id) can
   // appear on two teams (the pool is smaller than 36×11), so match stats must be
   // keyed per instance, not by playerId alone. Set by setStatIds() before a sim.
@@ -56,6 +58,7 @@ export interface Team {
   id: string;
   name: string;
   coachId: string;
+  coachPrime?: boolean; // Fase 2: técnico evoluído pro Prime → estádio temático
   formationId: string;
   playStyle: string;
   players: PlayerCard[]; // 11 titulares
@@ -166,9 +169,7 @@ export interface DraftState {
 // ============================================================
 // Check whether a player fits a formation position (native or secondary)
 export function isPlayerInPosition(player: Player, formationRole: string): boolean {
-  if (player.position === formationRole) return true;
-  if (player.secondaryPositions?.includes(formationRole)) return true;
-  return false;
+  return positionFit(player, formationRole) !== 'off';
 }
 
 // Playing in the coach's preferred formation gels the side: a flat bonus to the team's
@@ -185,19 +186,22 @@ export function calculateChemistry(
   total: number;
   trios: string[];
   outOfPosition: Record<string, boolean>;
+  secondaryPos: Record<string, boolean>;
 } {
   const individual: Record<string, number> = {};
   const outOfPosition: Record<string, boolean> = {};
+  const secondaryPos: Record<string, boolean> = {};
   const trios: string[] = [];
 
   for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const formationRole = formationRoles?.[i];
 
-    // If we know the formation role, check if player fits it. 🃏 Coringa is NEVER out of position
-    // (no stat debuff, no chemistry loss) — so it's treated as in-position everywhere downstream.
-    const isOOP = player.coringa ? false : (formationRole ? !isPlayerInPosition(player, formationRole) : false);
+    // Encaixe em 3 estados: nativa / secundária (−7%) / fora (−15%). 🃏 Coringa é sempre nativa.
+    const fit = formationRole ? positionFit(player, formationRole) : 'native';
+    const isOOP = fit === 'off';
     outOfPosition[player.id] = isOOP;
+    secondaryPos[player.id] = fit === 'secondary';
 
     // Out-of-position players are forced to chemistry=0
     if (isOOP) {
@@ -262,7 +266,7 @@ export function calculateChemistry(
   const total = Math.max(0, Math.min(100,
     Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus));
 
-  return { individual, total, trios, outOfPosition };
+  return { individual, total, trios, outOfPosition, secondaryPos };
 }
 
 // The chemistry LINKS between players (who connects with whom and why). Same priority
@@ -293,13 +297,15 @@ export function getChemistryLinks(players: (Player | undefined)[], coachId: stri
 // ============================================================
 export interface StatBreakdown {
   base: number;       // raw attribute
-  chem: number;       // delta from the individual-chemistry multiplier (can be negative if OOP)
+  chem: number;       // delta from the individual-chemistry multiplier (pura, sem penalidade de posição)
+  position: number;   // 🔁 penalidade de posição (2ª = −7% / fora = −15%; 0 na nativa)
   coach: number;      // coach per-attribute modifier
   trait: number;      // sum of always-on trait bonuses
   tactic: number;     // play-style (tactic) bonus
   globalChem: number; // team-wide chemistry bonus (passing/pace only)
   captain: number;    // captain leadership bonus (+CAPTAIN_BOOST on the captain's best stat, for everyone)
   train: number;      // 💪 shop "Treino" — permanent, stacking per-attribute boost
+  evolve: number;     // ⭐ Carta Evoluída — pontos livres distribuídos neste atributo
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
@@ -518,14 +524,21 @@ export function getPlayerEffectiveStats(
     captainBoost?: { stat: string; amount: number };
     // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
     charBoosts?: CharBoostMap;
+    // 🔁 jogando numa posição SECUNDÁRIA (−7%). Mantém a química (só o OOP zera).
+    isSecondary?: boolean;
   }
 ): EffectiveStats {
+  const isSecondary = context?.isSecondary ?? false;
+  const versatile = hasOopRelief(player.traits); // 🧭 Versatilidade: joga secundárias sem penalidade
   const effectiveChem = isOOP ? 0 : chemScore;
-  // Match the engine: OOP debuff is softened by the "Versatilidade" trait.
-  const oopMult = hasOopRelief(player.traits) ? 0.92 : 0.85;
-  const chemMult = isOOP ? oopMult : (effectiveChem === 3 ? 1.10 : effectiveChem === 2 ? 1.06 : effectiveChem === 1 ? 1.03 : 1.00);
+  // Química PURA (OOP tem chem 0 → 1.00). A penalidade de POSIÇÃO é separada em posMult.
+  const chemMult = effectiveChem === 3 ? 1.10 : effectiveChem === 2 ? 1.06 : effectiveChem === 1 ? 1.03 : 1.00;
+  const oopMult = versatile ? 0.92 : 0.85;
+  // Penalidade de posição: fora = −15% (−8% versátil); secundária = −7% (0% versátil); nativa = 0%.
+  const posMult = isOOP ? oopMult : (isSecondary && !versatile ? SECONDARY_STAT_MULT : 1);
 
-  const applyMult = (base: number) => Math.round(base * chemMult);
+  const applyMult = (base: number) => Math.round(base * chemMult * posMult);
+  const chemOnly = (base: number) => Math.round(base * chemMult);
 
   const modifiers = getCoachModifiersForPlayer(player, coachId, context);
   const chemBonus = getChemistryBonus(teamChemTotal);
@@ -554,6 +567,7 @@ export function getPlayerEffectiveStats(
   // 💪 Shop "Treino": a permanent, stacking per-attribute boost (no cap), same nature as the
   // other additive buffs — it feeds the per-attribute delta and therefore the effective overall.
   const trainBonus = (attr: AttrKey): number => player.trainBoosts?.[attr] ?? 0;
+  const evolveBonus = (attr: AttrKey): number => player.evolvePoints?.[attr] ?? 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing THIS player (Mártir/Ídolo/12º Homem).
   const charB = context?.charBoosts?.[player.id];
@@ -564,7 +578,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -584,13 +598,15 @@ export function getPlayerEffectiveStats(
   // barring the rare Math.max(1, …) floor). Lets the UI show where each point comes from.
   const mkBreak = (base: number, mod: number, attr: AttrKey): StatBreakdown => ({
     base,
-    chem: applyMult(base) - base,
+    chem: chemOnly(base) - base,                 // só química (sem penalidade de posição)
+    position: applyMult(base) - chemOnly(base),  // 🔁 penalidade de posição (2ª = −7% / fora = −15%)
     coach: mod,
     trait: traitBonus(attr),
     tactic: styleBonus(attr),
     globalChem: globalChem(attr),
     captain: captainBonus(attr),
     train: trainBonus(attr),
+    evolve: evolveBonus(attr),
     char: charBonus(attr),
   });
 
@@ -819,14 +835,17 @@ export function getEffectiveAttribute(
     captainBoost?: { stat: string; amount: number };
     // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
     charBoosts?: CharBoostMap;
+    // 🏟️ Estádio Prime do mandante (só setado pro time da casa) — buff temático nos 2 atributos.
+    homeStadium?: Stadium;
   }
 ): number {
   let base = player[attribute] as number;
 
   // Individual chemistry bonus: If OOP, apply a stats debuff (softened by the
   // "Versatilidade" trait). If not, apply standard chemistry multipliers (+0% / +3% / +6% / +10%)
-  const oopMult = hasOopRelief(player.traits) ? 0.92 : 0.85;
-  const chemMult = player.isOOP ? oopMult : (player.chemistryScore >= 3 ? 1.10 : player.chemistryScore === 2 ? 1.06 : player.chemistryScore === 1 ? 1.03 : 1.00);
+  const versatile = hasOopRelief(player.traits); // 🧭 Versatilidade: secundária sem penalidade
+  const oopMult = versatile ? 0.92 : 0.85;
+  const chemMult = player.isOOP ? oopMult : (player.chemistryScore >= 3 ? 1.10 : player.chemistryScore === 2 ? 1.06 : player.chemistryScore === 1 ? 1.03 : 1.00) * (player.isSecondary && !versatile ? SECONDARY_STAT_MULT : 1);
   base = Math.round(base * chemMult);
 
   // Chemistry global bonus (passing & pace)
@@ -860,9 +879,26 @@ export function getEffectiveAttribute(
   // 💪 Shop "Treino": permanent, stacking per-attribute boost bought in the shop (no cap).
   base += (player.trainBoosts?.[attribute as keyof NonNullable<Player['trainBoosts']>] ?? 0);
 
+  // ⭐ Carta Evoluída: pontos livres distribuídos (mesma natureza do Treino, sem teto).
+  base += (player.evolvePoints?.[attribute as keyof NonNullable<Player['evolvePoints']>] ?? 0);
+
   // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
   const cb = context?.charBoosts?.[player.id];
   if (cb) base += cb.flatAll + (cb.perStat[attribute as AttrKey] ?? 0);
+
+  // 🏟️ Vantagem de casa carimbada por atributo (só o mandante; homeStadium só é setado pra ele,
+  // e nunca na final). Uniforme: +N em TODOS os atributos (+4 padrão / +7 Prime). Temático (Prime):
+  // +3/+6 a mais nos 2 atributos do tema.
+  const st = context?.homeStadium;
+  if (st) {
+    base += st.homeAttrBonus;
+    if (st.prime && st.themedAttrs && (st.themedAttrs as string[]).includes(attribute as string)) {
+      const themedForClubNation =
+        (!!st.themedClub && player.club === st.themedClub) ||
+        (!!st.themedNation && player.nation === st.themedNation);
+      base += themedForClubNation ? PRIME_THEMED_CLUB_BONUS : PRIME_THEMED_BONUS;
+    }
+  }
 
   // 🍿 Pipoqueiro — brilha na fase de liga (+N em tudo), some no mata-mata (−N em tudo).
   if (player.pipoqueiro) base += context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST;
@@ -890,11 +926,45 @@ export const TACTICAL_INFLUENCE = 1.2;
 // ~20+ team still lifts the trophy now and then). Football should be unpredictable.
 export const MATCH_NOISE = 20;
 
-// Home advantage: the host enjoys a small territorial edge (crowd, familiarity, no
-// travel). Applied to the home side's strength EXCEPT in the grand final, which is at a
-// neutral venue. Tuned via the harness so the host wins clearly more than the visitor
-// without it being decisive. Gives two-legged ties real shape (hold away, strike at home).
-export const HOME_ADVANTAGE = 3;
+// Home advantage: the host enjoys a small territorial edge (crowd, familiarity, no travel).
+// Modelado como +4 em TODOS os atributos do mandante — e como a força do time é a média dos
+// overalls efetivos, +4 em todo atributo desloca o overall (logo a força) em +4, então é aplicado
+// como +4 direto na força. Aplicado EXCETO na grande final (campo neutro). Ver StadiumCard/DEFAULT_STADIUM.
+export const HOME_ATTR_BONUS = 3;
+
+// Jogar numa posição SECUNDÁRIA custa −7% (× 0.93) — entre a nativa (0%) e o fora-de-posição (−15%).
+export const SECONDARY_STAT_MULT = 0.93;
+export type PosFit = 'native' | 'secondary' | 'off';
+export function positionFit(player: { position: string; secondaryPositions?: string[]; coringa?: boolean }, role: string): PosFit {
+  if (player.coringa) return 'native';                       // 🃏 imune
+  if (player.position === role) return 'native';
+  if (effectiveSecondaries(player).includes(role)) return 'secondary';
+  return 'off';
+}
+
+// Fase 2 (Técnico Prime): estádio temático. Buff de casa maior + temático em 2 atributos.
+export const PRIME_HOME_ATTR_BONUS = 6;   // uniforme em casa (vs +3 do padrão)
+export const PRIME_THEMED_BONUS = 3;      // nos 2 atributos do tema, todos os titulares do mandante
+export const PRIME_THEMED_CLUB_BONUS = 6; // nos 2 atributos, pros do clube/nação daquele estádio
+
+// ⭐ Cartas Evoluídas: 6 jogos como titular → libera 8 pontos livres (sem teto por atributo).
+export const EVOLVE_GAMES = 6;
+export const EVOLVE_POINTS = 8;
+export function isEvolved(p: { appearances?: number }): boolean {
+  return (p.appearances ?? 0) >= EVOLVE_GAMES;
+}
+export function evolvePointsSpent(ep?: Partial<Record<AttrKey, number>>): number {
+  return ep ? (Object.values(ep) as number[]).reduce((s, v) => s + (v ?? 0), 0) : 0;
+}
+export function applyEvolvePoint(ep: Partial<Record<AttrKey, number>>, attr: AttrKey, delta: number): Partial<Record<AttrKey, number>> {
+  const next = (ep[attr] ?? 0) + delta;
+  if (next < 0) return ep;                                      // não abaixo de 0
+  if (evolvePointsSpent(ep) + delta > EVOLVE_POINTS) return ep; // não passa de 8
+  return { ...ep, [attr]: next };
+}
+export function bumpStarterAppearances(team: Team): Team {
+  return { ...team, players: team.players.map((p, i) => i < 11 ? { ...p, appearances: (p.appearances ?? 0) + 1 } : p) };
+}
 
 // Formation counter edge: if your shape "counters" the opponent's (see FORMATIONS[].counters),
 // you get this much added strength. A SOFT nudge on top of each formation's own profile (which
@@ -1252,9 +1322,10 @@ export function runMatchSimulation(
       void side;
     }
 
+    // Vantagem de casa NÃO entra mais como bônus de força aqui: é carimbada por atributo em cada
+    // titular do mandante (ver getEffectiveAttribute + homeStadium), então já flui pelos duelos.
     const homeStrength = homeBaseStrength - homeExtraPenalty +
-      (fergusonActive(home, homeGoals, awayGoals) ? 10 : 0) +
-      (isFinal ? 0 : HOME_ADVANTAGE); // neutral venue for the final → no host edge
+      (fergusonActive(home, homeGoals, awayGoals) ? 10 : 0);
     const awayStrength = awayBaseStrength - awayExtraPenalty +
       (fergusonActive(away, awayGoals, homeGoals) ? 10 : 0);
 
@@ -1279,7 +1350,7 @@ export function runMatchSimulation(
 
     const homeIsLosing = homeGoals < awayGoals;
     const awayIsLosing = awayGoals < homeGoals;
-    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts };
+    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, homeStadium: isFinal ? undefined : stadiumFor(home.coachId, !!home.coachPrime) };
     const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
@@ -2749,6 +2820,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
     traits: rollPlayerTraits(p.position, p.rarity), // random traits, like every card
     chemistryScore: chemData.individual[p.id] ?? 1,
     isOOP: chemData.outOfPosition[p.id] ?? false,
+    isSecondary: chemData.secondaryPos[p.id] ?? false,
   }));
 
   return {
@@ -2906,6 +2978,7 @@ export function rebuildTeamChemistry(team: Team): Team {
     ...p,
     chemistryScore: chemData.individual[p.id] ?? 1,
     isOOP: chemData.outOfPosition[p.id] ?? false,
+    isSecondary: chemData.secondaryPos[p.id] ?? false,
   }));
 
   return {

@@ -54,6 +54,13 @@ export const SHOP_COSTS = {
   physio: 250,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
 } as const;
 
+// ⭐ Técnico Prime (Fase 2): critério + custo pra evoluir o técnico.
+export const PRIME_COST = 500;
+export const PRIME_WINS_REQUIRED = 4;
+export function canEvolvePrime(wins: number, points: number): boolean {
+  return wins >= PRIME_WINS_REQUIRED && points >= PRIME_COST;
+}
+
 // 🏪 Mercado (venda solo): quanto o jogador recebe ao vender uma RESERVA, por raridade.
 // Calibrado modesto vs. ganho por partida (~100-150 pts) pra recompensar sem virar farm.
 export const SELL_VALUES: Record<string, number> = {

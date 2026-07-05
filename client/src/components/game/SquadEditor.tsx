@@ -5,15 +5,17 @@
 // so each host wires its own state (drafted players vs the league team) and actions.
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT } from '../../lib/gameData';
+import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
-  computeCharacteristicBoosts,
+  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_GAMES, EVOLVE_POINTS, positionFit,
 } from '../../lib/gameEngine';
-import { TRAIT_MAP, traitEffectLabel } from '../../lib/traits';
+import { TRAIT_MAP, traitEffectLabel, hasOopRelief, type AttrKey } from '../../lib/traits';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
-import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE } from './PlayerCard';
+import CoachStadiumPanel from './CoachStadiumPanel';
+import { stadiumFor } from '../../lib/stadium';
+import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE, getCardVariants } from './PlayerCard';
 import RolesSelector from './RolesSelector';
 import TacticSelector from './TacticSelector';
 import FormationSelector from './FormationSelector';
@@ -43,7 +45,21 @@ export interface SquadEditorProps {
   onHealInjury?: (playerId: string) => void;
   canAffordPhysio?: boolean;
   physioCost?: number;               // 🏥 custo da fisioterapia (mostrado no botão + confirmação)
+  // ⭐ Técnico Prime (Fase 2): evolução via critério + pontos (só no MEU TIME).
+  coachPrime?: boolean;
+  points?: number;
+  wins?: number;
+  onEvolvePrime?: () => void;
+  // ⭐ Cartas Evoluídas: distribuir/resetar os 8 pontos livres (só no MEU TIME).
+  onSetEvolvePoint?: (playerId: string, attr: AttrKey, delta: number) => void;
+  onResetEvolvePoints?: (playerId: string) => void;
 }
+
+// Atributos com rótulo pt-br (alocador da Carta Evoluída).
+const EVOLVE_ATTRS: { key: AttrKey; label: string }[] = [
+  { key: 'pace', label: 'RITMO' }, { key: 'shooting', label: 'FINALIZAÇÃO' }, { key: 'passing', label: 'PASSE' }, { key: 'dribbling', label: 'DRIBLE' },
+  { key: 'defending', label: 'DEFESA' }, { key: 'physical', label: 'FÍSICO' }, { key: 'vision', label: 'VISÃO' }, { key: 'composure', label: 'COMPOSTURA' },
+];
 
 export default function SquadEditor({
   players, coachId, formationId, playStyle,
@@ -51,8 +67,12 @@ export default function SquadEditor({
   onSetFormation, onSetPlayStyle, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets,
   showCoachCard = true, footer, isKnockout = false,
   availability, onHealInjury, canAffordPhysio, physioCost = 250,
+  coachPrime, points, wins, onEvolvePrime,
+  onSetEvolvePoint, onResetEvolvePoints,
 }: SquadEditorProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  // 🔍 Ver o card do jogador em tela cheia (só visualização).
+  const [zoomCard, setZoomCard] = useState(false);
   // 🏥 Fisioterapia: guarda o id do jogador aguardando CONFIRMAÇÃO (nada de comprar num clique só).
   const [confirmPhysioFor, setConfirmPhysioFor] = useState<string | null>(null);
   // 🟨🟥🩹 Badge de disponibilidade de um jogador (ou null se está tudo certo).
@@ -80,9 +100,9 @@ export default function SquadEditor({
 
   const teamOverall = xi.length === 11
     ? Math.round(xi.reduce((sum, p) => {
-        const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout });
-        return sum + eff.overall;
-      }, 0) / 11)
+      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, isSecondary: chemData.secondaryPos[p.id] ?? false });
+      return sum + eff.overall;
+    }, 0) / 11)
     : null;
 
   const getChemPreview = (candidateIdx: number) => {
@@ -98,6 +118,7 @@ export default function SquadEditor({
   const selectedPlayer = selectedIndex !== null ? players[selectedIndex] : null;
   const selectedChemScore = selectedPlayer ? (chemData.individual[selectedPlayer.id] ?? 0) : 0;
   const selectedIsOOP = selectedPlayer ? (chemData.outOfPosition[selectedPlayer.id] ?? false) : false;
+  const selectedIsSecondary = selectedPlayer ? (chemData.secondaryPos[selectedPlayer.id] ?? false) : false;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -152,44 +173,17 @@ export default function SquadEditor({
         <ChemistryBonusInfo total={chemData.total} />
       </div>
 
-      {/* ── Coach / manager card ── */}
+      {/* ── Comando do Time: técnico + estádio (+ evolução Prime no MEU TIME) ── */}
       {showCoachCard && coach && (
-        <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
-          <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
-            <span className="text-[10px] font-black tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>🎓 TÉCNICO</span>
-            <span className="text-[9px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>COMANDO DO TIME</span>
-          </div>
-          <div className="p-4 flex gap-3.5">
-            {coach.photoUrl && (
-              <img src={coach.photoUrl} alt={coach.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
-                style={{ border: '2px solid #C9A84C55', objectPosition: 'center top' }} />
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="text-lg font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{coach.name}</div>
-              <div className="text-[11px] font-bold mt-0.5" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
-              <div className="text-[11px] mt-1 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{coach.description}</div>
-            </div>
-          </div>
-          <div className="px-4 pb-4 space-y-2">
-            <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
-              <div className="text-[9px] font-black tracking-widest mb-1" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>⚡ EFEITO NO ELENCO</div>
-              <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{coach.effect}</div>
-            </div>
-            <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #2A2A4A' }}>
-              <div className="text-[9px] font-black tracking-widest mb-1" style={{ color: '#A78BFA', fontFamily: 'Rajdhani, sans-serif' }}>✨ HABILIDADE: {coach.specialAbilityName?.toUpperCase()}</div>
-              <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{coach.specialAbility}</div>
-            </div>
-            {coach.preferredFormation && (
-              <div className="flex items-center gap-2 text-[10px] pt-0.5 flex-wrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                <span style={{ color: '#6A6A7A' }}>Formação preferida:</span>
-                <span className="px-2 py-0.5 rounded font-black" style={{ background: '#C9A84C22', color: '#E8C84A', border: '1px solid #C9A84C44' }}>{coach.preferredFormation}</span>
-                {formation?.id === coach.preferredFormation
-                  ? <span className="font-bold inline-flex items-center gap-1" style={{ color: '#22C55E' }}>✓ em uso · <span style={{ color: '#22C55E' }}>+{PREFERRED_FORMATION_CHEM_BONUS} química</span></span>
-                  : <span style={{ color: '#8A8A9A' }}>jogue nela pra <b style={{ color: '#22C55E' }}>+{PREFERRED_FORMATION_CHEM_BONUS} química</b> do time</span>}
-              </div>
-            )}
-          </div>
-        </div>
+        <CoachStadiumPanel
+          coach={coach}
+          formation={formation}
+          coachPrime={!!coachPrime}
+          stadium={stadiumFor(coachId, !!coachPrime)}
+          wins={wins}
+          points={points}
+          onEvolve={onEvolvePrime}
+        />
       )}
 
       <FormationSelector value={formationId} onChange={onSetFormation} />
@@ -291,7 +285,7 @@ export default function SquadEditor({
               className="relative bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
             >
               {/* Fundo: textura da carta do jogador (a Única usa a sua própria), com véu leve p/ legibilidade */}
-              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity)})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity, isEvolved(selectedPlayer))})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
               <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, background: 'linear-gradient(180deg,rgba(9,9,16,.52),rgba(9,9,16,.6))' }} />
 
               <div className="relative z-10 flex items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
@@ -301,7 +295,12 @@ export default function SquadEditor({
                     Trocar posição de <span className="font-extrabold text-[#C9A84C]">{selectedPlayer.shortName}</span>
                   </p>
                 </div>
-                <button onClick={() => setSelectedIndex(null)} className="text-gray-400 hover:text-white text-2xl font-black focus:outline-none">✕</button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => setZoomCard(true)} title="Ver card em tela cheia"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-lg transition-colors hover:bg-white/10 focus:outline-none"
+                    style={{ border: '1px solid #2E2E42', color: '#C9C9D5' }}>🔍</button>
+                  <button onClick={() => setSelectedIndex(null)} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black text-gray-400 hover:text-white hover:bg-white/10 focus:outline-none">✕</button>
+                </div>
               </div>
 
               {/* 🟨🟥🩹 Disponibilidade + Fisioterapia */}
@@ -366,7 +365,7 @@ export default function SquadEditor({
               <div className="relative z-10 flex-1 overflow-y-auto p-6 space-y-5">
                 {(() => {
                   const isStarter = selectedIndex < 11;
-                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout });
+                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, isSecondary: selectedIsSecondary });
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
                   const photoUrl = UNIQUE_STYLE[selectedPlayer.id]?.render ?? buildSofifaUrl(selectedPlayer.id, 120);
@@ -420,8 +419,18 @@ export default function SquadEditor({
                             {selectedIsOOP && (
                               <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#EF444422', color: '#EF4444', border: '1px solid #EF444444', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO</span>
                             )}
+                            {selectedIsSecondary && (
+                              hasOopRelief(selectedPlayer.traits)
+                                ? <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#14532d', color: '#86efac', border: '1px solid #22C55E55', fontFamily: 'Rajdhani, sans-serif' }}>🧭 2ª POSIÇÃO · SEM PENALIDADE</span>
+                                : <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −7%</span>
+                            )}
                           </div>
-                          <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{selectedPlayer.shortName}</div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{selectedPlayer.shortName}</div>
+                            {isEvolved(selectedPlayer) && (
+                              <span className="inline-flex items-center justify-center text-center text-[9px] font-black px-2 py-0.5 rounded leading-none flex-shrink-0" style={{ background: 'linear-gradient(90deg,#0a7a2f,#22C55E)', color: '#04120a', letterSpacing: '0.06em' }}>⭐ EVOLUÍDO</span>
+                            )}
+                          </div>
                           <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{selectedPlayer.club} · {selectedPlayer.nation}</div>
                         </div>
                         <div className="text-right flex-shrink-0">
@@ -457,8 +466,12 @@ export default function SquadEditor({
                           </div>
                           <span className="text-[10px] font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{eff.chemScore}/3</span>
                         </div>
-                        <div className="text-[9px] text-gray-500 font-bold" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                          Pos. nativa: <span className="text-white">{POS_PT[selectedPlayer.position] ?? selectedPlayer.position}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          <span className="text-[9px] text-gray-500 font-bold tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>JOGA EM:</span>
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: '#1c1c2e', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[selectedPlayer.position] ?? selectedPlayer.position}</span>
+                          {effectiveSecondaries(selectedPlayer).map(pos => (
+                            <span key={pos} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: '#12121c', color: '#9A9AAA', border: '1px solid #2a2a3a', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[pos] ?? pos}</span>
+                          ))}
                         </div>
                       </div>
 
@@ -510,35 +523,128 @@ export default function SquadEditor({
                   );
                 })()}
 
-                {/* Swap candidates list — grouped Titulares / Reservas so trocas ficam claras */}
+                {/* ⭐ Carta Evoluída — alocador dos 8 pontos livres (ou progresso pra evoluir) */}
+                {onSetEvolvePoint && (() => {
+                  const evolved = isEvolved(selectedPlayer);
+                  const ep = selectedPlayer.evolvePoints ?? {};
+                  const spent = evolvePointsSpent(ep);
+                  const left = EVOLVE_POINTS - spent;
+                  const apps = selectedPlayer.appearances ?? 0;
+                  return (
+                    <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${evolved ? '#22C55E55' : '#1A1A2A'}` }}>
+                      <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
+                        <span className="text-[10px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ CARTA EVOLUÍDA</span>
+                        {evolved && <span className="text-[10px] font-black" style={{ color: left > 0 ? '#E8C84A' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Pontos: {left}/{EVOLVE_POINTS}</span>}
+                      </div>
+                      {evolved ? (
+                        <div className="p-3">
+                          <div className="text-[10px] mb-2 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            Você tem <b style={{ color: '#22C55E' }}>{EVOLVE_POINTS} pontos livres</b> pra reforçar esta carta: cada <b style={{ color: '#C9C9D5' }}>+</b> soma <b style={{ color: '#C9C9D5' }}>+1</b> no atributo (sem teto — pode empilhar num só). Dá pra <b style={{ color: '#C9C9D5' }}>resetar</b> e redistribuir quando quiser.
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {EVOLVE_ATTRS.map(a => {
+                              const v = ep[a.key] ?? 0;
+                              return (
+                                <div key={a.key} className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
+                                  <span className="text-[10px] font-bold" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{a.label}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <button onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, -1)} disabled={v <= 0} className="w-5 h-5 rounded flex items-center justify-center text-xs font-black" style={{ background: v > 0 ? '#1A1A2A' : '#12121C', color: v > 0 ? '#EF4444' : '#3A3A4A', cursor: v > 0 ? 'pointer' : 'default' }}>−</button>
+                                    <span className="text-[11px] font-black w-4 text-center" style={{ color: v > 0 ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{v}</span>
+                                    <button onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, 1)} disabled={left <= 0} className="w-5 h-5 rounded flex items-center justify-center text-xs font-black" style={{ background: left > 0 ? '#1A1A2A' : '#12121C', color: left > 0 ? '#22C55E' : '#3A3A4A', cursor: left > 0 ? 'pointer' : 'default' }}>+</button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {onResetEvolvePoints && spent > 0 && (
+                            <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2 py-1.5 rounded-lg text-[10px] font-black" style={{ background: '#1A1A2A', color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-3">
+                          <div className="flex items-center justify-between text-[11px] font-bold mb-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                            <span style={{ color: '#8A8A9A' }}>Jogos para evoluir</span>
+                            <span style={{ color: '#C9C9D5' }}>{Math.min(apps, EVOLVE_GAMES)}/{EVOLVE_GAMES}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1A1A2A' }}>
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, apps / EVOLVE_GAMES * 100)}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
+                          </div>
+                          <div className="text-[10px] mt-1.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            Use esta carta como titular por {EVOLVE_GAMES} jogos pra evoluir. Ao evoluir, ela ganha <b style={{ color: '#22C55E' }}>{EVOLVE_POINTS} pontos livres</b> pra distribuir nos atributos (cada ponto = <b style={{ color: '#C9C9D5' }}>+1</b>, à sua escolha), e você pode redistribuir quando quiser.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Swap candidates list — grouped Titulares / Reservas, com indicador de encaixe na vaga */}
                 <div className="space-y-3">
-                  <div className="text-xs font-bold text-[#8A8A9A] tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TROCAR COM:</div>
                   {(() => {
+                    // Encaixe da TROCA: quem entra numa vaga de formação e em qual papel.
+                    // - Titular selecionado → o CANDIDATO entra no slot selecionado.
+                    // - Reserva selecionada → o SELECIONADO entra no slot do titular candidato.
+                    const starterSel = selectedIndex !== null && selectedIndex < 11;
+                    const headerRole = starterSel ? (formationRoles[selectedIndex!] ?? null) : null;
+                    const swapFit = (candidate: Player, idx: number): { fit: 'native' | 'secondary' | 'off' | null; role: string | null; occupant: Player } => {
+                      const role = starterSel ? (formationRoles[selectedIndex!] ?? null) : (idx < 11 ? (formationRoles[idx] ?? null) : null);
+                      const occupant = starterSel ? candidate : selectedPlayer!;
+                      return { fit: role ? positionFit(occupant, role) : null, role, occupant };
+                    };
+                    const fitRank = (c: Player, idx: number) => {
+                      const f = swapFit(c, idx).fit;
+                      return f === 'native' ? 2 : f === 'secondary' ? 1 : 0;
+                    };
+
                     const renderCandidate = (candidate: Player, idx: number) => {
                       const preview = getChemPreview(idx);
-                      const isStarter = idx < 11;
                       const diffColor = preview.diff > 0 ? '#22C55E' : preview.diff < 0 ? '#EF4444' : '#8A8A9A';
                       const diffLabel = preview.diff > 0 ? `+${preview.diff}` : `${preview.diff}`;
                       const photoUrl = UNIQUE_STYLE[candidate.id]?.render ?? buildSofifaUrl(candidate.id, 120);
-                      const candidateMods = getCoachModifiersForPlayer(candidate, coachId);
-                      const hasBuffs = candidateMods.activeEffects.length > 0;
+                      const variants = getCardVariants(candidate);
+                      const { fit, role, occupant } = swapFit(candidate, idx);
+                      const nativeFit = fit === 'native';
+                      const secFit = fit === 'secondary';
+                      const fits = nativeFit || secFit;
+                      const occVersatile = hasOopRelief(occupant.traits); // 🧭 quem entra na vaga é versátil?
+                      const borderCol = role ? (nativeFit ? '#22C55E66' : secFit ? '#F59E0B66' : '#EF444455') : '#161626';
+                      const bgCol = role ? (nativeFit ? '#08120b' : secFit ? '#141008' : '#120a0a') : '#07070f';
                       return (
                         <div key={candidate.id}
                           onClick={() => { onSwap(selectedIndex!, idx); setSelectedIndex(null); }}
-                          className="flex items-center gap-3 p-3 rounded-xl cursor-pointer border border-[#161626] hover:border-[#C9A84C]/50 active:scale-[0.98] transition-all"
-                          style={{ background: '#07070f' }}>
+                          className="flex items-center gap-3 p-3 rounded-xl cursor-pointer border hover:brightness-125 active:scale-[0.98] transition-all"
+                          style={{ background: bgCol, borderColor: borderCol }}>
                           <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d]" style={{ border: `1.5px solid ${getRarityColor(candidate.rarity)}` }}>
                             {photoUrl
                               ? <img src={photoUrl} alt={candidate.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} loading="lazy" referrerPolicy="no-referrer" />
                               : <span className="text-sm font-bold" style={{ color: getRarityColor(candidate.rarity) }}>⚽</span>}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded text-white" style={{ background: '#222', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[candidate.position] ?? candidate.position}</span>
-                              <span className="text-[9px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GER: {candidate.overall}</span>
-                              {hasBuffs && <span className="text-[8px] font-black px-1 py-0.5 rounded" style={{ background: '#C9A84C22', color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>⚡ BUFF</span>}
+                            {/* nome + características */}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-sm font-black text-white truncate" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{candidate.shortName.toUpperCase()}</span>
+                              {variants.map(v => (
+                                <span key={v.key} title={v.label} className="inline-flex items-center justify-center flex-shrink-0" style={{ width: 15, height: 15, fontSize: 9, borderRadius: 999, background: `${v.color}22`, border: `1px solid ${v.color}77` }}>{v.icon}</span>
+                              ))}
                             </div>
-                            <div className="text-sm font-black text-white truncate mt-0.5" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{candidate.shortName.toUpperCase()}</div>
+                            {/* posições (nativa + secundárias) + GER */}
+                            <div className="flex items-center gap-1 flex-wrap mt-1">
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: (starterSel && nativeFit) ? '#0a7a2f' : '#26263a', color: (starterSel && nativeFit) ? '#eafff0' : '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[candidate.position] ?? candidate.position}</span>
+                              {effectiveSecondaries(candidate).map(pos => (
+                                <span key={pos} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: (starterSel && secFit && pos === role) ? '#7a5c0f' : '#12121c', color: (starterSel && secFit && pos === role) ? '#ffe8b0' : '#7A7A8A', border: '1px solid #2a2a3a', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[pos] ?? pos}</span>
+                              ))}
+                              <span className="text-[9px] font-bold text-gray-500 ml-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GER {candidate.overall}</span>
+                            </div>
+                            {/* selo de encaixe na vaga (quem ocupa o slot após a troca) */}
+                            {role && (
+                              <div className="mt-1">
+                                {nativeFit && <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#0a7a2f', color: '#eafff0', fontFamily: 'Rajdhani, sans-serif' }}>✓ ENCAIXA NA VAGA{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
+                                {secFit && (occVersatile
+                                  ? <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#14532d', color: '#86efac', border: '1px solid #22C55E55', fontFamily: 'Rajdhani, sans-serif' }}>🧭 COBRE A VAGA (2ª pos · sem penalidade)</span>
+                                  : <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'Rajdhani, sans-serif' }}>🔁 COBRE A VAGA (2ª pos · −7%){starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>)}
+                                {!fits && <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a0a0a', color: '#EF4444', border: '1px solid #EF444455', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
+                              </div>
+                            )}
                           </div>
                           <div className="text-right flex-shrink-0">
                             <div className="text-[9px] text-gray-500 font-bold" style={{ fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA</div>
@@ -547,8 +653,11 @@ export default function SquadEditor({
                         </div>
                       );
                     };
-                    const starters = players.map((c, i) => ({ c, i })).filter(({ i }) => i < 11 && i !== selectedIndex);
-                    const bench = players.map((c, i) => ({ c, i })).filter(({ i }) => i >= 11 && i !== selectedIndex);
+
+                    // Ordena: quem encaixa na vaga primeiro, depois maior overall.
+                    const sortFit = (a: { c: Player; i: number }, b: { c: Player; i: number }) => fitRank(b.c, b.i) - fitRank(a.c, a.i) || b.c.overall - a.c.overall;
+                    const starters = players.map((c, i) => ({ c, i })).filter(({ i }) => i < 11 && i !== selectedIndex).sort(sortFit);
+                    const bench = players.map((c, i) => ({ c, i })).filter(({ i }) => i >= 11 && i !== selectedIndex).sort(sortFit);
                     const Section = ({ title, color, items }: { title: string; color: string; items: { c: Player; i: number }[] }) =>
                       items.length === 0 ? null : (
                         <div className="space-y-2">
@@ -557,10 +666,18 @@ export default function SquadEditor({
                         </div>
                       );
                     return (
-                      <div className="space-y-4">
-                        <Section title="TITULARES" color="#22C55E" items={starters} />
-                        <Section title="🪑 RESERVAS / BANCO" color="#818CF8" items={bench} />
-                      </div>
+                      <>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-[#8A8A9A] tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TROCAR COM</span>
+                          {headerRole && (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded" style={{ background: '#1c1c2e', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>VAGA: {POS_PT[headerRole] ?? headerRole}</span>
+                          )}
+                        </div>
+                        <div className="space-y-4">
+                          <Section title="TITULARES" color="#22C55E" items={starters} />
+                          <Section title="🪑 RESERVAS / BANCO" color="#818CF8" items={bench} />
+                        </div>
+                      </>
                     );
                   })()}
                 </div>
@@ -572,6 +689,18 @@ export default function SquadEditor({
                   style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2E2E42' }}>Cancelar</button>
               </div>
             </motion.div>
+
+            {/* 🔍 Card do jogador em tela cheia (só pra ver de perto) */}
+            {zoomCard && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(3,3,10,0.92)' }} onClick={() => setZoomCard(false)}>
+                <button onClick={() => setZoomCard(false)} title="Fechar"
+                  className="absolute top-4 right-4 w-11 h-11 rounded-full flex items-center justify-center text-2xl font-black text-gray-300 hover:text-white focus:outline-none"
+                  style={{ background: '#12121c', border: '1px solid #2E2E42' }}>✕</button>
+                <div onClick={e => e.stopPropagation()}>
+                  <PlayerCard player={selectedPlayer} scale={1.5} />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </AnimatePresence>

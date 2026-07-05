@@ -76,6 +76,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const tactic = collect(eff, b => b.tactic);
   const captain = collect(eff, b => b.captain);
   const train = collect(eff, b => b.train);
+  const evolve = collect(eff, b => b.evolve);
+  const position = collect(eff, b => b.position);
   const char = collect(eff, b => b.char);
   const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
   const showChem = chemNet !== 0 || !!chem;
@@ -90,7 +92,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || char.length > 0 || !!variant;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || position.length > 0 || char.length > 0 || !!variant;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -269,6 +271,26 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
               <div className="flex flex-wrap gap-1">{chips(train, '#34D399')}</div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 Melhoria permanente comprada na loja — soma direto no atributo (sem teto) e reflete no geral.
+              </div>
+            </Row>
+          )}
+
+          {/* ⭐ CARTA EVOLUÍDA — pontos livres distribuídos pelo jogador (soma direto no atributo). */}
+          {evolve.length > 0 && (
+            <Row icon="⭐" name="CARTA EVOLUÍDA" color="#22C55E">
+              <div className="flex flex-wrap gap-1">{chips(evolve, '#22C55E')}</div>
+              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                Pontos livres da evolução, distribuídos por você — cada ponto soma <b style={{ color: '#86efac' }}>+1</b> no atributo e reflete no geral.
+              </div>
+            </Row>
+          )}
+
+          {/* 🔁 POSIÇÃO — penalidade por jogar fora da nativa (química fica intacta). */}
+          {position.length > 0 && (
+            <Row icon="🔁" name="POSIÇÃO" color="#F59E0B">
+              <div className="flex flex-wrap gap-1">{chips(position, '#F59E0B')}</div>
+              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                Penalidade por não jogar na posição nativa (2ª posição <b style={{ color: '#fcd34d' }}>−7%</b> · fora de posição <b style={{ color: '#fca5a5' }}>−15%</b>). A química não é afetada.
               </div>
             </Row>
           )}

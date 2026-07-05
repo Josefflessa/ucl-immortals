@@ -3,16 +3,21 @@
 // randomness (or with Math.random mocked), so they never flake.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
-  getChemistryBonus, getChemistryLinks, computeCharacteristicBoosts, getEffectiveAttribute,
+  getChemistryBonus, getChemistryLinks, computeCharacteristicBoosts, getEffectiveAttribute, getPlayerEffectiveStats,
   resolveOpenPlayChance, shotTypeForApproach, GK_SAVE_EDGE, ON_TARGET_RESISTANCE,
   getPenaltyTaker, getPenaltyOrder, computeStandings, generateLeagueFixtures, buildKeyMinutes,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
   PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
+  HOME_ATTR_BONUS,
+  PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
+  isEvolved, evolvePointsSpent, applyEvolvePoint, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
+  positionFit, SECONDARY_STAT_MULT,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture,
 } from './gameEngine';
-import { PLAYERS, COACHES, FORMATIONS, type Player } from './gameData';
+import { stadiumFor } from './stadium';
+import { PLAYERS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
 import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, getCrest } from './crests';
 
@@ -55,6 +60,116 @@ describe('getChemistryBonus — milestone tiers', () => {
   it('is monotonic non-decreasing in the special buff', () => {
     let prev = -1;
     for (let t = 0; t <= 100; t++) { const s = getChemistryBonus(t).special; expect(s).toBeGreaterThanOrEqual(prev); prev = s; }
+  });
+});
+
+describe('vantagem de jogar em casa', () => {
+  it('é +3 em todos os atributos (HOME_ATTR_BONUS)', () => {
+    expect(HOME_ATTR_BONUS).toBe(3);
+  });
+});
+
+describe('encaixe de posição em 3 estados + penalidade', () => {
+  it('positionFit: nativa / secundária (adjacência ou override) / fora', () => {
+    expect(SECONDARY_STAT_MULT).toBe(0.93);
+    expect(positionFit(mkP({ position: 'CB' }), 'CB')).toBe('native');
+    expect(positionFit(mkP({ position: 'CB' }), 'CDM')).toBe('secondary');   // adjacência
+    expect(positionFit(mkP({ position: 'CB' }), 'ST')).toBe('off');
+    expect(positionFit(mkP({ position: 'CB', secondaryPositions: ['ST'] }), 'ST')).toBe('secondary'); // override
+    expect(positionFit(mkP({ position: 'CB', secondaryPositions: ['ST'] }), 'CDM')).toBe('off');       // override troca adjacência
+    expect(positionFit(mkP({ position: 'CM', coringa: true }), 'GK')).toBe('native'); // 🃏 imune
+  });
+  it('secundária rende menos que nativa e mais que fora-de-posição', () => {
+    const coach = COACHES[0];
+    const p = mkP({ pace: 80, shooting: 80, passing: 80, dribbling: 80, defending: 80, physical: 80, vision: 80, composure: 80 });
+    const native = getPlayerEffectiveStats(p, 0, false, coach.id, 0, 'balanced', { isSecondary: false }).overall;
+    const secondary = getPlayerEffectiveStats(p, 0, false, coach.id, 0, 'balanced', { isSecondary: true }).overall;
+    const oop = getPlayerEffectiveStats(p, 0, true, coach.id, 0, 'balanced').overall;
+    expect(secondary).toBeLessThan(native);
+    expect(secondary).toBeGreaterThan(oop);
+  });
+  it('🧭 Versatilidade anula a penalidade da secundária', () => {
+    const coach = COACHES[0];
+    const vers = mkP({ pace: 80, shooting: 80, passing: 80, dribbling: 80, defending: 80, physical: 80, vision: 80, composure: 80, traits: ['Versatilidade'] });
+    const versNative = getPlayerEffectiveStats(vers, 0, false, coach.id, 0, 'balanced', { isSecondary: false }).overall;
+    const versSecondary = getPlayerEffectiveStats(vers, 0, false, coach.id, 0, 'balanced', { isSecondary: true }).overall;
+    expect(versSecondary).toBe(versNative); // sem penalidade
+  });
+});
+
+describe('posições secundárias — adjacência + override', () => {
+  it('usa a adjacência por posição quando não há explícita', () => {
+    expect(effectiveSecondaries({ position: 'CB' })).toEqual(['CDM']);
+    expect(effectiveSecondaries({ position: 'LB' })).toEqual(['LWB', 'LM']);
+    expect(effectiveSecondaries({ position: 'GK' })).toEqual([]);
+  });
+  it('secondaryPositions explícito vence a adjacência', () => {
+    expect(effectiveSecondaries({ position: 'CB', secondaryPositions: ['RB'] })).toEqual(['RB']);
+  });
+});
+
+describe('⭐ cartas evoluídas', () => {
+  it('isEvolved: 6 jogos evolui, 5 não', () => {
+    expect(EVOLVE_GAMES).toBe(6);
+    expect(EVOLVE_POINTS).toBe(8);
+    expect(isEvolved({ appearances: 5 })).toBe(false);
+    expect(isEvolved({ appearances: 6 })).toBe(true);
+    expect(isEvolved({})).toBe(false);
+  });
+  it('applyEvolvePoint respeita piso 0 e teto 8', () => {
+    expect(applyEvolvePoint({}, 'shooting', 1)).toEqual({ shooting: 1 });
+    expect(applyEvolvePoint({ shooting: 0 }, 'shooting', -1)).toEqual({ shooting: 0 });
+    const full = { shooting: 8 };
+    expect(evolvePointsSpent(full)).toBe(8);
+    expect(applyEvolvePoint(full, 'pace', 1)).toEqual(full);
+  });
+  it('evolvePoints somam no getEffectiveAttribute', () => {
+    const coach = COACHES[0];
+    const noChem = { passing: 0, pace: 0, special: 0 };
+    const evo = getEffectiveAttribute(card(mkP({ shooting: 70, evolvePoints: { shooting: 3 } })), 'shooting', coach, 'Finalização', noChem, 'balanced', {});
+    const base = getEffectiveAttribute(card(mkP({ shooting: 70 })), 'shooting', coach, 'Finalização', noChem, 'balanced', {});
+    expect(evo - base).toBe(3);
+  });
+  it('bumpStarterAppearances: +1 só nos 11 titulares', () => {
+    const team = mkTeam('T', Array.from({ length: 13 }, () => mkP()));
+    const bumped = bumpStarterAppearances(team);
+    expect(bumped.players.slice(0, 11).every(p => p.appearances === 1)).toBe(true);
+    expect(bumped.players[11].appearances ?? 0).toBe(0);
+  });
+});
+
+describe('🏟️ vantagem de casa carimbada por atributo (getEffectiveAttribute + homeStadium)', () => {
+  const coach = COACHES.find(c => c.id === 'guardiola')!; // Etihad → passe+visão, City
+  const etihad = stadiumFor('guardiola', true);
+  const def = stadiumFor('guardiola', false); // DEFAULT_STADIUM (+4)
+  const noChem = { passing: 0, pace: 0, special: 0 };
+  const eff = (p: Player, attr: keyof Player, ctx: any) =>
+    getEffectiveAttribute(card(p), attr, coach, 'Criação', noChem, 'balanced', ctx);
+
+  it('estádio padrão: +3 em QUALQUER atributo (todos os titulares do mandante)', () => {
+    const p = mkP({ club: 'Barcelona', passing: 70, defending: 70 });
+    expect(eff(p, 'passing', { homeStadium: def }) - eff(p, 'passing', {})).toBe(3);
+    expect(eff(p, 'defending', { homeStadium: def }) - eff(p, 'defending', {})).toBe(3);
+  });
+  it('Prime: +7 uniforme em atributo fora do tema', () => {
+    const city = mkP({ club: 'Manchester City', defending: 70 });
+    expect(eff(city, 'defending', { homeStadium: etihad }) - eff(city, 'defending', {})).toBe(PRIME_HOME_ATTR_BONUS);
+  });
+  it('Prime: +7 uniforme + +6 temático pros jogadores do clube, nos 2 atributos do tema', () => {
+    const city = mkP({ club: 'Manchester City', passing: 70, vision: 70 });
+    expect(eff(city, 'passing', { homeStadium: etihad }) - eff(city, 'passing', {})).toBe(PRIME_HOME_ATTR_BONUS + PRIME_THEMED_CLUB_BONUS);
+    expect(eff(city, 'vision', { homeStadium: etihad }) - eff(city, 'vision', {})).toBe(PRIME_HOME_ATTR_BONUS + PRIME_THEMED_CLUB_BONUS);
+  });
+  it('Prime: +7 uniforme + +3 temático pros demais, nos 2 atributos do tema', () => {
+    const other = mkP({ club: 'Barcelona', passing: 70 });
+    expect(eff(other, 'passing', { homeStadium: etihad }) - eff(other, 'passing', {})).toBe(PRIME_HOME_ATTR_BONUS + PRIME_THEMED_BONUS);
+  });
+  it('visitante (sem homeStadium) não recebe nada', () => {
+    const city = mkP({ club: 'Manchester City', passing: 70 });
+    expect(eff(city, 'passing', {}) - eff(city, 'passing', {})).toBe(0);
+  });
+  it('PRIME_HOME_ATTR_BONUS = 6', () => {
+    expect(PRIME_HOME_ATTR_BONUS).toBe(6);
   });
 });
 

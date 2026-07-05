@@ -14,9 +14,11 @@ import {
   LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
   getAllPlayedMatchResults, createKnockoutBracket,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
+  bumpStarterAppearances, isEvolved, applyEvolvePoint,
 } from '../lib/gameEngine';
 import type { VariantFlag } from '../lib/gameEngine';
-import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue } from '../lib/shop';
+import type { AttrKey } from '../lib/traits';
+import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
 import { Bet, buildLeagueMatchKey, canPlaceStake, settleBet } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
@@ -179,6 +181,9 @@ export type GameAction =
   | { type: 'PICK_REINFORCEMENT'; player: Player }
   | { type: 'DISMISS_REINFORCEMENT' }
   | { type: 'SHOP_CHANGE_COACH'; coachId: string }
+  | { type: 'EVOLVE_COACH_PRIME' }
+  | { type: 'SET_EVOLVE_POINT'; playerId: string; attr: AttrKey; delta: number }
+  | { type: 'RESET_EVOLVE_POINTS'; playerId: string }
   | { type: 'SHOP_BUY_PLAYER'; player: Player; kind: 'unique' } // compra direta (carta Única)
   | { type: 'SHOP_OPEN_PACK'; kind: 'star' | 'scout'; options: Player[] } // COBRA ao abrir; guarda as opções
   | { type: 'SHOP_PICK_PACK'; player: Player } // escolhe 1 do pacote já pago (grátis) → banco
@@ -527,6 +532,31 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         points: state.points - cost,
         playerTeam: rebuildTeamChemistry({ ...state.playerTeam, coachId: action.coachId }),
+      };
+    }
+
+    case 'SET_EVOLVE_POINT': {
+      if (!state.playerTeam) return state;
+      const players = state.playerTeam.players.map(p => {
+        if (p.id !== action.playerId || !isEvolved(p)) return p;
+        return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, action.attr, action.delta) };
+      });
+      return { ...state, playerTeam: { ...state.playerTeam, players } };
+    }
+    case 'RESET_EVOLVE_POINTS': {
+      if (!state.playerTeam) return state;
+      const players = state.playerTeam.players.map(p => p.id === action.playerId ? { ...p, evolvePoints: {} } : p);
+      return { ...state, playerTeam: { ...state.playerTeam, players } };
+    }
+
+    case 'EVOLVE_COACH_PRIME': {
+      if (!state.playerTeam || state.playerTeam.coachPrime) return state;
+      const wins = state.leagueStandings.find(s => s.teamId === state.playerTeam!.id)?.won ?? 0;
+      if (!canEvolvePrime(wins, state.points)) return state;
+      return {
+        ...state,
+        points: state.points - PRIME_COST,
+        playerTeam: { ...state.playerTeam, coachPrime: true },
       };
     }
 
@@ -924,6 +954,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         lastMatchPoints: magMult > 1 ? { ...matchPoints, total: earnedPoints } : matchPoints,
         bets: settledBets,
         discipline: disc.next,
+        // ⭐ +1 jogo pros 11 titulares do jogador (progresso pra Carta Evoluída).
+        playerTeam: bumpStarterAppearances(state.playerTeam),
       };
     }
 
@@ -986,7 +1018,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const koNameOf = (teamId: string, playerId: string) =>
         allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
       const disc = applyMatchDiscipline(state.discipline, koTeamIds, legResults, koNameOf);
-      return { ...state, knockoutBracket: bracket, discipline: disc.next };
+      // ⭐ +1 jogo pros 11 titulares do jogador (a perna que ele acabou de disputar).
+      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam: bumpStarterAppearances(state.playerTeam) };
     }
 
     case 'ADVANCE_KNOCKOUT': {
@@ -1272,6 +1305,7 @@ interface GameContextType {
   // Each player emits this when they finish watching their match replay
   notifyMatchWatchedOnline: (type: 'league' | 'knockout') => void;
   shopChangeCoachOnline: (coachId: string) => void;
+  evolveCoachPrimeOnline: () => void;
   shopBuyPlayerOnline: (player: Player, kind: 'unique') => void;
   shopOpenPackOnline: (kind: 'star' | 'scout', options: Player[]) => void;
   shopPickPackOnline: (player: Player) => void;
@@ -1289,6 +1323,8 @@ interface GameContextType {
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
+  setEvolvePointOnline: (playerId: string, attr: AttrKey, delta: number) => void;
+  resetEvolvePointsOnline: (playerId: string) => void;
   shopBuyRerollOnline: () => void;
   rerollReinforcementOnline: () => void;
   pickReinforcementOnline: (player: Player) => void;
@@ -1469,6 +1505,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopChangeCoachOnline = useCallback((coachId: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_change_coach", { roomCode: state.roomCode, coachId });
   }, [state.roomCode]);
+  const evolveCoachPrimeOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("evolve_coach_prime", { roomCode: state.roomCode });
+  }, [state.roomCode]);
   const shopBuyPlayerOnline = useCallback((player: Player, kind: 'unique') => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_buy_player", { roomCode: state.roomCode, player, kind });
   }, [state.roomCode]);
@@ -1519,6 +1558,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [state.roomCode]);
   const martirTargetsOnline = useCallback((playerId: string, targetIds: string[]) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("set_martir_targets", { roomCode: state.roomCode, playerId, targetIds });
+  }, [state.roomCode]);
+  const setEvolvePointOnline = useCallback((playerId: string, attr: AttrKey, delta: number) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("set_evolve_point", { roomCode: state.roomCode, playerId, attr, delta });
+  }, [state.roomCode]);
+  const resetEvolvePointsOnline = useCallback((playerId: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("reset_evolve_points", { roomCode: state.roomCode, playerId });
   }, [state.roomCode]);
   const shopBuyRerollOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_buy_reroll", { roomCode: state.roomCode });
@@ -1582,8 +1627,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    shopChangeCoachOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
-    swapPlayerTeamOnline, martirTargetsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
+    shopChangeCoachOnline, evolveCoachPrimeOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
+    swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, resetEvolvePointsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state, dispatch]);

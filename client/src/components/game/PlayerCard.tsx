@@ -1,6 +1,7 @@
 import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
+import { isEvolved } from '../../lib/gameEngine';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 
 interface PlayerCardProps {
@@ -587,9 +588,9 @@ function getCardTheme(rarity: string): {
 const RARITY_FILE: Record<string, string> = {
   immortal: 'bg-imortal', legendary: 'bg-lendario', gold: 'bg-ouro', silver: 'bg-prata', bronze: 'bg-bronze',
 };
-export function cardTexture(rarity: string): string {
+export function cardTexture(rarity: string, evolved = false): string {
   const base = RARITY_FILE[rarity] ?? RARITY_FILE.bronze;
-  return `/cards/${base}.webp`;
+  return evolved ? `/cards/${base}-emforma.png` : `/cards/${base}.webp`;
 }
 
 // Por raridade: cor do anel metálico, glow, e o FILTRO que tinge a moldura dourada do frame
@@ -742,6 +743,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
+  const evolved = isEvolved(player);
   const variant = getCardVariant(player);
   const variants = getCardVariants(player);           // todas (Únicas podem ter 2)
   // ⭐ DUAS características (só Únicas): a moldura fica na cor da 1ª e uma linha no centro na cor da 2ª.
@@ -779,7 +781,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           ...frameMask('93% 94%'), zIndex: 1, background:
             `linear-gradient(180deg,rgba(0,0,0,.34),transparent 28%),` +
             `linear-gradient(0deg,rgba(0,0,0,.58),transparent 40%),` +
-            `url(${uniq ? uniq.texture : cardTexture(player.rarity)}) center/cover no-repeat,` +
+            `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolved)}) center/cover no-repeat,` +
             `${theme.bg}`
         }} />
 
@@ -871,7 +873,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           `linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),` +
           `linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 46%),` +
           `radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%),` +
-          `url(${uniq ? uniq.texture : cardTexture(player.rarity)}) center/cover no-repeat,` +
+          `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolved)}) center/cover no-repeat,` +
           `${theme.bg}`
       }} />
 
@@ -885,6 +887,12 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
 
       {/* CONTEÚDO (layout FUT) */}
       <div className="absolute inset-0" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 5 }}>
+        {/* ⭐ selo de Carta Evoluída (discreto, topo-centro) */}
+        {evolved && !lite && (
+          <div className="absolute" style={{ top: '2.5%', left: '50%', transform: 'translateX(-50%)', padding: '2px 8px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.14em', whiteSpace: 'nowrap', color: '#04120a', background: 'linear-gradient(90deg,#0a7a2f,#22C55E,#0a7a2f)', border: '1px solid rgba(0,0,0,.4)', boxShadow: '0 2px 8px rgba(0,0,0,.5)', fontFamily: 'Rajdhani,sans-serif', zIndex: 6 }}>
+            ⭐ EVOLUÍDA
+          </div>
+        )}
         {/* rail: OVR → posição → bandeira → escudo do clube */}
         <div className="absolute flex flex-col items-center" style={{ left: '6%', top: '15%', width: 46, gap: 4, textShadow: '0 2px 5px rgba(0,0,0,.85)' }}>
           <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .8 }}>{player.overall}</span>

@@ -14,6 +14,8 @@ import {
   getChemistryLinks,
 } from '../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
+import CoachStadiumPanel from '../components/game/CoachStadiumPanel';
+import { stadiumFor } from '../lib/stadium';
 import Crest from '../components/game/Crest';
 import PlayerCard from '../components/game/PlayerCard';
 
@@ -198,7 +200,7 @@ export default function ReportPage() {
   const coach = COACHES.find(c => c.id === playerTeam?.coachId);
   const tacticName = getTacticById(playerTeam?.playStyle).name;
   const teamOverall = (playerTeam && chemData && starters.length === 11)
-    ? Math.round(starters.reduce((s, p) => s + getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, playerTeam.coachId, chemData.total, playerTeam.playStyle).overall, 0) / 11)
+    ? Math.round(starters.reduce((s, p) => s + getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, playerTeam.coachId, chemData.total, playerTeam.playStyle, { isSecondary: chemData.secondaryPos[p.id] ?? false }).overall, 0) / 11)
     : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -454,9 +456,8 @@ export default function ReportPage() {
               <span className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>FICHA DA CAMPANHA</span>
             </div>
             {/* Team identity */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0" style={{ borderColor: '#1A1A2A' }}>
+            <div className="grid grid-cols-3 divide-x" style={{ borderColor: '#1A1A2A' }}>
               {[
-                { l: 'TÉCNICO', v: coach?.name ?? '—', c: '#A78BFA' },
                 { l: 'FORMAÇÃO', v: playerTeam.formationId, c: '#fff' },
                 { l: 'TÁTICA', v: tacticName, c: '#4FC3F7' },
                 { l: 'OVERALL', v: teamOverall != null ? `${teamOverall}` : '—', c: '#E8C84A' },
@@ -554,6 +555,18 @@ export default function ReportPage() {
           </motion.div>
         )}
 
+        {/* Técnico + Estádio — visual completo, igual ao MEU TIME */}
+        {phase >= 3 && playerTeam && coach && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+            <CoachStadiumPanel
+              coach={coach}
+              formation={formation}
+              coachPrime={!!playerTeam.coachPrime}
+              stadium={stadiumFor(playerTeam.coachId, !!playerTeam.coachPrime)}
+            />
+          </motion.div>
+        )}
+
         {/* Squad showcase */}
         {phase >= 4 && playerTeam && (
           <motion.div
@@ -584,19 +597,25 @@ export default function ReportPage() {
                   showChemLines
                   chemLinks={getChemistryLinks(starters, playerTeam.coachId)}
                 />
-                {/* Legenda das conexões */}
+                {/* Legenda das conexões — com a contagem de cada tipo no XI */}
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 mt-3">
-                  {([
-                    { t: 'club' as const, l: 'Mesmo clube' },
-                    { t: 'nation' as const, l: 'Mesma nação' },
-                    { t: 'coach' as const, l: 'Mesmo técnico' },
-                    { t: 'partner' as const, l: 'Dupla histórica' },
-                  ]).map(({ t, l }) => (
-                    <div key={t} className="flex items-center gap-1.5">
-                      <span className="inline-block w-4 h-0.5 rounded" style={{ background: CHEM_LINK_COLOR[t] }} />
-                      <span className="text-[10px] font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{l}</span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const links = getChemistryLinks(starters, playerTeam.coachId);
+                    return ([
+                      { t: 'club' as const, l: 'Mesmo clube' },
+                      { t: 'nation' as const, l: 'Mesma nação' },
+                      { t: 'coach' as const, l: 'Mesmo técnico' },
+                      { t: 'partner' as const, l: 'Dupla histórica' },
+                    ]).map(({ t, l }) => {
+                      const n = links.filter(lk => lk.type === t).length;
+                      return (
+                        <div key={t} className="flex items-center gap-1.5" style={{ opacity: n === 0 ? 0.4 : 1 }}>
+                          <span className="inline-block w-4 h-0.5 rounded" style={{ background: CHEM_LINK_COLOR[t] }} />
+                          <span className="text-[10px] font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{l} <b style={{ color: '#C9C9D5' }}>({n})</b></span>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}

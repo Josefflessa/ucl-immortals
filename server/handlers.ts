@@ -15,6 +15,7 @@ import {
   getActiveKnockoutMatches,
   rebuildTeamChemistry,
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
+  bumpStarterAppearances, isEvolved, applyEvolvePoint,
   VariantFlag,
   Team,
   PlayerCard,
@@ -25,7 +26,7 @@ import {
 } from "../client/src/lib/gameEngine.js";
 
 import { FORMATIONS, DIFFICULTY_LEVELS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
-import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue } from "../client/src/lib/shop.js";
+import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from "../client/src/lib/shop.js";
 import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters } from "../client/src/lib/discipline.js";
 import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
@@ -36,6 +37,7 @@ interface RoomPlayer {
   name: string;
   crestId?: string | null; // selected club crest (see client/src/lib/crests)
   coachId: string;
+  coachPrime: boolean; // Fase 2: técnico evoluído pro Prime → estádio temático
   formationId: string;
   playStyle: string;
   draftedPlayers: (Player | undefined)[];
@@ -342,6 +344,7 @@ export function registerSocketHandlers(io: Server) {
             id: 'player_0',
             name: creatorName,
             coachId: 'guardiola',
+            coachPrime: false,
             formationId: '4-3-3',
             playStyle: 'balanced',
             draftedPlayers: Array(13).fill(undefined), // 11 titulares + 2 reservas
@@ -436,6 +439,7 @@ export function registerSocketHandlers(io: Server) {
         id: `player_${room.players.length}`,
         name: playerName.trim(),
         coachId: 'guardiola',
+        coachPrime: false,
         formationId: '4-3-3',
         playStyle: 'balanced',
         draftedPlayers: Array(13).fill(undefined), // 11 titulares + 2 reservas
@@ -750,6 +754,25 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room); // only this player's own team changed
     });
 
+    // ⭐ Carta Evoluída: distribuir/resetar os 8 pontos livres (só carta evoluída do próprio time).
+    socket.on("set_evolve_point", ({ roomCode, playerId, attr, delta }: { roomCode: string; playerId: string; attr: any; delta: number }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      player.team.players = player.team.players.map(p =>
+        (p.id === playerId && isEvolved(p)) ? { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta) } : p);
+      socket.emit("room_updated", room); // only this player's own team changed
+    });
+    socket.on("reset_evolve_points", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, evolvePoints: {} } : p);
+      socket.emit("room_updated", room); // only this player's own team changed
+    });
+
     // ============================================================
     // SHOP — spend points (earned per league match) on this player's own team.
     // Server is authoritative: it validates the cost, mutates the player's team and
@@ -767,6 +790,19 @@ export function registerSocketHandlers(io: Server) {
       player.team.coachId = coachId;
       player.team = rebuildTeamChemistry(player.team);
       socket.emit("room_updated", room); // only this player's own team changed
+    });
+
+    socket.on("evolve_coach_prime", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || player.coachPrime) return;
+      const wins = room.leagueStandings.find(s => s.teamId === player.team!.id)?.won ?? 0;
+      if (!canEvolvePrime(wins, player.points)) return;
+      player.points -= PRIME_COST;
+      player.coachPrime = true;
+      player.team.coachPrime = true;
+      socket.emit("room_updated", room); // só o time deste jogador mudou
     });
 
     // ⭐ Carta Única — compra direta (só essa passa por aqui; Craque/Caça-Talentos usam open/pick).
@@ -1117,6 +1153,8 @@ export function registerSocketHandlers(io: Server) {
             f.round === room.leagueRound && f.result &&
             (f.homeTeamId === p.team!.id || f.awayTeamId === p.team!.id));
           if (fixture?.result) {
+            // ⭐ +1 jogo pros 11 titulares deste jogador (progresso pra Carta Evoluída).
+            p.team = bumpStarterAppearances(p.team);
             const mp = computeMatchPoints(fixture.result, p.team.id);
             // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
             const magMult = magnataPointMultiplier(p.team.players);
@@ -1236,6 +1274,9 @@ export function registerSocketHandlers(io: Server) {
         const koTeamIds = Array.from(new Set(active.flatMap((t: any) => [t.homeTeamId, t.awayTeamId]))) as string[];
         const nameOf = (teamId: string, playerId: string) => allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
         room.discipline = applyMatchDiscipline(room.discipline, koTeamIds, legResults, nameOf).next;
+        // ⭐ +1 jogo pros 11 titulares de cada humano que disputou esta perna (Carta Evoluída).
+        const playedIds = new Set(koTeamIds);
+        room.players.forEach(p => { if (p.team && playedIds.has(p.team.id)) p.team = bumpStarterAppearances(p.team); });
       }
 
       // Award shop points for each human's OWN leg (ida & volta) — same as the league, but with

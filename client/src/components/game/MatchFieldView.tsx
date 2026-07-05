@@ -66,11 +66,11 @@ export default function MatchFieldView({ team, ratings, goalsByPlayer, assistsBy
               src={coach.photoUrl}
               alt={coach.name}
               referrerPolicy="no-referrer"
-              className="w-11 h-11 rounded-lg object-cover flex-shrink-0"
+              className="w-[66px] h-[66px] rounded-lg object-cover flex-shrink-0"
               style={{ border: `2px solid ${accent}55`, objectPosition: 'center top' }}
             />
           ) : (
-            <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 text-lg" style={{ background: '#14142a', border: `2px solid ${accent}55` }}>🎓</div>
+            <div className="w-[66px] h-[66px] rounded-lg flex items-center justify-center flex-shrink-0 text-2xl" style={{ background: '#14142a', border: `2px solid ${accent}55` }}>🎓</div>
           )}
           <div className="min-w-0 flex-1">
             <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>Técnico</div>
