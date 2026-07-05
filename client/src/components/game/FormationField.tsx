@@ -4,7 +4,7 @@
 import { motion } from 'framer-motion';
 import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
 import { isPlayerInPosition, ChemLink, ChemLinkType } from '../../lib/gameEngine';
-import { buildSofifaUrl } from './PlayerCard';
+import { buildSofifaUrl, getCardVariants } from './PlayerCard';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
@@ -178,6 +178,10 @@ export default function FormationField({
         const a = player ? (assistsByPlayer?.[player.id] ?? 0) : 0;
         const disc = player ? disciplineByPlayer?.[player.id] : undefined;
         const sentOff = !!disc?.red;
+        // ⭐ Características do jogador (Em Alta, Lobo, Ídolo, Magnata…) — tingem a borda/glow do token
+        // (como no card) e aparecem num chip com o(s) ícone(s) no canto inferior esquerdo.
+        const variants = player ? getCardVariants(player) : [];
+        const tokenColor = variants[0]?.color ?? rarityColor;
 
         return (
           <motion.div
@@ -202,12 +206,14 @@ export default function FormationField({
                   background: player
                     ? `radial-gradient(circle, ${rarityColor}33 0%, #0F0F1A 100%)`
                     : '#1A1A2A',
-                  border: isSelected ? '2px solid #FFF' : `2px solid ${player ? rarityColor : '#333'}`,
+                  border: isSelected ? '2px solid #FFF' : `2px solid ${player ? tokenColor : '#333'}`,
                   boxShadow: isSelected
                     ? '0 0 12px #FFF'
-                    : player && player.rarity === 'immortal'
-                      ? `0 0 12px ${rarityColor}88`
-                      : player ? `0 0 6px ${rarityColor}44` : 'none',
+                    : variants.length > 0
+                      ? `0 0 10px ${tokenColor}99`
+                      : player && player.rarity === 'immortal'
+                        ? `0 0 12px ${rarityColor}88`
+                        : player ? `0 0 6px ${rarityColor}44` : 'none',
                   fontSize: compact ? '10px' : '13px',
                   color: isSelected ? '#FFF' : (player ? rarityColor : '#555'),
                 }}
@@ -262,6 +268,21 @@ export default function FormationField({
                   </>
                 );
               })()}
+
+              {/* ⭐ Característica(s) do jogador — chip com ícone (canto inferior esquerdo). */}
+              {variants.length > 0 && (
+                <span
+                  className="absolute leading-none rounded-full font-black flex items-center justify-center"
+                  title={variants.map(v => v.label).join(' · ')}
+                  style={{
+                    bottom: -5, left: -12, fontSize: compact ? '8.5px' : '10.5px', padding: '1.5px 3px', gap: '1px',
+                    background: '#0b0b14', border: `1px solid ${variants[0].color}`,
+                    boxShadow: `0 0 5px ${variants[0].color}77`, whiteSpace: 'nowrap', zIndex: 3,
+                  }}
+                >
+                  {variants.map(v => v.icon).join('')}
+                </span>
+              )}
             </div>
 
             {/* Position badge — squad screens only (in a live match the position is obvious from the spot) */}

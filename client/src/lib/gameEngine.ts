@@ -2644,16 +2644,24 @@ export function pickBotTactic(formationId: string, difficulty: number): string {
 // 🎚️ Perfil de dificuldade: um `botStrength` (0.45 bronze … 0.97 imortal) vira VÁRIOS botões que
 // deixam o bot mais forte E mais inteligente por nível. Puro/testável. (ver spec dificuldade-multidimensional)
 export function difficultyProfile(strength: number) {
-  const s = Math.max(0, Math.min(1, strength));
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  // Os botStrength dos 5 níveis têm espaçamento DESIGUAL → uma fórmula linear neles dá passos desiguais.
+  // Mapeia strength → "tier" 0..1 UNIFORME entre os níveis (0=Bronze … 1=Imortal) pra a dificuldade
+  // subir em passos PARELHOS. Contínuo (o ref/bots com strength intermediário caem no meio).
+  const PTS = [0.45, 0.62, 0.75, 0.88, 0.97];
+  let t = strength <= PTS[0] ? 0 : 1;
+  for (let i = 0; i < PTS.length - 1; i++) {
+    if (strength <= PTS[i + 1]) { t = (i + clamp((strength - PTS[i]) / (PTS[i + 1] - PTS[i]), 0, 1)) / (PTS.length - 1); break; }
+  }
   return {
-    // Diferença ALARGADA entre níveis: baixa os fracos e, no topo, empilha nos eixos SEM teto de pool
-    // (química + características). Overall satura ~90 no topo (limite do pool de jogadores).
-    center: 68 + s * 25,           // Bronze ~79 … Imortal ~92 (spread bem maior)
-    loSpread: 9 - s * 5,           // piso sobe MAIS rápido (nível alto quase não pega fraco; fraco espalha)
+    // Gradação PARELHA e num patamar moderado (nerfado). A química fica abaixo do 1º marco (45) até
+    // o topo, então a dificuldade sobe suave pelo OVERALL (sem marcos); só o Imortal cruza o marco.
+    center: 78 + t * 11,           // Bronze 78 · Prata ~80,8 · Ouro ~83,5 · Lendário ~86,3 · Imortal 89 (passos iguais)
+    loSpread: 8 - t * 4,           // piso sobe mais rápido que o teto
     hiSpread: 6,
-    chemBias: Math.min(1, Math.max(0, (s - 0.42) * 1.6)), // Bronze quase aleatório · topo MUITO entrosado
-    smartCoachChance: s,           // prob. de escolher um técnico que COMBINA com a formação
-    variantChance: Math.max(0, (s - 0.5) * 1.1), // Em Alta/Pilar: Bronze 0 · Imortal ~metade do XI
+    chemBias: t * 0.32,            // baixa (abaixo do "engate" ~0.3) → química sobe suave, sem pulo
+    smartCoachChance: t,
+    variantChance: Math.max(0, (t - 0.2) * 0.26), // rampa GRADUAL e fraca (Prata ~0 · Ouro ~8% · Lendário ~14% · Imortal ~21%)
   };
 }
 
@@ -2712,7 +2720,8 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   if (prof.variantChance > 0) {
     for (let i = 0; i < Math.min(11, selected.length); i++) {
       if (Math.random() < prof.variantChance) {
-        selected[i] = applyShopVariant(selected[i], Math.random() < 0.5 ? 'inForm' : 'pilar');
+        // Favorece Em Alta (boost liso de stats) sobre Pilar (+12 química, que pode cruzar marcos e criar degrau).
+        selected[i] = applyShopVariant(selected[i], Math.random() < 0.75 ? 'inForm' : 'pilar');
       }
     }
   }
