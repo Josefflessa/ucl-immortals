@@ -149,6 +149,12 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 60, shooting: 45, passing: 75, dribbling: 68, defending: 96, physical: 88, vision: 86, composure: 96, traits: [] },
   { id: 'beckenbauer_unico', shortName: 'Beckenbauer', fullName: 'Franz Anton Beckenbauer', position: 'CB', secondaryPositions: ['CDM', 'CM'], nation: 'Alemanha', club: 'Bayern Munich', season: 'Única', rarity: 'unique', overall: 99,
     pace: 84, shooting: 74, passing: 91, dribbling: 85, defending: 96, physical: 88, vision: 94, composure: 97, traits: [] },
+  { id: 'maldini_unico', shortName: 'Maldini', fullName: 'Paolo Cesare Maldini', position: 'LB', secondaryPositions: ['CB', 'LWB'], nation: 'Itália', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 84, shooting: 52, passing: 82, dribbling: 80, defending: 97, physical: 88, vision: 84, composure: 96, traits: [] },
+  { id: 'messi_unico', shortName: 'Messi', fullName: 'Lionel Andrés Messi', position: 'RW', secondaryPositions: ['CAM', 'CF'], nation: 'Argentina', club: 'Barcelona', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 91, shooting: 95, passing: 94, dribbling: 99, defending: 38, physical: 68, vision: 96, composure: 98, traits: [] },
+  { id: 'cafu_unico', shortName: 'Cafu', fullName: 'Marcos Evangelista de Morais', position: 'RB', secondaryPositions: ['RWB', 'RM'], nation: 'Brasil', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 92, shooting: 66, passing: 82, dribbling: 85, defending: 90, physical: 87, vision: 82, composure: 88, traits: [] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {

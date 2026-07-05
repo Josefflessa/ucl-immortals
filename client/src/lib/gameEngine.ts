@@ -2641,17 +2641,49 @@ export function pickBotTactic(formationId: string, difficulty: number): string {
   return 'balanced';
 }
 
+// 🎚️ Perfil de dificuldade: um `botStrength` (0.45 bronze … 0.97 imortal) vira VÁRIOS botões que
+// deixam o bot mais forte E mais inteligente por nível. Puro/testável. (ver spec dificuldade-multidimensional)
+export function difficultyProfile(strength: number) {
+  const s = Math.max(0, Math.min(1, strength));
+  return {
+    // Diferença ALARGADA entre níveis: baixa os fracos e, no topo, empilha nos eixos SEM teto de pool
+    // (química + características). Overall satura ~90 no topo (limite do pool de jogadores).
+    center: 68 + s * 25,           // Bronze ~79 … Imortal ~92 (spread bem maior)
+    loSpread: 9 - s * 5,           // piso sobe MAIS rápido (nível alto quase não pega fraco; fraco espalha)
+    hiSpread: 6,
+    chemBias: Math.min(1, Math.max(0, (s - 0.42) * 1.6)), // Bronze quase aleatório · topo MUITO entrosado
+    smartCoachChance: s,           // prob. de escolher um técnico que COMBINA com a formação
+    variantChance: Math.max(0, (s - 0.5) * 1.1), // Em Alta/Pilar: Bronze 0 · Imortal ~metade do XI
+  };
+}
+
+// Escolha PONDERADA POR QUÍMICA: com chemBias>0, prefere candidatos conectados (mesmo clube ×2,
+// mesma nação ×1) aos já escolhidos — é o que faz o bot montar um XI entrosado nos níveis altos.
+function pickChemAware(cands: Player[], selected: Player[], chemBias: number): Player {
+  if (chemBias <= 0 || selected.length === 0) return cands[Math.floor(Math.random() * cands.length)];
+  const conn = (p: Player) => selected.reduce((n, s) => n + (s.club === p.club ? 2 : 0) + (s.nation === p.nation ? 1 : 0), 0);
+  const weights = cands.map(p => 1 + chemBias * conn(p) * 1.5);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < cands.length; i++) { r -= weights[i]; if (r <= 0) return cands[i]; }
+  return cands[cands.length - 1];
+}
+
 export function generateBotTeam(name: string, difficulty: number): Team {
-  const coach = COACHES[Math.floor(Math.random() * COACHES.length)];
+  const prof = difficultyProfile(difficulty);
   const formation = FORMATIONS[Math.floor(Math.random() * FORMATIONS.length)];
+  // 🎩 Técnico: nos níveis altos, tende a escolher um que COMBINA com a formação (senão aleatório).
+  let coach = COACHES[Math.floor(Math.random() * COACHES.length)];
+  if (Math.random() < prof.smartCoachChance) {
+    const fitting = COACHES.filter(c => c.preferredFormation === formation.id);
+    if (fitting.length > 0) coach = fitting[Math.floor(Math.random() * fitting.length)];
+  }
 
   // Difficulty sets the OVERALL BAND the bot recruits from; WITHIN the band each slot
   // is filled at RANDOM. So two bots of the same difficulty field different XIs drawn
   // from the WHOLE 200+ pool — not the same handful of top names every time — while a
   // harder bot still recruits from a clearly higher band than an easier one.
-  const center = 74 + difficulty * 18;        // easy(0.45)→82 · mid(0.70)→86.6 · hard(0.97)→91.5
-  const lo = center - 6, hi = center + 6;      // a 12-pt window → broad variety, but a harder
-                                               // bot's floor rises so it fields clearly better players
+  const lo = prof.center - prof.loSpread, hi = prof.center + prof.hiSpread;
 
   const selected: Player[] = [];
   const taken = (p: Player) => selected.some(s => s.id === p.id);
@@ -2659,12 +2691,12 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   const fits = (p: Player, role: string) => p.position === role || (p.secondaryPositions?.includes(role) ?? false);
   const randOf = (arr: Player[]) => arr[Math.floor(Math.random() * arr.length)];
 
-  // Fill formation positions (11 titulares) — random within the band, by position.
+  // Fill formation positions (11 titulares) — dentro da faixa, por posição, PONDERADO POR QUÍMICA.
   for (const pos of formation.positions) {
     let cands = PLAYERS.filter(p => !taken(p) && fits(p, pos.role) && inBand(p));
     if (cands.length < 4) cands = PLAYERS.filter(p => !taken(p) && fits(p, pos.role)); // widen if scarce for this role
     if (cands.length === 0) cands = PLAYERS.filter(p => !taken(p) && inBand(p) && p.position !== 'GK');
-    if (cands.length > 0) selected.push(randOf(cands));
+    if (cands.length > 0) selected.push(pickChemAware(cands, selected, prof.chemBias));
   }
 
   // Complete missing slots if formation matching failed.
@@ -2672,7 +2704,17 @@ export function generateBotTeam(name: string, difficulty: number): Team {
     let rem = PLAYERS.filter(p => !taken(p) && inBand(p) && p.position !== 'GK');
     if (rem.length === 0) rem = PLAYERS.filter(p => !taken(p));
     if (rem.length === 0) break;
-    selected.push(randOf(rem));
+    selected.push(pickChemAware(rem, selected, prof.chemBias));
+  }
+
+  // 🎖️ Características: nos níveis altos, alguns titulares ganham uma variante SEMPRE-BOA
+  // (Em Alta +3 em tudo, ou Pilar +química) — antes de calcular a química e o banco.
+  if (prof.variantChance > 0) {
+    for (let i = 0; i < Math.min(11, selected.length); i++) {
+      if (Math.random() < prof.variantChance) {
+        selected[i] = applyShopVariant(selected[i], Math.random() < 0.5 ? 'inForm' : 'pilar');
+      }
+    }
   }
 
   // 🪑 Banco: 7 reservas da mesma faixa, GARANTINDO 1 goleiro reserva (p/ cobrir lesão/suspensão do GK).

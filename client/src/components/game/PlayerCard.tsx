@@ -617,6 +617,9 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   cruyff_unico: { texture: '/cards/cruyff_unico.webp', render: '/players/unico/cruyff.webp', font: '#2A2310', ring: '#CBA94E', photoX: 7, photoY: -4, photoW: 100 },
   buffon_unico: { texture: '/cards/buffon_unico.webp', render: '/players/unico/buffon.webp', font: '#ECD7A6', ring: '#B58B48', photoX: 7, photoY: -5, photoW: 100 },
   beckenbauer_unico: { texture: '/cards/beckenbauer_unico.webp', render: '/players/unico/beckenbauer.webp', font: '#EAF0F6', ring: '#C9A24C', photoX: 10, photoY: -2, photoW: 110 },
+  maldini_unico: { texture: '/cards/maldini_unico.webp', render: '/players/unico/maldini.webp', font: '#EAF2FF', ring: '#4A78C8', photoX: 7, photoY: -2, photoW: 100 },
+  messi_unico: { texture: '/cards/messi_unico.webp', render: '/players/unico/messi.webp', font: '#F7E08C', ring: '#C9A24C', photoX: 7, photoY: -2, photoW: 100 },
+  cafu_unico: { texture: '/cards/cafu_unico.webp', render: '/players/unico/cafu.webp', font: '#F0E6C0', ring: '#D9B54A', photoX: 8, photoY: 14, photoW: 82 },
 };
 
 // Dedicated Player Photo using SoFIFA transparent high-res assets
