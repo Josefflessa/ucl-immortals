@@ -1,0 +1,12 @@
+{
+  // Config do Cloudflare Workers para servir o frontend estático (SPA).
+  // O `npx vite build` gera os arquivos em dist/public; o `npx wrangler deploy`
+  // publica essa pasta. "single-page-application" faz todas as rotas caírem
+  // no index.html (necessário pro roteamento client-side do React).
+  "name": "ucl-immortals",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist/public",
+    "not_found_handling": "single-page-application"
+  }
+}
