@@ -590,7 +590,7 @@ const RARITY_FILE: Record<string, string> = {
 };
 export function cardTexture(rarity: string, evolved = false): string {
   const base = RARITY_FILE[rarity] ?? RARITY_FILE.bronze;
-  return evolved ? `/cards/${base}-emforma.png` : `/cards/${base}.webp`;
+  return evolved ? `/cards/${base}-emforma.webp` : `/cards/${base}.webp`;
 }
 
 // Por raridade: cor do anel metálico, glow, e o FILTRO que tinge a moldura dourada do frame
