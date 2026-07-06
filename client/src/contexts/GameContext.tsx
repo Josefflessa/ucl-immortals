@@ -1358,9 +1358,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const connectSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
 
-    // Connect to the same origin as the current page
-    // (Socket.io is integrated directly into the Vite / production server)
-    const socketInstance = io({
+    // Em dev e no deploy acoplado, VITE_SOCKET_URL fica vazio e conectamos na
+    // mesma origin da página (Socket.io integrado ao servidor Vite/produção).
+    // No deploy separado (frontend na Cloudflare Pages, servidor socket em outro
+    // host), VITE_SOCKET_URL aponta pro host do servidor Socket.io.
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || undefined;
+    const socketInstance = io(socketUrl, {
       transports: ["websocket", "polling"],
       autoConnect: true,
     });
