@@ -23,7 +23,7 @@ import { Bet, buildLeagueMatchKey, canPlaceStake, settleBet } from '../lib/bets'
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
-import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem } from '../lib/storage';
+import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem, getClientId } from '../lib/storage';
 
 // ============================================================
 // GAME PHASES
@@ -1164,10 +1164,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       let targetPhase = roomState.phase;
       if (roomState.phase === 'setup') {
-        if (state.phase === 'coach' || state.phase === 'formation') {
+        // Setup online = escolher ESCUDO → TÉCNICO → FORMAÇÃO. Mantém a sub-tela em que o jogador está;
+        // senão começa no escudo (antes ia direto pro 'coach' e pulava a escolha de escudo).
+        if (state.phase === 'crest' || state.phase === 'coach' || state.phase === 'formation') {
           targetPhase = state.phase;
         } else {
-          targetPhase = 'coach';
+          targetPhase = 'crest';
         }
       } else if (state.phase === 'match_sim' && (roomState.phase === 'league' || roomState.phase === 'knockout')) {
         targetPhase = 'match_sim';
@@ -1407,12 +1409,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const createRoom = useCallback((creatorName: string) => {
     const s = connectSocket();
-    s.emit("create_room", { creatorName });
+    s.emit("create_room", { creatorName, clientId: getClientId() });
   }, [connectSocket]);
 
   const joinRoom = useCallback((roomCode: string, playerName: string) => {
     const s = connectSocket();
-    s.emit("join_room", { roomCode, playerName });
+    s.emit("join_room", { roomCode, playerName, clientId: getClientId() });
   }, [connectSocket]);
 
   const setDifficultyOnline = useCallback((difficulty: string) => {

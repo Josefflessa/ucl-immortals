@@ -532,32 +532,32 @@ export default function SquadEditor({
                   const apps = selectedPlayer.appearances ?? 0;
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${evolved ? '#22C55E55' : '#1A1A2A'}` }}>
-                      <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
-                        <span className="text-[10px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ CARTA EVOLUÍDA</span>
-                        {evolved && <span className="text-[10px] font-black" style={{ color: left > 0 ? '#E8C84A' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Pontos: {left}/{EVOLVE_POINTS}</span>}
+                      <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
+                        <span className="text-[11px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ CARTA EVOLUÍDA</span>
+                        {evolved && <span className="text-[11px] font-black" style={{ color: left > 0 ? '#E8C84A' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Pontos: {left}/{EVOLVE_POINTS}</span>}
                       </div>
                       {evolved ? (
-                        <div className="p-3">
-                          <div className="text-[10px] mb-2 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                        <div className="p-3.5">
+                          <div className="text-[11px] mb-2.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                             Você tem <b style={{ color: '#22C55E' }}>{EVOLVE_POINTS} pontos livres</b> pra reforçar esta carta: cada <b style={{ color: '#C9C9D5' }}>+</b> soma <b style={{ color: '#C9C9D5' }}>+1</b> no atributo (sem teto — pode empilhar num só). Dá pra <b style={{ color: '#C9C9D5' }}>resetar</b> e redistribuir quando quiser.
                           </div>
-                          <div className="grid grid-cols-2 gap-1.5">
+                          <div className="grid grid-cols-2 gap-2">
                             {EVOLVE_ATTRS.map(a => {
                               const v = ep[a.key] ?? 0;
                               return (
-                                <div key={a.key} className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
-                                  <span className="text-[10px] font-bold" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{a.label}</span>
-                                  <div className="flex items-center gap-1.5">
-                                    <button onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, -1)} disabled={v <= 0} className="w-5 h-5 rounded flex items-center justify-center text-xs font-black" style={{ background: v > 0 ? '#1A1A2A' : '#12121C', color: v > 0 ? '#EF4444' : '#3A3A4A', cursor: v > 0 ? 'pointer' : 'default' }}>−</button>
-                                    <span className="text-[11px] font-black w-4 text-center" style={{ color: v > 0 ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{v}</span>
-                                    <button onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, 1)} disabled={left <= 0} className="w-5 h-5 rounded flex items-center justify-center text-xs font-black" style={{ background: left > 0 ? '#1A1A2A' : '#12121C', color: left > 0 ? '#22C55E' : '#3A3A4A', cursor: left > 0 ? 'pointer' : 'default' }}>+</button>
+                                <div key={a.key} className="flex flex-col items-center gap-1.5 rounded-lg px-2 py-2.5" style={{ background: '#0A0A12', border: `1px solid ${v > 0 ? '#22C55E44' : '#1A1A2A'}` }}>
+                                  <span className="text-[11px] font-bold tracking-wide text-center leading-tight" style={{ color: '#B8B8C8', fontFamily: 'Rajdhani, sans-serif' }}>{a.label}</span>
+                                  <div className="flex items-center gap-2.5">
+                                    <button onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, -1)} disabled={v <= 0} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black leading-none transition-transform active:scale-90" style={{ background: v > 0 ? '#241014' : '#12121C', color: v > 0 ? '#F87171' : '#3A3A4A', border: `1px solid ${v > 0 ? '#EF444455' : '#1A1A2A'}`, cursor: v > 0 ? 'pointer' : 'default' }}>−</button>
+                                    <span className="text-lg font-black w-6 text-center tabular-nums" style={{ color: v > 0 ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{v}</span>
+                                    <button onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, 1)} disabled={left <= 0} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black leading-none transition-transform active:scale-90" style={{ background: left > 0 ? '#0a2114' : '#12121C', color: left > 0 ? '#4ADE80' : '#3A3A4A', border: `1px solid ${left > 0 ? '#22C55E55' : '#1A1A2A'}`, cursor: left > 0 ? 'pointer' : 'default' }}>+</button>
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
                           {onResetEvolvePoints && spent > 0 && (
-                            <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2 py-1.5 rounded-lg text-[10px] font-black" style={{ background: '#1A1A2A', color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>
+                            <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2.5 py-2.5 rounded-lg text-[11px] font-black tracking-wide transition-transform active:scale-[0.98]" style={{ background: '#1A1A2A', color: '#9A9AAA', border: '1px solid #2A2A3A', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>
                           )}
                         </div>
                       ) : (

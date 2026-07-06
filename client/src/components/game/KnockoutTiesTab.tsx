@@ -10,7 +10,7 @@ import { useTeams } from '../../hooks/useTeams';
 import { MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel } from '../../lib/gameEngine';
 import MatchDetailsModal from './MatchDetailsModal';
 import BetSlipModal from './BetSlipModal';
-import { buildKnockoutMatchKey, roundStakeUsed, BET_ROUND_CAP, Bet } from '../../lib/bets';
+import { buildKnockoutMatchKey, BET_ROUND_CAP, Bet } from '../../lib/bets';
 import { unavailableStarters } from '../../lib/discipline';
 
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
@@ -22,9 +22,9 @@ export default function KnockoutTiesTab() {
   const { localTeamId, getTeamName: resolveTeamName } = useTeams();
   const [betSlip, setBetSlip] = useState<{ matchKey: string; homeName: string; awayName: string } | null>(null);
   const [lineupWarning, setLineupWarning] = useState<string[] | null>(null); // 🚫 aviso de escalação inválida (solo)
-  // 🎯 Palpite — teto compartilhado entre as pernas ativas do mata-mata (prefixo 'K').
+  // 🎯 Palpite — POR JOGO: cada partida do mata-mata tem o seu próprio teto (BET_ROUND_CAP), então dá
+  // pra apostar em cada jogo (ida E volta) de forma independente, sem um travar o outro.
   const bets = state.bets ?? [];
-  const remainingCap = BET_ROUND_CAP - roundStakeUsed(bets, 'K');
   const betFor = (matchKey: string): Bet | undefined => bets.find(b => b.matchKey === matchKey);
   const [viewingResult, setViewingResult] = useState<{
     result: MatchResult;
@@ -540,7 +540,7 @@ export default function KnockoutTiesTab() {
       <AnimatePresence>
         {betSlip && (() => {
           const myBet = betFor(betSlip.matchKey);
-          const capLeft = remainingCap + (myBet?.stake ?? 0);
+          const capLeft = BET_ROUND_CAP; // por jogo: cada partida vai até o teto cheio
           return (
             <BetSlipModal
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}

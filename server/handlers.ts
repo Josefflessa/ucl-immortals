@@ -33,6 +33,7 @@ import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
 
 interface RoomPlayer {
   socketId: string;
+  clientId?: string; // identidade persistente do cliente (reconexão robusta, mesmo entre refreshes)
   id: string;
   name: string;
   crestId?: string | null; // selected club crest (see client/src/lib/crests)
@@ -331,7 +332,7 @@ export function registerSocketHandlers(io: Server) {
     console.log(`Socket connected: ${socket.id}`);
 
     // Create Room
-    socket.on("create_room", ({ creatorName }) => {
+    socket.on("create_room", ({ creatorName, clientId }: { creatorName: string; clientId?: string }) => {
       const roomCode = getUniqueRoomCode();
       const newRoom: RoomState = {
         code: roomCode,
@@ -341,6 +342,7 @@ export function registerSocketHandlers(io: Server) {
         players: [
           {
             socketId: socket.id,
+            clientId,
             id: 'player_0',
             name: creatorName,
             coachId: 'guardiola',
@@ -392,12 +394,29 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Join Room
-    socket.on("join_room", ({ roomCode, playerName }) => {
+    socket.on("join_room", ({ roomCode, playerName, clientId }: { roomCode: string; playerName: string; clientId?: string }) => {
       const code = roomCode.toUpperCase();
       const room = rooms.get(code);
 
       if (!room) {
         socket.emit("error_message", "Sala não encontrada. Verifique o código.");
+        return;
+      }
+
+      // RECONEXÃO ROBUSTA por clientId: é COMPROVADAMENTE a mesma pessoa (identidade persistente),
+      // então reassume o assento mesmo se ainda constar "conectado" (corrida de refresh) — sem falso
+      // "nome já usado". Só o dono do clientId reassume aquele assento.
+      const byClient = clientId ? room.players.find(p => p.clientId === clientId) : undefined;
+      if (byClient) {
+        byClient.socketId = socket.id;
+        byClient.connected = true;
+        cancelRoomCleanup(code);
+        recomputeHost(room);
+        socket.join(code);
+        socket.emit("joined_room", { roomCode: code, player: byClient, roomState: room });
+        io.to(code).emit("room_updated", room);
+        if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
+        console.log(`Player reconnected (clientId): ${byClient.name} to ${code}`);
         return;
       }
 
@@ -413,6 +432,7 @@ export function registerSocketHandlers(io: Server) {
         }
         existingPlayer.socketId = socket.id;
         existingPlayer.connected = true;
+        if (clientId) existingPlayer.clientId = clientId; // adota a identidade p/ reconexões futuras
         cancelRoomCleanup(code);
         recomputeHost(room);
         socket.join(code);
@@ -436,6 +456,7 @@ export function registerSocketHandlers(io: Server) {
 
       const newPlayer: RoomPlayer = {
         socketId: socket.id,
+        clientId,
         id: `player_${room.players.length}`,
         name: playerName.trim(),
         coachId: 'guardiola',
@@ -908,7 +929,7 @@ export function registerSocketHandlers(io: Server) {
         const tie = active.find(m => buildKnockoutMatchKey(m.id, leg) === matchKey);
         const legPlayed = tie && (leg === 2 ? !!tie.leg2 : !!(tie.leg1 || tie.result));
         if (!tie || legPlayed) return;
-        prefix = 'K'; // teto compartilhado entre as pernas ativas do mata-mata
+        prefix = matchKey; // por jogo: teto próprio de cada partida (ida/volta independentes)
       } else {
         return;
       }
