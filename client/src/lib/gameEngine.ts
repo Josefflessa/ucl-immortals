@@ -83,6 +83,18 @@ export interface MatchEvent {
   secondYellow?: boolean; // 🟨🟨 vermelho por 2º amarelo (o amarelo daquele jogo NÃO conta no acúmulo da temporada)
 }
 
+// 🟨🟥🩹 Cartões/lesão de UM jogador NESTE jogo, keyed por INSTÂNCIA (time + jogador).
+// Crucial: o mesmo playerId pode estar nos DOIS times de uma partida (pool < 36×11), então
+// filtrar só por playerId pintaria um cartão fantasma na cópia do outro time. Exige o teamId.
+export function playerMatchDiscipline(events: MatchEvent[], teamId: string, playerId: string): { yellow: number; red: boolean; injury: boolean } {
+  const mine = (e: MatchEvent) => e.playerId === playerId && e.teamId === teamId;
+  return {
+    yellow: events.filter(e => e.type === 'yellow' && mine(e)).length,
+    red: events.some(e => e.type === 'red' && mine(e)),
+    injury: events.some(e => e.type === 'injury' && mine(e)),
+  };
+}
+
 export interface PlayerMatchStat {
   playerId: string;
   playerName: string;

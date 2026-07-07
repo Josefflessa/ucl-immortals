@@ -13,9 +13,10 @@ import {
   HOME_ATTR_BONUS,
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
   isEvolved, evolvePointsSpent, applyEvolvePoint, clampEvolveInput, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
-  positionFit, SECONDARY_STAT_MULT,
-  type Team, type PlayerCard, type MatchResult, type LeagueFixture,
+  positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
+  type Team, type PlayerCard, type MatchResult, type LeagueFixture, type MatchEvent,
 } from './gameEngine';
+import { betCapPrefix } from './bets';
 import { stadiumFor } from './stadium';
 import { PLAYERS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
@@ -139,6 +140,30 @@ describe('⭐ cartas evoluídas', () => {
   it('clampEvolveInput: piso 0 e valor inválido não muda', () => {
     expect(clampEvolveInput({ shooting: 4 }, 'shooting', -3)).toBe(0);
     expect(clampEvolveInput({ shooting: 4 }, 'shooting', NaN)).toBe(4);
+  });
+
+  // 🟥 Cartão vermelho na transmissão: o MESMO id de jogador pode estar nos DOIS times
+  // de uma partida. A exibição deve ser por INSTÂNCIA (time+jogador), senão pinta um
+  // cartão fantasma na cópia do outro time (bug reportado: vermelho na transmissão que
+  // não vira suspensão no MEU TIME — porque a disciplina, correta, baniu só o outro).
+  it('playerMatchDiscipline: não vaza cartão entre times de mesmo playerId', () => {
+    const ev = (over: Partial<MatchEvent>): MatchEvent => ({ minute: 30, type: 'red', description: '', teamId: 'X', ...over });
+    const events: MatchEvent[] = [
+      ev({ type: 'red', teamId: 'teamB', playerId: 'p1' }),
+      ev({ type: 'yellow', teamId: 'teamA', playerId: 'p1' }),
+    ];
+    // p1 do teamA: levou 1 amarelo, NÃO o vermelho (esse foi do p1 do teamB).
+    expect(playerMatchDiscipline(events, 'teamA', 'p1')).toEqual({ yellow: 1, red: false, injury: false });
+    // p1 do teamB: levou o vermelho, nenhum amarelo.
+    expect(playerMatchDiscipline(events, 'teamB', 'p1')).toEqual({ yellow: 0, red: true, injury: false });
+  });
+
+  // 🎯 Teto de aposta: liga é POR RODADA (prefixo Lr:), mata-mata é POR PARTIDA (o próprio
+  // matchKey) — igual o servidor. O bug do solo usava 'K' genérico (teto compartilhado).
+  it('betCapPrefix: KO por-partida, liga por-rodada', () => {
+    expect(betCapPrefix('Kpo_0:1', 3)).toBe('Kpo_0:1');
+    expect(betCapPrefix('Kr16_2:2', 5)).toBe('Kr16_2:2');
+    expect(betCapPrefix('L3:home-away', 3)).toBe('L3:');
   });
   it('evolvePoints somam no getEffectiveAttribute', () => {
     const coach = COACHES[0];

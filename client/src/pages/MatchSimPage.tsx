@@ -7,7 +7,7 @@ import {
   getEffectiveAttribute, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat,
   getPenaltyOrder, setStatIds, statKey, penaltyGoalChance,
-  captainBoostForTeam, computeCharacteristicBoosts,
+  captainBoostForTeam, computeCharacteristicBoosts, playerMatchDiscipline,
 } from '../lib/gameEngine';
 
 // Captain leadership context: their best stat is lifted for the whole side (🗣️ Capitão Nato dobra).
@@ -189,10 +189,10 @@ export default function MatchSimPage() {
     const rColor = rating >= 8.5 ? '#d4af37' : rating >= 7.5 ? '#22c55e' : rating <= 5.3 ? '#ef4444' : '#ffffff';
     const ringColor = getRarityColor(p.rarity);
     const photoUrl = buildSofifaUrl(p.id, 120);
-    // 🟨🟥🩹 Disciplina/lesão deste jogador NESTE jogo (derivada dos eventos já ocorridos).
-    const yc = events.filter(e => e.type === 'yellow' && e.playerId === p.id).length;
-    const isRed = events.some(e => e.type === 'red' && e.playerId === p.id);
-    const isInjured = events.some(e => e.type === 'injury' && e.playerId === p.id);
+    // 🟨🟥🩹 Disciplina/lesão deste jogador NESTE jogo, POR INSTÂNCIA (time+jogador via statId)
+    // pra não pintar cartão fantasma da cópia do mesmo id no outro time. (renderSquadRow hoje
+    // não é usada, mas fica alinhada ao helper caso volte a ser.)
+    const { yellow: yc, red: isRed, injury: isInjured } = playerMatchDiscipline(events, p.statId?.split('::')[0] ?? '', p.id);
     return (
       <div
         key={p.id}
@@ -1476,10 +1476,10 @@ export default function MatchSimPage() {
                     ratings[p.id] = getDisplayRating(p.statId!);
                     goalsByPlayer[p.id] = st?.goals ?? 0;
                     assistsByPlayer[p.id] = st?.assists ?? 0;
-                    // 🟨🟥🩹 derivado dos eventos deste jogo
-                    const yellow = events.filter(e => e.type === 'yellow' && e.playerId === p.id).length;
-                    const red = events.some(e => e.type === 'red' && e.playerId === p.id);
-                    const injury = events.some(e => e.type === 'injury' && e.playerId === p.id);
+                    // 🟨🟥🩹 derivado dos eventos deste jogo, POR INSTÂNCIA (time+jogador):
+                    // o mesmo id pode estar nos dois times, então checar só playerId pintaria
+                    // um cartão fantasma na cópia do adversário (bug do vermelho na transmissão).
+                    const { yellow, red, injury } = playerMatchDiscipline(events, t.id, p.id);
                     if (yellow || red || injury) disciplineByPlayer[p.id] = { yellow, red, injury };
                   });
                   return (

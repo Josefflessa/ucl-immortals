@@ -52,3 +52,10 @@ export function canPlaceStake(bets: Bet[], keyPrefix: string, matchKey: string, 
   const used = bets.filter(b => b.matchKey.startsWith(keyPrefix) && b.matchKey !== matchKey).reduce((s, b) => s + b.stake, 0);
   return stake > 0 && used + stake <= BET_ROUND_CAP;
 }
+
+// Prefixo do teto de aposta pra `canPlaceStake`: liga é POR RODADA (compartilha o teto entre
+// os jogos da rodada → prefixo `Lr:`); mata-mata é POR PARTIDA (cada tie tem seu próprio teto
+// → o prefixo é o PRÓPRIO matchKey `KmatchId:leg`). Fonte única — o servidor faz o mesmo.
+export function betCapPrefix(matchKey: string, leagueRound: number): string {
+  return matchKey.startsWith('K') ? matchKey : `L${leagueRound}:`;
+}

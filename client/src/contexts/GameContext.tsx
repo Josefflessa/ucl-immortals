@@ -19,7 +19,7 @@ import {
 import type { VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
-import { Bet, buildLeagueMatchKey, canPlaceStake, settleBet } from '../lib/bets';
+import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, settleBet } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
@@ -663,8 +663,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'PLACE_BET': {
       // 🎯 Aposta (escrow): debita o stake AGORA. Editar o mesmo jogo ajusta pela diferença.
       if (!state.playerTeam || action.stake <= 0) return state;
-      // Teto por rodada de liga (prefixo Lr:) ou compartilhado nas pernas do mata-mata (prefixo K).
-      const prefix = action.matchKey.startsWith('K') ? 'K' : `L${state.leagueRound}:`;
+      // Teto por rodada de liga (Lr:) ou POR PARTIDA no mata-mata (o próprio matchKey) —
+      // igual o servidor. Antes usava 'K' genérico, que somava TODOS os jogos do KO num
+      // teto só (aposta na 2ª partida sumia calada depois de 200 no total).
+      const prefix = betCapPrefix(action.matchKey, state.leagueRound);
       const existing = state.bets.find(b => b.matchKey === action.matchKey);
       const escrowDelta = action.stake - (existing?.stake ?? 0); // >0 debita mais, <0 devolve
       if (escrowDelta > state.points) return state;               // saldo insuficiente
