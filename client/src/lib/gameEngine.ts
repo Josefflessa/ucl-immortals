@@ -962,6 +962,16 @@ export function applyEvolvePoint(ep: Partial<Record<AttrKey, number>>, attr: Att
   if (evolvePointsSpent(ep) + delta > EVOLVE_POINTS) return ep; // não passa de 8
   return { ...ep, [attr]: next };
 }
+// Valor de pontos digitado direto na caixa de um atributo → recortado pro que é
+// válido: [0, atual + pontos que sobram], respeitando o teto de 8 no total.
+// Valor inválido (NaN) mantém o atual. Não muda estado; devolve só o alvo em pontos.
+export function clampEvolveInput(ep: Partial<Record<AttrKey, number>>, attr: AttrKey, typed: number): number {
+  const current = ep[attr] ?? 0;
+  if (!Number.isFinite(typed)) return current;
+  const left = EVOLVE_POINTS - evolvePointsSpent(ep); // pontos livres além do que já está alocado
+  const max = current + left;                         // teto que este atributo pode alcançar
+  return Math.max(0, Math.min(Math.floor(typed), max));
+}
 export function bumpStarterAppearances(team: Team): Team {
   return { ...team, players: team.players.map((p, i) => i < 11 ? { ...p, appearances: (p.appearances ?? 0) + 1 } : p) };
 }

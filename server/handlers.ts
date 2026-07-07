@@ -28,6 +28,7 @@ import {
 import { FORMATIONS, DIFFICULTY_LEVELS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from "../client/src/lib/shop.js";
 import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
+import { pickHostId } from "./room-host.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters } from "../client/src/lib/discipline.js";
 import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
 
@@ -120,11 +121,12 @@ function getUniqueRoomCode(): string {
 const cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const ROOM_CLEANUP_MS = 5 * 60 * 1000; // delete an all-empty room after 5 min
 
-// The host drives progression. It is the FIRST CONNECTED player, so if the
-// creator drops the role transfers automatically (and reverts when they return).
+// O host controla a progressão. A regra é ESTÁVEL (ver room-host.ts): mantém o host
+// atual enquanto ele estiver na sala, mesmo caído um instante — só transfere quando ele
+// some de vez. Assim o papel não fica "pulando" entre jogadores a cada queda transitória.
+// (O abandono real do host é tratado por um grace timer no disconnect.)
 function recomputeHost(room: RoomState): void {
-  const firstConnected = room.players.find(p => p.connected);
-  room.hostId = (firstConnected ?? room.players[0])?.id ?? '';
+  room.hostId = pickHostId(room.players, room.hostId);
 }
 
 function isHost(room: RoomState, socketId: string): boolean {
@@ -214,6 +216,37 @@ function scheduleRoomCleanupIfEmpty(room: RoomState): void {
 function cancelRoomCleanup(code: string): void {
   const t = cleanupTimers.get(code);
   if (t) { clearTimeout(t); cleanupTimers.delete(code); }
+}
+
+// Grace do HOST: se o host cai no meio do jogo, NÃO transferimos na hora (ele quase
+// sempre reconecta em segundos — ver reconexão automática no cliente). Só se continuar
+// offline após este tempo passamos o host pro primeiro conectado, pra não travar a sala
+// num abandono real. Cancelado assim que o host reconecta.
+const hostGraceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const HOST_GRACE_MS = 30 * 1000;
+
+function cancelHostGrace(code: string): void {
+  const t = hostGraceTimers.get(code);
+  if (t) { clearTimeout(t); hostGraceTimers.delete(code); }
+}
+
+function scheduleHostGraceTransfer(io: Server, room: RoomState): void {
+  if (hostGraceTimers.has(room.code)) return;
+  const timer = setTimeout(() => {
+    hostGraceTimers.delete(room.code);
+    const cur = rooms.get(room.code);
+    if (!cur) return;
+    const host = cur.players.find(p => p.id === cur.hostId);
+    if (host && !host.connected) {               // host realmente sumiu → transfere
+      const fc = cur.players.find(p => p.connected);
+      if (fc) {
+        cur.hostId = fc.id;
+        io.to(cur.code).emit("room_updated", cur);
+        console.log(`Host transferido (abandono) na sala ${cur.code} → ${fc.name}`);
+      }
+    }
+  }, HOST_GRACE_MS);
+  hostGraceTimers.set(room.code, timer);
 }
 
 // Slots the chosen player into the active player's lineup and advances the draft
@@ -331,8 +364,23 @@ export function registerSocketHandlers(io: Server) {
   io.on("connection", (socket: Socket) => {
     console.log(`Socket connected: ${socket.id}`);
 
+    // Registra um handler de gameplay com rede de segurança: se ELE ESTOURAR no meio,
+    // o servidor não emitiria `room_updated` e o cliente ficaria com a tela travada sem
+    // feedback. Aqui capturamos a exceção, logamos e avisamos o cliente (`action_error`)
+    // pra ele mostrar um toast em vez de congelar. (O `disconnect` fica no socket.on cru.)
+    const on = (event: string, handler: (payload: any) => void) => {
+      socket.on(event, (payload: any) => {
+        try {
+          handler(payload);
+        } catch (err) {
+          console.error(`Erro no handler "${event}" (socket ${socket.id}):`, err);
+          socket.emit("action_error", { event, message: "Algo deu errado ao processar a ação. Tenta de novo." });
+        }
+      });
+    };
+
     // Create Room
-    socket.on("create_room", ({ creatorName, clientId }: { creatorName: string; clientId?: string }) => {
+    on("create_room", ({ creatorName, clientId }: { creatorName: string; clientId?: string }) => {
       const roomCode = getUniqueRoomCode();
       const newRoom: RoomState = {
         code: roomCode,
@@ -394,7 +442,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Join Room
-    socket.on("join_room", ({ roomCode, playerName, clientId }: { roomCode: string; playerName: string; clientId?: string }) => {
+    on("join_room", ({ roomCode, playerName, clientId }: { roomCode: string; playerName: string; clientId?: string }) => {
       const code = roomCode.toUpperCase();
       const room = rooms.get(code);
 
@@ -411,6 +459,7 @@ export function registerSocketHandlers(io: Server) {
         byClient.socketId = socket.id;
         byClient.connected = true;
         cancelRoomCleanup(code);
+        cancelHostGrace(code); // host voltou (ou outro jogador) → não transfere
         recomputeHost(room);
         socket.join(code);
         socket.emit("joined_room", { roomCode: code, player: byClient, roomState: room });
@@ -434,6 +483,7 @@ export function registerSocketHandlers(io: Server) {
         existingPlayer.connected = true;
         if (clientId) existingPlayer.clientId = clientId; // adota a identidade p/ reconexões futuras
         cancelRoomCleanup(code);
+        cancelHostGrace(code); // host voltou (ou outro jogador) → não transfere
         recomputeHost(room);
         socket.join(code);
         socket.emit("joined_room", { roomCode: code, player: existingPlayer, roomState: room });
@@ -488,7 +538,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Host updates difficulty
-    socket.on("set_difficulty", ({ roomCode, difficulty }) => {
+    on("set_difficulty", ({ roomCode, difficulty }) => {
       const room = rooms.get(roomCode);
       if (!room || !isHost(room, socket.id)) return;
       room.difficulty = difficulty;
@@ -496,7 +546,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Host starts setup phase
-    socket.on("start_setup", ({ roomCode }) => {
+    on("start_setup", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || !isHost(room, socket.id)) return;
       room.phase = 'setup';
@@ -505,7 +555,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Player submits coach & formation
-    socket.on("submit_setup", ({ roomCode, coachId, formationId, crestId }) => {
+    on("submit_setup", ({ roomCode, coachId, formationId, crestId }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
 
@@ -560,7 +610,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Player picks a card
-    socket.on("draft_pick", ({ roomCode, playerId }) => {
+    on("draft_pick", ({ roomCode, playerId }) => {
       const room = rooms.get(roomCode);
       if (!room || !room.draftState) return;
 
@@ -583,7 +633,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Player vetoes current draft options
-    socket.on("draft_veto", ({ roomCode }) => {
+    on("draft_veto", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || !room.draftState) return;
 
@@ -603,7 +653,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Player submits squad review (captain, penalty taker)
-    socket.on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId }) => {
+    on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
 
@@ -694,7 +744,7 @@ export function registerSocketHandlers(io: Server) {
     // Player updates captain / penalty taker for their own team (pre-league and
     // between matches). Kept on the authoritative server team so the server-side
     // simulation uses the chosen penalty taker.
-    socket.on("set_match_roles", ({ roomCode, captain, penaltyTaker, freeKickTaker, playStyle, formationId }) => {
+    on("set_match_roles", ({ roomCode, captain, penaltyTaker, freeKickTaker, playStyle, formationId }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -732,7 +782,7 @@ export function registerSocketHandlers(io: Server) {
     // Swap two players in this player's squad (bench ↔ starter, or reorder the XI). Mirrors the
     // solo SWAP_PLAYER_TEAM: recompute chemistry/OOP and drop captain/taker roles that fell out
     // of the XI, so the authoritative simulation uses the new lineup.
-    socket.on("swap_player_team", ({ roomCode, indexA, indexB }: { roomCode: string; indexA: number; indexB: number }) => {
+    on("swap_player_team", ({ roomCode, indexA, indexB }: { roomCode: string; indexA: number; indexB: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -764,7 +814,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🩸 Mártir — set which (up to 2) XI teammates receive the +3. Validated against the CURRENT XI.
-    socket.on("set_martir_targets", ({ roomCode, playerId, targetIds }: { roomCode: string; playerId: string; targetIds: string[] }) => {
+    on("set_martir_targets", ({ roomCode, playerId, targetIds }: { roomCode: string; playerId: string; targetIds: string[] }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -776,7 +826,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // ⭐ Carta Evoluída: distribuir/resetar os 8 pontos livres (só carta evoluída do próprio time).
-    socket.on("set_evolve_point", ({ roomCode, playerId, attr, delta }: { roomCode: string; playerId: string; attr: any; delta: number }) => {
+    on("set_evolve_point", ({ roomCode, playerId, attr, delta }: { roomCode: string; playerId: string; attr: any; delta: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -785,7 +835,7 @@ export function registerSocketHandlers(io: Server) {
         (p.id === playerId && isEvolved(p)) ? { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta) } : p);
       socket.emit("room_updated", room); // only this player's own team changed
     });
-    socket.on("reset_evolve_points", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+    on("reset_evolve_points", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -799,7 +849,7 @@ export function registerSocketHandlers(io: Server) {
     // Server is authoritative: it validates the cost, mutates the player's team and
     // re-broadcasts. The local client then sees the change + new balance via room_updated.
     // ============================================================
-    socket.on("shop_change_coach", ({ roomCode, coachId }: { roomCode: string; coachId: string }) => {
+    on("shop_change_coach", ({ roomCode, coachId }: { roomCode: string; coachId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -813,7 +863,7 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room); // only this player's own team changed
     });
 
-    socket.on("evolve_coach_prime", ({ roomCode }: { roomCode: string }) => {
+    on("evolve_coach_prime", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -827,7 +877,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // ⭐ Carta Única — compra direta (só essa passa por aqui; Craque/Caça-Talentos usam open/pick).
-    socket.on("shop_buy_player", ({ roomCode, player: chosen, kind }: { roomCode: string; player: Player; kind: 'unique' }) => {
+    on("shop_buy_player", ({ roomCode, player: chosen, kind }: { roomCode: string; player: Player; kind: 'unique' }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -845,7 +895,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🛒 Abrir pacote (Craque/Caça-Talentos): COBRA aqui e guarda as opções → impede re-sortear de graça.
-    socket.on("shop_open_pack", ({ roomCode, kind, options }: { roomCode: string; kind: 'star' | 'scout'; options: Player[] }) => {
+    on("shop_open_pack", ({ roomCode, kind, options }: { roomCode: string; kind: 'star' | 'scout'; options: Player[] }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -861,7 +911,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🛒 Escolher 1 do pacote JÁ PAGO (sem cobrar de novo) → banco.
-    socket.on("shop_pick_pack", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
+    on("shop_pick_pack", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -876,7 +926,7 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room);
     });
 
-    socket.on("shop_turbinar", ({ roomCode, playerId, variant }: { roomCode: string; playerId: string; variant: ShopVariant }) => {
+    on("shop_turbinar", ({ roomCode, playerId, variant }: { roomCode: string; playerId: string; variant: ShopVariant }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -893,7 +943,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🧹 Remove a card's characteristic (so a new one can be applied via Turbinar).
-    socket.on("shop_remove_variant", ({ roomCode, playerId, variantKey }: { roomCode: string; playerId: string; variantKey?: VariantFlag }) => {
+    on("shop_remove_variant", ({ roomCode, playerId, variantKey }: { roomCode: string; playerId: string; variantKey?: VariantFlag }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -910,7 +960,7 @@ export function registerSocketHandlers(io: Server) {
 
     // 🎯 PALPITE — apostar/editar. Escrow debitado na hora; validado no servidor (fundos, teto,
     // fase, e a partida-alvo ainda não jogada). Só o autor recebe o room_updated (não vaza).
-    socket.on("place_bet", ({ roomCode, matchKey, homeGoals, awayGoals, stake }: { roomCode: string; matchKey: string; homeGoals: number; awayGoals: number; stake: number }) => {
+    on("place_bet", ({ roomCode, matchKey, homeGoals, awayGoals, stake }: { roomCode: string; matchKey: string; homeGoals: number; awayGoals: number; stake: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -944,7 +994,7 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room);
     });
 
-    socket.on("cancel_bet", ({ roomCode, matchKey }: { roomCode: string; matchKey: string }) => {
+    on("cancel_bet", ({ roomCode, matchKey }: { roomCode: string; matchKey: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -957,7 +1007,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador do time do autor (paga PHYSIO_COST).
-    socket.on("heal_injury", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+    on("heal_injury", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -969,7 +1019,7 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room);
     });
 
-    socket.on("shop_train", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: TrainAttr }) => {
+    on("shop_train", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: TrainAttr }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -989,7 +1039,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🔄 Buy a reinforcement re-roll token (unlimited; persists across rounds).
-    socket.on("shop_buy_reroll", ({ roomCode }: { roomCode: string }) => {
+    on("shop_buy_reroll", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1000,7 +1050,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🏪 Mercado — VENDER uma reserva PRA BANCA por valor fixo (igual o solo). Só pontos + banco mudam.
-    socket.on("market_sell", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+    on("market_sell", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1015,7 +1065,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🏪 Mercado online — ANUNCIAR uma reserva (escrow: sai do banco do vendedor).
-    socket.on("market_list", ({ roomCode, playerId, price }: { roomCode: string; playerId: string; price: number }) => {
+    on("market_list", ({ roomCode, playerId, price }: { roomCode: string; playerId: string; price: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const seller = room.players.find(p => p.socketId === socket.id);
@@ -1032,7 +1082,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🏪 Mercado online — CANCELAR um anúncio (devolve o jogador pro banco do vendedor).
-    socket.on("market_cancel", ({ roomCode, listingId }: { roomCode: string; listingId: string }) => {
+    on("market_cancel", ({ roomCode, listingId }: { roomCode: string; listingId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const seller = room.players.find(p => p.socketId === socket.id);
@@ -1044,7 +1094,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🏪 Mercado online — COMPRAR um anúncio (transfere jogador + pontos, atômico).
-    socket.on("market_buy", ({ roomCode, listingId }: { roomCode: string; listingId: string }) => {
+    on("market_buy", ({ roomCode, listingId }: { roomCode: string; listingId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const buyer = room.players.find(p => p.socketId === socket.id);
@@ -1063,7 +1113,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🔄 Spend a token to re-roll THIS player's reinforcement options.
-    socket.on("reroll_reinforcement", ({ roomCode }: { roomCode: string }) => {
+    on("reroll_reinforcement", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1075,7 +1125,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // End-of-round reinforcement (free pick, same as solo): 1 of 6 → bench.
-    socket.on("pick_reinforcement", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
+    on("pick_reinforcement", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1089,7 +1139,7 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room); // only this player's own bench changed
     });
 
-    socket.on("dismiss_reinforcement", ({ roomCode }: { roomCode: string }) => {
+    on("dismiss_reinforcement", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1108,7 +1158,7 @@ export function registerSocketHandlers(io: Server) {
     // deterministic replay of the result the server produced here.
     // ✅ "Estou pronto" — um jogador NÃO-host confirma que está pronto p/ a rodada. Só pode com
     // escalação válida (nenhum suspenso/lesionado no XI); senão avisa o porquê.
-    socket.on("player_ready", ({ roomCode }: { roomCode: string }) => {
+    on("player_ready", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1118,7 +1168,7 @@ export function registerSocketHandlers(io: Server) {
       if (!room.readyPlayers.includes(player.id)) room.readyPlayers.push(player.id);
       io.to(roomCode).emit("room_updated", room); // todos veem a contagem
     });
-    socket.on("player_unready", ({ roomCode }: { roomCode: string }) => {
+    on("player_unready", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1127,7 +1177,7 @@ export function registerSocketHandlers(io: Server) {
       io.to(roomCode).emit("room_updated", room);
     });
 
-    socket.on("play_round", ({ roomCode }) => {
+    on("play_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'league') return;
       if (!isHost(room, socket.id)) return;
@@ -1203,7 +1253,7 @@ export function registerSocketHandlers(io: Server) {
 
     // Host advances to the next round (or to the knockout) — only allowed once
     // the entire current round has been played.
-    socket.on("advance_round", ({ roomCode }) => {
+    on("advance_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'league') return;
       if (!isHost(room, socket.id)) return;
@@ -1246,7 +1296,7 @@ export function registerSocketHandlers(io: Server) {
     // Host triggers the whole knockout round: the SERVER simulates every match
     // of the active bracket round. The bracket does NOT progress yet so that
     // each human can watch their tie before the next round is drawn.
-    socket.on("play_knockout_round", ({ roomCode }) => {
+    on("play_knockout_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
       if (!isHost(room, socket.id)) return;
@@ -1332,7 +1382,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Host advances the bracket — only once the active round has been played.
-    socket.on("advance_knockout_round", ({ roomCode }) => {
+    on("advance_knockout_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
       if (!isHost(room, socket.id)) return;
@@ -1356,7 +1406,7 @@ export function registerSocketHandlers(io: Server) {
 
     // Player confirms they finished watching their match replay for the current round/leg.
     // The host cannot advance until all human players who have a match have confirmed.
-    socket.on("player_match_watched", ({ roomCode, type }: { roomCode: string; type: 'league' | 'knockout' }) => {
+    on("player_match_watched", ({ roomCode, type }: { roomCode: string; type: 'league' | 'knockout' }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1378,7 +1428,7 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Restart game in room (host only — otherwise any player could wipe progress)
-    socket.on("restart_room", ({ roomCode }) => {
+    on("restart_room", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || !isHost(room, socket.id)) return;
 
@@ -1423,7 +1473,7 @@ export function registerSocketHandlers(io: Server) {
       io.to(roomCode).emit("room_updated", room);
     });
 
-    // Disconnect
+    // Disconnect (evento de ciclo de vida — fica no socket.on cru, fora do wrapper)
     socket.on("disconnect", () => {
       console.log(`Socket disconnected: ${socket.id}`);
       // Find rooms where player was present
@@ -1447,12 +1497,15 @@ export function registerSocketHandlers(io: Server) {
           return;
         }
 
-        // Mid-game: keep the player (so they can reconnect by name) but mark them
-        // offline. Transfer host to the next connected player, keep the draft
-        // moving if it was their turn, and schedule cleanup if everyone has left.
+        // Mid-game: keep the player (so they can reconnect) but mark them offline.
+        // Host is STICKY (recomputeHost keeps it), so a transient drop won't hand the
+        // role to someone else. If the player who dropped WAS the host, arm a grace
+        // timer that transfers only if they never come back (real abandonment).
+        const wasHost = room.players[idx].id === room.hostId;
         room.players[idx].connected = false;
         recomputeHost(room);
         io.to(code).emit("room_updated", room);
+        if (wasHost) scheduleHostGraceTransfer(io, room);
         if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
         scheduleRoomCleanupIfEmpty(room);
       });

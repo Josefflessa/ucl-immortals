@@ -3,13 +3,13 @@
 // elenco" screen AND the in-league "MEU TIME" tab. Both used to be near-duplicates; now any
 // change here shows up in both. It's purely presentational: data + callbacks come from props,
 // so each host wires its own state (drafted players vs the league team) and actions.
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
-  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_GAMES, EVOLVE_POINTS, positionFit,
+  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, clampEvolveInput, EVOLVE_GAMES, EVOLVE_POINTS, positionFit,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, hasOopRelief, type AttrKey } from '../../lib/traits';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
@@ -60,6 +60,49 @@ const EVOLVE_ATTRS: { key: AttrKey; label: string }[] = [
   { key: 'pace', label: 'RITMO' }, { key: 'shooting', label: 'FINALIZAÇÃO' }, { key: 'passing', label: 'PASSE' }, { key: 'dribbling', label: 'DRIBLE' },
   { key: 'defending', label: 'DEFESA' }, { key: 'physical', label: 'FÍSICO' }, { key: 'vision', label: 'VISÃO' }, { key: 'composure', label: 'COMPOSTURA' },
 ];
+
+// Uma linha do alocador: [−] [caixa digitável] [+]. A caixa deixa digitar os pontos
+// direto (mais rápido que clicar). `clamp` recorta o valor pro que é válido (0..teto)
+// e `onDelta` aplica a diferença reusando o mesmo caminho do + e − (solo e online).
+function EvolveAttrRow({ label, value, plusDisabled, clamp, onDelta }: {
+  label: string;
+  value: number;
+  plusDisabled: boolean;
+  clamp: (typed: number) => number;
+  onDelta: (delta: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+  // Enquanto não está digitando, a caixa reflete o valor real (cliques no +/−, reset, clamp).
+  useEffect(() => { if (!editing) setText(String(value)); }, [value, editing]);
+
+  const commit = () => {
+    const target = clamp(parseInt(text, 10)); // trata NaN/negativo/acima do teto
+    if (target !== value) onDelta(target - value);
+    setText(String(target));
+    setEditing(false);
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-1.5 rounded-lg px-2 py-2.5" style={{ background: '#0A0A12', border: `1px solid ${value > 0 ? '#22C55E44' : '#1A1A2A'}` }}>
+      <span className="text-[11px] font-bold tracking-wide text-center leading-tight" style={{ color: '#B8B8C8', fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
+      <div className="flex items-center gap-2.5">
+        <button onClick={() => onDelta(-1)} disabled={value <= 0} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black leading-none transition-transform active:scale-90" style={{ background: value > 0 ? '#241014' : '#12121C', color: value > 0 ? '#F87171' : '#3A3A4A', border: `1px solid ${value > 0 ? '#EF444455' : '#1A1A2A'}`, cursor: value > 0 ? 'pointer' : 'default' }}>−</button>
+        <input
+          type="text" inputMode="numeric" pattern="[0-9]*"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onFocus={e => { setEditing(true); e.currentTarget.select(); }}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+          className="text-lg font-black w-8 text-center tabular-nums rounded outline-none"
+          style={{ color: value > 0 ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif', background: '#12121C', border: '1px solid #2A2A3A' }}
+        />
+        <button onClick={() => onDelta(1)} disabled={plusDisabled} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black leading-none transition-transform active:scale-90" style={{ background: !plusDisabled ? '#0a2114' : '#12121C', color: !plusDisabled ? '#4ADE80' : '#3A3A4A', border: `1px solid ${!plusDisabled ? '#22C55E55' : '#1A1A2A'}`, cursor: !plusDisabled ? 'pointer' : 'default' }}>+</button>
+      </div>
+    </div>
+  );
+}
 
 export default function SquadEditor({
   players, coachId, formationId, playStyle,
@@ -542,19 +585,16 @@ export default function SquadEditor({
                             Você tem <b style={{ color: '#22C55E' }}>{EVOLVE_POINTS} pontos livres</b> pra reforçar esta carta: cada <b style={{ color: '#C9C9D5' }}>+</b> soma <b style={{ color: '#C9C9D5' }}>+1</b> no atributo (sem teto — pode empilhar num só). Dá pra <b style={{ color: '#C9C9D5' }}>resetar</b> e redistribuir quando quiser.
                           </div>
                           <div className="grid grid-cols-2 gap-2">
-                            {EVOLVE_ATTRS.map(a => {
-                              const v = ep[a.key] ?? 0;
-                              return (
-                                <div key={a.key} className="flex flex-col items-center gap-1.5 rounded-lg px-2 py-2.5" style={{ background: '#0A0A12', border: `1px solid ${v > 0 ? '#22C55E44' : '#1A1A2A'}` }}>
-                                  <span className="text-[11px] font-bold tracking-wide text-center leading-tight" style={{ color: '#B8B8C8', fontFamily: 'Rajdhani, sans-serif' }}>{a.label}</span>
-                                  <div className="flex items-center gap-2.5">
-                                    <button onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, -1)} disabled={v <= 0} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black leading-none transition-transform active:scale-90" style={{ background: v > 0 ? '#241014' : '#12121C', color: v > 0 ? '#F87171' : '#3A3A4A', border: `1px solid ${v > 0 ? '#EF444455' : '#1A1A2A'}`, cursor: v > 0 ? 'pointer' : 'default' }}>−</button>
-                                    <span className="text-lg font-black w-6 text-center tabular-nums" style={{ color: v > 0 ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{v}</span>
-                                    <button onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, 1)} disabled={left <= 0} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black leading-none transition-transform active:scale-90" style={{ background: left > 0 ? '#0a2114' : '#12121C', color: left > 0 ? '#4ADE80' : '#3A3A4A', border: `1px solid ${left > 0 ? '#22C55E55' : '#1A1A2A'}`, cursor: left > 0 ? 'pointer' : 'default' }}>+</button>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                            {EVOLVE_ATTRS.map(a => (
+                              <EvolveAttrRow
+                                key={a.key}
+                                label={a.label}
+                                value={ep[a.key] ?? 0}
+                                plusDisabled={left <= 0}
+                                clamp={(typed) => clampEvolveInput(ep, a.key, typed)}
+                                onDelta={(delta) => onSetEvolvePoint(selectedPlayer.id, a.key, delta)}
+                              />
+                            ))}
                           </div>
                           {onResetEvolvePoints && spent > 0 && (
                             <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2.5 py-2.5 rounded-lg text-[11px] font-black tracking-wide transition-transform active:scale-[0.98]" style={{ background: '#1A1A2A', color: '#9A9AAA', border: '1px solid #2A2A3A', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>

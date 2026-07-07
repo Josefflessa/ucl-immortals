@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['client/src/**/*.test.ts'],
+    include: ['client/src/**/*.test.ts', 'server/**/*.test.ts'],
     // Balance harness simulates full seasons — give it room.
     testTimeout: 90000,
   },

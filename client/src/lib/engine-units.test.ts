@@ -12,7 +12,7 @@ import {
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
-  isEvolved, evolvePointsSpent, applyEvolvePoint, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
+  isEvolved, evolvePointsSpent, applyEvolvePoint, clampEvolveInput, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
   positionFit, SECONDARY_STAT_MULT,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture,
 } from './gameEngine';
@@ -122,6 +122,23 @@ describe('⭐ cartas evoluídas', () => {
     const full = { shooting: 8 };
     expect(evolvePointsSpent(full)).toBe(8);
     expect(applyEvolvePoint(full, 'pace', 1)).toEqual(full);
+  });
+  it('clampEvolveInput: aceita valor dentro do orçamento', () => {
+    expect(clampEvolveInput({}, 'shooting', 5)).toBe(5);
+  });
+  it('clampEvolveInput: corta pelo que sobra do orçamento (8 no total)', () => {
+    // pace já usa 6 (sobram 2); digitar 5 em shooting (atual 0) → teto 0+2 = 2
+    expect(clampEvolveInput({ pace: 6 }, 'shooting', 5)).toBe(2);
+  });
+  it('clampEvolveInput: teto considera o valor atual do próprio atributo', () => {
+    // orçamento cheio (3+5=8); shooting atual 3, digitar 10 → não cresce (teto 3)
+    expect(clampEvolveInput({ shooting: 3, pace: 5 }, 'shooting', 10)).toBe(3);
+    // mas pode reduzir
+    expect(clampEvolveInput({ shooting: 3, pace: 5 }, 'shooting', 1)).toBe(1);
+  });
+  it('clampEvolveInput: piso 0 e valor inválido não muda', () => {
+    expect(clampEvolveInput({ shooting: 4 }, 'shooting', -3)).toBe(0);
+    expect(clampEvolveInput({ shooting: 4 }, 'shooting', NaN)).toBe(4);
   });
   it('evolvePoints somam no getEffectiveAttribute', () => {
     const coach = COACHES[0];

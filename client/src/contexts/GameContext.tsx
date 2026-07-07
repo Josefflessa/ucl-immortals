@@ -24,6 +24,7 @@ import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYello
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem, getClientId } from '../lib/storage';
+import { toast } from 'sonner';
 
 // ============================================================
 // GAME PHASES
@@ -1370,8 +1371,47 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     socketRef.current = socketInstance;
 
+    // `connect` dispara no primeiro conecte E em toda reconexão de transporte (o
+    // socket caiu e o socket.io reconectou sozinho, sem recarregar a página). Numa
+    // reconexão o `socket.id` é NOVO, então o servidor não nos reconhece mais e toda
+    // ação vira no-op silencioso (tela travada). Re-emitimos o join com a identidade
+    // persistente (clientId): o servidor reassocia o socket ao nosso jogador, nos põe
+    // de volta na sala e re-sincroniza o estado. O primeiro conecte é ignorado aqui —
+    // quem cuida dele é o fluxo de create/join (e o auto-reconnect de mount).
+    let hasConnectedOnce = false;
+    let reconnectToastId: string | number | undefined;
     socketInstance.on("connect", () => {
       console.log("Socket connected to server:", socketInstance.id);
+      if (hasConnectedOnce) {
+        const roomCode = getStorageItem(STORAGE_KEYS.roomCode);
+        const playerName = getStorageItem(STORAGE_KEYS.playerName);
+        if (roomCode && playerName) {
+          console.log(`Reconectado — re-entrando na sala ${roomCode}...`);
+          socketInstance.emit("join_room", { roomCode, playerName, clientId: getClientId() });
+        }
+        if (reconnectToastId !== undefined) {
+          toast.dismiss(reconnectToastId);
+          toast.success("Reconectado ✓");
+          reconnectToastId = undefined;
+        }
+      }
+      hasConnectedOnce = true;
+    });
+
+    // Conexão perdida no meio de uma sessão: mostra um aviso persistente enquanto o
+    // socket.io tenta reconectar (o `connect` acima re-entra na sala e limpa o aviso).
+    // Ignora saídas intencionais (o próprio jogador saiu) e quando não há sala ativa.
+    socketInstance.on("disconnect", (reason: string) => {
+      const inRoom = getStorageItem(STORAGE_KEYS.roomCode);
+      if (inRoom && reason !== "io client disconnect" && reconnectToastId === undefined) {
+        reconnectToastId = toast.loading("Conexão perdida — reconectando…");
+      }
+    });
+
+    // Uma ação estourou no servidor (o wrapper de handlers avisou). Em vez de a tela
+    // ficar travada sem feedback, mostramos um toast.
+    socketInstance.on("action_error", ({ message }: { message?: string }) => {
+      toast.error(message || "Algo deu errado ao processar a ação. Tenta de novo.");
     });
 
     socketInstance.on("room_updated", (roomState: any) => {
@@ -1401,7 +1441,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("error_message", (msg: string) => {
-      alert(msg);
+      toast.error(msg);
       removeStorageItem(STORAGE_KEYS.playerName);
       removeStorageItem(STORAGE_KEYS.roomCode);
       dispatch({ type: 'DISCONNECT_ONLINE' });
