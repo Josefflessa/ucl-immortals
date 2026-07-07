@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -22,6 +23,13 @@ import MatchSimPage from "./pages/MatchSimPage";
 
 function GameRouter() {
   const { state } = useGame();
+
+  // Cada "página" é uma fase (state.phase). Ao trocar de fase, a janela mantinha o
+  // scroll da fase anterior (ex.: rolou lá no fim do Escudo → o Treinador abria no meio).
+  // Volta ao topo sempre que a fase muda, pra cada etapa começar do começo.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [state.phase]);
 
   switch (state.phase) {
     case 'menu':

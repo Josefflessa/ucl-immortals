@@ -59,3 +59,41 @@ export function canPlaceStake(bets: Bet[], keyPrefix: string, matchKey: string, 
 export function betCapPrefix(matchKey: string, leagueRound: number): string {
   return matchKey.startsWith('K') ? matchKey : `L${leagueRound}:`;
 }
+
+// Estrutura mínima de um confronto de mata-mata que o reveal precisa conhecer.
+export interface KoTieLike {
+  id: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  leg1?: { homeGoals: number; awayGoals: number } | null;
+  leg2?: { homeGoals: number; awayGoals: number } | null;
+  result?: { homeGoals: number; awayGoals: number } | null;
+}
+
+// Liquida+revela os palpites de mata-mata cujo resultado JÁ EXISTE e que são SEGUROS de
+// revelar: confronto que o jogador NÃO joga (o placar dele já é visível → sem spoiler) OU
+// perna do confronto próprio que ele JÁ ASSISTIU. O confronto próprio ainda não assistido
+// fica intocado (anti-spoiler). Puro: devolve os bets atualizados + o total a creditar.
+// Corrige o bug de apostar num confronto que você não disputa (o resultado nunca revelava,
+// pois a revelação estava presa a você terminar a sua própria partida).
+export function revealEligibleKoBets(
+  bets: Bet[], ties: KoTieLike[], playerTeamId: string, watchedLegKeys: string[]
+): { bets: Bet[]; winnings: number } {
+  let winnings = 0;
+  const out = bets.map(bet => {
+    if (bet.revealed || !bet.matchKey.startsWith('K')) return bet;
+    const [id, legStr] = bet.matchKey.slice(1).split(':');
+    const leg = Number(legStr);
+    const tie = ties.find(t => t.id === id);
+    if (!tie) return bet;
+    const res = leg === 2 ? tie.leg2 : (tie.leg1 ?? tie.result);
+    if (!res) return bet;
+    const isParticipant = tie.homeTeamId === playerTeamId || tie.awayTeamId === playerTeamId;
+    const watchedThisLeg = watchedLegKeys.includes(`${id}_l${leg}`);
+    if (isParticipant && !watchedThisLeg) return bet; // anti-spoiler: espera assistir
+    const r = settleBet(bet, res);
+    winnings += r.payout;
+    return { ...bet, settled: true, revealed: true, won: r.won, tier: r.tier, payout: r.payout };
+  });
+  return { bets: out, winnings };
+}

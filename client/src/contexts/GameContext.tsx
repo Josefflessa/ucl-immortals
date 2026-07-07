@@ -19,7 +19,7 @@ import {
 import type { VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
-import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, settleBet } from '../lib/bets';
+import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, revealEligibleKoBets, settleBet } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
@@ -49,6 +49,7 @@ export type GamePhase =
 // ============================================================
 export interface RoomPlayer {
   socketId: string;
+  connected?: boolean; // sincronizado do servidor; ausente em estados locais antigos
   id: string; // e.g. "player_0"
   name: string;
   crestId?: string | null; // selected club crest
@@ -1021,8 +1022,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const koNameOf = (teamId: string, playerId: string) =>
         allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
       const disc = applyMatchDiscipline(state.discipline, koTeamIds, legResults, koNameOf);
+      // 🎯 Revela AGORA os palpites de confrontos que o jogador NÃO joga (placar já visível →
+      // sem spoiler). O confronto próprio só revela depois que ele assistir (FINISH_KNOCKOUT_MATCH).
+      // Sem isso, apostar num confronto alheio ficava eternamente "em andamento".
+      const koTies = [
+        ...((bracket as any).playoffs ?? []), ...((bracket as any).round16 ?? []),
+        ...(bracket as any).quarterFinals, ...(bracket as any).semiFinals,
+        ...((bracket as any).final ? [(bracket as any).final] : []),
+      ];
+      const revealed = revealEligibleKoBets(state.bets, koTies, state.playerTeam.id, state.watchedKnockoutMatches);
       // ⭐ +1 jogo pros 11 titulares do jogador (a perna que ele acabou de disputar).
-      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam: bumpStarterAppearances(state.playerTeam) };
+      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam: bumpStarterAppearances(state.playerTeam), bets: revealed.bets, points: state.points + revealed.winnings };
     }
 
     case 'ADVANCE_KNOCKOUT': {
@@ -1062,27 +1072,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (state.mode !== 'online') points += mp.total;
       }
 
-      // 🎯 Palpite (mata-mata, SOLO): liquida+credita as pernas já jogadas cujo resultado existe.
-      // (No online o servidor credita no gate de "todos assistiram a perna".)
+      // 🎯 Palpite (mata-mata, SOLO): revela as pernas já jogadas que são seguras — o confronto
+      // próprio recém-assistido E qualquer confronto alheio (placar já visível). (No online o
+      // servidor credita no gate de "todos assistiram a perna".)
       let koBets = state.bets;
       if (state.mode !== 'online' && state.knockoutBracket) {
         const b = state.knockoutBracket as any;
-        const koTies: any[] = [
+        const koTies = [
           ...(b.playoffs ?? []), ...(b.round16 ?? []),
           ...b.quarterFinals, ...b.semiFinals, ...(b.final ? [b.final] : []),
         ];
-        let koWinnings = 0;
-        koBets = state.bets.map(bet => {
-          if (bet.revealed || !bet.matchKey.startsWith('K')) return bet;
-          const [id, legStr] = bet.matchKey.slice(1).split(':');
-          const tie = koTies.find(t => t.id === id);
-          const res = tie ? (Number(legStr) === 2 ? tie.leg2 : (tie.leg1 ?? tie.result)) : undefined;
-          if (!res) return bet;
-          const r = settleBet(bet, res);
-          koWinnings += r.payout;
-          return { ...bet, settled: true, revealed: true, won: r.won, tier: r.tier, payout: r.payout };
-        });
-        points += koWinnings;
+        const revealed = revealEligibleKoBets(state.bets, koTies, state.playerTeam?.id ?? '', state.watchedKnockoutMatches);
+        koBets = revealed.bets;
+        points += revealed.winnings;
       }
 
       return {

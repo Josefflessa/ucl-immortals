@@ -113,9 +113,11 @@ export default function KnockoutTiesTab() {
   // watching the ida before the host can fire the volta — otherwise the ida spoils.
   const idaPlayed = !isFinal && currentLeg === 2 && !allPlayed;
 
-  // Online: gate advance button until all human players in this round have watched their tie
+  // Online: gate advance button until all human players in this round have watched their tie.
+  // Só jogadores CONECTADOS contam (igual o servidor em knockoutWatchStatus) — um jogador
+  // que caiu não pode travar o gate "todos assistiram" pra sempre (esconderia placar/badge de todos).
   const humanPlayersInBracket = state.mode === 'online'
-    ? state.onlinePlayers.filter(p => matches.some(m => m.homeTeamId === p.id || m.awayTeamId === p.id))
+    ? state.onlinePlayers.filter(p => p.connected && matches.some(m => m.homeTeamId === p.id || m.awayTeamId === p.id))
     : [];
   const allPlayersWatched = state.mode !== 'online' || humanPlayersInBracket.length === 0 ||
     humanPlayersInBracket.every(p => state.onlineWatchedPlayers.includes(p.id));
@@ -164,8 +166,11 @@ export default function KnockoutTiesTab() {
             const l1 = match.leg1;
             const l2 = match.leg2;
             const watched = state.watchedKnockoutMatches;
-            // Don't reveal the player's own leg score before they watch that leg.
-            const hideMyScore = hasPlayer && (
+            // Não revela o placar da perna própria antes do jogador assistir. SÓ no SOLO:
+            // `watchedKnockoutMatches` é local do cliente e se perde num refresh/reconexão, o que
+            // re-escondia placar/badge de confrontos já resolvidos. No ONLINE isso é redundante —
+            // o `hideAllScores` (sincronizado pelo servidor) já cobre, e sobrevive ao refresh.
+            const hideMyScore = state.mode !== 'online' && hasPlayer && (
               twoLeg
                 ? (!!l2 && !watched.includes(`${match.id}_l2`)) || (!!l1 && !watched.includes(`${match.id}_l1`))
                 : (match.played && !!match.result && !watched.includes(match.id))
