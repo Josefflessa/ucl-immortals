@@ -6,6 +6,7 @@
 import { FORMATIONS } from '../../lib/gameData';
 import { formationProfile } from '../../lib/gameEngine';
 import ImpactMeter from './ImpactMeter';
+import { ChoiceCard } from '../../design-system';
 
 interface Tag { label: string; color: string; }
 
@@ -36,7 +37,7 @@ export default function FormationSelector({ value, onChange }: Props) {
   const active = FORMATIONS.find(f => f.id === value) ?? FORMATIONS[0];
 
   return (
-    <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
+    <div className="ui-panel p-4">
       <div className="flex items-center justify-between mb-1">
         <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
           FORMAÇÃO
@@ -55,16 +56,12 @@ export default function FormationSelector({ value, onChange }: Props) {
         {FORMATIONS.map((f) => {
           const isActive = active.id === f.id;
           return (
-            <button
+            <ChoiceCard
               key={f.id}
+              selected={isActive}
               onClick={() => onChange(f.id)}
               title={f.strengths.join(' · ')}
-              className="text-left rounded-lg px-2.5 py-2 transition-all"
-              style={{
-                fontFamily: 'Rajdhani, sans-serif',
-                background: isActive ? '#14142A' : '#0A0A14',
-                border: `1px solid ${isActive ? '#C9A84C' : '#1A1A2A'}`,
-              }}
+              className="px-2.5 py-2"
             >
               <div className="text-sm font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: isActive ? '#C9A84C' : '#FFF' }}>
                 {f.name}
@@ -72,13 +69,13 @@ export default function FormationSelector({ value, onChange }: Props) {
               <div className="flex flex-wrap gap-1 mt-1">
                 {profileTags(f.id).slice(0, 2).map((t, i) => <Chip key={i} tag={t} />)}
               </div>
-            </button>
+            </ChoiceCard>
           );
         })}
       </div>
 
       {/* Active formation explanation */}
-      <div className="mt-3 rounded-lg px-3 py-2.5 text-[11px]" style={{ background: '#0A0A14', fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="ui-panel ui-panel--inset mt-3 px-3 py-2.5 text-[11px]">
         <div className="flex items-center gap-2 mb-1.5 flex-wrap">
           <span className="text-base font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>{active.name}</span>
           {profileTags(active.id).map((t, i) => <Chip key={i} tag={t} />)}

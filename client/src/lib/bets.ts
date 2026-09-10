@@ -77,7 +77,7 @@ export interface KoTieLike {
 // Corrige o bug de apostar num confronto que você não disputa (o resultado nunca revelava,
 // pois a revelação estava presa a você terminar a sua própria partida).
 export function revealEligibleKoBets(
-  bets: Bet[], ties: KoTieLike[], playerTeamId: string, watchedLegKeys: string[]
+  bets: Bet[], ties: KoTieLike[], playerTeamId: string, watchedLegKeys: string[] = []
 ): { bets: Bet[]; winnings: number } {
   let winnings = 0;
   const out = bets.map(bet => {

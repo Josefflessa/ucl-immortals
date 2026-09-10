@@ -21,38 +21,34 @@ import { buildLeagueMatchKey, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/
 import { unavailableStarters } from '../lib/discipline';
 import type { MatchResult, Team } from '../lib/gameEngine';
 import { POS_PT } from '../lib/gameData';
-
-const LOGO_URL = '/icons/logo_ucl.png';
+import { AppShell, Button, ConfirmDialog, PageContainer, StatusBanner, Tab, TabList, Tabs, TopBar } from '../design-system';
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 // Anti-spoiler placeholder: shown instead of position/standings/stats/bracket while other
 // players are still watching their match this round (durations vary, so results must stay hidden).
 function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
   return (
-    <div className="rounded-xl p-8 text-center" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
+    <StatusBanner tone="warning" className="flex-col items-center p-8 text-center">
       <div className="text-4xl mb-3">🔒</div>
-      <div className="text-base font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Bebas Neue, sans-serif' }}>{label}</div>
-      <div className="text-xs mt-2 leading-relaxed" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="font-display text-base tracking-widest text-[var(--ui-brand-strong)]">{label}</div>
+      <div className="mt-2 text-xs leading-relaxed text-[var(--ui-text-muted)]">
         Liberado quando <b style={{ color: '#FFF' }}>todos saírem da partida</b> desta rodada
         {waiting > 0 ? <> — aguardando <b style={{ color: '#E8C84A' }}>{waiting}</b> jogador(es).</> : '.'}
       </div>
-    </div>
+    </StatusBanner>
   );
 }
 
 export default function LeaguePage() {
   const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
   const online = state.mode === 'online';
+  const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | null>(null);
 
   const handleLeaveRoom = () => {
-    if (window.confirm('Sair da sala? Você deixará o torneio online. Para voltar, é só entrar de novo com o mesmo código e nome enquanto a sala existir.')) {
-      disconnectOnline();
-    }
+    setConfirmAction('room');
   };
   const handleLeaveSolo = () => {
-    if (window.confirm('Sair do jogo? Você vai perder o progresso desta temporada e voltar à tela inicial.')) {
-      dispatch({ type: 'RESET_GAME' });
-    }
+    setConfirmAction('solo');
   };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
@@ -80,6 +76,10 @@ export default function LeaguePage() {
   // work in either phase; only the first tab (matches) and the standings tab differ.
   const isKnockout = state.phase === 'knockout';
   const knockoutLabel = state.knockoutBracket ? knockoutRoundLabel(state.knockoutBracket.currentRound) : '';
+  const leagueRounds = state.competitionFormat.leagueRounds;
+  const qualifiedTeams = state.competitionFormat.qualifiedTeams;
+  const playoffTeams = Math.max(0, qualifiedTeams - 16);
+  const directTeams = 16 - playoffTeams;
 
   // When the season advances league → knockout, the standings tab disappears; fall
   // back to the matches (CONFRONTOS) tab so we never render a blank panel.
@@ -118,11 +118,11 @@ export default function LeaguePage() {
     [leagueResults, state.knockoutBracket, playerTeam?.id]
   );
 
-  // RODADAS ANTERIORES: períodos disputados — rodadas 1-8 da liga + as fases do mata-mata.
+  // RODADAS ANTERIORES: períodos disputados — todas as rodadas configuradas + mata-mata.
   const koShort = (r: string): string => ({ playoffs: 'PLAY', round16: 'OIT', quarters: 'QF', semis: 'SF', final: 'FIN' } as Record<string, string>)[r] ?? r;
   const historyPeriods = useMemo(() => {
     const periods: { key: string; label: string; kind: 'league' | 'ko'; round?: number; koRound?: string }[] = [];
-    for (let r = 1; r <= 8; r++) {
+    for (let r = 1; r <= leagueRounds; r++) {
       if (leagueFixtures.some(f => f.round === r && f.played)) periods.push({ key: `L${r}`, label: `R${r}`, kind: 'league', round: r });
     }
     const b = state.knockoutBracket;
@@ -139,7 +139,7 @@ export default function LeaguePage() {
       }
     }
     return periods;
-  }, [leagueFixtures, state.knockoutBracket]);
+  }, [leagueFixtures, state.knockoutBracket, leagueRounds]);
   const historyKey = selectedHistoryKey && historyPeriods.some(p => p.key === selectedHistoryKey)
     ? selectedHistoryKey
     : (historyPeriods.length ? historyPeriods[historyPeriods.length - 1].key : null);
@@ -160,10 +160,10 @@ export default function LeaguePage() {
 
   const playerStanding = leagueStandings.find(s => s.teamId === playerTeam?.id);
   const playerPosition = leagueStandings.findIndex(s => s.teamId === playerTeam?.id) + 1;
-  // New UCL format: 1–8 qualify straight to the Round of 16, 9–24 go to the
-  // knockout play-offs, 25–36 are eliminated.
-  const directQual = playerPosition >= 1 && playerPosition <= 8;
-  const playoffQual = playerPosition >= 9 && playerPosition <= 24;
+  // Configured qualification line: direct places fill the Round of 16 first;
+  // any remaining qualified teams form the seeded playoff field.
+  const directQual = playerPosition >= 1 && playerPosition <= directTeams;
+  const playoffQual = playoffTeams > 0 && playerPosition > directTeams && playerPosition <= qualifiedTeams;
   const qualifies = directQual || playoffQual;
 
   // Filter fixtures for the current round
@@ -342,37 +342,29 @@ export default function LeaguePage() {
   }, [state.phase, state.currentMatchResult, state.watchedKnockoutMatches, state.knockoutBracket, localTeamId, getTeamById, dispatch]);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b" style={{ borderColor: '#1A1A2A' }}>
-        <img src={LOGO_URL} alt="UCL Immortals" className="w-7 h-7 sm:w-8 sm:h-8 object-contain flex-shrink-0" />
-        <span className="text-base sm:text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-          {isKnockout ? 'MATA-MATA' : 'FASE DE LIGA'}
-        </span>
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          {!isKnockout && playerStanding && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                Posição:
-              </span>
-              <span className="text-xl font-black" style={{
-                fontFamily: 'Bebas Neue, sans-serif',
-                color: qualifies ? '#22C55E' : '#EF4444',
-              }}>
-                {playerPosition}º
-              </span>
-            </div>
-          )}
-          <button
-            onClick={online ? handleLeaveRoom : handleLeaveSolo}
-            title={online ? 'Sair da sala' : 'Sair do jogo'}
-            className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-red-500/80 hover:text-red-400 border border-red-500/30 hover:border-red-400/60 rounded-md px-2 py-1 transition-all"
-            style={{ fontFamily: 'Rajdhani, sans-serif' }}
-          >
-            <LogOut size={13} /> <span className="hidden sm:inline">Sair</span>
-          </button>
-        </div>
-      </div>
+    <AppShell className="flex flex-col">
+      <TopBar
+        title={isKnockout ? 'MATA-MATA' : 'FASE DE LIGA'}
+        right={
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            {!isKnockout && playerStanding && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--ui-text-faint)]">Posição:</span>
+                <span className={`font-display text-xl ${qualifies ? 'text-[var(--ui-success)]' : 'text-[var(--ui-danger)]'}`}>{playerPosition}º</span>
+              </div>
+            )}
+            <Button
+              type="button"
+              intent="ghost"
+              onClick={online ? handleLeaveRoom : handleLeaveSolo}
+              title={online ? 'Sair da sala' : 'Sair do jogo'}
+              className="border border-[var(--ui-danger)]/30 text-[var(--ui-danger)]"
+            >
+              <LogOut size={13} /> <span className="hidden sm:inline">Sair</span>
+            </Button>
+          </div>
+        }
+      />
 
       {/* Hero banner */}
       <div className="relative h-20 sm:h-32 overflow-hidden">
@@ -390,16 +382,16 @@ export default function LeaguePage() {
           <div className="text-center">
             <h2 className="text-3xl sm:text-5xl font-black tracking-widest"
               style={{ fontFamily: 'Bebas Neue, sans-serif', color: isKnockout ? '#C9A84C' : '#FFFFFF' }}>
-              {isKnockout ? knockoutLabel : `RODADA ${leagueRound} DE 8`}
+              {isKnockout ? knockoutLabel : `RODADA ${leagueRound} DE ${leagueRounds}`}
             </h2>
             <p className="hidden sm:block" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif', fontSize: '13px' }}>
-              {isKnockout ? 'Mata-mata em ida e volta — gerencie seu time entre os confrontos' : 'Dispute rodada por rodada e classifique-se no Top 8'}
+              {isKnockout ? 'Mata-mata em ida e volta — gerencie seu time entre os confrontos' : `Dispute rodada por rodada e termine entre os ${qualifiedTeams} melhores`}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 px-3 sm:px-4 py-4 max-w-4xl mx-auto w-full">
+      <PageContainer className="max-w-4xl">
         {/* Player summary card — league standing only (irrelevant in the knockout) */}
         {/* ONLINE anti-spoiler: while others are still watching, hide the position/qualification. */}
         {!isKnockout && spoilerLock && (
@@ -436,10 +428,10 @@ export default function LeaguePage() {
                   fontFamily: 'Rajdhani, sans-serif',
                 }}>
                   {directQual
-                    ? '✓ Classificação direta às Oitavas (Top 8)'
+                    ? `✓ Classificação direta às Oitavas (Top ${directTeams})`
                     : playoffQual
-                      ? '✓ Zona de Playoff (9º a 24º)'
-                      : '✗ Eliminado (fora do Top 24)'}
+                      ? `✓ Zona de Playoff (${directTeams + 1}º a ${qualifiedTeams}º)`
+                      : `✗ Eliminado (fora do Top ${qualifiedTeams})`}
                 </div>
               </div>
               <div className="ml-auto grid grid-cols-4 gap-2 sm:gap-4 text-center">
@@ -464,8 +456,12 @@ export default function LeaguePage() {
         )}
 
         {/* Tabs — scrollable on mobile */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-          {(isKnockout
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as typeof activeTab)}
+        >
+          <TabList className="mb-4">
+            {(isKnockout
             ? [
                 { id: 'fixtures', label: 'CONFRONTOS' },
                 { id: 'bracket', label: 'CHAVEAMENTO' },
@@ -485,21 +481,15 @@ export default function LeaguePage() {
                 { id: 'market', label: '🏪 MERCADO' },
               ]
           ).map(tab => (
-            <button
+            <Tab
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className="flex-shrink-0 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold tracking-wider transition-all"
-              style={{
-                fontFamily: 'Rajdhani, sans-serif',
-                background: activeTab === tab.id ? '#C9A84C' : '#0F0F1A',
-                color: activeTab === tab.id ? '#080810' : '#8A8A9A',
-                border: `1px solid ${activeTab === tab.id ? '#C9A84C' : '#1A1A2A'}`,
-              }}
+              value={tab.id}
             >
               {tab.label}
-            </button>
+            </Tab>
           ))}
-        </div>
+          </TabList>
+        </Tabs>
 
         {/* Matches tab — knockout shows the bracket ties; league shows round fixtures */}
         {activeTab === 'fixtures' && isKnockout && <KnockoutTiesTab />}
@@ -715,7 +705,7 @@ export default function LeaguePage() {
                         ({humanPlayersWithMatch.length - waitingForCount}/{humanPlayersWithMatch.length} concluídos)
                       </div>
                     </div>
-                  ) : leagueRound < 8 ? (
+                  ) : leagueRound < leagueRounds ? (
                     <button
                       onClick={handleAdvanceRound}
                       className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
@@ -798,7 +788,7 @@ export default function LeaguePage() {
                       ▶ JOGAR RODADA {leagueRound}
                     </button>
                   </>
-                ) : leagueRound < 8 ? (
+                ) : leagueRound < leagueRounds ? (
                   <button
                     onClick={handleAdvanceRound}
                     className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
@@ -826,7 +816,7 @@ export default function LeaguePage() {
                       cursor: qualifies ? 'pointer' : 'not-allowed',
                     }}
                   >
-                    {qualifies ? '🏆 AVANÇAR PARA O MATA-MATA →' : '❌ ELIMINADO — FORA DO TOP 24'}
+                    {qualifies ? '🏆 AVANÇAR PARA O MATA-MATA →' : `❌ ELIMINADO — FORA DO TOP ${qualifiedTeams}`}
                   </button>
                 )}
               </motion.div>
@@ -863,9 +853,9 @@ export default function LeaguePage() {
 
             {leagueStandings.map((entry, i) => {
               const isPlayer = entry.teamId === playerTeam?.id;
-              const isDirectQual = i < 8;
-              const isPlayoff = i >= 8 && i < 24;
-              const isEliminated = i >= 24;
+              const isDirectQual = i < directTeams;
+              const isPlayoff = playoffTeams > 0 && i >= directTeams && i < qualifiedTeams;
+              const isEliminated = i >= qualifiedTeams;
 
               return (
                 <div
@@ -926,8 +916,12 @@ export default function LeaguePage() {
         )}
         {activeTab === 'scorers' && !spoilerLock && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-            {/* Sub-tabs scrollable on mobile */}
-            <div className="flex gap-1.5 p-1 rounded-xl bg-[#09090f] border border-[#1A1A2A] overflow-x-auto scrollbar-none">
+            {/* Sub-tabs share the same editorial navigation grammar as the hub tabs. */}
+            <Tabs
+              value={statsSubTab}
+              onValueChange={(value) => setStatsSubTab(value as typeof statsSubTab)}
+            >
+              <TabList>
               {[
                 { id: 'goals', label: 'GOLS', Icon: Goal },
                 { id: 'assists', label: 'ASSISTÊNCIAS', Icon: Footprints },
@@ -936,23 +930,18 @@ export default function LeaguePage() {
                 { id: 'tackles', label: 'DESARMES', Icon: Swords },
                 { id: 'cards', label: 'DISCIPLINA', Icon: AlertTriangle },
               ].map(({ id, label, Icon }) => {
-                const isActive = statsSubTab === id;
                 return (
-                  <button
+                  <Tab
                     key={id}
-                    onClick={() => setStatsSubTab(id as any)}
-                    className="flex-shrink-0 py-2 px-2.5 sm:px-3 rounded-lg text-[10px] sm:text-xs font-bold transition-all text-center whitespace-nowrap"
-                    style={{
-                      fontFamily: 'Rajdhani, sans-serif',
-                      background: isActive ? '#C9A84C' : 'transparent',
-                      color: isActive ? '#080810' : '#8A8A9A',
-                    }}
+                    value={id}
+                    className="text-[10px] sm:text-xs"
                   >
                     <span className="inline-flex items-center gap-1.5"><Icon size={13} /> {label}</span>
-                  </button>
+                  </Tab>
                 );
               })}
-            </div>
+              </TabList>
+            </Tabs>
 
             {/* List panel */}
             <div key={statsSubTab} className="rounded-xl overflow-hidden border border-[#1A1A2A]" style={{ background: '#0F0F1A' }}>
@@ -1093,15 +1082,18 @@ export default function LeaguePage() {
             className="space-y-3"
           >
             {/* Sub-abas do HISTÓRICO */}
-            <div className="flex gap-2">
+            <Tabs
+              value={resultsSubTab}
+              onValueChange={(value) => setResultsSubTab(value as typeof resultsSubTab)}
+            >
+              <TabList>
               {([['mine', 'MEUS JOGOS'], ['rounds', 'RODADAS ANTERIORES']] as const).map(([id, label]) => (
-                <button key={id} onClick={() => setResultsSubTab(id)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider transition-all"
-                  style={{ fontFamily: 'Rajdhani, sans-serif', background: resultsSubTab === id ? '#C9A84C22' : '#0F0F1A', color: resultsSubTab === id ? '#E8C84A' : '#8A8A9A', border: `1px solid ${resultsSubTab === id ? '#C9A84C66' : '#1A1A2A'}` }}>
+                <Tab key={id} value={id} className="text-xs">
                   {label}
-                </button>
+                </Tab>
               ))}
-            </div>
+              </TabList>
+            </Tabs>
 
             {resultsSubTab === 'mine' ? (
             <div className="space-y-2">
@@ -1195,7 +1187,7 @@ export default function LeaguePage() {
                     })}
                   </div>
                   <div className="text-xs font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                    RESULTADOS · {historyPeriod?.kind === 'league' ? `RODADA ${historyPeriod.round} DE 8` : knockoutRoundLabel(historyPeriod?.koRound ?? '')}
+                    RESULTADOS · {historyPeriod?.kind === 'league' ? `RODADA ${historyPeriod.round} DE ${leagueRounds}` : knockoutRoundLabel(historyPeriod?.koRound ?? '')}
                   </div>
 
                   {historyPeriod?.kind === 'league' ? (
@@ -1306,7 +1298,7 @@ export default function LeaguePage() {
           </motion.div>
         )}
 
-      </div>
+      </PageContainer>
 
       {/* ── End-of-round reinforcement pick ── */}
       <AnimatePresence>
@@ -1315,19 +1307,17 @@ export default function LeaguePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
-            style={{ background: 'rgba(6,6,14,0.96)' }}
+            className="ui-modal-backdrop z-50 p-3 sm:p-4"
           >
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 16 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col max-h-[95vh]"
-              style={{ background: '#0B0B14', border: '1px solid #C9A84C55', boxShadow: '0 0 50px rgba(201,168,76,0.18)' }}
+              className="ui-modal ui-modal--wide flex max-h-[95vh] flex-col"
             >
               {/* Header */}
-              <div className="px-5 sm:px-6 py-4 flex-shrink-0" style={{ background: 'linear-gradient(135deg,#171206,#0B0B14)', borderBottom: '1px solid #1d1d2f' }}>
+              <div className="ui-modal__header flex-shrink-0 justify-start px-5 sm:px-6">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#C9A84C22', border: '1px solid #C9A84C55' }}>
                     <UserPlus size={20} style={{ color: '#E8C84A' }} />
@@ -1345,8 +1335,7 @@ export default function LeaguePage() {
 
               {/* Points earned this match */}
               {state.lastMatchPoints && (
-                <div className="mx-4 sm:mx-6 mt-4 rounded-xl px-4 py-3 flex items-center justify-between flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg,#0d1a10,#0B0B14)', border: '1px solid #34D39955' }}>
+                <div className="ui-panel ui-panel--inset mx-4 mt-4 flex flex-shrink-0 items-center justify-between border-[var(--ui-success)]/35 bg-[var(--ui-success-soft)] px-4 py-3 sm:mx-6">
                   <div>
                     <div className="text-[11px] font-black tracking-widest" style={{ color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>
                       💰 PONTOS DA PARTIDA
@@ -1381,27 +1370,23 @@ export default function LeaguePage() {
               </div>
 
               {/* Footer */}
-              <div className="px-5 sm:px-6 py-4 flex-shrink-0 flex items-center justify-between gap-3" style={{ borderTop: '1px solid #1d1d2f' }}>
+              <div className="ui-modal__footer flex-shrink-0 justify-between px-5 sm:px-6">
                 <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                   👆 Toque num card para contratar
                 </span>
                 <div className="flex items-center gap-2 ml-auto">
                   {state.reinforcementRerolls > 0 && (
-                    <button
+                    <Button intent="secondary" className="text-[#f472b6] border-[#f472b6]/40"
                       onClick={() => online ? rerollReinforcementOnline() : dispatch({ type: 'REROLL_REINFORCEMENT' })}
-                      className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all active:scale-95"
-                      style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #F472B655', background: '#F472B618', color: '#F472B6' }}
                     >
                       🔄 Re-sortear ({state.reinforcementRerolls})
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button intent="ghost"
                     onClick={() => online ? dismissReinforcementOnline() : dispatch({ type: 'DISMISS_REINFORCEMENT' })}
-                    className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
-                    style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2A2A3A', background: 'transparent', color: '#8A8A9A' }}
                   >
                     Pular reforço
-                  </button>
+                  </Button>
                 </div>
               </div>
             </motion.div>
@@ -1414,16 +1399,14 @@ export default function LeaguePage() {
         {state.knockoutPointsPopup && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(6,6,14,0.93)' }}
+            className="ui-modal-backdrop z-50 p-4"
             onClick={() => dispatch({ type: 'DISMISS_KO_POINTS' })}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
               transition={{ type: 'spring', stiffness: 300, damping: 26 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm rounded-2xl overflow-hidden text-center"
-              style={{ background: '#0B0B14', border: '1px solid #34D39955', boxShadow: '0 0 50px rgba(52,211,153,0.18)' }}
+              className="ui-modal max-w-sm overflow-hidden border-[var(--ui-success)] text-center"
             >
               <div className="px-6 pt-6 pb-2">
                 <div className="text-[11px] font-black tracking-widest" style={{ color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>💰 PONTOS DA PARTIDA</div>
@@ -1438,13 +1421,11 @@ export default function LeaguePage() {
                 </div>
                 <div className="text-[11px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Gaste na aba 🛒 LOJA</div>
               </div>
-              <button
+              <Button intent="success" className="mt-3 w-full rounded-none border-0"
                 onClick={() => dispatch({ type: 'DISMISS_KO_POINTS' })}
-                className="w-full py-3.5 mt-3 font-black tracking-widest text-sm"
-                style={{ fontFamily: 'Rajdhani, sans-serif', background: '#34D39918', color: '#34D399', borderTop: '1px solid #34D39933' }}
               >
                 OK
-              </button>
+              </Button>
             </motion.div>
           </motion.div>
         )}
@@ -1489,11 +1470,11 @@ export default function LeaguePage() {
 
       {/* 🚫 Aviso: tentou jogar com titular indisponível (solo) */}
       <AnimatePresence>
-        {lineupWarning && (
+      {lineupWarning && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(6,6,14,0.92)' }} onClick={() => setLineupWarning(null)}>
+            className="ui-modal-backdrop z-50 p-4" onClick={() => setLineupWarning(null)}>
             <motion.div initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
-              className="w-full max-w-sm rounded-2xl overflow-hidden text-center" style={{ background: '#0B0B14', border: '1px solid #EF444455' }}>
+              className="ui-modal max-w-sm overflow-hidden border-[var(--ui-danger)] text-center">
               <div className="px-6 pt-6 pb-2">
                 <div className="text-4xl mb-2">🚫</div>
                 <div className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</div>
@@ -1502,15 +1483,28 @@ export default function LeaguePage() {
                   Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar a rodada.
                 </p>
               </div>
-              <button onClick={() => setLineupWarning(null)}
-                className="w-full py-3.5 mt-3 font-black tracking-widest text-sm"
-                style={{ fontFamily: 'Rajdhani, sans-serif', background: '#EF444418', color: '#FCA5A5', borderTop: '1px solid #EF444433' }}>
+              <Button intent="danger" className="mt-3 w-full rounded-none border-0" onClick={() => setLineupWarning(null)}>
                 ENTENDI
-              </button>
+              </Button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
+        title={confirmAction === 'room' ? 'Sair da sala?' : 'Sair do jogo?'}
+        description={confirmAction === 'room'
+          ? 'Você deixará o torneio online. Para voltar, entre novamente com o mesmo código e nome enquanto a sala existir.'
+          : 'Você perderá o progresso desta temporada e voltará para a tela inicial.'}
+        confirmLabel={confirmAction === 'room' ? 'Sair da sala' : 'Sair do jogo'}
+        onConfirm={() => {
+          if (confirmAction === 'room') disconnectOnline();
+          if (confirmAction === 'solo') dispatch({ type: 'RESET_GAME' });
+          setConfirmAction(null);
+        }}
+      />
+    </AppShell>
   );
 }

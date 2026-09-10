@@ -7,6 +7,7 @@
 import { TACTICS, getTacticById } from '../../lib/gameData';
 import { tacticProfile } from '../../lib/gameEngine';
 import ImpactMeter from './ImpactMeter';
+import { ChoiceCard } from '../../design-system';
 
 interface TacticSelectorProps {
   value: string | undefined;
@@ -19,7 +20,7 @@ export default function TacticSelector({ value, onChange, disabled, disabledHint
   const active = getTacticById(value);
 
   return (
-    <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
+    <div className="ui-panel p-4">
       <div className="flex items-center justify-between mb-1">
         <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
           TÁTICA DO TIME
@@ -38,16 +39,14 @@ export default function TacticSelector({ value, onChange, disabled, disabledHint
         {TACTICS.map((t) => {
           const isActive = active.id === t.id;
           return (
-            <button
+            <ChoiceCard
               key={t.id}
+              selected={isActive}
               onClick={() => !disabled && onChange(t.id)}
               disabled={disabled}
               title={disabled ? disabledHint : t.desc}
-              className="text-left rounded-lg px-3 py-2.5 transition-all"
+              className="px-3 py-2.5"
               style={{
-                fontFamily: 'Rajdhani, sans-serif',
-                background: isActive ? '#14142A' : '#0A0A14',
-                border: `1px solid ${isActive ? '#C9A84C' : '#1A1A2A'}`,
                 opacity: disabled && !isActive ? 0.5 : 1,
                 cursor: disabled ? 'not-allowed' : 'pointer',
               }}
@@ -61,7 +60,7 @@ export default function TacticSelector({ value, onChange, disabled, disabledHint
               <div className="text-[10px] font-bold mt-1" style={{ color: isActive ? '#E8C84A' : '#6A6A7A' }}>
                 {t.short}
               </div>
-            </button>
+            </ChoiceCard>
           );
         })}
       </div>
@@ -72,7 +71,7 @@ export default function TacticSelector({ value, onChange, disabled, disabledHint
       </div>
 
       {/* Active tactic explanation */}
-      <div className="mt-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="ui-panel ui-panel--inset mt-2 px-3 py-2 text-[11px] text-[var(--ui-text-muted)]">
         <span className="font-black" style={{ color: '#C9A84C' }}>{active.icon} {active.name}:</span>{' '}
         {active.desc}
       </div>

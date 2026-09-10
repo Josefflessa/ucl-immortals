@@ -5,6 +5,8 @@ import {
   generateDraftOptions,
   getNeededPositions,
   generateBotTeam,
+  generateStarPackOptions,
+  generateScoutOptions,
   generateLeagueFixtures,
   computeStandings,
   simulateMatch,
@@ -25,12 +27,20 @@ import {
   KnockoutBracket
 } from "../client/src/lib/gameEngine.js";
 
-import { FORMATIONS, DIFFICULTY_LEVELS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
-import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from "../client/src/lib/shop.js";
+import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
+import { ALL_CRESTS } from "../client/src/lib/crests.js";
+import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
 import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
 import { pickHostId } from "./room-host.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters } from "../client/src/lib/discipline.js";
 import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
+import { DRAFT_TURN_SECONDS } from "../shared/const.js";
+import {
+  DEFAULT_COMPETITION_FORMAT,
+  normalizeCompetitionFormat,
+  validateCompetitionFormat,
+} from "../client/src/lib/competition.js";
+import type { CompetitionFormat } from "../client/src/lib/competition.js";
 
 interface RoomPlayer {
   socketId: string;
@@ -63,6 +73,7 @@ interface RoomState {
   code: string;
   phase: 'lobby' | 'setup' | 'draft' | 'squad_review' | 'league' | 'knockout' | 'report';
   difficulty: string;
+  competitionFormat: CompetitionFormat;
   // id of the player that currently drives progression (first connected player).
   hostId: string;
   players: RoomPlayer[];
@@ -81,6 +92,7 @@ interface RoomState {
   market: MarketListing[];   // 🏪 anúncios do mercado online (jogadores em escrow, fora dos elencos)
   draftState: {
     round: number;
+    timerKey: number;
     turnIndex: number;
     draftOrder: string[];
     alreadyDraftedIds: string[];
@@ -98,6 +110,43 @@ interface RoomState {
 
 const rooms = new Map<string, RoomState>();
 let marketSeq = 0; // 🏪 sequência de ids de anúncio do mercado (único no processo)
+
+const VALID_COACH_IDS = new Set(COACHES.map(c => c.id));
+const VALID_FORMATION_IDS = new Set(FORMATIONS.map(f => f.id));
+const VALID_TACTIC_IDS = new Set(TACTICS.map(t => t.id));
+const VALID_CREST_IDS = new Set(ALL_CRESTS.map(c => c.id));
+const VALID_POSITION_IDS = new Set(Object.values(POSITION_GROUPS).flat());
+const VALID_TRAIN_ATTRS = new Set(TRAIN_ATTRS.map(a => a.key));
+const VALID_VARIANTS = new Set(TURBINAR_VARIANTS.map(v => v.key));
+
+function isValidId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 80;
+}
+
+function isValidOptionalId(value: unknown): value is string | null | undefined {
+  return value == null || isValidId(value);
+}
+
+function canonicalRoleId(value: unknown, starters: Array<Player | PlayerCard>, predicate?: (p: Player | PlayerCard) => boolean): string | null {
+  if (!isValidId(value)) return null;
+  const found = starters.find(p => p.id === value && (!predicate || predicate(p)));
+  return found?.id ?? null;
+}
+
+function canonicalDraftOrder(submitted: unknown, authoritative: (Player | undefined)[]): (Player | undefined)[] | null {
+  if (!Array.isArray(submitted) || submitted.length !== 13) return null;
+  const byId = new Map(authoritative.filter((p): p is Player => !!p).map(p => [p.id, p]));
+  const ids: string[] = [];
+  const ordered = submitted.map(item => {
+    if (!item || typeof item !== 'object' || !isValidId((item as { id?: unknown }).id)) return undefined;
+    const id = (item as { id: string }).id;
+    if (!byId.has(id) || ids.includes(id)) return undefined;
+    ids.push(id);
+    return byId.get(id);
+  });
+  const authoritativeCount = authoritative.filter(Boolean).length;
+  return ids.length === authoritativeCount ? ordered : null;
+}
 
 function generateRoomCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -270,6 +319,7 @@ function applyDraftPick(room: RoomState, activePlayer: RoomPlayer, chosenPlayer:
   activePlayer.draftedPlayers = newDrafted;
 
   ds.alreadyDraftedIds.push(chosenPlayer.id);
+  ds.timerKey += 1;
   ds.history.push({
     round: currentRound,
     teamName: activePlayer.name,
@@ -324,7 +374,7 @@ function autoPickDisconnected(io: Server, room: RoomState): void {
 // single AFK player can't freeze the whole draft. (Disconnected players are covered separately
 // by autoPickDisconnected.) Kept off RoomState so the timer object is never serialized.
 const draftTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const DRAFT_TURN_MS = 30 * 1000;
+const DRAFT_TURN_MS = DRAFT_TURN_SECONDS * 1000;
 
 function clearDraftTurnTimer(code: string): void {
   const t = draftTurnTimers.get(code);
@@ -380,12 +430,19 @@ export function registerSocketHandlers(io: Server) {
     };
 
     // Create Room
-    on("create_room", ({ creatorName, clientId }: { creatorName: string; clientId?: string }) => {
+    on("create_room", ({ creatorName, competitionFormat, clientId }: { creatorName: string; competitionFormat?: unknown; clientId?: string }) => {
+      const requestedFormat = competitionFormat ?? DEFAULT_COMPETITION_FORMAT;
+      const formatError = validateCompetitionFormat(requestedFormat);
+      if (formatError) {
+        socket.emit("action_error", { event: "create_room", message: formatError });
+        return;
+      }
       const roomCode = getUniqueRoomCode();
       const newRoom: RoomState = {
         code: roomCode,
         phase: 'lobby',
         difficulty: 'gold',
+        competitionFormat: normalizeCompetitionFormat(requestedFormat),
         hostId: 'player_0',
         players: [
           {
@@ -427,6 +484,7 @@ export function registerSocketHandlers(io: Server) {
         market: [],
         draftState: {
           round: 1,
+          timerKey: 0,
           turnIndex: 0,
           draftOrder: [],
           alreadyDraftedIds: [],
@@ -541,6 +599,7 @@ export function registerSocketHandlers(io: Server) {
     on("set_difficulty", ({ roomCode, difficulty }) => {
       const room = rooms.get(roomCode);
       if (!room || !isHost(room, socket.id)) return;
+      if (!isValidId(difficulty) || !DIFFICULTY_LEVELS.some(d => d.id === difficulty)) return;
       room.difficulty = difficulty;
       io.to(roomCode).emit("room_updated", room);
     });
@@ -548,7 +607,11 @@ export function registerSocketHandlers(io: Server) {
     // Host starts setup phase
     on("start_setup", ({ roomCode }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isHost(room, socket.id)) return;
+      if (!room || !isHost(room, socket.id) || room.phase !== 'lobby') return;
+      if (room.players.filter(p => p.connected).length < 2) {
+        socket.emit("error_message", "São necessários pelo menos 2 jogadores conectados para iniciar.");
+        return;
+      }
       room.phase = 'setup';
       room.players.forEach(p => { p.ready = false; });
       io.to(roomCode).emit("room_updated", room);
@@ -558,6 +621,10 @@ export function registerSocketHandlers(io: Server) {
     on("submit_setup", ({ roomCode, coachId, formationId, crestId }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (room.phase !== 'setup') return;
+      if (!isValidId(coachId) || !VALID_COACH_IDS.has(coachId)) return;
+      if (!isValidId(formationId) || !VALID_FORMATION_IDS.has(formationId)) return;
+      if (crestId != null && (!isValidId(crestId) || !VALID_CREST_IDS.has(crestId))) return;
 
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
@@ -587,6 +654,7 @@ export function registerSocketHandlers(io: Server) {
 
         room.draftState = {
           round: 1,
+          timerKey: 0,
           turnIndex: 0,
           draftOrder,
           alreadyDraftedIds: [],
@@ -644,6 +712,7 @@ export function registerSocketHandlers(io: Server) {
       if (activePlayer.socketId !== socket.id || activePlayer.vetoesLeft <= 0) return;
 
       activePlayer.vetoesLeft -= 1;
+      room.draftState.timerKey += 1;
       const needed = getNeededPositions(activePlayer.formationId, activePlayer.draftedPlayers);
       const options = generateDraftOptions(needed, room.draftState.alreadyDraftedIds);
       room.draftState.currentOptionsByPlayer[activePlayerId] = options;
@@ -656,14 +725,28 @@ export function registerSocketHandlers(io: Server) {
     on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (room.phase !== 'squad_review') return;
+      if (playStyle != null && (!isValidId(playStyle) || !VALID_TACTIC_IDS.has(playStyle))) return;
+      if (formationId != null && (!isValidId(formationId) || !VALID_FORMATION_IDS.has(formationId))) return;
 
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
 
-      player.captain = captain;
-      player.penaltyTaker = penaltyTaker;
-      player.freeKickTaker = freeKickTaker ?? null;
-      player.draftedPlayers = draftedPlayers;
+      // The client may reorder the 13 cards during review, but it may not replace
+      // a server-owned card or alter its stats/traits. Rebuild the submitted order
+      // from the authoritative draft instances.
+      const orderedDraft = canonicalDraftOrder(draftedPlayers, player.draftedPlayers);
+      if (!orderedDraft) return;
+      const submittedStarters = orderedDraft.slice(0, 11).filter((p): p is Player => !!p);
+      const canonicalCaptain = captain == null ? null : canonicalRoleId(captain, submittedStarters);
+      const canonicalPenaltyTaker = penaltyTaker == null ? null : canonicalRoleId(penaltyTaker, submittedStarters, p => p.position !== 'GK');
+      const canonicalFreeKickTaker = freeKickTaker == null ? null : canonicalRoleId(freeKickTaker, submittedStarters, p => p.position !== 'GK');
+      if ((captain != null && !canonicalCaptain) || (penaltyTaker != null && !canonicalPenaltyTaker) || (freeKickTaker != null && !canonicalFreeKickTaker)) return;
+
+      player.captain = canonicalCaptain;
+      player.penaltyTaker = canonicalPenaltyTaker;
+      player.freeKickTaker = canonicalFreeKickTaker;
+      player.draftedPlayers = orderedDraft;
       if (playStyle) player.playStyle = playStyle;
       if (formationId) player.formationId = formationId; // formation can be changed post-draft
       player.ready = true;
@@ -732,7 +815,7 @@ export function registerSocketHandlers(io: Server) {
         room.botTeams = selectedBotNames.map(name => generateBotTeam(name, botStrength));
         const allTeams = [...room.players.map(p => p.team!), ...room.botTeams];
 
-        room.leagueFixtures = generateLeagueFixtures(allTeams);
+        room.leagueFixtures = generateLeagueFixtures(allTeams, room.competitionFormat.leagueRounds);
         room.leagueStandings = computeStandings(allTeams, []);
         room.leagueRound = 1;
         room.phase = 'league';
@@ -750,15 +833,24 @@ export function registerSocketHandlers(io: Server) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
 
-      player.captain = captain ?? null;
-      player.penaltyTaker = penaltyTaker ?? null;
-      player.freeKickTaker = freeKickTaker ?? null;
+      if (playStyle != null && (!isValidId(playStyle) || !VALID_TACTIC_IDS.has(playStyle))) return;
+      if (formationId != null && (!isValidId(formationId) || !VALID_FORMATION_IDS.has(formationId))) return;
+      if (!isValidOptionalId(captain) || !isValidOptionalId(penaltyTaker) || !isValidOptionalId(freeKickTaker)) return;
+      const starters = player.team?.players.slice(0, 11) ?? player.draftedPlayers.slice(0, 11).filter((p): p is Player => !!p).map(p => ({ ...p, chemistryScore: 0, isOOP: false } as PlayerCard));
+      const canonicalCaptain = captain == null ? null : canonicalRoleId(captain, starters);
+      const canonicalPenaltyTaker = penaltyTaker == null ? null : canonicalRoleId(penaltyTaker, starters, p => p.position !== 'GK');
+      const canonicalFreeKickTaker = freeKickTaker == null ? null : canonicalRoleId(freeKickTaker, starters, p => p.position !== 'GK');
+      if ((captain != null && !canonicalCaptain) || (penaltyTaker != null && !canonicalPenaltyTaker) || (freeKickTaker != null && !canonicalFreeKickTaker)) return;
+
+      player.captain = canonicalCaptain;
+      player.penaltyTaker = canonicalPenaltyTaker;
+      player.freeKickTaker = canonicalFreeKickTaker;
       if (playStyle) player.playStyle = playStyle;
       if (formationId) player.formationId = formationId;
       if (player.team) {
-        player.team.captain = captain ?? undefined;
-        player.team.penaltyTaker = penaltyTaker ?? undefined;
-        player.team.freeKickTaker = freeKickTaker ?? undefined;
+        player.team.captain = canonicalCaptain ?? undefined;
+        player.team.penaltyTaker = canonicalPenaltyTaker ?? undefined;
+        player.team.freeKickTaker = canonicalFreeKickTaker ?? undefined;
         if (playStyle) player.team.playStyle = playStyle;
         // Changing formation between matches re-maps roles → recompute chemistry / OOP
         // server-side so the authoritative simulation uses the new shape.
@@ -819,6 +911,9 @@ export function registerSocketHandlers(io: Server) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
+      if (!isValidId(playerId) || !Array.isArray(targetIds)) return;
+      const source = player.team.players.find(p => p.id === playerId);
+      if (!source?.martir) return;
       const starterIds = new Set(player.team.players.slice(0, 11).map(p => p.id));
       const valid = (targetIds || []).filter(id => id !== playerId && starterIds.has(id)).slice(0, 2);
       player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, martirTargets: valid } : p);
@@ -831,6 +926,7 @@ export function registerSocketHandlers(io: Server) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
+      if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr) || !Number.isInteger(delta) || Math.abs(delta) > 8) return;
       player.team.players = player.team.players.map(p =>
         (p.id === playerId && isEvolved(p)) ? { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta) } : p);
       socket.emit("room_updated", room); // only this player's own team changed
@@ -854,6 +950,7 @@ export function registerSocketHandlers(io: Server) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
+      if (!isValidId(coachId) || !VALID_COACH_IDS.has(coachId)) return;
       const cost = SHOP_COSTS.changeCoach;
       if (player.points < cost || player.team.coachId === coachId) return;
       player.points -= cost;
@@ -895,31 +992,39 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // 🛒 Abrir pacote (Craque/Caça-Talentos): COBRA aqui e guarda as opções → impede re-sortear de graça.
-    on("shop_open_pack", ({ roomCode, kind, options }: { roomCode: string; kind: 'star' | 'scout'; options: Player[] }) => {
+    // The server rolls from its own catalog. The client sends only the scout position;
+    // client-provided card objects/options are deliberately ignored.
+    on("shop_open_pack", ({ roomCode, kind, position }: { roomCode: string; kind: 'star' | 'scout'; position?: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || player.pendingPack) return;              // um pacote pendente por vez
       if (kind !== 'star' && kind !== 'scout') return;
-      if (!Array.isArray(options) || options.length === 0) return;
+      if (kind === 'scout' && (!isValidId(position) || !VALID_POSITION_IDS.has(position))) return;
+      const ownedIds = player.team.players.map(p => p.id);
+      const options = kind === 'star'
+        ? generateStarPackOptions(ownedIds)
+        : generateScoutOptions(position!, ownedIds);
+      if (options.length === 0 || options.some(option => !PLAYERS.some(base => base.id === option.id))) return;
       const cost = kind === 'star' ? SHOP_COSTS.starPack : SHOP_COSTS.scout;
       if (player.points < cost) return;
       if (kind === 'star' && options.some(o => o.overall < 88)) return;       // pacote do craque = 88+
       player.points -= cost;
-      player.pendingPack = { kind, options };
+      player.pendingPack = { kind, options: options.map(option => ({ ...option })) };
       socket.emit("room_updated", room);
     });
 
     // 🛒 Escolher 1 do pacote JÁ PAGO (sem cobrar de novo) → banco.
-    on("shop_pick_pack", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
+    on("shop_pick_pack", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !player.pendingPack || !chosen) return;
-      const valid = player.pendingPack.options.some(o => o.id === chosen.id)
-        && !player.team.players.some(p => p.id === chosen.id);
+      if (!player || !player.team || !player.pendingPack || !isValidId(playerId)) return;
+      const valid = player.pendingPack.options.some(o => o.id === playerId)
+        && !player.team.players.some(p => p.id === playerId);
+      const chosen = PLAYERS.find(p => p.id === playerId);
       player.pendingPack = null;
-      if (valid) {
+      if (valid && chosen) {
         const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
         player.team.players = [...player.team.players, card];
       }
@@ -931,6 +1036,7 @@ export function registerSocketHandlers(io: Server) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
+      if (!isValidId(playerId) || !VALID_VARIANTS.has(variant)) return;
       const cost = SHOP_COSTS.turbinar;
       const target = player.team.players.find(p => p.id === playerId);
       if (!target || player.points < cost) return;
@@ -948,6 +1054,7 @@ export function registerSocketHandlers(io: Server) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
+      if (!isValidId(playerId) || (variantKey != null && !VALID_VARIANTS.has(variantKey))) return;
       const cost = SHOP_COSTS.removeVariant;
       const target = player.team.players.find(p => p.id === playerId);
       if (!target || player.points < cost || !hasVariant(target)) return;
@@ -1024,6 +1131,7 @@ export function registerSocketHandlers(io: Server) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
+      if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr)) return;
       const target = player.team.players.find(p => p.id === playerId);
       if (!target) return;
       const cost = trainCost(target.trainCount ?? 0);
@@ -1276,13 +1384,13 @@ export function registerSocketHandlers(io: Server) {
         return;
       }
 
-      if (room.leagueRound < 8) {
+      if (room.leagueRound < room.competitionFormat.leagueRounds) {
         room.leagueRound += 1;
       } else {
         // End of league phase! Build the full UCL knockout bracket
         // (play-offs → R16 → quarters → semis → final).
         room.phase = 'knockout';
-        room.knockoutBracket = createKnockoutBracket(room.leagueStandings);
+        room.knockoutBracket = createKnockoutBracket(room.leagueStandings, room.competitionFormat);
         room.discipline = resetYellowsForKnockout(room.discipline); // 🟨 amarelos zeram no mata-mata
       }
 
@@ -1434,9 +1542,14 @@ export function registerSocketHandlers(io: Server) {
 
       clearDraftTurnTimer(roomCode);
       room.phase = 'lobby';
+      room.difficulty = 'gold';
       room.players.forEach(p => {
-        p.draftedPlayers = Array(11).fill(undefined);
-        p.vetoesLeft = 2;
+        p.coachId = 'guardiola';
+        p.coachPrime = false;
+        p.crestId = null;
+        p.formationId = '4-3-3';
+        p.draftedPlayers = Array(13).fill(undefined);
+        p.vetoesLeft = 4;
         p.captain = null;
         p.penaltyTaker = null;
         p.freeKickTaker = null;
@@ -1447,6 +1560,7 @@ export function registerSocketHandlers(io: Server) {
         p.lastMatchPoints = null;
         p.reinforcementOptions = null;
         p.reinforcementRerolls = 0;
+        p.pendingPack = null;
         p.bets = [];
         p.pendingMatchPoints = undefined;
       });
@@ -1461,8 +1575,10 @@ export function registerSocketHandlers(io: Server) {
       room.watchedKnockoutLegPlayers = [];
       room.readyPlayers = [];
       room.discipline = {};
+      room.market = [];
       room.draftState = {
         round: 1,
+        timerKey: 0,
         turnIndex: 0,
         draftOrder: [],
         alreadyDraftedIds: [],

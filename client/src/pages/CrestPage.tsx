@@ -7,8 +7,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { CREST_CATALOG, ALL_CRESTS, getCrest } from '../lib/crests';
-
-const LOGO_URL = '/icons/logo_ucl.png';
+import { AppShell, Button, Input, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 const GOLD = '#C9A84C';
 
 export default function CrestPage() {
@@ -25,41 +24,24 @@ export default function CrestPage() {
 
   const pick = (id: string) => dispatch({ type: 'SET_CREST', crestId: selected === id ? null : id });
   const handleContinue = () => dispatch({ type: 'SET_PHASE', phase: 'coach' });
+  const handleBack = () => dispatch({ type: 'SET_PHASE', phase: 'setup' });
 
   const activeGroup = CREST_CATALOG.find(g => g.league === openLeague);
   const shownCrests = search ? searchResults : (activeGroup?.crests ?? []);
   const selectedDef = getCrest(selected);
 
-  const steps = ['Dificuldade', 'Escudo', 'Treinador', 'Formação', 'Draft'];
-
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: '#1A1A2A' }}>
-        <img src={LOGO_URL} alt="UCL Immortals" className="w-8 h-8 object-contain" />
-        <span className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: GOLD }}>
-          UCL IMMORTALS
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          {steps.map((step, i) => (
-            <div key={step} className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full" style={{ background: i === 1 ? GOLD : i < 1 ? '#22C55E' : '#333' }} />
-              <span className="text-xs hidden sm:block" style={{ color: i === 1 ? GOLD : i < 1 ? '#22C55E' : '#555', fontFamily: 'Rajdhani, sans-serif' }}>{step}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+    <AppShell>
+      <TopBar />
 
-      <div className="flex-1 flex flex-col items-center px-4 py-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-4xl">
-          <div className="text-center mb-6">
-            <h2 className="text-4xl font-black tracking-widest mb-2" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
-              ESCOLHA SEU ESCUDO
-            </h2>
-            <p style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-              Represente um clube no torneio. É só visual — não muda os atributos. Opcional: pode pular e usar as iniciais do time.
-            </p>
-          </div>
+      <PageContainer wide>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+          <SectionHeader
+            kicker="IDENTIDADE DO CLUBE · 02"
+            title="Escolha seu escudo"
+            description="Represente um clube no torneio. É só visual — não muda os atributos. Opcional: pode pular e usar as iniciais do time."
+            className="mb-6"
+          />
 
           {/* Selected preview */}
           <div className="flex items-center justify-center gap-3 mb-5 min-h-[56px]">
@@ -70,10 +52,9 @@ export default function CrestPage() {
                 <span className="text-lg font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: GOLD }}>
                   {selectedDef.name.toUpperCase()}
                 </span>
-                <button onClick={() => dispatch({ type: 'SET_CREST', crestId: null })}
-                  className="text-xs px-2 py-1 rounded" style={{ background: '#1A1A2A', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                <Button onClick={() => dispatch({ type: 'SET_CREST', crestId: null })} intent="ghost" className="min-h-8 px-2 text-xs">
                   remover
-                </button>
+                </Button>
               </>
             ) : (
               <span className="text-sm" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
@@ -83,12 +64,12 @@ export default function CrestPage() {
           </div>
 
           {/* Search */}
-          <input
+          <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="🔍 Buscar clube..."
-            className="w-full mb-4 px-4 py-2.5 rounded-lg text-sm outline-none"
-            style={{ background: '#0F0F1A', border: '1px solid #1A1A2A', color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}
+            className="ui-input mb-4"
+            aria-label="Buscar clube"
           />
 
           {/* League tabs (hidden while searching) */}
@@ -97,7 +78,7 @@ export default function CrestPage() {
               {CREST_CATALOG.map(g => {
                 const active = g.league === openLeague;
                 return (
-                  <button key={g.league} onClick={() => setOpenLeague(g.league)}
+                  <Button key={g.league} onClick={() => setOpenLeague(g.league)} intent="ghost"
                     className="whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                     style={{
                       background: active ? `${GOLD}22` : '#0F0F1A',
@@ -106,14 +87,15 @@ export default function CrestPage() {
                       fontFamily: 'Rajdhani, sans-serif',
                     }}>
                     {g.league}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
           )}
 
           {/* Crest grid — only the open league (or search results) renders */}
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+          <Panel tone="inset" className="p-3 sm:p-4">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
             {shownCrests.map((c, i) => {
               const isSel = selected === c.id;
               return (
@@ -125,11 +107,12 @@ export default function CrestPage() {
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={() => pick(c.id)}
-                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all"
+                  className="ui-choice flex flex-col items-center gap-1.5 p-3"
+                  data-selected={isSel}
                   style={{
-                    background: isSel ? `linear-gradient(135deg, ${GOLD}22 0%, #0F0F1A 100%)` : '#0F0F1A',
+                    background: isSel ? `${GOLD}14` : undefined,
                     border: `1px solid ${isSel ? GOLD : '#1A1A2A'}`,
-                    boxShadow: isSel ? `0 0 20px ${GOLD}33` : 'none',
+                    boxShadow: isSel ? `0 0 0 1px ${GOLD}22` : 'none',
                   }}
                 >
                   <img src={c.url} alt={c.name} referrerPolicy="no-referrer" loading="lazy" decoding="async"
@@ -142,6 +125,7 @@ export default function CrestPage() {
               );
             })}
           </div>
+          </Panel>
           {search && shownCrests.length === 0 && (
             <div className="text-center py-8 text-sm" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
               Nenhum clube encontrado para “{query}”.
@@ -149,22 +133,23 @@ export default function CrestPage() {
           )}
 
           {/* Continue */}
-          <motion.button
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-            onClick={handleContinue}
-            className="w-full mt-8 py-4 rounded-xl font-black text-xl tracking-widest"
-            style={{
-              fontFamily: 'Bebas Neue, sans-serif',
-              background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
-              color: '#080810',
-              boxShadow: '0 0 30px rgba(201,168,76,0.3)',
-            }}
-          >
-            {selected ? 'ESCOLHER TREINADOR →' : 'PULAR / ESCOLHER TREINADOR →'}
-          </motion.button>
+          <div className="mt-8 flex gap-3">
+            {state.mode !== 'online' && (
+              <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
+                ← VOLTAR
+              </Button>
+            )}
+            <Button
+              intent="primary"
+              size="large"
+              onClick={handleContinue}
+              className={state.mode === 'online' ? 'w-full' : 'flex-1'}
+            >
+              {selected ? 'ESCOLHER TREINADOR →' : 'PULAR / ESCOLHER TREINADOR →'}
+            </Button>
+          </div>
         </motion.div>
-      </div>
-    </div>
+      </PageContainer>
+    </AppShell>
   );
 }

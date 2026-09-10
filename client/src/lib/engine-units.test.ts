@@ -6,6 +6,7 @@ import {
   getChemistryBonus, getChemistryLinks, computeCharacteristicBoosts, getEffectiveAttribute, getPlayerEffectiveStats,
   resolveOpenPlayChance, shotTypeForApproach, GK_SAVE_EDGE, ON_TARGET_RESISTANCE,
   getPenaltyTaker, getPenaltyOrder, computeStandings, generateLeagueFixtures, buildKeyMinutes,
+  createKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
   PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST,
@@ -572,6 +573,27 @@ describe('generateLeagueFixtures', () => {
     expect(fx.length).toBeGreaterThan(0);
     expect(fx.every(f => f.homeTeamId !== f.awayTeamId)).toBe(true);
     expect(fx.every(f => teams.some(t => t.id === f.homeTeamId) && teams.some(t => t.id === f.awayTeamId))).toBe(true);
+  });
+});
+
+describe('configurable knockout qualification', () => {
+  it('builds a complete 16-team path for every valid qualification line', () => {
+    const standings = Array.from({ length: 36 }, (_, i) => ({
+      teamId: `T${i + 1}`,
+      teamName: `Team ${i + 1}`,
+      played: 0, won: 0, drawn: 0, lost: 0,
+      goalsFor: 0, goalsAgainst: 0, points: 0,
+    }));
+
+    for (const qualifiedTeams of [16, 17, 20, 23, 24]) {
+      const bracket = createKnockoutBracket(standings, { leagueRounds: 8, qualifiedTeams });
+      expect(bracket.playoffs).toHaveLength(qualifiedTeams - 16);
+      expect(bracket.round16).toHaveLength(8);
+      expect(bracket.currentRound).toBe(qualifiedTeams === 16 ? 'round16' : 'playoffs');
+
+      const playoffRefs = bracket.round16.flatMap((tie: any) => [tie.homeFromPo, tie.awayFromPo]).filter((ref: number | undefined) => ref !== undefined);
+      expect(new Set(playoffRefs).size).toBe(qualifiedTeams - 16);
+    }
   });
 });
 

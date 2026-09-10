@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./design-system/tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -42,80 +43,78 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* UCL Immortals — Dark Premium Gaming Theme */
-/* Signature color: #C9A84C (UCL Gold) */
-/* Background: #080810 (Deep Navy Black) */
-/* Accent: #1B4FD8 (UEFA Blue) */
+/* UCL Immortals — UI theme bridge.
+ * Gameplay artwork keeps its own visual language; these values style the chrome. */
 
 :root {
-  --radius: 0.65rem;
-  --primary: oklch(0.72 0.12 75);
-  --primary-foreground: oklch(0.1 0.01 75);
-  --background: oklch(0.08 0.01 260);
-  --foreground: oklch(0.92 0.005 260);
-  --card: oklch(0.11 0.01 260);
-  --card-foreground: oklch(0.92 0.005 260);
-  --popover: oklch(0.11 0.01 260);
-  --popover-foreground: oklch(0.92 0.005 260);
-  --secondary: oklch(0.15 0.01 260);
-  --secondary-foreground: oklch(0.75 0.005 260);
-  --muted: oklch(0.18 0.01 260);
-  --muted-foreground: oklch(0.55 0.01 260);
-  --accent: oklch(0.18 0.01 260);
-  --accent-foreground: oklch(0.92 0.005 260);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.72 0.12 75);
-  --chart-1: oklch(0.72 0.12 75);
-  --chart-2: oklch(0.55 0.2 260);
-  --chart-3: oklch(0.65 0.18 145);
-  --chart-4: oklch(0.65 0.2 30);
-  --chart-5: oklch(0.55 0.22 300);
-  --sidebar: oklch(0.11 0.01 260);
-  --sidebar-foreground: oklch(0.92 0.005 260);
-  --sidebar-primary: oklch(0.72 0.12 75);
-  --sidebar-primary-foreground: oklch(0.1 0.01 75);
-  --sidebar-accent: oklch(0.18 0.01 260);
-  --sidebar-accent-foreground: oklch(0.92 0.005 260);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.72 0.12 75);
+  --radius: var(--ui-radius-lg);
+  --primary: var(--ui-brand);
+  --primary-foreground: var(--ui-brand-ink);
+  --background: var(--ui-bg);
+  --foreground: var(--ui-text);
+  --card: var(--ui-surface-1);
+  --card-foreground: var(--ui-text);
+  --popover: var(--ui-surface-2);
+  --popover-foreground: var(--ui-text);
+  --secondary: var(--ui-surface-2);
+  --secondary-foreground: var(--ui-text-soft);
+  --muted: var(--ui-surface-3);
+  --muted-foreground: var(--ui-text-muted);
+  --accent: var(--ui-brand-soft);
+  --accent-foreground: var(--ui-brand-strong);
+  --destructive: var(--ui-danger);
+  --destructive-foreground: var(--ui-text);
+  --border: var(--ui-line-subtle);
+  --input: var(--ui-line);
+  --ring: var(--ui-focus);
+  --chart-1: var(--ui-brand);
+  --chart-2: var(--match-away);
+  --chart-3: var(--ui-success);
+  --chart-4: var(--ui-warning);
+  --chart-5: var(--rarity-immortal);
+  --sidebar: var(--ui-surface-1);
+  --sidebar-foreground: var(--ui-text);
+  --sidebar-primary: var(--ui-brand);
+  --sidebar-primary-foreground: var(--ui-brand-ink);
+  --sidebar-accent: var(--ui-surface-3);
+  --sidebar-accent-foreground: var(--ui-text);
+  --sidebar-border: var(--ui-line-subtle);
+  --sidebar-ring: var(--ui-focus);
 }
 
 .dark {
-  --primary: oklch(0.72 0.12 75);
-  --primary-foreground: oklch(0.1 0.01 75);
-  --background: oklch(0.08 0.01 260);
-  --foreground: oklch(0.92 0.005 260);
-  --card: oklch(0.11 0.01 260);
-  --card-foreground: oklch(0.92 0.005 260);
-  --popover: oklch(0.11 0.01 260);
-  --popover-foreground: oklch(0.92 0.005 260);
-  --secondary: oklch(0.15 0.01 260);
-  --secondary-foreground: oklch(0.75 0.005 260);
-  --muted: oklch(0.18 0.01 260);
-  --muted-foreground: oklch(0.55 0.01 260);
-  --accent: oklch(0.18 0.01 260);
-  --accent-foreground: oklch(0.92 0.005 260);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.72 0.12 75);
-  --chart-1: oklch(0.72 0.12 75);
-  --chart-2: oklch(0.55 0.2 260);
-  --chart-3: oklch(0.65 0.18 145);
-  --chart-4: oklch(0.65 0.2 30);
-  --chart-5: oklch(0.55 0.22 300);
-  --sidebar: oklch(0.11 0.01 260);
-  --sidebar-foreground: oklch(0.92 0.005 260);
-  --sidebar-primary: oklch(0.72 0.12 75);
-  --sidebar-primary-foreground: oklch(0.1 0.01 75);
-  --sidebar-accent: oklch(0.18 0.01 260);
-  --sidebar-accent-foreground: oklch(0.92 0.005 260);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.72 0.12 75);
+  --primary: var(--ui-brand);
+  --primary-foreground: var(--ui-brand-ink);
+  --background: var(--ui-bg);
+  --foreground: var(--ui-text);
+  --card: var(--ui-surface-1);
+  --card-foreground: var(--ui-text);
+  --popover: var(--ui-surface-2);
+  --popover-foreground: var(--ui-text);
+  --secondary: var(--ui-surface-2);
+  --secondary-foreground: var(--ui-text-soft);
+  --muted: var(--ui-surface-3);
+  --muted-foreground: var(--ui-text-muted);
+  --accent: var(--ui-brand-soft);
+  --accent-foreground: var(--ui-brand-strong);
+  --destructive: var(--ui-danger);
+  --destructive-foreground: var(--ui-text);
+  --border: var(--ui-line-subtle);
+  --input: var(--ui-line);
+  --ring: var(--ui-focus);
+  --chart-1: var(--ui-brand);
+  --chart-2: var(--match-away);
+  --chart-3: var(--ui-success);
+  --chart-4: var(--ui-warning);
+  --chart-5: var(--rarity-immortal);
+  --sidebar: var(--ui-surface-1);
+  --sidebar-foreground: var(--ui-text);
+  --sidebar-primary: var(--ui-brand);
+  --sidebar-primary-foreground: var(--ui-brand-ink);
+  --sidebar-accent: var(--ui-surface-3);
+  --sidebar-accent-foreground: var(--ui-text);
+  --sidebar-border: var(--ui-line-subtle);
+  --sidebar-ring: var(--ui-focus);
 }
 
 @layer base {
@@ -124,7 +123,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Rajdhani', sans-serif;
+    font-family: var(--font-ui), sans-serif;
     overscroll-behavior-y: none; /* 📱 reforça o bloqueio do pull-to-refresh no mobile */
   }
   button:not(:disabled),
@@ -179,20 +178,20 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0F0F1A;
+  background: var(--ui-surface-inset);
 }
 ::-webkit-scrollbar-thumb {
-  background: #2A2A3A;
-  border-radius: 3px;
+  background: var(--ui-line-strong);
+  border-radius: var(--ui-radius-sm);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #C9A84C44;
+  background: var(--ui-brand);
 }
 
 /* Select styling */
 select option {
-  background: #0F0F1A;
-  color: #FFFFFF;
+  background: var(--ui-surface-1);
+  color: var(--ui-text);
 }
 
 /* ── Global polish ──────────────────────────────────────────── */
@@ -207,8 +206,8 @@ html {
 
 /* Branded text selection */
 ::selection {
-  background: #C9A84C;
-  color: #080810;
+  background: var(--ui-brand);
+  color: var(--ui-brand-ink);
 }
 
 /* Tabular numbers for stats/scores so digits don't jitter */
@@ -219,12 +218,12 @@ html {
 
 /* Reusable elevated-surface treatment (subtle top highlight + depth) */
 .surface-card {
-  background: linear-gradient(180deg, #12121f 0%, #0d0d18 100%);
-  border: 1px solid #1c1c2c;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  background: linear-gradient(180deg, var(--ui-surface-2) 0%, var(--ui-surface-1) 100%);
+  border: 1px solid var(--ui-line-subtle);
+  box-shadow: var(--ui-shadow-panel);
 }
 
 /* Soft radial spotlight used behind heroes/headers for depth */
 .spotlight-gold {
-  background: radial-gradient(60% 60% at 50% 0%, rgba(201, 168, 76, 0.10) 0%, transparent 70%);
+  background: radial-gradient(60% 60% at 50% 0%, var(--ui-brand-soft) 0%, transparent 70%);
 }

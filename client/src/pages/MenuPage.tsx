@@ -3,10 +3,12 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gamepad2, Trophy, Plus, LogIn, LogOut, Swords, FlaskConical, Target, ListOrdered, BarChart3, BookOpen } from 'lucide-react';
+import { Gamepad2, Trophy, Plus, LogIn, LogOut, BookOpen } from 'lucide-react';
 import HowToPlayModal from '../components/game/HowToPlayModal';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
+import { competitionFormatSummary, MAX_LEAGUE_ROUNDS, MAX_QUALIFIED_TEAMS, MIN_LEAGUE_ROUNDS, MIN_QUALIFIED_TEAMS, validateCompetitionFormat } from '../lib/competition';
+import { AppShell, Button, ChoiceCard, Input, Panel, StatusBanner } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
@@ -26,6 +28,9 @@ export default function MenuPage() {
   const [showGuide, setShowGuide] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
+  const [onlineLeagueRounds, setOnlineLeagueRounds] = useState(String(state.competitionFormat.leagueRounds));
+  const [onlineQualifiedTeams, setOnlineQualifiedTeams] = useState(String(state.competitionFormat.qualifiedTeams));
+  const [onlineFormatError, setOnlineFormatError] = useState<string | null>(null);
 
   const handlePlaySolo = () => {
     if (!playerName.trim()) return;
@@ -35,7 +40,17 @@ export default function MenuPage() {
 
   const handleCreateRoom = () => {
     if (!playerName.trim()) return;
-    createRoom(playerName.trim());
+    const competitionFormat = {
+      leagueRounds: Number(onlineLeagueRounds),
+      qualifiedTeams: Number(onlineQualifiedTeams),
+    };
+    const error = validateCompetitionFormat(competitionFormat);
+    if (error) {
+      setOnlineFormatError(error);
+      return;
+    }
+    setOnlineFormatError(null);
+    createRoom(playerName.trim(), competitionFormat);
   };
 
   const handleJoinRoom = () => {
@@ -51,11 +66,9 @@ export default function MenuPage() {
   // If already in lobby, render Lobby view
   if (state.roomCode && state.phase === 'lobby') {
     return (
-      <div className="min-h-screen relative overflow-hidden" style={{ background: '#080810' }}>
-        <div className="absolute inset-0" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'center bottom', opacity: 0.3 }} />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(8,8,16,0.3) 0%, rgba(8,8,16,0.7) 50%, rgba(8,8,16,0.95) 100%)' }} />
+      <AppShell immersive backgroundImage={HERO_BG} className="relative overflow-hidden">
         
-        <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 max-w-md mx-auto">
+        <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 max-w-md mx-auto">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-6">
             <img src={LOGO_URL} alt="UCL Logo" className="w-10 h-10 object-contain" />
@@ -67,8 +80,7 @@ export default function MenuPage() {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full rounded-2xl p-5 border" 
-            style={{ background: '#0F0F1A', borderColor: '#1A1A2A' }}
+            className="ui-panel w-full p-5"
           >
             {/* Room Code Header */}
             <div className="text-center pb-4 border-b" style={{ borderColor: '#1A1A2A' }}>
@@ -107,6 +119,16 @@ export default function MenuPage() {
             </div>
 
             {/* Host Options */}
+            <div className="mt-4 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
+              <span className="text-xs font-bold text-[#C9A84C] tracking-widest block uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                FORMATO DA COMPETIÇÃO
+              </span>
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                {competitionFormatSummary(state.competitionFormat)}
+              </p>
+            </div>
+
+            {/* Host Options */}
             {state.isHost ? (
               <div className="mt-4 pt-4 border-t space-y-4" style={{ borderColor: '#1A1A2A' }}>
                 <div>
@@ -115,10 +137,11 @@ export default function MenuPage() {
                   </label>
                   <div className="grid grid-cols-5 gap-1">
                     {DIFFICULTY_LEVELS.map(d => (
-                      <button
+                      <ChoiceCard
                         key={d.id}
+                        selected={state.difficulty === d.id}
                         onClick={() => setDifficultyOnline(d.id)}
-                        className="py-1 text-[10px] font-bold rounded border transition-all"
+                        className="min-h-8 rounded border px-1 py-1 text-[10px] font-bold transition-all"
                         style={{
                           fontFamily: 'Rajdhani, sans-serif',
                           background: state.difficulty === d.id ? '#C9A84C' : '#08080f',
@@ -127,27 +150,21 @@ export default function MenuPage() {
                         }}
                       >
                         {d.name}
-                      </button>
+                      </ChoiceCard>
                     ))}
                   </div>
                 </div>
 
-                <button
+                <Button
+                  type="button"
+                  intent="primary"
+                  size="large"
                   onClick={startSetupOnline}
                   disabled={state.onlinePlayers.length < 2}
-                  className="w-full py-3.5 rounded-xl font-black text-lg tracking-widest uppercase transition-all"
-                  style={{
-                    fontFamily: 'Bebas Neue, sans-serif',
-                    background: state.onlinePlayers.length >= 2 
-                      ? 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)' 
-                      : '#333',
-                    color: state.onlinePlayers.length >= 2 ? '#080810' : '#666',
-                    cursor: state.onlinePlayers.length >= 2 ? 'pointer' : 'not-allowed',
-                    boxShadow: state.onlinePlayers.length >= 2 ? '0 0 25px rgba(201,168,76,0.3)' : 'none'
-                  }}
+                  className="w-full"
                 >
                   {state.onlinePlayers.length >= 2 ? 'INICIAR PARTIDA →' : 'AGUARDANDO JOGADORES (MÍN. 2)'}
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="mt-4 pt-4 border-t text-center" style={{ borderColor: '#1A1A2A' }}>
@@ -159,37 +176,30 @@ export default function MenuPage() {
             )}
           </motion.div>
 
-          <button
+          <Button
+            type="button"
+            intent="danger"
             onClick={handleLeaveLobby}
-            className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-widest transition-all"
-            style={{ fontFamily: 'Rajdhani, sans-serif' }}
+            className="mt-4 min-h-9 px-3 text-xs"
           >
             <LogOut size={14} /> SAIR DA SALA
-          </button>
+          </Button>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: '#080810' }}>
-      {/* Background — estádio + gradiente + brilho dourado + vinheta (atmosfera premium) */}
-      <div className="absolute inset-0" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'center bottom', opacity: 0.38 }} />
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(8,8,16,0.35) 0%, rgba(8,8,16,0.6) 45%, rgba(8,8,16,0.97) 100%)' }} />
-      {/* brilho dourado radial atrás do herói */}
-      <div className="absolute inset-x-0 top-0 h-[70vh] pointer-events-none" style={{ background: 'radial-gradient(60% 55% at 50% 32%, rgba(201,168,76,0.16), transparent 70%)' }} />
-      {/* vinheta */}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(3,3,8,0.85) 100%)' }} />
+    <AppShell immersive backgroundImage={HERO_BG} className="relative overflow-hidden">
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4">
+      <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 py-8">
         {/* Eyebrow */}
         <motion.span
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="text-[10px] sm:text-xs font-bold uppercase mb-3"
-          style={{ fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.42em', color: '#B79A54' }}
+          className="ui-kicker mb-3 text-center tracking-[0.32em] sm:tracking-[0.42em]"
         >
           Ultimate Champions League
         </motion.span>
@@ -202,12 +212,11 @@ export default function MenuPage() {
           className="flex flex-col items-center"
         >
           <div className="relative flex items-center justify-center">
-            <div className="absolute pointer-events-none" style={{ width: 240, height: 240, background: 'radial-gradient(circle, rgba(201,168,76,0.22), transparent 62%)', filter: 'blur(4px)' }} />
             <img src={LOGO_URL} alt="UCL Immortals" className="relative w-36 h-36 sm:w-44 sm:h-44 object-contain" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
           </div>
-          <h1 className="mt-2 font-black leading-[0.85] tracking-wider text-center" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2.8rem, 11vw, 4.6rem)' }}>
-            <span className="block text-[#E8C84A]" style={{ textShadow: '0 0 44px rgba(201,168,76,0.55), 0 2px 4px rgba(0,0,0,0.85)' }}>UCL</span>
-            <span className="block text-white" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.85)' }}>IMMORTALS</span>
+          <h1 className="mt-2 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] font-normal leading-[0.85] tracking-wider">
+            <span className="block text-[var(--ui-brand-strong)]">UCL</span>
+            <span className="block text-[var(--ui-text)]">IMMORTALS</span>
           </h1>
         </motion.div>
 
@@ -218,9 +227,9 @@ export default function MenuPage() {
           transition={{ delay: 0.25, duration: 0.6 }}
           className="flex flex-col items-center mt-4 mb-7"
         >
-          <div className="h-px w-40 sm:w-56" style={{ background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)' }} />
-          <p className="mt-3 text-center text-sm sm:text-base" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#AFB4C6', maxWidth: '34ch' }}>
-            Monte seu time de lendas. Conquiste a <span className="font-bold text-[#E8C84A]">imortalidade</span>.
+          <div className="h-px w-40 bg-[var(--ui-brand)] opacity-70 sm:w-56" />
+          <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base">
+            Monte um elenco histórico e competitivo. Conquiste o título da <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
           </p>
         </motion.div>
 
@@ -236,51 +245,40 @@ export default function MenuPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="flex flex-col gap-3 w-full max-w-xs"
             >
-              <button
+              <Button
+                type="button"
+                intent="primary"
+                size="large"
                 onClick={() => setMenuMode('solo')}
-                className="py-4 rounded-xl font-black text-xl tracking-widest uppercase transition-all hover:scale-[1.02]"
-                style={{
-                  fontFamily: 'Bebas Neue, sans-serif',
-                  background: 'linear-gradient(135deg, #1B4FD8 0%, #1B4FD8AA 100%)',
-                  color: '#FFF',
-                  boxShadow: '0 0 25px rgba(27,79,216,0.3)',
-                  border: '1px solid #1B4FD888'
-                }}
+                className="w-full"
               >
                 <span className="inline-flex items-center justify-center gap-2.5">
                   <Gamepad2 size={22} strokeWidth={2.5} /> JOGAR SOLO
                 </span>
-              </button>
+              </Button>
 
-              <button
+              <Button
+                type="button"
+                intent="secondary"
+                size="large"
                 onClick={() => setMenuMode('online')}
-                className="py-4 rounded-xl font-black text-xl tracking-widest uppercase transition-all hover:scale-[1.02]"
-                style={{
-                  fontFamily: 'Bebas Neue, sans-serif',
-                  background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
-                  color: '#080810',
-                  boxShadow: '0 0 25px rgba(201,168,76,0.4)'
-                }}
+                className="w-full"
               >
                 <span className="inline-flex items-center justify-center gap-2.5">
                   <Trophy size={22} strokeWidth={2.5} /> MULTIPLAYER ONLINE
                 </span>
-              </button>
+              </Button>
 
-              <button
+              <Button
+                type="button"
+                intent="ghost"
                 onClick={() => setShowGuide(true)}
-                className="py-3 rounded-xl font-black text-sm tracking-widest uppercase transition-all hover:scale-[1.02]"
-                style={{
-                  fontFamily: 'Rajdhani, sans-serif',
-                  background: '#0F0F1A',
-                  color: '#9AA8C8',
-                  border: '1px solid #2A2A3A',
-                }}
+                className="w-full border border-[var(--ui-line-subtle)]"
               >
                 <span className="inline-flex items-center justify-center gap-2">
                   <BookOpen size={16} strokeWidth={2.5} /> COMO JOGAR
                 </span>
-              </button>
+              </Button>
             </motion.div>
           )}
 
@@ -296,7 +294,7 @@ export default function MenuPage() {
                 <label className="block text-xs font-bold mb-2 tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   NOME DO SEU TIME
                 </label>
-                <input
+                <Input
                   type="text"
                   value={playerName}
                   onChange={e => setPlayerName(e.target.value)}
@@ -304,32 +302,29 @@ export default function MenuPage() {
                   placeholder="Ex: Real Madrid Lendário"
                   maxLength={20}
                   autoFocus
-                  className="w-full px-4 py-3 rounded-lg text-white font-semibold outline-none"
-                  style={{ background: '#0F0F1A', border: '1px solid #C9A84C66', fontFamily: 'Rajdhani, sans-serif', fontSize: '16px' }}
+                  className="ui-input"
                 />
               </div>
 
               <div className="flex gap-2">
-                <button
+                <Button
+                  type="button"
+                  intent="ghost"
                   onClick={() => setMenuMode('selection')}
-                  className="py-3 px-4 rounded-lg font-bold text-xs uppercase tracking-wider transition-all border"
-                  style={{ fontFamily: 'Rajdhani, sans-serif', borderColor: '#1A1A2A', background: '#0F0F1A', color: '#8A8A9A' }}
+                  className="border border-[var(--ui-line-subtle)] px-4 text-xs"
                 >
                   Voltar
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
+                  intent="primary"
                   onClick={handlePlaySolo}
                   disabled={!playerName.trim()}
-                  className="flex-1 py-3 rounded-lg font-black text-md uppercase tracking-wider transition-all"
-                  style={{
-                    fontFamily: 'Bebas Neue, sans-serif',
-                    background: playerName.trim() ? 'linear-gradient(135deg, #1B4FD8 0%, #1B4FD8 100%)' : '#333',
-                    color: playerName.trim() ? '#FFF' : '#666',
-                    cursor: playerName.trim() ? 'pointer' : 'not-allowed'
-                  }}
+                  className="flex-1"
+
                 >
                   Avançar Setup →
-                </button>
+                </Button>
               </div>
             </motion.div>
           )}
@@ -346,59 +341,88 @@ export default function MenuPage() {
                 <label className="block text-xs font-bold mb-2 tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   NOME DO SEU TIME
                 </label>
-                <input
+                <Input
                   type="text"
                   value={playerName}
                   onChange={e => setPlayerName(e.target.value)}
                   placeholder="Ex: Real Madrid Lendário"
                   maxLength={20}
                   autoFocus
-                  className="w-full px-4 py-3 rounded-lg text-white font-semibold outline-none mb-3"
-                  style={{ background: '#0F0F1A', border: '1px solid #C9A84C66', fontFamily: 'Rajdhani, sans-serif', fontSize: '16px' }}
+                  className="ui-input mb-3"
                 />
               </div>
 
+              <Panel tone="inset" className="space-y-3 p-3">
+                <div>
+                  <div className="text-xs font-bold tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    FORMATO DA COMPETIÇÃO
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    Defina livremente a duração da liga e a linha de classificação. O sistema bloqueia valores que não fecham com o mata-mata.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    Rodadas da liga
+                    <Input
+                      type="number"
+                      min={MIN_LEAGUE_ROUNDS}
+                      max={MAX_LEAGUE_ROUNDS}
+                      step={1}
+                      value={onlineLeagueRounds}
+                      onChange={e => { setOnlineLeagueRounds(e.target.value); setOnlineFormatError(null); }}
+                      className="ui-input mt-1 text-center"
+                    />
+                  </label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    Times classificados
+                    <Input
+                      type="number"
+                      min={MIN_QUALIFIED_TEAMS}
+                      max={MAX_QUALIFIED_TEAMS}
+                      step={1}
+                      value={onlineQualifiedTeams}
+                      onChange={e => { setOnlineQualifiedTeams(e.target.value); setOnlineFormatError(null); }}
+                      className="ui-input mt-1 text-center"
+                    />
+                  </label>
+                </div>
+                {onlineFormatError && (
+                  <StatusBanner tone="danger" role="alert">{onlineFormatError}</StatusBanner>
+                )}
+              </Panel>
+
               <div className="grid grid-cols-2 gap-2">
-                <button
+                <Button
+                  type="button"
+                  intent="primary"
                   onClick={handleCreateRoom}
                   disabled={!playerName.trim()}
-                  className="py-3.5 rounded-lg font-black text-sm uppercase tracking-wider transition-all"
-                  style={{
-                    fontFamily: 'Bebas Neue, sans-serif',
-                    background: playerName.trim() ? 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 100%)' : '#333',
-                    color: playerName.trim() ? '#080810' : '#666',
-                    cursor: playerName.trim() ? 'pointer' : 'not-allowed'
-                  }}
                 >
                   <span className="inline-flex items-center justify-center gap-1.5">
                     <Plus size={16} strokeWidth={3} /> CRIAR SALA
                   </span>
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
+                  intent="secondary"
                   onClick={() => setMenuMode('online_join')}
                   disabled={!playerName.trim()}
-                  className="py-3.5 rounded-lg font-black text-sm uppercase tracking-wider transition-all border"
-                  style={{
-                    fontFamily: 'Bebas Neue, sans-serif',
-                    borderColor: playerName.trim() ? '#C9A84C66' : '#1A1A2A',
-                    background: '#0F0F1A',
-                    color: playerName.trim() ? '#C9A84C' : '#666',
-                    cursor: playerName.trim() ? 'pointer' : 'not-allowed'
-                  }}
                 >
                   <span className="inline-flex items-center justify-center gap-1.5">
                     <LogIn size={16} strokeWidth={3} /> ENTRAR EM SALA
                   </span>
-                </button>
+                </Button>
               </div>
 
-              <button
+              <Button
+                type="button"
+                intent="ghost"
                 onClick={() => setMenuMode('selection')}
-                className="w-full py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all border text-center block text-gray-500 border-[#1A1A2A] bg-transparent"
-                style={{ fontFamily: 'Rajdhani, sans-serif' }}
+                className="w-full"
               >
                 Voltar ao Menu principal
-              </button>
+              </Button>
             </motion.div>
           )}
 
@@ -415,87 +439,43 @@ export default function MenuPage() {
                   <label className="block text-xs font-bold mb-1 tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     CÓDIGO DA SALA (4 LETRAS)
                   </label>
-                  <input
+                  <Input
                     type="text"
                     value={roomCodeInput}
                     onChange={e => setRoomCodeInput(e.target.value.toUpperCase())}
                     placeholder="EX: ABCD"
                     maxLength={4}
                     autoFocus
-                    className="w-full px-4 py-3 rounded-lg text-white font-black text-center tracking-widest outline-none text-xl"
-                    style={{ background: '#0F0F1A', border: '1px solid #C9A84C66', fontFamily: 'Bebas Neue, sans-serif' }}
+                    className="ui-input text-center font-display text-xl tracking-widest"
                   />
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <button
+                <Button
+                  type="button"
+                  intent="ghost"
                   onClick={() => setMenuMode('online')}
-                  className="py-3 px-4 rounded-lg font-bold text-xs uppercase tracking-wider transition-all border"
-                  style={{ fontFamily: 'Rajdhani, sans-serif', borderColor: '#1A1A2A', background: '#0F0F1A', color: '#8A8A9A' }}
                 >
                   Voltar
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
+                  intent="primary"
                   onClick={handleJoinRoom}
                   disabled={!roomCodeInput.trim() || roomCodeInput.length < 4}
-                  className="flex-1 py-3 rounded-lg font-black text-md uppercase tracking-wider transition-all"
-                  style={{
-                    fontFamily: 'Bebas Neue, sans-serif',
-                    background: (roomCodeInput.trim().length === 4) ? 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 100%)' : '#333',
-                    color: (roomCodeInput.trim().length === 4) ? '#080810' : '#666',
-                    cursor: (roomCodeInput.trim().length === 4) ? 'pointer' : 'not-allowed'
-                  }}
+                  className="flex-1"
                 >
                   CONECTAR SALA ✓
-                </button>
+                </Button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Feature pills */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className="flex flex-wrap gap-3 mt-10 justify-center"
-        >
-          {[
-            { Icon: Swords, label: 'Draft de Lendas' },
-            { Icon: FlaskConical, label: 'Sistema de Química' },
-            { Icon: Target, label: 'Simulação Tática' },
-            { Icon: ListOrdered, label: 'Liga + Mata-Mata' },
-            { Icon: BarChart3, label: 'Relatório Imortal' },
-          ].map(({ Icon, label }) => (
-            <div
-              key={label}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
-              style={{
-                background: 'rgba(201,168,76,0.06)',
-                border: '1px solid rgba(201,168,76,0.22)',
-                color: '#C9B471',
-                fontFamily: 'Rajdhani, sans-serif',
-              }}
-            >
-              <Icon size={13} /> {label}
-            </div>
-          ))}
-        </motion.div>
-
-        {/* No account notice */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.9 }}
-          className="mt-6 text-xs text-gray-600"
-          style={{ fontFamily: 'Rajdhani, sans-serif' }}
-        >
-          Sem cadastro · Sem login · Cada sessão começa do zero
-        </motion.p>
       </div>
 
       <HowToPlayModal open={showGuide} onClose={() => setShowGuide(false)} />
-    </div>
+    </AppShell>
   );
 }

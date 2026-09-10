@@ -23,6 +23,7 @@ import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
 import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
 import MatchFieldView from '../components/game/MatchFieldView';
 import Crest from '../components/game/Crest';
+import { AppShell, Button } from '../design-system';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
@@ -712,6 +713,21 @@ export default function MatchSimPage() {
   };
 
   const handleFinish = () => {
+    // The motor result is authoritative. The screen is only a replay, so never
+    // rebuild a second result from progressive UI state (which can have different
+    // stats and uses player ids instead of per-team statIds).
+    if (replayResult) {
+      if (activeKnockoutMatch) {
+        if (state.mode === 'online' && !state.spectating) notifyMatchWatchedOnline('knockout');
+        dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: replayResult });
+      } else {
+        if (state.mode === 'online') notifyMatchWatchedOnline('league');
+        dispatch({ type: 'FINISH_LEAGUE_MATCH', result: replayResult });
+      }
+      return;
+    }
+
+    // Defensive fallback for an invalid/legacy entry without a precomputed result.
     const allPlayers = [...homeTeam.players, ...awayTeam.players];
 
     // Compute clean sheet and match outcome modifiers just before finishing
@@ -775,9 +791,8 @@ export default function MatchSimPage() {
       playerStats: updatedStats,
     };
 
-    // Online results are authoritative on the server already (this screen is a
-    // replay), so we just return to the league/knockout view. Solo computes
-    // the result locally as before.
+    // Legacy non-replay fallback. Normal campaign flows return above with the
+    // exact MatchResult produced by the engine.
     if (activeKnockoutMatch) {
       // Spectators (eliminated players watching someone else's tie) must NOT notify the
       // advance-gate — they aren't participants in this round.
@@ -1028,7 +1043,7 @@ export default function MatchSimPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col relative overflow-hidden select-none" style={{ background: '#05050a' }}>
+    <AppShell className="h-dvh flex flex-col relative overflow-hidden select-none">
       
       {/* ── 1. GOAL SPLASH SCREEN ── */}
       <AnimatePresence>
@@ -1060,22 +1075,23 @@ export default function MatchSimPage() {
 
       {/* ── Spectator bar: watching someone else's tie → leave whenever you want ── */}
       {state.spectating && (
-        <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 relative z-20" style={{ background: '#0c0c16', borderBottom: '1px solid #171725' }}>
+        <div className="ui-topbar flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 relative z-20">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
             👁️ Assistindo como espectador
           </span>
-          <button
+          <Button
+            type="button"
+            intent="ghost"
             onClick={handleExitSpectator}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black tracking-wider transition-all active:scale-95"
-            style={{ fontFamily: 'Rajdhani, sans-serif', background: '#1a1a2e', border: '1px solid #2A2A3A', color: '#CFCFE0' }}
+            className="min-h-8 border border-[var(--ui-line-subtle)] px-3 text-xs"
           >
             ✕ SAIR DO JOGO
-          </button>
+          </Button>
         </div>
       )}
 
       {/* ── 2. SCOREBOARD HEADER ── */}
-      <div className="flex-shrink-0 border-b relative z-10" style={{ background: '#0b0b14', borderColor: '#171725' }}>
+      <div className="flex-shrink-0 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] relative z-10">
         <div className="py-3 px-3 sm:py-4 sm:px-6">
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
             {/* Home team metadata */}
@@ -1172,7 +1188,7 @@ export default function MatchSimPage() {
 
       {/* ── 2b. SECOND-LEG AGGREGATE BANNER ── */}
       {legNumber === 2 && firstLeg && (
-        <div className="flex-shrink-0 border-b px-3 sm:px-6 py-1.5 flex items-center justify-center gap-3 relative z-10" style={{ background: '#0d0d18', borderColor: '#1a1a2e' }}>
+        <div className="flex-shrink-0 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 sm:px-6 py-1.5 flex items-center justify-center gap-3 relative z-10">
           <span className="text-[9px] sm:text-[10px] font-black tracking-widest" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
             JOGO DE VOLTA
           </span>
@@ -1583,33 +1599,31 @@ export default function MatchSimPage() {
                     <div className="text-2xl sm:text-3xl font-black text-yellow-500 mb-4 tracking-wider" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
                       🏆 {penaltyWinner === homeTeam.id ? homeTeam.name.toUpperCase() : awayTeam.name.toUpperCase()} AVANÇA!
                     </div>
-                    <button
+                    <Button
+                      type="button"
+                      intent="primary"
+                      size="large"
                       onClick={handleFinish}
-                      className="px-8 py-3 rounded-xl font-black text-lg tracking-widest cursor-pointer"
-                      style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #ffd700, #e8c84a)', color: '#080810', boxShadow: '0 0 25px rgba(255, 215, 0, 0.4)' }}
+                      className="px-8"
                     >
                       CONCLUIR →
-                    </button>
+                    </Button>
                   </motion.div>
                 ) : isReplay ? (
                   <div className="inline-flex items-center gap-2 text-sm font-bold text-yellow-500/70" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" /> A DISPUTA ESTÁ SENDO DECIDIDA...
                   </div>
                 ) : (
-                  <button
+                  <Button
+                    type="button"
+                    intent="primary"
+                    size="large"
                     onClick={handleTakePenalty}
                     disabled={state.mode === 'online' && !isSimulatorHost}
-                    className="px-8 py-3.5 rounded-xl font-black text-lg tracking-widest"
-                    style={{
-                      fontFamily: 'Bebas Neue, sans-serif',
-                      background: 'linear-gradient(135deg,#ffd700,#e8c84a)', color: '#080810',
-                      boxShadow: '0 0 20px rgba(234,179,8,0.3)',
-                      opacity: (state.mode === 'online' && !isSimulatorHost) ? 0.5 : 1,
-                      cursor: (state.mode === 'online' && !isSimulatorHost) ? 'not-allowed' : 'pointer',
-                    }}
+                    className="px-8"
                   >
                     {(penaltiesHome.length === penaltiesAway.length) ? 'COBRAR PÊNALTI' : 'DEFENDER PÊNALTI'}
-                  </button>
+                  </Button>
                 )}
               </div>
             </motion.div>
@@ -1618,7 +1632,7 @@ export default function MatchSimPage() {
       </AnimatePresence>
 
       {/* ── 6. FOOTER CONTROL CENTER ── */}
-      <div className="py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-2 sm:gap-4 z-10 flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
+      <div className="ui-topbar py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-2 sm:gap-4 z-10 flex-shrink-0">
         
         {/* Speed selectors and Simulation control — hidden in online broadcast mode */}
         {broadcastMode ? (
@@ -1632,23 +1646,18 @@ export default function MatchSimPage() {
           </div>
         ) : (
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-start">
-          <button
+          <Button
+            type="button"
+            intent={isPlaying ? 'danger' : 'success'}
             onClick={() => setIsPlaying(!isPlaying)}
             disabled={isFinished || penaltyMode || (state.mode === 'online' && !isSimulatorHost)}
-            className="px-5 sm:px-6 py-2.5 rounded-xl font-bold text-sm tracking-wider transition-all"
-            style={{
-              fontFamily: 'Rajdhani, sans-serif',
-              background: isFinished ? '#1a1a2e' : isPlaying ? '#EF4444' : '#22C55E',
-              color: '#fff',
-              opacity: isFinished || (state.mode === 'online' && !isSimulatorHost) ? 0.5 : 1,
-              cursor: isFinished || (state.mode === 'online' && !isSimulatorHost) ? 'not-allowed' : 'pointer',
-            }}
+            className="px-5 sm:px-6"
           >
             <span className="inline-flex items-center gap-1.5">
               {isPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
               {isPlaying ? 'PAUSAR' : 'SIMULAR'}
             </span>
-          </button>
+          </Button>
 
           <div className="flex rounded-lg overflow-hidden border border-gray-700">
             {([1, 2, 4] as const).map(s => (
@@ -1675,33 +1684,26 @@ export default function MatchSimPage() {
         {/* Skip & Conclude Match Actions */}
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-end">
           {!isFinished && !penaltyMode && !broadcastMode && state.mode !== 'online' && (
-            <button
+            <Button
+              type="button"
+              intent="ghost"
               onClick={handleSkip}
-              className="px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm tracking-wider border transition-all"
-              style={{
-                fontFamily: 'Rajdhani, sans-serif',
-                borderColor: '#171725',
-                color: '#8a8a9a',
-                background: 'rgba(255,255,255,0.02)',
-              }}
+              className="border border-[var(--ui-line-subtle)] px-4 sm:px-6"
             >
               <span className="inline-flex items-center gap-1.5"><SkipForward size={15} /> PULAR</span>
-            </button>
+            </Button>
           )}
 
           {isFinished ? (
-            <button
+            <Button
+              type="button"
+              intent="primary"
+              size="large"
               onClick={handleFinish}
-              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-black text-base sm:text-lg tracking-widest cursor-pointer shadow-lg transition-transform hover:scale-[1.03]"
-              style={{
-                fontFamily: 'Bebas Neue, sans-serif',
-                background: 'linear-gradient(135deg, #c9a84c, #e8c84a)',
-                color: '#080810',
-                boxShadow: '0 0 25px rgba(201, 168, 76, 0.4)',
-              }}
+              className="px-6 sm:px-8"
             >
               CONCLUIR →
-            </button>
+            </Button>
           ) : (
             <button
               disabled
@@ -1734,6 +1736,6 @@ export default function MatchSimPage() {
           background: rgba(255,255,255,0.22);
         }
       `}</style>
-    </div>
+    </AppShell>
   );
 }

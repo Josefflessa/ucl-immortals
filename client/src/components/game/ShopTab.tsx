@@ -10,6 +10,7 @@ import { generateStarPackOptions, generateScoutOptions, hasVariant, canAddVarian
 import type { VariantFlag } from '../../lib/gameEngine';
 import { SHOP_COSTS, trainCost, TRAIN_BOOST, TRAIN_ATTRS, TURBINAR_VARIANTS, ShopVariant, TrainAttr } from '../../lib/shop';
 import PlayerCard, { getCardVariants } from './PlayerCard';
+import { Button, Panel, PanelBody } from '../../design-system';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'train' | 'reroll' | 'unique';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
@@ -33,7 +34,7 @@ export default function ShopTab() {
   const buyCoach = (coachId: string) => online ? shopChangeCoachOnline(coachId) : dispatch({ type: 'SHOP_CHANGE_COACH', coachId });
   const buyPlayer = (player: Player, kind: 'unique') => online ? shopBuyPlayerOnline(player, kind) : dispatch({ type: 'SHOP_BUY_PLAYER', player, kind });
   // 🛒 Pacote: COBRA ao abrir (open) → guarda; a escolha (pick) é grátis. Impede re-sortear de graça.
-  const openPack = (kind: 'star' | 'scout', options: Player[]) => online ? shopOpenPackOnline(kind, options) : dispatch({ type: 'SHOP_OPEN_PACK', kind, options });
+  const openPack = (kind: 'star' | 'scout', options: Player[], position?: string) => online ? shopOpenPackOnline(kind, position) : dispatch({ type: 'SHOP_OPEN_PACK', kind, options });
   const pickPack = (player: Player) => online ? shopPickPackOnline(player) : dispatch({ type: 'SHOP_PICK_PACK', player });
   const buyTurbinar = (playerId: string, variant: ShopVariant) => online ? shopTurbinarOnline(playerId, variant) : dispatch({ type: 'SHOP_TURBINAR', playerId, variant });
   const removeVariant = (playerId: string, variantKey?: VariantFlag) => online ? shopRemoveVariantOnline(playerId, variantKey) : dispatch({ type: 'SHOP_REMOVE_VARIANT', playerId, variantKey });
@@ -45,7 +46,7 @@ export default function ShopTab() {
   const close = () => { setActive(null); setSelPlayerId(null); setUniqueWarn(null); };
 
   const ITEMS: { id: ItemId; icon: string; name: string; cost: number | 'dyn'; color: string; desc: string }[] = [
-    { id: 'unique', icon: '⭐', name: 'CARTAS ÚNICAS', cost: SHOP_COSTS.uniqueCard, color: '#F0E6C0', desc: 'Lendas de raridade ÚNICA — overall 99, visual exclusivo. Aceitam 2 características. Uma de cada.' },
+    { id: 'unique', icon: '⭐', name: 'CARTAS ÚNICAS', cost: SHOP_COSTS.uniqueCard, color: '#F0E6C0', desc: 'Jogadores especiais de raridade ÚNICA — overall 99, visual exclusivo. Aceitam 2 características. Uma de cada.' },
     { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: SHOP_COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
     { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador. Só em quem NÃO tem característica.' },
     { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: SHOP_COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
@@ -77,20 +78,22 @@ export default function ShopTab() {
   const pickScoutPosition = (pos: string) => {
     if (points < SHOP_COSTS.scout) return;
     askConfirm('Caça-Talentos', `Abrir o Caça-Talentos de ${POS_PT[pos] ?? pos} por 💰 ${SHOP_COSTS.scout}? (você escolhe 1 de 4)`, () => {
-      openPack('scout', generateScoutOptions(pos, ownedIds)); // COBRA ao abrir
+      openPack('scout', generateScoutOptions(pos, ownedIds), pos); // COBRA ao abrir
     });
   };
 
   return (
-    <div className="space-y-4">
+    <div className="ui-stack">
       {/* Balance */}
-      <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#171206,#0B0B14)', border: '1px solid #C9A84C55' }}>
-        <div>
-          <div className="text-[10px] font-black tracking-widest" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>SEUS PONTOS</div>
-          <div className="text-[11px] mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>Ganhe mais vencendo partidas com bom saldo de gols.</div>
-        </div>
-        <div className="text-4xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>💰 {points}</div>
-      </div>
+      <Panel tone="accent">
+        <PanelBody className="flex items-center justify-between">
+          <div>
+            <div className="ui-panel__title">Seus pontos</div>
+            <div className="mt-1 text-xs text-[var(--ui-text-muted)]">Ganhe mais vencendo partidas com bom saldo de gols.</div>
+          </div>
+          <div className="font-display text-4xl text-[var(--ui-brand-strong)]">💰 {points}</div>
+        </PanelBody>
+      </Panel>
 
       {/* Item grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -104,8 +107,8 @@ export default function ShopTab() {
               key={item.id}
               onClick={() => canOpen && openItem(item.id)}
               disabled={!canOpen}
-              className="text-left rounded-xl p-4 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: '#0F0F1A', border: `1px solid ${(affordable || item.id === 'unique') ? item.color + '55' : '#1A1A2A'}` }}
+              className="ui-choice p-4 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ borderColor: (affordable || item.id === 'unique') ? item.color + '88' : undefined }}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-2xl">{item.icon}</span>
@@ -126,27 +129,25 @@ export default function ShopTab() {
       <AnimatePresence>
         {active && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
-            style={{ background: 'rgba(6,6,14,0.96)' }} onClick={close}>
+            className="ui-modal-backdrop z-50 p-3 sm:p-4" onClick={close}>
             <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 14 }} transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col max-h-[90vh]"
-              style={{ background: '#0B0B14', border: '1px solid #C9A84C55', boxShadow: '0 0 50px rgba(201,168,76,0.18)' }}>
+              className="ui-modal ui-modal--wide flex max-h-[90vh] flex-col">
 
               {/* Modal header */}
-              <div className="px-5 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: '1px solid #1d1d2f', background: 'linear-gradient(135deg,#171206,#0B0B14)' }}>
-                <h3 className="text-xl font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>
+              <div className="ui-modal__header flex-shrink-0">
+                <h3 className="ui-modal__title">
                   {ITEMS.find(i => i.id === active)?.icon} {ITEMS.find(i => i.id === active)?.name}
                 </h3>
-                <button onClick={close} className="text-gray-400 hover:text-white text-2xl font-black">✕</button>
+                <button onClick={close} aria-label="Fechar" className="ui-icon-btn">✕</button>
               </div>
 
-              <div className="px-4 sm:px-6 py-5 overflow-y-auto flex-1 min-h-0">
-                {/* ⭐ CARTAS ÚNICAS — lendas 99 overall, raridade Única */}
+              <div className="ui-modal__body flex-1">
+                {/* ⭐ CARTAS ÚNICAS — jogadores especiais, overall 99, raridade Única */}
                 {active === 'unique' && (
                   <div>
                     <p className="text-xs mb-2" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                      Lendas de raridade <b style={{ color: '#F0E6C0' }}>ÚNICA</b> — <b style={{ color: '#FFF' }}>overall 99</b>, visual exclusivo. −{SHOP_COSTS.uniqueCard} pontos cada · uma de cada, entra no banco.
+                      Jogadores especiais de raridade <b style={{ color: '#F0E6C0' }}>ÚNICA</b> — <b style={{ color: '#FFF' }}>overall 99</b>, visual exclusivo. −{SHOP_COSTS.uniqueCard} pontos cada · uma de cada, entra no banco.
                     </p>
                     <div className="mb-3 text-[11px] font-bold px-3 py-2 rounded-lg flex items-start gap-2" style={{ background: '#F0E6C014', border: '1px solid #F0E6C033', color: '#EAD9A0', fontFamily: 'Rajdhani, sans-serif' }}>
                       <span className="text-sm leading-none">✨</span>
@@ -394,27 +395,25 @@ export default function ShopTab() {
       {/* 🛒 Confirmação de compra (premium) — acima do modal do item */}
       <AnimatePresence>
         {confirmCfg && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setConfirmCfg(null)}>
+          <div className="ui-modal-backdrop z-[70]" onClick={() => setConfirmCfg(null)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.94, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.94 }}
-              className="w-full max-w-sm rounded-2xl p-5 text-center" style={{ background: '#0b0b14', border: '1px solid #C9A84C77' }}
+              className="ui-modal max-w-sm border-[var(--ui-brand)] p-5 text-center"
               onClick={e => e.stopPropagation()}
             >
               <div className="text-3xl mb-1">🛒</div>
-              <h3 className="text-lg font-black tracking-widest uppercase mb-1" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>{confirmCfg.title}</h3>
-              <p className="text-[13px] mb-2" style={{ color: '#C8D0D4', fontFamily: 'Rajdhani, sans-serif' }}>{confirmCfg.message}</p>
-              <p className="text-[11px] mb-4" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>Seu saldo: 💰 {points}</p>
+              <h3 className="ui-modal__title mb-2">{confirmCfg.title}</h3>
+              <p className="mb-2 text-sm text-[var(--ui-text-soft)]">{confirmCfg.message}</p>
+              <p className="mb-4 text-xs text-[var(--ui-text-muted)]">Seu saldo: 💰 {points}</p>
               <div className="flex gap-2">
-                <button onClick={() => setConfirmCfg(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#17171f', color: '#9A9AA5' }}>
+                <Button intent="ghost" className="flex-1" onClick={() => setConfirmCfg(null)}>
                   CANCELAR
-                </button>
-                <button
+                </Button>
+                <Button intent="primary" className="flex-1"
                   onClick={() => { const fn = confirmCfg.onConfirm; setConfirmCfg(null); fn(); }}
-                  className="flex-1 py-2.5 rounded-xl font-black tracking-widest transition-transform active:scale-95"
-                  style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg,#C9A84C,#E8C84A)', color: '#080810' }}
                 >
                   CONFIRMAR
-                </button>
+                </Button>
               </div>
             </motion.div>
           </div>

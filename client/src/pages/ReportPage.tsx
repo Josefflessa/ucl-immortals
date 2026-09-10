@@ -18,8 +18,7 @@ import CoachStadiumPanel from '../components/game/CoachStadiumPanel';
 import { stadiumFor } from '../lib/stadium';
 import Crest from '../components/game/Crest';
 import PlayerCard from '../components/game/PlayerCard';
-
-const LOGO_URL = '/icons/logo_ucl.png';
+import { AppShell, Button, PageContainer, TopBar } from '../design-system';
 const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
 
 // ── Stable particle data (computed once at module load) ──────────────────────
@@ -200,12 +199,12 @@ export default function ReportPage() {
   const coach = COACHES.find(c => c.id === playerTeam?.coachId);
   const tacticName = getTacticById(playerTeam?.playStyle).name;
   const teamOverall = (playerTeam && chemData && starters.length === 11)
-    ? Math.round(starters.reduce((s, p) => s + getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, playerTeam.coachId, chemData.total, playerTeam.playStyle, { isSecondary: chemData.secondaryPos[p.id] ?? false }).overall, 0) / 11)
+    ? Math.round(starters.reduce((s, p, idx) => s + getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, playerTeam.coachId, chemData.total, playerTeam.playStyle, { role: FORMATIONS.find(f => f.id === playerTeam.formationId)?.positions[idx]?.role ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false }).overall, 0) / 11)
     : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col overflow-x-hidden" style={{ background: '#050510' }}>
+    <AppShell immersive className="flex flex-col overflow-x-hidden">
 
       {/* ── BACKGROUND: starfield ──────────────────────────────────────────── */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
@@ -252,12 +251,7 @@ export default function ReportPage() {
       )}
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <div className="relative z-10 flex items-center gap-3 px-5 py-3 border-b" style={{ borderColor: '#1A1A2A', background: 'rgba(8,8,16,0.8)' }}>
-        <img src={LOGO_URL} alt="UCL Immortals" className="w-8 h-8 object-contain" />
-        <span className="text-base font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-          UCL IMMORTALS — FIM DE TEMPORADA
-        </span>
-      </div>
+      <TopBar title="UCL IMMORTALS — FIM DE TEMPORADA" />
 
       {/* ── HERO: Champion or Runner-up ────────────────────────────────────── */}
       <div className="relative z-10 flex flex-col items-center justify-center py-10 sm:py-14 px-4 text-center">
@@ -345,7 +339,7 @@ export default function ReportPage() {
                     className="text-sm mt-1 font-bold tracking-widest"
                     style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}
                   >
-                    CONQUISTOU A UEFA CHAMPIONS LEAGUE!
+                    CONQUISTOU A ULTIMATE CHAMPIONS LEAGUE!
                   </motion.p>
                 </motion.div>
               )}
@@ -382,7 +376,7 @@ export default function ReportPage() {
       </div>
 
       {/* ── SCROLLABLE CONTENT ────────────────────────────────────────────── */}
-      <div className="relative z-10 flex-1 px-4 pb-10 max-w-2xl mx-auto w-full space-y-5">
+      <PageContainer narrow className="relative z-10 flex-1 space-y-5">
 
         {/* Stats grid */}
         <AnimatePresence>
@@ -650,25 +644,17 @@ export default function ReportPage() {
 
         {/* Play again */}
         {phase >= 4 && (
-          <motion.button
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
+          <Button
+            type="button"
+            intent="primary"
+            size="large"
             onClick={() => dispatch({ type: 'RESET_GAME' })}
-            className="w-full py-5 rounded-xl font-black text-2xl tracking-widest mt-2"
-            style={{
-              fontFamily: 'Bebas Neue, sans-serif',
-              background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
-              color: '#080810',
-              boxShadow: '0 0 40px rgba(201,168,76,0.35)',
-            }}
+            className="mt-2 w-full"
           >
             🔄 JOGAR NOVAMENTE
-          </motion.button>
+          </Button>
         )}
-      </div>
-    </div>
+      </PageContainer>
+    </AppShell>
   );
 }

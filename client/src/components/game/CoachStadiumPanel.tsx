@@ -4,6 +4,7 @@ import { Stadium, DEFAULT_STADIUM, stadiumFor } from '../../lib/stadium';
 import { PRIME_COST, PRIME_WINS_REQUIRED } from '../../lib/shop';
 import CoachCard from './CoachCard';
 import StadiumCard from './StadiumCard';
+import { Button } from '../../design-system';
 
 const ATTR_PT: Record<string, string> = { pace: 'Ritmo', shooting: 'Finalização', passing: 'Passe', dribbling: 'Drible', defending: 'Defesa', physical: 'Físico', vision: 'Visão', composure: 'Compostura' };
 
@@ -77,10 +78,10 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
   const themedTargetName = primeStadium.themedClub ?? primeStadium.themedNation ?? '';
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${coachPrime ? '#C9A84C55' : '#1A1A2A'}` }}>
-      <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
-        <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>TÉCNICO &amp; ESTÁDIO</span>
-        {coachPrime && <span className="text-[9px] font-black px-1.5 py-0.5 rounded leading-none" style={{ background: 'linear-gradient(90deg, #C9A84C, #E8C84A)', color: '#0A0A12', fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.1em' }}>PRIME</span>}
+    <div className="ui-panel overflow-hidden">
+      <div className="ui-panel__header">
+        <span className="ui-panel__title">Técnico &amp; estádio</span>
+        {coachPrime && <span className="ui-badge ui-badge--brand">Prime</span>}
       </div>
 
       <CoachCard coach={coach} formation={formation} isPrime={coachPrime} primePhotoUrl={stadium.coachPhotoUrl} bare />
@@ -88,10 +89,9 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
       {/* Botão de evoluir — na parte do técnico, acima do estádio */}
       {showButton && (
         <div className="px-4 pb-4 -mt-1">
-          <button onClick={() => setShowModal(true)} className="w-full rounded-lg py-2.5 text-[12px] font-black tracking-wide"
-            style={{ background: 'linear-gradient(90deg, #7A5C10, #C9A84C)', color: '#0A0A12', fontFamily: 'Rajdhani, sans-serif' }}>
+          <Button intent="primary" className="w-full" onClick={() => setShowModal(true)}>
             ⭐ EVOLUIR TÉCNICO → PRIME
-          </button>
+          </Button>
         </div>
       )}
 
@@ -99,19 +99,19 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
       <StadiumCard stadium={stadium} bare />
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setShowModal(false)}>
-          <div className="rounded-2xl max-w-md w-full overflow-hidden max-h-[90vh] flex flex-col" style={{ background: '#0B0B14', border: '1px solid #C9A84C55', boxShadow: '0 0 44px rgba(201,168,76,0.18)' }} onClick={e => e.stopPropagation()}>
+        <div className="ui-modal-backdrop z-50" onClick={() => setShowModal(false)}>
+          <div className="ui-modal max-w-md flex max-h-[90vh] flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className="px-5 py-3 border-b flex items-center gap-3 flex-shrink-0" style={{ borderColor: '#1A1A2A', background: 'linear-gradient(90deg, #17120A, #0B0B14)' }}>
+            <div className="ui-modal__header flex-shrink-0 justify-start">
               <span className="text-xl">⭐</span>
               <div className="min-w-0">
-                <div className="text-base font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A', letterSpacing: '0.05em' }}>EVOLUÇÃO PRIME</div>
-                <div className="text-[10px] font-bold truncate" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{coach.name} · {primeStadium.name}</div>
+                <div className="ui-modal__title">Evolução Prime</div>
+                <div className="truncate text-xs text-[var(--ui-text-muted)]">{coach.name} · {primeStadium.name}</div>
               </div>
             </div>
 
             {/* Corpo rolável */}
-            <div className="p-5 space-y-4 overflow-y-auto">
+            <div className="ui-modal__body ui-stack">
               {/* Transição do técnico */}
               <TransitionRow
                 label="TÉCNICO"
@@ -139,8 +139,8 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
               />
 
               {/* Mudanças detalhadas */}
-              <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #1A1A2A' }}>
-                <div className="px-3 py-1.5 text-[10px] font-black tracking-widest" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif', background: '#0A0A12', borderBottom: '1px solid #14141F' }}>O QUE MUDA</div>
+              <div className="ui-panel ui-panel--inset overflow-hidden">
+                <div className="ui-panel__header py-2 text-[var(--ui-brand-strong)]">O que muda</div>
                 <ChangeRow icon="🏟️" label="Estádio" from="Padrão" to={primeStadium.name} />
                 <ChangeRow icon="🏠" label="Vantagem em casa" from={`+${DEFAULT_STADIUM.homeAttrBonus} em tudo`} to={`+${primeStadium.homeAttrBonus} em tudo`} />
                 {/* Buff temático explicado (não é um simples de→para) */}
@@ -165,12 +165,11 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             </div>
 
             {/* Ações (fixas no rodapé) */}
-            <div className="p-4 border-t flex gap-2 flex-shrink-0" style={{ borderColor: '#1A1A2A' }}>
-              <button onClick={() => setShowModal(false)} className="flex-1 rounded-lg py-2.5 text-[11px] font-bold" style={{ background: '#1A1A2A', color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Cancelar</button>
-              <button disabled={!canEvolve} onClick={() => { onEvolve?.(); setShowModal(false); }} className="flex-1 rounded-lg py-2.5 text-[11px] font-black"
-                style={{ background: canEvolve ? 'linear-gradient(90deg, #7A5C10, #C9A84C)' : '#1A1A2A', color: canEvolve ? '#0A0A12' : '#5A5A6A', fontFamily: 'Rajdhani, sans-serif', cursor: canEvolve ? 'pointer' : 'not-allowed', opacity: canEvolve ? 1 : 0.6 }}>
+            <div className="ui-modal__footer flex-shrink-0">
+              <Button intent="ghost" className="flex-1" onClick={() => setShowModal(false)}>Cancelar</Button>
+              <Button intent="primary" className="flex-1" disabled={!canEvolve} onClick={() => { onEvolve?.(); setShowModal(false); }}>
                 Confirmar (−{PRIME_COST} pts)
-              </button>
+              </Button>
             </div>
           </div>
         </div>

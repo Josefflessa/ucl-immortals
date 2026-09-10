@@ -11,13 +11,13 @@ const GOLD = '#C9A84C';
 
 // ── small presentational helpers ──────────────────────────────────────────────
 function Card({ children, accent = '#1A1A2A' }: { children: React.ReactNode; accent?: string }) {
-  return <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: `1px solid ${accent}` }}>{children}</div>;
+  return <div className="ui-panel p-4" style={{ borderColor: accent }}>{children}</div>;
 }
 function H({ children }: { children: React.ReactNode }) {
-  return <div className="text-sm font-black tracking-widest mb-1" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF', letterSpacing: '0.12em' }}>{children}</div>;
+  return <div className="ui-panel__title mb-1 text-[var(--ui-text)]">{children}</div>;
 }
 function P({ children }: { children: React.ReactNode }) {
-  return <p className="text-[13px] leading-relaxed" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{children}</p>;
+  return <p className="text-sm leading-relaxed text-[var(--ui-text-soft)]">{children}</p>;
 }
 function Chip({ children, color = GOLD }: { children: React.ReactNode; color?: string }) {
   return <span className="text-[11px] font-black px-2 py-0.5 rounded" style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'Rajdhani, sans-serif' }}>{children}</span>;
@@ -47,8 +47,8 @@ const RARITIES: { r: Rarity; label: string; desc: string }[] = [
   { r: 'bronze', label: 'Bronze', desc: 'Jogadores comuns — a base do elenco.' },
   { r: 'silver', label: 'Prata', desc: 'Bons jogadores, peças confiáveis.' },
   { r: 'gold', label: 'Ouro', desc: 'Craques consagrados.' },
-  { r: 'legendary', label: 'Lendário', desc: 'Lendas do futebol — diferença real.' },
-  { r: 'immortal', label: 'Imortal', desc: 'Os maiores de todos os tempos.' },
+  { r: 'legendary', label: 'Lendário', desc: 'Jogadores históricos — diferença real.' },
+  { r: 'immortal', label: 'Imortal', desc: 'Ícones raros para elevar o elenco.' },
 ];
 
 export default function HowToPlayModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -61,7 +61,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
         <div className="space-y-4">
           <Card accent={`${GOLD}44`}>
             <H>O OBJETIVO</H>
-            <P>Monte o time dos sonhos com lendas da Champions e seja <b style={{ color: GOLD }}>campeão</b>. Você passa por uma fase de liga e depois um mata-mata até a grande final.</P>
+            <P>Monte um elenco histórico e competitivo, combinando jogadores de diferentes épocas, perfis e raridades. Leve seu time ao título da <b style={{ color: GOLD }}>Ultimate Champions League</b> em uma fase de liga e depois um mata-mata até a grande final.</P>
           </Card>
           <Card>
             <H>O PASSO A PASSO</H>
@@ -70,8 +70,8 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
               <Step n={2} title="Escolha a Formação inicial">Define as posições que você vai preencher no draft.</Step>
               <Step n={3} title="Draft">Monte seu XI (11 titulares) + 2 reservas pro banco, escolhendo cartas rodada a rodada. Você tem 4 vetos.</Step>
               <Step n={4} title="Revisão do elenco">Ajuste formação, tática, capitão e cobradores; veja a química.</Step>
-              <Step n={5} title="Liga (8 rodadas)">Jogue contra os outros times. Ganhe pontos e um reforço grátis a cada rodada.</Step>
-              <Step n={6} title="Mata-mata">Os melhores avançam para playoffs → oitavas → quartas → semis → final.</Step>
+              <Step n={5} title="Liga configurável">Jogue contra os outros times. A duração e a linha de classificação são definidas antes do draft; ganhe pontos e um reforço grátis a cada rodada.</Step>
+              <Step n={6} title="Mata-mata">Os melhores avançam para playoffs (quando houver) → oitavas → quartas → semis → final.</Step>
             </div>
           </Card>
           <Card>
@@ -249,7 +249,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
       icon: '🏆', label: 'Mata-Mata',
       body: (
         <div className="space-y-4">
-          <Card accent={`${GOLD}44`}><H>A reta final</H><P>Após as 8 rodadas, os melhores avançam: <b style={{ color: '#FFF' }}>playoffs → oitavas → quartas → semis → final</b>.</P></Card>
+          <Card accent={`${GOLD}44`}><H>A reta final</H><P>Após a fase de liga configurada, os melhores avançam para o mata-mata: <b style={{ color: '#FFF' }}>playoffs (quando houver) → oitavas → quartas → semis → final</b>.</P></Card>
           <Card><H>Ida e volta</H><P>Cada confronto (menos a final) é decidido no <b style={{ color: '#FFF' }}>placar agregado</b> dos dois jogos. A final é jogo único, em campo neutro.</P></Card>
           <Card><H>🏟️ Vantagem de casa</H><P>O mandante leva uma pequena vantagem em cada jogo — exceto na final (campo neutro), que é equilibrada.</P></Card>
           <Card><H>🎯 Empate no agregado</H><P>Vai para prorrogação e, persistindo, <b style={{ color: '#FFF' }}>disputa de pênaltis</b> — onde compostura e o goleiro decidem tudo.</P></Card>
@@ -283,39 +283,32 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
       {open && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[90] flex items-center justify-center p-2 sm:p-4"
-          style={{ background: 'rgba(5,5,14,0.94)' }}
+          className="ui-modal-backdrop z-[90] p-2 sm:p-4"
           onClick={onClose}
         >
           <motion.div
             initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 14 }}
             transition={{ duration: 0.18 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col"
-            style={{ background: '#08080F', border: `1px solid ${GOLD}55`, boxShadow: '0 0 60px rgba(0,0,0,0.7)', maxHeight: '92vh' }}
+            className="ui-modal ui-modal--wide flex max-h-[92vh] flex-col"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid #1A1A2A', background: 'linear-gradient(135deg,#171206,#08080F)' }}>
+            <div className="ui-modal__header flex-shrink-0">
               <div>
-                <h2 className="text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: GOLD }}>COMO JOGAR</h2>
-                <p className="text-[11px] mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>Guia completo do UCL Immortals — do começo ao fim</p>
+                <h2 className="ui-modal__title">Como jogar</h2>
+                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Guia completo do UCL Immortals — do começo ao fim</p>
               </div>
-              <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-black leading-none px-1">✕</button>
+              <button onClick={onClose} aria-label="Fechar" className="ui-icon-btn">✕</button>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1.5 overflow-x-auto px-3 sm:px-4 py-3 flex-shrink-0 scrollbar-none" style={{ borderBottom: '1px solid #1A1A2A' }}>
+            <div className="ui-guide-tabs flex-shrink-0">
               {SECTIONS.map((s, i) => (
                 <button
                   key={s.label}
                   onClick={() => setTab(i)}
-                  className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider transition-all"
-                  style={{
-                    fontFamily: 'Rajdhani, sans-serif',
-                    background: tab === i ? GOLD : '#0F0F1A',
-                    color: tab === i ? '#080810' : '#9A9AAA',
-                    border: `1px solid ${tab === i ? GOLD : '#1A1A2A'}`,
-                  }}
+                  className="ui-tab"
+                  data-active={tab === i}
                 >
                   {s.icon} {s.label}
                 </button>
@@ -323,7 +316,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto px-4 sm:px-6 py-5 flex-1 min-h-0">
+            <div className="ui-modal__body flex-1">
               <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
                 {SECTIONS[tab].body}
               </motion.div>

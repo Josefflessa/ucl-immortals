@@ -3,8 +3,7 @@
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { COACHES } from '../lib/gameData';
-
-const LOGO_URL = '/icons/logo_ucl.png';
+import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 const COACH_ICONS: Record<string, string> = {
   guardiola: '🧠',
@@ -35,70 +34,45 @@ export default function CoachPage() {
     dispatch({ type: 'SET_PHASE', phase: 'formation' });
   };
 
-  return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: '#1A1A2A' }}>
-        <img src={LOGO_URL} alt="UCL Immortals" className="w-8 h-8 object-contain" />
-        <span className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-          UCL IMMORTALS
-        </span>
-        {/* Progress */}
-        <div className="ml-auto flex items-center gap-2">
-          {['Dificuldade', 'Escudo', 'Treinador', 'Formação', 'Draft'].map((step, i) => (
-            <div key={step} className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full" style={{
-                background: i === 2 ? '#C9A84C' : i < 2 ? '#22C55E' : '#333'
-              }} />
-              <span className="text-xs hidden sm:block" style={{
-                color: i === 2 ? '#C9A84C' : i < 2 ? '#22C55E' : '#555',
-                fontFamily: 'Rajdhani, sans-serif',
-              }}>{step}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+  const handleBack = () => {
+    dispatch({ type: 'SET_PHASE', phase: 'crest' });
+  };
 
-      <div className="flex-1 flex flex-col items-center px-4 py-8">
+  return (
+    <AppShell>
+      <TopBar />
+
+      <PageContainer wide>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-4xl"
+          className="mx-auto w-full max-w-4xl"
         >
           {/* Title */}
-          <div className="text-center mb-8">
-            <h2 className="text-4xl font-black tracking-widest mb-2"
-              style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
-              ESCOLHA SEU TREINADOR
-            </h2>
-            <p style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-              O treinador define sua filosofia de jogo e bônus táticos. Jogadores que trabalharam com ele ganham química extra.
-            </p>
-          </div>
+          <SectionHeader
+            kicker="IDENTIDADE TÁTICA · 03"
+            title="Escolha seu treinador"
+            description="O treinador define sua filosofia de jogo e bônus táticos. Jogadores que trabalharam com ele ganham química extra."
+            className="mb-8"
+          />
 
           {/* Coach grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {COACHES.map((coach, i) => {
+            {COACHES.map((coach) => {
               const isSelected = state.selectedCoachId === coach.id;
               const color = COACH_COLORS[coach.id] || '#C9A84C';
               const icon = COACH_ICONS[coach.id] || '⚽';
 
               return (
-                <motion.button
+                <ChoiceCard
                   key={coach.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.08 }}
-                  whileHover={{ scale: 1.02, y: -2 }}
-                  whileTap={{ scale: 0.98 }}
+                  selected={isSelected}
                   onClick={() => handleSelect(coach.id)}
-                  className="text-left rounded-xl p-5 transition-all"
+                  className="ui-choice text-left p-5"
                   style={{
-                    background: isSelected
-                      ? `linear-gradient(135deg, ${color}18 0%, #0F0F1A 100%)`
-                      : '#0F0F1A',
-                    border: `1px solid ${isSelected ? color : '#1A1A2A'}`,
-                    boxShadow: isSelected ? `0 0 25px ${color}33` : 'none',
+                    background: isSelected ? 'var(--ui-surface-2)' : undefined,
+                    border: `1px solid ${isSelected ? 'var(--ui-brand-strong)' : 'var(--ui-line-subtle)'}`,
+                    boxShadow: isSelected ? '0 0 0 1px var(--ui-brand-soft)' : 'none',
                   }}
                 >
                   {/* Icon/Photo + Name */}
@@ -110,7 +84,7 @@ export default function CoachPage() {
                         referrerPolicy="no-referrer"
                         className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
                         style={{
-                          border: `1px solid ${isSelected ? color : '#1A1A2A'}`,
+                          border: `1px solid ${isSelected ? 'var(--ui-brand-strong)' : 'var(--ui-line-subtle)'}`,
                         }}
                       />
                     ) : (
@@ -129,7 +103,7 @@ export default function CoachPage() {
                         className="font-black text-lg leading-tight"
                         style={{
                           fontFamily: 'Bebas Neue, sans-serif',
-                          color: isSelected ? color : '#FFFFFF',
+                          color: isSelected ? 'var(--ui-brand-strong)' : '#FFFFFF',
                           letterSpacing: '0.05em',
                         }}
                       >
@@ -184,37 +158,33 @@ export default function CoachPage() {
                   {/* Selected indicator */}
                   {isSelected && (
                     <div className="mt-3 flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                      <span className="text-xs font-bold" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="w-2 h-2 rounded-full" style={{ background: 'var(--ui-brand-strong)' }} />
+                      <span className="text-xs font-bold" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'Rajdhani, sans-serif' }}>
                         SELECIONADO
                       </span>
                     </div>
                   )}
-                </motion.button>
+                </ChoiceCard>
               );
             })}
           </div>
 
           {/* Continue */}
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleContinue}
-            className="w-full mt-8 py-4 rounded-xl font-black text-xl tracking-widest"
-            style={{
-              fontFamily: 'Bebas Neue, sans-serif',
-              background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
-              color: '#080810',
-              boxShadow: '0 0 30px rgba(201,168,76,0.3)',
-            }}
-          >
-            ESCOLHER FORMAÇÃO →
-          </motion.button>
+          <div className="mt-8 flex gap-3">
+            <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
+              ← VOLTAR
+            </Button>
+            <Button
+              intent="primary"
+              size="large"
+              onClick={handleContinue}
+              className="flex-1"
+            >
+              ESCOLHER FORMAÇÃO →
+            </Button>
+          </div>
         </motion.div>
-      </div>
-    </div>
+      </PageContainer>
+    </AppShell>
   );
 }

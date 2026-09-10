@@ -27,6 +27,22 @@ import {
   DANGEROUS_FOUL_CARD_MULT, THREAT_FOUL_CARD_MULT, DANGEROUS_FOUL_INJURY_MULT,
   compressAggression, settleFactor, SECOND_YELLOW_LENIENCY,
 } from './discipline';
+import { DEFAULT_COMPETITION_FORMAT, normalizeCompetitionFormat } from './competition';
+
+// Premium variants keep their own card IDs for inventory/UI, but historical
+// chemistry must resolve them to the same football identity as the base card.
+function historicalPlayerId(player: Player): string {
+  return player.basePlayerId ?? player.id;
+}
+
+function areHistoricalPartners(a: Player, b: Player): boolean {
+  const aHistoricalId = historicalPlayerId(a);
+  const bHistoricalId = historicalPlayerId(b);
+  return !!(
+    a.historicalPartners?.includes(bHistoricalId) ||
+    b.historicalPartners?.includes(aHistoricalId)
+  );
+}
 
 // ============================================================
 // TYPES
@@ -69,6 +85,15 @@ export interface Team {
   isBot: boolean;
   botStrength?: number;
   crestId?: string; // selected club crest (see lib/crests.ts); undefined → initials badge
+}
+
+// The order of `team.players` is the order of the formation slots for the XI,
+// followed by the bench. Centralize this lookup so positional coach effects use
+// the role actually occupied by a card, not only its native position.
+export function formationRoleForPlayer(team: Team, player: Player): string | undefined {
+  const index = team.players.findIndex(p => p === player || p.id === player.id);
+  if (index < 0 || index >= 11) return undefined;
+  return FORMATIONS.find(f => f.id === team.formationId)?.positions[index]?.role;
 }
 
 export interface MatchEvent {
@@ -167,6 +192,9 @@ export interface StandingsEntry {
 
 export interface DraftState {
   round: number;
+  // Changes on every new turn and on every reroll, so the countdown can restart
+  // even when the visible round number stays the same.
+  timerKey: number;
   totalRounds: number;
   currentOptions: Player[];
   selectedPlayers: Player[];
@@ -236,7 +264,9 @@ export function calculateChemistry(
         other.historicalCoaches?.includes(coachId)
       ) score += 2;
       // Historical partners
-      else if (player.historicalPartners?.includes(other.id)) score += 1;
+      // Historical partnerships are undirected: either card may contain the
+      // reference, but both players must receive the same chemistry link.
+      else if (areHistoricalPartners(player, other)) score += 1;
       // 🌍 Nômade — a nation link with anyone they're NOT already connected to. Checked LAST so it
       // never doubles a link nor downgrades a stronger one (e.g. a +2 shared-coach bond).
       else if (player.nomade || other.nomade) score += 1;
@@ -249,7 +279,7 @@ export function calculateChemistry(
   }
 
   // Check historical trios
-  const playerIds = players.map(p => p.id);
+  const playerIds = players.map(historicalPlayerId);
   for (const trio of HISTORICAL_TRIOS) {
     if (trio.playerIds.every(id => playerIds.includes(id))) {
       trios.push(trio.id);
@@ -296,7 +326,7 @@ export function getChemistryLinks(players: (Player | undefined)[], coachId: stri
       if (a.club === b.club) type = 'club';
       else if (a.nation === b.nation) type = 'nation';
       else if (a.historicalCoaches?.includes(coachId) && b.historicalCoaches?.includes(coachId)) type = 'coach';
-      else if (a.historicalPartners?.includes(b.id) || b.historicalPartners?.includes(a.id)) type = 'partner';
+      else if (areHistoricalPartners(a, b)) type = 'partner';
       else if (a.nomade || b.nomade) type = 'nation'; // 🌍 Nômade — nation link only where none exists
       if (type) links.push({ aIndex: i, bIndex: j, type });
     }
@@ -757,7 +787,11 @@ export function teamPlaymaking(team: Team): number {
   const captainBoost = captainBoostForTeam(team) ?? undefined;
   const charBoosts = computeCharacteristicBoosts(team.players);
   const eff = (p: PlayerCard, attr: 'passing' | 'vision') =>
-    getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, team.playStyle ?? 'balanced', { captainBoost, charBoosts });
+    getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, team.playStyle ?? 'balanced', {
+      captainBoost,
+      charBoosts,
+      role: formationRoleForPlayer(team, p),
+    });
   return pool.reduce((s, p) => s + eff(p as PlayerCard, 'passing') * 0.65 + eff(p as PlayerCard, 'vision') * 0.35, 0) / pool.length;
 }
 
@@ -843,6 +877,7 @@ export function getEffectiveAttribute(
     isKnockout?: boolean;
     isFinal?: boolean;
     isLosing?: boolean;
+    role?: string;
     // The captain's single best attribute is boosted by +amount for EVERY teammate.
     captainBoost?: { stat: string; amount: number };
     // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
@@ -873,7 +908,7 @@ export function getEffectiveAttribute(
     isKnockout: context?.isKnockout,
     isFinal: context?.isFinal,
     isLosing: context?.isLosing,
-    role: player.position,
+    role: context?.role ?? player.position,
   });
 
   const mod = modifiers[attribute as keyof typeof modifiers] as number || 0;
@@ -1376,6 +1411,10 @@ export function runMatchSimulation(
     const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
+    const playerContext = (team: Team, player: PlayerCard, ctx: typeof attackCtx) => ({
+      ...ctx,
+      role: formationRoleForPlayer(team, player),
+    });
 
     // A dead-ball danger may fire this minute only if we're clear of any key chance and of the
     // last flavour danger (the cooldown) — this is what stops chances clustering / coming back-to-back.
@@ -1426,8 +1465,9 @@ export function runMatchSimulation(
         dangerCount++;
         const fkGk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
         const taker = getFreeKickTaker(attackTeam);
-        const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
-        const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx);
+        const takerCtx = playerContext(attackTeam, taker, attackCtx);
+        const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', takerCtx);
+        const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', takerCtx);
         const goalChance = freeKickGoalChance(takerShoot, takerComp);
         const r = Math.random();
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
@@ -1483,8 +1523,9 @@ export function runMatchSimulation(
           dangerCount++;
           const cgk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
           const header = getHeaderTarget(attackTeam);
-          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)
-            + getEffectiveAttribute(header, 'physical', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', attackCtx)) / 2;
+          const headerCtx = playerContext(attackTeam, header, attackCtx);
+          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', headerCtx)
+            + getEffectiveAttribute(header, 'physical', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', headerCtx)) / 2;
           const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
           const r2 = Math.random();
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
@@ -1624,9 +1665,11 @@ export function runMatchSimulation(
           // Conversion follows the SAME model as the shootout (penaltyGoalChance): the taker's
           // EFFECTIVE composure (+ penalty traits + designated bonus) vs the keeper's EFFECTIVE
           // shot-stopping — never a flat rate, so buffs and a strong/weak keeper actually matter.
-          const penComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle, attackCtx)
+          const takerCtx = playerContext(attackTeam, taker, attackCtx);
+          const gkCtx = playerContext(defendTeam, gk, defendCtx);
+          const penComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle, takerCtx)
             + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
-          const penGkRef = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defendCtx)
+          const penGkRef = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, gkCtx)
             + getGoalkeeperTraitBonus(gk.traits);
           const isPenGoal = Math.random() < penaltyGoalChance(penComp, penGkRef);
           if (isPenGoal) {
@@ -1684,11 +1727,14 @@ export function runMatchSimulation(
           teamId: attackTeam.id,
         });
 
-        const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle, attackCtx);
-        const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, attackTeam.playStyle, attackCtx);
-        const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, attackTeam.playStyle, attackCtx);
-        const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defendCtx);
-        const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defendCtx);
+        const attackerCtx = playerContext(attackTeam, attacker, attackCtx);
+        const defenderCtx = playerContext(defendTeam, defender, defendCtx);
+        const gkCtx = playerContext(defendTeam, gk, defendCtx);
+        const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle, attackerCtx);
+        const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, attackTeam.playStyle, attackerCtx);
+        const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, attackTeam.playStyle, attackerCtx);
+        const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defenderCtx);
+        const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defenderCtx);
 
         // Trait effects are already baked into the effective attributes above
         // (see getEffectiveAttribute + trait catalog), so no extra bonuses here.
@@ -1709,7 +1755,7 @@ export function runMatchSimulation(
         const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, attackTeam.playStyle) + formMod;
         const chance = resolveOpenPlayChance({
           atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
-          gkRating: getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defendCtx) + getGoalkeeperTraitBonus(gk.traits), approach,
+          gkRating: getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, gkCtx) + getGoalkeeperTraitBonus(gk.traits), approach,
         });
 
         if (chance.outcome !== 'duel') {
@@ -1968,6 +2014,7 @@ export function simulateMatch(
   away: Team,
   isKnockout: boolean = false,
   isFinal: boolean = false,
+  resolveKnockoutTie: boolean = true,
 ): MatchResult {
   setStatIds(home, away);
   const playerStats: Record<string, PlayerMatchStat> = {};
@@ -2013,17 +2060,19 @@ export function simulateMatch(
   };
 
   // Phase 1: run 90 minutes WITHOUT deciding the winner yet (no penalties, no bonuses).
-  // This gives us the authoritative 90-min state to check whether extra time is needed.
-  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, false, isFinal, false);
+  // Keep the real phase context here. Two-legged ties pass resolveKnockoutTie=false so
+  // a draw in the return leg can still be compared against the aggregate before ET.
+  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, isKnockout, isFinal, false);
 
-  if (isKnockout && r90.homeGoals === r90.awayGoals) {
+  if (isKnockout && resolveKnockoutTie && r90.homeGoals === r90.awayGoals) {
     // Tied at 90 → extra time (90→120). Winner determination + penalties handled inside.
     const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true);
     rET.durationMinutes = 120;
     return rET;
   }
 
-  // Match decided in 90 minutes — apply winner/bonuses manually on the existing result.
+  // Match decided in 90 minutes — or intentionally left level for aggregate resolution.
+  // Apply winner/bonuses manually on the existing result.
   const hg = r90.homeGoals;
   const ag = r90.awayGoals;
   r90.winner = hg > ag ? home.id : ag > hg ? away.id : null;
@@ -2225,7 +2274,11 @@ export function calculateTeamStrength(
     // own +2 buff) — tactics already shape possession + chance quality, so letting them tilt strength
     // too would double-count them and distort each tactic's risk/reward.
     const debuff = disc?.injuredDebuff?.[p.id] ? (disc.injuryDebuff ?? 0) : 0; // lesionado joga capengando
-    const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, '', chemBonus, '__neutral__', { captainBoost, charBoosts }) - debuff;
+    const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, '', chemBonus, '__neutral__', {
+      captainBoost,
+      charBoosts,
+      role: formationRoleForPlayer(team, p),
+    }) - debuff;
     // GKs are evaluated on shot-stopping attributes (defending + physical), not the outfield
     // blend that low shooting/dribbling would distort. Outfielders use the six core stats PLUS
     // vision at half weight — playmaking is a real "control the game" signal. Composure is
@@ -2531,6 +2584,51 @@ function shuffleWithRarityWeight(pool: Player[]): Player[] {
   return unique;
 }
 
+function canPlayDraftPosition(player: Player, position: string): boolean {
+  return player.position === position || effectiveSecondaries(player).includes(position);
+}
+
+// Position demand keeps rarity weighting inside the set of roles that are still
+// open in the formation. Once a role is filled, it cannot reappear until the
+// starter XI is complete (unless the player can fill another open role).
+function draftPositionNeedWeight(player: Player, neededPositions: string[]): number {
+  if (neededPositions.length === 0) return 1;
+
+  const exactMatches = neededPositions.filter(pos => canPlayDraftPosition(player, pos)).length;
+  const playerGroup = getPositionGroup(player.position as any);
+  const groupNeeds = neededPositions.filter(pos => getPositionGroup(pos as any) === playerGroup).length;
+
+  if (exactMatches > 0) return 4 + Math.min(exactMatches, 4) * 0.75 + Math.min(groupNeeds, 5) * 0.15;
+  if (groupNeeds > 0) return 1.5 + Math.min(groupNeeds, 5) * 0.1;
+  return 0.4;
+}
+
+function shuffleWithDraftNeed(pool: Player[], neededPositions: string[]): Player[] {
+  const remaining = [...pool];
+  const shuffled: Player[] = [];
+
+  while (remaining.length > 0) {
+    const weighted = remaining.map(player => {
+      const rarityWeight = player.rarity === 'immortal' ? 1 : player.rarity === 'legendary' ? 2 : player.rarity === 'gold' ? 4 : player.rarity === 'silver' ? 6 : 8;
+      return { player, weight: rarityWeight * draftPositionNeedWeight(player, neededPositions) };
+    });
+    const total = weighted.reduce((sum, item) => sum + item.weight, 0);
+    let roll = Math.random() * total;
+    let chosenIndex = weighted.length - 1;
+    for (let i = 0; i < weighted.length; i++) {
+      roll -= weighted[i].weight;
+      if (roll <= 0) {
+        chosenIndex = i;
+        break;
+      }
+    }
+    shuffled.push(weighted[chosenIndex].player);
+    remaining.splice(chosenIndex, 1);
+  }
+
+  return shuffled;
+}
+
 export function generateDraftOptions(
   neededPositions: string[],
   alreadyDrafted: string[],
@@ -2541,15 +2639,12 @@ export function generateDraftOptions(
     return withDraftVariants(shuffleWithRarityWeight(fullAvailable).slice(0, DRAFT_OPTIONS_COUNT));
   }
 
-  // Filter available players: they must be able to play in at least one of the remaining needed positions
-  let available = fullAvailable.filter(p =>
-    neededPositions.some(pos => p.position === pos || p.secondaryPositions?.includes(pos))
+  // Hard-gate the starter draft to the remaining formation roles. This keeps
+  // the draft varied by rarity, while preventing a second goalkeeper (or any
+  // already-completed role) from appearing before the XI is complete.
+  const available = fullAvailable.filter(p =>
+    neededPositions.some(pos => canPlayDraftPosition(p, pos))
   );
-
-  // Fallback: if we don't have enough players (unlikely), use all available players
-  if (available.length < DRAFT_OPTIONS_COUNT) {
-    available = fullAvailable;
-  }
 
   // ── STARTERS: guarantee at least 1 matches the next needed pos ──
   const primaryPos = neededPositions[0];
@@ -2557,31 +2652,23 @@ export function generateDraftOptions(
 
   // Pick 1 guaranteed card that fits the exact position (or group)
   const exactMatch = available.filter(p =>
-    p.position === primaryPos ||
-    (p.secondaryPositions ?? []).includes(primaryPos)
+    canPlayDraftPosition(p, primaryPos)
   );
   const groupMatch = posGroup
-    ? available.filter(p => getPositionGroup(p.position) === posGroup && !exactMatch.includes(p))
+    ? available.filter(p => getPositionGroup(p.position as any) === posGroup && !exactMatch.includes(p))
     : [];
 
   // Shuffle each bucket
-  const shuffledExact = shuffleWithRarityWeight(exactMatch);
-  const shuffledGroup = shuffleWithRarityWeight(groupMatch);
-  const shuffledAll   = shuffleWithRarityWeight(available);
+  const shuffledExact = shuffleWithDraftNeed(exactMatch, neededPositions);
+  const shuffledGroup = shuffleWithDraftNeed(groupMatch, neededPositions);
+  const shuffledAll   = shuffleWithDraftNeed(available, neededPositions);
 
   // Guaranteed slot: prefer exact match, fall back to group, then any
   const guaranteed = shuffledExact[0] ?? shuffledGroup[0] ?? shuffledAll[0];
   const usedIds = new Set<string>(guaranteed ? [guaranteed.id] : []);
 
-  // Fill remaining 5 slots from the full pool (biased to position group)
-  const biasedPool = posGroup
-    ? [
-        ...available.filter(p => getPositionGroup(p.position) === posGroup),
-        ...available.filter(p => getPositionGroup(p.position) !== posGroup),
-      ]
-    : available;
-
-  const rest = shuffleWithRarityWeight(biasedPool)
+  // Fill remaining slots using rarity plus the needs of all remaining roles.
+  const rest = shuffledAll
     .filter(p => !usedIds.has(p.id))
     .slice(0, DRAFT_OPTIONS_COUNT - 1);
 
@@ -3079,13 +3166,16 @@ export interface LeagueFixture {
   result?: MatchResult;
 }
 
-export function generateLeagueFixtures(teams: Team[]): LeagueFixture[] {
+export function generateLeagueFixtures(teams: Team[], requestedRounds = DEFAULT_COMPETITION_FORMAT.leagueRounds): LeagueFixture[] {
   const fixtures: LeagueFixture[] = [];
   const N = teams.length;
   const tempTeams = [...teams];
-  
-  const rounds = 8;
-  const matchesPerRound = N / 2;
+
+  // With N teams, the circle method has N - 1 unique rounds. Keep this helper
+  // defensive because it is also used by tests and old saved sessions.
+  const rawRounds = Number.isFinite(requestedRounds) ? Math.trunc(requestedRounds) : DEFAULT_COMPETITION_FORMAT.leagueRounds;
+  const rounds = Math.min(Math.max(rawRounds, 1), Math.max(1, N - 1));
+  const matchesPerRound = Math.floor(N / 2);
   const list = tempTeams.slice(1); // 13 teams
   
   for (let r = 0; r < rounds; r++) {
@@ -3188,32 +3278,48 @@ export interface KnockoutBracket {
 // grand final. `currentLeg` (1 = ida / 2 = volta) tracks the leg being played in
 // the active round. `awayFromPo` marks a Round-of-16 slot whose away team is
 // filled once that play-off tie is decided.
-export function createKnockoutBracket(standings: StandingsEntry[]): KnockoutBracket {
+export function createKnockoutBracket(
+  standings: StandingsEntry[],
+  requestedFormat = DEFAULT_COMPETITION_FORMAT,
+): KnockoutBracket {
+  const format = normalizeCompetitionFormat(requestedFormat);
   const seedId = (pos: number) => standings[pos - 1]?.teamId;
 
-  // Play-off ties PO1..PO8 — seeded (9–16) vs unseeded (17–24):
-  // PO1 9v24, PO2 10v23, ... PO8 16v17.
+  // The Round of 16 always has 16 entrants. If the configured qualification
+  // line is above 16, the lower half of that line plays a seeded playoff first.
+  // Q=24 reproduces the original UCL path (8 direct + 16 playoff); Q=16 has no
+  // playoff and sends the top 16 straight to the Round of 16.
+  const playoffCount = format.qualifiedTeams - 16;
+  const directCount = 16 - playoffCount;
   const playoffs = [];
-  for (let i = 1; i <= 8; i++) {
+  for (let i = 0; i < playoffCount; i++) {
     playoffs.push({
-      id: `po_${i - 1}`,
-      homeTeamId: seedId(8 + i),   // 9..16 (seeded, first-leg home)
-      awayTeamId: seedId(25 - i),  // 24..17 (unseeded)
+      id: `po_${i}`,
+      homeTeamId: seedId(directCount + i + 1), // seeded half
+      awayTeamId: seedId(format.qualifiedTeams - i), // unseeded half, reversed
       played: false,
     });
   }
 
-  // Round of 16 in bracket order so array-pairing yields a correct bracket where
-  // seeds 1 and 2 are kept apart until the final. Home = top-8 seed; away = winner
-  // of play-off PO(9 - seed) (best seed faces the lowest-ranked play-off path).
-  const r16Seeds = [1, 8, 4, 5, 2, 7, 3, 6];
-  const round16 = r16Seeds.map((s, idx) => ({
-    id: `r16_${idx}`,
-    homeTeamId: seedId(s),
-    awayTeamId: '',                 // filled after the play-off round
-    awayFromPo: (9 - s) - 1,        // 0-based index into `playoffs`
-    played: false,
-  }));
+  // Standard 16-slot bracket order: top seeds 1 and 2 remain on opposite sides.
+  // Ranks after `directCount` are placeholders for playoff winners. This lets any
+  // validated Q in [16, 24] produce a complete, deterministic bracket.
+  const r16Ranks = [1, 16, 8, 9, 4, 13, 5, 12, 2, 15, 7, 10, 3, 14, 6, 11];
+  const entrantForRank = (rank: number) => rank <= directCount
+    ? { teamId: seedId(rank) }
+    : { teamId: '', fromPlayoff: rank - directCount - 1 };
+  const round16 = Array.from({ length: 8 }, (_, idx) => {
+    const home = entrantForRank(r16Ranks[idx * 2]);
+    const away = entrantForRank(r16Ranks[idx * 2 + 1]);
+    return {
+      id: `r16_${idx}`,
+      homeTeamId: home.teamId,
+      awayTeamId: away.teamId,
+      ...(home.fromPlayoff !== undefined ? { homeFromPo: home.fromPlayoff } : {}),
+      ...(away.fromPlayoff !== undefined ? { awayFromPo: away.fromPlayoff } : {}),
+      played: false,
+    };
+  });
 
   return {
     playoffs,
@@ -3221,7 +3327,7 @@ export function createKnockoutBracket(standings: StandingsEntry[]): KnockoutBrac
     quarterFinals: [],
     semiFinals: [],
     final: null,
-    currentRound: 'playoffs',
+    currentRound: playoffCount > 0 ? 'playoffs' : 'round16',
     currentLeg: 1,
   };
 }
@@ -3251,8 +3357,9 @@ function emptyMatchStats(): MatchResult['stats'] {
 export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult): {
   leg2: MatchResult; tieWinner: string; aggA: number; aggB: number;
 } {
-  // 90-minute return leg (draws allowed).
-  let leg2 = simulateMatch(homeB, awayA, false);
+  // 90-minute return leg (draws allowed). It still uses knockout modifiers;
+  // only the aggregate decides whether ET/penalties are necessary.
+  let leg2 = simulateMatch(homeB, awayA, true, false, false);
   // Team A was first-leg HOME / second-leg AWAY; team B was first-leg AWAY / second-leg HOME.
   let aggA = leg1.homeGoals + leg2.awayGoals;
   let aggB = leg1.awayGoals + leg2.homeGoals;
@@ -3262,7 +3369,7 @@ export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult): 
     leg2 = runMatchSimulation(
       homeB, awayA, 90, 120,
       leg2.homeGoals, leg2.awayGoals, leg2.events, leg2.stats,
-      leg2.playerStats ?? {}, false, false
+      leg2.playerStats ?? {}, true, false, false
     );
     leg2.durationMinutes = 120;
     aggA = leg1.homeGoals + leg2.awayGoals;
@@ -3313,7 +3420,7 @@ export function simulateKnockoutTieLeg(
 
   if (currentLeg === 1) {
     if (tie.leg1) return;
-    tie.leg1 = simulateMatch(home, away, false); // 90', durationMinutes = 90
+    tie.leg1 = simulateMatch(home, away, true, false, false); // 90', durationMinutes = 90
   } else {
     if (tie.leg2) return;
     const sl = simulateSecondLeg(away, home, tie.leg1); // return leg: B home, A away
@@ -3357,10 +3464,13 @@ export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null 
   const winnerOf = (m: any): string => m.result.winner ?? m.result.penaltyWinner;
 
   if (round === 'playoffs') {
-    // Slot each play-off winner into its predetermined Round-of-16 away berth.
+    // Slot each playoff winner into its predetermined Round-of-16 berth. Depending
+    // on the configured line, a playoff winner can occupy either side of a tie.
     for (const tie of bracket.round16) {
-      const po = bracket.playoffs[tie.awayFromPo];
-      tie.awayTeamId = po ? winnerOf(po) : '';
+      const homePo = tie.homeFromPo !== undefined ? bracket.playoffs[tie.homeFromPo] : undefined;
+      const awayPo = tie.awayFromPo !== undefined ? bracket.playoffs[tie.awayFromPo] : undefined;
+      if (homePo) tie.homeTeamId = winnerOf(homePo);
+      if (awayPo) tie.awayTeamId = winnerOf(awayPo);
     }
     bracket.currentRound = 'round16';
     bracket.currentLeg = 1;

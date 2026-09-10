@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { PLAYERS, COACHES, Player } from './gameData';
 import {
   calculateChemistry, getEffectiveAttribute, getPlayerEffectiveStats, getChemistryBonus,
@@ -52,6 +52,13 @@ describe('getEffectiveAttribute', () => {
     const normal = getEffectiveAttribute(card, 'shooting', coach, '', noChem, 'balanced');
     const final = getEffectiveAttribute(card, 'shooting', coach, '', noChem, 'balanced', { isFinal: true });
     expect(final - normal).toBe(8);
+  });
+
+  it('uses the real formation role for positional coach bonuses', () => {
+    const player = asCard({ ...outfield, position: 'CM', vision: 70, passing: 70, traits: [] });
+    const forward = getEffectiveAttribute(player, 'passing', coach, '', noChem, '__neutral__', { role: 'ST' });
+    const midfielder = getEffectiveAttribute(player, 'passing', coach, '', noChem, '__neutral__', { role: 'CM' });
+    expect(midfielder - forward).toBe(5); // DNA Guardiola: +5 Passe nos meio-campistas
   });
 });
 
@@ -113,6 +120,17 @@ describe('simulateMatch', () => {
     expect(r.awayGoals).toBeGreaterThanOrEqual(0);
     expect([home.id, away.id, null]).toContain(r.winner);
     expect(Number.isFinite(r.stats.homePos)).toBe(true);
+  });
+
+  it('can leave a two-legged return leg level after 90 minutes', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99999);
+    const home = generateBotTeam('Casa', 0.8);
+    const away = generateBotTeam('Fora', 0.8);
+    const r = simulateMatch(home, away, true, false, false);
+    expect(r.durationMinutes).toBe(90);
+    expect(r.homeGoals).toBe(r.awayGoals);
+    expect(r.winner).toBeNull();
+    expect(r.penaltyWinner).toBeUndefined();
   });
 });
 

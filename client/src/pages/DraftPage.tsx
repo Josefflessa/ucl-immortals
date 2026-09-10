@@ -1,5 +1,5 @@
 // UCL Immortals — Draft Page
-// 13 rounds (11 titulares + 2 reservas), 6 options each, 20s timer, 4 vetoes
+// 13 rounds (11 titulares + 2 reservas), 6 options each, 30s timer, 4 vetoes
 
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useGame } from '../contexts/GameContext';
@@ -8,9 +8,10 @@ import FormationField from '../components/game/FormationField';
 import { Ban } from 'lucide-react';
 import { FORMATIONS, COACHES, Player, POS_PT } from '../lib/gameData';
 import { getTraitInfo, traitEffectLabel } from '../lib/traits';
+import { DRAFT_TURN_SECONDS } from '@shared/const';
+import { AppShell, Button, Panel, PanelHeader, PanelTitle, Progress, TopBar } from '../design-system';
 
-const LOGO_URL = '/icons/logo_ucl.png';
-const DRAFT_TIME = 20;
+const DRAFT_TIME = DRAFT_TURN_SECONDS;
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
@@ -33,16 +34,19 @@ function useDraftCardScale(): number {
 
 const DraftTimer = memo(function DraftTimer({
   round,
+  timerKey,
   onExpire,
 }: {
   round: number;
+  timerKey: number;
   onExpire: () => void;
 }) {
   const [timeLeft, setTimeLeft] = useState(DRAFT_TIME);
   const onExpireRef = useRef(onExpire);
   onExpireRef.current = onExpire;
 
-  // One self-contained countdown per turn. Restarts when `round` (the turn) changes.
+  // One self-contained countdown per turn. Restarts when the turn or the reroll
+  // key changes; a reroll keeps the same round but grants a fresh decision window.
   // Using a single interval + a local guard avoids the old two-effect race, where a
   // pick changed `round` while timeLeft was still 0 and re-fired the auto-pick (or
   // left the timer stuck at 0). onExpire fires exactly once, then the interval stops.
@@ -60,9 +64,9 @@ const DraftTimer = memo(function DraftTimer({
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [round]);
+  }, [round, timerKey]);
 
-  const timerColor = timeLeft <= 5 ? '#EF4444' : timeLeft <= 10 ? '#F97316' : '#C9A84C';
+  const timerColor = timeLeft <= 5 ? 'var(--ui-danger)' : timeLeft <= 10 ? 'var(--ui-warning)' : 'var(--ui-brand)';
   const timerPct = (timeLeft / DRAFT_TIME) * 100;
 
   return (
@@ -164,18 +168,15 @@ const DraftOptions = memo(function DraftOptions({
       })()}
       {selectedId && (
         <div className="flex justify-center">
-          <button
+          <Button
+            type="button"
+            intent="primary"
             onClick={() => onConfirm(selectedId)}
-            className="px-6 sm:px-8 py-3 rounded-xl font-black text-base sm:text-lg tracking-widest cursor-pointer"
-            style={{
-              fontFamily: 'Bebas Neue, sans-serif',
-              background: 'linear-gradient(135deg, #C9A84C, #E8C84A)',
-              color: '#080810',
-              boxShadow: '0 0 20px rgba(201,168,76,0.4)',
-            }}
+            size="large"
+            className="px-6 sm:px-8"
           >
             CONFIRMAR ESCOLHA ✓
-          </button>
+          </Button>
         </div>
       )}
     </>
@@ -275,7 +276,7 @@ export default function DraftPage() {
   const renderQueue = () => {
     if (!isOnline) return null;
     return (
-      <div className="mb-4 bg-[#0F0F1A] border border-[#1A1A2A] rounded-xl p-3">
+      <div className="ui-panel ui-panel--inset mb-4 p-3">
         <div className="text-[10px] font-black text-[#C9A84C] tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
           FILA DE ESCOLHAS (SNAKE DRAFT)
         </div>
@@ -319,7 +320,7 @@ export default function DraftPage() {
   const renderPickHistory = () => {
     if (!isOnline || state.draftHistory.length === 0) return null;
     return (
-      <div className="bg-[#0F0F1A] border border-[#1A1A2A] rounded-xl p-4 flex flex-col h-[280px]">
+      <div className="ui-panel ui-panel--inset flex h-[280px] flex-col p-4">
         <div className="text-xs font-black text-[#C9A84C] tracking-widest uppercase mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
           ESCOLHAS DA RODADA ({state.draftHistory.length})
         </div>
@@ -363,7 +364,7 @@ export default function DraftPage() {
 
   const renderWaitingScreen = () => {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center py-16 px-4 text-center rounded-2xl border bg-[#0F0F1A] h-[340px]" style={{ borderColor: '#1A1A2A' }}>
+      <div className="ui-panel flex h-[340px] flex-1 flex-col items-center justify-center px-4 py-16 text-center">
         <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 bg-yellow-500/10 border border-yellow-500/20">
           <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-yellow-500 animate-spin" />
         </div>
@@ -378,45 +379,34 @@ export default function DraftPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
+    <AppShell className="flex flex-col">
       {/* Top Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-        <img src={LOGO_URL} alt="UCL Immortals" className="w-7 h-7 object-contain" />
-        <span className="text-base font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-          DRAFT {isOnline && 'ONLINE'}
-        </span>
-        <div className="flex items-center gap-2 ml-4">
-          <span className="text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Rodada</span>
-          <span className="text-lg font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
-            {round}
-          </span>
-          <span className="text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>/ {totalRounds}</span>
-        </div>
-        <button
-          onClick={handleVeto}
-          disabled={vetoesLeft <= 0 || !isMyTurn}
-          className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border"
-          style={{
-            background: vetoesLeft > 0 && isMyTurn ? '#1A1A2A' : '#111',
-            borderColor: vetoesLeft > 0 && isMyTurn ? '#EF4444' : '#333',
-            color: vetoesLeft > 0 && isMyTurn ? '#EF4444' : '#555',
-            cursor: vetoesLeft <= 0 || !isMyTurn ? 'not-allowed' : 'pointer',
-            fontFamily: 'Rajdhani, sans-serif',
-          }}
-        >
-          <Ban size={14} /> VETAR ({vetoesLeft})
-        </button>
-      </div>
-
+      <TopBar
+        title={`DRAFT${isOnline ? ' ONLINE' : ''}`}
+        playerName={state.playerName}
+        right={(
+          <div className="ml-auto flex items-center gap-3">
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="text-xs text-[var(--ui-text-faint)]">Rodada</span>
+              <span className="font-display text-lg text-[var(--ui-text)]">{round}</span>
+              <span className="text-xs text-[var(--ui-text-faint)]">/ {totalRounds}</span>
+            </div>
+            <Button
+              type="button"
+              intent="danger"
+              onClick={handleVeto}
+              disabled={vetoesLeft <= 0 || !isMyTurn}
+              className="min-h-9 px-3 text-xs"
+            >
+              <Ban size={14} /> VETAR ({vetoesLeft})
+            </Button>
+          </div>
+        )}
+      />
       {/* Progress bar */}
-      <div className="h-1" style={{ background: '#1A1A2A' }}>
-        <div
-          className="h-full transition-[width] duration-300"
-          style={{ background: 'linear-gradient(90deg, #1B4FD8, #C9A84C)', width: `${progressPct}%` }}
-        />
-      </div>
+      <Progress value={progressPct} max={100} tone="brand" className="h-1 rounded-none" aria-label={`Progresso do draft: rodada ${round} de ${totalRounds}`} />
 
-      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-4 gap-4 px-4 py-4 max-w-7xl mx-auto w-full">
+      <div className="ui-shell flex-1 flex flex-col gap-4 py-4 lg:grid lg:grid-cols-4">
         {/* Left Column: Draft state, Queue, cards grid */}
         <div className="lg:col-span-3 flex flex-col min-w-0">
           
@@ -464,7 +454,7 @@ export default function DraftPage() {
                       </>
                     )}
                   </div>
-                  <DraftTimer round={round} onExpire={handleAutoPick} />
+                  <DraftTimer round={round} timerKey={draftState.timerKey} onExpire={handleAutoPick} />
                 </div>
 
                 <DraftOptions
@@ -488,10 +478,10 @@ export default function DraftPage() {
           
           {renderPickHistory()}
 
-          <div className="bg-[#0F0F1A] border border-[#1A1A2A] rounded-xl p-3 flex flex-col gap-3">
-            <div className="text-xs font-bold tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-              MINHA FORMAÇÃO
-            </div>
+          <Panel tone="inset" className="flex flex-col gap-3 p-3">
+            <PanelHeader className="-mx-3 -mt-3 mb-0 rounded-t-[var(--ui-radius-lg)]">
+              <PanelTitle>Minha formação</PanelTitle>
+            </PanelHeader>
             {formation && (
               <FormationField
                 formation={formation}
@@ -506,9 +496,9 @@ export default function DraftPage() {
                 <div className="text-xs mt-1 text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
               </div>
             )}
-          </div>
+          </Panel>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

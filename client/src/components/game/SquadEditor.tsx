@@ -142,8 +142,8 @@ export default function SquadEditor({
   const activeTrios = chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean);
 
   const teamOverall = xi.length === 11
-    ? Math.round(xi.reduce((sum, p) => {
-      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, isSecondary: chemData.secondaryPos[p.id] ?? false });
+    ? Math.round(xi.reduce((sum, p, idx) => {
+      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, role: formationRoles[idx] ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false });
       return sum + eff.overall;
     }, 0) / 11)
     : null;
@@ -408,9 +408,9 @@ export default function SquadEditor({
               <div className="relative z-10 flex-1 overflow-y-auto p-6 space-y-5">
                 {(() => {
                   const isStarter = selectedIndex < 11;
-                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, isSecondary: selectedIsSecondary });
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
+                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, role: formationRole, isSecondary: selectedIsSecondary });
                   const photoUrl = UNIQUE_STYLE[selectedPlayer.id]?.render ?? buildSofifaUrl(selectedPlayer.id, 120);
                   const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
                   const linkLabels: Record<string, string> = { club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica' };

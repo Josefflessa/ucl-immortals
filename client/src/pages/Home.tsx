@@ -11,7 +11,7 @@ export default function Home() {
   // const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-dvh flex flex-col">
       <main>
         {/* Example: lucide-react for icons */}
         <Loader2 className="animate-spin" />

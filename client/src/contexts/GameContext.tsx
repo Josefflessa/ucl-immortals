@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import {
-  Player, Coach, Formation, COACHES, FORMATIONS, PLAYERS,
+  Player, Coach, Formation, COACHES, FORMATIONS, PLAYERS, effectiveSecondaries,
   DIFFICULTY_LEVELS,
 } from '../lib/gameData';
 import {
@@ -24,6 +24,7 @@ import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYello
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem, getClientId } from '../lib/storage';
+import { DEFAULT_COMPETITION_FORMAT, normalizeCompetitionFormat, type CompetitionFormat, validateCompetitionFormat } from '../lib/competition';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -68,6 +69,7 @@ export interface GameState {
   phase: GamePhase;
   playerName: string;
   difficulty: string;
+  competitionFormat: CompetitionFormat;
   playerTeam: Team | null;
   botTeams: Team[];
   draftState: DraftState | null;
@@ -162,6 +164,7 @@ export type GameAction =
   | { type: 'SET_CREST'; crestId: string | null }
   | { type: 'SET_PLAYER_NAME'; name: string }
   | { type: 'SET_DIFFICULTY'; difficulty: string }
+  | { type: 'SET_COMPETITION_FORMAT'; format: CompetitionFormat }
   | { type: 'SET_COACH'; coachId: string }
   | { type: 'SET_FORMATION'; formationId: string }
   | { type: 'SET_PLAY_STYLE'; playStyle: string }
@@ -226,6 +229,7 @@ const initialState: GameState = {
   phase: 'menu',
   playerName: '',
   difficulty: 'gold',
+  competitionFormat: { ...DEFAULT_COMPETITION_FORMAT },
   playerTeam: null,
   botTeams: [],
   draftState: null,
@@ -293,6 +297,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_DIFFICULTY':
       return { ...state, difficulty: action.difficulty };
 
+    case 'SET_COMPETITION_FORMAT':
+      // Keep the reducer defensive as well: UI validation is feedback, not a
+      // security boundary, and invalid formats must never reach the engine.
+      return validateCompetitionFormat(action.format) === null
+        ? { ...state, competitionFormat: { ...action.format } }
+        : state;
+
     case 'SET_COACH':
       return { ...state, selectedCoachId: action.coachId };
 
@@ -311,6 +322,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const options = generateDraftOptions(needed, []);
       const draftState: DraftState = {
         round: 1,
+        timerKey: 0,
         totalRounds: 13,          // 11 titulares + 2 reservas (banco)
         currentOptions: options,
         selectedPlayers: [],
@@ -334,9 +346,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         role === action.player.position && newDrafted[idx] === undefined
       );
 
-      if (targetIndex === -1 && action.player.secondaryPositions) {
+      const effectiveSecondaryPositions = effectiveSecondaries(action.player);
+      if (targetIndex === -1 && effectiveSecondaryPositions.length > 0) {
         targetIndex = roles.findIndex((role, idx) =>
-          action.player.secondaryPositions!.includes(role) && newDrafted[idx] === undefined
+          effectiveSecondaryPositions.includes(role) && newDrafted[idx] === undefined
         );
       }
 
@@ -371,6 +384,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         draftState: {
           ...state.draftState,
           round: newRound,
+          timerKey: state.draftState.timerKey + 1,
           currentOptions: options,
           neededPositions: needed,
         },
@@ -387,6 +401,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         draftState: {
           ...state.draftState,
+          timerKey: state.draftState.timerKey + 1,
           currentOptions: options,
           vetoesLeft: state.draftState.vetoesLeft - 1,
         },
@@ -794,7 +809,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const botTeams = BOT_NAMES.map(name => generateBotTeam(name, botStrength));
 
       const allTeams = [playerTeam, ...botTeams];
-      const fixtures = generateLeagueFixtures(allTeams);
+      const fixtures = generateLeagueFixtures(allTeams, state.competitionFormat.leagueRounds);
       const standings = computeStandings(allTeams, []);
 
       return {
@@ -827,7 +842,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         leagueFixtures: updatedFixtures,
         leagueStandings: standings,
         leagueResults: results,
-        leagueRound: 8,
+        leagueRound: state.competitionFormat.leagueRounds,
       };
     }
 
@@ -989,14 +1004,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'ADVANCE_LEAGUE_ROUND': {
       return {
         ...state,
-        leagueRound: Math.min(8, state.leagueRound + 1),
+        leagueRound: Math.min(state.competitionFormat.leagueRounds, state.leagueRound + 1),
       };
     }
 
     case 'START_KNOCKOUT': {
       if (!state.playerTeam) return state;
-      // Full UCL knockout: play-offs (9–24) → R16 (incl. top 8) → QF → SF → Final.
-      const bracket = createKnockoutBracket(state.leagueStandings) as KnockoutBracket;
+      // Configured knockout: optional playoffs → R16 → QF → SF → Final.
+      const bracket = createKnockoutBracket(state.leagueStandings, state.competitionFormat) as KnockoutBracket;
       // 🟨 Amarelos acumulados zeram ao entrar no mata-mata (suspensões/lesões em curso continuam).
       return { ...state, knockoutBracket: bracket, phase: 'knockout', discipline: resetYellowsForKnockout(state.discipline) };
     }
@@ -1082,7 +1097,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ...(b.playoffs ?? []), ...(b.round16 ?? []),
           ...b.quarterFinals, ...b.semiFinals, ...(b.final ? [b.final] : []),
         ];
-        const revealed = revealEligibleKoBets(state.bets, koTies, state.playerTeam?.id ?? '', state.watchedKnockoutMatches);
+        // Finishing the participant's own solo replay is itself proof that this
+        // leg was watched. This also keeps old/minimal states without the local
+        // watched array backwards-compatible.
+        const watchedLegKeys = [...(state.watchedKnockoutMatches ?? [])];
+        if (action.result) {
+          const resultTeams = new Set([action.result.homeTeamId, action.result.awayTeamId]);
+          const ownTie = koTies.find(t => resultTeams.has(t.homeTeamId) && resultTeams.has(t.awayTeamId));
+          const ownLegKey = ownTie ? `${ownTie.id}_l${b.currentLeg ?? 1}` : null;
+          if (ownLegKey && !watchedLegKeys.includes(ownLegKey)) watchedLegKeys.push(ownLegKey);
+        }
+        const revealed = revealEligibleKoBets(state.bets, koTies, state.playerTeam?.id ?? '', watchedLegKeys);
         koBets = revealed.bets;
         points += revealed.winnings;
       }
@@ -1156,6 +1181,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           const needed = getNeededPositions(activePlayer.formationId, activePlayer.draftedPlayers);
           draftState = {
             round: roomState.draftState.round,
+            timerKey: roomState.draftState.timerKey ?? roomState.draftState.turnIndex,
             totalRounds: 13,        // 11 titulares + 2 reservas (banco)
             currentOptions,
             selectedPlayers: [],
@@ -1193,6 +1219,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         roomCode: roomState.code,
         phase: targetPhase,
         difficulty: roomState.difficulty,
+        competitionFormat: normalizeCompetitionFormat(roomState.competitionFormat),
         botTeams: roomState.botTeams || [],
         leagueFixtures: roomState.leagueFixtures || [],
         leagueStandings: roomState.leagueStandings || [],
@@ -1292,7 +1319,7 @@ interface GameContextType {
   getFormationById: (id: string) => Formation | undefined;
   
   // Online Multiplayer Socket emitters
-  createRoom: (creatorName: string) => void;
+  createRoom: (creatorName: string, competitionFormat: CompetitionFormat) => void;
   joinRoom: (roomCode: string, playerName: string) => void;
   setDifficultyOnline: (difficulty: string) => void;
   startSetupOnline: () => void;
@@ -1314,7 +1341,7 @@ interface GameContextType {
   shopChangeCoachOnline: (coachId: string) => void;
   evolveCoachPrimeOnline: () => void;
   shopBuyPlayerOnline: (player: Player, kind: 'unique') => void;
-  shopOpenPackOnline: (kind: 'star' | 'scout', options: Player[]) => void;
+  shopOpenPackOnline: (kind: 'star' | 'scout', position?: string) => void;
   shopPickPackOnline: (player: Player) => void;
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
   shopRemoveVariantOnline: (playerId: string, variantKey?: VariantFlag) => void;
@@ -1454,9 +1481,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return socketInstance;
   }, []);
 
-  const createRoom = useCallback((creatorName: string) => {
+  const createRoom = useCallback((creatorName: string, competitionFormat: CompetitionFormat) => {
     const s = connectSocket();
-    s.emit("create_room", { creatorName, clientId: getClientId() });
+    s.emit("create_room", { creatorName, competitionFormat, clientId: getClientId() });
   }, [connectSocket]);
 
   const joinRoom = useCallback((roomCode: string, playerName: string) => {
@@ -1560,11 +1587,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopBuyPlayerOnline = useCallback((player: Player, kind: 'unique') => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_buy_player", { roomCode: state.roomCode, player, kind });
   }, [state.roomCode]);
-  const shopOpenPackOnline = useCallback((kind: 'star' | 'scout', options: Player[]) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_open_pack", { roomCode: state.roomCode, kind, options });
+  const shopOpenPackOnline = useCallback((kind: 'star' | 'scout', position?: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_open_pack", { roomCode: state.roomCode, kind, position });
   }, [state.roomCode]);
   const shopPickPackOnline = useCallback((player: Player) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_pick_pack", { roomCode: state.roomCode, player });
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_pick_pack", { roomCode: state.roomCode, playerId: player.id });
   }, [state.roomCode]);
   const shopTurbinarOnline = useCallback((playerId: string, variant: ShopVariant) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_turbinar", { roomCode: state.roomCode, playerId, variant });

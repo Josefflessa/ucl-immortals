@@ -2,54 +2,57 @@
 // Choose difficulty level before coach selection
 
 import { motion } from 'framer-motion';
+import { useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '../lib/gameData';
-
-const LOGO_URL = '/icons/logo_ucl.png';
+import { MAX_LEAGUE_ROUNDS, MAX_QUALIFIED_TEAMS, MIN_LEAGUE_ROUNDS, MIN_QUALIFIED_TEAMS, competitionFormatSummary, validateCompetitionFormat } from '../lib/competition';
+import { AppShell, Button, ChoiceCard, Input, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 export default function SetupPage() {
   const { state, dispatch } = useGame();
+  const [leagueRounds, setLeagueRounds] = useState(String(state.competitionFormat.leagueRounds));
+  const [qualifiedTeams, setQualifiedTeams] = useState(String(state.competitionFormat.qualifiedTeams));
+  const [formatError, setFormatError] = useState<string | null>(null);
 
   const handleSelect = (diffId: string) => {
     dispatch({ type: 'SET_DIFFICULTY', difficulty: diffId });
   };
 
   const handleContinue = () => {
+    const format = { leagueRounds: Number(leagueRounds), qualifiedTeams: Number(qualifiedTeams) };
+    const error = validateCompetitionFormat(format);
+    if (error) {
+      setFormatError(error);
+      return;
+    }
+    dispatch({ type: 'SET_COMPETITION_FORMAT', format });
     dispatch({ type: 'SET_PHASE', phase: 'crest' });
   };
 
-  return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: '#1A1A2A' }}>
-        <img src={LOGO_URL} alt="UCL Immortals" className="w-8 h-8 object-contain" />
-        <span className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-          UCL IMMORTALS
-        </span>
-        <span className="text-sm ml-auto" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-          Time: <span style={{ color: '#C9A84C', fontWeight: 'bold' }}>{state.playerName}</span>
-        </span>
-      </div>
+  const handleBack = () => {
+    dispatch({ type: 'SET_PHASE', phase: 'menu' });
+  };
 
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+  return (
+    <AppShell>
+      <TopBar playerName={state.playerName} />
+
+      <PageContainer narrow className="flex min-h-[calc(100dvh-64px)] flex-col justify-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl"
+          className="w-full"
         >
           {/* Title */}
-          <div className="text-center mb-8">
-            <h2 className="text-4xl font-black tracking-widest mb-2"
-              style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
-              ESCOLHA A DIFICULDADE
-            </h2>
-            <p style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-              Define a força dos times controlados pela IA na competição
-            </p>
-          </div>
+          <SectionHeader
+            kicker="NÍVEL DA COMPETIÇÃO · 01"
+            title="Escolha a dificuldade"
+            description="Define a força dos times controlados pela IA na competição."
+            className="mb-8"
+          />
 
           {/* Difficulty grid */}
-          <div className="grid grid-cols-1 gap-2.5">
+          <div className="ui-stack">
             {DIFFICULTY_LEVELS.map((diff, i) => {
               const isSelected = state.difficulty === diff.id;
               const color = getRarityColor(diff.id as Rarity);
@@ -57,24 +60,20 @@ export default function SetupPage() {
               const level = i + 1; // 1..5
 
               return (
-                <motion.button
+                <ChoiceCard
                   key={diff.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  whileHover={{ scale: 1.01, x: 3 }}
-                  whileTap={{ scale: 0.99 }}
+                  selected={isSelected}
                   onClick={() => handleSelect(diff.id)}
-                  className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-left transition-all"
+                  className="ui-choice flex items-center gap-3.5 px-4 py-3.5"
                   style={{
-                    background: isSelected ? `linear-gradient(135deg, ${color}1F 0%, #0b0b14 62%)` : '#0F0F1A',
+                    background: isSelected ? `${color}14` : undefined,
                     border: `1.5px solid ${isSelected ? color : '#1A1A2A'}`,
-                    boxShadow: isSelected ? `0 0 24px ${color}44, inset 0 0 22px ${color}12` : 'none',
+                    boxShadow: isSelected ? `0 0 0 1px ${color}22` : 'none',
                   }}
                 >
                   {/* Emblema do tier (número do nível na cor da raridade) */}
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${color}18`, border: `1.5px solid ${isSelected ? color : `${color}55`}`, boxShadow: isSelected ? `0 0 14px ${color}55` : 'none' }}>
+                    <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: `${color}18`, border: `1.5px solid ${isSelected ? color : `${color}55`}` }}>
                     <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 30, fontWeight: 900, color, lineHeight: 1 }}>{level}</span>
                   </div>
 
@@ -95,7 +94,7 @@ export default function SetupPage() {
                     <div className="flex items-center gap-2 mt-2">
                       <div className="flex gap-1">
                         {Array.from({ length: 5 }).map((_, k) => (
-                          <div key={k} style={{ width: 17, height: 5, borderRadius: 3, background: k < level ? color : '#22222F', boxShadow: k < level && isSelected ? `0 0 6px ${color}88` : 'none' }} />
+                          <div key={k} style={{ width: 17, height: 5, borderRadius: 3, background: k < level ? color : '#22222F' }} />
                         ))}
                       </div>
                       <span className="text-[9px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>FORÇA IA {strengthPct}%</span>
@@ -104,35 +103,81 @@ export default function SetupPage() {
 
                   {/* Selecionado */}
                   {isSelected && (
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: color, color: '#080810', fontSize: 13, fontWeight: 900, boxShadow: `0 0 12px ${color}88` }}>
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: color, color: '#080810', fontSize: 13, fontWeight: 900 }}>
                       ✓
                     </div>
                   )}
-                </motion.button>
+                </ChoiceCard>
               );
             })}
           </div>
 
+          <div className="ui-panel ui-panel--inset mt-6 p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="ui-section-label">FORMATO DA COMPETIÇÃO</div>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
+                  Configure a duração da fase de liga e quantos times seguem para o mata-mata.
+                </p>
+              </div>
+              <span className="hidden sm:block text-right text-[10px] font-bold uppercase tracking-wider text-[var(--ui-text-faint)]">
+                36 times<br />mata-mata de 16
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">
+                Rodadas da liga
+                <Input
+                  type="number"
+                  min={MIN_LEAGUE_ROUNDS}
+                  max={MAX_LEAGUE_ROUNDS}
+                  step={1}
+                  value={leagueRounds}
+                  onChange={e => { setLeagueRounds(e.target.value); setFormatError(null); }}
+                  className="ui-input mt-1 text-center"
+                />
+              </label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">
+                Times classificados
+                <Input
+                  type="number"
+                  min={MIN_QUALIFIED_TEAMS}
+                  max={MAX_QUALIFIED_TEAMS}
+                  step={1}
+                  value={qualifiedTeams}
+                  onChange={e => { setQualifiedTeams(e.target.value); setFormatError(null); }}
+                  className="ui-input mt-1 text-center"
+                />
+              </label>
+            </div>
+
+            <p className="mt-3 text-[11px] leading-relaxed text-[var(--ui-text-faint)]">
+              {competitionFormatSummary({ leagueRounds: Number(leagueRounds), qualifiedTeams: Number(qualifiedTeams) })}
+            </p>
+            {formatError && (
+              <p className="mt-2 text-[11px] font-bold leading-relaxed text-[var(--ui-danger)]" role="alert">
+                ⚠ {formatError}
+              </p>
+            )}
+          </div>
+
           {/* Continue button */}
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleContinue}
-            className="w-full mt-8 py-4 rounded-xl font-black text-xl tracking-widest"
-            style={{
-              fontFamily: 'Bebas Neue, sans-serif',
-              background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
-              color: '#080810',
-              boxShadow: '0 0 30px rgba(201,168,76,0.3)',
-            }}
-          >
-            ESCOLHER ESCUDO →
-          </motion.button>
+          <div className="mt-8 flex gap-3">
+            <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
+              ← VOLTAR
+            </Button>
+            <Button
+              intent="primary"
+              size="large"
+              onClick={handleContinue}
+              className="flex-1"
+            >
+              ESCOLHER ESCUDO →
+            </Button>
+          </div>
         </motion.div>
-      </div>
-    </div>
+      </PageContainer>
+    </AppShell>
   );
 }

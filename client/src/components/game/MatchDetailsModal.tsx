@@ -60,21 +60,20 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4"
-      style={{ background: 'rgba(4,4,12,0.94)' }} onClick={onClose}>
+    <div className="ui-modal-backdrop z-[60] p-3 sm:p-4"
+      onClick={onClose}>
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} onClick={e => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl overflow-hidden flex flex-col max-h-[92vh]"
-        style={{ background: '#0b0b14', border: '1px solid #c9a84c44', boxShadow: '0 0 50px rgba(0,0,0,0.6)' }}>
+        className="ui-modal ui-modal--wide flex max-h-[92vh] flex-col">
 
         {/* Placar */}
-        <div className="relative px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid #1d1d2f', background: 'linear-gradient(135deg,#141018,#0b0b14)' }}>
-          <button onClick={onClose} className="absolute top-3 right-4 text-gray-400 hover:text-white text-2xl font-black leading-none">✕</button>
+        <div className="ui-modal__header relative flex-shrink-0 px-4 py-4">
+          <button onClick={onClose} aria-label="Fechar" className="ui-icon-btn absolute right-3 top-3">✕</button>
           <div className="flex items-center justify-center gap-3">
             <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
               <span className="font-bold text-sm truncate text-right" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>{homeName}</span>
               <Crest crestId={homeTeam?.crestId} name={homeName} size={26} />
             </div>
-            <div className="text-3xl font-black tabular-nums px-1 flex-shrink-0" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
+            <div className="font-display flex-shrink-0 px-1 text-4xl tabular-nums text-[var(--ui-brand-strong)]">
               {result.homeGoals} <span style={{ opacity: .45 }}>-</span> {result.awayGoals}
             </div>
             <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
@@ -90,7 +89,7 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           {subtitle && <div className="text-center text-[10px] mt-1" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{subtitle}</div>}
         </div>
 
-        <div className="overflow-y-auto flex-1 min-h-0 p-4">
+        <div className="ui-modal__body flex-1">
           {/* Gols + Cartões/lesões — SEMPRE no mesmo bloco, com UMA linha entre eles só quando os
               dois existem (layout consistente entre partidas). */}
           {(() => {
@@ -158,12 +157,10 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
 
           {/* Alternar entre os dois times */}
           <div className="flex gap-2 mb-3">
-            <button onClick={() => setSide('home')} className="flex-1 py-2 rounded-lg text-xs font-black tracking-wider transition-all"
-              style={{ fontFamily: 'Bebas Neue, sans-serif', background: side === 'home' ? '#C9A84C' : '#14142A', color: side === 'home' ? '#0A0A14' : '#9A9AAA', border: `1px solid ${side === 'home' ? '#C9A84C' : '#1A1A2A'}` }}>
+            <button onClick={() => setSide('home')} className="ui-tab flex-1" data-active={side === 'home'}>
               {homeName}
             </button>
-            <button onClick={() => setSide('away')} className="flex-1 py-2 rounded-lg text-xs font-black tracking-wider transition-all"
-              style={{ fontFamily: 'Bebas Neue, sans-serif', background: side === 'away' ? '#818CF8' : '#14142A', color: side === 'away' ? '#0A0A14' : '#9A9AAA', border: `1px solid ${side === 'away' ? '#818CF8' : '#1A1A2A'}` }}>
+            <button onClick={() => setSide('away')} className="ui-tab flex-1" data-active={side === 'away'}>
               {awayName}
             </button>
           </div>
@@ -171,7 +168,7 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           {team ? (
             <MatchFieldView team={team} ratings={ratings} goalsByPlayer={goalsByPlayer} assistsByPlayer={assistsByPlayer} disciplineByPlayer={disciplineByPlayer} accent={side === 'home' ? '#C9A84C' : '#818CF8'} />
           ) : (
-            <div className="py-8 text-center text-xs text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>Escalação indisponível.</div>
+            <div className="ui-empty">Escalação indisponível.</div>
           )}
         </div>
       </motion.div>

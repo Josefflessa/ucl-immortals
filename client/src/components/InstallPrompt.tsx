@@ -4,6 +4,7 @@
 // iOS Safari (which has no such API) gets the manual "Adicionar à Tela de Início" instructions.
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from '../design-system';
 
 const DISMISS_KEY = 'ucl-pwa-install-dismissed-v1';
 const ICON = '/icons/icon-192.png';
@@ -75,8 +76,7 @@ export default function InstallPrompt() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-end justify-center"
-          style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }}
+          className="ui-modal-backdrop z-[100] items-end"
           onClick={dismiss}
         >
           <motion.div
@@ -85,42 +85,35 @@ export default function InstallPrompt() {
             exit={{ y: 60, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md m-3 rounded-2xl p-4"
-            style={{ background: '#0b0b14', border: '1px solid #C9A84C55', boxShadow: '0 0 40px rgba(0,0,0,0.7)' }}
+            className="ui-modal m-3 max-w-md p-4"
           >
-            <div className="flex items-center gap-3">
+            <div className="ui-modal__header -mx-4 -mt-4 mb-4 flex items-center gap-3">
               <img src={ICON} alt="UCL Immortals" className="w-14 h-14 rounded-xl flex-shrink-0"
                 style={{ border: '1px solid #C9A84C44' }} referrerPolicy="no-referrer" />
               <div className="min-w-0 flex-1">
-                <div className="text-lg font-black tracking-wide leading-none"
-                  style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-                  INSTALAR UCL IMMORTALS
+                <div className="ui-modal__title text-lg">
+                  Instalar UCL Immortals
                 </div>
-                <div className="text-[12px] mt-1 leading-snug" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="mt-1 text-xs leading-snug text-[var(--ui-text-muted)]">
                   Jogue em tela cheia, com ícone na tela inicial — como um app.
                 </div>
               </div>
-              <button onClick={dismiss} className="text-gray-500 hover:text-white text-xl font-black flex-shrink-0 leading-none px-1">✕</button>
+              <button onClick={dismiss} aria-label="Fechar" className="ui-icon-btn flex-shrink-0">✕</button>
             </div>
 
             {iosHint ? (
-              <div className="mt-3 rounded-xl px-3 py-2.5 text-[12px] leading-relaxed"
-                style={{ background: '#14142a', border: '1px solid #1d1d2f', color: '#CFCFE0', fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="ui-panel ui-panel--inset mt-3 px-3 py-2.5 text-sm leading-relaxed text-[var(--ui-text-soft)]">
                 No Safari: toque em <b style={{ color: '#fff' }}>Compartilhar</b> <span aria-hidden>⬆️</span> e depois em
                 <b style={{ color: '#fff' }}> "Adicionar à Tela de Início"</b> <span aria-hidden>➕</span>.
               </div>
             ) : (
               <div className="mt-3 flex gap-2">
-                <button onClick={dismiss}
-                  className="flex-1 py-2.5 rounded-xl font-black tracking-widest text-sm"
-                  style={{ fontFamily: 'Rajdhani, sans-serif', background: 'transparent', border: '1px solid #2A2A3A', color: '#8A8A9A' }}>
+                <Button intent="ghost" className="flex-1" onClick={dismiss}>
                   AGORA NÃO
-                </button>
-                <button onClick={install}
-                  className="flex-1 py-2.5 rounded-xl font-black tracking-widest text-sm"
-                  style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.1em', background: 'linear-gradient(135deg, #C9A84C, #E8C84A)', color: '#080810' }}>
+                </Button>
+                <Button intent="primary" size="large" className="flex-1" onClick={install}>
                   INSTALAR
-                </button>
+                </Button>
               </div>
             )}
           </motion.div>

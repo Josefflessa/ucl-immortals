@@ -63,7 +63,7 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   kompany: { id: 139720, ver: 20 }, // ✅ CDN-verified (ver20 only)
   silva_david: { id: 168542, ver: 23 }, // ✅ CDN-verified (ver24 missing, ver23 works)
   // ── SILVER ─────────────────────────────────────────────────────────────────
-  valdes: { id: 193080, ver: 17 }, // ✅ FIXED — correto Víctor Valdés
+  valdes: { id: 106573, ver: 17 }, // FIFA Index — correto Víctor Valdés
   fabregas: { id: 162895, ver: 23 }, // ✅ CDN-verified
   pedro: { id: 189509, ver: 23 }, // ✅ CDN-verified
   evra: { id: 52091, ver: 18 }, // ✅ FIXED — correto Patrice Evra
@@ -119,7 +119,6 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   dalglish: { id: 247699, ver: 22 }, // ✅ FIXED — correto Kenny Dalglish
   hagi: { id: 166124, ver: 22 }, // ✅ FIXED2 — correto Gheorghe Hagi
   socrates: { id: 190046, ver: 25 }, // ✅ FIXED — correto Sócrates
-  deco: { id: 246508, ver: 25 }, // ✅ FIXED3 — correto Deco
   veron: { id: 7518, ver: 20 }, // ✅ FIXED — correto Verón
   zola: { id: 239110, ver: 24 }, // ✅ FIXED — correto Gianfranco Zola
   ruicosta: { id: 1025, ver: 25 }, // ✅ FIXED — correto Rui Costa
@@ -146,7 +145,6 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   rivaldo: { id: 242950, ver: 24 }, // ✅ FIXED — correto Rivaldo (ver24)
   cruyff: { id: 190045, ver: 25 }, // ✅ FIXED2 — correto Johan Cruyff
   nistelrooy: { id: 10264, ver: 25 }, // ✅ FIXED — correto Ruud van Nistelrooy
-  inzaghi: { id: 238382, ver: 24 },
   owen: { id: 5419, ver: 22 }, // ✅ FIXED2 — correto Michael Owen
   stoichkov: { id: 239541, ver: 23 }, // ✅ FIXED3 — ver25 era 404; ver23 carrega (rosto conferido)
   butragueno: { id: 238419, ver: 24 },
@@ -188,7 +186,6 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   // ── BRASILEIRÃO / HISTÓRICOS ───────────────────────────────────────────────
   filipe_luis: { id: 164169, ver: 21 }, // ✅ FIXED — Filipe Luís
   guerrero: { id: 183666, ver: 22 },
-  gustavo_gomez: { id: 226226, ver: 23 },
   felipe_melo: { id: 135475, ver: 18 }, // ✅ FIXED — Felipe Melo
   pedro_g: { id: 244589, ver: 20 },
   ganso: { id: 187688, ver: 17 },
@@ -412,6 +409,12 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   c_stuani: { id: 186537, ver: 25 },
   rogerio_ceni: { id: 21570, ver: 15 }, // ✅ CDN-verified — Ceni era São Paulo (EA nunca fez ícone dele)
   zico: { id: 166691, ver: 24 }, // ✅ CDN-verified — Zico ícone EA (retrato sépia de lenda)
+  // ── NOVAS ADIÇÕES — IDs-base conferidos em bases FIFA/FC ──────────────────
+  best: { id: 226764, ver: 26 }, // George Best Icon
+  charlton: { id: 230025, ver: 26 }, // Bobby Charlton Icon
+  debruyne: { id: 192985, ver: 23 }, // FIFA 23 — auge recente (91 OVR)
+  dybala: { id: 211110, ver: 23 }, // FIFA 23 — referência de carreira (86 OVR)
+  yashin: { id: 238380, ver: 26 }, // Lev Yashin Icon
 };
 
 const NATION_CODES: Record<string, string> = {
@@ -440,6 +443,9 @@ const NATION_CODES: Record<string, string> = {
   'Irlanda do Norte': 'gb-nir',
   'Egito': 'eg',
   'Irlanda': 'ie',
+  // A seleção soviética deixou de existir; a bandeira russa é a referência
+  // visual disponível para representar seus jogadores históricos.
+  'União Soviética': 'ru',
 };
 
 // PT-BR position abbreviations (single source of truth lives in gameData/POS_PT)
@@ -502,16 +508,111 @@ export function getBasePlayerId(playerId: string): string {
   return playerId.split('_')[0];
 }
 
-export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null {
-  // ⭐ Cartas Únicas têm render PRÓPRIO — nunca cair na foto da carta-base (ex.: kaka_unico ≠ kaka).
-  const u = UNIQUE_STYLE[playerId];
-  if (u) return u.render;
+export const LOCAL_PLAYER_PHOTO_ROOT = '/players/regular';
+
+// Portraits added from FIFA Index use the player's readable key as filename.
+// Keep this explicit because a few game keys intentionally differ from the
+// filename (e.g. `abedipele` -> `abedi_pele`). The older regular package is
+// still supported through its numeric ID fallback below.
+const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
+  abedipele: 'abedi_pele',
+  baresi: 'baresi',
+  bergkamp: 'bergkamp',
+  blanc: 'blanc',
+  butragueno: 'butragueno',
+  cantona: 'cantona',
+  cancelo: 'cancelo',
+  cruyff: 'cruyff',
+  dalglish: 'dalglish',
+  garrincha: 'garrincha',
+  gullit: 'gullit',
+  hagi: 'hagi',
+  kewell: 'kewell',
+  koeman: 'koeman',
+  lampard: 'lampard',
+  maldini: 'maldini',
+  maradona: 'maradona',
+  matthaus: 'matthaus',
+  milito: 'milito',
+  papin: 'papin',
+  pele: 'pele',
+  pires: 'pires',
+  raphinha: 'raphinha',
+  rijkaard: 'rijkaard',
+  riise: 'riise',
+  rivaldo: 'rivaldo',
+  roberto_carlos: 'roberto_carlos',
+  rodrygo: 'rodrygo',
+  socrates: 'socrates',
+  stoichkov: 'stoichkov',
+  veron: 'veron',
+  voller: 'voller',
+  varane: 'varane',
+  zico: 'zico',
+  zidane: 'zidane',
+  zola: 'zola',
+};
+
+function buildLocalPlayerUrls(playerId: string): string[] {
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
-  if (!m) return null;
+  const named = LOCAL_NAMED_PLAYER_PHOTOS[baseId];
+  if (!m && !named) return [];
+
+  const localName = named ?? baseId;
+  const namedUrls = [
+    `${LOCAL_PLAYER_PHOTO_ROOT}/${localName}.webp`,
+    `${LOCAL_PLAYER_PHOTO_ROOT}/${localName}.png`,
+  ];
+
+  // Numeric assets remain a transition fallback for any asset that has not yet
+  // been renamed or for IDs shared by more than one game record.
+  return [
+    ...namedUrls,
+    ...(m ? [
+      `${LOCAL_PLAYER_PHOTO_ROOT}/${m.id}.webp`,
+      `${LOCAL_PLAYER_PHOTO_ROOT}/${m.id}.png`,
+    ] : []),
+  ];
+}
+
+export function buildLocalPlayerUrl(playerId: string): string | null {
+  return buildLocalPlayerUrls(playerId)[0] ?? null;
+}
+
+function buildSofifaUrls(m: { id: number; ver: number }, lowRes: boolean): string[] {
   const padded = String(m.id).padStart(6, '0');
   const v = String(m.ver).padStart(2, '0'); // single-digit editions (e.g. FIFA 08) need "08", not "8"
-  return `https://cdn.sofifa.net/players/${padded.slice(0, 3)}/${padded.slice(3, 6)}/${v}_${size}.png`;
+  const prefix = `https://cdn.sofifa.net/players/${padded.slice(0, 3)}/${padded.slice(3, 6)}`;
+  if (lowRes) return [`${prefix}/${v}_120.png`];
+
+  const urls = [`${prefix}/${v}_360.png`];
+  if (m.ver > 23) urls.push(`${prefix}/23_360.png`);
+  if (m.ver > 22) urls.push(`${prefix}/22_360.png`);
+  urls.push(`${prefix}/${v}_120.png`);
+  return urls;
+}
+
+export function buildPlayerPhotoSources(playerId: string, lowRes = false): string[] {
+  // ⭐ Cartas Únicas têm render PRÓPRIO — nunca cair na foto da carta-base (ex.: kaka_unico ≠ kaka).
+  const u = UNIQUE_STYLE[playerId];
+  if (u) return [u.render];
+
+  const baseId = getBasePlayerId(playerId);
+  const m = SOFIFA_MAPPING[baseId];
+  if (!m && !LOCAL_NAMED_PLAYER_PHOTOS[baseId]) return [];
+
+  // Prefer the readable local filename used by the downloaded Icon portraits,
+  // then the converted/legacy numeric package, and only then use SoFIFA online.
+  return [
+    ...buildLocalPlayerUrls(playerId),
+    ...(m ? buildSofifaUrls(m, lowRes) : []),
+  ];
+}
+
+export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null {
+  const sources = buildPlayerPhotoSources(playerId, size === 120);
+  return sources[0] ?? null;
 }
 
 // Per-rarity visual identity. Each tier has a DISTINCT silhouette so they never read
@@ -623,30 +724,10 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   cafu_unico: { texture: '/cards/cafu_unico.webp', render: '/players/unico/cafu.webp', font: '#F0E6C0', ring: '#D9B54A', photoX: 8, photoY: 14, photoW: 82 },
 };
 
-// Dedicated Player Photo using SoFIFA transparent high-res assets
-// Fallback chain: latest_ver_360 → latest_ver_120 → ver23_360 → ver22_360 → placeholder
+// Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
+// Fallback chain: local → latest_ver_360 → ver23_360 → ver22_360 → latest_ver_120 → placeholder
 function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: string; fullName: string; size: number; lowRes?: boolean }) {
-  const baseId = getBasePlayerId(playerId);
-  const m = SOFIFA_MAPPING[baseId];
-
-  const urls: string[] = [];
-  // ⭐ Carta Única: render próprio (auto-hospedado), sem cadeia do sofifa.
-  const uniqRender = UNIQUE_STYLE[playerId]?.render;
-  if (uniqRender) {
-    urls.push(uniqRender);
-  } else if (m) {
-    const padded = String(m.id).padStart(6, '0');
-    const v = String(m.ver).padStart(2, '0'); // "08" not "8"
-    const prefix = `https://cdn.sofifa.net/players/${padded.slice(0, 3)}/${padded.slice(3, 6)}`;
-    if (lowRes) {
-      urls.push(`${prefix}/${v}_120.png`);
-    } else {
-      urls.push(`${prefix}/${v}_360.png`);
-      if (m.ver > 23) urls.push(`${prefix}/23_360.png`);
-      if (m.ver > 22) urls.push(`${prefix}/22_360.png`);
-      urls.push(`${prefix}/${v}_120.png`);
-    }
-  }
+  const urls = buildPlayerPhotoSources(playerId, lowRes);
 
   const [urlIdx, setUrlIdx] = useState(0);
   const [failed, setFailed] = useState(false);

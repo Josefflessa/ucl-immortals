@@ -6,8 +6,7 @@ import { FORMATIONS, COACHES } from '../lib/gameData';
 import { formationProfile } from '../lib/gameEngine';
 import FormationField from '../components/game/FormationField';
 import ImpactMeter from '../components/game/ImpactMeter';
-
-const LOGO_URL = '/icons/logo_ucl.png';
+import { AppShell, Button, ChoiceCard, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 
 import { useState } from 'react';
 
@@ -30,77 +29,52 @@ export default function FormationPage() {
     }
   };
 
-  const selectedFormation = FORMATIONS.find(f => f.id === state.selectedFormationId);
+  const handleBack = () => {
+    dispatch({ type: 'SET_PHASE', phase: 'coach' });
+  };
 
+  const selectedFormation = FORMATIONS.find(f => f.id === state.selectedFormationId);
   if (state.mode === 'online' && isReady) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center" style={{ background: '#080810' }}>
-        <img src={LOGO_URL} alt="UCL Logo" className="w-16 h-16 object-contain mb-4 animate-pulse" />
-        <div className="w-6 h-6 rounded-full border-2 border-t-transparent border-[#C9A84C] animate-spin mb-3" />
-        <div className="text-white font-bold text-lg max-w-xs sm:max-w-md leading-snug" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-          AGUARDANDO DEMAIS JOGADORES DEFINIREM A TÁTICA...
+      <AppShell className="flex flex-col items-center justify-center px-6 text-center">
+        <div className="mb-4 text-4xl text-[var(--ui-brand-strong)]">◌</div>
+        <div className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-[var(--ui-brand)] border-t-transparent" />
+        <div className="max-w-xs text-lg font-bold leading-snug text-[var(--ui-text)] sm:max-w-md">
+          Aguardando os demais jogadores definirem a tática…
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080810' }}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: '#1A1A2A' }}>
-        <img src={LOGO_URL} alt="UCL Immortals" className="w-8 h-8 object-contain" />
-        <span className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
-          UCL IMMORTALS
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          {['Dificuldade', 'Escudo', 'Treinador', 'Formação', 'Draft'].map((step, i) => (
-            <div key={step} className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full" style={{
-                background: i === 3 ? '#C9A84C' : i < 3 ? '#22C55E' : '#333'
-              }} />
-              <span className="text-xs hidden sm:block" style={{
-                color: i === 3 ? '#C9A84C' : i < 3 ? '#22C55E' : '#555',
-                fontFamily: 'Rajdhani, sans-serif',
-              }}>{step}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+    <AppShell>
+      <TopBar playerName={state.playerName} />
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 px-4 py-6 max-w-6xl mx-auto w-full">
+      <PageContainer wide className="flex flex-col gap-6 lg:flex-row">
         {/* Left: Formation list */}
         <div className="flex-1">
-          <div className="mb-6">
-            <h2 className="text-4xl font-black tracking-widest mb-1"
-              style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
-              ESCOLHA A FORMAÇÃO
-            </h2>
-            {selectedCoach && (
-              <p style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif', fontSize: '14px' }}>
-                <span style={{ color: '#C9A84C' }}>{selectedCoach.name}</span> prefere {selectedCoach.preferredFormation}
-              </p>
-            )}
-          </div>
+          <SectionHeader
+            kicker="PLANO DE JOGO · 04"
+            title="Escolha a formação"
+            description={selectedCoach ? `${selectedCoach.name} prefere ${selectedCoach.preferredFormation}.` : undefined}
+            className="mb-6"
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {FORMATIONS.map((formation, i) => {
+            {FORMATIONS.map((formation) => {
               const isSelected = state.selectedFormationId === formation.id;
               const isPreferred = selectedCoach?.preferredFormation === formation.id;
 
               return (
-                <motion.button
+                <ChoiceCard
                   key={formation.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.07 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  selected={isSelected}
                   onClick={() => handleSelect(formation.id)}
-                  className="text-left rounded-xl p-4"
+                  className="ui-choice text-left p-4"
                   style={{
                     background: isSelected ? '#14142A' : '#0F0F1A',
                     border: `1px solid ${isSelected ? '#C9A84C' : isPreferred ? '#C9A84C44' : '#1A1A2A'}`,
-                    boxShadow: isSelected ? '0 0 20px rgba(201,168,76,0.2)' : 'none',
+                    boxShadow: isSelected ? '0 0 0 1px rgba(201,168,76,0.18)' : 'none',
                   }}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -163,39 +137,30 @@ export default function FormationPage() {
                       )}
                     </div>
                   )}
-                </motion.button>
+                </ChoiceCard>
               );
             })}
           </div>
 
           {/* Continue */}
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleContinue}
-            className="w-full mt-6 py-4 rounded-xl font-black text-xl tracking-widest"
-            style={{
-              fontFamily: 'Bebas Neue, sans-serif',
-              background: 'linear-gradient(135deg, #C9A84C 0%, #E8C84A 50%, #C9A84C 100%)',
-              color: '#080810',
-              boxShadow: '0 0 30px rgba(201,168,76,0.3)',
-            }}
-          >
-            INICIAR DRAFT →
-          </motion.button>
+          <div className="mt-6 flex gap-3">
+            <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
+              ← VOLTAR
+            </Button>
+            <Button
+              intent="primary"
+              size="large"
+              onClick={handleContinue}
+              className="flex-1"
+            >
+              INICIAR DRAFT →
+            </Button>
+          </div>
         </div>
 
         {/* Right: Formation preview */}
         <div className="flex flex-col items-center gap-4 lg:w-80">
-          <div className="text-center">
-            <div className="text-sm font-bold tracking-widest mb-1"
-              style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
-              PRÉVIA DA FORMAÇÃO
-            </div>
-          </div>
+          <div className="ui-kicker mb-0">Prévia da formação</div>
 
           {selectedFormation && (
             <motion.div
@@ -214,7 +179,7 @@ export default function FormationPage() {
           )}
 
           {selectedFormation && (
-            <div className="w-full rounded-xl p-4" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
+            <Panel tone="inset" className="w-full p-4">
               <div className="text-xs font-bold mb-2 tracking-widest"
                 style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
                 ANÁLISE TÁTICA
@@ -233,10 +198,10 @@ export default function FormationPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Panel>
           )}
         </div>
-      </div>
-    </div>
+      </PageContainer>
+    </AppShell>
   );
 }

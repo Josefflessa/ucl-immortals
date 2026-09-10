@@ -31,13 +31,16 @@ export default function BracketTab() {
 
   if (!knockoutBracket) return null;
   const kb = knockoutBracket as any;
+  // A 16-team qualification line skips the playoff entirely. Hide that column
+  // so the active marker and bracket hierarchy start at the Round of 16.
+  const roundOrder = kb.playoffs?.length ? ROUND_ORDER : ROUND_ORDER.filter(key => key !== 'playoffs');
   const getTeamName = (teamId: string) => resolveTeamName(teamId, '');
 
   const isMe = (teamId: string) =>
     !!teamId && (teamId === localTeamId ||
       (state.mode === 'online' && state.onlinePlayers.some(p => p.id === teamId && p.socketId === state.socketId)));
 
-  const curIdx = ROUND_ORDER.indexOf(knockoutBracket.currentRound as any);
+  const curIdx = roundOrder.indexOf(knockoutBracket.currentRound as any);
 
   const tiesFor = (key: string): Tie[] => {
     if (key === 'quarters') return kb.quarterFinals || [];
@@ -51,7 +54,7 @@ export default function BracketTab() {
     const me = isMe(teamId);
     return (
       <div className="flex items-center justify-between gap-2 px-2 py-1">
-        <span className="truncate text-[11px] font-bold leading-tight flex items-center gap-1"
+        <span className="font-ui flex items-center gap-1 truncate text-[11px] font-bold leading-tight"
           style={{
             fontFamily: 'Rajdhani, sans-serif',
             color: me ? '#C9A84C' : isWinner ? '#E6E6EE' : name ? '#9A9AAA' : '#55556A',
@@ -77,11 +80,10 @@ export default function BracketTab() {
     const mine = hp || ap;
     const winner = tie?.result?.winner;
     return (
-      <div className="rounded-lg overflow-hidden"
+      <div className="ui-panel ui-panel--inset overflow-hidden"
         style={{
-          background: status === 'active' ? '#15152A' : '#0E0E18',
-          border: `1px solid ${mine ? '#C9A84C66' : status === 'active' ? '#3A3A6A' : '#1A1A2A'}`,
-          boxShadow: status === 'active' ? '0 0 12px rgba(99,102,241,0.15)' : 'none',
+          background: status === 'active' ? 'var(--ui-surface-2)' : 'var(--ui-surface-inset)',
+          borderColor: mine ? 'rgba(215,180,90,0.4)' : status === 'active' ? 'rgba(108,145,216,0.45)' : 'var(--ui-line-subtle)',
           opacity: status === 'future' ? 0.5 : 1,
         }}>
         <TeamRow teamId={tie?.homeTeamId || ''} score={tie?.result?.homeGoals ?? null}
@@ -95,20 +97,20 @@ export default function BracketTab() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="text-[11px] text-gray-500 mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="mb-3 text-sm leading-relaxed text-[var(--ui-text-muted)]">
         Caminho até o título — seu time em <span style={{ color: '#C9A84C' }}>dourado</span>. O placar da fase em andamento fica oculto até todos assistirem.
       </div>
       <div className="overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
         <div className="flex gap-3 min-w-max">
-          {ROUND_ORDER.map((key, ri) => {
+          {roundOrder.map((key, ri) => {
             const status: 'done' | 'active' | 'future' = ri < curIdx ? 'done' : ri === curIdx ? 'active' : 'future';
             const real = tiesFor(key);
             const slots = ROUND_SLOTS[key];
             // Future rounds have no ties yet — render greyed placeholders so the tree shape reads.
             const cards: (Tie | null)[] = real.length > 0 ? real : Array.from({ length: slots }, () => null);
             return (
-              <div key={key} className="flex flex-col gap-2" style={{ width: 150 }}>
-                <div className="text-center text-[10px] font-black tracking-widest uppercase py-1 rounded"
+              <div key={key} className="flex w-[150px] flex-col gap-2">
+                <div className="ui-badge w-full justify-center"
                   style={{
                     fontFamily: 'Rajdhani, sans-serif',
                     background: status === 'active' ? '#C9A84C' : '#0F0F1A',
