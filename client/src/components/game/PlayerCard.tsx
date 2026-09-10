@@ -519,9 +519,18 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   baresi: 'baresi',
   bergkamp: 'bergkamp',
   blanc: 'blanc',
+  buffon: 'buffon_juventus',
+  buffon_juventus: 'buffon_juventus',
+  buffon_parma: 'buffon_parma',
+  buffon_psg: 'buffon_psg',
   butragueno: 'butragueno',
   cantona: 'cantona',
   cancelo: 'cancelo',
+  cristiano: 'cristiano_realmadrid',
+  cristiano_alnassr: 'cristiano_alnassr',
+  cristiano_juventus: 'cristiano_juventus',
+  cristiano_manchester: 'cristiano_manchester',
+  cristiano_realmadrid: 'cristiano_realmadrid',
   cruyff: 'cruyff',
   dalglish: 'dalglish',
   garrincha: 'garrincha',
@@ -533,7 +542,19 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   maldini: 'maldini',
   maradona: 'maradona',
   matthaus: 'matthaus',
+  mbappe: 'mbappe_psg',
+  mbappe_monaco: 'mbappe_monaco',
+  mbappe_psg: 'mbappe_psg',
+  mbappe_realmadrid: 'mbappe_realmadrid',
+  messi: 'messi_barcelona',
+  messi_barcelona: 'messi_barcelona',
+  messi_miami: 'messi_miami',
+  messi_psg: 'messi_psg',
   milito: 'milito',
+  neymar: 'neymar_barcelona',
+  neymar_barcelona: 'neymar_barcelona',
+  neymar_psg: 'neymar_psg',
+  neymar_santos: 'neymar_santos',
   papin: 'papin',
   pele: 'pele',
   pires: 'pires',
@@ -544,6 +565,10 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   roberto_carlos: 'roberto_carlos',
   rodrygo: 'rodrygo',
   socrates: 'socrates',
+  suarez: 'suarez_barcelona',
+  suarez_atletico_madrid: 'suarez_atletico_madrid',
+  suarez_barcelona: 'suarez_barcelona',
+  suarez_miami: 'suarez_miami',
   stoichkov: 'stoichkov',
   veron: 'veron',
   voller: 'voller',
@@ -556,14 +581,18 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
 function buildLocalPlayerUrls(playerId: string): string[] {
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
-  const named = LOCAL_NAMED_PLAYER_PHOTOS[baseId];
-  if (!m && !named) return [];
+  const namedKeys = Array.from(new Set(
+    [LOCAL_NAMED_PLAYER_PHOTOS[playerId], LOCAL_NAMED_PLAYER_PHOTOS[baseId]]
+      .filter((name): name is string => !!name),
+  ));
+  if (!m && namedKeys.length === 0) return [];
 
-  const localName = named ?? baseId;
-  const namedUrls = [
+  // Try the exact version first (e.g. messi_psg), then the canonical base
+  // portrait as a safe fallback for legacy IDs.
+  const namedUrls = namedKeys.flatMap(localName => [
     `${LOCAL_PLAYER_PHOTO_ROOT}/${localName}.webp`,
     `${LOCAL_PLAYER_PHOTO_ROOT}/${localName}.png`,
-  ];
+  ]);
 
   // Numeric assets remain a transition fallback for any asset that has not yet
   // been renamed or for IDs shared by more than one game record.
@@ -600,7 +629,7 @@ export function buildPlayerPhotoSources(playerId: string, lowRes = false): strin
 
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
-  if (!m && !LOCAL_NAMED_PLAYER_PHOTOS[baseId]) return [];
+  if (!m && !LOCAL_NAMED_PLAYER_PHOTOS[playerId] && !LOCAL_NAMED_PLAYER_PHOTOS[baseId]) return [];
 
   // Prefer the readable local filename used by the downloaded Icon portraits,
   // then the converted/legacy numeric package, and only then use SoFIFA online.

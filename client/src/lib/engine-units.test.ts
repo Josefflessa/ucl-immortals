@@ -13,7 +13,7 @@ import {
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
-  isEvolved, evolvePointsSpent, applyEvolvePoint, clampEvolveInput, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
+  isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture, type MatchEvent,
 } from './gameEngine';
@@ -113,34 +113,17 @@ describe('posições secundárias — adjacência + override', () => {
 describe('⭐ cartas evoluídas', () => {
   it('isEvolved: 6 jogos evolui, 5 não', () => {
     expect(EVOLVE_GAMES).toBe(6);
-    expect(EVOLVE_POINTS).toBe(8);
+    expect(EVOLVE_POINTS).toBe(6);
     expect(isEvolved({ appearances: 5 })).toBe(false);
     expect(isEvolved({ appearances: 6 })).toBe(true);
     expect(isEvolved({})).toBe(false);
   });
-  it('applyEvolvePoint respeita piso 0 e teto 8', () => {
-    expect(applyEvolvePoint({}, 'shooting', 1)).toEqual({ shooting: 1 });
-    expect(applyEvolvePoint({ shooting: 0 }, 'shooting', -1)).toEqual({ shooting: 0 });
-    const full = { shooting: 8 };
-    expect(evolvePointsSpent(full)).toBe(8);
-    expect(applyEvolvePoint(full, 'pace', 1)).toEqual(full);
-  });
-  it('clampEvolveInput: aceita valor dentro do orçamento', () => {
-    expect(clampEvolveInput({}, 'shooting', 5)).toBe(5);
-  });
-  it('clampEvolveInput: corta pelo que sobra do orçamento (8 no total)', () => {
-    // pace já usa 6 (sobram 2); digitar 5 em shooting (atual 0) → teto 0+2 = 2
-    expect(clampEvolveInput({ pace: 6 }, 'shooting', 5)).toBe(2);
-  });
-  it('clampEvolveInput: teto considera o valor atual do próprio atributo', () => {
-    // orçamento cheio (3+5=8); shooting atual 3, digitar 10 → não cresce (teto 3)
-    expect(clampEvolveInput({ shooting: 3, pace: 5 }, 'shooting', 10)).toBe(3);
-    // mas pode reduzir
-    expect(clampEvolveInput({ shooting: 3, pace: 5 }, 'shooting', 1)).toBe(1);
-  });
-  it('clampEvolveInput: piso 0 e valor inválido não muda', () => {
-    expect(clampEvolveInput({ shooting: 4 }, 'shooting', -3)).toBe(0);
-    expect(clampEvolveInput({ shooting: 4 }, 'shooting', NaN)).toBe(4);
+  it('escolhe um único atributo e aplica os 6 pontos de uma vez', () => {
+    expect(chooseEvolveAttribute('shooting')).toEqual({ shooting: 6 });
+    expect(applyEvolvePoint({}, 'shooting', EVOLVE_POINTS)).toEqual({ shooting: 6 });
+    expect(applyEvolvePoint({}, 'pace', 1)).toEqual({});
+    expect(applyEvolvePoint({ shooting: 6 }, 'pace', EVOLVE_POINTS)).toEqual({ shooting: 6 });
+    expect(evolvePointsSpent({ shooting: 6 })).toBe(6);
   });
 
   // 🟥 Cartão vermelho na transmissão: o MESMO id de jogador pode estar nos DOIS times

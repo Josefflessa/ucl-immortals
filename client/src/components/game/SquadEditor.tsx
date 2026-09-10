@@ -3,13 +3,13 @@
 // elenco" screen AND the in-league "MEU TIME" tab. Both used to be near-duplicates; now any
 // change here shows up in both. It's purely presentational: data + callbacks come from props,
 // so each host wires its own state (drafted players vs the league team) and actions.
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
-  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, clampEvolveInput, EVOLVE_GAMES, EVOLVE_POINTS, positionFit,
+  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_GAMES, EVOLVE_POINTS, positionFit,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, hasOopRelief, type AttrKey } from '../../lib/traits';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
@@ -50,7 +50,7 @@ export interface SquadEditorProps {
   points?: number;
   wins?: number;
   onEvolvePrime?: () => void;
-  // ⭐ Cartas Evoluídas: distribuir/resetar os 8 pontos livres (só no MEU TIME).
+  // ⭐ Cartas Evoluídas: escolher 1 atributo para receber os 6 pontos (só no MEU TIME).
   onSetEvolvePoint?: (playerId: string, attr: AttrKey, delta: number) => void;
   onResetEvolvePoints?: (playerId: string) => void;
 }
@@ -60,49 +60,6 @@ const EVOLVE_ATTRS: { key: AttrKey; label: string }[] = [
   { key: 'pace', label: 'RITMO' }, { key: 'shooting', label: 'FINALIZAÇÃO' }, { key: 'passing', label: 'PASSE' }, { key: 'dribbling', label: 'DRIBLE' },
   { key: 'defending', label: 'DEFESA' }, { key: 'physical', label: 'FÍSICO' }, { key: 'vision', label: 'VISÃO' }, { key: 'composure', label: 'COMPOSTURA' },
 ];
-
-// Uma linha do alocador: [−] [caixa digitável] [+]. A caixa deixa digitar os pontos
-// direto (mais rápido que clicar). `clamp` recorta o valor pro que é válido (0..teto)
-// e `onDelta` aplica a diferença reusando o mesmo caminho do + e − (solo e online).
-function EvolveAttrRow({ label, value, plusDisabled, clamp, onDelta }: {
-  label: string;
-  value: number;
-  plusDisabled: boolean;
-  clamp: (typed: number) => number;
-  onDelta: (delta: number) => void;
-}) {
-  const [text, setText] = useState(String(value));
-  const [editing, setEditing] = useState(false);
-  // Enquanto não está digitando, a caixa reflete o valor real (cliques no +/−, reset, clamp).
-  useEffect(() => { if (!editing) setText(String(value)); }, [value, editing]);
-
-  const commit = () => {
-    const target = clamp(parseInt(text, 10)); // trata NaN/negativo/acima do teto
-    if (target !== value) onDelta(target - value);
-    setText(String(target));
-    setEditing(false);
-  };
-
-  return (
-    <div className="flex flex-col items-center gap-1.5 rounded-lg px-2 py-2.5" style={{ background: '#0A0A12', border: `1px solid ${value > 0 ? '#22C55E44' : '#1A1A2A'}` }}>
-      <span className="text-[11px] font-bold tracking-wide text-center leading-tight" style={{ color: '#B8B8C8', fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
-      <div className="flex items-center gap-2.5">
-        <button onClick={() => onDelta(-1)} disabled={value <= 0} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black leading-none transition-transform active:scale-90" style={{ background: value > 0 ? '#241014' : '#12121C', color: value > 0 ? '#F87171' : '#3A3A4A', border: `1px solid ${value > 0 ? '#EF444455' : '#1A1A2A'}`, cursor: value > 0 ? 'pointer' : 'default' }}>−</button>
-        <input
-          type="text" inputMode="numeric" pattern="[0-9]*"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onFocus={e => { setEditing(true); e.currentTarget.select(); }}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-          className="text-lg font-black w-8 text-center tabular-nums rounded outline-none"
-          style={{ color: value > 0 ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif', background: '#12121C', border: '1px solid #2A2A3A' }}
-        />
-        <button onClick={() => onDelta(1)} disabled={plusDisabled} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black leading-none transition-transform active:scale-90" style={{ background: !plusDisabled ? '#0a2114' : '#12121C', color: !plusDisabled ? '#4ADE80' : '#3A3A4A', border: `1px solid ${!plusDisabled ? '#22C55E55' : '#1A1A2A'}`, cursor: !plusDisabled ? 'pointer' : 'default' }}>+</button>
-      </div>
-    </div>
-  );
-}
 
 export default function SquadEditor({
   players, coachId, formationId, playStyle,
@@ -566,34 +523,42 @@ export default function SquadEditor({
                   );
                 })()}
 
-                {/* ⭐ Carta Evoluída — alocador dos 8 pontos livres (ou progresso pra evoluir) */}
+                {/* ⭐ Carta Evoluída — escolhe 1 atributo para receber os 6 pontos */}
                 {onSetEvolvePoint && (() => {
                   const evolved = isEvolved(selectedPlayer);
                   const ep = selectedPlayer.evolvePoints ?? {};
                   const spent = evolvePointsSpent(ep);
-                  const left = EVOLVE_POINTS - spent;
+                  const chosenAttr = EVOLVE_ATTRS.find(a => (ep[a.key] ?? 0) > 0);
                   const apps = selectedPlayer.appearances ?? 0;
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${evolved ? '#22C55E55' : '#1A1A2A'}` }}>
                       <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
                         <span className="text-[11px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ CARTA EVOLUÍDA</span>
-                        {evolved && <span className="text-[11px] font-black" style={{ color: left > 0 ? '#E8C84A' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Pontos: {left}/{EVOLVE_POINTS}</span>}
+                        {evolved && <span className="text-[11px] font-black" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>+{EVOLVE_POINTS} em 1 atributo</span>}
                       </div>
                       {evolved ? (
                         <div className="p-3.5">
                           <div className="text-[11px] mb-2.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                            Você tem <b style={{ color: '#22C55E' }}>{EVOLVE_POINTS} pontos livres</b> pra reforçar esta carta: cada <b style={{ color: '#C9C9D5' }}>+</b> soma <b style={{ color: '#C9C9D5' }}>+1</b> no atributo (sem teto — pode empilhar num só). Dá pra <b style={{ color: '#C9C9D5' }}>resetar</b> e redistribuir quando quiser.
+                            Atributo escolhido: <b style={{ color: '#22C55E' }}>{chosenAttr?.label ?? '—'}</b> com <b style={{ color: '#C9C9D5' }}>+{spent}</b>. Dá pra <b style={{ color: '#C9C9D5' }}>resetar</b> e escolher outro atributo.
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             {EVOLVE_ATTRS.map(a => (
-                              <EvolveAttrRow
+                              <button
                                 key={a.key}
-                                label={a.label}
-                                value={ep[a.key] ?? 0}
-                                plusDisabled={left <= 0}
-                                clamp={(typed) => clampEvolveInput(ep, a.key, typed)}
-                                onDelta={(delta) => onSetEvolvePoint(selectedPlayer.id, a.key, delta)}
-                              />
+                                disabled={spent > 0}
+                                onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, EVOLVE_POINTS)}
+                                className="flex items-center justify-between rounded-lg px-3 py-2.5 text-[11px] font-black transition-transform active:scale-[0.98]"
+                                style={{
+                                  background: chosenAttr?.key === a.key ? '#0a2114' : '#0A0A12',
+                                  color: chosenAttr?.key === a.key ? '#4ADE80' : '#6A6A7A',
+                                  border: `1px solid ${chosenAttr?.key === a.key ? '#22C55E88' : '#1A1A2A'}`,
+                                  cursor: spent > 0 ? 'default' : 'pointer',
+                                  fontFamily: 'Rajdhani, sans-serif',
+                                }}
+                              >
+                                <span>{a.label}</span>
+                                <span>{chosenAttr?.key === a.key ? `+${EVOLVE_POINTS}` : 'ESCOLHER'}</span>
+                              </button>
                             ))}
                           </div>
                           {onResetEvolvePoints && spent > 0 && (
@@ -610,7 +575,7 @@ export default function SquadEditor({
                             <div className="h-full rounded-full" style={{ width: `${Math.min(100, apps / EVOLVE_GAMES * 100)}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
                           </div>
                           <div className="text-[10px] mt-1.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                            Use esta carta como titular por {EVOLVE_GAMES} jogos pra evoluir. Ao evoluir, ela ganha <b style={{ color: '#22C55E' }}>{EVOLVE_POINTS} pontos livres</b> pra distribuir nos atributos (cada ponto = <b style={{ color: '#C9C9D5' }}>+1</b>, à sua escolha), e você pode redistribuir quando quiser.
+                            Use esta carta como titular por {EVOLVE_GAMES} jogos pra evoluir. Ao evoluir, escolha um atributo para receber <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS}</b> de uma vez.
                           </div>
                         </div>
                       )}

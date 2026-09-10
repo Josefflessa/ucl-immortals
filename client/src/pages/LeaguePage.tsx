@@ -468,7 +468,7 @@ export default function LeaguePage() {
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'HISTÓRICO' },
-                { id: 'shop', label: `🛒 LOJA · 💰${state.points}` },
+                { id: 'shop', label: `LOJA · 💰${state.points}` },
                 { id: 'market', label: '🏪 MERCADO' },
               ]
             : [
@@ -477,7 +477,7 @@ export default function LeaguePage() {
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'HISTÓRICO' },
-                { id: 'shop', label: `🛒 LOJA · 💰${state.points}` },
+                { id: 'shop', label: `LOJA · 💰${state.points}` },
                 { id: 'market', label: '🏪 MERCADO' },
               ]
           ).map(tab => (

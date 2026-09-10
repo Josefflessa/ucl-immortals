@@ -17,7 +17,7 @@ import {
   getActiveKnockoutMatches,
   rebuildTeamChemistry,
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
-  bumpStarterAppearances, isEvolved, applyEvolvePoint,
+  bumpStarterAppearances, isEvolved, applyEvolvePoint, EVOLVE_POINTS,
   VariantFlag,
   Team,
   PlayerCard,
@@ -920,13 +920,13 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room); // only this player's own team changed
     });
 
-    // ⭐ Carta Evoluída: distribuir/resetar os 8 pontos livres (só carta evoluída do próprio time).
+    // ⭐ Carta Evoluída: escolher 1 atributo e aplicar os 6 pontos (só carta evoluída do próprio time).
     on("set_evolve_point", ({ roomCode, playerId, attr, delta }: { roomCode: string; playerId: string; attr: any; delta: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
-      if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr) || !Number.isInteger(delta) || Math.abs(delta) > 8) return;
+      if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr) || !Number.isInteger(delta) || delta !== EVOLVE_POINTS) return;
       player.team.players = player.team.players.map(p =>
         (p.id === playerId && isEvolved(p)) ? { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta) } : p);
       socket.emit("room_updated", room); // only this player's own team changed

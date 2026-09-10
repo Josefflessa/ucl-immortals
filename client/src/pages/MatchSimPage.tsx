@@ -63,9 +63,8 @@ export default function MatchSimPage() {
   // gate the local simulation clock off entirely while replaying.
   const isSimulatorHost = true;
 
-  // Online = "broadcast ao vivo": runs at a single fixed pace for everyone, no
-  // pause / speed / skip controls (keeps every screen synchronized & spoiler-free).
-  // Solo keeps the full manual controls.
+  // Both online and solo run at the same fixed broadcast pace. Online keeps the
+  // synchronized live-broadcast behavior, while solo still allows pausing/skipping.
   const broadcastMode = state.mode === 'online';
 
   const isKnockout = !!activeKnockoutMatch;
@@ -83,7 +82,6 @@ export default function MatchSimPage() {
   const [momentum, setMomentum] = useState(50); // 0 (away dominance) to 100 (home dominance)
   const [momentumHistory, setMomentumHistory] = useState<number[]>([50]);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [speed, setSpeed] = useState<1 | 2 | 4>(2); // Multipliers
   const [isFinished, setIsFinished] = useState(false);
   const [goalAlert, setGoalAlert] = useState<{ teamName: string; scorer: string } | null>(null);
 
@@ -244,12 +242,9 @@ export default function MatchSimPage() {
 
   const eventFeedRef = useRef<HTMLDivElement>(null);
 
-  // Time tick speed
+  // Fixed match pace: one in-game minute every 222ms (about 20s for 90 minutes).
   const getTickDuration = () => {
-    if (broadcastMode) return 222; // fixed live-broadcast pace online (≈4.5x, same for all)
-    if (speed === 1) return 1000;
-    if (speed === 2) return 500;
-    return 250;
+    return 222;
   };
 
 
@@ -492,7 +487,7 @@ export default function MatchSimPage() {
     }, getTickDuration());
 
     return () => clearTimeout(timer);
-  }, [isReplay, replayResult, isPlaying, isFinished, penaltyMode, goalAlert, dangerState, minute, speed, isKnockout, homeTeam, awayTeam, momentum]);
+  }, [isReplay, replayResult, isPlaying, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, homeTeam, awayTeam, momentum]);
 
   // Scroll live events feed to bottom automatically
   useEffect(() => {
@@ -1634,7 +1629,7 @@ export default function MatchSimPage() {
       {/* ── 6. FOOTER CONTROL CENTER ── */}
       <div className="ui-topbar py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-2 sm:gap-4 z-10 flex-shrink-0">
         
-        {/* Speed selectors and Simulation control — hidden in online broadcast mode */}
+        {/* Online shows the live indicator; solo keeps pause/simulate controls. */}
         {broadcastMode ? (
           <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
             {!isFinished && (
@@ -1658,25 +1653,6 @@ export default function MatchSimPage() {
               {isPlaying ? 'PAUSAR' : 'SIMULAR'}
             </span>
           </Button>
-
-          <div className="flex rounded-lg overflow-hidden border border-gray-700">
-            {([1, 2, 4] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => setSpeed(s)}
-                disabled={isFinished || (state.mode === 'online' && !isSimulatorHost)}
-                className="px-3 py-1.5 text-xs font-bold transition-all"
-                style={{
-                  fontFamily: 'Rajdhani, sans-serif',
-                  background: speed === s ? '#c9a84c' : '#0e0e1a',
-                  color: speed === s ? '#000' : '#8a8a9a',
-                  opacity: (state.mode === 'online' && !isSimulatorHost) ? 0.5 : 1,
-                }}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
 
         </div>
         )}

@@ -29,10 +29,11 @@ import {
 } from './discipline';
 import { DEFAULT_COMPETITION_FORMAT, normalizeCompetitionFormat } from './competition';
 
-// Premium variants keep their own card IDs for inventory/UI, but historical
-// chemistry must resolve them to the same football identity as the base card.
+// Premium variants keep their own card IDs for inventory/UI. Cards that represent
+// a different club/era may provide historicalPlayerId so historical chemistry
+// does not accidentally connect (for example) PSG Neymar to Barcelona's MSN.
 function historicalPlayerId(player: Player): string {
-  return player.basePlayerId ?? player.id;
+  return player.historicalPlayerId ?? player.basePlayerId ?? player.id;
 }
 
 function areHistoricalPartners(a: Player, b: Player): boolean {
@@ -347,7 +348,7 @@ export interface StatBreakdown {
   globalChem: number; // team-wide chemistry bonus (passing/pace only)
   captain: number;    // captain leadership bonus (+CAPTAIN_BOOST on the captain's best stat, for everyone)
   train: number;      // 💪 shop "Treino" — permanent, stacking per-attribute boost
-  evolve: number;     // ⭐ Carta Evoluída — pontos livres distribuídos neste atributo
+  evolve: number;     // ⭐ Carta Evoluída — bônus do atributo escolhido
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
@@ -926,7 +927,7 @@ export function getEffectiveAttribute(
   // 💪 Shop "Treino": permanent, stacking per-attribute boost bought in the shop (no cap).
   base += (player.trainBoosts?.[attribute as keyof NonNullable<Player['trainBoosts']>] ?? 0);
 
-  // ⭐ Carta Evoluída: pontos livres distribuídos (mesma natureza do Treino, sem teto).
+  // ⭐ Carta Evoluída: bônus do único atributo escolhido (mesma natureza do Treino).
   base += (player.evolvePoints?.[attribute as keyof NonNullable<Player['evolvePoints']>] ?? 0);
 
   // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
@@ -994,30 +995,23 @@ export const PRIME_HOME_ATTR_BONUS = 6;   // uniforme em casa (vs +3 do padrão)
 export const PRIME_THEMED_BONUS = 3;      // nos 2 atributos do tema, todos os titulares do mandante
 export const PRIME_THEMED_CLUB_BONUS = 6; // nos 2 atributos, pros do clube/nação daquele estádio
 
-// ⭐ Cartas Evoluídas: 6 jogos como titular → libera 8 pontos livres (sem teto por atributo).
+// ⭐ Cartas Evoluídas: 6 jogos como titular → escolhe 1 atributo e recebe +6 nele.
 export const EVOLVE_GAMES = 6;
-export const EVOLVE_POINTS = 8;
+export const EVOLVE_POINTS = 6;
 export function isEvolved(p: { appearances?: number }): boolean {
   return (p.appearances ?? 0) >= EVOLVE_GAMES;
 }
 export function evolvePointsSpent(ep?: Partial<Record<AttrKey, number>>): number {
   return ep ? (Object.values(ep) as number[]).reduce((s, v) => s + (v ?? 0), 0) : 0;
 }
-export function applyEvolvePoint(ep: Partial<Record<AttrKey, number>>, attr: AttrKey, delta: number): Partial<Record<AttrKey, number>> {
-  const next = (ep[attr] ?? 0) + delta;
-  if (next < 0) return ep;                                      // não abaixo de 0
-  if (evolvePointsSpent(ep) + delta > EVOLVE_POINTS) return ep; // não passa de 8
-  return { ...ep, [attr]: next };
+export function chooseEvolveAttribute(attr: AttrKey): Partial<Record<AttrKey, number>> {
+  return { [attr]: EVOLVE_POINTS };
 }
-// Valor de pontos digitado direto na caixa de um atributo → recortado pro que é
-// válido: [0, atual + pontos que sobram], respeitando o teto de 8 no total.
-// Valor inválido (NaN) mantém o atual. Não muda estado; devolve só o alvo em pontos.
-export function clampEvolveInput(ep: Partial<Record<AttrKey, number>>, attr: AttrKey, typed: number): number {
-  const current = ep[attr] ?? 0;
-  if (!Number.isFinite(typed)) return current;
-  const left = EVOLVE_POINTS - evolvePointsSpent(ep); // pontos livres além do que já está alocado
-  const max = current + left;                         // teto que este atributo pode alcançar
-  return Math.max(0, Math.min(Math.floor(typed), max));
+export function applyEvolvePoint(ep: Partial<Record<AttrKey, number>>, attr: AttrKey, delta: number): Partial<Record<AttrKey, number>> {
+  // A evolução agora é uma escolha única: só aceita o pacote completo de 6
+  // pontos, e uma carta que já recebeu pontos não pode escolher outro atributo.
+  if (delta !== EVOLVE_POINTS || evolvePointsSpent(ep) > 0) return ep;
+  return chooseEvolveAttribute(attr);
 }
 export function bumpStarterAppearances(team: Team): Team {
   return { ...team, players: team.players.map((p, i) => i < 11 ? { ...p, appearances: (p.appearances ?? 0) + 1 } : p) };

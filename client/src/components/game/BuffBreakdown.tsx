@@ -275,12 +275,12 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
             </Row>
           )}
 
-          {/* ⭐ CARTA EVOLUÍDA — pontos livres distribuídos pelo jogador (soma direto no atributo). */}
+          {/* ⭐ CARTA EVOLUÍDA — bônus aplicado ao único atributo escolhido. */}
           {evolve.length > 0 && (
             <Row icon="⭐" name="CARTA EVOLUÍDA" color="#22C55E">
               <div className="flex flex-wrap gap-1">{chips(evolve, '#22C55E')}</div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                Pontos livres da evolução, distribuídos por você — cada ponto soma <b style={{ color: '#86efac' }}>+1</b> no atributo e reflete no geral.
+                Bônus de evolução aplicado ao atributo escolhido — soma direto no atributo e reflete no geral.
               </div>
             </Row>
           )}
