@@ -32,7 +32,7 @@ import { ALL_CRESTS } from "../client/src/lib/crests.js";
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
 import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
 import { pickHostId } from "./room-host.js";
-import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters } from "../client/src/lib/discipline.js";
+import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
 import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
 import { DRAFT_TURN_SECONDS } from "../shared/const.js";
 import {
@@ -1254,6 +1254,33 @@ export function registerSocketHandlers(io: Server) {
       if (!player) return;
       player.reinforcementOptions = null;
       socket.emit("room_updated", room); // only this player's own state changed
+    });
+
+    // 🆘 Contratação emergencial — quando não há reserva disponível para cobrir uma
+    // vaga titular indisponível, oferece uma carta prata/bronze gratuita. A decisão
+    // é validada no servidor e a escalação pronta anterior é invalidada.
+    on("emergency_replace_player", ({ roomCode, starterId, playerId }: { roomCode: string; starterId: string; playerId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+
+      const target = getEmergencyReplacementTarget(player.team, room.discipline);
+      const chosen = PLAYERS.find(p => p.id === playerId);
+      if (!target || target.starterId !== starterId || !chosen || !target.options.some(option => option.id === chosen.id)) {
+        socket.emit("action_error", { event: "emergency_replace_player", message: "Essa contratação emergencial não está disponível." });
+        return;
+      }
+
+      const updatedTeam = applyEmergencyReplacement(player.team, room.discipline, starterId, chosen);
+      if (!updatedTeam) {
+        socket.emit("action_error", { event: "emergency_replace_player", message: "Não foi possível atualizar a escalação." });
+        return;
+      }
+
+      player.team = updatedTeam;
+      room.readyPlayers = room.readyPlayers.filter(id => id !== player.id);
+      io.to(room.code).emit("room_updated", room);
     });
 
     // ============================================================

@@ -3,7 +3,8 @@
 // de probabilidade e a lógica de TEMPORADA (aplicar consequências + resolver escalação).
 import type { MatchEvent, Team, PlayerCard } from './gameEngine';
 import { rebuildTeamChemistry } from './gameEngine';
-import { FORMATIONS } from './gameData';
+import { FORMATIONS, PLAYERS } from './gameData';
+import type { Player } from './gameData';
 
 export interface PlayerAvailability { yellows: number; banned: number; injured: number }
 export type DisciplineMap = Record<string, PlayerAvailability>; // key = `${teamId}:${playerId}`
@@ -20,6 +21,83 @@ export const isAvailable = (m: DisciplineMap, teamId: string, playerId: string):
 // Usado para BLOQUEAR a rodada até o jogador ajustar a escalação (sem troca automática).
 export function unavailableStarters(team: { id: string; players: { id: string; shortName?: string }[] }, m: DisciplineMap): { id: string; shortName?: string }[] {
   return team.players.slice(0, 11).filter(p => !isAvailable(m, team.id, p.id));
+}
+
+export interface EmergencyReplacementTarget {
+  starterId: string;
+  starterName: string;
+  position: string;
+  options: Player[];
+}
+
+const emergencyFits = (player: { position: string; secondaryPositions?: string[] }, position: string): boolean =>
+  player.position === position || (player.secondaryPositions?.includes(position) ?? false);
+
+// Contratação emergencial: só oferece cartas base prata/bronze que realmente podem
+// ocupar a vaga. O jogador é uma carta normal (sem marcador especial), portanto mantém
+// o valor de venda habitual da própria raridade.
+export function emergencyReplacementOptions(position: string, ownedIds: string[]): Player[] {
+  return PLAYERS
+    .filter(p =>
+      (p.rarity === 'silver' || p.rarity === 'bronze') &&
+      !ownedIds.includes(p.id) &&
+      (position === 'GK' ? p.position === 'GK' : emergencyFits(p, position))
+    )
+    .sort((a, b) => b.overall - a.overall || a.shortName.localeCompare(b.shortName))
+    .slice(0, 4)
+    .map(p => ({ ...p }));
+}
+
+// Retorna a primeira vaga indisponível que não pode ser coberta por uma reserva
+// disponível da posição. Uma contratação resolve uma vaga por vez, evitando que o
+// usuário precise escolher jogadores para posições que já têm cobertura.
+export function getEmergencyReplacementTarget(team: Team, m: DisciplineMap): EmergencyReplacementTarget | null {
+  const availableBench = team.players.slice(11).filter(p => isAvailable(m, team.id, p.id));
+  const ownedIds = team.players.map(p => p.id);
+
+  for (const starter of team.players.slice(0, 11)) {
+    if (isAvailable(m, team.id, starter.id)) continue;
+    const hasPositionCover = availableBench.some(benchPlayer =>
+      starter.position === 'GK'
+        ? benchPlayer.position === 'GK'
+        : emergencyFits(benchPlayer, starter.position)
+    );
+    if (hasPositionCover) continue;
+
+    return {
+      starterId: starter.id,
+      starterName: starter.shortName,
+      position: starter.position,
+      options: emergencyReplacementOptions(starter.position, ownedIds),
+    };
+  }
+
+  return null;
+}
+
+// Aplica uma contratação emergencial: a nova carta entra diretamente na vaga titular
+// e o jogador indisponível vai para o banco. Não cobra pontos e não cria uma categoria
+// de carta nova — por isso a venda posterior usa sellValue(rarity) normalmente.
+export function applyEmergencyReplacement(
+  team: Team,
+  m: DisciplineMap,
+  starterId: string,
+  chosen: Player,
+): Team | null {
+  const target = getEmergencyReplacementTarget(team, m);
+  if (!target || target.starterId !== starterId || !target.options.some(p => p.id === chosen.id)) return null;
+
+  const starterIndex = team.players.findIndex(p => p.id === starterId);
+  if (starterIndex < 0 || starterIndex >= 11 || team.players.some(p => p.id === chosen.id)) return null;
+
+  const players: PlayerCard[] = [
+    ...team.players.map(p => ({ ...p })),
+    { ...chosen, chemistryScore: 0, isOOP: false },
+  ];
+  const newPlayerIndex = players.length - 1;
+  [players[starterIndex], players[newPlayerIndex]] = [players[newPlayerIndex], players[starterIndex]];
+
+  return repairRoles(rebuildTeamChemistry({ ...team, players }));
 }
 
 // ── Constantes de balanço (re-tunáveis) ──
@@ -200,6 +278,19 @@ export function healInjury(m: DisciplineMap, teamId: string, playerId: string): 
   return { ...m, [k]: { ...m[k], injured: Math.max(0, m[k].injured - 1) } };
 }
 
+function repairRoles(team: Team): Team {
+  // re-seleciona capitão/batedores se saíram do XI
+  const xiIds = new Set(team.players.slice(0, 11).map(p => p.id));
+  const bestBy = (key: 'overall' | 'composure' | 'shooting'): string | undefined =>
+    team.players.slice(0, 11).filter(p => p.position !== 'GK' || key === 'overall')
+      .slice().sort((a, b) => ((b[key] as number) ?? 0) - ((a[key] as number) ?? 0))[0]?.id ?? undefined;
+  let repaired = team;
+  if (repaired.captain && !xiIds.has(repaired.captain)) repaired = { ...repaired, captain: bestBy('overall') };
+  if (repaired.penaltyTaker && !xiIds.has(repaired.penaltyTaker)) repaired = { ...repaired, penaltyTaker: bestBy('composure') };
+  if (repaired.freeKickTaker && !xiIds.has(repaired.freeKickTaker)) repaired = { ...repaired, freeKickTaker: bestBy('shooting') };
+  return repaired;
+}
+
 // Resolve a escalação de um time contra o mapa de disponibilidade: para cada titular (0-10)
 // indisponível, promove o melhor reserva compatível do banco. GOLEIRO é caso à parte: promove um
 // GK reserva; sem GK no banco, coloca o melhor jogador de linha no gol marcado isOOP (nunca deixa
@@ -230,14 +321,5 @@ export function resolveAvailableLineup(team: Team, m: DisciplineMap): { team: Te
     forced.push({ outId: starter.id, inId: pick.id });
   }
 
-  let resolved: Team = rebuildTeamChemistry({ ...team, players });
-  // re-seleciona capitão/batedores se saíram do XI
-  const xiIds = new Set(resolved.players.slice(0, 11).map(p => p.id));
-  const bestBy = (key: 'overall' | 'composure' | 'shooting'): string | undefined =>
-    resolved.players.slice(0, 11).filter(p => p.position !== 'GK' || key === 'overall')
-      .slice().sort((a, b) => ((b[key] as number) ?? 0) - ((a[key] as number) ?? 0))[0]?.id ?? undefined;
-  if (resolved.captain && !xiIds.has(resolved.captain)) resolved = { ...resolved, captain: bestBy('overall') };
-  if (resolved.penaltyTaker && !xiIds.has(resolved.penaltyTaker)) resolved = { ...resolved, penaltyTaker: bestBy('composure') };
-  if (resolved.freeKickTaker && !xiIds.has(resolved.freeKickTaker)) resolved = { ...resolved, freeKickTaker: bestBy('shooting') };
-  return { team: resolved, forced };
+  return { team: repairRoles(rebuildTeamChemistry({ ...team, players })), forced };
 }

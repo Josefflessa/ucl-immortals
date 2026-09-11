@@ -18,8 +18,9 @@ import Crest from '../components/game/Crest';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import BetSlipModal from '../components/game/BetSlipModal';
 import { buildLeagueMatchKey, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
-import { unavailableStarters } from '../lib/discipline';
+import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
 import type { MatchResult, Team } from '../lib/gameEngine';
+import type { Player } from '../lib/gameData';
 import { POS_PT } from '../lib/gameData';
 import { AppShell, Button, ConfirmDialog, PageContainer, StatusBanner, Tab, TabList, Tabs, TopBar } from '../design-system';
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
@@ -40,7 +41,7 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline } = useGame();
   const online = state.mode === 'online';
   const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | null>(null);
 
@@ -59,8 +60,10 @@ export default function LeaguePage() {
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null);
   // 🎯 Palpite — slip aberto (qual partida) e helpers de teto/consulta.
   const [betSlip, setBetSlip] = useState<{ matchKey: string; homeName: string; awayName: string } | null>(null);
-  // 🟥🩹 Aviso "ajuste a escalação" (solo) — lista de nomes indisponíveis no XI.
+  // 🟥🩹 Aviso "ajuste a escalação" — lista de nomes indisponíveis no XI.
   const [lineupWarning, setLineupWarning] = useState<string[] | null>(null);
+  // 🆘 Contratação emergencial — abre quando não há reserva disponível para a posição.
+  const [emergencySelection, setEmergencySelection] = useState<ReturnType<typeof getEmergencyReplacementTarget>>(null);
   // 🔍 "Ver Detalhes" de uma partida (placar + gols + campo dos 2 times c/ notas finais)
   const [detailsMatch, setDetailsMatch] = useState<{ result: MatchResult; homeTeam?: Team; awayTeam?: Team; homeName: string; awayName: string } | null>(null);
   const openMatchDetails = (result: MatchResult) => setDetailsMatch({
@@ -220,8 +223,14 @@ export default function LeaguePage() {
   const allFixturesPlayed = currentRoundFixtures.every(f => f.played);
 
   const handlePlayPlayerMatch = () => {
-    // 🟥🩹 Bloqueio: não deixa jogar com titular indisponível — avisa e obriga a ajustar.
-    if (myUnavailable.length > 0) { setLineupWarning(myUnavailable.map(u => u.shortName ?? '?')); return; }
+    // 🟥🩹 Bloqueio: se não houver reserva compatível, oferece contratação gratuita
+    // prata/bronze para a posição antes de liberar a rodada.
+    if (myUnavailable.length > 0) {
+      const emergency = playerTeam ? getEmergencyReplacementTarget(playerTeam, state.discipline) : null;
+      if (emergency && emergency.options.length > 0) { setEmergencySelection(emergency); return; }
+      setLineupWarning(myUnavailable.map(u => u.shortName ?? '?'));
+      return;
+    }
 
     // In online mode, the player's team ID is player_0, player_1 etc. not player_team
     const myPlayerId = localTeamId;
@@ -248,8 +257,23 @@ export default function LeaguePage() {
   // ✅ Não-host aperta "Estou pronto" (só se a escalação estiver ok).
   const handleReadyToggle = () => {
     if (iAmReady) { playerUnreadyOnline(); return; }
-    if (myUnavailable.length > 0) { setLineupWarning(myUnavailable.map(u => u.shortName ?? '?')); return; }
+    if (myUnavailable.length > 0) {
+      const emergency = playerTeam ? getEmergencyReplacementTarget(playerTeam, state.discipline) : null;
+      if (emergency && emergency.options.length > 0) { setEmergencySelection(emergency); return; }
+      setLineupWarning(myUnavailable.map(u => u.shortName ?? '?'));
+      return;
+    }
     playerReadyOnline();
+  };
+
+  const handleEmergencySelection = (player: Player) => {
+    if (!emergencySelection) return;
+    if (online) {
+      emergencyReplaceOnline(emergencySelection.starterId, player.id);
+    } else {
+      dispatch({ type: 'EMERGENCY_REPLACE_PLAYER', starterId: emergencySelection.starterId, player });
+    }
+    setEmergencySelection(null);
   };
 
   const handleAdvanceRound = () => {
@@ -1299,6 +1323,77 @@ export default function LeaguePage() {
         )}
 
       </PageContainer>
+
+      {/* ── Contratação emergencial: vaga titular sem cobertura no banco ── */}
+      <AnimatePresence>
+        {emergencySelection && emergencySelection.options.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="ui-modal-backdrop z-50 p-3 sm:p-4"
+            onClick={() => setEmergencySelection(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              onClick={e => e.stopPropagation()}
+              className="ui-modal ui-modal--wide flex max-h-[95vh] flex-col"
+            >
+              <div className="ui-modal__header flex-shrink-0 justify-start px-5 sm:px-6">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#F59E0B22', border: '1px solid #F59E0B55' }}>
+                    <AlertTriangle size={20} style={{ color: '#FBBF24' }} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FBBF24' }}>
+                      CONTRATAÇÃO EMERGENCIAL
+                    </h3>
+                    <p className="text-[11px] sm:text-xs mt-1" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <b style={{ color: '#FFF' }}>{emergencySelection.starterName}</b> está indisponível e não há reserva para <b style={{ color: '#FBBF24' }}>{POS_PT[emergencySelection.position] ?? emergencySelection.position}</b>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="ui-panel ui-panel--inset mx-4 mt-4 flex-shrink-0 border-[#F59E0B]/35 bg-[#F59E0B]/[0.07] px-4 py-3 sm:mx-6">
+                <div className="text-[11px] font-black tracking-widest" style={{ color: '#FBBF24', fontFamily: 'Rajdhani, sans-serif' }}>
+                  ESCOLHA GRATUITA · PRATA OU BRONZE
+                </div>
+                <div className="text-[11px] mt-1" style={{ color: '#A9A9B8', fontFamily: 'Rajdhani, sans-serif' }}>
+                  O escolhido entra direto no time titular, substitui o indisponível e mantém o valor de venda normal da sua raridade.
+                </div>
+              </div>
+
+              <div className="px-3 sm:px-6 py-5 flex-1 min-h-0 flex items-center justify-center">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 justify-items-center">
+                  {emergencySelection.options.map(option => (
+                    <button
+                      key={option.id}
+                      onClick={() => handleEmergencySelection(option)}
+                      className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none"
+                      title={`Contratar ${option.shortName} para ${POS_PT[emergencySelection.position] ?? emergencySelection.position}`}
+                    >
+                      <PlayerCard player={option} compact lite />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="ui-modal__footer flex-shrink-0 justify-between px-5 sm:px-6">
+                <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                  A rodada continua bloqueada até ajustar o XI.
+                </span>
+                <Button intent="ghost" className="ml-auto" onClick={() => setEmergencySelection(null)}>
+                  VOLTAR
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── End-of-round reinforcement pick ── */}
       <AnimatePresence>

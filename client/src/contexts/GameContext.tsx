@@ -20,7 +20,7 @@ import type { VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
 import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, revealEligibleKoBets, settleBet } from '../lib/bets';
-import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury } from '../lib/discipline';
+import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, applyEmergencyReplacement } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem, getClientId } from '../lib/storage';
@@ -200,6 +200,7 @@ export type GameAction =
   | { type: 'PLACE_BET'; matchKey: string; homeGoals: number; awayGoals: number; stake: number }
   | { type: 'CANCEL_BET'; matchKey: string }
   | { type: 'HEAL_INJURY'; playerId: string }
+  | { type: 'EMERGENCY_REPLACE_PLAYER'; starterId: string; player: Player }
   | { type: 'SELL_PLAYER'; playerId: string }
   | { type: 'START_LEAGUE' }
   | { type: 'SIMULATE_LEAGUE' }
@@ -706,6 +707,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const key = `${state.playerTeam.id}:${action.playerId}`;
       if (!state.discipline[key] || state.discipline[key].injured <= 0) return state;
       return { ...state, points: state.points - SHOP_COSTS.physio, discipline: healInjury(state.discipline, state.playerTeam.id, action.playerId) };
+    }
+
+    case 'EMERGENCY_REPLACE_PLAYER': {
+      // 🆘 Contratação emergencial — gratuita, limitada a prata/bronze e válida somente
+      // quando não existe reserva disponível para cobrir a vaga indisponível.
+      if (state.mode === 'online' || !state.playerTeam) return state;
+      const canonicalPlayer = PLAYERS.find(p => p.id === action.player.id);
+      if (!canonicalPlayer) return state;
+      const updatedTeam = applyEmergencyReplacement(state.playerTeam, state.discipline, action.starterId, canonicalPlayer);
+      return updatedTeam ? { ...state, playerTeam: updatedTeam } : state;
     }
 
     case 'SELL_PLAYER': {
@@ -1348,6 +1359,7 @@ interface GameContextType {
   shopPlaceBetOnline: (matchKey: string, homeGoals: number, awayGoals: number, stake: number) => void;
   shopCancelBetOnline: (matchKey: string) => void;
   healInjuryOnline: (playerId: string) => void;
+  emergencyReplaceOnline: (starterId: string, playerId: string) => void;
   marketSellOnline: (playerId: string) => void;
   marketListOnline: (playerId: string, price: number) => void;
   marketCancelOnline: (listingId: string) => void;
@@ -1611,6 +1623,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const healInjuryOnline = useCallback((playerId: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("heal_injury", { roomCode: state.roomCode, playerId });
   }, [state.roomCode]);
+  const emergencyReplaceOnline = useCallback((starterId: string, playerId: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("emergency_replace_player", { roomCode: state.roomCode, starterId, playerId });
+  }, [state.roomCode]);
   const marketSellOnline = useCallback((playerId: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("market_sell", { roomCode: state.roomCode, playerId });
   }, [state.roomCode]);
@@ -1703,7 +1718,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    shopChangeCoachOnline, evolveCoachPrimeOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
+    shopChangeCoachOnline, evolveCoachPrimeOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, resetEvolvePointsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps

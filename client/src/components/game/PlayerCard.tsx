@@ -581,15 +581,21 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
 function buildLocalPlayerUrls(playerId: string): string[] {
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
-  const namedKeys = Array.from(new Set(
-    [LOCAL_NAMED_PLAYER_PHOTOS[playerId], LOCAL_NAMED_PLAYER_PHOTOS[baseId]]
+  const localNames = Array.from(new Set(
+    [
+      // Prefer the exact version first (e.g. `messi_psg`), then the base ID.
+      // Most portraits in public/players/regular use these readable filenames.
+      playerId,
+      baseId,
+      LOCAL_NAMED_PLAYER_PHOTOS[playerId],
+      LOCAL_NAMED_PLAYER_PHOTOS[baseId],
+    ]
       .filter((name): name is string => !!name),
   ));
-  if (!m && namedKeys.length === 0) return [];
+  if (!m && localNames.length === 0) return [];
 
-  // Try the exact version first (e.g. messi_psg), then the canonical base
-  // portrait as a safe fallback for legacy IDs.
-  const namedUrls = namedKeys.flatMap(localName => [
+  // Try readable local filenames before numeric legacy assets and SoFIFA.
+  const localUrls = localNames.flatMap(localName => [
     `${LOCAL_PLAYER_PHOTO_ROOT}/${localName}.webp`,
     `${LOCAL_PLAYER_PHOTO_ROOT}/${localName}.png`,
   ]);
@@ -597,7 +603,7 @@ function buildLocalPlayerUrls(playerId: string): string[] {
   // Numeric assets remain a transition fallback for any asset that has not yet
   // been renamed or for IDs shared by more than one game record.
   return [
-    ...namedUrls,
+    ...localUrls,
     ...(m ? [
       `${LOCAL_PLAYER_PHOTO_ROOT}/${m.id}.webp`,
       `${LOCAL_PLAYER_PHOTO_ROOT}/${m.id}.png`,
