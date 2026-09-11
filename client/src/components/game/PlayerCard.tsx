@@ -536,6 +536,8 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   garrincha: 'garrincha',
   gullit: 'gullit',
   hagi: 'hagi',
+  haaland: 'haaland_city',
+  haaland_borussia: 'haaland_borussia',
   kewell: 'kewell',
   koeman: 'koeman',
   lampard: 'lampard',
@@ -635,10 +637,11 @@ export function buildPlayerPhotoSources(playerId: string, lowRes = false): strin
 
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
-  if (!m && !LOCAL_NAMED_PLAYER_PHOTOS[playerId] && !LOCAL_NAMED_PLAYER_PHOTOS[baseId]) return [];
 
   // Prefer the readable local filename used by the downloaded Icon portraits,
   // then the converted/legacy numeric package, and only then use SoFIFA online.
+  // The exact player ID is always tried, so adding `players/regular/<id>.webp`
+  // is enough even when the ID has not been added to a mapping yet.
   return [
     ...buildLocalPlayerUrls(playerId),
     ...(m ? buildSofifaUrls(m, lowRes) : []),
@@ -867,8 +870,9 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   const dualCol0 = variants.length >= 2 ? normCol(variants[0].color) : null;
   const dualCol1 = variants.length >= 2 ? normCol(variants[1].color) : null;
   const uniq = UNIQUE_STYLE[player.id];               // ⭐ carta Única (textura/fonte/render próprios)
-  const baseId = getBasePlayerId(player.id);
-  const hasPhoto = !!uniq || !!SOFIFA_MAPPING[baseId];
+  // A foto pode existir apenas no pacote local (sem entrada SoFIFA), como no Raphinha.
+  // Use a mesma cadeia de fontes do PlayerPhoto para não esconder portraits locais.
+  const hasPhoto = !!uniq || buildPlayerPhotoSources(player.id).length > 0;
 
   // ─── COMPACT CARD (escudo leve) ──────────────────────────────────────────
   // Caminho enxuto: 1 camada de textura achatada, sem anel metálico/scrim/border-SVG/glow pesados
