@@ -13,7 +13,7 @@ import {
   freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc,
   cornerGoalDesc, cornerSaveDesc, cornerMissDesc,
   flowDesc, Approach, LastKeyCtx,
-  yellowCardDesc, straightRedDesc, secondYellowDesc, injuryDesc,
+  foulDesc, yellowCardDesc, straightRedDesc, secondYellowDesc, injuryDesc,
 } from './matchNarrative';
 import {
   AttrKey, getTraitAttributeBonus, getGoalkeeperTraitBonus,
@@ -1328,14 +1328,41 @@ export function runMatchSimulation(
     homeBaseStrength = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus, disc()) + zidaneBonus(home);
     awayBaseStrength = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus, disc()) + zidaneBonus(away);
   };
+  const matchStatFor = (p: Player, team: Team): PlayerMatchStat | undefined =>
+    playerStats[(p as PlayerCard).statId ?? statKey(team.id, p.id)];
+  const pushFoul = (fouler: Player, victim: Player | undefined, team: Team, min: number) => {
+    const stat = matchStatFor(fouler, team);
+    if (stat) {
+      stat.fouls++;
+      stat.rating -= 0.1;
+    }
+    events.push({
+      minute: min,
+      type: 'foul',
+      teamId: team.id,
+      playerId: fouler.id,
+      opponentId: victim?.id,
+      description: foulDesc(fouler.shortName, victim?.shortName ?? 'um adversário'),
+    });
+  };
   const pushYellow = (p: Player, team: Team, min: number, cutDanger = false) => {
     // 🟨 texto puxa pelo perfil (compostura/posição) e por ter cortado um lance de perigo.
+    const stat = matchStatFor(p, team);
+    if (stat) {
+      stat.yellowCards++;
+      stat.rating -= 0.5;
+    }
     events.push({ minute: min, type: 'yellow', teamId: team.id, playerId: p.id, description: yellowCardDesc(p.shortName, p.composure ?? 65, p.position, cutDanger) });
     totalCards++;
   };
   const applySendOff = (p: Player, team: Team, reason: 'red' | 'second-yellow', min: number) => {
     if (sentOff.has(p.id)) return;
     totalCards++;
+    const stat = matchStatFor(p, team);
+    if (stat) {
+      stat.redCards++;
+      stat.rating -= 1.5;
+    }
     // 🟥 narração dramática e VARIADA — vermelho direto (viés por compostura) vs segundo amarelo.
     events.push({ minute: min, type: 'red', teamId: team.id, playerId: p.id, secondYellow: reason === 'second-yellow',
       description: reason === 'second-yellow' ? secondYellowDesc(p.shortName) : straightRedDesc(p.shortName, p.composure ?? 65) });
@@ -1427,11 +1454,18 @@ export function runMatchSimulation(
       const cutThreat = atkMomentum > 62; // o time que atacava estava pressionando
       const dangerCardMult = (dangerousFoul ? DANGEROUS_FOUL_CARD_MULT : 1) * (cutThreat ? THREAT_FOUL_CARD_MULT : 1);
 
+      // O mesmo lance alimenta o total do time, a estatística individual e, quando
+      // aplicável, a lógica de cartão/lesão. O evento precisa existir para o replay
+      // e para a agregação da temporada conseguirem atribuir a falta ao jogador.
+      const fouledPool = attackTeam.players.slice(0, 11).filter(p => !injuredDebuff[p.id] && !sentOff.has(p.id) && p.position !== 'GK');
+      const fouled = fouledPool[Math.floor(Math.random() * fouledPool.length)];
+
       // 🟨🟥 Cartão do FALTADOR (lado defensor), ponderado por posição/compostura/ímpeto/tática/formação
       // E pela periculosidade da falta (falta dura ou que corta ameaça → mais cartão).
       const foulerPool = defendTeam.players.slice(0, 11).filter(p => !sentOff.has(p.id) && p.position !== 'GK');
       const fouler = pickFouler(foulerPool);
       if (fouler) {
+        pushFoul(fouler, fouled, defendTeam, minute);
         // tAgg = tática × formação × periculosidade × "juiz acalma" (settle) — sem o ímpeto cru.
         const tAgg = tacticAggression(defendTeam.playStyle ?? 'balanced') * formationAggression(defendTeam.formationId) * dangerCardMult * settleFactor(totalCards);
         if (Math.random() < STRAIGHT_RED_PROB * tAgg) {
@@ -1447,8 +1481,6 @@ export function runMatchSimulation(
         }
       }
       // 🩹 Lesão do FALTADO (lado atacante) — falta dura machuca mais, ponderada pelo físico.
-      const fouledPool = attackTeam.players.slice(0, 11).filter(p => !injuredDebuff[p.id] && !sentOff.has(p.id) && p.position !== 'GK');
-      const fouled = fouledPool[Math.floor(Math.random() * fouledPool.length)];
       if (fouled && Math.random() < injuryChanceFromFoul(fouled.physical ?? 70) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
         applyInjury(fouled, attackTeam, minute);
       }
@@ -2186,6 +2218,9 @@ export function simulateRemainingMatch(
     } else if (e.type === 'red') {
       const sk = actorKey(e, e.playerId);
       if (sk && playerStats[sk]) { playerStats[sk].redCards++; playerStats[sk].rating -= 1.5; }
+    } else if (e.type === 'foul') {
+      const sk = actorKey(e, e.playerId);
+      if (sk && playerStats[sk]) { playerStats[sk].fouls++; playerStats[sk].rating -= 0.1; }
     } else if (e.type === 'injury') {
       const sk = actorKey(e, e.playerId);
       if (sk && playerStats[sk]) playerStats[sk].rating -= 0.3;

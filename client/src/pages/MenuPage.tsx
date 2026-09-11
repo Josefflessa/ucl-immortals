@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gamepad2, Trophy, Plus, LogIn, LogOut, BookOpen } from 'lucide-react';
+import { Gamepad2, Trophy, Plus, LogIn, LogOut, BookOpen, LibraryBig } from 'lucide-react';
 import HowToPlayModal from '../components/game/HowToPlayModal';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
@@ -266,6 +266,17 @@ export default function MenuPage() {
               >
                 <span className="inline-flex items-center justify-center gap-2.5">
                   <Trophy size={22} strokeWidth={2.5} /> MULTIPLAYER ONLINE
+                </span>
+              </Button>
+
+              <Button
+                type="button"
+                intent="ghost"
+                onClick={() => dispatch({ type: 'SET_PHASE', phase: 'album' })}
+                className="w-full border border-[var(--ui-line-subtle)]"
+              >
+                <span className="inline-flex items-center justify-center gap-2">
+                  <LibraryBig size={16} strokeWidth={2.5} /> ÁLBUM DE JOGADORES
                 </span>
               </Button>
 

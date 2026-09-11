@@ -6,6 +6,7 @@ import { GameProvider, useGame } from "./contexts/GameContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
+import AlbumPage from "./pages/AlbumPage";
 import SetupPage from "./pages/SetupPage";
 import CrestPage from "./pages/CrestPage";
 import CoachPage from "./pages/CoachPage";
@@ -34,6 +35,7 @@ function GameRouter() {
   switch (state.phase) {
     case 'menu':
     case 'lobby': return <MenuPage />;
+    case 'album': return <AlbumPage />;
     case 'setup': return <SetupPage />;
     case 'crest': return <CrestPage />;
     case 'coach': return <CoachPage />;

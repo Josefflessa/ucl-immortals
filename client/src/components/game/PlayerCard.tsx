@@ -533,6 +533,7 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   cristiano_realmadrid: 'cristiano_realmadrid',
   cruyff: 'cruyff',
   dalglish: 'dalglish',
+  eusebio: 'eusebio',
   garrincha: 'garrincha',
   gullit: 'gullit',
   hagi: 'hagi',
@@ -575,6 +576,9 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   veron: 'veron',
   voller: 'voller',
   varane: 'varane',
+  vanbasten: 'vanbasten',
+  yamal: 'yamal_barcelona',
+  yamal_barcelona: 'yamal_barcelona',
   zico: 'zico',
   zidane: 'zidane',
   zola: 'zola',
@@ -583,14 +587,14 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
 function buildLocalPlayerUrls(playerId: string): string[] {
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
+  const namedPlayerPhoto = LOCAL_NAMED_PLAYER_PHOTOS[playerId] ?? LOCAL_NAMED_PLAYER_PHOTOS[baseId];
   const localNames = Array.from(new Set(
     [
-      // Prefer the exact version first (e.g. `messi_psg`), then the base ID.
-      // Most portraits in public/players/regular use these readable filenames.
+      // Prefer an explicit mapped filename when a version uses one (e.g. `yamal`
+      // -> `yamal_barcelona`), then try the exact ID and base ID filenames.
+      namedPlayerPhoto,
       playerId,
       baseId,
-      LOCAL_NAMED_PLAYER_PHOTOS[playerId],
-      LOCAL_NAMED_PLAYER_PHOTOS[baseId],
     ]
       .filter((name): name is string => !!name),
   ));
@@ -885,6 +889,10 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
     };
     const cvis = rarityVis(player.rarity);
     const cRing = dualCol0 ?? (uniq ? uniq.ring : (variant ? variant.color : cvis.ring));
+    const compactPhotoMargin = uniq ? '10%' : '6%';
+    const compactPhotoPadding = uniq
+      ? (showChemistry ? '14%' : '19%')
+      : (showChemistry ? '11%' : '13%');
     return (
       <CompactWrapper
         {...compactMotion}
@@ -931,7 +939,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           </div>
 
           {/* Foto (cartas normais; as Únicas usam o render posicionado acima) */}
-          <div className="flex-1 flex items-end justify-center overflow-hidden" style={{ minHeight: 0, marginLeft: '10%', marginRight: '10%' }}>
+          <div className="flex-1 flex items-end justify-center overflow-hidden" style={{ minHeight: 0, marginLeft: compactPhotoMargin, marginRight: compactPhotoMargin }}>
             {!uniq && (hasPhoto ? (
               <PlayerPhoto playerId={player.id} fullName={player.fullName} size={50} lowRes />
             ) : (
@@ -940,7 +948,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           </div>
 
           {/* Nome + país/clube + química (embaixo). Sem química (draft/loja/banco) sobe foto+nome com mais folga. */}
-          <div className="flex flex-col items-center flex-shrink-0" style={{ paddingBottom: showChemistry ? '14%' : '19%', paddingLeft: '10%', paddingRight: '10%' }}>
+          <div className="flex flex-col items-center flex-shrink-0" style={{ paddingBottom: compactPhotoPadding, paddingLeft: '10%', paddingRight: '10%' }}>
             {/* bandeira (país) + escudo (clube) — ajudam a ler a química no MEU TIME */}
             <div className="flex items-center justify-center gap-1 mb-0.5">
               {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
@@ -1023,7 +1031,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         </div>
         {/* foto (cartas normais; as Únicas usam o render grande atrás do conteúdo) */}
         {!uniq && (
-          <div className="absolute flex items-end justify-center" style={{ right: '9%', top: '8%', width: '58%', height: '44%' }}>
+          <div className="absolute flex items-end justify-center" style={{ right: '6%', top: '5%', width: '66%', height: '49%' }}>
             {hasPhoto ? <PlayerPhoto playerId={player.id} fullName={player.fullName} size={150} lowRes={lite} /> : <span style={{ fontSize: 40, opacity: .2 }}>⚽</span>}
           </div>
         )}

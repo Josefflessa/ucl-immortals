@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 // ============================================================
 export type GamePhase =
   | 'menu'           // Home screen
+  | 'album'          // Player album / catalog
   | 'lobby'          // Multiplayer lobby
   | 'setup'          // Choose name, difficulty
   | 'crest'          // Choose club crest

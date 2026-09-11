@@ -896,8 +896,7 @@ export default function MatchSimPage() {
         if (ak && ps[ak]) { ps[ak].tackles++; ps[ak].rating += 0.35; }
         if (ok && ps[ok]) ps[ok].rating -= 0.15;
       } else if (e.type === 'yellow') {
-        if (ak && ps[ak]) { ps[ak].yellowCards++; ps[ak].rating -= 0.5; ps[ak].fouls++; }
-        if (isHome) panel.homeFouls++; else panel.awayFouls++;
+        if (ak && ps[ak]) { ps[ak].yellowCards++; ps[ak].rating -= 0.5; }
       } else if (e.type === 'red') {
         if (ak && ps[ak]) { ps[ak].redCards++; ps[ak].rating -= 1.5; }
       } else if (e.type === 'injury') {
