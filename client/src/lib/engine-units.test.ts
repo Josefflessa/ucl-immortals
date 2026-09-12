@@ -21,7 +21,7 @@ import { betCapPrefix } from './bets';
 import { stadiumFor } from './stadium';
 import { PLAYERS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
-import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, getCrest } from './crests';
+import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, crestIdForClub, getCrest } from './crests';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -609,6 +609,13 @@ describe('crest catalogue integrity', () => {
     expect(getCrest(ALL_CRESTS[0].id)?.id).toBe(ALL_CRESTS[0].id);
     expect(getCrest('does-not-exist')).toBeNull();
     expect(getCrest(null)).toBeNull();
+  });
+  it('resolves player club labels through the same catalogue used by the cards', () => {
+    expect(crestIdForClub('Santos')).toBe('santos');
+    expect(crestIdForClub('PSG')).toBe('paris-saint-germain');
+    expect(crestIdForClub('Bayern München')).toBe('bayern-munich');
+    expect(crestIdForClub('Liverpool')).toBe('liverpool');
+    expect(crestIdForClub('Brasil')).toBe('brazil');
   });
 });
 

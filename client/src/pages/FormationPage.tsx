@@ -50,11 +50,12 @@ export default function FormationPage() {
     <AppShell>
       <TopBar playerName={state.playerName} />
 
-      <PageContainer wide className="flex flex-col gap-6 lg:flex-row">
+      <PageContainer wide className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 lg:flex-row">
         {/* Left: Formation list */}
         <div className="flex-1">
           <SectionHeader
-            kicker="PLANO DE JOGO · 04"
+            kicker="PLANO DE JOGO · 05"
             title="Escolha a formação"
             description={selectedCoach ? `${selectedCoach.name} prefere ${selectedCoach.preferredFormation}.` : undefined}
             className="mb-6"
@@ -142,20 +143,6 @@ export default function FormationPage() {
             })}
           </div>
 
-          {/* Continue */}
-          <div className="mt-6 flex gap-3">
-            <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
-              ← VOLTAR
-            </Button>
-            <Button
-              intent="primary"
-              size="large"
-              onClick={handleContinue}
-              className="flex-1"
-            >
-              INICIAR DRAFT →
-            </Button>
-          </div>
         </div>
 
         {/* Right: Formation preview */}
@@ -200,6 +187,22 @@ export default function FormationPage() {
               </div>
             </Panel>
           )}
+        </div>
+        </div>
+
+        {/* Mesmo padrão de ações das etapas de técnico e escudo. */}
+        <div className="mt-8 flex gap-3">
+          <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
+            ← VOLTAR
+          </Button>
+          <Button
+            intent="primary"
+            size="large"
+            onClick={handleContinue}
+            className="flex-1"
+          >
+            INICIAR DRAFT →
+          </Button>
         </div>
       </PageContainer>
     </AppShell>

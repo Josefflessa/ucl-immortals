@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { sellValue, canEvolvePrime, PRIME_COST, PRIME_WINS_REQUIRED } from './shop';
+import { sellValue, canEvolvePrime, PRIME_COST, PRIME_WINS_REQUIRED, SHOP_COSTS } from './shop';
+
+describe('Pacote Único', () => {
+  it('custa 700 pontos', () => {
+    expect(SHOP_COSTS.uniqueCard).toBe(700);
+  });
+});
 
 describe('canEvolvePrime', () => {
   it('exige 4 vitórias E 500 pontos', () => {

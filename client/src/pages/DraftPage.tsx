@@ -432,10 +432,10 @@ export default function DraftPage() {
                               className="font-black px-2 py-0.5 rounded"
                               style={{
                                 fontFamily: 'Bebas Neue, sans-serif',
-                                fontSize: idx === 0 ? '0.9rem' : '0.75rem',
+                                fontSize: '0.75rem',
                                 background: '#C9A84C22',
-                                color: idx === 0 ? '#E8C84A' : '#C9A84C',
-                                border: `1px solid ${idx === 0 ? '#C9A84C88' : '#C9A84C44'}`,
+                                color: '#C9A84C',
+                                border: '1px solid #C9A84C44',
                               }}
                             >
                               {posLabel(pos)}

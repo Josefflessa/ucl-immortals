@@ -49,9 +49,8 @@ function evalBadge(state: any) {
   const kb = state.knockoutBracket;
   const matches = getActiveKnockoutMatches(kb) as any[];
   const round = kb.currentRound, currentLeg = kb.currentLeg;
-  const isFinal = round === 'final';
   const allPlayed = matches.length > 0 && matches.every((m: any) => m.played);
-  const idaPlayed = !isFinal && currentLeg === 2 && !allPlayed;
+  const idaPlayed = currentLeg === 2 && !allPlayed;
   const humanPlayersInBracket = state.onlinePlayers.filter((p: any) => matches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id));
   const allPlayersWatched = humanPlayersInBracket.length === 0 || humanPlayersInBracket.every((p: any) => state.onlineWatchedPlayers.includes(p.id));
   const bets = state.bets ?? [];
@@ -59,7 +58,7 @@ function evalBadge(state: any) {
   const isPlayerTeam = (id: string) => state.onlinePlayers.some((p: any) => p.id === id && p.socketId === state.socketId);
   const m = matches[0];
   const hasPlayer = isPlayerTeam(m.homeTeamId) || isPlayerTeam(m.awayTeamId);
-  const twoLeg = !m.isSingleLeg && round !== 'final';
+  const twoLeg = round === 'final' ? m.isSingleLeg === false : m.isSingleLeg !== true;
   const l1 = m.leg1, l2 = m.leg2, watched = state.watchedKnockoutMatches;
   const hideMyScore = hasPlayer && (twoLeg
     ? (!!l2 && !watched.includes(`${m.id}_l2`)) || (!!l1 && !watched.includes(`${m.id}_l1`))

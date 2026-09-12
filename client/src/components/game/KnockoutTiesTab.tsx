@@ -105,13 +105,14 @@ export default function KnockoutTiesTab() {
       dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [teamB, teamA], result: match.leg2, knockout: { matchId: match.id, round, leg: 2, firstLeg: { home: match.leg1?.awayGoals ?? 0, away: match.leg1?.homeGoals ?? 0 } }, spectator: true });
     }
   };
-  const label = knockoutRoundLabel(round);
+  const label = knockoutRoundLabel(round, knockoutBracket.firstRoundSize);
   const allPlayed = matches.length > 0 && matches.every(m => m.played);
   const isFinal = round === 'final';
+  const isFinalSingleLeg = isFinal && matches.every(m => m.isSingleLeg !== false);
   // After the IDA is played the bracket bumps currentLeg to 2, but the ties aren't
   // resolved yet (allPlayed=false). This in-between state must ALSO gate on everyone
   // watching the ida before the host can fire the volta — otherwise the ida spoils.
-  const idaPlayed = !isFinal && currentLeg === 2 && !allPlayed;
+  const idaPlayed = currentLeg === 2 && !allPlayed;
 
   // Online: gate advance button until all human players in this round have watched their tie.
   // Só jogadores CONECTADOS contam (igual o servidor em knockoutWatchStatus) — um jogador
@@ -122,7 +123,7 @@ export default function KnockoutTiesTab() {
   const allPlayersWatched = state.mode !== 'online' || humanPlayersInBracket.length === 0 ||
     humanPlayersInBracket.every(p => state.onlineWatchedPlayers.includes(p.id));
   const knockoutWaitingCount = humanPlayersInBracket.filter(p => !state.onlineWatchedPlayers.includes(p.id)).length;
-  const playLabel = isFinal
+  const playLabel = isFinalSingleLeg
     ? `▶ JOGAR ${label}`
     : currentLeg === 1
       ? `▶ JOGAR IDA — ${label}`
@@ -162,7 +163,7 @@ export default function KnockoutTiesTab() {
             const homeIsPlayer = isPlayerTeam(match.homeTeamId);
             const awayIsPlayer = isPlayerTeam(match.awayTeamId);
             const hasPlayer = homeIsPlayer || awayIsPlayer;
-            const twoLeg = !match.isSingleLeg && round !== 'final';
+            const twoLeg = isFinal ? match.isSingleLeg === false : match.isSingleLeg !== true;
             const l1 = match.leg1;
             const l2 = match.leg2;
             const watched = state.watchedKnockoutMatches;
@@ -367,14 +368,14 @@ export default function KnockoutTiesTab() {
 
                   {/* 🎯 Palpite — botão na perna ativa (pré-jogo) + badges das pernas reveladas */}
                   {!iAmSpectator && (() => {
-                    const isFinalTie = match.isSingleLeg || round === 'final';
-                    const legNum = isFinalTie ? 1 : currentLeg;
+                    const isSingleLegTie = !twoLeg;
+                    const legNum = isSingleLegTie ? 1 : currentLeg;
                     const activeKey = buildKnockoutMatchKey(match.id, legNum);
                     const legPlayed = legNum === 2 ? !!l2 : !!(l1 || match.result);
                     const betHome = legNum === 2 ? awayName : homeName; // volta: mando invertido
                     const betAway = legNum === 2 ? homeName : awayName;
                     const myActiveBet = betFor(activeKey);
-                    const legWord = isFinalTie ? '' : (legNum === 2 ? 'volta' : 'ida');
+                    const legWord = isSingleLegTie ? '' : (legNum === 2 ? 'volta' : 'ida');
                     const badge = (b: Bet | undefined, word: string) => {
                       if (!b || !b.settled) return null;
                       if (hideScore || !b.revealed) return <div key={word} className="text-[10px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>🎯 palpite {word} em andamento</div>;
@@ -392,7 +393,7 @@ export default function KnockoutTiesTab() {
                             {myActiveBet ? `🎯 Palpite ${legWord}: ${myActiveBet.homeGoals}-${myActiveBet.awayGoals} · ${myActiveBet.stake} (editar)` : `🎯 Palpitar ${legWord}`}
                           </button>
                         )}
-                        {isFinalTie
+                        {isSingleLegTie
                           ? badge(betFor(buildKnockoutMatchKey(match.id, 1)), 'da final')
                           : <>{badge(betFor(buildKnockoutMatchKey(match.id, 1)), 'ida')}{badge(betFor(buildKnockoutMatchKey(match.id, 2)), 'volta')}</>}
                       </div>
@@ -459,7 +460,8 @@ export default function KnockoutTiesTab() {
                 <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {state.mode === 'online' && !allReadyKO
                     ? 'Todos (você incluso) precisam confirmar que estão prontos.'
-                    : isFinal ? 'A grande final é em jogo único, em campo neutro.'
+                    : isFinalSingleLeg ? 'A grande final é em jogo único, em campo neutro.'
+                      : isFinal ? 'A grande final será decidida em ida e volta, pelo placar agregado.'
                       : `Mata-mata em ida e volta — quem avança é decidido no placar agregado.${state.mode === 'online' ? ' Todos jogam ao mesmo tempo.' : ''}`}
                 </div>
               </>

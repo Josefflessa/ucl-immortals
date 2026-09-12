@@ -703,9 +703,8 @@ export function simulateSeason(strengths: number[]): SeasonResult {
   let champion: string | null = null;
   let guard = 0;
   while (!champion && guard++ < 8) {
-    const isFinal = bracket.currentRound === 'final';
-    playActiveKnockoutLeg(bracket, byId); // leg 1 (or final)
-    if (!isFinal) playActiveKnockoutLeg(bracket, byId); // leg 2
+    playActiveKnockoutLeg(bracket, byId); // leg 1 (or single-leg final)
+    if (bracket.currentLeg === 2) playActiveKnockoutLeg(bracket, byId); // leg 2 when configured
     champion = advanceKnockoutBracket(bracket);
   }
 

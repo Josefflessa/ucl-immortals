@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
-import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
+import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
 import LeagueSquadTab from '../components/game/LeagueSquadTab';
 import MarketTab from '../components/game/MarketTab';
 import ShopTab from '../components/game/ShopTab';
@@ -78,11 +78,19 @@ export default function LeaguePage() {
   // knockout (ties + bracket). Shared tabs — ESTATÍSTICAS, MEU TIME, MEUS JOGOS —
   // work in either phase; only the first tab (matches) and the standings tab differ.
   const isKnockout = state.phase === 'knockout';
-  const knockoutLabel = state.knockoutBracket ? knockoutRoundLabel(state.knockoutBracket.currentRound) : '';
-  const leagueRounds = state.competitionFormat.leagueRounds;
-  const qualifiedTeams = state.competitionFormat.qualifiedTeams;
+  const isLeagueOnly = state.competitionFormat.id === 'league';
+  const isGroupStage = !isKnockout && state.competitionFormat.id === 'groups_knockout';
+  const knockoutLabel = state.knockoutBracket ? knockoutRoundLabel(state.knockoutBracket.currentRound, state.knockoutBracket.firstRoundSize) : '';
+  const leagueRounds = isGroupStage ? state.competitionFormat.groupRounds : state.competitionFormat.leagueRounds;
+  const qualifiedTeams = isLeagueOnly ? 1 : state.competitionFormat.qualifiedTeams;
   const playoffTeams = Math.max(0, qualifiedTeams - 16);
   const directTeams = 16 - playoffTeams;
+  const groupTables = useMemo(
+    () => isGroupStage
+      ? computeGroupStandings(allTeams, leagueFixtures, state.competitionFormat)
+      : [],
+    [allTeams, leagueFixtures, state.competitionFormat, isGroupStage]
+  );
 
   // When the season advances league → knockout, the standings tab disappears; fall
   // back to the matches (CONFRONTOS) tab so we never render a blank panel.
@@ -161,16 +169,36 @@ export default function LeaguePage() {
     return map[historyPeriod.koRound!] ?? [];
   }, [state.knockoutBracket, historyPeriod]);
 
-  const playerStanding = leagueStandings.find(s => s.teamId === playerTeam?.id);
-  const playerPosition = leagueStandings.findIndex(s => s.teamId === playerTeam?.id) + 1;
+  const globalPlayerStanding = leagueStandings.find(s => s.teamId === playerTeam?.id);
+  const playerGroup = isGroupStage
+    ? groupTables.find(group => group.entries.some(entry => entry.teamId === playerTeam?.id))
+    : undefined;
+  const playerGroupLabel = playerGroup ? String.fromCharCode(65 + playerGroup.groupId) : null;
+  const playerStanding = isGroupStage
+    ? playerGroup?.entries.find(entry => entry.teamId === playerTeam?.id)
+    : globalPlayerStanding;
+  const playerPosition = isGroupStage
+    ? (playerGroup ? playerGroup.entries.findIndex(entry => entry.teamId === playerTeam?.id) + 1 : 0)
+    : leagueStandings.findIndex(s => s.teamId === playerTeam?.id) + 1;
   // Configured qualification line: direct places fill the Round of 16 first;
   // any remaining qualified teams form the seeded playoff field.
-  const directQual = playerPosition >= 1 && playerPosition <= directTeams;
-  const playoffQual = playoffTeams > 0 && playerPosition > directTeams && playerPosition <= qualifiedTeams;
-  const qualifies = directQual || playoffQual;
+  const groupQualified = isGroupStage && playerTeam
+    ? !!playerGroup?.entries.slice(0, state.competitionFormat.qualifiedPerGroup).some(entry => entry.teamId === playerTeam.id)
+    : false;
+  const groupQualifiedIds = isGroupStage
+    ? new Set(groupTables.flatMap(group => group.entries.slice(0, state.competitionFormat.qualifiedPerGroup).map(entry => entry.teamId)))
+    : new Set<string>();
+  const directQual = isLeagueOnly || (!isGroupStage && playerPosition >= 1 && playerPosition <= directTeams);
+  const playoffQual = !isGroupStage && playoffTeams > 0 && playerPosition > directTeams && playerPosition <= qualifiedTeams;
+  const qualifies = isLeagueOnly || groupQualified || directQual || playoffQual;
 
-  // Filter fixtures for the current round
+  // Todos os confrontos da rodada ficam disponíveis na tela. No modo de grupos,
+  // eles são organizados visualmente por grupo e o grupo do jogador é destacado.
   const currentRoundFixtures = leagueFixtures.filter(f => f.round === leagueRound);
+  const displayedRoundFixtures = currentRoundFixtures;
+  const roundGroupIds: Array<number | null> = isGroupStage
+    ? Array.from(new Set(displayedRoundFixtures.map(fixture => fixture.groupId ?? 0))).sort((a, b) => a - b)
+    : [null];
 
   // 🎯 Palpite — helpers (usam state.bets + rodada atual)
   const bets = state.bets ?? [];
@@ -287,6 +315,9 @@ export default function LeaguePage() {
   const handleAdvanceKnockout = () => {
     if (state.mode === 'online') {
       advanceRoundOnline();
+    } else if (isLeagueOnly) {
+      const champion = state.leagueStandings[0]?.teamId ?? playerTeam?.id ?? 'player_team';
+      dispatch({ type: 'FINISH_GAME', champion });
     } else {
       dispatch({ type: 'START_KNOCKOUT' });
     }
@@ -334,8 +365,9 @@ export default function LeaguePage() {
     if (!myTie) return;
     const watched = state.watchedKnockoutMatches;
 
-    // Single-leg tie (the grand final).
-    if (myTie.isSingleLeg || round === 'final') {
+    // Single-leg tie (including legacy saved finals without an explicit setting).
+    const isSingleLegTie = myTie.isSingleLeg === true || (round === 'final' && myTie.isSingleLeg !== false);
+    if (isSingleLegTie) {
       if (myTie.played && myTie.result && !watched.includes(myTie.id)) {
         const home = getTeamById(myTie.homeTeamId);
         const away = getTeamById(myTie.awayTeamId);
@@ -368,7 +400,7 @@ export default function LeaguePage() {
   return (
     <AppShell className="flex flex-col">
       <TopBar
-        title={isKnockout ? 'MATA-MATA' : 'FASE DE LIGA'}
+        title={isKnockout ? 'MATA-MATA' : isGroupStage ? 'FASE DE GRUPOS' : 'FASE DE LIGA'}
         right={
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             {!isKnockout && playerStanding && (
@@ -406,10 +438,10 @@ export default function LeaguePage() {
           <div className="text-center">
             <h2 className="text-3xl sm:text-5xl font-black tracking-widest"
               style={{ fontFamily: 'Bebas Neue, sans-serif', color: isKnockout ? '#C9A84C' : '#FFFFFF' }}>
-              {isKnockout ? knockoutLabel : `RODADA ${leagueRound} DE ${leagueRounds}`}
+              {isKnockout ? knockoutLabel : isGroupStage ? `FASE DE GRUPOS · RODADA ${leagueRound} DE ${leagueRounds}` : `RODADA ${leagueRound} DE ${leagueRounds}`}
             </h2>
             <p className="hidden sm:block" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif', fontSize: '13px' }}>
-              {isKnockout ? 'Mata-mata em ida e volta — gerencie seu time entre os confrontos' : `Dispute rodada por rodada e termine entre os ${qualifiedTeams} melhores`}
+              {isKnockout ? 'Mata-mata — gerencie seu time entre os confrontos' : isLeagueOnly ? 'Dispute rodada por rodada e seja o campeão da tabela' : isGroupStage ? `Dispute seu grupo e fique entre os ${state.competitionFormat.qualifiedPerGroup} primeiros` : `Dispute rodada por rodada e termine entre os ${qualifiedTeams} melhores`}
             </p>
           </div>
         </div>
@@ -448,10 +480,14 @@ export default function LeaguePage() {
                   {playerTeam?.name}
                 </div>
                 <div className="text-xs" style={{
-                  color: directQual ? '#22C55E' : playoffQual ? '#3B82F6' : '#EF4444',
+                  color: (isLeagueOnly || groupQualified || directQual) ? '#22C55E' : playoffQual ? '#3B82F6' : '#EF4444',
                   fontFamily: 'Rajdhani, sans-serif',
                 }}>
-                  {directQual
+                  {isLeagueOnly
+                    ? '✓ Competição decidida pela tabela'
+                    : isGroupStage
+                      ? groupQualified ? `✓ Classificado pelo grupo ${playerGroupLabel ?? ''}` : '✗ Eliminado — fora da zona de classificação do grupo'
+                    : directQual
                     ? `✓ Classificação direta às Oitavas (Top ${directTeams})`
                     : playoffQual
                       ? `✓ Zona de Playoff (${directTeams + 1}º a ${qualifiedTeams}º)`
@@ -493,7 +529,7 @@ export default function LeaguePage() {
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'HISTÓRICO' },
                 { id: 'shop', label: `LOJA · 💰${state.points}` },
-                { id: 'market', label: '🏪 MERCADO' },
+                { id: 'market', label: 'MERCADO' },
               ]
             : [
                 { id: 'fixtures', label: `RODADA ${leagueRound}` },
@@ -502,7 +538,7 @@ export default function LeaguePage() {
                 { id: 'squad', label: 'MEU TIME' },
                 { id: 'results', label: 'HISTÓRICO' },
                 { id: 'shop', label: `LOJA · 💰${state.points}` },
-                { id: 'market', label: '🏪 MERCADO' },
+                { id: 'market', label: 'MERCADO' },
               ]
           ).map(tab => (
             <Tab
@@ -528,7 +564,7 @@ export default function LeaguePage() {
           >
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-bold tracking-widest text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                PARTIDAS DA RODADA
+                {isGroupStage ? 'TODAS AS PARTIDAS DA RODADA' : 'PARTIDAS DA RODADA'}
               </span>
             </div>
 
@@ -576,7 +612,30 @@ export default function LeaguePage() {
               );
             })()}
 
-            {currentRoundFixtures.map((fixture, idx) => {
+            {roundGroupIds.map(groupId => {
+              const groupFixtures = groupId === null
+                ? displayedRoundFixtures
+                : displayedRoundFixtures.filter(fixture => (fixture.groupId ?? 0) === groupId);
+              const groupLabel = groupId === null ? null : String.fromCharCode(65 + groupId);
+              const isMyGroup = groupId !== null && groupId === playerGroup?.groupId;
+              return (
+                <section
+                  key={groupId === null ? 'all-fixtures' : `group-${groupId}`}
+                  className={isGroupStage ? 'overflow-hidden rounded-xl border border-[#1A1A2A] bg-[#0A0A14]' : undefined}
+                >
+                  {isGroupStage && (
+                    <div className="flex items-center justify-between gap-3 border-b border-[#1A1A2A] bg-[#0F0F1A] px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black tracking-widest" style={{ color: isMyGroup ? '#E8C84A' : '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>
+                          GRUPO {groupLabel}
+                        </span>
+                        {isMyGroup && <span className="rounded-full border border-[#C9A84C55] bg-[#C9A84C1A] px-2 py-0.5 text-[9px] font-black tracking-wider text-[#E8C84A]">SEU GRUPO</span>}
+                      </div>
+                      <span className="text-[10px] font-bold text-[var(--ui-text-faint)]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{groupFixtures.length} jogos</span>
+                    </div>
+                  )}
+                  <div className={isGroupStage ? 'space-y-3 p-3' : 'space-y-3'}>
+                    {groupFixtures.map((fixture, idx) => {
               const isMyFixture = fixture.homeTeamId === localTeamId || fixture.awayTeamId === localTeamId;
               const isPlayer = fixture.homeTeamId === playerTeam?.id || fixture.awayTeamId === playerTeam?.id;
 
@@ -670,6 +729,10 @@ export default function LeaguePage() {
                   })()}
                 </div>
               );
+                    })}
+                  </div>
+                </section>
+              );
             })}
 
             {/* Advance controls */}
@@ -753,7 +816,7 @@ export default function LeaguePage() {
                         boxShadow: '0 0 25px rgba(34,197,94,0.3)',
                       }}
                     >
-                      🏆 AVANÇAR PARA O MATA-MATA →
+                      {isLeagueOnly ? '🏆 FINALIZAR COMPETIÇÃO →' : '🏆 AVANÇAR PARA O MATA-MATA →'}
                     </button>
                   )
                 ) : (
@@ -840,7 +903,9 @@ export default function LeaguePage() {
                       cursor: qualifies ? 'pointer' : 'not-allowed',
                     }}
                   >
-                    {qualifies ? '🏆 AVANÇAR PARA O MATA-MATA →' : `❌ ELIMINADO — FORA DO TOP ${qualifiedTeams}`}
+                    {qualifies
+                      ? (isLeagueOnly ? '🏆 FINALIZAR COMPETIÇÃO →' : '🏆 AVANÇAR PARA O MATA-MATA →')
+                      : isGroupStage ? '❌ ELIMINADO — FORA DA ZONA DO GRUPO' : `❌ ELIMINADO — FORA DO TOP ${qualifiedTeams}`}
                   </button>
                 )}
               </motion.div>
@@ -859,6 +924,87 @@ export default function LeaguePage() {
             className="rounded-xl overflow-hidden overflow-x-auto"
             style={{ border: '1px solid #1A1A2A' }}
           >
+            {isGroupStage ? (
+              <div className="space-y-3 p-3 sm:p-4">
+                <div className="flex items-end justify-between gap-3 px-1">
+                  <div>
+                    <div className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+                      CLASSIFICAÇÃO POR GRUPO
+                    </div>
+                    <div className="mt-1 text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                      Os {state.competitionFormat.qualifiedPerGroup} primeiros de cada grupo avançam.
+                    </div>
+                  </div>
+                  {playerGroupLabel && (
+                    <span className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black tracking-wider" style={{ background: '#C9A84C1A', color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>
+                      SEU GRUPO: {playerGroupLabel}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  {groupTables.map(group => {
+                    const groupLabel = String.fromCharCode(65 + group.groupId);
+                    return (
+                      <div key={group.groupId} className="overflow-hidden rounded-xl" style={{ border: '1px solid #1A1A2A', background: '#0A0A14' }}>
+                        <div className="flex items-center justify-between border-b px-3 py-2.5 sm:px-4" style={{ borderColor: '#1A1A2A', background: '#0F0F1A' }}>
+                          <span className="text-sm font-black tracking-widest" style={{ color: group.groupId === playerGroup?.groupId ? '#E8C84A' : '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>
+                            GRUPO {groupLabel}
+                          </span>
+                          <span className="text-[10px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            {state.competitionFormat.qualifiedPerGroup} avançam
+                          </span>
+                        </div>
+                        <div className="grid gap-0 px-3 py-2 sm:px-4" style={{ gridTemplateColumns: '1.5rem 1fr 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem', borderBottom: '1px solid #1A1A2A' }}>
+                          {['#', 'Time', 'J', 'V', 'E', 'D', 'GF', 'GA', 'PTS'].map(h => (
+                            <div key={`${group.groupId}-${h}`} className="text-center text-[10px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                              {h}
+                            </div>
+                          ))}
+                        </div>
+                        {group.entries.map((entry, i) => {
+                          const isPlayer = entry.teamId === playerTeam?.id;
+                          const isQualified = i < state.competitionFormat.qualifiedPerGroup;
+                          return (
+                            <div
+                              key={entry.teamId}
+                              className="grid items-center gap-0 px-3 py-2 sm:px-4 sm:py-2.5"
+                              style={{
+                                gridTemplateColumns: '1.5rem 1fr 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem',
+                                background: isPlayer ? '#14142A' : i % 2 === 0 ? '#0A0A14' : '#080810',
+                                borderBottom: '1px solid #1A1A2A',
+                                borderLeft: isPlayer ? '3px solid #C9A84C' : '3px solid transparent',
+                              }}
+                            >
+                              <div className="text-center">
+                                <span className="text-xs font-bold sm:text-sm" style={{ fontFamily: 'Bebas Neue, sans-serif', color: i === 0 ? '#C9A84C' : isQualified ? '#22C55E' : '#EF4444' }}>
+                                  {i + 1}
+                                </span>
+                              </div>
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <div className="h-1 w-1 shrink-0 rounded-full sm:h-1.5 sm:w-1.5" style={{ background: isQualified ? '#22C55E' : '#EF4444' }} />
+                                <Crest crestId={allTeams.find(t => t.id === entry.teamId)?.crestId} name={entry.teamName} size={18} />
+                                <span className="truncate text-xs font-semibold sm:text-sm" style={{ fontFamily: 'Rajdhani, sans-serif', color: isPlayer ? '#C9A84C' : '#FFFFFF', fontWeight: isPlayer ? 'bold' : 'normal' }}>
+                                  {entry.teamName}
+                                </span>
+                              </div>
+                              {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (
+                                <div key={vi} className="text-center text-[10px] sm:text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                                  {val}
+                                </div>
+                              ))}
+                              <div className="text-center text-xs font-black sm:text-sm" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
+                                {entry.points}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
             <div style={{ minWidth: '360px' }}>
             {/* Table header */}
             <div className="grid gap-0 px-3 sm:px-4 py-2"
@@ -877,9 +1023,10 @@ export default function LeaguePage() {
 
             {leagueStandings.map((entry, i) => {
               const isPlayer = entry.teamId === playerTeam?.id;
-              const isDirectQual = i < directTeams;
-              const isPlayoff = playoffTeams > 0 && i >= directTeams && i < qualifiedTeams;
-              const isEliminated = i >= qualifiedTeams;
+              const isDirectQual = !isLeagueOnly && !isGroupStage && i < directTeams;
+              const isPlayoff = !isLeagueOnly && playoffTeams > 0 && i >= directTeams && i < qualifiedTeams;
+              const isGroupQual = isGroupStage && groupQualifiedIds.has(entry.teamId);
+              const isEliminated = !isLeagueOnly && (isGroupStage ? !isGroupQual : i >= qualifiedTeams);
 
               return (
                 <div
@@ -898,13 +1045,14 @@ export default function LeaguePage() {
                     <span className="text-xs sm:text-sm font-bold"
                       style={{
                         fontFamily: 'Bebas Neue, sans-serif',
-                        color: i === 0 ? '#C9A84C' : isDirectQual ? '#22C55E' : isPlayoff ? '#3B82F6' : '#EF4444',
+                        color: i === 0 ? '#C9A84C' : isGroupQual || isDirectQual ? '#22C55E' : isPlayoff ? '#3B82F6' : isEliminated ? '#EF4444' : '#8A8A9A',
                       }}>
                       {i + 1}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 min-w-0">
                     {isDirectQual && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: '#22C55E' }} />}
+                    {isGroupQual && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: '#22C55E' }} />}
                     {isPlayoff && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: '#3B82F6' }} />}
                     {isEliminated && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: '#EF4444' }} />}
                     <Crest crestId={allTeams.find(t => t.id === entry.teamId)?.crestId} name={entry.teamName} size={18} />
@@ -931,6 +1079,7 @@ export default function LeaguePage() {
               );
             })}
             </div>
+            )}
           </motion.div>
         )}
 
@@ -1419,7 +1568,7 @@ export default function LeaguePage() {
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>
-                      REFORÇO DA RODADA
+                      {state.phase === 'knockout' ? 'REFORÇO DA FASE' : 'REFORÇO DA RODADA'}
                     </h3>
                     <p className="text-[11px] sm:text-xs mt-1" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
                       Escolha <b style={{ color: '#FFF' }}>1 jogador</b> para entrar no seu <b style={{ color: '#818CF8' }}>banco de reservas</b>. Depois, na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b>, você pode colocá-lo entre os titulares.

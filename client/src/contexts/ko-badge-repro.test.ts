@@ -21,7 +21,7 @@ function evalBadges(state: GameState, match: any, round: string, currentLeg: num
   const bets = state.bets ?? [];
   const betFor = (k: string) => bets.find(b => b.matchKey === k);
   const hasPlayer = match.homeTeamId === state.playerTeam!.id || match.awayTeamId === state.playerTeam!.id;
-  const twoLeg = !match.isSingleLeg && round !== 'final';
+  const twoLeg = round === 'final' ? match.isSingleLeg === false : match.isSingleLeg !== true;
   const l1 = match.leg1, l2 = match.leg2;
   const watched = state.watchedKnockoutMatches;
   const hideMyScore = hasPlayer && (

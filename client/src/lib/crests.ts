@@ -144,6 +144,7 @@ export const CREST_CATALOG: CrestGroup[] = [
   },
   {
     league: "Brasil 🇧🇷", crests: [
+      { id: "brazil", name: "Brasil", url: "https://upload.wikimedia.org/wikipedia/commons/9/99/Brazilian_Football_Confederation_logo.svg" },
       { id: "flamengo", name: "Flamengo", url: "https://upload.wikimedia.org/wikipedia/commons/9/93/Flamengo-RJ_(BRA).png" },
       { id: "palmeiras", name: "Palmeiras", url: "https://upload.wikimedia.org/wikipedia/commons/1/10/Palmeiras_logo.svg" },
       { id: "sao-paulo", name: "São Paulo", url: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Brasao_do_Sao_Paulo_Futebol_Clube.svg" },
@@ -179,6 +180,8 @@ export const CREST_CATALOG: CrestGroup[] = [
   },
   {
     league: "Outros 🌍", crests: [
+      { id: "watford", name: "Watford", url: "https://upload.wikimedia.org/wikipedia/en/e/e2/Watford.svg" },
+      { id: "sunderland", name: "Sunderland", url: "https://upload.wikimedia.org/wikipedia/en/7/77/Logo_Sunderland.svg" },
       { id: "red-star", name: "Estrela Vermelha", url: "https://upload.wikimedia.org/wikipedia/en/c/c2/Red_Star_Belgrade_crest.svg" },
       { id: "young-boys", name: "Young Boys", url: "https://upload.wikimedia.org/wikipedia/commons/c/c2/BSC_Young_Boys.svg" },
       { id: "sparta-prague", name: "Sparta Praga", url: "https://upload.wikimedia.org/wikipedia/commons/d/dd/AC-Sparta-LOGO2021.svg" },
@@ -193,6 +196,58 @@ export const CRESTS_BY_ID: Record<string, CrestDef> = Object.fromEntries(
 );
 
 export const ALL_CRESTS: CrestDef[] = CREST_CATALOG.flatMap(g => g.crests);
+
+const normalizeClubName = (value: string): string => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '');
+
+// Player cards use concise club labels, while bots sometimes use broadcast-style
+// names. Keeping this translation here makes every screen use the same badge.
+const CLUB_CREST_ALIASES: Record<string, string> = {
+  psg: 'paris-saint-germain',
+  'bayern-munchen': 'bayern-munich',
+  'inter-de-milao': 'inter-milan',
+  'liverpool-fc': 'liverpool',
+  'arsenal-fc': 'arsenal',
+  'fc-barcelona': 'barcelona',
+  'juventus-fc': 'juventus',
+  'atletico-de-madrid': 'atletico-madrid',
+  'ac-milan': 'milan',
+  'benfica-glorioso': 'benfica',
+  'fc-porto': 'porto',
+  'ajax-legends': 'ajax',
+  'psv-eindhoven': 'psv',
+  'feyenoord-roterda': 'feyenoord',
+  'atalanta-bergamo': 'atalanta',
+  'as-monaco': 'monaco',
+  'lille-osc': 'lille',
+  'vfb-stuttgart': 'stuttgart',
+  'bologna-fc': 'bologna',
+  'celtic-fc': 'celtic',
+  'rb-salzburg': 'red-bull-salzburg',
+  'lazio-roma': 'lazio',
+  'estrela-vermelha': 'red-star',
+  'young-boys-bern': 'young-boys',
+  'sparta-praga': 'sparta-prague',
+};
+
+const CREST_ID_BY_NORMALIZED_NAME = new Map(
+  ALL_CRESTS.flatMap(crest => [
+    [normalizeClubName(crest.name), crest.id] as const,
+    [normalizeClubName(crest.id), crest.id] as const,
+  ]),
+);
+
+/** Resolves a player/team display name to the canonical crest id. */
+export function crestIdForClub(club: string | undefined | null): string | null {
+  if (!club) return null;
+  const normalized = normalizeClubName(club);
+  const id = CLUB_CREST_ALIASES[normalized] ?? CREST_ID_BY_NORMALIZED_NAME.get(normalized);
+  return id && CRESTS_BY_ID[id] ? id : null;
+}
 
 export function getCrest(id: string | undefined | null): CrestDef | null {
   return id ? (CRESTS_BY_ID[id] ?? null) : null;

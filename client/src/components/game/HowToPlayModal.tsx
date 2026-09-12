@@ -61,17 +61,17 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
         <div className="space-y-4">
           <Card accent={`${GOLD}44`}>
             <H>O OBJETIVO</H>
-            <P>Monte um elenco histórico e competitivo, combinando jogadores de diferentes épocas, perfis e raridades. Leve seu time ao título da <b style={{ color: GOLD }}>Ultimate Champions League</b> em uma fase de liga e depois um mata-mata até a grande final.</P>
+            <P>Monte um elenco histórico e competitivo, combinando jogadores de diferentes épocas, perfis e raridades. Leve seu time ao título da <b style={{ color: GOLD }}>Ultimate Champions League</b> no formato que você escolher: pontos corridos, liga + mata-mata, grupos + mata-mata ou mata-mata direto.</P>
           </Card>
           <Card>
             <H>O PASSO A PASSO</H>
             <div className="space-y-3 mt-2">
-              <Step n={1} title="Escolha o Técnico">Cada técnico dá buffs e uma habilidade especial diferentes (e tem uma formação preferida que rende +química).</Step>
-              <Step n={2} title="Escolha a Formação inicial">Define as posições que você vai preencher no draft.</Step>
-              <Step n={3} title="Draft">Monte seu XI (11 titulares) + 2 reservas pro banco, escolhendo cartas rodada a rodada. Você tem 4 vetos.</Step>
-              <Step n={4} title="Revisão do elenco">Ajuste formação, tática, capitão e cobradores; veja a química.</Step>
-              <Step n={5} title="Liga configurável">Jogue contra os outros times. A duração e a linha de classificação são definidas antes do draft; ganhe pontos e um reforço grátis a cada rodada.</Step>
-              <Step n={6} title="Mata-mata">Os melhores avançam para playoffs (quando houver) → oitavas → quartas → semis → final.</Step>
+              <Step n={1} title="Formato do torneio">Escolha um dos formatos prontos e ajuste times, rodadas, classificados, pernas e recompensas quando essa opção fizer sentido.</Step>
+              <Step n={2} title="Dificuldade dos bots">Defina a força dos times controlados pela IA.</Step>
+              <Step n={3} title="Identidade do time">Escolha escudo, técnico e formação inicial.</Step>
+              <Step n={4} title="Draft">Monte seu XI (11 titulares) + 2 reservas pro banco, escolhendo cartas rodada a rodada. Você tem 4 vetos.</Step>
+              <Step n={5} title="Revisão do elenco">Ajuste formação, tática, capitão e cobradores; veja a química.</Step>
+              <Step n={6} title="Competição">Jogue cada rodada ou fase. Apostas, pontos, classificação, reforços e mata-mata seguem o formato escolhido.</Step>
             </div>
           </Card>
           <Card>
@@ -250,8 +250,8 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
       body: (
         <div className="space-y-4">
           <Card accent={`${GOLD}44`}><H>A reta final</H><P>Após a fase de liga configurada, os melhores avançam para o mata-mata: <b style={{ color: '#FFF' }}>playoffs (quando houver) → oitavas → quartas → semis → final</b>.</P></Card>
-          <Card><H>Ida e volta</H><P>Cada confronto (menos a final) é decidido no <b style={{ color: '#FFF' }}>placar agregado</b> dos dois jogos. A final é jogo único, em campo neutro.</P></Card>
-          <Card><H>🏟️ Vantagem de casa</H><P>O mandante leva uma pequena vantagem em cada jogo — exceto na final (campo neutro), que é equilibrada.</P></Card>
+          <Card><H>Ida e volta</H><P>Os confrontos configurados em ida e volta são decididos pelo <b style={{ color: '#FFF' }}>placar agregado</b> dos dois jogos. A final pode ser jogo único em campo neutro ou ida e volta, conforme o formato escolhido.</P></Card>
+          <Card><H>🏟️ Vantagem de casa</H><P>O mandante leva uma pequena vantagem em cada jogo. Em uma final de jogo único, o campo é neutro; na final ida e volta, cada equipe manda uma partida.</P></Card>
           <Card><H>🎯 Empate no agregado</H><P>Vai para prorrogação e, persistindo, <b style={{ color: '#FFF' }}>disputa de pênaltis</b> — onde compostura e o goleiro decidem tudo.</P></Card>
         </div>
       ),

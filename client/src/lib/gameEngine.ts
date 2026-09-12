@@ -3,7 +3,7 @@
 
 import {
   Player, Coach, Formation,
-  PLAYERS, COACHES, FORMATIONS, HISTORICAL_TRIOS,
+  PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, HISTORICAL_TRIOS,
   getPositionGroup, effectiveSecondaries,
 } from './gameData';
 import {
@@ -27,7 +27,7 @@ import {
   DANGEROUS_FOUL_CARD_MULT, THREAT_FOUL_CARD_MULT, DANGEROUS_FOUL_INJURY_MULT,
   compressAggression, settleFactor, SECOND_YELLOW_LENIENCY,
 } from './discipline';
-import { DEFAULT_COMPETITION_FORMAT, normalizeCompetitionFormat } from './competition';
+import { DEFAULT_COMPETITION_FORMAT, normalizeCompetitionFormat, type CompetitionFormat } from './competition';
 
 // Premium variants keep their own card IDs for inventory/UI. Cards that represent
 // a different club/era may provide historicalPlayerId so historical chemistry
@@ -977,7 +977,8 @@ export const MATCH_NOISE = 20;
 // Home advantage: the host enjoys a small territorial edge (crowd, familiarity, no travel).
 // Modelado como +4 em TODOS os atributos do mandante — e como a força do time é a média dos
 // overalls efetivos, +4 em todo atributo desloca o overall (logo a força) em +4, então é aplicado
-// como +4 direto na força. Aplicado EXCETO na grande final (campo neutro). Ver StadiumCard/DEFAULT_STADIUM.
+// como +4 direto na força. É omitido quando `neutralFinal` é true: na final de jogo único o campo
+// é neutro; na final ida e volta cada equipe conserva o mando de uma partida.
 export const HOME_ATTR_BONUS = 3;
 
 // Jogar numa posição SECUNDÁRIA custa −7% (× 0.93) — entre a nativa (0%) e o fora-de-posição (−15%).
@@ -1249,6 +1250,7 @@ export function runMatchSimulation(
   isKnockout: boolean = false,
   isFinal: boolean = false,
   decideWinner: boolean = true, // when false, skip end-of-match bonuses/winner logic
+  neutralFinal: boolean = isFinal,
 ): MatchResult {
   const events = [...initialEvents];
   let homeGoals = initialHomeGoals;
@@ -1428,7 +1430,7 @@ export function runMatchSimulation(
 
     const homeIsLosing = homeGoals < awayGoals;
     const awayIsLosing = awayGoals < homeGoals;
-    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, homeStadium: isFinal ? undefined : stadiumFor(home.coachId, !!home.coachPrime) };
+    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, homeStadium: neutralFinal ? undefined : stadiumFor(home.coachId, !!home.coachPrime) };
     const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
@@ -2041,6 +2043,7 @@ export function simulateMatch(
   isKnockout: boolean = false,
   isFinal: boolean = false,
   resolveKnockoutTie: boolean = true,
+  neutralFinal: boolean = isFinal,
 ): MatchResult {
   setStatIds(home, away);
   const playerStats: Record<string, PlayerMatchStat> = {};
@@ -2088,11 +2091,11 @@ export function simulateMatch(
   // Phase 1: run 90 minutes WITHOUT deciding the winner yet (no penalties, no bonuses).
   // Keep the real phase context here. Two-legged ties pass resolveKnockoutTie=false so
   // a draw in the return leg can still be compared against the aggregate before ET.
-  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, isKnockout, isFinal, false);
+  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, isKnockout, isFinal, false, neutralFinal);
 
   if (isKnockout && resolveKnockoutTie && r90.homeGoals === r90.awayGoals) {
     // Tied at 90 → extra time (90→120). Winner determination + penalties handled inside.
-    const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true);
+    const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true, neutralFinal);
     rET.durationMinutes = 120;
     return rET;
   }
@@ -2157,6 +2160,7 @@ export function simulateRemainingMatch(
   existingStats: MatchResult['stats'],
   isKnockout: boolean = false,
   isFinal: boolean = false,
+  neutralFinal: boolean = isFinal,
 ): MatchResult {
   setStatIds(home, away);
   const playerStats: Record<string, PlayerMatchStat> = {};
@@ -2240,7 +2244,9 @@ export function simulateRemainingMatch(
     existingStats,
     playerStats,
     isKnockout,
-    isFinal
+    isFinal,
+    true,
+    neutralFinal,
   );
 }
 
@@ -2724,6 +2730,16 @@ export function generateScoutOptions(position: string, ownedIds: string[]): Play
   return shuffleWithRarityWeight(pool).slice(0, 4).map(p => ({ ...p }));
 }
 
+// "Pacote Único": uma carta especial aleatória que o time ainda não possui.
+// O sorteio fica no motor compartilhado para que solo e servidor online sigam a
+// mesma regra, sem confiar em uma carta escolhida pelo cliente.
+export function generateUniquePackCard(ownedIds: string[]): Player | null {
+  const pool = UNIQUE_CARDS.filter(player => !ownedIds.includes(player.id));
+  if (pool.length === 0) return null;
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
+  return { ...chosen };
+}
+
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata'): Player {
@@ -3193,6 +3209,7 @@ export interface LeagueFixture {
   awayTeamId: string;
   played: boolean;
   result?: MatchResult;
+  groupId?: number;
 }
 
 export function generateLeagueFixtures(teams: Team[], requestedRounds = DEFAULT_COMPETITION_FORMAT.leagueRounds): LeagueFixture[] {
@@ -3230,6 +3247,20 @@ export function generateLeagueFixtures(teams: Team[], requestedRounds = DEFAULT_
           played: false
         });
       }
+    }
+  }
+  return fixtures;
+}
+
+/** Generates one shared matchday schedule for a groups format. */
+export function generateGroupFixtures(teams: Team[], groupCount: number, requestedRounds: number): LeagueFixture[] {
+  if (groupCount < 1 || teams.length % groupCount !== 0) return [];
+  const perGroup = teams.length / groupCount;
+  const fixtures: LeagueFixture[] = [];
+  for (let group = 0; group < groupCount; group++) {
+    const groupTeams = teams.slice(group * perGroup, (group + 1) * perGroup);
+    for (const fixture of generateLeagueFixtures(groupTeams, requestedRounds)) {
+      fixtures.push({ ...fixture, groupId: group });
     }
   }
   return fixtures;
@@ -3282,6 +3313,51 @@ export function computeStandings(teams: Team[], fixtures: LeagueFixture[]): Stan
   });
 }
 
+export interface GroupStandingsTable {
+  groupId: number;
+  entries: StandingsEntry[];
+}
+
+/**
+ * Builds an independent table for every group. The fixture's groupId is the
+ * source of truth; the team-order fallback keeps older saves without group
+ * metadata readable.
+ */
+export function computeGroupStandings(
+  teams: Team[],
+  fixtures: LeagueFixture[],
+  format: CompetitionFormat,
+): GroupStandingsTable[] {
+  if (format.id !== 'groups_knockout' || format.groupCount < 1) return [];
+
+  const perGroup = Math.floor(teams.length / format.groupCount);
+  return Array.from({ length: format.groupCount }, (_, groupId) => {
+    const groupFixtures = fixtures.filter(f => f.groupId === groupId);
+    const fixtureTeamIds = new Set(
+      groupFixtures.flatMap(f => [f.homeTeamId, f.awayTeamId])
+    );
+    const members = fixtureTeamIds.size > 0
+      ? teams.filter(team => fixtureTeamIds.has(team.id))
+      : teams.slice(groupId * perGroup, (groupId + 1) * perGroup);
+
+    return {
+      groupId,
+      entries: computeStandings(members, groupFixtures),
+    };
+  });
+}
+
+/** Returns group-ranked entries in bracket order (top N from each group). */
+export function computeGroupQualifiedStandings(
+  teams: Team[],
+  fixtures: LeagueFixture[],
+  format: CompetitionFormat,
+): StandingsEntry[] {
+  if (format.id !== 'groups_knockout' || format.groupCount < 1) return computeStandings(teams, fixtures).slice(0, format.qualifiedTeams);
+  return computeGroupStandings(teams, fixtures, format)
+    .flatMap(group => group.entries.slice(0, format.qualifiedPerGroup));
+}
+
 export interface KnockoutBracket {
   playoffs: any[];
   round16: any[];
@@ -3290,6 +3366,9 @@ export interface KnockoutBracket {
   final: any | null;
   currentRound: string;
   currentLeg: number; // 1 = ida, 2 = volta (active two-legged round)
+  firstRoundSize?: number;
+  knockoutLegs?: 1 | 2;
+  finalSingleLeg?: boolean;
 }
 
 // ============================================================
@@ -3313,6 +3392,32 @@ export function createKnockoutBracket(
 ): KnockoutBracket {
   const format = normalizeCompetitionFormat(requestedFormat);
   const seedId = (pos: number) => standings[pos - 1]?.teamId;
+
+  // Direct elimination has no league table. The standings passed by the caller
+  // are simply the seeded entrant list; use the same round representation as
+  // the existing UI so 4/8/16-team brackets remain backwards compatible.
+  if (format.id === 'knockout') {
+    const entrants = standings.slice(0, format.teamCount);
+    const firstRound = Array.from({ length: Math.floor(entrants.length / 2) }, (_, index) => ({
+      id: `ko_${index}`,
+      homeTeamId: entrants[index]?.teamId ?? '',
+      awayTeamId: entrants[entrants.length - 1 - index]?.teamId ?? '',
+      played: false,
+      isSingleLeg: format.knockoutLegs === 1,
+    }));
+    return {
+      playoffs: [],
+      round16: firstRound,
+      quarterFinals: [],
+      semiFinals: [],
+      final: null,
+      currentRound: 'round16',
+      currentLeg: 1,
+      firstRoundSize: format.teamCount,
+      knockoutLegs: format.knockoutLegs,
+      finalSingleLeg: format.finalSingleLeg,
+    };
+  }
 
   // The Round of 16 always has 16 entrants. If the configured qualification
   // line is above 16, the lower half of that line plays a seeded playoff first.
@@ -3346,6 +3451,7 @@ export function createKnockoutBracket(
       awayTeamId: away.teamId,
       ...(home.fromPlayoff !== undefined ? { homeFromPo: home.fromPlayoff } : {}),
       ...(away.fromPlayoff !== undefined ? { awayFromPo: away.fromPlayoff } : {}),
+      ...(format.knockoutLegs === 1 ? { isSingleLeg: true } : {}),
       played: false,
     };
   });
@@ -3358,6 +3464,8 @@ export function createKnockoutBracket(
     final: null,
     currentRound: playoffCount > 0 ? 'playoffs' : 'round16',
     currentLeg: 1,
+    knockoutLegs: format.knockoutLegs,
+    finalSingleLeg: format.finalSingleLeg,
   };
 }
 
@@ -3383,12 +3491,12 @@ function emptyMatchStats(): MatchResult['stats'] {
 // Simulates the SECOND leg of a two-legged tie. `homeB` hosts the return leg (the
 // first-leg away side); `awayA` is the first-leg home side. Extra time and the
 // shootout are decided on AGGREGATE, never on the single leg.
-export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult): {
+export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult, isFinal = false, neutralFinal = false): {
   leg2: MatchResult; tieWinner: string; aggA: number; aggB: number;
 } {
   // 90-minute return leg (draws allowed). It still uses knockout modifiers;
   // only the aggregate decides whether ET/penalties are necessary.
-  let leg2 = simulateMatch(homeB, awayA, true, false, false);
+  let leg2 = simulateMatch(homeB, awayA, true, isFinal, false, neutralFinal);
   // Team A was first-leg HOME / second-leg AWAY; team B was first-leg AWAY / second-leg HOME.
   let aggA = leg1.homeGoals + leg2.awayGoals;
   let aggB = leg1.awayGoals + leg2.homeGoals;
@@ -3398,7 +3506,7 @@ export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult): 
     leg2 = runMatchSimulation(
       homeB, awayA, 90, 120,
       leg2.homeGoals, leg2.awayGoals, leg2.events, leg2.stats,
-      leg2.playerStats ?? {}, true, false, false
+      leg2.playerStats ?? {}, true, isFinal, false, neutralFinal
     );
     leg2.durationMinutes = 120;
     aggA = leg1.homeGoals + leg2.awayGoals;
@@ -3429,7 +3537,7 @@ export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult): 
 }
 
 // Simulates ONE tie's current leg. Two-legged: leg 1 = 90', leg 2 = aggregate
-// decider (sets result + played). Single-leg final: 120' + penalties.
+// decider (sets result + played). A single-leg tie: 120' + penalties.
 export function simulateKnockoutTieLeg(
   tie: any,
   currentLeg: number,
@@ -3440,7 +3548,10 @@ export function simulateKnockoutTieLeg(
   const away = resolve(tie.awayTeamId);
   if (!home || !away) return;
 
-  if (tie.isSingleLeg || isFinalRound) {
+  // Old saved brackets did not store `isSingleLeg` on the final. Keep those
+  // saves single-leg, while an explicit false enables a two-legged final.
+  const isSingleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
+  if (isSingleLeg) {
     if (tie.played) return;
     tie.result = simulateMatch(home, away, true, true);
     tie.played = true;
@@ -3449,10 +3560,10 @@ export function simulateKnockoutTieLeg(
 
   if (currentLeg === 1) {
     if (tie.leg1) return;
-    tie.leg1 = simulateMatch(home, away, true, false, false); // 90', durationMinutes = 90
+    tie.leg1 = simulateMatch(home, away, true, isFinalRound, false, !isFinalRound); // 90', durationMinutes = 90
   } else {
     if (tie.leg2) return;
-    const sl = simulateSecondLeg(away, home, tie.leg1); // return leg: B home, A away
+    const sl = simulateSecondLeg(away, home, tie.leg1, isFinalRound, false); // return leg: B home, A away
     tie.leg2 = sl.leg2;
     tie.result = {
       homeTeamId: tie.homeTeamId,
@@ -3478,7 +3589,7 @@ export function playActiveKnockoutLeg(
   for (const tie of ties) {
     simulateKnockoutTieLeg(tie, bracket.currentLeg, isFinalRound, resolve);
   }
-  if (!isFinalRound && bracket.currentLeg === 1) {
+  if (bracket.currentLeg === 1 && ties.some(tie => isFinalRound ? tie.isSingleLeg === false : tie.isSingleLeg !== true)) {
     bracket.currentLeg = 2;
   }
 }
@@ -3491,6 +3602,11 @@ export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null 
   if (list.length === 0 || !list.every((m: any) => m.played && m.result)) return null;
 
   const winnerOf = (m: any): string => m.result.winner ?? m.result.penaltyWinner;
+  const nextTie = (id: string, homeTeamId: string, awayTeamId: string) => ({
+    id, homeTeamId, awayTeamId,
+    ...(bracket.knockoutLegs === 1 ? { isSingleLeg: true } : {}),
+    played: false,
+  });
 
   if (round === 'playoffs') {
     // Slot each playoff winner into its predetermined Round-of-16 berth. Depending
@@ -3507,30 +3623,47 @@ export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null 
   }
   if (round === 'round16') {
     const w = bracket.round16.map(winnerOf);
-    bracket.quarterFinals = [
-      { id: 'qf_0', homeTeamId: w[0], awayTeamId: w[1], played: false },
-      { id: 'qf_1', homeTeamId: w[2], awayTeamId: w[3], played: false },
-      { id: 'qf_2', homeTeamId: w[4], awayTeamId: w[5], played: false },
-      { id: 'qf_3', homeTeamId: w[6], awayTeamId: w[7], played: false },
-    ];
-    bracket.currentRound = 'quarters';
+    if (w.length === 2) {
+      bracket.final = { id: 'final', homeTeamId: w[0], awayTeamId: w[1], played: false, isSingleLeg: bracket.finalSingleLeg !== false };
+      bracket.currentRound = 'final';
+    } else if (w.length === 4) {
+      bracket.quarterFinals = [
+        nextTie('qf_0', w[0], w[1]),
+        nextTie('qf_1', w[2], w[3]),
+      ];
+      bracket.currentRound = 'quarters';
+    } else {
+      bracket.quarterFinals = [
+        nextTie('qf_0', w[0], w[1]),
+        nextTie('qf_1', w[2], w[3]),
+        nextTie('qf_2', w[4], w[5]),
+        nextTie('qf_3', w[6], w[7]),
+      ];
+      bracket.currentRound = 'quarters';
+    }
     bracket.currentLeg = 1;
     return null;
   }
   if (round === 'quarters') {
     const w = bracket.quarterFinals.map(winnerOf);
-    bracket.semiFinals = [
-      { id: 'sf_0', homeTeamId: w[0], awayTeamId: w[1], played: false },
-      { id: 'sf_1', homeTeamId: w[2], awayTeamId: w[3], played: false },
-    ];
-    bracket.currentRound = 'semis';
+    if (w.length === 2) {
+      bracket.final = { id: 'final', homeTeamId: w[0], awayTeamId: w[1], played: false, isSingleLeg: bracket.finalSingleLeg !== false };
+      bracket.currentRound = 'final';
+    } else {
+      bracket.semiFinals = [
+        nextTie('sf_0', w[0], w[1]),
+        nextTie('sf_1', w[2], w[3]),
+      ];
+      bracket.currentRound = 'semis';
+    }
     bracket.currentLeg = 1;
     return null;
   }
   if (round === 'semis') {
     const w = bracket.semiFinals.map(winnerOf);
-    // The grand final is a SINGLE match at a neutral venue.
-    bracket.final = { id: 'final', homeTeamId: w[0], awayTeamId: w[1], played: false, isSingleLeg: true };
+    // The final follows the selected format. Single-leg finals are neutral;
+    // two-legged finals use the normal home/away aggregate flow.
+    bracket.final = { id: 'final', homeTeamId: w[0], awayTeamId: w[1], played: false, isSingleLeg: bracket.finalSingleLeg !== false };
     bracket.currentRound = 'final';
     bracket.currentLeg = 1;
     return null;
@@ -3542,7 +3675,10 @@ export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null 
 }
 
 // Human-readable label for a bracket round.
-export function knockoutRoundLabel(round: string): string {
+export function knockoutRoundLabel(round: string, firstRoundSize?: number): string {
+  if (round === 'round16' && firstRoundSize && firstRoundSize < 16) {
+    return firstRoundSize === 4 ? 'SEMIFINAIS' : 'QUARTAS DE FINAL';
+  }
   switch (round) {
     case 'playoffs': return 'PLAYOFFS';
     case 'round16': return 'OITAVAS DE FINAL';
@@ -3568,7 +3704,7 @@ export function getAllPlayedMatchResults(
     ];
     for (const m of list) {
       // Two-legged ties contribute each leg (real events/stats); single-leg ties
-      // (the final) contribute their one result. The aggregate object on a
+      // contribute their one result. The aggregate object on a
       // two-legged tie carries no events, so it is never counted on its own.
       if (m.leg1) all.push(m.leg1);
       if (m.leg2) all.push(m.leg2);

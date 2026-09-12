@@ -12,19 +12,21 @@ import {
   calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier,
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
   LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
+  generateGroupFixtures, computeGroupQualifiedStandings,
   getAllPlayedMatchResults, createKnockoutBracket,
+  generateUniquePackCard,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
   bumpStarterAppearances, isEvolved, applyEvolvePoint,
 } from '../lib/gameEngine';
 import type { VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
-import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
+import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
 import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, revealEligibleKoBets, settleBet } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, applyEmergencyReplacement } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem, getClientId } from '../lib/storage';
-import { DEFAULT_COMPETITION_FORMAT, normalizeCompetitionFormat, type CompetitionFormat, validateCompetitionFormat } from '../lib/competition';
+import { DEFAULT_COMPETITION_FORMAT, DEFAULT_REWARDS_CONFIG, normalizeCompetitionFormat, type CompetitionFormat, validateCompetitionFormat } from '../lib/competition';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -34,6 +36,7 @@ export type GamePhase =
   | 'menu'           // Home screen
   | 'album'          // Player album / catalog
   | 'lobby'          // Multiplayer lobby
+  | 'format'         // Choose the tournament format
   | 'setup'          // Choose name, difficulty
   | 'crest'          // Choose club crest
   | 'coach'          // Choose coach
@@ -104,12 +107,15 @@ export interface GameState {
   // 🛒 Pacote da loja JÁ PAGO na abertura (Pacote do Craque / Caça-Talentos): fica guardado até você
   // escolher 1 → impede re-sortear de graça abrindo/fechando o modal. A escolha em si é grátis.
   pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null;
+  // ⭐ Pacote Único já pago: carta sorteada, aguardando a animação/revelação.
+  pendingUniquePack: Player | null;
   // 🎯 Palpites (apostas de pontos). Escrow já debitado ao apostar; crédito só na revelação.
   bets: Bet[];
   // 🟨🟥🩹 Disciplina & lesões — disponibilidade por jogador (todos os times), carrega entre jogos.
   discipline: DisciplineMap;
 
   // Online Multiplayer fields
+  onlineSetupIntent: 'create' | null;
   mode: 'solo' | 'online';
   roomCode: string | null;
   socketId: string | null;
@@ -143,6 +149,8 @@ export interface KnockoutBracket {
   final: KnockoutMatch | null;
   currentRound: 'playoffs' | 'round16' | 'quarters' | 'semis' | 'final';
   currentLeg: number; // 1 = ida, 2 = volta
+  firstRoundSize?: number;
+  knockoutLegs?: 1 | 2;
 }
 
 export interface KnockoutMatch {
@@ -164,6 +172,7 @@ export type GameAction =
   | { type: 'SET_PHASE'; phase: GamePhase }
   | { type: 'SET_CREST'; crestId: string | null }
   | { type: 'SET_PLAYER_NAME'; name: string }
+  | { type: 'SET_ONLINE_SETUP_INTENT'; intent: 'create' | null }
   | { type: 'SET_DIFFICULTY'; difficulty: string }
   | { type: 'SET_COMPETITION_FORMAT'; format: CompetitionFormat }
   | { type: 'SET_COACH'; coachId: string }
@@ -190,7 +199,8 @@ export type GameAction =
   | { type: 'EVOLVE_COACH_PRIME' }
   | { type: 'SET_EVOLVE_POINT'; playerId: string; attr: AttrKey; delta: number }
   | { type: 'RESET_EVOLVE_POINTS'; playerId: string }
-  | { type: 'SHOP_BUY_PLAYER'; player: Player; kind: 'unique' } // compra direta (carta Única)
+  | { type: 'SHOP_OPEN_UNIQUE_PACK' } // cobra 700 e sorteia uma Única ainda não possuída
+  | { type: 'SHOP_CLAIM_UNIQUE_PACK' } // adiciona a carta revelada ao banco, sem nova cobrança
   | { type: 'SHOP_OPEN_PACK'; kind: 'star' | 'scout'; options: Player[] } // COBRA ao abrir; guarda as opções
   | { type: 'SHOP_PICK_PACK'; player: Player } // escolhe 1 do pacote já pago (grátis) → banco
   | { type: 'SHOP_TURBINAR'; playerId: string; variant: ShopVariant }
@@ -260,10 +270,12 @@ const initialState: GameState = {
   knockoutPointsPopup: null,
   reinforcementRerolls: 0,
   pendingPack: null,
+  pendingUniquePack: null,
   bets: [],
   discipline: {},
 
   // Online Multiplayer fields
+  onlineSetupIntent: null,
   mode: 'solo',
   roomCode: null,
   socketId: null,
@@ -296,6 +308,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_PLAYER_NAME':
       return { ...state, playerName: action.name };
 
+    case 'SET_ONLINE_SETUP_INTENT':
+      return { ...state, onlineSetupIntent: action.intent };
+
     case 'SET_DIFFICULTY':
       return { ...state, difficulty: action.difficulty };
 
@@ -303,7 +318,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Keep the reducer defensive as well: UI validation is feedback, not a
       // security boundary, and invalid formats must never reach the engine.
       return validateCompetitionFormat(action.format) === null
-        ? { ...state, competitionFormat: { ...action.format } }
+        ? { ...state, competitionFormat: normalizeCompetitionFormat(action.format) }
         : state;
 
     case 'SET_COACH':
@@ -579,16 +594,33 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case 'SHOP_BUY_PLAYER': {
-      // Compra direta (carta Única) — cobra na hora, entra no banco.
-      if (!state.playerTeam) return state;
+    case 'SHOP_OPEN_UNIQUE_PACK': {
+      // A cobrança acontece na abertura e o resultado fica pendente até o usuário
+      // concluir a animação. Isso impede fechar/reabrir para sortear outra carta.
+      if (!state.playerTeam || state.pendingUniquePack || state.pendingPack) return state;
       const cost = SHOP_COSTS.uniqueCard;
       if (state.points < cost) return state;
-      if (state.playerTeam.players.some(p => p.id === action.player.id)) return state; // no duplicates
-      const card: PlayerCard = { ...action.player, chemistryScore: 0, isOOP: false };
+      const card = generateUniquePackCard(state.playerTeam.players.map(player => player.id));
+      if (!card) return state;
       return {
         ...state,
         points: state.points - cost,
+        pendingUniquePack: card,
+      };
+    }
+
+    case 'SHOP_CLAIM_UNIQUE_PACK': {
+      if (!state.playerTeam || !state.pendingUniquePack) return state;
+      const pending = state.pendingUniquePack;
+      // A carta fica no estado enquanto a animação toca; nunca aceitamos um
+      // novo payload vindo da UI e ainda protegemos contra duplicatas.
+      if (state.playerTeam.players.some(player => player.id === pending.id)) {
+        return { ...state, pendingUniquePack: null };
+      }
+      const card: PlayerCard = { ...pending, chemistryScore: 0, isOOP: false };
+      return {
+        ...state,
+        pendingUniquePack: null,
         playerTeam: { ...state.playerTeam, players: [...state.playerTeam.players, card] },
       };
     }
@@ -674,7 +706,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         reinforcementRerolls: state.reinforcementRerolls - 1,
-        reinforcementOptions: generateDraftOptions([], ownedIds),
+        reinforcementOptions: generateDraftOptions([], ownedIds).slice(0, state.competitionFormat?.rewards?.reinforcementOptions ?? DEFAULT_REWARDS_CONFIG.reinforcementOptions),
       };
     }
 
@@ -818,11 +850,29 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         'Estrela Vermelha',
         'Lazio Roma',
       ];
-      const botTeams = BOT_NAMES.map(name => generateBotTeam(name, botStrength));
+      const botTeams = BOT_NAMES.slice(0, Math.max(0, state.competitionFormat.teamCount - 1)).map(name => generateBotTeam(name, botStrength));
 
       const allTeams = [playerTeam, ...botTeams];
-      const fixtures = generateLeagueFixtures(allTeams, state.competitionFormat.leagueRounds);
+      const fixtures = state.competitionFormat.id === 'groups_knockout'
+        ? generateGroupFixtures(allTeams, state.competitionFormat.groupCount, state.competitionFormat.groupRounds)
+        : generateLeagueFixtures(allTeams, state.competitionFormat.leagueRounds);
       const standings = computeStandings(allTeams, []);
+
+      if (state.competitionFormat.id === 'knockout') {
+        const bracket = createKnockoutBracket(standings, state.competitionFormat) as KnockoutBracket;
+        return {
+          ...state,
+          playerTeam,
+          botTeams,
+          leagueFixtures: [],
+          leagueStandings: standings,
+          leagueResults: [],
+          leagueRound: 1,
+          knockoutBracket: bracket,
+          phase: 'knockout',
+          discipline: resetYellowsForKnockout(state.discipline),
+        };
+      }
 
       return {
         ...state,
@@ -854,7 +904,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         leagueFixtures: updatedFixtures,
         leagueStandings: standings,
         leagueResults: results,
-        leagueRound: state.competitionFormat.leagueRounds,
+        leagueRound: state.competitionFormat.id === 'groups_knockout'
+          ? state.competitionFormat.groupRounds
+          : state.competitionFormat.leagueRounds,
       };
     }
 
@@ -947,16 +999,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Collect ALL played results across all rounds to preserve stats
       const results = allFixtures.map(f => f.result!).filter(Boolean);
 
-      // End-of-round reinforcement: offer 6 fresh players (none already owned) to pick
-      // 1 from → it joins the bench. Solo only.
+      const rewards = state.competitionFormat?.rewards ?? DEFAULT_REWARDS_CONFIG;
+      const rewardLimit = rewards.reinforcementUntilRound;
+      const shouldOfferReinforcement = rewards.reinforcement !== 'off'
+        && (rewardLimit === null || state.leagueRound <= rewardLimit)
+        && (rewards.reinforcement === 'round' || state.leagueRound === (state.competitionFormat?.id === 'groups_knockout' ? state.competitionFormat.groupRounds : state.competitionFormat?.leagueRounds));
+      // End-of-round reinforcement: offer the configured number of fresh players
+      // (none already owned) to pick 1 from. The current default remains 6.
       const ownedIds = state.playerTeam.players.map(p => p.id);
-      const reinforcementOptions = generateDraftOptions([], ownedIds);
+      const reinforcementOptions = shouldOfferReinforcement
+        ? generateDraftOptions([], ownedIds).slice(0, rewards.reinforcementOptions)
+        : null;
 
-      // Award shop points for the player's performance (W/D/L + goal diff + goals + clean sheet).
-      const matchPoints = computeMatchPoints(action.result, state.playerTeam.id);
+      // Award shop points for the player's performance using this format's values.
+      const matchPoints = computeMatchPointsWithConfig(action.result, state.playerTeam.id, rewards.points);
       // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
       const magMult = magnataPointMultiplier(state.playerTeam.players);
-      const earnedPoints = Math.round(matchPoints.total * magMult);
+      const earnedPoints = rewards.pointsEnabled ? Math.round(matchPoints.total * magMult) : 0;
 
       // 🎯 Palpite: liquida e CREDITA os palpites da rodada agora (no solo, o fim da partida é a
       // revelação — o jogador viu o seu jogo ao vivo e os demais foram simulados aqui).
@@ -982,7 +1041,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatchResult: null,
         reinforcementOptions,
         points: state.points + earnedPoints + betWinnings,
-        lastMatchPoints: magMult > 1 ? { ...matchPoints, total: earnedPoints } : matchPoints,
+        lastMatchPoints: rewards.pointsEnabled ? (magMult > 1 ? { ...matchPoints, total: earnedPoints } : matchPoints) : null,
         bets: settledBets,
         discipline: disc.next,
         // ⭐ +1 jogo pros 11 titulares do jogador (progresso pra Carta Evoluída).
@@ -1014,16 +1073,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'ADVANCE_LEAGUE_ROUND': {
+      const stageRounds = state.competitionFormat.id === 'groups_knockout'
+        ? state.competitionFormat.groupRounds
+        : state.competitionFormat.leagueRounds;
       return {
         ...state,
-        leagueRound: Math.min(state.competitionFormat.leagueRounds, state.leagueRound + 1),
+        leagueRound: Math.min(stageRounds, state.leagueRound + 1),
       };
     }
 
     case 'START_KNOCKOUT': {
       if (!state.playerTeam) return state;
       // Configured knockout: optional playoffs → R16 → QF → SF → Final.
-      const bracket = createKnockoutBracket(state.leagueStandings, state.competitionFormat) as KnockoutBracket;
+      // Group formats qualify the configured number from each group instead of
+      // taking a global top-N table.
+      const allTeams = [state.playerTeam, ...state.botTeams];
+      const bracketStandings = state.competitionFormat.id === 'groups_knockout'
+        ? computeGroupQualifiedStandings(allTeams, state.leagueFixtures, state.competitionFormat)
+        : state.leagueStandings;
+      const bracket = createKnockoutBracket(bracketStandings, state.competitionFormat) as KnockoutBracket;
       // 🟨 Amarelos acumulados zeram ao entrar no mata-mata (suspensões/lesões em curso continuam).
       return { ...state, knockoutBracket: bracket, phase: 'knockout', discipline: resetYellowsForKnockout(state.discipline) };
     }
@@ -1035,6 +1103,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.knockoutBracket || !state.playerTeam) return state;
       const allTeams = [state.playerTeam, ...state.botTeams];
       const bracket: KnockoutBracket = JSON.parse(JSON.stringify(state.knockoutBracket));
+      const isFinalRound = bracket.currentRound === 'final';
       // 🟨🟥🩹 Resolve as escalações contra a disciplina antes de simular a perna (bots inclusos).
       const resolveFn = (id: string) => {
         const t = allTeams.find(tm => tm.id === id);
@@ -1059,7 +1128,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       ];
       const revealed = revealEligibleKoBets(state.bets, koTies, state.playerTeam.id, state.watchedKnockoutMatches);
       // ⭐ +1 jogo pros 11 titulares do jogador (a perna que ele acabou de disputar).
-      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam: bumpStarterAppearances(state.playerTeam), bets: revealed.bets, points: state.points + revealed.winnings };
+      const stageNumber = state.competitionFormat?.id === 'knockout'
+        ? ({ round16: 1, quarters: 2, semis: 3, final: 4 } as Record<string, number>)[bracket.currentRound] ?? 1
+        : ({ playoffs: 1, round16: 2, quarters: 3, semis: 4, final: 5 } as Record<string, number>)[bracket.currentRound] ?? 1;
+      const koRewards = state.competitionFormat?.rewards ?? DEFAULT_REWARDS_CONFIG;
+      const stageFinished = active.length > 0 && active.every(t => t.played);
+      const shouldOfferStageReinforcement = !isFinalRound && stageFinished
+        && koRewards.reinforcement === 'stage'
+        && (koRewards.reinforcementUntilRound === null || stageNumber <= koRewards.reinforcementUntilRound);
+      const koOwnedIds = state.playerTeam.players.map(p => p.id);
+      const stageReinforcement = shouldOfferStageReinforcement
+        ? generateDraftOptions([], koOwnedIds).slice(0, koRewards.reinforcementOptions)
+        : state.reinforcementOptions;
+      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam: bumpStarterAppearances(state.playerTeam), bets: revealed.bets, points: state.points + revealed.winnings, reinforcementOptions: stageReinforcement };
     }
 
     case 'ADVANCE_KNOCKOUT': {
@@ -1092,9 +1173,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const isFinal = state.knockoutBracket?.currentRound === 'final';
       let points = state.points;
       let popup: MatchPoints | null = null;
-      if (!state.spectating && !isFinal && state.playerTeam && action.result &&
+      const pointsConfig = state.competitionFormat?.rewards ?? DEFAULT_REWARDS_CONFIG;
+      if (!state.spectating && !isFinal && pointsConfig.pointsEnabled && pointsConfig.knockoutPointsEnabled && state.playerTeam && action.result &&
           (action.result.homeTeamId === state.playerTeam.id || action.result.awayTeamId === state.playerTeam.id)) {
-        const mp = computeMatchPoints(action.result, state.playerTeam.id);
+        const mp = computeMatchPointsWithConfig(action.result, state.playerTeam.id, pointsConfig.points);
         popup = mp;
         if (state.mode !== 'online') points += mp.total;
       }
@@ -1260,6 +1342,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         reinforcementOptions: me ? (me.reinforcementOptions ?? null) : state.reinforcementOptions,
         reinforcementRerolls: me ? (me.reinforcementRerolls ?? 0) : state.reinforcementRerolls,
         pendingPack: me ? (me.pendingPack ?? null) : state.pendingPack,
+        pendingUniquePack: me ? (me.pendingUniquePack ?? null) : state.pendingUniquePack,
         bets: me ? (me.bets ?? []) : state.bets,
         discipline: roomState.discipline ?? state.discipline,
         draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),
@@ -1297,6 +1380,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         mode: 'online',
+        onlineSetupIntent: null,
         socketId: action.socketId,
         roomCode: action.roomCode,
         isHost: action.isHost,
@@ -1331,9 +1415,8 @@ interface GameContextType {
   getFormationById: (id: string) => Formation | undefined;
   
   // Online Multiplayer Socket emitters
-  createRoom: (creatorName: string, competitionFormat: CompetitionFormat) => void;
+  createRoom: (creatorName: string, competitionFormat: CompetitionFormat, difficulty?: string) => void;
   joinRoom: (roomCode: string, playerName: string) => void;
-  setDifficultyOnline: (difficulty: string) => void;
   startSetupOnline: () => void;
   submitSetupOnline: (coachId: string, formationId: string, crestId?: string | null) => void;
   draftPickOnline: (playerId: string) => void;
@@ -1352,7 +1435,8 @@ interface GameContextType {
   notifyMatchWatchedOnline: (type: 'league' | 'knockout') => void;
   shopChangeCoachOnline: (coachId: string) => void;
   evolveCoachPrimeOnline: () => void;
-  shopBuyPlayerOnline: (player: Player, kind: 'unique') => void;
+  shopOpenUniquePackOnline: () => void;
+  shopClaimUniquePackOnline: () => void;
   shopOpenPackOnline: (kind: 'star' | 'scout', position?: string) => void;
   shopPickPackOnline: (player: Player) => void;
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
@@ -1494,21 +1578,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return socketInstance;
   }, []);
 
-  const createRoom = useCallback((creatorName: string, competitionFormat: CompetitionFormat) => {
+  const createRoom = useCallback((creatorName: string, competitionFormat: CompetitionFormat, difficulty?: string) => {
     const s = connectSocket();
-    s.emit("create_room", { creatorName, competitionFormat, clientId: getClientId() });
+    s.emit("create_room", { creatorName, competitionFormat, difficulty, clientId: getClientId() });
   }, [connectSocket]);
 
   const joinRoom = useCallback((roomCode: string, playerName: string) => {
     const s = connectSocket();
     s.emit("join_room", { roomCode, playerName, clientId: getClientId() });
   }, [connectSocket]);
-
-  const setDifficultyOnline = useCallback((difficulty: string) => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("set_difficulty", { roomCode: state.roomCode, difficulty });
-    }
-  }, [state.roomCode]);
 
   const startSetupOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) {
@@ -1597,8 +1675,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const evolveCoachPrimeOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("evolve_coach_prime", { roomCode: state.roomCode });
   }, [state.roomCode]);
-  const shopBuyPlayerOnline = useCallback((player: Player, kind: 'unique') => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_buy_player", { roomCode: state.roomCode, player, kind });
+  const shopOpenUniquePackOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_open_unique_pack", { roomCode: state.roomCode });
+  }, [state.roomCode]);
+  const shopClaimUniquePackOnline = useCallback(() => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_claim_unique_pack", { roomCode: state.roomCode });
   }, [state.roomCode]);
   const shopOpenPackOnline = useCallback((kind: 'star' | 'scout', position?: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_open_pack", { roomCode: state.roomCode, kind, position });
@@ -1715,11 +1796,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue = useMemo(() => ({
     state, dispatch, getTeamById, getPlayerById, getCoachById, getFormationById,
-    createRoom, joinRoom, setDifficultyOnline, startSetupOnline, submitSetupOnline,
+    createRoom, joinRoom, startSetupOnline, submitSetupOnline,
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    shopChangeCoachOnline, evolveCoachPrimeOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
+    shopChangeCoachOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, resetEvolvePointsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps

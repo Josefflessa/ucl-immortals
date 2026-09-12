@@ -61,7 +61,7 @@ export default function SquadReviewPage() {
               onClick={handleStart}
               className="w-full"
             >
-              🏆 INICIAR COMPETIÇÃO →
+              INICIAR COMPETIÇÃO →
             </Button>
           }
         />

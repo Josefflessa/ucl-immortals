@@ -4,6 +4,7 @@
 // GameContext applies the effects; the generators (star pack / scout) live in gameEngine
 // (they need the player pool). Designed to be a balanced points SINK, not a snowball.
 import type { MatchResult } from './gameEngine';
+import type { CompetitionPointsConfig } from './competition';
 
 // ── Points earned per league match (performance-based, with catch-up for losses) ──
 export const WIN_PTS = 100;
@@ -28,16 +29,28 @@ export interface MatchPoints {
 
 // Points the PLAYER earns from one finished league match (from their perspective).
 export function computeMatchPoints(result: MatchResult, playerTeamId: string): MatchPoints {
+  return computeMatchPointsWithConfig(result, playerTeamId, {
+    win: WIN_PTS,
+    draw: DRAW_PTS,
+    loss: LOSS_PTS,
+    goalDifference: GD_PTS,
+    goal: GOAL_PTS,
+    cleanSheet: CLEAN_SHEET_PTS,
+  });
+}
+
+/** Same breakdown as the current economy, with values supplied by the format preset. */
+export function computeMatchPointsWithConfig(result: MatchResult, playerTeamId: string, config: CompetitionPointsConfig): MatchPoints {
   const isHome = result.homeTeamId === playerTeamId;
   const goalsFor = isHome ? result.homeGoals : result.awayGoals;
   const goalsAgainst = isHome ? result.awayGoals : result.homeGoals;
   const gd = goalsFor - goalsAgainst;
   const outcome: MatchPoints['outcome'] = gd > 0 ? 'win' : gd < 0 ? 'loss' : 'draw';
 
-  const base = outcome === 'win' ? WIN_PTS : outcome === 'draw' ? DRAW_PTS : LOSS_PTS;
-  const gdBonus = Math.max(0, gd) * GD_PTS;
-  const goalsBonus = goalsFor * GOAL_PTS;
-  const csBonus = goalsAgainst === 0 ? CLEAN_SHEET_PTS : 0;
+  const base = outcome === 'win' ? config.win : outcome === 'draw' ? config.draw : config.loss;
+  const gdBonus = Math.max(0, gd) * config.goalDifference;
+  const goalsBonus = goalsFor * config.goal;
+  const csBonus = goalsAgainst === 0 ? config.cleanSheet : 0;
 
   return { total: base + gdBonus + goalsBonus + csBonus, outcome, goalsFor, goalsAgainst, gd, cleanSheet: goalsAgainst === 0, base, gdBonus, goalsBonus, csBonus };
 }
@@ -50,7 +63,7 @@ export const SHOP_COSTS = {
   scout: 220,
   reroll: 120, // 🔄 +1 token de re-sorteio do reforço (ilimitado, acumula entre rodadas)
   removeVariant: 150, // 🧹 remove a característica de um jogador (pra poder aplicar outra)
-  uniqueCard: 750,    // ⭐ Carta Única (raridade Única, overall 99) — premium da loja
+  uniqueCard: 700,    // ⭐ Pacote Único (uma carta aleatória, raridade Única, overall 99)
   physio: 250,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
 } as const;
 

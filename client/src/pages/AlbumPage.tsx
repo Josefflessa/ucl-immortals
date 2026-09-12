@@ -523,7 +523,7 @@ export default function AlbumPage() {
         <DialogContent
           overlayClassName="bg-black/85"
           closeButtonLabel="Fechar ficha do jogador"
-          closeButtonClassName="right-3 top-3 size-10 rounded-xl bg-[var(--ui-surface-2)] text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
+          closeButtonClassName="right-3 top-3 flex size-10 items-center justify-center rounded-xl bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
           className="max-h-[min(90dvh,780px)] max-w-4xl overflow-y-auto border-[var(--ui-line)] bg-[var(--ui-bg-raised)] p-4 text-[var(--ui-text)] shadow-2xl sm:p-6"
         >
           {selectedPlayer ? <PlayerDetail player={selectedPlayer} versionCount={selectedVersionCount} /> : null}

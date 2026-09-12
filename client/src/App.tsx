@@ -8,6 +8,7 @@ import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
 import AlbumPage from "./pages/AlbumPage";
 import SetupPage from "./pages/SetupPage";
+import TournamentFormatPage from "./pages/TournamentFormatPage";
 import CrestPage from "./pages/CrestPage";
 import CoachPage from "./pages/CoachPage";
 import FormationPage from "./pages/FormationPage";
@@ -36,6 +37,7 @@ function GameRouter() {
     case 'menu':
     case 'lobby': return <MenuPage />;
     case 'album': return <AlbumPage />;
+    case 'format': return <TournamentFormatPage />;
     case 'setup': return <SetupPage />;
     case 'crest': return <CrestPage />;
     case 'coach': return <CoachPage />;

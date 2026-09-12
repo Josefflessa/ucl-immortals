@@ -50,7 +50,7 @@ export default function CoachPage() {
         >
           {/* Title */}
           <SectionHeader
-            kicker="IDENTIDADE TÁTICA · 03"
+            kicker="IDENTIDADE TÁTICA · 04"
             title="Escolha seu treinador"
             description="O treinador define sua filosofia de jogo e bônus táticos. Jogadores que trabalharam com ele ganham química extra."
             className="mb-8"

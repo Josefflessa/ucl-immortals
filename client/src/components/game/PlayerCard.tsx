@@ -2,7 +2,9 @@ import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
 import { isEvolved } from '../../lib/gameEngine';
+import { crestIdForClub } from '../../lib/crests';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
+import Crest from './Crest';
 
 interface PlayerCardProps {
   player: Player;
@@ -457,46 +459,7 @@ function getFlagUrl(nation: string): string | null {
   return `https://flagcdn.com/${code}.svg`;
 }
 
-const CLUB_CRESTS: Record<string, string> = {
-  'Barcelona': 'https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_(crest).svg',
-  'Real Madrid': 'https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg',
-  'Milan': 'https://upload.wikimedia.org/wikipedia/commons/d/d0/Logo_of_AC_Milan.svg',
-  'Juventus': 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Juventus_FC_-_logo_black_%28Italy%2C_2020%29.svg',
-  'Bayern Munich': 'https://upload.wikimedia.org/wikipedia/commons/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg',
-  'Chelsea': 'https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg',
-  'Arsenal': 'https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg',
-  'Liverpool': 'https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg',
-  'Inter Milan': 'https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg',
-  'Manchester United': 'https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg',
-  'Manchester City': 'https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg',
-  // ── Added crests (all CDN-verified: 200 image/svg+xml) ──────────────────────
-  'Tottenham': 'https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg',
-  'Paris Saint-Germain': 'https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg',
-  'PSG': 'https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg',
-  'Borussia Dortmund': 'https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg',
-  'Bayer Leverkusen': 'https://upload.wikimedia.org/wikipedia/en/5/59/Bayer_04_Leverkusen_logo.svg',
-  'Roma': 'https://upload.wikimedia.org/wikipedia/en/f/f7/AS_Roma_logo_%282017%29.svg',
-  'Lazio': 'https://upload.wikimedia.org/wikipedia/en/c/ce/S.S._Lazio_badge.svg',
-  'Fiorentina': 'https://upload.wikimedia.org/wikipedia/commons/7/79/ACF_Fiorentina.svg',
-  'Atlético Madrid': 'https://upload.wikimedia.org/wikipedia/en/c/c1/Atletico_Madrid_logo.svg',
-  'Sevilla': 'https://upload.wikimedia.org/wikipedia/en/3/3b/Sevilla_FC_logo.svg',
-  'Valencia': 'https://upload.wikimedia.org/wikipedia/en/c/ce/Valenciacf.svg',
-  'Porto': 'https://upload.wikimedia.org/wikipedia/en/f/f1/FC_Porto.svg',
-  'Ajax': 'https://upload.wikimedia.org/wikipedia/en/7/79/Ajax_Amsterdam.svg',
-  'Marseille': 'https://upload.wikimedia.org/wikipedia/commons/d/d8/Olympique_Marseille_logo.svg',
-  'Galatasaray': 'https://upload.wikimedia.org/wikipedia/commons/2/20/Galatasaray_Sports_Club_Logo.svg',
-  'Everton': 'https://upload.wikimedia.org/wikipedia/en/7/7c/Everton_FC_logo.svg',
-  'Leicester City': 'https://upload.wikimedia.org/wikipedia/en/2/2d/Leicester_City_crest.svg',
-  'West Ham': 'https://upload.wikimedia.org/wikipedia/en/c/c2/West_Ham_United_FC_logo.svg',
-  'Crystal Palace': 'https://upload.wikimedia.org/wikipedia/en/a/a2/Crystal_Palace_FC_logo_%282022%29.svg',
-  'Southampton': 'https://upload.wikimedia.org/wikipedia/en/c/c9/FC_Southampton.svg',
-  'Watford': 'https://upload.wikimedia.org/wikipedia/en/e/e2/Watford.svg',
-  'Sunderland': 'https://upload.wikimedia.org/wikipedia/en/7/77/Logo_Sunderland.svg',
-  'Grêmio': 'https://upload.wikimedia.org/wikipedia/commons/0/08/Gremio_logo.svg',
-  'Internacional': 'https://upload.wikimedia.org/wikipedia/commons/c/c5/Sport_Club_Internacional_logo.svg',
-  'Atlético Mineiro': 'https://upload.wikimedia.org/wikipedia/commons/2/27/Clube_Atl%C3%A9tico_Mineiro_logo.svg',
-  'Brasil': 'https://upload.wikimedia.org/wikipedia/commons/9/99/Brazilian_Football_Confederation_logo.svg'
-};
+// Club badges are resolved centrally by crestIdForClub() from lib/crests.
 
 export function getBasePlayerId(playerId: string): string {
   // Exact match always wins — otherwise 'gabriel_jesus' would match the 'gabriel' prefix first
@@ -516,6 +479,8 @@ export const LOCAL_PLAYER_PHOTO_ROOT = '/players/regular';
 // still supported through its numeric ID fallback below.
 const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   abedipele: 'abedi_pele',
+  alves: 'dani_alves_barcelona',
+  alves_psg: 'dani_alves_psg',
   baresi: 'baresi',
   bergkamp: 'bergkamp',
   blanc: 'blanc',
@@ -874,6 +839,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   const dualCol0 = variants.length >= 2 ? normCol(variants[0].color) : null;
   const dualCol1 = variants.length >= 2 ? normCol(variants[1].color) : null;
   const uniq = UNIQUE_STYLE[player.id];               // ⭐ carta Única (textura/fonte/render próprios)
+  const clubCrestId = crestIdForClub(player.club);
   // A foto pode existir apenas no pacote local (sem entrada SoFIFA), como no Raphinha.
   // Use a mesma cadeia de fontes do PlayerPhoto para não esconder portraits locais.
   const hasPhoto = !!uniq || buildPlayerPhotoSources(player.id).length > 0;
@@ -952,7 +918,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
             {/* bandeira (país) + escudo (clube) — ajudam a ler a química no MEU TIME */}
             <div className="flex items-center justify-center gap-1 mb-0.5">
               {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
-              {CLUB_CRESTS[player.club] && <img src={CLUB_CRESTS[player.club]} alt={player.club} referrerPolicy="no-referrer" style={{ width: 12, height: 12, objectFit: 'contain', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.7))' }} />}
+              <Crest crestId={clubCrestId} name={player.club} size={12} className="drop-shadow-[0_1px_1px_rgba(0,0,0,.7)]" />
             </div>
             <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
               {player.shortName.toUpperCase()}
@@ -1027,7 +993,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           <span style={{ fontFamily: 'Rajdhani,sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
           <div style={{ width: 30, height: 1, background: 'rgba(247,238,202,.55)', margin: '3px 0' }} />
           {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
-          {CLUB_CRESTS[player.club] && <img src={CLUB_CRESTS[player.club]} alt={player.club} referrerPolicy="no-referrer" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+          <Crest crestId={clubCrestId} name={player.club} size={22} />
         </div>
         {/* foto (cartas normais; as Únicas usam o render grande atrás do conteúdo) */}
         {!uniq && (

@@ -1,7 +1,7 @@
 // UCL Immortals — LOJA (shop) tab.
 // Spend the points earned each match. Each item opens a small flow (pick a coach / player /
 // variant / attribute / pack option) and dispatches the matching SHOP_* action; the reducer
-// validates the cost. Solo-league only.
+// validates the cost. Solo and online league flows share the same presentation.
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
@@ -10,20 +10,21 @@ import { generateStarPackOptions, generateScoutOptions, hasVariant, canAddVarian
 import type { VariantFlag } from '../../lib/gameEngine';
 import { SHOP_COSTS, trainCost, TRAIN_BOOST, TRAIN_ATTRS, TURBINAR_VARIANTS, ShopVariant, TrainAttr } from '../../lib/shop';
 import PlayerCard, { getCardVariants } from './PlayerCard';
+import UniquePackOpening from './UniquePackOpening';
 import { Button, Panel, PanelBody } from '../../design-system';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'train' | 'reroll' | 'unique';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
 
 export default function ShopTab() {
-  const { state, dispatch, shopChangeCoachOnline, shopBuyPlayerOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
+  const { state, dispatch, shopChangeCoachOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
   const team = state.playerTeam;
   const points = state.points;
   const online = state.mode === 'online';
   const pendingPack = state.pendingPack; // 🛒 pacote JÁ PAGO (Craque/Caça-Talentos) aguardando escolha
+  const pendingUniquePack = state.pendingUniquePack; // ⭐ carta sorteada e reservada até a revelação
   const [active, setActive] = useState<ItemId | null>(null);
   const [selPlayerId, setSelPlayerId] = useState<string | null>(null);
-  const [uniqueWarn, setUniqueWarn] = useState<string | null>(null); // aviso "pontos insuficientes" na loja de únicas
   // 🛒 Confirmação de compra (premium) — reutilizada por todas as compras significativas da loja.
   const [confirmCfg, setConfirmCfg] = useState<null | { title: string; message: string; onConfirm: () => void }>(null);
   const askConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmCfg({ title, message, onConfirm });
@@ -32,7 +33,8 @@ export default function ShopTab() {
 
   // Solo mutates local state via the reducer; online emits to the authoritative server.
   const buyCoach = (coachId: string) => online ? shopChangeCoachOnline(coachId) : dispatch({ type: 'SHOP_CHANGE_COACH', coachId });
-  const buyPlayer = (player: Player, kind: 'unique') => online ? shopBuyPlayerOnline(player, kind) : dispatch({ type: 'SHOP_BUY_PLAYER', player, kind });
+  const openUniquePack = () => online ? shopOpenUniquePackOnline() : dispatch({ type: 'SHOP_OPEN_UNIQUE_PACK' });
+  const claimUniquePack = () => online ? shopClaimUniquePackOnline() : dispatch({ type: 'SHOP_CLAIM_UNIQUE_PACK' });
   // 🛒 Pacote: COBRA ao abrir (open) → guarda; a escolha (pick) é grátis. Impede re-sortear de graça.
   const openPack = (kind: 'star' | 'scout', options: Player[], position?: string) => online ? shopOpenPackOnline(kind, position) : dispatch({ type: 'SHOP_OPEN_PACK', kind, options });
   const pickPack = (player: Player) => online ? shopPickPackOnline(player) : dispatch({ type: 'SHOP_PICK_PACK', player });
@@ -43,10 +45,10 @@ export default function ShopTab() {
   const ownedIds = team.players.map(p => p.id);
   const selPlayer = team.players.find(p => p.id === selPlayerId) ?? null;
 
-  const close = () => { setActive(null); setSelPlayerId(null); setUniqueWarn(null); };
+  const close = () => { setActive(null); setSelPlayerId(null); };
 
   const ITEMS: { id: ItemId; icon: string; name: string; cost: number | 'dyn'; color: string; desc: string }[] = [
-    { id: 'unique', icon: '⭐', name: 'CARTAS ÚNICAS', cost: SHOP_COSTS.uniqueCard, color: '#F0E6C0', desc: 'Jogadores especiais de raridade ÚNICA — overall 99, visual exclusivo. Aceitam 2 características. Uma de cada.' },
+    { id: 'unique', icon: '⭐', name: 'PACOTE ÚNICO', cost: SHOP_COSTS.uniqueCard, color: '#F0E6C0', desc: 'Uma Carta Única aleatória, overall 99 e visual exclusivo. Uma carta garantida por pacote.' },
     { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: SHOP_COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
     { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador. Só em quem NÃO tem característica.' },
     { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: SHOP_COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
@@ -59,8 +61,16 @@ export default function ShopTab() {
   const openItem = (id: ItemId) => {
     if (id === 'reroll') { if (points >= SHOP_COSTS.reroll) buyReroll(); return; } // compra direta, sem modal
     // Se já tem um pacote PAGO pendente, abre ELE (força escolher antes de abrir outro).
-    if ((id === 'star' || id === 'scout') && pendingPack) {
+    if (pendingPack && (id === 'unique' || id === 'star' || id === 'scout')) {
       setSelPlayerId(null); setActive(pendingPack.kind);
+      return;
+    }
+    if (pendingUniquePack && id !== 'unique') {
+      setSelPlayerId(null); setActive('unique');
+      return;
+    }
+    if (id === 'unique') {
+      setSelPlayerId(null); setActive('unique');
       return;
     }
     if (id === 'star') {
@@ -125,9 +135,27 @@ export default function ShopTab() {
         })}
       </div>
 
+      {/* ⭐ A abertura ocupa a tela inteira: o pacote é a própria experiência, sem a modal padrão da loja. */}
+      <AnimatePresence>
+        {active === 'unique' && pendingUniquePack && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60]"
+          >
+            <UniquePackOpening
+              card={pendingUniquePack}
+              onClose={close}
+              onClaim={() => { claimUniquePack(); close(); }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Modals ── */}
       <AnimatePresence>
-        {active && (
+        {active && !pendingUniquePack && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="ui-modal-backdrop z-50 p-3 sm:p-4" onClick={close}>
             <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 14 }} transition={{ duration: 0.18 }}
@@ -143,44 +171,62 @@ export default function ShopTab() {
               </div>
 
               <div className="ui-modal__body flex-1">
-                {/* ⭐ CARTAS ÚNICAS — jogadores especiais, overall 99, raridade Única */}
+                {/* ⭐ PACOTE ÚNICO — catálogo + abertura/revelação da carta sorteada */}
                 {active === 'unique' && (
-                  <div>
-                    <p className="text-xs mb-2" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                      Jogadores especiais de raridade <b style={{ color: '#F0E6C0' }}>ÚNICA</b> — <b style={{ color: '#FFF' }}>overall 99</b>, visual exclusivo. −{SHOP_COSTS.uniqueCard} pontos cada · uma de cada, entra no banco.
-                    </p>
-                    <div className="mb-3 text-[11px] font-bold px-3 py-2 rounded-lg flex items-start gap-2" style={{ background: '#F0E6C014', border: '1px solid #F0E6C033', color: '#EAD9A0', fontFamily: 'Rajdhani, sans-serif' }}>
-                      <span className="text-sm leading-none">✨</span>
-                      <span>Diferencial das Únicas: podem carregar <b style={{ color: '#F0E6C0' }}>DUAS características</b> ao mesmo tempo (as demais só uma). Aplique-as depois em <b style={{ color: '#E8C84A' }}>Turbinar Carta</b>.</span>
-                    </div>
-                    {uniqueWarn && (
-                      <div className="mb-3 text-[11px] font-bold px-3 py-2 rounded-lg" style={{ background: '#EF444422', border: '1px solid #EF444455', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
-                        ⚠️ {uniqueWarn}
+                  pendingUniquePack ? (
+                    <UniquePackOpening
+                      card={pendingUniquePack}
+                      onClaim={() => { claimUniquePack(); close(); }}
+                    />
+                  ) : (() => {
+                    const ownedUniqueCount = UNIQUE_CARDS.filter(card => ownedIds.includes(card.id)).length;
+                    const availableUniqueCount = UNIQUE_CARDS.length - ownedUniqueCount;
+                    const canBuyPack = points >= SHOP_COSTS.uniqueCard && availableUniqueCount > 0;
+                    return (
+                      <div>
+                        <p className="text-xs mb-2" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                          Abra por <b style={{ color: '#F0E6C0' }}>💰 {SHOP_COSTS.uniqueCard}</b> e receba <b style={{ color: '#FFF' }}>uma Carta Única aleatória</b> que você ainda não possui. A carta só entra no banco depois da revelação.
+                        </p>
+                        <div className="mb-4 text-[11px] font-bold px-3 py-2 rounded-lg flex items-start gap-2" style={{ background: '#F0E6C014', border: '1px solid #F0E6C033', color: '#EAD9A0', fontFamily: 'Rajdhani, sans-serif' }}>
+                          <span className="text-sm leading-none">✨</span>
+                          <span>As Únicas têm <b style={{ color: '#F0E6C0' }}>overall 99</b>, visual exclusivo e podem carregar <b style={{ color: '#F0E6C0' }}>duas características</b> ao mesmo tempo. Você já tem <b style={{ color: '#FFF' }}>{ownedUniqueCount}</b> de {UNIQUE_CARDS.length}.</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-5 justify-items-center">
+                          {UNIQUE_CARDS.map(card => {
+                            const owned = ownedIds.includes(card.id);
+                            return (
+                              <div key={card.id} className="relative flex flex-col items-center gap-2">
+                                <div className={owned ? 'opacity-100' : 'opacity-60 grayscale-[0.35]'}>
+                                  <PlayerCard player={card} lite scale={0.82} />
+                                </div>
+                                <span className="text-[10px] font-black px-3 py-1 rounded-full tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#8A8A9A', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
+                                  {owned ? 'JÁ TEM' : 'A DESCOBRIR'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-5 rounded-xl p-3 text-center" style={{ background: '#07070f', border: '1px solid #F0E6C033' }}>
+                          <p className="mb-3 text-xs" style={{ color: canBuyPack ? '#CFCFE0' : '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                            {availableUniqueCount === 0
+                              ? 'Você já completou o catálogo de Cartas Únicas.'
+                              : points < SHOP_COSTS.uniqueCard
+                                ? `Faltam ${SHOP_COSTS.uniqueCard - points} pontos para abrir o pacote.`
+                                : 'O jogador será revelado em uma animação de abertura.'}
+                          </p>
+                          <button
+                            type="button"
+                            disabled={!canBuyPack}
+                            onClick={() => askConfirm('Pacote Único', `Abrir um pacote aleatório por 💰 ${SHOP_COSTS.uniqueCard}? A carta sorteada será uma Única que você ainda não possui.`, openUniquePack)}
+                            className="w-full rounded-xl px-4 py-3 text-sm font-black tracking-widest transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                            style={{ background: '#F0E6C0', color: '#0A0A14', fontFamily: 'Bebas Neue, sans-serif' }}
+                          >
+                            {availableUniqueCount === 0 ? 'CATÁLOGO COMPLETO' : `ABRIR PACOTE · 💰 ${SHOP_COSTS.uniqueCard}`}
+                          </button>
+                        </div>
                       </div>
-                    )}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-5 justify-items-center">
-                      {UNIQUE_CARDS.map(card => {
-                        const owned = ownedIds.includes(card.id);
-                        const afford = points >= SHOP_COSTS.uniqueCard;
-                        return (
-                          <div key={card.id} className="flex flex-col items-center gap-2">
-                            <PlayerCard player={card} lite scale={0.82} />
-                            <button
-                              onClick={() => {
-                                if (owned) return;
-                                if (afford) askConfirm('Carta Única', `Comprar ${card.shortName} (Única, 99) por 💰 ${SHOP_COSTS.uniqueCard}?`, () => { buyPlayer(card, 'unique'); close(); });
-                                else setUniqueWarn(`Pontos insuficientes — você tem ${points}, e ${card.shortName} custa ${SHOP_COSTS.uniqueCard}.`);
-                              }}
-                              disabled={owned}
-                              className="text-xs font-black px-4 py-1.5 rounded-lg tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-transform active:scale-95"
-                              style={{ fontFamily: 'Bebas Neue, sans-serif', background: owned ? '#1A1A2A' : '#F0E6C0', color: owned ? '#8A8A9A' : '#0A0A14', border: owned ? '1px solid #2A2A3A' : 'none', opacity: (!owned && !afford) ? 0.72 : 1 }}>
-                              {owned ? 'JÁ TEM' : `💰 ${SHOP_COSTS.uniqueCard}`}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                    );
+                  })()
                 )}
 
                 {/* TROCAR TÉCNICO */}

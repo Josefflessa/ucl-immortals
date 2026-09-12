@@ -8,9 +8,8 @@ function evalTab(state: any) {
   const matches = getActiveKnockoutMatches(knockoutBracket) as any[];
   const round = knockoutBracket.currentRound;
   const currentLeg = knockoutBracket.currentLeg;
-  const isFinal = round === 'final';
   const allPlayed = matches.length > 0 && matches.every((m: any) => m.played);
-  const idaPlayed = !isFinal && currentLeg === 2 && !allPlayed;
+  const idaPlayed = currentLeg === 2 && !allPlayed;
 
   const humanPlayersInBracket = state.onlinePlayers.filter((p: any) => p.connected && matches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id));
   const allPlayersWatched = humanPlayersInBracket.length === 0 ||
@@ -23,7 +22,7 @@ function evalTab(state: any) {
   const out: any[] = [];
   for (const match of matches) {
     const hasPlayer = isPlayerTeam(match.homeTeamId) || isPlayerTeam(match.awayTeamId);
-    const twoLeg = !match.isSingleLeg && round !== 'final';
+    const twoLeg = round === 'final' ? match.isSingleLeg === false : match.isSingleLeg !== true;
     const l1 = match.leg1, l2 = match.leg2;
     const watched = state.watchedKnockoutMatches;
     const hideMyScore = state.mode !== 'online' && hasPlayer && (

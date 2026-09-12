@@ -7,8 +7,11 @@ import {
   generateBotTeam,
   generateStarPackOptions,
   generateScoutOptions,
+  generateUniquePackCard,
   generateLeagueFixtures,
+  generateGroupFixtures,
   computeStandings,
+  computeGroupQualifiedStandings,
   simulateMatch,
   calculateChemistry,
   createKnockoutBracket,
@@ -29,7 +32,7 @@ import {
 
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
-import { computeMatchPoints, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
+import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
 import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
 import { pickHostId } from "./room-host.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
@@ -37,6 +40,7 @@ import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
 import { DRAFT_TURN_SECONDS } from "../shared/const.js";
 import {
   DEFAULT_COMPETITION_FORMAT,
+  MAX_ONLINE_PLAYERS,
   normalizeCompetitionFormat,
   validateCompetitionFormat,
 } from "../client/src/lib/competition.js";
@@ -65,6 +69,7 @@ interface RoomPlayer {
   reinforcementOptions: Player[] | null;   // end-of-round free pick (1 of 6 → bench)
   reinforcementRerolls: number;            // 🔄 tokens to re-roll the reinforcement (persist across rounds)
   pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null; // 🛒 pacote JÁ PAGO na abertura (escolha grátis)
+  pendingUniquePack: Player | null; // ⭐ pacote Único já pago, aguardando revelação
   bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação)
   pendingMatchPoints?: number;        // pontos da partida calculados, NÃO creditados até a revelação
 }
@@ -430,18 +435,23 @@ export function registerSocketHandlers(io: Server) {
     };
 
     // Create Room
-    on("create_room", ({ creatorName, competitionFormat, clientId }: { creatorName: string; competitionFormat?: unknown; clientId?: string }) => {
+    on("create_room", ({ creatorName, competitionFormat, difficulty, clientId }: { creatorName: string; competitionFormat?: unknown; difficulty?: unknown; clientId?: string }) => {
       const requestedFormat = competitionFormat ?? DEFAULT_COMPETITION_FORMAT;
       const formatError = validateCompetitionFormat(requestedFormat);
       if (formatError) {
         socket.emit("action_error", { event: "create_room", message: formatError });
         return;
       }
+      const requestedDifficulty = difficulty ?? 'gold';
+      if (typeof requestedDifficulty !== 'string' || !DIFFICULTY_LEVELS.some(level => level.id === requestedDifficulty)) {
+        socket.emit("action_error", { event: "create_room", message: "Escolha uma dificuldade válida para os bots." });
+        return;
+      }
       const roomCode = getUniqueRoomCode();
       const newRoom: RoomState = {
         code: roomCode,
         phase: 'lobby',
-        difficulty: 'gold',
+        difficulty: requestedDifficulty,
         competitionFormat: normalizeCompetitionFormat(requestedFormat),
         hostId: 'player_0',
         players: [
@@ -467,6 +477,7 @@ export function registerSocketHandlers(io: Server) {
             reinforcementOptions: null,
             reinforcementRerolls: 0,
             pendingPack: null,
+            pendingUniquePack: null,
             bets: []
           }
         ],
@@ -557,8 +568,8 @@ export function registerSocketHandlers(io: Server) {
         return;
       }
 
-      if (room.players.length >= 8) {
-        socket.emit("error_message", "A sala já está cheia (limite de 8 jogadores).");
+      if (room.players.length >= MAX_ONLINE_PLAYERS) {
+        socket.emit("error_message", `A sala já está cheia (limite de ${MAX_ONLINE_PLAYERS} jogadores).`);
         return;
       }
 
@@ -584,6 +595,7 @@ export function registerSocketHandlers(io: Server) {
         reinforcementOptions: null,
         reinforcementRerolls: 0,
         pendingPack: null,
+        pendingUniquePack: null,
         bets: []
       };
 
@@ -593,15 +605,6 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("joined_room", { roomCode: code, player: newPlayer, roomState: room });
       io.to(code).emit("room_updated", room);
       console.log(`Player joined: ${playerName} to ${code}`);
-    });
-
-    // Host updates difficulty
-    on("set_difficulty", ({ roomCode, difficulty }) => {
-      const room = rooms.get(roomCode);
-      if (!room || !isHost(room, socket.id)) return;
-      if (!isValidId(difficulty) || !DIFFICULTY_LEVELS.some(d => d.id === difficulty)) return;
-      room.difficulty = difficulty;
-      io.to(roomCode).emit("room_updated", room);
     });
 
     // Host starts setup phase
@@ -791,7 +794,7 @@ export function registerSocketHandlers(io: Server) {
           };
         });
 
-        // Generate bot teams to reach 36 teams total
+        // Generate only the number of bots required by the selected preset.
         const diffLevel = DIFFICULTY_LEVELS.find(d => d.id === room.difficulty);
         const botStrength = diffLevel?.botStrength ?? 0.72;
 
@@ -809,16 +812,24 @@ export function registerSocketHandlers(io: Server) {
 
         const humanNames = room.players.map(p => p.team!.name.toLowerCase());
         const filteredBotNames = BOT_NAMES.filter(name => !humanNames.includes(name.toLowerCase()));
-        const numBotsNeeded = 36 - room.players.length;
+        const numBotsNeeded = Math.max(0, room.competitionFormat.teamCount - room.players.length);
         const selectedBotNames = filteredBotNames.slice(0, numBotsNeeded);
 
         room.botTeams = selectedBotNames.map(name => generateBotTeam(name, botStrength));
         const allTeams = [...room.players.map(p => p.team!), ...room.botTeams];
 
-        room.leagueFixtures = generateLeagueFixtures(allTeams, room.competitionFormat.leagueRounds);
+        room.leagueFixtures = room.competitionFormat.id === 'groups_knockout'
+          ? generateGroupFixtures(allTeams, room.competitionFormat.groupCount, room.competitionFormat.groupRounds)
+          : generateLeagueFixtures(allTeams, room.competitionFormat.leagueRounds);
         room.leagueStandings = computeStandings(allTeams, []);
         room.leagueRound = 1;
-        room.phase = 'league';
+        if (room.competitionFormat.id === 'knockout') {
+          room.knockoutBracket = createKnockoutBracket(room.leagueStandings, room.competitionFormat);
+          room.phase = 'knockout';
+          room.discipline = resetYellowsForKnockout(room.discipline);
+        } else {
+          room.phase = 'league';
+        }
       }
 
       io.to(roomCode).emit("room_updated", room);
@@ -973,22 +984,48 @@ export function registerSocketHandlers(io: Server) {
       socket.emit("room_updated", room); // só o time deste jogador mudou
     });
 
-    // ⭐ Carta Única — compra direta (só essa passa por aqui; Craque/Caça-Talentos usam open/pick).
-    on("shop_buy_player", ({ roomCode, player: chosen, kind }: { roomCode: string; player: Player; kind: 'unique' }) => {
+    // ⭐ Pacote Único — cobra na abertura, sorteia no servidor e guarda o resultado
+    // até o jogador concluir a animação. O cliente nunca escolhe a carta.
+    on("shop_open_unique_pack", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !chosen || kind !== 'unique') return;
+      if (!player || !player.team || player.pendingUniquePack || player.pendingPack) return;
+      if (room.phase !== 'league' && room.phase !== 'knockout') return;
       const cost = SHOP_COSTS.uniqueCard;
-      if (player.points < cost) return;
-      if (player.team.players.some(p => p.id === chosen.id)) return;          // no duplicates
-      // usa a definição AUTORITATIVA do servidor (não confia nos stats do cliente).
-      const toAdd = UNIQUE_CARDS.find(u => u.id === chosen.id);
-      if (!toAdd) return;
+      if (player.points < cost) {
+        socket.emit("action_error", { event: "shop_open_unique_pack", message: `Você precisa de ${cost} pontos para abrir este pacote.` });
+        return;
+      }
+      const chosen = generateUniquePackCard(player.team.players.map(p => p.id));
+      if (!chosen) {
+        socket.emit("action_error", { event: "shop_open_unique_pack", message: "Você já possui todas as Cartas Únicas disponíveis." });
+        return;
+      }
       player.points -= cost;
-      const card: PlayerCard = { ...toAdd, chemistryScore: 0, isOOP: false };
+      player.pendingUniquePack = { ...chosen };
+      socket.emit("room_updated", room);
+    });
+
+    // ⭐ Revelar a carta já sorteada: valida novamente no catálogo autoritativo.
+    on("shop_claim_unique_pack", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || !player.pendingUniquePack) return;
+      const pending = player.pendingUniquePack;
+      const canonical = UNIQUE_CARDS.find(card => card.id === pending.id);
+      if (!canonical || player.team.players.some(card => card.id === canonical.id)) {
+        socket.emit("action_error", { event: "shop_claim_unique_pack", message: "Não foi possível adicionar esta Carta Única." });
+        socket.emit("room_updated", room);
+        return;
+      }
+      const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
+      // Só consumimos o pacote depois que a carta passou pela validação final.
+      // Assim, um estado inconsistente não faz o jogador perder uma compra já paga.
+      player.pendingUniquePack = null;
       player.team.players = [...player.team.players, card];
-      socket.emit("room_updated", room); // only this player's own bench changed
+      socket.emit("room_updated", room);
     });
 
     // 🛒 Abrir pacote (Craque/Caça-Talentos): COBRA aqui e guarda as opções → impede re-sortear de graça.
@@ -1228,7 +1265,7 @@ export function registerSocketHandlers(io: Server) {
       if (!player || !player.team || player.reinforcementRerolls <= 0 || !player.reinforcementOptions) return;
       player.reinforcementRerolls -= 1;
       const ownedIds = player.team.players.map(p => p.id);
-      player.reinforcementOptions = generateDraftOptions([], ownedIds);
+      player.reinforcementOptions = generateDraftOptions([], ownedIds).slice(0, room.competitionFormat.rewards.reinforcementOptions);
       socket.emit("room_updated", room);
     });
 
@@ -1361,13 +1398,14 @@ export function registerSocketHandlers(io: Server) {
           if (fixture?.result) {
             // ⭐ +1 jogo pros 11 titulares deste jogador (progresso pra Carta Evoluída).
             p.team = bumpStarterAppearances(p.team);
-            const mp = computeMatchPoints(fixture.result, p.team.id);
+            const rewards = room.competitionFormat.rewards;
+            const mp = computeMatchPointsWithConfig(fixture.result, p.team.id, rewards.points);
             // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
             const magMult = magnataPointMultiplier(p.team.players);
-            const earned = Math.round(mp.total * magMult);
+            const earned = rewards.pointsEnabled ? Math.round(mp.total * magMult) : 0;
             // FIX anti-spoiler: NÃO credita agora; guarda como pendente até a revelação.
-            p.pendingMatchPoints = earned;
-            p.lastMatchPoints = magMult > 1 ? { ...mp, total: earned } : mp; // resumo do PRÓPRIO jogo (não é spoiler)
+            p.pendingMatchPoints = rewards.pointsEnabled ? earned : undefined;
+            p.lastMatchPoints = rewards.pointsEnabled ? (magMult > 1 ? { ...mp, total: earned } : mp) : null; // resumo do PRÓPRIO jogo (não é spoiler)
           }
           // 🎯 Liquida (sem creditar) os palpites da rodada deste jogador.
           const betPrefix = `L${room.leagueRound}:`;
@@ -1378,8 +1416,13 @@ export function registerSocketHandlers(io: Server) {
             const r = settleBet(b, bfx.result);
             return { ...b, settled: true, won: r.won, tier: r.tier, payout: r.payout };
           });
+          const rewards = room.competitionFormat.rewards;
+          const stageRounds = room.competitionFormat.id === 'groups_knockout' ? room.competitionFormat.groupRounds : room.competitionFormat.leagueRounds;
+          const shouldOfferReinforcement = rewards.reinforcement !== 'off'
+            && (rewards.reinforcementUntilRound === null || room.leagueRound <= rewards.reinforcementUntilRound)
+            && (rewards.reinforcement === 'round' || room.leagueRound === stageRounds);
           const ownedIds = p.team.players.map(pl => pl.id);
-          p.reinforcementOptions = generateDraftOptions([], ownedIds);
+          p.reinforcementOptions = shouldOfferReinforcement ? generateDraftOptions([], ownedIds).slice(0, rewards.reinforcementOptions) : null;
         });
       }
 
@@ -1411,13 +1454,21 @@ export function registerSocketHandlers(io: Server) {
         return;
       }
 
-      if (room.leagueRound < room.competitionFormat.leagueRounds) {
+      const stageRounds = room.competitionFormat.id === 'groups_knockout' ? room.competitionFormat.groupRounds : room.competitionFormat.leagueRounds;
+      if (room.leagueRound < stageRounds) {
         room.leagueRound += 1;
+      } else if (room.competitionFormat.id === 'league') {
+        room.phase = 'report';
+        room.champion = room.leagueStandings[0]?.teamId ?? null;
       } else {
         // End of league phase! Build the full UCL knockout bracket
         // (play-offs → R16 → quarters → semis → final).
         room.phase = 'knockout';
-        room.knockoutBracket = createKnockoutBracket(room.leagueStandings, room.competitionFormat);
+        const allTeams = [...room.players.map(p => p.team!).filter(Boolean), ...room.botTeams];
+        const bracketStandings = room.competitionFormat.id === 'groups_knockout'
+          ? computeGroupQualifiedStandings(allTeams, room.leagueFixtures, room.competitionFormat)
+          : room.leagueStandings;
+        room.knockoutBracket = createKnockoutBracket(bracketStandings, room.competitionFormat);
         room.discipline = resetYellowsForKnockout(room.discipline); // 🟨 amarelos zeram no mata-mata
       }
 
@@ -1489,15 +1540,34 @@ export function registerSocketHandlers(io: Server) {
       // NO reinforcement (league-only) and NO points for the FINAL (season's over, nothing to spend).
       // FIX anti-spoiler: pontos vão pra pendingMatchPoints (creditados só quando todos assistirem).
       const ties = getActiveKnockoutMatches(room.knockoutBracket) as any[];
-      if (!isFinalRound) {
+      if (!isFinalRound && room.competitionFormat.rewards.knockoutPointsEnabled) {
         room.players.forEach(p => {
           if (!p.team) return;
           const tie = ties.find((t: any) => t.homeTeamId === p.team!.id || t.awayTeamId === p.team!.id);
           if (!tie) return;
           const legRes = legPlayed === 1 ? tie.leg1 : tie.leg2;
-          if (legRes) p.pendingMatchPoints = computeMatchPoints(legRes, p.team.id).total;
+          if (legRes) p.pendingMatchPoints = room.competitionFormat.rewards.pointsEnabled
+            ? computeMatchPointsWithConfig(legRes, p.team.id, room.competitionFormat.rewards.points).total
+            : undefined;
         });
       }
+
+      // Presets may opt into a free reinforcement between completed knockout
+      // stages. Never offer it between the two legs of the same tie.
+      const stageNumber = room.competitionFormat.id === 'knockout'
+        ? ({ round16: 1, quarters: 2, semis: 3, final: 4 } as Record<string, number>)[room.knockoutBracket.currentRound] ?? 1
+        : ({ playoffs: 1, round16: 2, quarters: 3, semis: 4, final: 5 } as Record<string, number>)[room.knockoutBracket.currentRound] ?? 1;
+      const koRewards = room.competitionFormat.rewards;
+      const stageFinished = ties.length > 0 && ties.every((t: any) => t.played);
+      const offerStageReinforcement = !isFinalRound && stageFinished
+        && koRewards.reinforcement === 'stage'
+        && (koRewards.reinforcementUntilRound === null || stageNumber <= koRewards.reinforcementUntilRound);
+      room.players.forEach(p => {
+        if (!p.team) return;
+        p.reinforcementOptions = offerStageReinforcement
+          ? generateDraftOptions([], p.team.players.map(pl => pl.id)).slice(0, koRewards.reinforcementOptions)
+          : p.reinforcementOptions;
+      });
 
       // 🎯 Liquida (sem creditar) os palpites da perna recém-jogada de cada jogador.
       room.players.forEach(p => {
@@ -1588,6 +1658,7 @@ export function registerSocketHandlers(io: Server) {
         p.reinforcementOptions = null;
         p.reinforcementRerolls = 0;
         p.pendingPack = null;
+        p.pendingUniquePack = null;
         p.bets = [];
         p.pendingMatchPoints = undefined;
       });

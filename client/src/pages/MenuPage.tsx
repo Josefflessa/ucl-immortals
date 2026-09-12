@@ -7,8 +7,8 @@ import { Gamepad2, Trophy, Plus, LogIn, LogOut, BookOpen, LibraryBig } from 'luc
 import HowToPlayModal from '../components/game/HowToPlayModal';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
-import { competitionFormatSummary, MAX_LEAGUE_ROUNDS, MAX_QUALIFIED_TEAMS, MIN_LEAGUE_ROUNDS, MIN_QUALIFIED_TEAMS, validateCompetitionFormat } from '../lib/competition';
-import { AppShell, Button, ChoiceCard, Input, Panel, StatusBanner } from '../design-system';
+import { competitionFormatSummary } from '../lib/competition';
+import { AppShell, Button, Input, Panel } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
@@ -19,7 +19,6 @@ export default function MenuPage() {
     dispatch,
     createRoom,
     joinRoom,
-    setDifficultyOnline,
     startSetupOnline,
     disconnectOnline
   } = useGame();
@@ -28,29 +27,20 @@ export default function MenuPage() {
   const [showGuide, setShowGuide] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
-  const [onlineLeagueRounds, setOnlineLeagueRounds] = useState(String(state.competitionFormat.leagueRounds));
-  const [onlineQualifiedTeams, setOnlineQualifiedTeams] = useState(String(state.competitionFormat.qualifiedTeams));
-  const [onlineFormatError, setOnlineFormatError] = useState<string | null>(null);
+  const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
 
   const handlePlaySolo = () => {
     if (!playerName.trim()) return;
+    dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null });
     dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
-    dispatch({ type: 'SET_PHASE', phase: 'setup' });
+    dispatch({ type: 'SET_PHASE', phase: 'format' });
   };
 
   const handleCreateRoom = () => {
     if (!playerName.trim()) return;
-    const competitionFormat = {
-      leagueRounds: Number(onlineLeagueRounds),
-      qualifiedTeams: Number(onlineQualifiedTeams),
-    };
-    const error = validateCompetitionFormat(competitionFormat);
-    if (error) {
-      setOnlineFormatError(error);
-      return;
-    }
-    setOnlineFormatError(null);
-    createRoom(playerName.trim(), competitionFormat);
+    dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
+    dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: 'create' });
+    dispatch({ type: 'SET_PHASE', phase: 'format' });
   };
 
   const handleJoinRoom = () => {
@@ -126,35 +116,15 @@ export default function MenuPage() {
               <p className="mt-1 text-[11px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 {competitionFormatSummary(state.competitionFormat)}
               </p>
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border px-3 py-2" style={{ background: '#08080f', borderColor: '#171725' }}>
+                <span className="text-[10px] font-bold tracking-widest text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>DIFICULDADE DOS BOTS</span>
+                <span className="text-xs font-black uppercase tracking-wider text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{difficultyName}</span>
+              </div>
             </div>
 
-            {/* Host Options */}
+            {/* Host progression */}
             {state.isHost ? (
-              <div className="mt-4 pt-4 border-t space-y-4" style={{ borderColor: '#1A1A2A' }}>
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-2 tracking-widest uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    DIFICULDADE DOS BOTS
-                  </label>
-                  <div className="grid grid-cols-5 gap-1">
-                    {DIFFICULTY_LEVELS.map(d => (
-                      <ChoiceCard
-                        key={d.id}
-                        selected={state.difficulty === d.id}
-                        onClick={() => setDifficultyOnline(d.id)}
-                        className="min-h-8 rounded border px-1 py-1 text-[10px] font-bold transition-all"
-                        style={{
-                          fontFamily: 'Rajdhani, sans-serif',
-                          background: state.difficulty === d.id ? '#C9A84C' : '#08080f',
-                          color: state.difficulty === d.id ? '#000' : '#8A8A9A',
-                          borderColor: state.difficulty === d.id ? '#C9A84C' : '#171725'
-                        }}
-                      >
-                        {d.name}
-                      </ChoiceCard>
-                    ))}
-                  </div>
-                </div>
-
+              <div className="mt-4 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
                 <Button
                   type="button"
                   intent="primary"
@@ -366,41 +336,15 @@ export default function MenuPage() {
               <Panel tone="inset" className="space-y-3 p-3">
                 <div>
                   <div className="text-xs font-bold tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    FORMATO DA COMPETIÇÃO
+                    CONFIGURAÇÃO DA PARTIDA
                   </div>
                   <p className="mt-1 text-[11px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    Defina livremente a duração da liga e a linha de classificação. O sistema bloqueia valores que não fecham com o mata-mata.
+                    Ao criar uma sala, você define o formato do torneio e a dificuldade dos bots nas próximas telas. Depois, o código reúne todos na mesma competição.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    Rodadas da liga
-                    <Input
-                      type="number"
-                      min={MIN_LEAGUE_ROUNDS}
-                      max={MAX_LEAGUE_ROUNDS}
-                      step={1}
-                      value={onlineLeagueRounds}
-                      onChange={e => { setOnlineLeagueRounds(e.target.value); setOnlineFormatError(null); }}
-                      className="ui-input mt-1 text-center"
-                    />
-                  </label>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    Times classificados
-                    <Input
-                      type="number"
-                      min={MIN_QUALIFIED_TEAMS}
-                      max={MAX_QUALIFIED_TEAMS}
-                      step={1}
-                      value={onlineQualifiedTeams}
-                      onChange={e => { setOnlineQualifiedTeams(e.target.value); setOnlineFormatError(null); }}
-                      className="ui-input mt-1 text-center"
-                    />
-                  </label>
-                </div>
-                {onlineFormatError && (
-                  <StatusBanner tone="danger" role="alert">{onlineFormatError}</StatusBanner>
-                )}
+                <p className="text-[10px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  Para entrar em uma sala existente, basta informar o código — as configurações vêm do anfitrião.
+                </p>
               </Panel>
 
               <div className="grid grid-cols-2 gap-2">

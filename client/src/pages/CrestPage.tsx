@@ -37,7 +37,7 @@ export default function CrestPage() {
       <PageContainer wide>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
           <SectionHeader
-            kicker="IDENTIDADE DO CLUBE · 02"
+            kicker="IDENTIDADE DO CLUBE · 03"
             title="Escolha seu escudo"
             description="Represente um clube no torneio. É só visual — não muda os atributos. Opcional: pode pular e usar as iniciais do time."
             className="mb-6"
