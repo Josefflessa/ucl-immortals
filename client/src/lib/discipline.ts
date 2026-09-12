@@ -3,7 +3,7 @@
 // de probabilidade e a lógica de TEMPORADA (aplicar consequências + resolver escalação).
 import type { MatchEvent, Team, PlayerCard } from './gameEngine';
 import { rebuildTeamChemistry } from './gameEngine';
-import { FORMATIONS, PLAYERS } from './gameData';
+import { canonicalPosition, FORMATIONS, PLAYERS } from './gameData';
 import type { Player } from './gameData';
 
 export interface PlayerAvailability { yellows: number; banned: number; injured: number }
@@ -110,7 +110,7 @@ export const PHYSIO_COST = 250;            // 🏥 Fisioterapia: −1 jogo de le
 
 // Multiplicador de risco de cartão por posição (goleiro ~0; atacante baixo; zaga/volante alto).
 export const CARD_POS_MULT: Record<string, number> = {
-  GK: 0.03, ST: 0.6, CF: 0.6, LW: 0.7, RW: 0.7, CAM: 0.9, LM: 0.9, RM: 0.9,
+  GK: 0.03, ST: 0.6, LW: 0.7, RW: 0.7, CAM: 0.9, LM: 0.9, RM: 0.9,
   CM: 1.1, CDM: 1.35, LB: 1.15, RB: 1.15, CB: 1.3,
 };
 export const FOUL_YELLOW_BASE = 0.11;      // prob. base de um amarelo por falta (× posição × ímpeto × compostura × tática) → alvo ~1.5 🟨/jogo
@@ -174,7 +174,7 @@ export function rollInjurySeverity(rng: () => number): 1 | 2 | 3 {
 // Chance de amarelo numa falta: posição (zaga/volante faltam mais) × cabeça fria (compostura alta
 // reduz) × ímpeto do jogo. Goleiro é ~0 pelo CARD_POS_MULT.
 export function yellowChance(position: string, composure: number, aggression: number): number {
-  const posMult = CARD_POS_MULT[position] ?? 1;
+  const posMult = CARD_POS_MULT[canonicalPosition(position)] ?? 1;
   const compMult = Math.max(0.4, 1.6 - composure / 80); // comp 40→1.1 · 90→0.475 (piso 0.4)
   return FOUL_YELLOW_BASE * posMult * compMult * aggression;
 }

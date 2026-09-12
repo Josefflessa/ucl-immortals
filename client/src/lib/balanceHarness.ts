@@ -417,7 +417,7 @@ const POS_BUCKET: Record<string, PosBucket> = {
   GK: 'GK',
   CB: 'DEF', LB: 'DEF', RB: 'DEF', LWB: 'DEF', RWB: 'DEF',
   CDM: 'MID', CM: 'MID', CAM: 'MID', LM: 'MID', RM: 'MID',
-  ST: 'FWD', CF: 'FWD', LW: 'FWD', RW: 'FWD',
+  ST: 'FWD', LW: 'FWD', RW: 'FWD',
 };
 
 function pctl(sorted: number[], p: number): number {

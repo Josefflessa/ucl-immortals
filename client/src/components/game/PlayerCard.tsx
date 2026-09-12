@@ -729,6 +729,7 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   maldini_unico: { texture: '/cards/maldini_unico.webp', render: '/players/unico/maldini.webp', font: '#EAF2FF', ring: '#4A78C8', photoX: 7, photoY: -2, photoW: 100 },
   messi_unico: { texture: '/cards/messi_unico.webp', render: '/players/unico/messi.webp', font: '#F7E08C', ring: '#C9A24C', photoX: 7, photoY: -2, photoW: 100 },
   cafu_unico: { texture: '/cards/cafu_unico.webp', render: '/players/unico/cafu.webp', font: '#F0E6C0', ring: '#D9B54A', photoX: 8, photoY: 14, photoW: 82 },
+  cristiano_unico: { texture: '/cards/cristiano_unico.webp', render: '/players/unico/cristiano.webp', font: '#F3D477', ring: '#D6B45B', photoX: 17, photoY: 12, photoW: 85 },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.

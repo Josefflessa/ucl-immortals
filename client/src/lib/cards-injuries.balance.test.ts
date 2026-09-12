@@ -40,7 +40,7 @@ describe('cards & injuries — taxas na faixa-alvo', () => {
         const pos = e.playerId ? posOf(e.playerId) : undefined;
         if (!pos) continue;
         if (['CB', 'CDM', 'LB', 'RB', 'CM'].includes(pos)) defMidCards++;
-        else if (['ST', 'CF', 'LW', 'RW'].includes(pos)) atkCards++;
+        else if (['ST', 'LW', 'RW'].includes(pos)) atkCards++;
       }
     }
     expect(defMidCards).toBeGreaterThan(atkCards);

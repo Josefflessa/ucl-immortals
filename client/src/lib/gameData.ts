@@ -143,6 +143,13 @@ export function getRarityGlow(rarity: Rarity): string {
   }
 }
 
+// `CF` was the former internal code for Segundo Atacante. It is no longer a
+// playable position, but old rooms/sessions can still contain it. Normalize it
+// to the existing CA/ST role at the rules boundary instead of exposing SA again.
+export function canonicalPosition(position: string): string {
+  return position === 'CF' ? 'ST' : position;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // CARTAS ÚNICAS — raridade "Única": só compráveis na loja (700 pts), overall 99,
 // perfil de elite realista, textura de fundo e cor de fonte próprias por carta
@@ -157,7 +164,7 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 98, shooting: 98, passing: 86, dribbling: 96, defending: 52, physical: 90, vision: 90, composure: 97, traits: [], historicalCoaches: ['ferguson'], historicalPartners: ['pires', 'bergkamp'] },
   { id: 'neymar_unico', basePlayerId: 'neymar', historicalPlayerId: 'neymar_psg', shortName: 'Neymar', fullName: 'Neymar da Silva Santos Júnior', position: 'LW', secondaryPositions: ['ST', 'CAM'], nation: 'Brasil', club: 'PSG', season: 'Única', rarity: 'unique', overall: 99,
     pace: 96, shooting: 93, passing: 89, dribbling: 99, defending: 40, physical: 68, vision: 94, composure: 95, traits: [], historicalPartners: ['mbappe', 'cavani', 'verratti'] },
-  { id: 'cruyff_unico', basePlayerId: 'cruyff', shortName: 'Cruyff', fullName: 'Johan Cruyff', position: 'CF', secondaryPositions: ['CAM', 'LW'], nation: 'Holanda', club: 'Ajax', season: 'Única', rarity: 'unique', overall: 99,
+  { id: 'cruyff_unico', basePlayerId: 'cruyff', shortName: 'Cruyff', fullName: 'Johan Cruyff', position: 'ST', secondaryPositions: ['CAM', 'LW'], nation: 'Holanda', club: 'Ajax', season: 'Única', rarity: 'unique', overall: 99,
     pace: 90, shooting: 92, passing: 94, dribbling: 95, defending: 60, physical: 78, vision: 97, composure: 95, traits: [], historicalCoaches: ['guardiola'], historicalPartners: ['koeman'] },
   { id: 'buffon_unico', basePlayerId: 'buffon', shortName: 'Buffon', fullName: 'Gianluigi Buffon', position: 'GK', nation: 'Itália', club: 'Juventus', season: 'Única', rarity: 'unique', overall: 99,
     pace: 60, shooting: 45, passing: 75, dribbling: 68, defending: 96, physical: 88, vision: 86, composure: 96, traits: [], historicalCoaches: ['ancelotti'], historicalPartners: ['pirlo', 'chiellini'] },
@@ -165,16 +172,19 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 84, shooting: 74, passing: 91, dribbling: 85, defending: 96, physical: 88, vision: 94, composure: 97, traits: [] },
   { id: 'maldini_unico', basePlayerId: 'maldini', shortName: 'Maldini', fullName: 'Paolo Cesare Maldini', position: 'LB', secondaryPositions: ['CB', 'LWB'], nation: 'Itália', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
     pace: 84, shooting: 52, passing: 82, dribbling: 80, defending: 97, physical: 88, vision: 84, composure: 96, traits: [], historicalCoaches: ['ancelotti'], historicalPartners: ['nesta', 'pirlo', 'kaka'] },
-  { id: 'messi_unico', basePlayerId: 'messi', shortName: 'Messi', fullName: 'Lionel Andrés Messi', position: 'RW', secondaryPositions: ['CAM', 'CF'], nation: 'Argentina', club: 'Barcelona', season: 'Única', rarity: 'unique', overall: 99,
+  { id: 'messi_unico', basePlayerId: 'messi', shortName: 'Messi', fullName: 'Lionel Andrés Messi', position: 'RW', secondaryPositions: ['CAM', 'ST'], nation: 'Argentina', club: 'Barcelona', season: 'Única', rarity: 'unique', overall: 99,
     pace: 91, shooting: 95, passing: 94, dribbling: 99, defending: 38, physical: 68, vision: 96, composure: 98, traits: [], historicalCoaches: ['guardiola'], historicalPartners: ['xavi', 'iniesta', 'suarez', 'neymar', 'busquets'] },
   { id: 'cafu_unico', basePlayerId: 'cafu', shortName: 'Cafu', fullName: 'Marcos Evangelista de Morais', position: 'RB', secondaryPositions: ['RWB', 'RM'], nation: 'Brasil', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
     pace: 92, shooting: 66, passing: 82, dribbling: 85, defending: 90, physical: 87, vision: 82, composure: 88, traits: [], historicalPartners: ['maldini'] },
+  { id: 'cristiano_unico', basePlayerId: 'cristiano', historicalPlayerId: 'cristiano', shortName: 'Cristiano', fullName: 'Cristiano Ronaldo', position: 'LW', secondaryPositions: ['ST', 'RW'], nation: 'Portugal', club: 'Real Madrid', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 99, shooting: 99, passing: 91, dribbling: 98, defending: 42, physical: 96, vision: 88, composure: 99, traits: [], historicalCoaches: ['ferguson', 'zidane'], historicalPartners: ['benzema', 'bale', 'modric'] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {
-  if (position === 'GK') return 'GK';
-  if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(position)) return 'DEF';
-  if (['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(position)) return 'MID';
+  const canonical = canonicalPosition(position);
+  if (canonical === 'GK') return 'GK';
+  if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(canonical)) return 'DEF';
+  if (['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(canonical)) return 'MID';
   return 'ATT';
 }
 
@@ -182,25 +192,29 @@ export const POSITION_GROUPS: Record<PositionGroup, string[]> = {
   GK: ['GK'],
   DEF: ['CB', 'LB', 'RB', 'LWB', 'RWB'],
   MID: ['CDM', 'CM', 'CAM', 'LM', 'RM'],
-  ATT: ['ST', 'CF', 'LW', 'RW'],
+  ATT: ['ST', 'LW', 'RW'],
 };
 
 export const POS_PT: Record<string, string> = {
   GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
   LWB: 'AE', RWB: 'AD', CDM: 'VOL', CM: 'MC',
   CAM: 'MEI', LM: 'ML', RM: 'MD',
-  LW: 'PE', RW: 'PD', CF: 'SA', ST: 'CA',
+  LW: 'PE', RW: 'PD', ST: 'CA',
+  // Legacy saved data only: never generated for new cards and never shown as SA.
+  CF: 'CA',
 };
 
 // Secundárias PADRÃO por posição nativa (vizinhança realista). `secondaryPositions` explícito vence.
 export const SECONDARY_ADJACENCY: Record<string, string[]> = {
   GK: [], CB: ['CDM'], LB: ['LWB', 'LM'], RB: ['RWB', 'RM'],
   LWB: ['LB', 'LM'], RWB: ['RB', 'RM'], CDM: ['CM', 'CB'], CM: ['CDM', 'CAM'],
-  CAM: ['CM', 'CF'], LM: ['LW', 'LWB'], RM: ['RW', 'RWB'],
-  LW: ['LM', 'CF'], RW: ['RM', 'CF'], CF: ['ST', 'CAM'], ST: ['CF'],
+  CAM: ['CM'], LM: ['LW', 'LWB'], RM: ['RW', 'RWB'],
+  LW: ['LM'], RW: ['RM'], ST: [],
 };
 export function effectiveSecondaries(p: { position: string; secondaryPositions?: string[] }): string[] {
-  return p.secondaryPositions ?? SECONDARY_ADJACENCY[p.position] ?? [];
+  const primary = canonicalPosition(p.position);
+  const configured = p.secondaryPositions ?? SECONDARY_ADJACENCY[primary] ?? [];
+  return Array.from(new Set(configured.map(canonicalPosition))).filter(position => position !== primary);
 }
 
 // ============================================================
@@ -588,7 +602,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Messi',
     fullName: 'Lionel Andrés Messi',
     position: 'RW',
-    secondaryPositions: ['CAM', 'CF'],
+    secondaryPositions: ['CAM', 'ST'],
     nation: 'Argentina',
     club: 'PSG',
     season: 'PSG',
@@ -605,7 +619,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Messi',
     fullName: 'Lionel Andrés Messi',
     position: 'RW',
-    secondaryPositions: ['CAM', 'CF'],
+    secondaryPositions: ['CAM', 'ST'],
     nation: 'Argentina',
     club: 'Inter Miami',
     season: 'Inter Miami',
@@ -688,7 +702,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Pelé',
     fullName: 'Edson Arantes do Nascimento',
     position: 'ST',
-    secondaryPositions: ['CF', 'CAM'],
+    secondaryPositions: ['CAM'],
     nation: 'Brasil',
     club: 'Santos',
     season: '1969/70',
@@ -704,7 +718,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Maradona',
     fullName: 'Diego Armando Maradona',
     position: 'CAM',
-    secondaryPositions: ['CF', 'ST'],
+    secondaryPositions: ['ST'],
     nation: 'Argentina',
     club: 'Napoli',
     season: '1986/87',
@@ -952,7 +966,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Benzema',
     fullName: 'Karim Mostafa Benzema',
     position: 'ST',
-    secondaryPositions: ['CF'],
+    secondaryPositions: [],
     nation: 'França',
     club: 'Real Madrid',
     season: '2021/22',
@@ -1320,7 +1334,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Suárez',
     fullName: 'Luis Alberto Suárez Díaz',
     position: 'ST',
-    secondaryPositions: ['CF'],
+    secondaryPositions: [],
     nation: 'Uruguai',
     club: 'Atlético Madrid',
     season: 'Atlético Madrid',
@@ -1336,7 +1350,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Suárez',
     fullName: 'Luis Alberto Suárez Díaz',
     position: 'ST',
-    secondaryPositions: ['CF'],
+    secondaryPositions: [],
     nation: 'Uruguai',
     club: 'Inter Miami',
     season: 'Inter Miami',
@@ -1665,8 +1679,8 @@ export const PLAYERS: Player[] = [
     id: 'bergkamp',
     shortName: 'Bergkamp',
     fullName: 'Dennis Nicolaas Maria Bergkamp',
-    position: 'CF',
-    secondaryPositions: ['CAM', 'ST'],
+    position: 'ST',
+    secondaryPositions: ['CAM'],
     nation: 'Holanda',
     club: 'Arsenal',
     season: '2003/04',
@@ -2723,7 +2737,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Ronaldo',
     fullName: 'Ronaldo Luís Nazário de Lima',
     position: 'ST',
-    secondaryPositions: ['CF', 'RW'],
+    secondaryPositions: ['RW'],
     nation: 'Brasil',
     club: 'Real Madrid',
     season: '2002/03',
@@ -2772,8 +2786,8 @@ export const PLAYERS: Player[] = [
     id: 'cruyff',
     shortName: 'Cruyff',
     fullName: 'Johan Cruyff',
-    position: 'CF',
-    secondaryPositions: ['CAM', 'LW', 'ST'],
+    position: 'ST',
+    secondaryPositions: ['CAM', 'LW'],
     nation: 'Holanda',
     club: 'Ajax',
     season: '1971/72',
@@ -2887,7 +2901,7 @@ export const PLAYERS: Player[] = [
     id: 'cantona',
     shortName: 'Cantona',
     fullName: 'Eric Cantona',
-    position: 'CF',
+    position: 'ST',
     nation: 'França',
     club: 'Manchester United',
     season: '1995/96',
@@ -2970,7 +2984,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Haaland',
     fullName: 'Erling Braut Haaland',
     position: 'ST',
-    secondaryPositions: ['CF'],
+    secondaryPositions: [],
     nation: 'Noruega',
     club: 'Borussia Dortmund',
     season: 'Borussia Dortmund',
@@ -3770,7 +3784,7 @@ export const PLAYERS: Player[] = [
     historicalPartners: ['figo'],
   },
   {
-    id: 'ronaldinho', shortName: 'Ronaldinho', fullName: 'Ronaldo de Assis Moreira', position: 'CAM', secondaryPositions: ['LW', 'CF'],
+    id: 'ronaldinho', shortName: 'Ronaldinho', fullName: 'Ronaldo de Assis Moreira', position: 'CAM', secondaryPositions: ['LW', 'ST'],
     nation: 'Brasil', club: 'Barcelona', season: '2005/06', rarity: 'immortal', overall: 94,
     pace: 86, shooting: 83, passing: 88, dribbling: 94, defending: 35, physical: 70,
     composure: 91, vision: 92,
@@ -3788,21 +3802,21 @@ export const PLAYERS: Player[] = [
     historicalPartners: ['zidane'],
   },
   {
-    id: 'totti', shortName: 'Totti', fullName: 'Francesco Totti', position: 'CF', secondaryPositions: ['CAM', 'ST'],
+    id: 'totti', shortName: 'Totti', fullName: 'Francesco Totti', position: 'ST', secondaryPositions: ['CAM'],
     nation: 'Itália', club: 'Roma', season: '2006/07', rarity: 'legendary', overall: 90,
     pace: 76, shooting: 88, passing: 86, dribbling: 90, defending: 46, physical: 78,
     composure: 91, vision: 90,
     traits: [],
   },
   {
-    id: 'delpiero', shortName: 'Del Piero', fullName: 'Alessandro Del Piero', position: 'ST', secondaryPositions: ['CF', 'CAM'],
+    id: 'delpiero', shortName: 'Del Piero', fullName: 'Alessandro Del Piero', position: 'ST', secondaryPositions: ['CAM'],
     nation: 'Itália', club: 'Juventus', season: '2002/03', rarity: 'legendary', overall: 89,
     pace: 80, shooting: 89, passing: 83, dribbling: 88, defending: 40, physical: 72,
     composure: 90, vision: 84,
     traits: [],
   },
   {
-    id: 'shevchenko', shortName: 'Shevchenko', fullName: 'Andriy Shevchenko', position: 'ST', secondaryPositions: ['CF'],
+    id: 'shevchenko', shortName: 'Shevchenko', fullName: 'Andriy Shevchenko', position: 'ST',
     nation: 'Ucrânia', club: 'Milan', season: '2003/04', rarity: 'legendary', overall: 89,
     pace: 87, shooting: 90, passing: 75, dribbling: 84, defending: 40, physical: 82,
     composure: 89, vision: 77,
@@ -3836,7 +3850,7 @@ export const PLAYERS: Player[] = [
     historicalCoaches: ['klopp'], historicalPartners: ['firmino'],
   },
   {
-    id: 'firmino', shortName: 'Firmino', fullName: 'Roberto Firmino', position: 'CF', secondaryPositions: ['ST', 'CAM'],
+    id: 'firmino', shortName: 'Firmino', fullName: 'Roberto Firmino', position: 'ST', secondaryPositions: ['CAM'],
     nation: 'Brasil', club: 'Liverpool', season: '2019/20', rarity: 'gold', overall: 84,
     pace: 78, shooting: 82, passing: 82, dribbling: 86, defending: 62, physical: 76,
     composure: 84, vision: 83,
@@ -3844,7 +3858,7 @@ export const PLAYERS: Player[] = [
     historicalCoaches: ['klopp'], historicalPartners: ['salah', 'mane'],
   },
   {
-    id: 'james', shortName: 'James', fullName: 'James Rodríguez', position: 'CAM', secondaryPositions: ['LM', 'CF'],
+    id: 'james', shortName: 'James', fullName: 'James Rodríguez', position: 'CAM', secondaryPositions: ['LM', 'ST'],
     nation: 'Colômbia', club: 'Real Madrid', season: '2014/15', rarity: 'gold', overall: 84,
     pace: 75, shooting: 82, passing: 86, dribbling: 84, defending: 46, physical: 64,
     composure: 83, vision: 87,
@@ -4138,7 +4152,7 @@ export const PLAYERS: Player[] = [
     traits: [],
   },
   {
-    id: 'giroud', shortName: 'Giroud', fullName: 'Olivier Giroud', position: 'ST', secondaryPositions: ['CF'],
+    id: 'giroud', shortName: 'Giroud', fullName: 'Olivier Giroud', position: 'ST',
     nation: 'França', club: 'Chelsea', season: '2018/19', rarity: 'silver', overall: 78,
     pace: 62, shooting: 80, passing: 68, dribbling: 72, defending: 42, physical: 84,
     composure: 80, vision: 72,
@@ -4297,14 +4311,14 @@ export const PLAYERS: Player[] = [
   { id: "a_florenzi", shortName: "Florenzi", fullName: "A. Florenzi", position: "RB", nation: "Itália", club: "Roma", season: '2018/19', rarity: 'silver', overall: 82, pace: 85, shooting: 77, passing: 76, dribbling: 80, defending: 77, physical: 76, composure: 79, vision: 76, traits: [] },
   { id: "t_meunier", shortName: "Meunier", fullName: "T. Meunier", position: "RM", nation: "Bélgica", club: "PSG", season: '2018/19', rarity: 'silver', overall: 82, pace: 78, shooting: 76, passing: 77, dribbling: 72, defending: 78, physical: 84, composure: 78, vision: 71, traits: [] },
   { id: "s_sane", shortName: "Sané", fullName: "S. Sané", position: "CB", nation: "Senegal", club: "Schalke", season: '2018/19', rarity: 'silver', overall: 82, pace: 62, shooting: 49, passing: 63, dribbling: 63, defending: 84, physical: 80, composure: 78, vision: 62, traits: [] },
-  { id: "luis_alberto", shortName: "Luis Alberto", fullName: "Luis Alberto", position: "CF", nation: "Espanha", club: "Lazio", season: '2018/19', rarity: 'silver', overall: 82, pace: 74, shooting: 77, passing: 85, dribbling: 84, defending: 35, physical: 60, composure: 72, vision: 87, traits: [] },
+  { id: "luis_alberto", shortName: "Luis Alberto", fullName: "Luis Alberto", position: "CAM", nation: "Espanha", club: "Lazio", season: '2018/19', rarity: 'silver', overall: 82, pace: 74, shooting: 77, passing: 85, dribbling: 84, defending: 35, physical: 60, composure: 72, vision: 87, traits: [] },
   { id: "willian_jose", shortName: "Willian José", fullName: "Willian José", position: "ST", nation: "Brasil", club: "Real Sociedad", season: '2018/19', rarity: 'silver', overall: 82, pace: 64, shooting: 82, passing: 67, dribbling: 74, defending: 45, physical: 80, composure: 75, vision: 68, traits: [] },
   { id: "j_pastore", shortName: "Pastore", fullName: "J. Pastore", position: "CAM", nation: "Argentina", club: "Roma", season: '2018/19', rarity: 'silver', overall: 82, pace: 69, shooting: 75, passing: 83, dribbling: 83, defending: 55, physical: 63, composure: 80, vision: 87, traits: [] },
   { id: "r_burki", shortName: "Bürki", fullName: "R. Bürki", position: "GK", nation: "Suíça", club: "Borussia Dortmund", season: '2018/19', rarity: 'silver', overall: 82, pace: 52, shooting: 22, passing: 40, dribbling: 34, defending: 87, physical: 74, composure: 82, vision: 77, traits: [] },
   { id: "s_nzonzi", shortName: "Nzonzi", fullName: "S. Nzonzi", position: "CDM", nation: "França", club: "Roma", season: '2018/19', rarity: 'silver', overall: 82, pace: 50, shooting: 67, passing: 73, dribbling: 65, defending: 80, physical: 89, composure: 85, vision: 77, traits: [] },
   { id: "marlos", shortName: "Marlos", fullName: "Marlos", position: "RM", nation: "Ucrânia", club: "Shakhtar Donetsk", season: '2018/19', rarity: 'silver', overall: 82, pace: 83, shooting: 78, passing: 79, dribbling: 87, defending: 48, physical: 66, composure: 84, vision: 82, traits: [] },
   { id: "g_sigur_sson", shortName: "Sigurðsson", fullName: "G. Sigurðsson", position: "CAM", nation: "Islândia", club: "Everton", season: '2018/19', rarity: 'silver', overall: 82, pace: 56, shooting: 80, passing: 85, dribbling: 77, defending: 57, physical: 70, composure: 84, vision: 86, traits: [] },
-  { id: "s_giovinco", shortName: "Giovinco", fullName: "S. Giovinco", position: "CF", nation: "Itália", club: "Toronto FC", season: '2018/19', rarity: 'silver', overall: 82, pace: 84, shooting: 80, passing: 80, dribbling: 87, defending: 28, physical: 57, composure: 82, vision: 81, traits: [] },
+  { id: "s_giovinco", shortName: "Giovinco", fullName: "S. Giovinco", position: "ST", nation: "Itália", club: "Toronto FC", season: '2018/19', rarity: 'silver', overall: 82, pace: 84, shooting: 80, passing: 80, dribbling: 87, defending: 28, physical: 57, composure: 82, vision: 81, traits: [] },
   { id: "l_fejsa", shortName: "Fejsa", fullName: "L. Fejsa", position: "CDM", nation: "Sérvia", club: "Benfica", season: '2018/19', rarity: 'silver', overall: 82, pace: 54, shooting: 57, passing: 66, dribbling: 67, defending: 81, physical: 83, composure: 75, vision: 63, traits: [] },
   { id: "a_guardado", shortName: "Guardado", fullName: "A. Guardado", position: "CM", nation: "México", club: "Real Betis", season: '2018/19', rarity: 'silver', overall: 82, pace: 73, shooting: 67, passing: 82, dribbling: 82, defending: 71, physical: 68, composure: 76, vision: 83, traits: [] },
   { id: "s_sirigu", shortName: "Sirigu", fullName: "S. Sirigu", position: "GK", nation: "Itália", club: "Torino", season: '2018/19', rarity: 'silver', overall: 82, pace: 52, shooting: 22, passing: 40, dribbling: 34, defending: 87, physical: 67, composure: 82, vision: 82, traits: [] },
@@ -4316,7 +4330,7 @@ export const PLAYERS: Player[] = [
   { id: "ricardo_pereira", shortName: "Ricardo Pereira", fullName: "Ricardo Pereira", position: "RB", nation: "Portugal", club: "Leicester City", season: '2018/19', rarity: 'silver', overall: 81, pace: 87, shooting: 63, passing: 77, dribbling: 81, defending: 75, physical: 70, composure: 81, vision: 75, traits: [] },
   { id: "r_guerreiro", shortName: "Guerreiro", fullName: "R. Guerreiro", position: "LM", nation: "Portugal", club: "Borussia Dortmund", season: '2018/19', rarity: 'silver', overall: 81, pace: 74, shooting: 76, passing: 82, dribbling: 84, defending: 68, physical: 59, composure: 75, vision: 79, traits: [] },
   { id: "b_davies", shortName: "Davies", fullName: "B. Davies", position: "LB", nation: "País de Gales", club: "Tottenham", season: '2018/19', rarity: 'silver', overall: 81, pace: 75, shooting: 58, passing: 75, dribbling: 75, defending: 78, physical: 75, composure: 74, vision: 75, traits: [] },
-  { id: "a_milik", shortName: "Milik", fullName: "A. Milik", position: "CF", nation: "Polônia", club: "Napoli", season: '2018/19', rarity: 'silver', overall: 81, pace: 72, shooting: 85, passing: 63, dribbling: 73, defending: 43, physical: 74, composure: 72, vision: 60, traits: [] },
+  { id: "a_milik", shortName: "Milik", fullName: "A. Milik", position: "ST", nation: "Polônia", club: "Napoli", season: '2018/19', rarity: 'silver', overall: 81, pace: 72, shooting: 85, passing: 63, dribbling: 73, defending: 43, physical: 74, composure: 72, vision: 60, traits: [] },
   { id: "m_sabitzer", shortName: "Sabitzer", fullName: "M. Sabitzer", position: "LM", nation: "Áustria", club: "RB Leipzig", season: '2018/19', rarity: 'silver', overall: 81, pace: 80, shooting: 80, passing: 75, dribbling: 79, defending: 56, physical: 77, composure: 75, vision: 79, traits: [] },
   { id: "b_mendy", shortName: "Mendy", fullName: "B. Mendy", position: "LB", nation: "França", club: "Manchester City", season: '2018/19', rarity: 'silver', overall: 81, pace: 82, shooting: 52, passing: 76, dribbling: 77, defending: 76, physical: 79, composure: 79, vision: 76, traits: [] },
   { id: "s_vrsaljko", shortName: "Vrsaljko", fullName: "S. Vrsaljko", position: "RB", nation: "Croácia", club: "Inter Milan", season: '2018/19', rarity: 'silver', overall: 81, pace: 80, shooting: 55, passing: 73, dribbling: 74, defending: 78, physical: 78, composure: 67, vision: 68, traits: [] },
@@ -4328,7 +4342,7 @@ export const PLAYERS: Player[] = [
   { id: "e_salvio", shortName: "Salvio", fullName: "E. Salvio", position: "RW", nation: "Argentina", club: "Benfica", season: '2018/19', rarity: 'silver', overall: 81, pace: 88, shooting: 77, passing: 75, dribbling: 83, defending: 59, physical: 71, composure: 81, vision: 76, traits: [] },
   { id: "s_kagawa", shortName: "Kagawa", fullName: "S. Kagawa", position: "CAM", nation: "Japão", club: "Borussia Dortmund", season: '2018/19', rarity: 'silver', overall: 81, pace: 66, shooting: 68, passing: 76, dribbling: 86, defending: 53, physical: 49, composure: 83, vision: 80, traits: [] },
   { id: "m_lanzini", shortName: "Lanzini", fullName: "M. Lanzini", position: "CAM", nation: "Argentina", club: "West Ham", season: '2018/19', rarity: 'silver', overall: 81, pace: 81, shooting: 72, passing: 78, dribbling: 86, defending: 35, physical: 51, composure: 77, vision: 79, traits: [] },
-  { id: "l_stindl", shortName: "Stindl", fullName: "L. Stindl", position: "CF", nation: "Alemanha", club: "Borussia M'gladbach", season: '2018/19', rarity: 'silver', overall: 81, pace: 70, shooting: 81, passing: 79, dribbling: 78, defending: 60, physical: 72, composure: 83, vision: 83, traits: [] },
+  { id: "l_stindl", shortName: "Stindl", fullName: "L. Stindl", position: "CAM", nation: "Alemanha", club: "Borussia M'gladbach", season: '2018/19', rarity: 'silver', overall: 81, pace: 70, shooting: 81, passing: 79, dribbling: 78, defending: 60, physical: 72, composure: 83, vision: 83, traits: [] },
   { id: "o_toprak", shortName: "Toprak", fullName: "O. Toprak", position: "CB", nation: "Turquia", club: "Borussia Dortmund", season: '2018/19', rarity: 'silver', overall: 81, pace: 78, shooting: 37, passing: 62, dribbling: 65, defending: 82, physical: 74, composure: 78, vision: 59, traits: [] },
   { id: "d_perotti", shortName: "Perotti", fullName: "D. Perotti", position: "LW", nation: "Argentina", club: "Roma", season: '2018/19', rarity: 'silver', overall: 81, pace: 81, shooting: 70, passing: 78, dribbling: 86, defending: 44, physical: 62, composure: 81, vision: 84, traits: [] },
   { id: "f_muslera", shortName: "Muslera", fullName: "F. Muslera", position: "GK", nation: "Uruguai", club: "Galatasaray", season: '2018/19', rarity: 'silver', overall: 81, pace: 52, shooting: 22, passing: 44, dribbling: 34, defending: 86, physical: 76, composure: 81, vision: 81, traits: [] },
@@ -4342,7 +4356,7 @@ export const PLAYERS: Player[] = [
   { id: "a_valencia", shortName: "Valencia", fullName: "A. Valencia", position: "RM", nation: "Equador", club: "Manchester United", season: '2018/19', rarity: 'silver', overall: 81, pace: 84, shooting: 67, passing: 76, dribbling: 79, defending: 76, physical: 79, composure: 82, vision: 71, traits: [] },
   { id: "manuel_fernandes", shortName: "Manuel Fernandes", fullName: "Manuel Fernandes", position: "LM", nation: "Portugal", club: "Lokomotiv Moscow", season: '2018/19', rarity: 'silver', overall: 81, pace: 79, shooting: 75, passing: 79, dribbling: 83, defending: 65, physical: 72, composure: 77, vision: 81, traits: [] },
   { id: "h_herrera", shortName: "Herrera", fullName: "H. Herrera", position: "CM", nation: "México", club: "Porto", season: '2018/19', rarity: 'silver', overall: 81, pace: 72, shooting: 73, passing: 73, dribbling: 74, defending: 76, physical: 80, composure: 75, vision: 77, traits: [] },
-  { id: "raffael", shortName: "Raffael", fullName: "Raffael", position: "CF", nation: "Brasil", club: "Borussia M'gladbach", season: '2018/19', rarity: 'silver', overall: 81, pace: 70, shooting: 77, passing: 80, dribbling: 85, defending: 46, physical: 63, composure: 79, vision: 81, traits: [] },
+  { id: "raffael", shortName: "Raffael", fullName: "Raffael", position: "CAM", nation: "Brasil", club: "Borussia M'gladbach", season: '2018/19', rarity: 'silver', overall: 81, pace: 70, shooting: 77, passing: 80, dribbling: 85, defending: 46, physical: 63, composure: 79, vision: 81, traits: [] },
   { id: "m_gomez", shortName: "Gómez", fullName: "M. Gómez", position: "ST", nation: "Uruguai", club: "Celta Vigo", season: '2018/19', rarity: 'silver', overall: 80, pace: 63, shooting: 81, passing: 65, dribbling: 69, defending: 37, physical: 74, composure: 65, vision: 60, traits: [] },
   { id: "h_aouar", shortName: "Aouar", fullName: "H. Aouar", position: "LM", nation: "França", club: "Lyon", season: '2018/19', rarity: 'silver', overall: 80, pace: 79, shooting: 68, passing: 79, dribbling: 83, defending: 62, physical: 67, composure: 82, vision: 84, traits: [] },
   { id: "m_almiron", shortName: "Almirón", fullName: "M. Almirón", position: "CAM", nation: "Paraguai", club: "Atlanta United", season: '2018/19', rarity: 'silver', overall: 80, pace: 89, shooting: 74, passing: 76, dribbling: 80, defending: 47, physical: 63, composure: 76, vision: 79, traits: [] },
@@ -4378,7 +4392,7 @@ export const PLAYERS: Player[] = [
   // ===== LENDA — goleiro artilheiro (cobrador de falta/pênalti na vida real, 131 gols) =====
   { id: 'rogerio_ceni', shortName: 'Ceni', fullName: 'Rogério Ceni', position: 'GK', nation: 'Brasil', club: 'São Paulo', season: '2005/06', rarity: 'legendary', overall: 87, pace: 48, shooting: 78, passing: 72, dribbling: 42, defending: 90, physical: 80, composure: 92, vision: 74, traits: [] },
   // ===== LENDA — o "Galinho", camisa 10 do Flamengo (ícone EA, retrato sépia) =====
-  { id: 'zico', shortName: 'Zico', fullName: 'Arthur Antunes Coimbra', position: 'CAM', secondaryPositions: ['CF'], nation: 'Brasil', club: 'Flamengo', season: '1981/82', rarity: 'legendary', overall: 91, pace: 78, shooting: 90, passing: 90, dribbling: 89, defending: 40, physical: 65, composure: 92, vision: 92, traits: [], historicalPartners: ['socrates'] },
+  { id: 'zico', shortName: 'Zico', fullName: 'Arthur Antunes Coimbra', position: 'CAM', secondaryPositions: ['ST'], nation: 'Brasil', club: 'Flamengo', season: '1981/82', rarity: 'legendary', overall: 91, pace: 78, shooting: 90, passing: 90, dribbling: 89, defending: 40, physical: 65, composure: 92, vision: 92, traits: [], historicalPartners: ['socrates'] },
 
   // ===== EXPANSÃO — ícones e craques contemporâneos =====
   // Os ratings abaixo usam referências FIFA/FC como âncora e são ajustados à
@@ -4438,7 +4452,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Dybala',
     fullName: 'Paulo Bruno Exequiel Dybala',
     position: 'CAM',
-    secondaryPositions: ['CF', 'RW'],
+    secondaryPositions: ['RW'],
     nation: 'Argentina',
     club: 'Juventus',
     season: '2017/18',
@@ -4551,7 +4565,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Van Basten',
     fullName: 'Marco van Basten',
     position: 'ST',
-    secondaryPositions: ['CF'],
+    secondaryPositions: [],
     nation: 'Holanda',
     club: 'Milan',
     season: 'Milan',
@@ -4567,7 +4581,7 @@ export const PLAYERS: Player[] = [
     shortName: 'Eusébio',
     fullName: 'Eusébio da Silva Ferreira',
     position: 'ST',
-    secondaryPositions: ['CF', 'LW'],
+    secondaryPositions: ['LW'],
     nation: 'Portugal',
     club: 'Benfica',
     season: 'Benfica',

@@ -4,7 +4,7 @@
 import {
   Player, Coach, Formation,
   PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, HISTORICAL_TRIOS,
-  getPositionGroup, effectiveSecondaries,
+  canonicalPosition, getPositionGroup, effectiveSecondaries,
 } from './gameData';
 import {
   selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
@@ -851,7 +851,7 @@ export function getHeaderTarget(team: Team): PlayerCard {
   const cand = pool.length > 0 ? pool : xi;
   const weighted = cand.map(p => {
     let w = (p.physical + p.shooting) / 2;                           // base aerial threat
-    if (['CB', 'ST', 'CF'].includes(p.position)) w *= 1.8;           // these crash the box
+    if (['CB', 'ST'].includes(canonicalPosition(p.position))) w *= 1.8; // these crash the box
     else if (['LB', 'RB', 'CDM', 'CM'].includes(p.position)) w *= 0.7;
     else w *= 0.4;                                                   // wingers/playmakers rarely head it
     if (p.traits.includes('Cabeceador Implacável')) w += 40;
@@ -909,7 +909,7 @@ export function getEffectiveAttribute(
     isKnockout: context?.isKnockout,
     isFinal: context?.isFinal,
     isLosing: context?.isLosing,
-    role: context?.role ?? player.position,
+    role: canonicalPosition(context?.role ?? player.position),
   });
 
   const mod = modifiers[attribute as keyof typeof modifiers] as number || 0;
@@ -986,8 +986,10 @@ export const SECONDARY_STAT_MULT = 0.93;
 export type PosFit = 'native' | 'secondary' | 'off';
 export function positionFit(player: { position: string; secondaryPositions?: string[]; coringa?: boolean }, role: string): PosFit {
   if (player.coringa) return 'native';                       // 🃏 imune
-  if (player.position === role) return 'native';
-  if (effectiveSecondaries(player).includes(role)) return 'secondary';
+  const primary = canonicalPosition(player.position);
+  const canonicalRole = canonicalPosition(role);
+  if (primary === canonicalRole) return 'native';
+  if (effectiveSecondaries(player).includes(canonicalRole)) return 'secondary';
   return 'off';
 }
 
@@ -1139,7 +1141,7 @@ export function formationProfile(formationId: string): FormationProfile {
   if (!f) return { attack: 0, defense: 0, control: 0, cross: 0 };
   const roles = f.positions.map(p => p.role);
   const cnt = (arr: string[]) => roles.filter(r => arr.includes(r)).length;
-  const fwd = cnt(['ST', 'CF', 'LW', 'RW']);
+  const fwd = cnt(['ST', 'LW', 'RW']);
   const def = cnt(['CB', 'LB', 'RB', 'LWB', 'RWB']);
   const mid = cnt(['CDM', 'CM', 'CAM', 'LM', 'RM']);
   const wide = cnt(['LW', 'RW', 'LM', 'RM', 'LB', 'RB', 'LWB', 'RWB']);
@@ -1180,13 +1182,14 @@ export function tacticProfile(playStyle: string): { attack: number; defense: num
   }
 }
 
-/** Pick a weighted random attacker — ST/CF get higher weight */
+/** Pick a weighted random attacker — center forwards get higher weight */
 function pickWeightedAttacker(players: PlayerCard[]): PlayerCard {
   const weighted: { player: PlayerCard; weight: number }[] = players.map(p => {
     let weight = 1;
-    if (p.position === 'ST' || p.position === 'CF') weight = 5;
-    else if (p.position === 'LW' || p.position === 'RW') weight = 3;
-    else if (p.position === 'CAM' || p.position === 'LM' || p.position === 'RM') weight = 2;
+    const position = canonicalPosition(p.position);
+    if (position === 'ST') weight = 5;
+    else if (position === 'LW' || position === 'RW') weight = 3;
+    else if (position === 'CAM' || position === 'LM' || position === 'RM') weight = 2;
     return { player: p, weight };
   });
   const totalWeight = weighted.reduce((s, w) => s + w.weight, 0);
@@ -1209,10 +1212,10 @@ export function pickWeightedAssister(team: Team, scorerId: string, playerStats?:
   const weighted: { player: PlayerCard; weight: number }[] = teammates.map(p => {
     let weight = 0.5; // default base weight for defenders/GK
     
-    const role = p.position;
+    const role = canonicalPosition(p.position);
     if (['CAM', 'CM', 'LM', 'RM'].includes(role)) {
       weight = 5.0 + (p.passing / 10) + (p.vision / 10);
-    } else if (['LW', 'RW', 'CF'].includes(role)) {
+    } else if (['LW', 'RW'].includes(role)) {
       weight = 4.0 + (p.passing / 10);
     } else if (role === 'ST') {
       weight = 1.0;
@@ -1381,7 +1384,7 @@ export function runMatchSimulation(
   };
   const pickFouler = (pool: Player[]): Player | undefined => {
     if (pool.length === 0) return undefined;
-    const weights = pool.map(p => CARD_POS_MULT[p.position] ?? 1);
+    const weights = pool.map(p => CARD_POS_MULT[canonicalPosition(p.position)] ?? 1);
     const total = weights.reduce((s, w) => s + w, 0);
     let r = Math.random() * total;
     for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
@@ -1595,7 +1598,7 @@ export function runMatchSimulation(
 
     if (isKeyEventMinute && dangerCount < MAX_DANGER) {
       const attackers = attackTeam.players.slice(0, 11).filter(p =>
-        ['ST', 'CF', 'LW', 'RW', 'CAM'].includes(p.position)
+        ['ST', 'LW', 'RW', 'CAM'].includes(canonicalPosition(p.position))
       );
       const defenders = defendTeam.players.slice(0, 11).filter(p =>
         ['CB', 'LB', 'RB', 'LWB', 'RWB', 'CDM'].includes(p.position)

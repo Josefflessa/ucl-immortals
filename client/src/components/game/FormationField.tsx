@@ -38,7 +38,7 @@ const POSITION_COLORS: Record<string, string> = {
   GK: '#F59E0B',
   CB: '#3B82F6', LB: '#3B82F6', RB: '#3B82F6',
   CDM: '#10B981', CM: '#10B981', CAM: '#10B981', LM: '#10B981', RM: '#10B981',
-  LW: '#EF4444', RW: '#EF4444', ST: '#EF4444', CF: '#EF4444',
+  LW: '#EF4444', RW: '#EF4444', ST: '#EF4444',
 };
 
 const PLAYER_INITIALS: Record<string, string> = {
