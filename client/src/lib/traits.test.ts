@@ -3,7 +3,7 @@ import { PLAYERS } from './gameData';
 import {
   TRAITS, TRAIT_MAP, TRAIT_POOLS, rollPlayerTraits, positionGroup,
   getTraitAttributeBonus, getGoalkeeperTraitBonus, getPenaltyComposureBonus,
-  hasOopRelief, traitEffectLabel,
+  traitEffectLabel,
 } from './traits';
 
 describe('trait catalog integrity', () => {
@@ -27,7 +27,7 @@ describe('trait catalog integrity', () => {
   it('has no mechanical duplicates (same exact effect twice)', () => {
     const sig = (t: typeof TRAITS[number]) => JSON.stringify({
       b: (t.boosts ?? []).map(x => `${x.attribute}${x.value}${x.condition ?? ''}`).sort(),
-      gk: t.goalkeeperSave ?? 0, pen: t.penaltyComposure ?? 0, oop: t.oopRelief ?? false,
+      gk: t.goalkeeperSave ?? 0, pen: t.penaltyComposure ?? 0,
     });
     const seen = new Map<string, string>();
     const dups: string[] = [];
@@ -100,8 +100,4 @@ describe('goalkeeper & penalty trait helpers', () => {
     expect(getPenaltyComposureBonus(['Velocista'])).toBe(0);
   });
 
-  it('detects the out-of-position relief trait', () => {
-    expect(hasOopRelief(['Versatilidade'])).toBe(true);
-    expect(hasOopRelief(['Velocista'])).toBe(false);
-  });
 });

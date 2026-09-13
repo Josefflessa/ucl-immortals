@@ -11,7 +11,7 @@ import {
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
   computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_GAMES, EVOLVE_POINTS, positionFit, type EffectiveStats,
 } from '../../lib/gameEngine';
-import { TRAIT_MAP, traitEffectLabel, hasOopRelief, type AttrKey } from '../../lib/traits';
+import { TRAIT_MAP, traitEffectLabel, type AttrKey } from '../../lib/traits';
 import type { MatchPlan } from '../../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import CoachStadiumPanel from './CoachStadiumPanel';
@@ -436,7 +436,7 @@ export default function SquadEditor({
                     links: linksByType.map(({ t, names }) => ({ type: t, label: linkLabels[t], color: CHEM_LINK_COLOR[t], names })),
                     rawPts: chemRawPts, nextAt: chemNextAt,
                   };
-                  const traitInfos = (selectedPlayer.traits ?? []).map(tid => {
+                  const traitInfos = (selectedPlayer.traits ?? []).filter(tid => TRAIT_MAP[tid]).map(tid => {
                     const def = TRAIT_MAP[tid];
                     return { id: tid, icon: def?.icon ?? '✨', effect: traitEffectLabel(tid), flavor: def?.flavor ?? '' };
                   });
@@ -467,9 +467,7 @@ export default function SquadEditor({
                               <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#EF444422', color: '#EF4444', border: '1px solid #EF444444', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO</span>
                             )}
                             {selectedIsSecondary && (
-                              hasOopRelief(selectedPlayer.traits)
-                                ? <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#14532d', color: '#86efac', border: '1px solid #22C55E55', fontFamily: 'Rajdhani, sans-serif' }}>🧭 2ª POSIÇÃO · SEM PENALIDADE</span>
-                                : <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −7%</span>
+                              <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −7%</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 min-w-0">
@@ -659,7 +657,6 @@ export default function SquadEditor({
                       const nativeFit = fit === 'native';
                       const secFit = fit === 'secondary';
                       const fits = nativeFit || secFit;
-                      const occVersatile = hasOopRelief(occupant.traits); // 🧭 quem entra na vaga é versátil?
                       const borderCol = role ? (nativeFit ? '#22C55E66' : secFit ? '#F59E0B66' : '#EF444455') : '#161626';
                       const bgCol = role ? (nativeFit ? '#08120b' : secFit ? '#141008' : '#120a0a') : '#07070f';
                       return (
@@ -692,9 +689,7 @@ export default function SquadEditor({
                             {role && (
                               <div className="mt-1">
                                 {nativeFit && <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#0a7a2f', color: '#eafff0', fontFamily: 'Rajdhani, sans-serif' }}>✓ ENCAIXA NA VAGA{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
-                                {secFit && (occVersatile
-                                  ? <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#14532d', color: '#86efac', border: '1px solid #22C55E55', fontFamily: 'Rajdhani, sans-serif' }}>🧭 COBRE A VAGA (2ª pos · sem penalidade)</span>
-                                  : <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'Rajdhani, sans-serif' }}>🔁 COBRE A VAGA (2ª pos · −7%){starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>)}
+                                {secFit && <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'Rajdhani, sans-serif' }}>🔁 COBRE A VAGA (2ª pos · −7%){starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
                                 {!fits && <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a0a0a', color: '#EF4444', border: '1px solid #EF444455', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
                               </div>
                             )}

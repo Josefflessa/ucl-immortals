@@ -81,13 +81,13 @@ describe('getPlayerEffectiveStats mirrors the engine (display = simulation)', ()
     });
   });
 
-  it('softens the out-of-position penalty for the Versatilidade trait', () => {
+  it('does not exempt a legacy Versatilidade string from position penalties', () => {
     const plain = PLAYERS.find(p => p.position !== 'GK' && p.traits.length === 0)
       ?? { ...outfield, traits: [] };
-    const versatile: Player = { ...plain, traits: ['Versatilidade'] };
-    const a = getPlayerEffectiveStats(plain, 0, true, coach.id, 0, 'balanced');
-    const b = getPlayerEffectiveStats(versatile, 0, true, coach.id, 0, 'balanced');
-    expect(b.physical).toBeGreaterThanOrEqual(a.physical);
+    const legacy: Player = { ...plain, traits: ['Versatilidade'] };
+    const a = getPlayerEffectiveStats(plain, 0, false, coach.id, 0, 'balanced', { isSecondary: true });
+    const b = getPlayerEffectiveStats(legacy, 0, false, coach.id, 0, 'balanced', { isSecondary: true });
+    expect(b.physical).toBe(a.physical);
   });
 });
 

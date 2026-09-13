@@ -17,7 +17,7 @@ import {
 } from './matchNarrative';
 import {
   AttrKey, getTraitAttributeBonus, getGoalkeeperTraitBonus,
-  getPenaltyComposureBonus, hasOopRelief, rollPlayerTraits,
+  getPenaltyComposureBonus, rollPlayerTraits,
 } from './traits';
 import { BOT_CREST_MAP } from './crests';
 import { Stadium, stadiumFor } from './stadium';
@@ -546,7 +546,7 @@ export interface EffectiveStats {
   overallMod: number; // positive or negative delta vs base
   activeCoachEffects: string[];
   // Per-source breakdown so the UI can explain WHERE each buff comes from.
-  chemMult: number;                                   // individual-chem multiplier (1.00–1.10, or OOP 0.85/0.92)
+  chemMult: number;                                   // individual-chem multiplier (1.00–1.10, or OOP 0.85)
   globalChemBonus: { passing: number; pace: number; special: number }; // team-wide bonus in stat points (special = +3 to every attr at perfect chem)
   breakdown: Record<'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure', StatBreakdown>;
 }
@@ -763,13 +763,12 @@ export function getPlayerEffectiveStats(
   }
 ): EffectiveStats {
   const isSecondary = context?.isSecondary ?? false;
-  const versatile = hasOopRelief(player.traits); // 🧭 Versatilidade: joga secundárias sem penalidade
   const effectiveChem = isOOP ? 0 : chemScore;
   // Química PURA (OOP tem chem 0 → 1.00). A penalidade de POSIÇÃO é separada em posMult.
   const chemMult = effectiveChem === 3 ? 1.10 : effectiveChem === 2 ? 1.06 : effectiveChem === 1 ? 1.03 : 1.00;
-  const oopMult = versatile ? 0.92 : 0.85;
-  // Penalidade de posição: fora = −15% (−8% versátil); secundária = −7% (0% versátil); nativa = 0%.
-  const posMult = isOOP ? oopMult : (isSecondary && !versatile ? SECONDARY_STAT_MULT : 1);
+  const oopMult = 0.85;
+  // Penalidade de posição: fora = −15%; secundária = −7%; nativa = 0%.
+  const posMult = isOOP ? oopMult : (isSecondary ? SECONDARY_STAT_MULT : 1);
 
   const applyMult = (base: number) => Math.round(base * chemMult * posMult);
   const chemOnly = (base: number) => Math.round(base * chemMult);
@@ -1147,11 +1146,10 @@ export function getEffectiveAttribute(
 ): number {
   let base = player[attribute] as number;
 
-  // Individual chemistry bonus: If OOP, apply a stats debuff (softened by the
-  // "Versatilidade" trait). If not, apply standard chemistry multipliers (+0% / +3% / +6% / +10%)
-  const versatile = hasOopRelief(player.traits); // 🧭 Versatilidade: secundária sem penalidade
-  const oopMult = versatile ? 0.92 : 0.85;
-  const chemMult = player.isOOP ? oopMult : (player.chemistryScore >= 3 ? 1.10 : player.chemistryScore === 2 ? 1.06 : player.chemistryScore === 1 ? 1.03 : 1.00) * (player.isSecondary && !versatile ? SECONDARY_STAT_MULT : 1);
+  // Individual chemistry bonus: If OOP, apply the full stats debuff. If not, apply
+  // standard chemistry multipliers (+0% / +3% / +6% / +10%), plus the secondary-position penalty.
+  const oopMult = 0.85;
+  const chemMult = player.isOOP ? oopMult : (player.chemistryScore >= 3 ? 1.10 : player.chemistryScore === 2 ? 1.06 : player.chemistryScore === 1 ? 1.03 : 1.00) * (player.isSecondary ? SECONDARY_STAT_MULT : 1);
   base = Math.round(base * chemMult);
 
   // Chemistry global bonus (passing & pace)

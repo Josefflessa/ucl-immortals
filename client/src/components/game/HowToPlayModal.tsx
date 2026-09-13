@@ -213,7 +213,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
             <H>O QUE OBSERVAR NA CARTA</H>
             <div className="grid gap-2 sm:grid-cols-2">
               <InfoRow label="Overall e atributos">São os números da carta para comparação no draft. Traits e características incorporadas podem alterá-los, mas buffs do seu time ainda não entram aqui.</InfoRow>
-              <InfoRow label="Posição e encaixe">Priorize quem serve para a vaga, mas considere uma carta forte com Versatilidade ou Coringa para cobrir mais de uma função.</InfoRow>
+              <InfoRow label="Posição e encaixe">Priorize quem serve para a vaga. Uma carta com posição secundária cobre funções próximas, mas sofre a penalidade correspondente; o Coringa é a exceção e cobre qualquer posição sem penalidade.</InfoRow>
               <InfoRow label="Visão e compostura">São mostradas porque alimentam criação, decisões, pênaltis e algumas habilidades de técnico/traits.</InfoRow>
               <InfoRow label="Estilos de jogo">Cada jogador recebe características aleatórias de acordo com a carta e a posição. Elas podem ser permanentes ou condicionais, como final, mata-mata ou situação do placar.</InfoRow>
             </div>
@@ -281,7 +281,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
 
           <Card accent="#EF444444">
             <H>FORA DE POSIÇÃO</H>
-            <P>Na posição secundária, o jogador sofre uma redução de 7% nos atributos. Fora das posições compatíveis, a redução é de 15% e a química individual zera. <b style={{ color: '#FFF' }}>Versatilidade</b> remove a penalidade da posição secundária e reduz a de fora de posição para 8%; <b style={{ color: '#FFF' }}>Coringa</b> é tratado como compatível com qualquer posição.</P>
+            <P>Na posição secundária, o jogador sofre uma redução de 7% nos atributos. Fora das posições compatíveis, a redução é de 15% e a química individual zera. <b style={{ color: '#FFF' }}>Coringa</b> é tratado como compatível com qualquer posição e não sofre essas penalidades.</P>
           </Card>
 
           <Card>

@@ -91,12 +91,12 @@ describe('encaixe de posição em 3 estados + penalidade', () => {
     expect(secondary).toBeLessThan(native);
     expect(secondary).toBeGreaterThan(oop);
   });
-  it('🧭 Versatilidade anula a penalidade da secundária', () => {
+  it('aplica a penalidade da secundária independentemente de strings antigas', () => {
     const coach = COACHES[0];
-    const vers = mkP({ pace: 80, shooting: 80, passing: 80, dribbling: 80, defending: 80, physical: 80, vision: 80, composure: 80, traits: ['Versatilidade'] });
-    const versNative = getPlayerEffectiveStats(vers, 0, false, coach.id, 0, 'balanced', { isSecondary: false }).overall;
-    const versSecondary = getPlayerEffectiveStats(vers, 0, false, coach.id, 0, 'balanced', { isSecondary: true }).overall;
-    expect(versSecondary).toBe(versNative); // sem penalidade
+    const legacy = mkP({ pace: 80, shooting: 80, passing: 80, dribbling: 80, defending: 80, physical: 80, vision: 80, composure: 80, traits: ['Versatilidade'] });
+    const native = getPlayerEffectiveStats(legacy, 0, false, coach.id, 0, 'balanced', { isSecondary: false }).overall;
+    const secondary = getPlayerEffectiveStats(legacy, 0, false, coach.id, 0, 'balanced', { isSecondary: true }).overall;
+    expect(secondary).toBeLessThan(native);
   });
 });
 

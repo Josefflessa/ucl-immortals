@@ -26,7 +26,6 @@ export interface TraitDef {
   boosts?: TraitBoost[];      // attribute bonuses (applied in getEffectiveAttribute)
   goalkeeperSave?: number;    // GK only: added to shot-stopping / penalty saves
   penaltyComposure?: number;  // penalty taker: added composure in shootouts
-  oopRelief?: boolean;        // softens the out-of-position penalty
 }
 
 // Portuguese labels for building effect text.
@@ -105,8 +104,7 @@ export const TRAITS: TraitDef[] = [
   { id: 'Goleiro Líbero',     icon: '🧹', flavor: 'Atua como líbero.',           goalkeeperSave: 5 },
   { id: 'Saída Rápida',       icon: '🧤', flavor: 'Sai rápido do gol.',          goalkeeperSave: 4 },
 
-  // ── Versatility / talent ─────────────────────────────────────
-  { id: 'Versatilidade',  icon: '🧭', flavor: 'Joga bem em várias posições.', oopRelief: true, boosts: [{ attribute: 'composure', value: 2 }] },
+  // ── Talent ──────────────────────────────────────────────────
   { id: 'Talento Natural', icon: '🌟', flavor: 'Talento puro.',              boosts: [{ attribute: 'dribbling', value: 3 }, { attribute: 'composure', value: 3 }] },
 ];
 
@@ -124,7 +122,6 @@ export function traitEffectLabel(id: string): string {
   }
   if (def.goalkeeperSave) parts.push(`+${def.goalkeeperSave} defesa do goleiro`);
   if (def.penaltyComposure) parts.push(`+${def.penaltyComposure} compostura nos pênaltis`);
-  if (def.oopRelief) parts.push('sofre menos penalidade ao jogar fora de posição');
   return parts.join(' · ');
 }
 
@@ -168,10 +165,6 @@ export function getPenaltyComposureBonus(traits: string[]): number {
   return sum;
 }
 
-export function hasOopRelief(traits: string[]): boolean {
-  return traits.some(id => TRAIT_MAP[id]?.oopRelief);
-}
-
 // ── Random trait rolling ─────────────────────────────────────────
 // Players have NO fixed traits. At draft / team-generation time each one is dealt
 // RANDOM traits: one guaranteed, plus a rarity-weighted chance of a 2nd and a 3rd, so
@@ -188,18 +181,18 @@ export function positionGroup(position: string): PosGroup {
 }
 
 export const TRAIT_POOLS: Record<PosGroup, string[]> = {
-  GK: ['Reflexo Felino', 'Elasticidade', 'Pegador de Pênalti', 'Goleiro Líbero', 'Saída Rápida', 'Liderança', 'Versatilidade'],
+  GK: ['Reflexo Felino', 'Elasticidade', 'Pegador de Pênalti', 'Goleiro Líbero', 'Saída Rápida', 'Liderança'],
   DEF: ['Muralha', 'Zagueiro Imponente', 'Marcador Implacável', 'Marcação Pesada', 'Pressão Implacável', 'Interceptador',
     'Posicionamento', 'Pressionador', 'Líder da Defesa', 'Liderança', 'Força Bruta', 'Motorzinho', 'Box-to-Box',
-    'Cabeceador', 'Velocista', 'Sobreposição', 'Versatilidade', 'Cobrador de Pênaltis', 'Talento Natural'],
+    'Cabeceador', 'Velocista', 'Sobreposição', 'Cobrador de Pênaltis', 'Talento Natural'],
   MID: ['Maestro do Passe', 'Metrônomo', 'Armador', 'Passe Preciso', 'Passe de Calcanhar', 'Visão de Jogo', 'Bola Parada',
     'Box-to-Box', 'Motorzinho', 'Força Bruta', 'Dribblador Técnico', 'Dribblador Veloz', 'Criador de Espaço',
     'Chegada pelo Meio', 'Chute de Longe', 'Cobrador de Falta', 'Cobrador de Pênaltis', 'Interceptador', 'Pressionador',
-    'Marcação Pesada', 'Liderança', 'Talento Natural', 'Versatilidade', 'Frio na Final', 'Especialista em Decisões'],
+    'Marcação Pesada', 'Liderança', 'Talento Natural', 'Frio na Final', 'Especialista em Decisões'],
   ATK: ['Finalizador', 'Finalização Precisa', 'Chute de Longe', 'Canhota Mágica', 'Ponta de Lança', 'Invasor de Área',
     'Chegada pelo Meio', 'Criador de Espaço', 'Velocista', 'Sobreposição', 'Dribblador Nato', 'Dribblador Técnico',
     'Dribblador Veloz', 'Cabeceador', 'Cabeceador Implacável', 'Pivô', 'Pivô Implacável', 'Cobrador de Falta',
-    'Cobrador de Pênaltis', 'Bola Parada', 'Frio na Final', 'Especialista em Decisões', 'Talento Natural', 'Versatilidade'],
+    'Cobrador de Pênaltis', 'Bola Parada', 'Frio na Final', 'Especialista em Decisões', 'Talento Natural'],
 };
 
 // Rolls a player's random traits (1 guaranteed; extras scale with rarity). `minCount`

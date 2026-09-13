@@ -129,6 +129,8 @@ const DraftOptions = memo(function DraftOptions({
       {selectedId && (() => {
         const sel = options.find(p => p.id === selectedId);
         if (!sel) return null;
+        // Ignore traits retired from the ruleset in old saved/online draft state.
+        const visibleTraits = sel.traits.filter(t => getTraitInfo(t));
         return (
           <div className="mx-auto mb-3 max-w-md rounded-xl px-3 py-2.5" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
             <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
@@ -145,11 +147,11 @@ const DraftOptions = memo(function DraftOptions({
                 🧊 Compostura <b className="text-white">{sel.composure}</b>
               </span>
             </div>
-            {sel.traits.length > 0 && (
+            {visibleTraits.length > 0 && (
             <>
             <div className="text-[9px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>🎯 ESTILOS DE JOGO</div>
             <div className="flex flex-col gap-1">
-              {sel.traits.map(t => {
+              {visibleTraits.map(t => {
                 const info = getTraitInfo(t);
                 const isRolled = t === sel.rolledTrait;
                 return (
