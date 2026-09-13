@@ -16,7 +16,7 @@ import type { MatchPlan } from '../../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import CoachStadiumPanel from './CoachStadiumPanel';
 import { stadiumFor } from '../../lib/stadium';
-import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE, getCardVariants } from './PlayerCard';
+import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE, getCardVariants, type PlayerCardStats } from './PlayerCard';
 import RolesSelector from './RolesSelector';
 import TacticSelector from './TacticSelector';
 import MatchPlanSelector from './MatchPlanSelector';
@@ -100,7 +100,9 @@ export default function SquadEditor({
   const captainBoost = captainBoostFromStarters(xi, captain ?? undefined) ?? undefined;
   const charBoosts = computeCharacteristicBoosts(players); // 🩸❤️🪑 team-effect characteristics
 
-  const chemColor = chemData.total >= 90 ? '#22C55E' : chemData.total >= 60 ? '#EAB308' : chemData.total >= 30 ? '#F97316' : '#EF4444';
+  // A química usa o verde como identidade visual fixa nesta síntese do elenco;
+  // o valor continua indicando o nível real, sem mudar o cálculo.
+  const chemColor = '#22C55E';
   const activeTrios = chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean);
 
   const teamOverall = xi.length === 11
@@ -109,6 +111,32 @@ export default function SquadEditor({
       return sum + eff.overall;
     }, 0) / 11)
     : null;
+
+  // Meu Time is the only card context that renders effective values. Draft, shop and
+  // reinforcement pickers omit this map and therefore keep the card's own values.
+  const effectiveStatsById: Record<string, PlayerCardStats> = Object.fromEntries(
+    players.map((player, index) => {
+      const isStarter = index < 11;
+      const effective = getPlayerEffectiveStats(
+        player,
+        isStarter ? (chemData.individual[player.id] ?? 0) : 0,
+        isStarter ? (chemData.outOfPosition[player.id] ?? false) : false,
+        coachId,
+        // Team-wide chemistry remains the current squad context for reserves;
+        // only their individual link score/position penalty is absent.
+        chemData.total,
+        playStyle,
+        {
+          captainBoost: isStarter ? captainBoost : undefined,
+          charBoosts,
+          isKnockout,
+          role: isStarter ? (formationRoles[index] ?? player.position) : player.position,
+          isSecondary: isStarter ? (chemData.secondaryPos[player.id] ?? false) : false,
+        },
+      );
+      return [player.id, effective];
+    }),
+  );
 
   const getChemPreview = (candidateIdx: number) => {
     if (selectedIndex === null) return { total: chemData.total, diff: 0 };
@@ -198,7 +226,7 @@ export default function SquadEditor({
       ) : null}
 
       <RolesSelector
-        players={xi}
+        players={xi.map(player => ({ ...player, effectiveOverall: effectiveStatsById[player.id]?.overall }))}
         captainId={captain}
         penaltyTakerId={penaltyTaker}
         freeKickTakerId={freeKickTaker}
@@ -217,6 +245,8 @@ export default function SquadEditor({
             <FormationField
               formation={formation}
               players={xi}
+              showPlayerCards
+              effectiveStats={effectiveStatsById}
               chemistryScores={chemData.individual}
               showChemLines
               chemLinks={chemLinks}
@@ -236,12 +266,12 @@ export default function SquadEditor({
         )}
         <div className="flex-1 min-w-0">
           <div className="text-xs font-bold tracking-widest mb-3" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>TITULARES</div>
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-4">
             {xi.map((player, index) => {
               const ab = availBadge(player.id);
               return (
                 <div key={player.id} className="relative">
-                  <PlayerCard player={player} chemScore={chemData.individual[player.id]} showChemistry compact
+                  <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} chemScore={chemData.individual[player.id]} showChemistry compact
                     selected={selectedIndex === index} onClick={() => setSelectedIndex(index)} />
                   {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[8px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
                     style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'Rajdhani, sans-serif' }}>{ab.txt}</span>}
@@ -256,12 +286,12 @@ export default function SquadEditor({
             </div>
             {bench.length > 0 ? (
               <>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                   {bench.map((player, i) => {
                     const ab = availBadge(player.id);
                     return (
                       <div key={player.id} className="relative">
-                        <PlayerCard player={player} compact selected={selectedIndex === 11 + i} onClick={() => setSelectedIndex(11 + i)} />
+                        <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} compact selected={selectedIndex === 11 + i} onClick={() => setSelectedIndex(11 + i)} />
                         {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[8px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
                           style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'Rajdhani, sans-serif' }}>{ab.txt}</span>}
                       </div>
@@ -376,6 +406,15 @@ export default function SquadEditor({
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
                   const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, role: formationRole, isSecondary: selectedIsSecondary });
+                  const originalOverall = selectedPlayer.baseOverall ?? selectedPlayer.overall;
+                  // Card-level variants (Em Alta/Lobo/Mártir/Magnata) are already baked into
+                  // selectedPlayer.*. For this breakdown, compare the final effective result
+                  // against the untouched base so the user sees one complete delta.
+                  const cardVariantDelta = selectedPlayer.baseOverall !== undefined
+                    ? selectedPlayer.overall - selectedPlayer.baseOverall
+                    : 0;
+                  const effectiveOverallDelta = eff.overall - originalOverall;
+                  const originalStat = (value: number) => value - cardVariantDelta;
                   const photoUrl = UNIQUE_STYLE[selectedPlayer.id]?.render ?? buildSofifaUrl(selectedPlayer.id, 120);
                   const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
                   const linkLabels: Record<string, string> = { club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica' };
@@ -402,14 +441,14 @@ export default function SquadEditor({
                     return { id: tid, icon: def?.icon ?? '✨', effect: traitEffectLabel(tid), flavor: def?.flavor ?? '' };
                   });
                   const statRows = [
-                    { label: 'RIT', base: selectedPlayer.pace, eff: eff.pace },
-                    { label: 'FIN', base: selectedPlayer.shooting, eff: eff.shooting },
-                    { label: 'PAS', base: selectedPlayer.passing, eff: eff.passing },
-                    { label: 'DRI', base: selectedPlayer.dribbling, eff: eff.dribbling },
-                    { label: 'DEF', base: selectedPlayer.defending, eff: eff.defending },
-                    { label: 'FIS', base: selectedPlayer.physical, eff: eff.physical },
-                    { label: 'VIS', base: selectedPlayer.vision, eff: eff.vision },
-                    { label: 'CMP', base: selectedPlayer.composure, eff: eff.composure },
+                    { label: 'RIT', base: originalStat(selectedPlayer.pace), eff: eff.pace },
+                    { label: 'FIN', base: originalStat(selectedPlayer.shooting), eff: eff.shooting },
+                    { label: 'PAS', base: originalStat(selectedPlayer.passing), eff: eff.passing },
+                    { label: 'DRI', base: originalStat(selectedPlayer.dribbling), eff: eff.dribbling },
+                    { label: 'DEF', base: originalStat(selectedPlayer.defending), eff: eff.defending },
+                    { label: 'FIS', base: originalStat(selectedPlayer.physical), eff: eff.physical },
+                    { label: 'VIS', base: originalStat(selectedPlayer.vision), eff: eff.vision },
+                    { label: 'CMP', base: originalStat(selectedPlayer.composure), eff: eff.composure },
                   ];
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#07070f', border: `1px solid ${getRarityColor(selectedPlayer.rarity)}22` }}>
@@ -443,8 +482,9 @@ export default function SquadEditor({
                         </div>
                         <div className="text-right flex-shrink-0">
                           <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{eff.overall}</div>
-                          {eff.overallMod > 0 && <div className="text-xs font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>(+{eff.overallMod})</div>}
+                          {effectiveOverallDelta !== 0 && <div className="text-xs font-bold" style={{ color: effectiveOverallDelta > 0 ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>({effectiveOverallDelta > 0 ? '+' : ''}{effectiveOverallDelta})</div>}
                           <div className="text-[9px] text-gray-500 mt-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GERAL EFETIVO</div>
+                          <div className="mt-1 text-[8px] font-bold leading-tight" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>BASE ORIGINAL {originalOverall}</div>
                         </div>
                       </div>
 
@@ -710,7 +750,7 @@ export default function SquadEditor({
                   className="absolute top-4 right-4 w-11 h-11 rounded-full flex items-center justify-center text-2xl font-black text-gray-300 hover:text-white focus:outline-none"
                   style={{ background: '#12121c', border: '1px solid #2E2E42' }}>✕</button>
                 <div onClick={e => e.stopPropagation()}>
-                  <PlayerCard player={selectedPlayer} scale={1.5} />
+                  <PlayerCard player={selectedPlayer} effectiveStats={effectiveStatsById[selectedPlayer.id]} scale={1.5} />
                 </div>
               </div>
             )}

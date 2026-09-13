@@ -176,7 +176,7 @@ export default function FormationPage() {
               <FormationField
                 formation={selectedFormation}
                 players={[]}
-                compact={false}
+                showPlayerCards
               />
             </motion.div>
           )}

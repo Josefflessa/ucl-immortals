@@ -174,6 +174,15 @@ describe('⭐ cartas evoluídas', () => {
     expect(bumped.players.slice(0, 11).every(p => p.appearances === 1)).toBe(true);
     expect(bumped.players[11].appearances ?? 0).toBe(0);
   });
+  it('Prodígio: acumula +1 por titularidade e não evolui reservas', () => {
+    const prodigio = mkP({ prodigio: true, prodigioStarts: 0 });
+    const team = mkTeam('T', [prodigio, ...Array.from({ length: 12 }, () => mkP())]);
+    const once = bumpStarterAppearances(team);
+    expect(once.players[0].prodigioStarts).toBe(1);
+    expect(once.players[11].prodigioStarts).toBeUndefined();
+    const twice = bumpStarterAppearances(once);
+    expect(twice.players[0].prodigioStarts).toBe(2);
+  });
 });
 
 describe('🏟️ vantagem de casa carimbada por atributo (getEffectiveAttribute + homeStadium)', () => {
@@ -702,5 +711,14 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
       expect(v.overall).toBe(src.overall);
       expect(v.pace).toBe(src.pace);
     }
+  });
+  it('📈 Prodígio começa sem bônus e passa a somar pelas titularidades', () => {
+    const v = applyShopVariant(src, 'prodigio');
+    expect(v.prodigio).toBe(true);
+    expect(v.prodigioStarts).toBe(0);
+    const noChem = { passing: 0, pace: 0, special: 0 };
+    const base = getEffectiveAttribute(card(src), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
+    const afterTwoStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 2 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
+    expect(afterTwoStarts - base).toBe(2);
   });
 });

@@ -304,7 +304,7 @@ export default function MenuPage() {
                   className="flex-1"
 
                 >
-                  Avançar Setup →
+                  Avançar →
                 </Button>
               </div>
             </motion.div>

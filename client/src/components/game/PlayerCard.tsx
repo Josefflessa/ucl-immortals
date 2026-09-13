@@ -6,6 +6,16 @@ import { crestIdForClub } from '../../lib/crests';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 import Crest from './Crest';
 
+export interface PlayerCardStats {
+  overall: number;
+  pace: number;
+  shooting: number;
+  passing: number;
+  dribbling: number;
+  defending: number;
+  physical: number;
+}
+
 interface PlayerCardProps {
   player: Player;
   selected?: boolean;
@@ -14,6 +24,9 @@ interface PlayerCardProps {
   lite?: boolean;
   showChemistry?: boolean;
   chemScore?: number;
+  // Optional team-context values. When omitted (Draft, shop, reinforcement picks, album),
+  // the card intentionally renders the player's stored card values.
+  effectiveStats?: PlayerCardStats;
   scale?: number; // encolhe o card FULL e sua área ocupada (ex.: caber 2 por linha no mobile)
 }
 
@@ -490,7 +503,7 @@ const NATION_CODES: Record<string, string> = {
 // PT-BR position abbreviations (single source of truth lives in gameData/POS_PT)
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
-function getFlagUrl(nation: string): string | null {
+export function getFlagUrl(nation: string): string | null {
   const code = NATION_CODES[nation];
   if (!code) return 'https://flagcdn.com/un.svg'; // fallback
   return `https://flagcdn.com/${code}.svg`;
@@ -528,6 +541,9 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   butragueno: 'butragueno',
   cantona: 'cantona',
   cancelo: 'cancelo',
+  cavani: 'cavani_psg',
+  cavani_psg: 'cavani_psg',
+  cavani_united: 'cavani_united',
   cristiano: 'cristiano_realmadrid',
   cristiano_alnassr: 'cristiano_alnassr',
   cristiano_juventus: 'cristiano_juventus',
@@ -541,6 +557,14 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   hagi: 'hagi',
   haaland: 'haaland_city',
   haaland_borussia: 'haaland_borussia',
+  ibrahimovic: 'ibrahimovic_psg',
+  ibrahimovic_milan: 'ibrahimovic_milan',
+  ibrahimovic_psg: 'ibrahimovic_psg',
+  kaka: 'kaka_realmadrid',
+  kaka_realmadrid: 'kaka_realmadrid',
+  kane: 'kane_bayern',
+  kane_bayern: 'kane_bayern',
+  kane_tottenham: 'kane_tottenham',
   kewell: 'kewell',
   koeman: 'koeman',
   lampard: 'lampard',
@@ -562,6 +586,8 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   neymar_santos: 'neymar_santos',
   papin: 'papin',
   pele: 'pele',
+  pepe_porto: 'pepe_porto',
+  pepe_realmadrid: 'pepe_realmadrid',
   pires: 'pires',
   raphinha: 'raphinha',
   rijkaard: 'rijkaard',
@@ -573,12 +599,21 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   suarez: 'suarez_barcelona',
   suarez_atletico_madrid: 'suarez_atletico_madrid',
   suarez_barcelona: 'suarez_barcelona',
+  suarez_liverpool: 'suarez_liverpool',
   suarez_miami: 'suarez_miami',
   stoichkov: 'stoichkov',
+  thiago_silva: 'thiago_silva_chelsea',
+  thiago_silva_chelsea: 'thiago_silva_chelsea',
+  thiago_silva_psg: 'thiago_silva_psg',
+  trent: 'trent_liverpool',
+  trent_liverpool: 'trent_liverpool',
+  trent_realmadrid: 'trent_realmadrid',
   veron: 'veron',
   voller: 'voller',
   varane: 'varane',
   vanbasten: 'vanbasten',
+  vitinha: 'vitinha_psg',
+  vitinha_psg: 'vitinha_psg',
   yamal: 'yamal_barcelona',
   yamal_barcelona: 'yamal_barcelona',
   zico: 'zico',
@@ -610,6 +645,9 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   dimaria: 'dimaria_realmadrid',
   dimaria_realmadrid: 'dimaria_realmadrid',
   dimaria_psg: 'dimaria_psg',
+  dembele: 'dembele_barcelona',
+  dembele_barcelona: 'dembele_barcelona',
+  dembele_psg: 'dembele_psg',
 };
 
 function buildLocalPlayerUrls(playerId: string): string[] {
@@ -793,9 +831,9 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   messi_unico: { texture: '/cards/messi_unico.webp', render: '/players/unico/messi.webp', font: '#F7E08C', ring: '#C9A24C', photoX: 7, photoY: -2, photoW: 100 },
   cafu_unico: { texture: '/cards/cafu_unico.webp', render: '/players/unico/cafu.webp', font: '#F0E6C0', ring: '#D9B54A', photoX: 8, photoY: 14, photoW: 82 },
   cristiano_unico: { texture: '/cards/cristiano_unico.webp', render: '/players/unico/cristiano.webp', font: '#F3D477', ring: '#D6B45B', photoX: 17, photoY: 12, photoW: 85 },
-  lewandowski_unico: { texture: '/cards/lewandowski_unico.webp', render: '/players/unico/lewandowski.webp', font: '#F4DFA3', ring: '#C9A24C', photoX: 3, photoY: -2, photoW: 108 },
-  modric_unico: { texture: '/cards/modric_unico.webp', render: '/players/unico/modric.webp', font: '#F7E08C', ring: '#D9B54A', photoX: 2, photoY: -3, photoW: 108 },
-  kroos_unico: { texture: '/cards/kroos_unico.webp', render: '/players/unico/kroos.webp', font: '#F0E6C0', ring: '#38C982', photoX: 1, photoY: -2, photoW: 108 },
+  lewandowski_unico: { texture: '/cards/lewandowski_unico.webp', render: '/players/unico/lewandowski.webp', font: '#F4DFA3', ring: '#C9A24C', photoX: 6, photoY: 4, photoW: 108 },
+  modric_unico: { texture: '/cards/modric_unico.webp', render: '/players/unico/modric.webp', font: '#F7E08C', ring: '#D9B54A', photoX: 10, photoY: -3, photoW: 108 },
+  kroos_unico: { texture: '/cards/kroos_unico.webp', render: '/players/unico/kroos.webp', font: '#F0E6C0', ring: '#38C982', photoX: 6, photoY: 4, photoW: 108 },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
@@ -862,8 +900,9 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   forasteiro: { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
   capitaoNato: { color: '#F97316', icon: '🗣️', label: 'CAPITÃO NATO', treatment: 'ring' },
   magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
+  prodigio: { color: '#38BDF8', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata', 'prodigio'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -878,8 +917,8 @@ export function getCardVariants(player: Player): CardVariant[] {
 
 // Short effect description for the card badge tooltip.
 function variantDesc(player: Player): string {
-  if (player.inForm) return `Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 3} em cada atributo (o Geral sobe junto)`;
-  if (player.lobo) return `LOBO SOLITÁRIO: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 6} em cada atributo, mas −12 na QUÍMICA GERAL do time`;
+  if (player.inForm) return `Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 3} em cada atributo; o GER da carta já inclui este bônus`;
+  if (player.lobo) return `LOBO SOLITÁRIO: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 6} em cada atributo; o GER da carta já inclui este bônus, mas −12 na QUÍMICA GERAL do time`;
   if (player.coringa) return 'CORINGA: joga em qualquer posição sem perder estatísticas nem química';
   if (player.nomade) return 'NÔMADE: conta como qualquer nação na química';
   if (player.pilar) return 'PILAR: +12 na QUÍMICA GERAL do time';
@@ -891,10 +930,11 @@ function variantDesc(player: Player): string {
   if (player.forasteiro) return 'FORASTEIRO: +5 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
   if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida de liga por 1,5 (mas −5 em cada atributo nele)';
+  if (player.prodigio) return `PRODÍGIO: +1 em cada atributo por partida iniciada como titular (${player.prodigioStarts ?? 0} acumuladas)`;
   return '';
 }
 
-function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, scale = 1 }: PlayerCardProps) {
+function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, effectiveStats, scale = 1 }: PlayerCardProps) {
   // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
@@ -907,6 +947,11 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   const dualCol1 = variants.length >= 2 ? normCol(variants[1].color) : null;
   const uniq = UNIQUE_STYLE[player.id];               // ⭐ carta Única (textura/fonte/render próprios)
   const clubCrestId = crestIdForClub(player.club);
+  // Without team context this is the Draft/shop value: card base plus any card-level
+  // variant already baked into player.*. Meu Time can opt into effectiveStats so the same
+  // visual card reflects chemistry, coach, position, tactic and active style effects.
+  const displayStats: PlayerCardStats = effectiveStats ?? player;
+  const displayOverall = displayStats.overall;
   // A foto pode existir apenas no pacote local (sem entrada SoFIFA), como no Raphinha.
   // Use a mesma cadeia de fontes do PlayerPhoto para não esconder portraits locais.
   const hasPhoto = !!uniq || buildPlayerPhotoSources(player.id).length > 0;
@@ -959,7 +1004,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           {/* Topo: OVR + POS (esq) e emoji da característica (dir) — descido um tiquinho */}
           <div className="flex items-start justify-between flex-shrink-0" style={{ paddingTop: '19%', paddingLeft: '13%', paddingRight: '10%' }}>
             <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
-              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: uniq ? uniq.font : '#fff', fontSize: 18, lineHeight: 1 }}>{player.overall}</span>
+              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: uniq ? uniq.font : '#fff', fontSize: 18, lineHeight: 1 }}>{displayOverall}</span>
               <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
             </div>
             {variants.length > 0 && (
@@ -1056,7 +1101,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         )}
         {/* rail: OVR → posição → bandeira → escudo do clube */}
         <div className="absolute flex flex-col items-center" style={{ left: '6%', top: '15%', width: 46, gap: 4, textShadow: '0 2px 5px rgba(0,0,0,.85)' }}>
-          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .8 }}>{player.overall}</span>
+          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .8 }}>{displayOverall}</span>
           <span style={{ fontFamily: 'Rajdhani,sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
           <div style={{ width: 30, height: 1, background: 'rgba(247,238,202,.55)', margin: '3px 0' }} />
           {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
@@ -1077,7 +1122,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {/* 6 stats — sem painel; sombra forte */}
         <div className="absolute" style={{ top: '69%', left: '10%', right: '10%' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', fontVariantNumeric: 'tabular-nums' }}>
-            {([['RIT', player.pace], ['FIN', player.shooting], ['PAS', player.passing], ['DRI', player.dribbling], ['DEF', player.defending], ['FIS', player.physical]] as [string, number][]).map(([k, v]) => (
+            {([['RIT', displayStats.pace], ['FIN', displayStats.shooting], ['PAS', displayStats.passing], ['DRI', displayStats.dribbling], ['DEF', displayStats.defending], ['FIS', displayStats.physical]] as [string, number][]).map(([k, v]) => (
               <div key={k} className="flex flex-col items-center" style={{ color: uniq ? uniq.font : '#fff', textShadow: '0 1px 3px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)' }}>
                 <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, opacity: .82 }}>{k}</span>
                 <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, fontSize: 18 }}>{v}</span>

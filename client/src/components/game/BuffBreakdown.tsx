@@ -77,6 +77,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const captain = collect(eff, b => b.captain);
   const train = collect(eff, b => b.train);
   const evolve = collect(eff, b => b.evolve);
+  const prodigio = collect(eff, b => b.prodigio);
   const position = collect(eff, b => b.position);
   const char = collect(eff, b => b.char);
   const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
@@ -92,7 +93,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || position.length > 0 || char.length > 0 || !!variant;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || prodigio.length > 0 || position.length > 0 || char.length > 0 || !!variant;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -135,6 +136,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.capitaoNato && <Chip text="🗣️ BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)" color="#F97316" />}
                 {player.magnata && <Chip text="🤑 CRÉDITOS DA LIGA ×1,5 (TITULAR)" color="#16A34A" />}
                 {player.magnata && <Chip text="−5 EM TUDO" color="#EF4444" />}
+                {player.prodigio && <Chip text={`+${player.prodigioStarts ?? 0} EM CADA ATRIBUTO (${player.prodigioStarts ?? 0} TITULARIDADES)`} color="#38BDF8" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
                 {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
@@ -153,6 +155,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                                   : player.forasteiro ? 'Quando é o ÚNICO do seu país E do seu clube no XI, ganha +5 em tudo — transforma a química baixa em vantagem.'
                                     : player.capitaoNato ? 'Se for o CAPITÃO do time, o bônus de capitão (a melhor stat dele, dada a todos) vem DOBRADO.'
                                       : player.magnata ? 'Como titular, multiplica os créditos da partida de liga por 1,5 — em troca de −5 em cada atributo nele.'
+                                        : player.prodigio ? `+1 em todos os atributos por titularidade acumulada (${player.prodigioStarts ?? 0} partida${(player.prodigioStarts ?? 0) === 1 ? '' : 's'} iniciada${(player.prodigioStarts ?? 0) === 1 ? '' : 's'} desde que recebeu a característica).`
                                         : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
             </Row>
@@ -281,6 +284,15 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
               <div className="flex flex-wrap gap-1">{chips(evolve, '#22C55E')}</div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 Bônus de evolução aplicado ao atributo escolhido — soma direto no atributo e reflete no geral.
+              </div>
+            </Row>
+          )}
+
+          {prodigio.length > 0 && (
+            <Row icon="📈" name="PRODÍGIO" color="#38BDF8">
+              <div className="flex flex-wrap gap-1">{chips(prodigio, '#38BDF8')}</div>
+              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                +1 em todos os atributos por cada partida iniciada como titular desde que a característica foi recebida.
               </div>
             </Row>
           )}

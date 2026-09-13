@@ -75,8 +75,8 @@ export default function MatchSimPage() {
   // gate the local simulation clock off entirely while replaying.
   const isSimulatorHost = true;
 
-  // Both online and solo run at the same fixed broadcast pace. Online keeps the
-  // synchronized live-broadcast behavior, while solo still allows pausing/skipping.
+  // Online keeps the synchronized live-broadcast behavior, while solo still
+  // allows pausing/skipping.
   const broadcastMode = state.mode === 'online';
 
   const isKnockout = !!activeKnockoutMatch;
@@ -254,7 +254,7 @@ export default function MatchSimPage() {
 
   const eventFeedRef = useRef<HTMLDivElement>(null);
 
-  // Fixed match pace: one in-game minute every 222ms (about 20s for 90 minutes).
+  // One in-game minute every 222ms (about 20s for 90 minutes).
   const getTickDuration = () => {
     return 222;
   };
@@ -1530,6 +1530,9 @@ export default function MatchSimPage() {
                       assistsByPlayer={assistsByPlayer}
                       disciplineByPlayer={disciplineByPlayer}
                       accent={squadModal === 'mine' ? '#C9A84C' : '#818CF8'}
+                      isKnockout={isKnockout}
+                      isFinal={isFinal}
+                      isLosing={t.id === homeTeam.id ? homeScore < awayScore : awayScore < homeScore}
                     />
                   );
                 })()}

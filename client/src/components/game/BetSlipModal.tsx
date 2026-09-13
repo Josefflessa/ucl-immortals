@@ -36,7 +36,17 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
         <div className="ui-modal__header">
           <div>
             <h2 className="ui-modal__title">🎯 Palpite</h2>
-            <div className="mt-2 text-xs text-[var(--ui-text-muted)]">Chute o placar. Acertou o resultado → {BET_OUTCOME_MULT}× · placar exato → {BET_EXACT_MULT}×.</div>
+            <div className="mt-2 space-y-2">
+              <p className="text-xs text-[var(--ui-text-muted)]">Escolha o placar da partida:</p>
+              <div className="flex flex-wrap gap-2" aria-label="Multiplicadores do palpite">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] px-2 py-1 text-[11px] font-bold text-[var(--ui-text-muted)]">
+                  Resultado <strong className="text-[var(--ui-success)]">{BET_OUTCOME_MULT}×</strong>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] px-2 py-1 text-[11px] font-bold text-[var(--ui-text-muted)]">
+                  Placar exato <strong className="text-[var(--ui-success)]">{BET_EXACT_MULT}×</strong>
+                </span>
+              </div>
+            </div>
           </div>
           <button onClick={onClose} aria-label="Fechar" className="ui-icon-btn">✕</button>
         </div>
@@ -49,8 +59,8 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
           </div>
 
           <div>
-            <div className="flex justify-between gap-3 text-[10px] font-bold tracking-widest mb-1 text-[var(--ui-text-faint)]">
-              <span>VALOR APOSTADO</span><span>resta na rodada: {remainingCap} · saldo: {points}</span>
+            <div className="flex items-center justify-between gap-3 text-[10px] font-bold tracking-widest mb-1 text-[var(--ui-text-faint)]">
+              <span>VALOR APOSTADO</span><span className="whitespace-nowrap">resta na rodada: {remainingCap} · saldo: {points}</span>
             </div>
             <input type="number" min={1} max={maxStake} value={stake}
               onChange={e => setStake(Math.max(0, Math.min(maxStake, Math.floor(Number(e.target.value) || 0))))}

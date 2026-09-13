@@ -3,9 +3,11 @@
 // A regra de crédito diferido (só creditar na revelação) vive nos reducers/handlers,
 // não aqui — este módulo só CALCULA se ganhou e quanto.
 
+import { DEFAULT_MATCH_SETTINGS } from './competition';
+
 export const BET_OUTCOME_MULT = 1.5;  // acertar V/E/D
 export const BET_EXACT_MULT = 2.5;    // acertar o placar exato
-export const BET_ROUND_CAP = 200;     // teto de stake TOTAL por rodada
+export const BET_ROUND_CAP = DEFAULT_MATCH_SETTINGS.betRoundCap; // teto padrão de stake TOTAL por rodada
 export const BET_MAX_GOALS = 15;      // teto do stepper de placar (0..15 por lado)
 
 export interface Bet {
@@ -48,9 +50,9 @@ export function roundStakeUsed(bets: Bet[], keyPrefix: string): number {
 
 // Cabe apostar `stake` em `matchKey` sem estourar BET_ROUND_CAP? (ignora o bet que está
 // sendo editado, pra troca de valor no mesmo jogo não somar duas vezes.)
-export function canPlaceStake(bets: Bet[], keyPrefix: string, matchKey: string, stake: number): boolean {
+export function canPlaceStake(bets: Bet[], keyPrefix: string, matchKey: string, stake: number, cap = BET_ROUND_CAP): boolean {
   const used = bets.filter(b => b.matchKey.startsWith(keyPrefix) && b.matchKey !== matchKey).reduce((s, b) => s + b.stake, 0);
-  return stake > 0 && used + stake <= BET_ROUND_CAP;
+  return stake > 0 && used + stake <= cap;
 }
 
 // Prefixo do teto de aposta pra `canPlaceStake`: liga é POR RODADA (compartilha o teto entre

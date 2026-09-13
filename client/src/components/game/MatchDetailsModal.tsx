@@ -17,10 +17,12 @@ interface Props {
   homeName: string;
   awayName: string;
   subtitle?: string;      // ex.: agregado do mata-mata
+  isKnockout?: boolean;
+  isFinal?: boolean;
   onClose: () => void;
 }
 
-export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName, awayName, subtitle, onClose }: Props) {
+export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName, awayName, subtitle, isKnockout = false, isFinal = false, onClose }: Props) {
   const [side, setSide] = useState<'home' | 'away'>('home');
 
   // playerId → nome (a partir do playerStats, que também tem teamId e a nota final).
@@ -59,6 +61,15 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
     else continue;
     disciplineByPlayer[e.playerId] = d;
   }
+  // A match plan can switch tactics during the match. The final result should
+  // display the same active tactic that was in force at the final whistle,
+  // instead of silently falling back to the pre-match selection.
+  const finalTactic = team
+    ? result.events
+      .filter(e => e.type === 'tactic' && e.teamId === team.id && e.tacticAction)
+      .sort((a, b) => a.minute - b.minute)
+      .at(-1)?.tacticAction ?? team.playStyle
+    : undefined;
 
   return (
     <div className="ui-modal-backdrop z-[60] p-3 sm:p-4"
@@ -162,17 +173,30 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           })()}
 
           {/* Alternar entre os dois times */}
-          <div className="flex gap-2 mb-3">
-            <button onClick={() => setSide('home')} className="ui-tab flex-1" data-active={side === 'home'}>
-              {homeName}
-            </button>
-            <button onClick={() => setSide('away')} className="ui-tab flex-1" data-active={side === 'away'}>
-              {awayName}
-            </button>
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 gap-2">
+              <button onClick={() => setSide('home')} className="ui-tab min-w-0 flex-1 truncate" data-active={side === 'home'}>
+                {homeName}
+              </button>
+              <button onClick={() => setSide('away')} className="ui-tab min-w-0 flex-1 truncate" data-active={side === 'away'}>
+                {awayName}
+              </button>
+            </div>
           </div>
 
           {team ? (
-            <MatchFieldView team={team} ratings={ratings} goalsByPlayer={goalsByPlayer} assistsByPlayer={assistsByPlayer} disciplineByPlayer={disciplineByPlayer} accent={side === 'home' ? '#C9A84C' : '#818CF8'} />
+            <MatchFieldView
+              team={team}
+              activePlayStyle={finalTactic}
+              ratings={ratings}
+              goalsByPlayer={goalsByPlayer}
+              assistsByPlayer={assistsByPlayer}
+              disciplineByPlayer={disciplineByPlayer}
+              accent={side === 'home' ? '#C9A84C' : '#818CF8'}
+              isKnockout={isKnockout}
+              isFinal={isFinal}
+              isLosing={team.id === result.homeTeamId ? result.homeGoals < result.awayGoals : result.awayGoals < result.homeGoals}
+            />
           ) : (
             <div className="ui-empty">Escalação indisponível.</div>
           )}

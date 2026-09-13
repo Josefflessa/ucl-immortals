@@ -65,14 +65,51 @@ export default function LeaguePage() {
   // 🆘 Contratação emergencial — abre quando não há reserva disponível para a posição.
   const [emergencySelection, setEmergencySelection] = useState<ReturnType<typeof getEmergencyReplacementTarget>>(null);
   // 🔍 "Ver Detalhes" de uma partida (placar + gols + campo dos 2 times c/ notas finais)
-  const [detailsMatch, setDetailsMatch] = useState<{ result: MatchResult; homeTeam?: Team; awayTeam?: Team; homeName: string; awayName: string } | null>(null);
-  const openMatchDetails = (result: MatchResult) => setDetailsMatch({
-    result,
-    homeTeam: getTeamById(result.homeTeamId),
-    awayTeam: getTeamById(result.awayTeamId),
-    homeName: getTeamById(result.homeTeamId)?.name ?? result.homeTeamId,
-    awayName: getTeamById(result.awayTeamId)?.name ?? result.awayTeamId,
-  });
+  const [detailsMatch, setDetailsMatch] = useState<{
+    result: MatchResult;
+    homeTeam?: Team;
+    awayTeam?: Team;
+    homeName: string;
+    awayName: string;
+    isKnockout: boolean;
+    isFinal: boolean;
+  } | null>(null);
+
+  // MEUS JOGOS combines league and knockout results. Infer the phase from the
+  // stored bracket so an old knockout result keeps its knockout-only effects.
+  const knockoutRoundForResult = (result: MatchResult): string | undefined => {
+    const bracket = state.knockoutBracket;
+    if (!bracket) return undefined;
+    const rounds: Array<[string, KnockoutMatch[]]> = [
+      ['playoffs', bracket.playoffs ?? []],
+      ['round16', bracket.round16 ?? []],
+      ['quarters', bracket.quarterFinals ?? []],
+      ['semis', bracket.semiFinals ?? []],
+      ['final', bracket.final ? [bracket.final] : []],
+    ];
+    // getAllPlayedMatchResults preserves the bracket result objects, so identity
+    // is intentional here: matching by score could confuse a league rematch with
+    // a knockout leg between the same teams.
+    const sameResult = (candidate?: MatchResult) => candidate === result;
+    for (const [round, ties] of rounds) {
+      if (ties.some(tie => sameResult(tie.result) || sameResult(tie.leg1) || sameResult(tie.leg2))) return round;
+    }
+    return undefined;
+  };
+
+  const openMatchDetails = (result: MatchResult, context?: { isKnockout?: boolean; isFinal?: boolean }) => {
+    const inferredRound = knockoutRoundForResult(result);
+    const knockout = context?.isKnockout ?? !!inferredRound;
+    setDetailsMatch({
+      result,
+      homeTeam: getTeamById(result.homeTeamId),
+      awayTeam: getTeamById(result.awayTeamId),
+      homeName: getTeamById(result.homeTeamId)?.name ?? result.homeTeamId,
+      awayName: getTeamById(result.awayTeamId)?.name ?? result.awayTeamId,
+      isKnockout: knockout,
+      isFinal: context?.isFinal ?? inferredRound === 'final',
+    });
+  };
 
   // This page is the season HUB for BOTH phases: league (rounds + standings) and
   // knockout (ties + bracket). Shared tabs — ESTATÍSTICAS, MEU TIME, MEUS JOGOS —
@@ -203,7 +240,8 @@ export default function LeaguePage() {
   // 🎯 Palpite — helpers (usam state.bets + rodada atual)
   const bets = state.bets ?? [];
   const betPrefix = `L${leagueRound}:`;
-  const remainingCap = BET_ROUND_CAP - roundStakeUsed(bets, betPrefix);
+  const betCap = state.competitionFormat?.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
+  const remainingCap = Math.max(0, betCap - roundStakeUsed(bets, betPrefix));
   const betFor = (matchKey: string): Bet | undefined => bets.find(b => b.matchKey === matchKey);
 
   // 🟥🩹 Escalação: titulares indisponíveis do MEU time (bloqueia jogar/pronto até ajustar).
@@ -678,7 +716,7 @@ export default function LeaguePage() {
                           {fixture.result.homeGoals} - {fixture.result.awayGoals}
                         </span>
                         {fixture.result.playerStats && (
-                          <button onClick={() => openMatchDetails(fixture.result!)}
+                          <button onClick={() => openMatchDetails(fixture.result!, { isKnockout: false, isFinal: false })}
                             className="mt-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125"
                             style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                             🔍 Detalhes
@@ -1385,7 +1423,7 @@ export default function LeaguePage() {
                                     {fixture.result.homeGoals} - {fixture.result.awayGoals}
                                   </span>
                                   {fixture.result.playerStats && (
-                                    <button onClick={() => openMatchDetails(fixture.result!)}
+                                    <button onClick={() => openMatchDetails(fixture.result!, { isKnockout: false, isFinal: false })}
                                       className="mt-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125"
                                       style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                                       🔍 Detalhes
@@ -1445,11 +1483,11 @@ export default function LeaguePage() {
                             {!koRoundHidden && (l1 || l2 || tie.result) && (
                               <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
                                 {single ? (
-                                  tie.result?.playerStats && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(tie.result)}>🔍 Detalhes</button>
+                                  tie.result?.playerStats && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(tie.result, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}>🔍 Detalhes</button>
                                 ) : (
                                   <>
-                                    {l1 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l1)}>👁 Ida</button>}
-                                    {l2 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l2)}>👁 Volta</button>}
+                                    {l1 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l1, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}>👁 Ida</button>}
+                                    {l2 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l2, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}>👁 Volta</button>}
                                   </>
                                 )}
                                 {tie.result?.winner && (
@@ -1683,6 +1721,8 @@ export default function LeaguePage() {
           awayTeam={detailsMatch.awayTeam}
           homeName={detailsMatch.homeName}
           awayName={detailsMatch.awayName}
+          isKnockout={detailsMatch.isKnockout}
+          isFinal={detailsMatch.isFinal}
           onClose={() => setDetailsMatch(null)}
         />
       )}

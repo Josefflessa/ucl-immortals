@@ -1,12 +1,32 @@
 // UCL Immortals — FormationField Component
 // Tactical field with player positions and chemistry lines
 
+import { useEffect, useId, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
 import { isPlayerInPosition, ChemLink, ChemLinkType } from '../../lib/gameEngine';
-import { buildSofifaUrl, getCardVariants } from './PlayerCard';
+import PlayerCard, { buildSofifaUrl, getCardVariants, type PlayerCardStats } from './PlayerCard';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
+
+// Result-only vertical layout. The compact field keeps the gameplay coordinates
+// from Formation; the card field uses these tuned coordinates so each formation
+// reads as a compact tactical block instead of leaving a large gap between lines.
+// The goalkeeper stays deep, with a deliberate clear area below the outfield.
+const RESULT_FORMATION_Y: Record<string, number[]> = {
+  // GK, back four, midfield three, front three (central ST remains advanced).
+  '4-3-3': [90, 68, 70, 70, 68, 45, 49, 45, 25, 15, 25],
+  // GK, back four, double pivot, three behind the striker, ST.
+  '4-2-3-1': [90, 68, 70, 70, 68, 48, 48, 35, 32, 35, 15],
+  // GK, back four, midfield four, two strikers.
+  '4-4-2': [90, 68, 70, 70, 68, 44, 46, 46, 44, 22, 22],
+  // GK, back three, midfield five, two strikers.
+  '3-5-2': [90, 68, 70, 68, 45, 43, 47, 43, 45, 22, 22],
+  // GK, back three, midfield four, front three (central ST remains advanced).
+  '3-4-3': [90, 68, 70, 68, 44, 46, 46, 44, 20, 13, 20],
+  // GK, back five, midfield three, two strikers.
+  '5-3-2': [90, 66, 68, 70, 68, 66, 44, 47, 44, 22, 22],
+};
 
 // Connection colours by link type — shared with the legend in the squad screen.
 export const CHEM_LINK_COLOR: Record<ChemLinkType, string> = {
@@ -30,6 +50,12 @@ interface FormationFieldProps {
   chemLinks?: ChemLink[];
   onPlayerClick?: (player: Player, posIndex: number) => void;
   compact?: boolean;
+  // Card-field presentation: render the production compact PlayerCard at each
+  // position instead of the small circular token.
+  showPlayerCards?: boolean;
+  // Optional team-context stats. Omit this in Draft/shop/result previews so the field
+  // stays on card values; Meu Time supplies it for both starters and the bench.
+  effectiveStats?: Record<string, PlayerCardStats>;
   selectedPlayerIndex?: number | null;
   // Match mode — when provided, each token shows the live RATING (colour-coded) plus goal/assist
   // markers instead of the chemistry dot. Keyed by player.id (unique within a single XI).
@@ -73,6 +99,8 @@ export default function FormationField({
   chemLinks,
   onPlayerClick,
   compact = false,
+  showPlayerCards = false,
+  effectiveStats = {},
   selectedPlayerIndex = null,
   ratings,
   goalsByPlayer,
@@ -80,14 +108,45 @@ export default function FormationField({
   disciplineByPlayer,
   emergencyGoalkeeper,
 }: FormationFieldProps) {
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const fieldId = useId().replace(/:/g, '');
+  const [fieldPixelWidth, setFieldPixelWidth] = useState(0);
   const ratingMode = !!ratings;
   const ratingColor = (r: number) => r >= 8.5 ? '#d4af37' : r >= 7.5 ? '#22c55e' : r >= 6.5 ? '#e5e7eb' : r <= 5.3 ? '#ef4444' : '#f59e0b';
   // Intrinsic aspect used for the SVG viewBox + token sizing maths. The field itself is now
   // FLUID: it fills its container up to maxW and keeps this aspect ratio, so it never overflows
   // on mobile (no sideways drag) and stays centred. Positions are placed in % of the field.
-  const fieldWidth = compact ? 300 : 410;
-  const fieldHeight = compact ? 410 : 550;
-  const maxW = compact ? 300 : 410;
+  const fieldWidth = compact ? 300 : showPlayerCards ? 760 : 410;
+  const fieldHeight = compact ? 410 : showPlayerCards ? 1300 : 550;
+  const maxW = compact ? 300 : showPlayerCards ? 760 : 410;
+
+  useEffect(() => {
+    if (!showPlayerCards) return;
+    const node = fieldRef.current;
+    if (!node) return;
+    const updateWidth = () => setFieldPixelWidth(node.getBoundingClientRect().width);
+    updateWidth();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [showPlayerCards]);
+
+  // Five compact cards is the tightest supported row (5-3-2). Size the same
+  // card used by the TITULARES section from the rendered field width so it
+  // remains readable while preserving separation on narrow screens.
+  const cardScale = showPlayerCards
+    ? Math.min(1, Math.max(0.46, fieldPixelWidth > 0 ? (fieldPixelWidth * 0.18 - 8) / 92 : 0.9))
+    : 1;
+  // Keep the formation's original depth instead of snapping positions into broad
+  // row bands. This matters in shapes such as 4-3-3, where the central striker
+  // is intentionally ahead of the wingers. The small clamp keeps the outer card
+  // edges inside the field, especially for the goalkeeper at 92%.
+  const visualY = (y: number, positionIndex?: number) => {
+    if (!showPlayerCards) return y;
+    const tunedY = positionIndex === undefined ? y : RESULT_FORMATION_Y[formation.id]?.[positionIndex] ?? y;
+    return Math.min(90, Math.max(10, tunedY));
+  };
 
   const getChemColor = (score: number) => {
     if (score >= 3) return '#22C55E';
@@ -98,13 +157,19 @@ export default function FormationField({
 
   return (
     <div
+      ref={fieldRef}
       className="relative rounded-xl overflow-hidden mx-auto"
       style={{
         width: '100%',
         maxWidth: maxW,
         aspectRatio: `${fieldWidth} / ${fieldHeight}`,
-        background: 'linear-gradient(180deg, #0A2A0A 0%, #0D3A0D 50%, #0A2A0A 100%)',
-        border: '1px solid #1A4A1A',
+        background: [
+          'radial-gradient(ellipse at 50% 44%, rgba(35, 126, 57, 0.22) 0%, rgba(9, 49, 19, 0) 64%)',
+          'repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0.025) 7%, rgba(0,0,0,0.02) 7%, rgba(0,0,0,0.02) 14%)',
+          'linear-gradient(180deg, #08250E 0%, #0B3516 48%, #08270F 100%)',
+        ].join(','),
+        border: '1px solid #2E7D43',
+        boxShadow: 'inset 0 0 0 1px rgba(110, 201, 113, 0.12), inset 0 0 42px rgba(0, 0, 0, 0.24), 0 12px 30px rgba(0, 0, 0, 0.2)',
       }}
     >
       {/* Field markings — scales with the container via viewBox */}
@@ -112,37 +177,48 @@ export default function FormationField({
         className="absolute inset-0 w-full h-full"
         viewBox={`0 0 ${fieldWidth} ${fieldHeight}`}
         preserveAspectRatio="none"
-        style={{ opacity: 0.3 }}
+        style={{ opacity: 0.46 }}
       >
+        {/* Subtle field wash keeps the markings legible without competing with cards. */}
+        <defs>
+          <linearGradient id={`${fieldId}-lines`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#73C87A" stopOpacity="0.72" />
+            <stop offset="50%" stopColor="#4DAB5B" stopOpacity="0.88" />
+            <stop offset="100%" stopColor="#73C87A" stopOpacity="0.72" />
+          </linearGradient>
+        </defs>
+
         {/* Outer border */}
         <rect x="10" y="10" width={fieldWidth - 20} height={fieldHeight - 20}
-          fill="none" stroke="#2A6A2A" strokeWidth="1.5" />
+          fill="none" stroke={`url(#${fieldId}-lines)`} strokeWidth="2" rx="5" />
 
         {/* Center line */}
         <line x1="10" y1={fieldHeight / 2} x2={fieldWidth - 10} y2={fieldHeight / 2}
-          stroke="#2A6A2A" strokeWidth="1" />
+          stroke="#5CAF67" strokeWidth="1.4" />
 
         {/* Center circle */}
         <circle cx={fieldWidth / 2} cy={fieldHeight / 2} r={compact ? 35 : 45}
-          fill="none" stroke="#2A6A2A" strokeWidth="1" />
+          fill="rgba(68, 171, 88, 0.035)" stroke="#5CAF67" strokeWidth="1.35" />
         <circle cx={fieldWidth / 2} cy={fieldHeight / 2} r="3"
-          fill="#2A6A2A" />
+          fill="#78D17C" />
 
         {/* Top penalty area */}
         <rect x={fieldWidth * 0.25} y="10" width={fieldWidth * 0.5} height={fieldHeight * 0.18}
-          fill="none" stroke="#2A6A2A" strokeWidth="1" />
+          fill="rgba(72, 176, 88, 0.025)" stroke="#4DAB5B" strokeWidth="1.25" />
         {/* Top goal area */}
         <rect x={fieldWidth * 0.35} y="10" width={fieldWidth * 0.3} height={fieldHeight * 0.08}
-          fill="none" stroke="#2A6A2A" strokeWidth="1" />
+          fill="none" stroke="#4DAB5B" strokeWidth="1.25" />
+        <circle cx={fieldWidth / 2} cy={fieldHeight * 0.18} r="2.2" fill="#78D17C" />
 
         {/* Bottom penalty area */}
         <rect x={fieldWidth * 0.25} y={fieldHeight - fieldHeight * 0.18 - 10}
           width={fieldWidth * 0.5} height={fieldHeight * 0.18}
-          fill="none" stroke="#2A6A2A" strokeWidth="1" />
+          fill="rgba(72, 176, 88, 0.025)" stroke="#4DAB5B" strokeWidth="1.25" />
         {/* Bottom goal area */}
         <rect x={fieldWidth * 0.35} y={fieldHeight - fieldHeight * 0.08 - 10}
           width={fieldWidth * 0.3} height={fieldHeight * 0.08}
-          fill="none" stroke="#2A6A2A" strokeWidth="1" />
+          fill="none" stroke="#4DAB5B" strokeWidth="1.25" />
+        <circle cx={fieldWidth / 2} cy={fieldHeight * 0.82} r="2.2" fill="#78D17C" />
 
       </svg>
 
@@ -155,16 +231,16 @@ export default function FormationField({
             const posA = formation.positions[link.aIndex];
             const posB = formation.positions[link.bIndex];
             if (!posA || !posB) return null;
-            const x1 = (posA.x / 100) * fieldWidth, y1 = (posA.y / 100) * fieldHeight;
-            const x2 = (posB.x / 100) * fieldWidth, y2 = (posB.y / 100) * fieldHeight;
+            const x1 = (posA.x / 100) * fieldWidth, y1 = (visualY(posA.y, link.aIndex) / 100) * fieldHeight;
+            const x2 = (posB.x / 100) * fieldWidth, y2 = (visualY(posB.y, link.bIndex) / 100) * fieldHeight;
             const color = CHEM_LINK_COLOR[link.type];
             const hasSel = selectedPlayerIndex !== null && selectedPlayerIndex < formation.positions.length;
             const touchesSel = hasSel && (link.aIndex === selectedPlayerIndex || link.bIndex === selectedPlayerIndex);
-            const opacity = hasSel ? (touchesSel ? 0.95 : 0.1) : 0.5;
-            const width = touchesSel ? 2.6 : 1.6;
+            const opacity = hasSel ? (touchesSel ? 1 : 0.14) : 0.62;
+            const width = touchesSel ? 3.2 : 2;
             return (
               <line key={idx} x1={x1} y1={y1} x2={x2} y2={y2}
-                stroke={color} strokeWidth={width} strokeOpacity={opacity} strokeLinecap="round" />
+                stroke={color} strokeWidth={width} strokeOpacity={opacity} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             );
           })}
         </svg>
@@ -205,6 +281,77 @@ export default function FormationField({
         // (como no card) e aparecem num chip com o(s) ícone(s) no canto inferior esquerdo.
         const variants = player ? getCardVariants(player) : [];
         const tokenColor = variants[0]?.color ?? rarityColor;
+
+        if (showPlayerCards) {
+          return (
+            <motion.div
+              key={index}
+              className="absolute flex items-center justify-center"
+              style={{ left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: 92, height: 146 }}
+              transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: index * 0.04, duration: 0.2 }}
+              onClick={() => player && onPlayerClick?.(player, index)}
+            >
+              <div className="relative" style={{ width: 92, height: 146, transform: `scale(${cardScale})`, transformOrigin: 'center center' }}>
+                <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
+                  {player ? <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} /> : <div style={{ width: 92, height: 146 }} aria-hidden="true" />}
+                </div>
+
+                {/* Live match data stays visible after replacing the token with a card. */}
+                {ratingMode && player && r !== undefined && (
+                  <span
+                    className="absolute left-1/2 rounded font-black leading-none"
+                    style={{
+            bottom: -10, transform: 'translateX(-50%)', fontSize: 12, padding: '3px 5px',
+                      color: ratingColor(r), background: '#0B0B14', border: `1px solid ${ratingColor(r)}`,
+                      fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5,
+                    }}
+                  >
+                    {r.toFixed(1)}
+                  </span>
+                )}
+                {ratingMode && player && (g > 0 || a > 0) && (
+                  <span
+                    className="absolute rounded-full font-black leading-none"
+                    style={{
+                      top: -9, right: -9, fontSize: 11, padding: '2px 3px',
+                      color: '#FFF', background: '#0B0B14', border: '1px solid #FFFFFF55',
+                      fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5,
+                    }}
+                  >
+                    {g > 0 ? `⚽${g > 1 ? g : ''}` : ''}{a > 0 ? `🅰${a > 1 ? a : ''}` : ''}
+                  </span>
+                )}
+                {ratingMode && player && disc && (disc.red || disc.injury || disc.yellow > 0) && (
+                  <span
+                    className="absolute leading-none"
+                    style={{ top: -9, left: -9, fontSize: 11, whiteSpace: 'nowrap', zIndex: 5 }}
+                  >
+                    {disc.red ? '🟥' : disc.yellow > 1 ? '🟨🟨' : disc.yellow === 1 ? '🟨' : ''}{disc.injury ? '🩹' : ''}
+                  </span>
+                )}
+                {ratingMode && isEmergencyGoalkeeperSlot && player && (
+                  <span
+                    className="absolute rounded-full font-black leading-none"
+                    style={{ bottom: -9, left: -9, fontSize: 9, padding: '2px 4px', color: '#FDE68A', background: '#29200A', border: '1px solid #D4AF37', fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
+                  >
+                    GK
+                  </span>
+                )}
+                {ratingMode && isVacatedSlot && (
+                  <span
+                    className="absolute rounded-full font-black leading-none"
+                    style={{ bottom: -9, right: -9, fontSize: 8, padding: '2px 4px', color: '#9CA3AF', background: '#11111B', border: '1px solid #4B5563', fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
+                  >
+                    VAGA
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          );
+        }
 
         return (
           <motion.div
@@ -290,8 +437,8 @@ export default function FormationField({
                     <span
                       className="absolute left-1/2 font-black leading-none rounded"
                       style={{
-                        bottom: -6, transform: 'translateX(-50%)',
-                        fontSize: compact ? '7.5px' : '9px', padding: '1px 3px',
+              bottom: -7, transform: 'translateX(-50%)',
+              fontSize: compact ? '9px' : '11px', padding: '2px 4px',
                         color: rc, background: '#0b0b14', border: `1px solid ${rc}`,
                         fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap',
                       }}
@@ -399,13 +546,16 @@ export default function FormationField({
         );
       })}
 
-      {/* Formation label */}
-      <div
-        className="absolute bottom-2 right-2 text-xs font-bold"
-        style={{ color: '#C9A84C', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.1em' }}
-      >
-        {formation.name}
-      </div>
+      {/* In the result view the enlarged cards already identify the formation
+          through their positions; keeping this label would compete with the GK card. */}
+      {!showPlayerCards && (
+        <div
+          className="absolute bottom-2 right-2 text-xs font-bold"
+          style={{ color: '#C9A84C', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.1em' }}
+        >
+          {formation.name}
+        </div>
+      )}
     </div>
   );
 }

@@ -157,6 +157,7 @@ function FilterSelect({
 
 function PlayerDetail({ player, versionCount }: { player: AlbumPlayer; versionCount: number }) {
   const rarityColor = getRarityColor(player.rarity);
+  const originalOverall = player.baseOverall ?? player.overall;
   const secondaryPositions = effectiveSecondaries(player).filter(position => position !== player.position);
 
   return (
@@ -190,8 +191,9 @@ function PlayerDetail({ player, versionCount }: { player: AlbumPlayer; versionCo
 
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="ui-panel ui-panel--inset p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Geral</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Geral da carta</div>
             <div className="mt-1 font-display text-3xl leading-none tabular-nums" style={{ color: rarityColor }}>{player.overall}</div>
+            <div className="mt-1 text-[10px] font-semibold text-[var(--ui-text-faint)]">Base original: {originalOverall}</div>
           </div>
           <div className="ui-panel ui-panel--inset p-3">
             <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Posição</div>

@@ -16,9 +16,23 @@ export const MAX_QUALIFIED_TEAMS = 24;
 export const MIN_REINFORCEMENT_OPTIONS = 3;
 export const MAX_REINFORCEMENT_OPTIONS = 6;
 export const MAX_POINTS_PER_RULE = 1000;
+export const MIN_BET_ROUND_CAP = 0;
+export const MAX_BET_ROUND_CAP = 10000;
 
 export type CompetitionFormatId = 'league' | 'league_knockout' | 'groups_knockout' | 'knockout';
 export type ReinforcementMode = 'off' | 'round' | 'stage';
+
+export interface CompetitionMatchSettings {
+  injuriesEnabled: boolean;
+  cardsEnabled: boolean;
+  betRoundCap: number;
+}
+
+export const DEFAULT_MATCH_SETTINGS: CompetitionMatchSettings = {
+  injuriesEnabled: true,
+  cardsEnabled: true,
+  betRoundCap: 200,
+};
 
 /** Credits awarded to the player's shop balance after a completed match. */
 export interface CompetitionPointsConfig {
@@ -52,6 +66,7 @@ export interface CompetitionFormat {
   qualifiedPerGroup: number;
   knockoutLegs: 1 | 2;
   finalSingleLeg: boolean;
+  matchSettings: CompetitionMatchSettings;
   rewards: CompetitionRewardsConfig;
 }
 
@@ -94,6 +109,7 @@ const LEAGUE_DEFAULT: CompetitionFormat = {
   qualifiedPerGroup: 0,
   knockoutLegs: 1,
   finalSingleLeg: true,
+  matchSettings: { ...DEFAULT_MATCH_SETTINGS },
   rewards: { ...DEFAULT_REWARDS_CONFIG, reinforcementUntilRound: 19, knockoutPointsEnabled: false },
 };
 
@@ -108,6 +124,7 @@ const LEAGUE_KNOCKOUT_DEFAULT: CompetitionFormat = {
   qualifiedPerGroup: 0,
   knockoutLegs: 2,
   finalSingleLeg: true,
+  matchSettings: { ...DEFAULT_MATCH_SETTINGS },
   rewards: { ...DEFAULT_REWARDS_CONFIG },
 };
 
@@ -122,6 +139,7 @@ const GROUPS_KNOCKOUT_DEFAULT: CompetitionFormat = {
   qualifiedPerGroup: 2,
   knockoutLegs: 2,
   finalSingleLeg: true,
+  matchSettings: { ...DEFAULT_MATCH_SETTINGS },
   rewards: { ...DEFAULT_REWARDS_CONFIG, reinforcementUntilRound: 3 },
 };
 
@@ -136,6 +154,7 @@ const KNOCKOUT_DEFAULT: CompetitionFormat = {
   qualifiedPerGroup: 0,
   knockoutLegs: 1,
   finalSingleLeg: true,
+  matchSettings: { ...DEFAULT_MATCH_SETTINGS },
   rewards: { ...DEFAULT_REWARDS_CONFIG, reinforcement: 'off', reinforcementUntilRound: null },
 };
 
@@ -161,7 +180,11 @@ export const COMPETITION_FORMAT_PRESETS: Record<CompetitionFormatId, Competition
 };
 
 export function cloneCompetitionFormat(format: CompetitionFormat): CompetitionFormat {
-  return { ...format, rewards: { ...format.rewards, points: { ...format.rewards.points } } };
+  return {
+    ...format,
+    matchSettings: normalizeMatchSettings(format.matchSettings),
+    rewards: { ...format.rewards, points: { ...format.rewards.points } },
+  };
 }
 
 export function createCompetitionFormat(id: CompetitionFormatId): CompetitionFormat {
@@ -192,6 +215,20 @@ function validateRewards(rewards: unknown, maxReinforcementWindow: number): stri
     if (!isInteger(value.points[key]) || value.points[key] < 0 || value.points[key] > MAX_POINTS_PER_RULE) return `Cada regra de créditos deve ficar entre 0 e ${MAX_POINTS_PER_RULE}.`;
   }
   return null;
+}
+
+/** Safe defaults keep rooms/saves created before match settings were introduced playable. */
+export function normalizeMatchSettings(input: unknown): CompetitionMatchSettings {
+  if (!input || typeof input !== 'object') return { ...DEFAULT_MATCH_SETTINGS };
+  const value = input as Partial<CompetitionMatchSettings>;
+  const betRoundCap = Number(value.betRoundCap);
+  return {
+    injuriesEnabled: value.injuriesEnabled !== false,
+    cardsEnabled: value.cardsEnabled !== false,
+    betRoundCap: Number.isInteger(betRoundCap)
+      ? Math.min(MAX_BET_ROUND_CAP, Math.max(MIN_BET_ROUND_CAP, betRoundCap))
+      : DEFAULT_MATCH_SETTINGS.betRoundCap,
+  };
 }
 
 /** Maximum useful value for the reinforcement window in the selected format. */
@@ -246,6 +283,11 @@ export function validateCompetitionFormat(value: unknown): string | null {
   if (format.id === 'knockout' && (!isPowerOfTwo(format.teamCount) || format.teamCount > 16)) return 'O mata-mata direto deve ter 4, 8 ou 16 times.';
   if (format.knockoutLegs !== 1 && format.knockoutLegs !== 2) return 'Escolha se os confrontos terão uma ou duas partidas.';
   if (typeof format.finalSingleLeg !== 'boolean') return 'Defina o formato da final.';
+  if (format.matchSettings !== undefined) {
+    const settings = format.matchSettings as Partial<CompetitionMatchSettings>;
+    if (typeof settings.injuriesEnabled !== 'boolean' || typeof settings.cardsEnabled !== 'boolean') return 'Defina se lesões e cartões estarão ativos.';
+    if (!isInteger(settings.betRoundCap) || settings.betRoundCap < MIN_BET_ROUND_CAP || settings.betRoundCap > MAX_BET_ROUND_CAP) return `O limite de aposta deve ficar entre ${MIN_BET_ROUND_CAP} e ${MAX_BET_ROUND_CAP}.`;
+  }
   if (format.id === 'league' && format.rewards?.reinforcement === 'stage') return 'Pontos corridos aceita reforço por rodada, não por fase.';
   if (format.id === 'knockout' && format.rewards?.reinforcement === 'round') return 'O mata-mata direto aceita reforço por fase, não por rodada.';
   const rewardsError = validateRewards(format.rewards, reinforcementWindowLimit(format as CompetitionFormat));
@@ -261,7 +303,9 @@ export function normalizeCompetitionFormat(value: unknown): CompetitionFormat {
       return cloneCompetitionFormat({ ...DEFAULT_COMPETITION_FORMAT, leagueRounds: legacy.leagueRounds!, qualifiedTeams: legacy.qualifiedTeams!, rewards: { ...DEFAULT_COMPETITION_FORMAT.rewards, reinforcementUntilRound: legacy.leagueRounds! } });
     }
   }
-  return validateCompetitionFormat(value) === null ? cloneCompetitionFormat(value as CompetitionFormat) : cloneCompetitionFormat(DEFAULT_COMPETITION_FORMAT);
+  if (validateCompetitionFormat(value) !== null) return cloneCompetitionFormat(DEFAULT_COMPETITION_FORMAT);
+  const format = value as CompetitionFormat;
+  return cloneCompetitionFormat({ ...format, matchSettings: normalizeMatchSettings(format.matchSettings) });
 }
 
 export function directQualifiersFor(format: CompetitionFormat): number {

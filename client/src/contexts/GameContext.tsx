@@ -22,7 +22,7 @@ import {
 import type { MatchPlan, VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
-import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, revealEligibleKoBets, settleBet } from '../lib/bets';
+import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, revealEligibleKoBets, settleBet, BET_ROUND_CAP } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, applyEmergencyReplacement } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
@@ -733,7 +733,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const existing = state.bets.find(b => b.matchKey === action.matchKey);
       const escrowDelta = action.stake - (existing?.stake ?? 0); // >0 debita mais, <0 devolve
       if (escrowDelta > state.points) return state;               // saldo insuficiente
-      if (!canPlaceStake(state.bets, prefix, action.matchKey, action.stake)) return state; // teto da rodada
+      const betCap = state.competitionFormat?.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
+      if (!canPlaceStake(state.bets, prefix, action.matchKey, action.stake, betCap)) return state; // teto da rodada
       const bet: Bet = { matchKey: action.matchKey, homeGoals: action.homeGoals, awayGoals: action.awayGoals, stake: action.stake };
       const bets = existing
         ? state.bets.map(b => b.matchKey === action.matchKey ? bet : b)
@@ -908,7 +909,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (f.played) return f;
         const home = allTeams.find(t => t.id === f.homeTeamId)!;
         const away = allTeams.find(t => t.id === f.awayTeamId)!;
-        const result = simulateMatch(home, away);
+        const result = simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings);
         return { ...f, played: true, result };
       });
       const standings = computeStandings(allTeams, updatedFixtures);
@@ -953,7 +954,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // aqui preservamos o currentMatchResult existente pra não interferir.
       const currentMatchResult = state.mode === 'online'
         ? state.currentMatchResult
-        : simulateMatch(rHome, rAway);
+        : simulateMatch(rHome, rAway, false, false, true, false, state.competitionFormat?.matchSettings);
 
       return {
         ...state,
@@ -995,7 +996,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (f.round === state.leagueRound && !f.played) {
           const home = resolveAvailableLineup(allTeams.find(t => t.id === f.homeTeamId)!, state.discipline).team;
           const away = resolveAvailableLineup(allTeams.find(t => t.id === f.awayTeamId)!, state.discipline).team;
-          const result = simulateMatch(home, away);
+          const result = simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings);
           return { ...f, played: true, result };
         }
         return f;
@@ -1070,7 +1071,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (f.round === state.leagueRound && !f.played) {
           const home = allTeams.find(t => t.id === f.homeTeamId)!;
           const away = allTeams.find(t => t.id === f.awayTeamId)!;
-          const result = simulateMatch(home, away);
+          const result = simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings);
           return { ...f, played: true, result };
         }
         return f;
@@ -1123,7 +1124,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         const t = allTeams.find(tm => tm.id === id);
         return t ? resolveAvailableLineup(t, state.discipline).team : undefined;
       };
-      playActiveKnockoutLeg(bracket as any, resolveFn as any);
+      playActiveKnockoutLeg(bracket as any, resolveFn as any, state.competitionFormat?.matchSettings);
       // Aplica a disciplina da PERNA recém-jogada (times da rodada ativa).
       const active = getActiveKnockoutMatches(bracket) as any[];
       const legNum = state.knockoutBracket.currentLeg;

@@ -18,6 +18,7 @@ interface RoleablePlayer {
   shortName: string;
   position: string;
   overall: number;
+  effectiveOverall?: number;
   rarity?: string;
   composure?: number;
   pace?: number;
@@ -74,6 +75,8 @@ function freeKickScoreFor(p: RoleablePlayer): number {
     + ((p.traits?.includes('Cobrador de Falta') || p.traits?.includes('Cobrança de Falta')) ? 50 : 0);
 }
 
+const overallForDisplay = (p: RoleablePlayer): number => p.effectiveOverall ?? p.overall;
+
 export default function RolesSelector({
   players,
   captainId,
@@ -86,11 +89,11 @@ export default function RolesSelector({
   // Suggested picks: best captain = highest bonus (tiebreak overall);
   // best taker = highest penalty score; best free-kick = highest FK score.
   const suggestedCaptainId = [...players]
-    .sort((a, b) => captainBestStatOf(b).value - captainBestStatOf(a).value || b.overall - a.overall)[0]?.id;
+    .sort((a, b) => captainBestStatOf(b).value - captainBestStatOf(a).value || overallForDisplay(b) - overallForDisplay(a))[0]?.id;
   const suggestedTakerId = [...players]
-    .sort((a, b) => penaltyScoreFor(b) - penaltyScoreFor(a) || b.overall - a.overall)[0]?.id;
+    .sort((a, b) => penaltyScoreFor(b) - penaltyScoreFor(a) || overallForDisplay(b) - overallForDisplay(a))[0]?.id;
   const suggestedFreeKickId = [...players]
-    .sort((a, b) => freeKickScoreFor(b) - freeKickScoreFor(a) || b.overall - a.overall)[0]?.id;
+    .sort((a, b) => freeKickScoreFor(b) - freeKickScoreFor(a) || overallForDisplay(b) - overallForDisplay(a))[0]?.id;
 
   const captain = players.find(p => p.id === captainId);
   const taker = players.find(p => p.id === penaltyTakerId);
@@ -182,7 +185,7 @@ export default function RolesSelector({
                 </span>
               )}
               <span className="text-[9px] font-bold text-gray-500 flex-shrink-0" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                GER {p.overall}
+                GER {overallForDisplay(p)}
               </span>
 
               <button

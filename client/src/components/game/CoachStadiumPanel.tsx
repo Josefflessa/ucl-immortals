@@ -16,6 +16,7 @@ interface Props {
   wins?: number;
   points?: number;
   onEvolve?: () => void; // presente só no MEU TIME (editável); ausente = só exibição
+  reportSummary?: boolean; // resumo enxuto usado exclusivamente no resultado final
 }
 
 function Req({ ok, label }: { ok: boolean; label: string }) {
@@ -64,8 +65,9 @@ function ChangeRow({ icon, label, from, to, last }: { icon: string; label: strin
 }
 
 // Card único "TÉCNICO & ESTÁDIO": técnico em cima (com o botão de evoluir), estádio embaixo.
-export default function CoachStadiumPanel({ coach, formation, coachPrime, stadium, wins = 0, points = 0, onEvolve }: Props) {
+export default function CoachStadiumPanel({ coach, formation, coachPrime, stadium, wins = 0, points = 0, onEvolve, reportSummary = false }: Props) {
   const [showModal, setShowModal] = useState(false);
+  const [reportStadiumImgOk, setReportStadiumImgOk] = useState(true);
   const canEvolve = wins >= PRIME_WINS_REQUIRED && points >= PRIME_COST;
   const primeStadium = stadiumFor(coach.id, true);
   const hasPrime = primeStadium.prime === true;
@@ -76,6 +78,62 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
   ));
   const themedTargetPrefix = primeStadium.themedClub ? 'do' : 'de';
   const themedTargetName = primeStadium.themedClub ?? primeStadium.themedNation ?? '';
+  const reportCoachPhoto = coachPrime && stadium.coachPhotoUrl ? stadium.coachPhotoUrl : coach.photoUrl;
+
+  if (reportSummary) {
+    return (
+      <div className="ui-panel overflow-hidden">
+        <div className="ui-panel__header justify-center text-center">
+          <span className="ui-panel__title">Técnico &amp; estádio</span>
+        </div>
+        <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0" style={{ borderColor: '#1A1A2A' }}>
+          <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
+            <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+              TÉCNICO
+            </div>
+            {reportCoachPhoto && (
+              <div className="relative mt-3 h-[100px] w-[100px] flex-shrink-0">
+                <img
+                  src={reportCoachPhoto}
+                  alt={coach.name}
+                  referrerPolicy="no-referrer"
+                  className="h-[100px] w-[100px] rounded-xl object-cover"
+                  style={{ border: `2px solid ${coachPrime ? '#E8C84A' : '#C9A84C55'}`, objectPosition: 'center top' }}
+                />
+                {coachPrime && <img src="/coaches/prime/moldura.webp" alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />}
+              </div>
+            )}
+            <div className="mt-2 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>
+              {coach.name}
+            </div>
+            <div className="mt-2 text-sm font-black" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+              {coach.philosophy}
+            </div>
+            <p className="mt-2 max-w-md text-xs leading-relaxed" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+              {coach.description}
+            </p>
+          </div>
+          <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
+            <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+              ESTÁDIO
+            </div>
+            {reportStadiumImgOk && (
+              <img
+                src={stadium.photoUrl}
+                alt={stadium.name}
+                onError={() => setReportStadiumImgOk(false)}
+                className="mt-3 h-[120px] w-[120px] rounded-xl object-cover"
+                style={{ border: `2px solid ${stadium.prime ? '#E8C84A88' : '#16A34A55'}` }}
+              />
+            )}
+            <div className="mt-3 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>
+              {stadium.name}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ui-panel overflow-hidden">

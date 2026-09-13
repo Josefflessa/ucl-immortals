@@ -13,8 +13,6 @@ import BetSlipModal from './BetSlipModal';
 import { buildKnockoutMatchKey, BET_ROUND_CAP, Bet } from '../../lib/bets';
 import { unavailableStarters } from '../../lib/discipline';
 
-const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
-
 export default function KnockoutTiesTab() {
   const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
   const { knockoutBracket, playerTeam } = state;
@@ -143,18 +141,6 @@ export default function KnockoutTiesTab() {
 
   return (
     <>
-      {/* Final: trophy for drama */}
-      {isFinal && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex justify-center mb-4 sm:mb-6"
-        >
-          <img src={TROPHY_URL} alt="Trophy" className="w-16 h-20 sm:w-24 sm:h-32 object-contain"
-            style={{ filter: 'drop-shadow(0 0 30px rgba(201,168,76,0.6))' }} />
-        </motion.div>
-      )}
-
         {/* Confrontos da fase atual */}
         <div className="space-y-4">
           {matches.map((match, i) => {
@@ -538,6 +524,8 @@ export default function KnockoutTiesTab() {
             homeName={viewingResult.homeName}
             awayName={viewingResult.awayName}
             subtitle={viewingResult.subtitle}
+            isKnockout
+            isFinal={isFinal}
             onClose={() => setViewingResult(null)}
           />
         )}
@@ -547,7 +535,7 @@ export default function KnockoutTiesTab() {
       <AnimatePresence>
         {betSlip && (() => {
           const myBet = betFor(betSlip.matchKey);
-          const capLeft = BET_ROUND_CAP; // por jogo: cada partida vai até o teto cheio
+          const capLeft = state.competitionFormat?.matchSettings?.betRoundCap ?? BET_ROUND_CAP; // por jogo: cada partida vai até o teto cheio
           return (
             <BetSlipModal
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}

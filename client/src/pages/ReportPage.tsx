@@ -5,12 +5,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
-import { FORMATIONS, COACHES, getTacticById, getRarityColor, getRarityGlow, POS_PT } from '../lib/gameData';
+import { FORMATIONS, COACHES, getRarityColor, getRarityGlow, POS_PT, type Player } from '../lib/gameData';
 import {
   calculateChemistry,
   getAllPlayedMatchResults,
   getPlayerSeasonStats,
-  getPlayerEffectiveStats,
+  getTeamEffectiveStats,
   getChemistryLinks,
 } from '../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
@@ -18,80 +18,27 @@ import CoachStadiumPanel from '../components/game/CoachStadiumPanel';
 import { stadiumFor } from '../lib/stadium';
 import Crest from '../components/game/Crest';
 import PlayerCard from '../components/game/PlayerCard';
+import PlayerAvatar from '../components/game/PlayerAvatar';
 import { AppShell, Button, PageContainer, TopBar } from '../design-system';
-const TROPHY_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-trophy-oKrRV4CKRhdEsz5wuhybrL.webp';
 
-// ── Stable particle data (computed once at module load) ──────────────────────
-const CONFETTI = Array.from({ length: 50 }, (_, i) => ({
-  id: i,
-  x: Math.random() * 100,
-  size: Math.random() * 9 + 4,
-  color: ['#C9A84C', '#E8C84A', '#FFFFFF', '#1B4FD8', '#22C55E', '#EF4444', '#A855F7'][
-    Math.floor(Math.random() * 7)
-  ],
-  delay: Math.random() * 7,
-  duration: 3.5 + Math.random() * 3.5,
-  xDrift: (Math.random() - 0.5) * 280,
-  spin: Math.random() * 720 * (Math.random() > 0.5 ? 1 : -1),
-  isSquare: Math.random() > 0.5,
-}));
+function playerInitials(player: Player): string {
+  const parts = player.shortName.trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : parts[0]?.slice(0, 2) ?? '?').toUpperCase();
+}
 
-const FIREWORK_BURSTS = Array.from({ length: 8 }, (_, i) => ({
-  id: i,
-  cx: 8 + i * 12,
-  cy: 8 + Math.random() * 28,
-  delay: 0.3 + i * 0.55,
-  color: ['#C9A84C', '#E8C84A', '#FFFFFF', '#1B4FD8', '#22C55E', '#EF4444', '#A855F7', '#C9A84C'][i],
-  rays: 10 + Math.floor(Math.random() * 6),
-}));
-
-const STAR_FIELD = Array.from({ length: 60 }, (_, i) => ({
-  id: i,
-  x: Math.random() * 100,
-  y: Math.random() * 100,
-  size: Math.random() * 2 + 0.5,
-  opacity: Math.random() * 0.6 + 0.1,
-  twinkleDuration: 1.5 + Math.random() * 3,
-  twinkleDelay: Math.random() * 4,
-}));
-
-// ── Firework burst ray component ─────────────────────────────────────────────
-function FireworkBurst({ cx, cy, color, rays, delay }: { cx: number; cy: number; color: string; rays: number; delay: number }) {
+function HighlightPortrait({ player, color }: { player: Player; color: string }) {
   return (
-    <>
-      {Array.from({ length: rays }, (_, r) => {
-        const angle = (r / rays) * 360;
-        const length = 3 + Math.random() * 5;
-        return (
-          <motion.div
-            key={r}
-            className="absolute origin-center"
-            style={{
-              left: `${cx}%`,
-              top: `${cy}%`,
-              width: 2,
-              height: 2,
-              background: color,
-              borderRadius: '50%',
-            }}
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{
-              opacity: [0, 1, 0.8, 0],
-              scale: [0, 1],
-              x: [0, Math.cos((angle * Math.PI) / 180) * length * 12],
-              y: [0, Math.sin((angle * Math.PI) / 180) * length * 12],
-            }}
-            transition={{
-              duration: 1.2,
-              delay,
-              repeat: Infinity,
-              repeatDelay: FIREWORK_BURSTS.length * 0.55 + 1,
-              ease: [0.2, 0, 0.8, 1],
-            }}
-          />
-        );
-      })}
-    </>
+    <PlayerAvatar
+      playerId={player.id}
+      rarity={player.rarity}
+      size={54}
+      rounded="rounded-xl"
+      fallback={
+        <span className="text-sm font-black" style={{ color, fontFamily: 'Bebas Neue, sans-serif' }}>
+          {playerInitials(player)}
+        </span>
+      }
+    />
   );
 }
 
@@ -197,58 +144,38 @@ export default function ReportPage() {
     return margins.sort((a: any, b: any) => b.m - a.m)[0] ?? null;
   }, [playerResults, localTeamId]);
   const coach = COACHES.find(c => c.id === playerTeam?.coachId);
-  const tacticName = getTacticById(playerTeam?.playStyle).name;
+  const finalResult = knockoutBracket?.final?.result;
+  const reportFinalResult = finalResult && playerTeam && (
+    finalResult.homeTeamId === playerTeam.id || finalResult.awayTeamId === playerTeam.id
+  ) ? finalResult : undefined;
+  const reportIsKnockout = state.competitionFormat.id !== 'league' || !!knockoutBracket;
+  const reportIsFinal = !!reportFinalResult;
+  const reportIsLosing = !!playerTeam && !!reportFinalResult && (
+    reportFinalResult.homeTeamId === playerTeam?.id
+      ? reportFinalResult.homeGoals < reportFinalResult.awayGoals
+      : reportFinalResult.awayGoals < reportFinalResult.homeGoals
+  );
+  const reportPlayStyle = reportFinalResult
+    ? reportFinalResult.events
+      .filter(event => event.type === 'tactic' && event.teamId === playerTeam?.id && event.tacticAction)
+      .sort((a, b) => a.minute - b.minute)
+      .at(-1)?.tacticAction ?? playerTeam?.playStyle
+    : playerTeam?.playStyle;
+  const effectiveStatsById = playerTeam
+    ? getTeamEffectiveStats(playerTeam, {
+        playStyle: reportPlayStyle,
+        isKnockout: reportIsKnockout,
+        isFinal: reportIsFinal,
+        isLosing: reportIsLosing,
+      })
+    : {};
   const teamOverall = (playerTeam && chemData && starters.length === 11)
-    ? Math.round(starters.reduce((s, p, idx) => s + getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, playerTeam.coachId, chemData.total, playerTeam.playStyle, { role: FORMATIONS.find(f => f.id === playerTeam.formationId)?.positions[idx]?.role ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false }).overall, 0) / 11)
+    ? Math.round(starters.reduce((s, p) => s + (effectiveStatsById[p.id]?.overall ?? p.overall), 0) / 11)
     : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AppShell immersive className="flex flex-col overflow-x-hidden">
-
-      {/* ── BACKGROUND: starfield ──────────────────────────────────────────── */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        {STAR_FIELD.map(s => (
-          <motion.div
-            key={s.id}
-            className="absolute rounded-full"
-            style={{ left: `${s.x}%`, top: `${s.y}%`, width: s.size, height: s.size, background: '#fff', opacity: s.opacity }}
-            animate={{ opacity: [s.opacity, s.opacity * 0.2, s.opacity] }}
-            transition={{ duration: s.twinkleDuration, repeat: Infinity, delay: s.twinkleDelay, ease: 'easeInOut' }}
-          />
-        ))}
-      </div>
-
-      {/* ── BACKGROUND: confetti (champion only) ──────────────────────────── */}
-      {isChampion && phase >= 2 && (
-        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-          {CONFETTI.map(p => (
-            <motion.div
-              key={p.id}
-              className="absolute"
-              style={{
-                width: p.size, height: p.size,
-                background: p.color,
-                left: `${p.x}%`,
-                top: -20,
-                borderRadius: p.isSquare ? 2 : '50%',
-              }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 1, 0], y: ['0vh', '105vh'], x: [0, p.xDrift], rotate: [0, p.spin] }}
-              transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: 'linear' }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* ── BACKGROUND: firework bursts (champion only) ───────────────────── */}
-      {isChampion && phase >= 2 && (
-        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-          {FIREWORK_BURSTS.map(b => (
-            <FireworkBurst key={b.id} cx={b.cx} cy={b.cy} color={b.color} rays={b.rays} delay={b.delay} />
-          ))}
-        </div>
-      )}
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
       <TopBar title="UCL IMMORTALS — FIM DE TEMPORADA" />
@@ -258,52 +185,6 @@ export default function ReportPage() {
 
         {isChampion ? (
           <>
-            {/* Pulsing glow ring behind trophy */}
-            <AnimatePresence>
-              {phase >= 1 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.3 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="absolute"
-                  style={{ width: 220, height: 220 }}
-                >
-                  <motion.div
-                    className="absolute inset-0 rounded-full"
-                    animate={{ opacity: [0.25, 0.6, 0.25], scale: [1, 1.15, 1] }}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                    style={{ background: 'radial-gradient(circle, rgba(201,168,76,0.6) 0%, transparent 70%)' }}
-                  />
-                  <motion.div
-                    className="absolute inset-0 rounded-full"
-                    animate={{ opacity: [0.1, 0.35, 0.1], scale: [1.1, 1.35, 1.1] }}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
-                    style={{ background: 'radial-gradient(circle, rgba(232,200,74,0.4) 0%, transparent 70%)' }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Trophy */}
-            <AnimatePresence>
-              {phase >= 1 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.3, y: 40 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 180, damping: 14 }}
-                  className="relative z-10"
-                >
-                  <motion.img
-                    src={TROPHY_URL}
-                    alt="Troféu"
-                    className="w-36 sm:w-44 object-contain"
-                    animate={{ rotate: [-4, 4, -4], y: [0, -8, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                    style={{ filter: 'drop-shadow(0 0 50px rgba(201,168,76,0.9)) drop-shadow(0 0 100px rgba(232,200,74,0.5))' }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             {/* CAMPEÃO! heading */}
             <AnimatePresence>
               {phase >= 2 && (
@@ -449,20 +330,7 @@ export default function ReportPage() {
             <div className="px-5 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
               <span className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>FICHA DA CAMPANHA</span>
             </div>
-            {/* Team identity */}
-            <div className="grid grid-cols-3 divide-x" style={{ borderColor: '#1A1A2A' }}>
-              {[
-                { l: 'FORMAÇÃO', v: playerTeam.formationId, c: '#fff' },
-                { l: 'TÁTICA', v: tacticName, c: '#4FC3F7' },
-                { l: 'OVERALL', v: teamOverall != null ? `${teamOverall}` : '—', c: '#E8C84A' },
-              ].map(m => (
-                <div key={m.l} className="px-4 py-3" style={{ borderColor: '#1A1A2A' }}>
-                  <div className="text-[9px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{m.l}</div>
-                  <div className="text-sm font-black truncate mt-0.5" style={{ color: m.c, fontFamily: 'Rajdhani, sans-serif' }}>{m.v}</div>
-                </div>
-              ))}
-            </div>
-            {/* Advanced stats */}
+            {/* Formação, tática e geral já aparecem no cabeçalho acima. */}
             <div className="grid grid-cols-2 sm:grid-cols-4 border-t" style={{ borderColor: '#1A1A2A' }}>
               {[
                 { l: 'SALDO DE GOLS', v: `${goalDiff > 0 ? '+' : ''}${goalDiff}`, c: goalDiff >= 0 ? '#22C55E' : '#EF4444' },
@@ -494,7 +362,7 @@ export default function ReportPage() {
             <div className="divide-y" style={{ borderColor: '#1A1A2A' }}>
               {topScorer && (
                 <div className="flex items-center gap-4 px-5 py-4">
-                  <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>⚽</div>
+                  <HighlightPortrait player={topScorer.pl} color="#C9A84C" />
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>ARTILHEIRO</div>
                     <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topScorer.pl.shortName}</div>
@@ -508,7 +376,7 @@ export default function ReportPage() {
               )}
               {topRating && (
                 <div className="flex items-center gap-4 px-5 py-4">
-                  <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#22C55E' }}>⭐</div>
+                  <HighlightPortrait player={topRating.pl} color="#22C55E" />
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>MELHOR NOTA MÉDIA</div>
                     <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topRating.pl.shortName}</div>
@@ -522,7 +390,7 @@ export default function ReportPage() {
               )}
               {topAssister && (
                 <div className="flex items-center gap-4 px-5 py-4">
-                  <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#4FC3F7' }}>👟</div>
+                  <HighlightPortrait player={topAssister.pl} color="#4FC3F7" />
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>REI DAS ASSISTÊNCIAS</div>
                     <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topAssister.pl.shortName}</div>
@@ -557,6 +425,7 @@ export default function ReportPage() {
               formation={formation}
               coachPrime={!!playerTeam.coachPrime}
               stadium={stadiumFor(playerTeam.coachId, !!playerTeam.coachPrime)}
+              reportSummary
             />
           </motion.div>
         )}
@@ -570,16 +439,34 @@ export default function ReportPage() {
             className="rounded-xl overflow-hidden"
             style={{ background: '#0F0F1A', border: `1px solid ${isChampion ? '#C9A84C55' : '#1A1A2A'}` }}
           >
-            <div className="px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: '#1A1A2A', background: isChampion ? '#C9A84C11' : 'transparent' }}>
-              <Crest crestId={playerTeam.crestId} name={playerTeam.name} size={22} />
-              <span className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
-                {isChampion ? '🏆 ' : ''}ELENCO — {playerTeam.name}
-              </span>
-              {chemData && (
-                <span className="ml-auto text-xs font-bold" style={{ color: '#3B82F6', fontFamily: 'Rajdhani, sans-serif' }}>
-                  ⚗️ {chemData.total}%
-                </span>
-              )}
+            <div className="border-b px-5 py-4" style={{ borderColor: '#1A1A2A', background: isChampion ? '#C9A84C11' : 'transparent' }}>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                <div className="flex min-w-[180px] flex-1 items-center gap-3">
+                  <Crest
+                    crestId={playerTeam.crestId}
+                    name={playerTeam.name}
+                    size={42}
+                    className="flex-shrink-0 drop-shadow-[0_0_10px_rgba(201,168,76,0.25)]"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>ESCALAÇÃO FINAL</div>
+                    <div className="truncate text-base font-black" style={{ color: '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>{playerTeam.name}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  {chemData && (
+                    <div className="flex items-baseline gap-2 whitespace-nowrap">
+                      <span className="text-[9px] font-black tracking-widest" style={{ color: '#7A8A7F', fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA</span>
+                      <strong className="text-xl leading-none" style={{ color: '#22C55E', fontFamily: 'Bebas Neue, sans-serif' }}>{chemData.total}%</strong>
+                    </div>
+                  )}
+                  <div className="h-5 w-px" style={{ background: '#2A2A3A' }} />
+                  <div className="flex items-baseline gap-2 whitespace-nowrap">
+                    <span className="text-[9px] font-black tracking-widest" style={{ color: '#8A8290', fontFamily: 'Rajdhani, sans-serif' }}>GERAL DO TIME</span>
+                    <strong className="text-xl leading-none" style={{ color: '#E8C84A', fontFamily: 'Bebas Neue, sans-serif' }}>{teamOverall ?? '—'}</strong>
+                  </div>
+                </div>
+              </div>
             </div>
             {/* XI no campo, com as linhas de química (mesmo clube / nação / técnico / dupla) */}
             {formation && starters.length === 11 && chemData && (
@@ -590,6 +477,8 @@ export default function ReportPage() {
                   chemistryScores={chemData.individual}
                   showChemLines
                   chemLinks={getChemistryLinks(starters, playerTeam.coachId)}
+                  showPlayerCards
+                  effectiveStats={effectiveStatsById}
                 />
                 {/* Legenda das conexões — com a contagem de cada tipo no XI */}
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 mt-3">
@@ -620,7 +509,7 @@ export default function ReportPage() {
                 <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                   {starters.map((pl, i) => (
                     <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
-                      <PlayerCard player={pl} compact lite />
+                      <PlayerCard player={pl} compact lite effectiveStats={effectiveStatsById[pl.id]} />
                     </motion.div>
                   ))}
                 </div>
@@ -632,7 +521,7 @@ export default function ReportPage() {
                   <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                     {bench.map((pl, i) => (
                       <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
-                        <PlayerCard player={pl} compact lite />
+                        <PlayerCard player={pl} compact lite effectiveStats={effectiveStatsById[pl.id]} />
                       </motion.div>
                     ))}
                   </div>

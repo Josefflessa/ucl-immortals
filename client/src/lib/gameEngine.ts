@@ -27,7 +27,14 @@ import {
   DANGEROUS_FOUL_CARD_MULT, THREAT_FOUL_CARD_MULT, DANGEROUS_FOUL_INJURY_MULT,
   compressAggression, settleFactor, SECOND_YELLOW_LENIENCY,
 } from './discipline';
-import { DEFAULT_COMPETITION_FORMAT, normalizeCompetitionFormat, type CompetitionFormat } from './competition';
+import {
+  DEFAULT_COMPETITION_FORMAT,
+  DEFAULT_MATCH_SETTINGS,
+  normalizeCompetitionFormat,
+  normalizeMatchSettings,
+  type CompetitionFormat,
+  type CompetitionMatchSettings,
+} from './competition';
 
 // Re-export the discipline multiplier used by the UI so the selector and the match engine
 // always read the same source of truth.
@@ -520,6 +527,7 @@ export interface StatBreakdown {
   captain: number;    // captain leadership bonus (+CAPTAIN_BOOST on the captain's best stat, for everyone)
   train: number;      // 💪 shop "Treino" — permanent, stacking per-attribute boost
   evolve: number;     // ⭐ Carta Evoluída — bônus do atributo escolhido
+  prodigio: number;   // 📈 Prodígio — +1 por titularidade desde que a carta recebeu a característica
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
@@ -794,6 +802,8 @@ export function getPlayerEffectiveStats(
   // other additive buffs — it feeds the per-attribute delta and therefore the effective overall.
   const trainBonus = (attr: AttrKey): number => player.trainBoosts?.[attr] ?? 0;
   const evolveBonus = (attr: AttrKey): number => player.evolvePoints?.[attr] ?? 0;
+  // 📈 Prodígio: a cada partida iniciada como titular desde que a carta recebeu a característica.
+  const prodigioBonus = (_attr: AttrKey): number => player.prodigio ? (player.prodigioStarts ?? 0) : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing THIS player (Mártir/Ídolo/12º Homem).
   const charB = context?.charBoosts?.[player.id];
@@ -804,7 +814,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -833,6 +843,7 @@ export function getPlayerEffectiveStats(
     captain: captainBonus(attr),
     train: trainBonus(attr),
     evolve: evolveBonus(attr),
+    prodigio: prodigioBonus(attr),
     char: charBonus(attr),
   });
 
@@ -952,6 +963,62 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
   return map;
 }
 
+export interface TeamEffectiveStatsOptions {
+  playStyle?: string;
+  isKnockout?: boolean;
+  isFinal?: boolean;
+  isLosing?: boolean;
+  // Match-only role changes, e.g. a line player taking the goal after a red card.
+  roleOverrides?: Record<string, string>;
+}
+
+/**
+ * Builds one effective-stat snapshot for every card in a team.
+ *
+ * This is deliberately team-scoped: the card value remains the source of truth
+ * in Draft/shop/album/reinforcement pickers, while squad and match views can ask
+ * for the same complete calculation (chemistry, coach, traits, tactic, captain
+ * and team-effect characteristics) without duplicating the rules in each screen.
+ * Reserves keep the team's global context, but do not receive an XI-only
+ * individual chemistry, position or captain assignment.
+ */
+export function getTeamEffectiveStats(
+  team: Team,
+  options: TeamEffectiveStatsOptions = {},
+): Record<string, EffectiveStats> {
+  const formation = FORMATIONS.find(f => f.id === team.formationId);
+  const formationRoles = formation?.positions.map(position => position.role) ?? [];
+  const starters = team.players.slice(0, 11);
+  const chemistry = calculateChemistry(starters, team.coachId, formationRoles, team.formationId);
+  const captainBoost = captainBoostForTeam(team) ?? undefined;
+  const charBoosts = computeCharacteristicBoosts(team.players);
+  const playStyle = options.playStyle ?? team.playStyle ?? 'balanced';
+
+  return Object.fromEntries(team.players.map((player, index) => {
+    const isStarter = index < 11;
+    const effective = getPlayerEffectiveStats(
+      player,
+      isStarter ? (chemistry.individual[player.id] ?? 0) : 0,
+      isStarter ? (chemistry.outOfPosition[player.id] ?? false) : false,
+      team.coachId,
+      // Chemistry's global tier is a team-wide effect, including for the bench.
+      chemistry.total,
+      playStyle,
+      {
+        captainBoost: isStarter ? captainBoost : undefined,
+        charBoosts,
+        isKnockout: options.isKnockout,
+        isFinal: options.isFinal,
+        isLosing: options.isLosing,
+        role: options.roleOverrides?.[player.id]
+          ?? (isStarter ? (formationRoles[index] ?? player.position) : player.position),
+        isSecondary: isStarter ? (chemistry.secondaryPos[player.id] ?? false) : false,
+      },
+    );
+    return [player.id, effective];
+  }));
+}
+
 // Average passing of a team's midfield (central + wide mids) — a proxy for who
 // controls the middle of the pitch. Used so a side that out-passes the opponent's
 // midfield manufactures BETTER chances (passing finally feeds chance creation, not
@@ -1010,11 +1077,16 @@ export function computePossession(
 
 // ── Free kick (direct) ────────────────────────────────────────────────────────
 // Best dead-ball taker: a "Cobrador de Falta" specialist first, else the highest
-// shooting+composure outfielder. Never the keeper.
-export function getFreeKickTaker(team: Team): PlayerCard {
+// shooting+composure outfielder. Never the keeper. During a match, excludedIds
+// prevents an already sent-off player from taking a later free kick.
+export function getFreeKickTaker(team: Team, excludedIds?: ReadonlySet<string>): PlayerCard {
   const starters = team.players.slice(0, 11);
+  const available = starters.filter(p => !isExcludedPlayer(team, p, excludedIds));
+  const availableOutfield = available.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const outfield = starters.filter(p => matchRoleForPlayer(team, p) !== 'GK');
-  const pool = outfield.length > 0 ? outfield : starters;
+  // A normal match always leaves an available outfielder. Keep a defensive
+  // fallback for malformed/legacy lineups so this helper never returns undefined.
+  const pool = availableOutfield.length > 0 ? availableOutfield : outfield.length > 0 ? outfield : starters;
   // The player's designated taker wins — but must be an outfielder (never the GK).
   if (team.freeKickTaker) {
     const chosen = pool.find(p => p.id === team.freeKickTaker);
@@ -1116,6 +1188,9 @@ export function getEffectiveAttribute(
   // ⭐ Carta Evoluída: bônus do único atributo escolhido (mesma natureza do Treino).
   base += (player.evolvePoints?.[attribute as keyof NonNullable<Player['evolvePoints']>] ?? 0);
 
+  // 📈 Prodígio: bônus permanente acumulado por titularidades desde que a característica foi recebida.
+  base += player.prodigio ? (player.prodigioStarts ?? 0) : 0;
+
   // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
   const cb = context?.charBoosts?.[player.id];
   if (cb) base += cb.flatAll + (cb.perStat[attribute as AttrKey] ?? 0);
@@ -1215,7 +1290,17 @@ export function applyEvolvePoint(ep: Partial<Record<AttrKey, number>>, attr: Att
   return chooseEvolveAttribute(attr);
 }
 export function bumpStarterAppearances(team: Team): Team {
-  return { ...team, players: team.players.map((p, i) => i < 11 ? { ...p, appearances: (p.appearances ?? 0) + 1 } : p) };
+  return {
+    ...team,
+    players: team.players.map((p, i) => {
+      if (i >= 11) return p;
+      return {
+        ...p,
+        appearances: (p.appearances ?? 0) + 1,
+        ...(p.prodigio ? { prodigioStarts: (p.prodigioStarts ?? 0) + 1 } : {}),
+      };
+    }),
+  };
 }
 
 // Formation counter edge: if your shape "counters" the opponent's (see FORMATIONS[].counters),
@@ -1483,7 +1568,9 @@ export function runMatchSimulation(
   isFinal: boolean = false,
   decideWinner: boolean = true, // when false, skip end-of-match bonuses/winner logic
   neutralFinal: boolean = isFinal,
+  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
 ): MatchResult {
+  const settings = normalizeMatchSettings(matchSettings);
   const events = [...initialEvents];
   let homeGoals = initialHomeGoals;
   let awayGoals = initialAwayGoals;
@@ -1730,12 +1817,14 @@ export function runMatchSimulation(
     const isKeyEventMinute = KEY_MINUTES.includes(minute);
 
     // 🩹 Lesão ALEATÓRIA (sem falta): prob. por titular por jogo diluída pelos minutos, por físico.
-    for (const [team, side] of [[home, 'h'], [away, 'a']] as [Team, string][]) {
-      for (const p of team.players.slice(0, 11)) {
-        if (hasMatchInjury(team, p) || isSentOff(team, p)) continue;
-        if (Math.random() < randomInjuryChance(p.physical ?? 70) / span) { applyInjury(p, team, minute); break; }
+    if (settings.injuriesEnabled) {
+      for (const [team, side] of [[home, 'h'], [away, 'a']] as [Team, string][]) {
+        for (const p of team.players.slice(0, 11)) {
+          if (hasMatchInjury(team, p) || isSentOff(team, p)) continue;
+          if (Math.random() < randomInjuryChance(p.physical ?? 70) / span) { applyInjury(p, team, minute); break; }
+        }
+        void side;
       }
-      void side;
     }
 
     // Vantagem de casa NÃO entra mais como bônus de força aqui: é carimbada por atributo em cada
@@ -1831,22 +1920,24 @@ export function runMatchSimulation(
         // than from an unrelated luck event later in the match.
         penaltyFoul = Boolean(fouled && dangerousFoul && Math.random() < PENALTY_FOUL_CHANCE);
         // tAgg = tática × formação × periculosidade × "juiz acalma" (settle) — sem o ímpeto cru.
-        const tAgg = tacticAggression(activePlayStyleFor(defendTeam)) * formationAggression(defendTeam.formationId) * dangerCardMult * settleFactor(totalCards);
-        if (Math.random() < STRAIGHT_RED_PROB * tAgg) {
-          applySendOff(fouler, defendTeam, 'red', minute);
-        } else {
-          // 🟨 Já amarelado? O juiz pensa mais antes do 2º amarelo (que expulsa) → chance cai um pouco.
-          const foulerKey = statKey(defendTeam.id, fouler.id);
-          const already = bookings.get(foulerKey) ?? 0;
-          const bookedLeniency = already >= 1 ? SECOND_YELLOW_LENIENCY : 1;
-          if (Math.random() < yellowChance(matchRoleForPlayer(defendTeam, fouler), fouler.composure ?? 65, cardAggression) * tAgg * bookedLeniency) {
-            if (already >= 1) applySendOff(fouler, defendTeam, 'second-yellow', minute);
-            else { bookings.set(foulerKey, already + 1); pushYellow(fouler, defendTeam, minute, dangerousFoul || cutThreat); }
+        if (settings.cardsEnabled) {
+          const tAgg = tacticAggression(activePlayStyleFor(defendTeam)) * formationAggression(defendTeam.formationId) * dangerCardMult * settleFactor(totalCards);
+          if (Math.random() < STRAIGHT_RED_PROB * tAgg) {
+            applySendOff(fouler, defendTeam, 'red', minute);
+          } else {
+            // 🟨 Já amarelado? O juiz pensa mais antes do 2º amarelo (que expulsa) → chance cai um pouco.
+            const foulerKey = statKey(defendTeam.id, fouler.id);
+            const already = bookings.get(foulerKey) ?? 0;
+            const bookedLeniency = already >= 1 ? SECOND_YELLOW_LENIENCY : 1;
+            if (Math.random() < yellowChance(matchRoleForPlayer(defendTeam, fouler), fouler.composure ?? 65, cardAggression) * tAgg * bookedLeniency) {
+              if (already >= 1) applySendOff(fouler, defendTeam, 'second-yellow', minute);
+              else { bookings.set(foulerKey, already + 1); pushYellow(fouler, defendTeam, minute, dangerousFoul || cutThreat); }
+            }
           }
         }
       }
       // 🩹 Lesão do FALTADO (lado atacante) — falta dura machuca mais, ponderada pelo físico.
-      if (fouled && Math.random() < injuryChanceFromFoul(fouled.physical ?? 70) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
+      if (settings.injuriesEnabled && fouled && Math.random() < injuryChanceFromFoul(fouled.physical ?? 70) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
         applyInjury(fouled, attackTeam, minute);
       }
 
@@ -1911,7 +2002,7 @@ export function runMatchSimulation(
         lastFlavorDangerMin = minute;
         dangerCount++;
         const fkGk = activeGoalkeeper(defendTeam).player;
-        const taker = getFreeKickTaker(attackTeam);
+        const taker = getFreeKickTaker(attackTeam, sentOff);
         const takerCtx = playerContext(attackTeam, taker, attackCtx);
         const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), takerCtx);
         const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), takerCtx);
@@ -2417,6 +2508,7 @@ export function simulateMatch(
   isFinal: boolean = false,
   resolveKnockoutTie: boolean = true,
   neutralFinal: boolean = isFinal,
+  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
 ): MatchResult {
   setStatIds(home, away);
   const playerStats: Record<string, PlayerMatchStat> = {};
@@ -2464,11 +2556,11 @@ export function simulateMatch(
   // Phase 1: run 90 minutes WITHOUT deciding the winner yet (no penalties, no bonuses).
   // Keep the real phase context here. Two-legged ties pass resolveKnockoutTie=false so
   // a draw in the return leg can still be compared against the aggregate before ET.
-  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, isKnockout, isFinal, false, neutralFinal);
+  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, isKnockout, isFinal, false, neutralFinal, matchSettings);
 
   if (isKnockout && resolveKnockoutTie && r90.homeGoals === r90.awayGoals) {
     // Tied at 90 → extra time (90→120). Winner determination + penalties handled inside.
-    const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true, neutralFinal);
+    const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true, neutralFinal, matchSettings);
     rET.durationMinutes = 120;
     return rET;
   }
@@ -2536,6 +2628,7 @@ export function simulateRemainingMatch(
   isKnockout: boolean = false,
   isFinal: boolean = false,
   neutralFinal: boolean = isFinal,
+  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
 ): MatchResult {
   setStatIds(home, away);
   const playerStats: Record<string, PlayerMatchStat> = {};
@@ -2622,6 +2715,7 @@ export function simulateRemainingMatch(
     isFinal,
     true,
     neutralFinal,
+    matchSettings,
   );
 }
 
@@ -2894,6 +2988,7 @@ const DRAFT_NOE_CHANCE = 0.02;        // 🛟 Noé — raro (é MUITO forte)
 const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
 const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
+const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada titularidade
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
@@ -3007,6 +3102,10 @@ function applyDraftVariant(p: Player): Player {
       traits: rollPlayerTraits(p.position, p.rarity),
     };
   }
+
+  // 📈 Prodígio — começa a contar titularidades a partir desta carta, sem herdar jogos anteriores.
+  acc += DRAFT_PRODIGIO_CHANCE;
+  if (r < acc) return { ...p, prodigio: true, prodigioStarts: 0, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -3158,7 +3257,7 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata'): Player {
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata' | 'prodigio'): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
     // inForm/lobo add to every attribute; martir/magnata SUBTRACT from every attribute.
     const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : -MAGNATA_STAT_PENALTY;
@@ -3169,12 +3268,13 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
       physical: clampStat(player.physical + b), vision: clampStat(player.vision + b), composure: clampStat(player.composure + b),
     };
   }
+  if (variant === 'prodigio') return { ...player, prodigio: true, prodigioStarts: 0 };
   return { ...player, [variant]: true };
 }
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata', 'prodigio'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -3210,7 +3310,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
-  delete p.noe; delete p.forasteiro; delete p.capitaoNato; delete p.magnata;
+  delete p.noe; delete p.forasteiro; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
   return p;
 }
 
@@ -3235,6 +3335,7 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
   }
   delete (p as unknown as Record<string, unknown>)[variant];
   if (variant === 'martir') delete p.martirTargets;
+  if (variant === 'prodigio') delete p.prodigioStarts;
   return p;
 }
 
@@ -3871,12 +3972,12 @@ function emptyMatchStats(): MatchResult['stats'] {
 // Simulates the SECOND leg of a two-legged tie. `homeB` hosts the return leg (the
 // first-leg away side); `awayA` is the first-leg home side. Extra time and the
 // shootout are decided on AGGREGATE, never on the single leg.
-export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult, isFinal = false, neutralFinal = false): {
+export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult, isFinal = false, neutralFinal = false, matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS): {
   leg2: MatchResult; tieWinner: string; aggA: number; aggB: number;
 } {
   // 90-minute return leg (draws allowed). It still uses knockout modifiers;
   // only the aggregate decides whether ET/penalties are necessary.
-  let leg2 = simulateMatch(homeB, awayA, true, isFinal, false, neutralFinal);
+  let leg2 = simulateMatch(homeB, awayA, true, isFinal, false, neutralFinal, matchSettings);
   // Team A was first-leg HOME / second-leg AWAY; team B was first-leg AWAY / second-leg HOME.
   let aggA = leg1.homeGoals + leg2.awayGoals;
   let aggB = leg1.awayGoals + leg2.homeGoals;
@@ -3886,7 +3987,7 @@ export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult, i
     leg2 = runMatchSimulation(
       homeB, awayA, 90, 120,
       leg2.homeGoals, leg2.awayGoals, leg2.events, leg2.stats,
-      leg2.playerStats ?? {}, true, isFinal, false, neutralFinal
+      leg2.playerStats ?? {}, true, isFinal, false, neutralFinal, matchSettings
     );
     leg2.durationMinutes = 120;
     aggA = leg1.homeGoals + leg2.awayGoals;
@@ -3923,6 +4024,7 @@ export function simulateKnockoutTieLeg(
   currentLeg: number,
   isFinalRound: boolean,
   resolve: (id: string) => Team | undefined,
+  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
 ): void {
   const home = resolve(tie.homeTeamId);
   const away = resolve(tie.awayTeamId);
@@ -3933,17 +4035,17 @@ export function simulateKnockoutTieLeg(
   const isSingleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
   if (isSingleLeg) {
     if (tie.played) return;
-    tie.result = simulateMatch(home, away, true, true);
+    tie.result = simulateMatch(home, away, true, true, true, true, matchSettings);
     tie.played = true;
     return;
   }
 
   if (currentLeg === 1) {
     if (tie.leg1) return;
-    tie.leg1 = simulateMatch(home, away, true, isFinalRound, false, !isFinalRound); // 90', durationMinutes = 90
+    tie.leg1 = simulateMatch(home, away, true, isFinalRound, false, !isFinalRound, matchSettings); // 90', durationMinutes = 90
   } else {
     if (tie.leg2) return;
-    const sl = simulateSecondLeg(away, home, tie.leg1, isFinalRound, false); // return leg: B home, A away
+    const sl = simulateSecondLeg(away, home, tie.leg1, isFinalRound, false, matchSettings); // return leg: B home, A away
     tie.leg2 = sl.leg2;
     tie.result = {
       homeTeamId: tie.homeTeamId,
@@ -3963,11 +4065,12 @@ export function simulateKnockoutTieLeg(
 export function playActiveKnockoutLeg(
   bracket: KnockoutBracket,
   resolve: (id: string) => Team | undefined,
+  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
 ): void {
   const isFinalRound = bracket.currentRound === 'final';
   const ties = getActiveKnockoutMatches(bracket);
   for (const tie of ties) {
-    simulateKnockoutTieLeg(tie, bracket.currentLeg, isFinalRound, resolve);
+    simulateKnockoutTieLeg(tie, bracket.currentLeg, isFinalRound, resolve, matchSettings);
   }
   if (bracket.currentLeg === 1 && ties.some(tie => isFinalRound ? tie.isSingleLeg === false : tie.isSingleLeg !== true)) {
     bracket.currentLeg = 2;

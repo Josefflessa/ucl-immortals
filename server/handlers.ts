@@ -36,7 +36,7 @@ import {
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
-import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet } from "../client/src/lib/bets.js";
+import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
 import { pickHostId } from "./room-host.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
 import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
@@ -1160,7 +1160,8 @@ export function registerSocketHandlers(io: Server) {
       const existing = player.bets.find(b => b.matchKey === matchKey);
       const escrowDelta = stake - (existing?.stake ?? 0);
       if (escrowDelta > player.points) return;
-      if (!canPlaceStake(player.bets, prefix, matchKey, stake)) return;
+      const betCap = room.competitionFormat.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
+      if (!canPlaceStake(player.bets, prefix, matchKey, stake, betCap)) return;
       const bet: Bet = { matchKey, homeGoals, awayGoals, stake };
       player.bets = existing ? player.bets.map(b => b.matchKey === matchKey ? bet : b) : [...player.bets, bet];
       player.points -= escrowDelta;
@@ -1399,7 +1400,15 @@ export function registerSocketHandlers(io: Server) {
           const away = allTeams.find(t => t.id === f.awayTeamId);
           if (!home || !away) return f;
           // 🟨🟥🩹 Bots resolvem a escalação (humanos já estão válidos pelo bloqueio acima).
-          const result = simulateMatch(resolveAvailableLineup(home, room.discipline).team, resolveAvailableLineup(away, room.discipline).team);
+          const result = simulateMatch(
+            resolveAvailableLineup(home, room.discipline).team,
+            resolveAvailableLineup(away, room.discipline).team,
+            false,
+            false,
+            true,
+            false,
+            room.competitionFormat.matchSettings,
+          );
           room.leagueResults.push(result);
           simulatedAny = true;
           return { ...f, played: true, result };
@@ -1548,7 +1557,7 @@ export function registerSocketHandlers(io: Server) {
       // Plays the current leg (ida or volta) of every tie in the active round.
       // Knockout results live in the bracket only — they are NOT pushed into
       // leagueResults (season stats read the legs directly from the bracket).
-      playActiveKnockoutLeg(room.knockoutBracket, resolve as any);
+      playActiveKnockoutLeg(room.knockoutBracket, resolve as any, room.competitionFormat.matchSettings);
       // Reset watch confirmations for this new leg
       room.watchedKnockoutLegPlayers = [];
       room.readyPlayers = []; // ✅ próxima perna/rodada exige "prontos" de novo

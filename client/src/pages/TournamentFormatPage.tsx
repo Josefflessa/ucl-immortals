@@ -19,11 +19,13 @@ import { useGame } from '../contexts/GameContext';
 import {
   COMPETITION_FORMAT_PRESETS,
   MAX_BOT_TEAMS,
+  MAX_BET_ROUND_CAP,
   MAX_COMPETITION_TEAMS,
   MAX_ONLINE_PLAYERS,
   MAX_POINTS_PER_RULE,
   MAX_REINFORCEMENT_OPTIONS,
   MIN_COMPETITION_TEAMS,
+  MIN_BET_ROUND_CAP,
   MIN_QUALIFIED_TEAMS,
   MIN_REINFORCEMENT_OPTIONS,
   createCompetitionFormat,
@@ -199,6 +201,11 @@ export default function TournamentFormatPage() {
   const setRewardNumber = (key: 'reinforcementUntilRound' | 'reinforcementOptions', raw: string) => {
     const value = Number(raw);
     setFormat(previous => updateRewards(previous, { [key]: Number.isFinite(value) ? value : 0 }));
+    setError(null);
+  };
+
+  const setMatchSetting = <K extends keyof CompetitionFormat['matchSettings']>(key: K, value: CompetitionFormat['matchSettings'][K]) => {
+    setFormat(previous => ({ ...previous, matchSettings: { ...previous.matchSettings, [key]: value } }));
     setError(null);
   };
 
@@ -448,6 +455,34 @@ export default function TournamentFormatPage() {
                 )}
               </div>
             </ConfigSection>
+
+            <ConfigSection index={hasKnockout ? '04' : '03'} eyebrow="REGRAS DA PARTIDA" title="Como cada partida acontece?" description="Personalize os eventos disciplinares e o limite de palpites deste torneio." icon={<Settings2 size={17} />}>
+              <div className="flex flex-col gap-3">
+                <ToggleRow
+                  title="Lesões"
+                  description="Jogadores podem se lesionar durante a partida e ficar indisponíveis nas próximas rodadas."
+                  enabled={format.matchSettings.injuriesEnabled}
+                  onToggle={() => setMatchSetting('injuriesEnabled', !format.matchSettings.injuriesEnabled)}
+                />
+                <ToggleRow
+                  title="Cartões"
+                  description="Ative para permitir amarelos, vermelhos e suspensões. As faltas continuam existindo mesmo desligado."
+                  enabled={format.matchSettings.cardsEnabled}
+                  onToggle={() => setMatchSetting('cardsEnabled', !format.matchSettings.cardsEnabled)}
+                />
+              </div>
+
+              <div className="mt-6 border-t border-[var(--ui-line-subtle)] pt-5">
+                <NumberField
+                  label="Limite de apostas por rodada"
+                  value={format.matchSettings.betRoundCap}
+                  min={MIN_BET_ROUND_CAP}
+                  max={MAX_BET_ROUND_CAP}
+                  onChange={value => setMatchSetting('betRoundCap', Number(value))}
+                  helper={format.matchSettings.betRoundCap === 0 ? '0 desativa os palpites neste torneio.' : 'Liga/grupos: total compartilhado pela rodada. Mata-mata: limite independente por partida.'}
+                />
+              </div>
+            </ConfigSection>
           </motion.div>
           )}
 
@@ -457,6 +492,10 @@ export default function TournamentFormatPage() {
                 <div className="ui-section-label">RESUMO DO TORNEIO</div>
                 <div className="mt-2 text-lg font-bold leading-snug text-white">{competitionFormatSummary(format)}</div>
                 <div className="mt-3 text-xs leading-relaxed text-[var(--ui-text-muted)]">{competitionRewardSummary(format)}</div>
+                <div className="mt-3 border-t border-[var(--ui-line-subtle)] pt-3 text-[10px] leading-relaxed text-[var(--ui-text-faint)]">
+                  <span className="font-bold text-[var(--ui-text-muted)]">PARTIDA:</span>{' '}
+                  {format.matchSettings.injuriesEnabled ? 'lesões' : 'sem lesões'} · {format.matchSettings.cardsEnabled ? 'cartões' : 'sem cartões'} · apostas até {format.matchSettings.betRoundCap}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 p-4 sm:p-5">
                 <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] p-3"><div className="text-2xl font-black text-[#C9A84C]">{format.teamCount}</div><div className="text-[10px] uppercase tracking-wider text-[var(--ui-text-faint)]">times totais</div></div>
@@ -469,22 +508,11 @@ export default function TournamentFormatPage() {
             </div>
 
             {advancedOpen && (
-              <>
-                <div className="ui-panel ui-panel--inset p-5">
-                  <div className="ui-section-label">LIMITES AUTOMÁTICOS</div>
-                  <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Bot size={15} className="mt-0.5 shrink-0 text-[#C9A84C]" /><span><strong className="text-white">Solo:</strong> até {MAX_BOT_TEAMS} bots, completando no máximo {MAX_COMPETITION_TEAMS} times.</span></div>
-                  <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Users size={15} className="mt-0.5 shrink-0 text-[#C9A84C]" /><span><strong className="text-white">Online:</strong> os bots completam o total depois dos jogadores humanos; a sala suporta até {MAX_ONLINE_PLAYERS} pessoas.</span></div>
-                </div>
-
-                <div className="ui-panel ui-panel--inset p-5 text-sm leading-relaxed text-[var(--ui-text-muted)]">
-                  <div className="ui-section-label">PRÓXIMAS ETAPAS</div>
-                  <ol className="mt-3 space-y-2 text-xs">
-                    <li className="flex items-center gap-2 text-white"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#C9A84C] text-[10px] font-black text-[#080810]">1</span> Formato do torneio <CheckCircle2 size={13} className="text-[#C9A84C]" /></li>
-                    <li className="flex items-center gap-2"><span className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--ui-line-subtle)] text-[10px] font-bold">2</span> Dificuldade dos bots</li>
-                    <li className="mt-3 border-t border-[var(--ui-line-subtle)] pt-3 text-[11px] text-[var(--ui-text-faint)]">Depois: escudo, treinador, formação e draft do elenco.</li>
-                  </ol>
-                </div>
-              </>
+              <div className="ui-panel ui-panel--inset p-5">
+                <div className="ui-section-label">LIMITES AUTOMÁTICOS</div>
+                <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Bot size={15} className="mt-0.5 shrink-0 text-[#C9A84C]" /><span><strong className="text-white">Solo:</strong> até {MAX_BOT_TEAMS} bots, completando no máximo {MAX_COMPETITION_TEAMS} times.</span></div>
+                <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Users size={15} className="mt-0.5 shrink-0 text-[#C9A84C]" /><span><strong className="text-white">Online:</strong> os bots completam o total depois dos jogadores humanos; a sala suporta até {MAX_ONLINE_PLAYERS} pessoas.</span></div>
+              </div>
             )}
           </aside>
         </div>
