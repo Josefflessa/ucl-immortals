@@ -9,14 +9,14 @@ import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, 
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
-  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_GAMES, EVOLVE_POINTS, positionFit,
+  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_GAMES, EVOLVE_POINTS, positionFit, type EffectiveStats,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, hasOopRelief, type AttrKey } from '../../lib/traits';
 import type { MatchPlan } from '../../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import CoachStadiumPanel from './CoachStadiumPanel';
 import { stadiumFor } from '../../lib/stadium';
-import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE, getCardVariants, type PlayerCardStats } from './PlayerCard';
+import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE, getCardVariants } from './PlayerCard';
 import RolesSelector from './RolesSelector';
 import TacticSelector from './TacticSelector';
 import MatchPlanSelector from './MatchPlanSelector';
@@ -114,7 +114,7 @@ export default function SquadEditor({
 
   // Meu Time is the only card context that renders effective values. Draft, shop and
   // reinforcement pickers omit this map and therefore keep the card's own values.
-  const effectiveStatsById: Record<string, PlayerCardStats> = Object.fromEntries(
+  const effectiveStatsById: Record<string, EffectiveStats> = Object.fromEntries(
     players.map((player, index) => {
       const isStarter = index < 11;
       const effective = getPlayerEffectiveStats(
@@ -226,7 +226,7 @@ export default function SquadEditor({
       ) : null}
 
       <RolesSelector
-        players={xi.map(player => ({ ...player, effectiveOverall: effectiveStatsById[player.id]?.overall }))}
+        players={xi.map(player => ({ ...player, effectiveOverall: effectiveStatsById[player.id]?.overall, effectiveStats: effectiveStatsById[player.id] }))}
         captainId={captain}
         penaltyTakerId={penaltyTaker}
         freeKickTakerId={freeKickTaker}

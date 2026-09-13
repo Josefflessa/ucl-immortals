@@ -12,6 +12,10 @@
 //      "Especialista em Decisões"/"Frio na Final" (+10 each). (gameEngine.simulatePenalties)
 
 import { POS_PT } from '../../lib/gameData';
+import type { EffectiveStats } from '../../lib/gameEngine';
+
+type RoleStat = 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'composure';
+type EffectiveRoleStats = Pick<EffectiveStats, RoleStat>;
 
 interface RoleablePlayer {
   id: string;
@@ -28,6 +32,9 @@ interface RoleablePlayer {
   defending?: number;
   physical?: number;
   traits?: string[];
+  // In Meu Time/Revisão, role decisions and displayed dead-ball values use the
+  // same effective team-context attributes shown on the player card.
+  effectiveStats?: EffectiveRoleStats;
 }
 
 interface RolesSelectorProps {
@@ -51,10 +58,12 @@ const STAT_LABELS: Record<string, string> = {
 // 🗣️ Capitão Nato: se o jogador tem a característica, o bônus de capitão vem DOBRADO.
 const capBoostOf = (p: RoleablePlayer): number =>
   CAPTAIN_BOOST * ((p as unknown as Record<string, unknown>).capitaoNato ? 2 : 1);
+const roleStatValue = (p: RoleablePlayer, stat: RoleStat): number => p.effectiveStats?.[stat] ?? p[stat] ?? 0;
+const roleStatDisplay = (p: RoleablePlayer, stat: RoleStat): number | undefined => p.effectiveStats?.[stat] ?? p[stat];
 function captainBestStatOf(p: RoleablePlayer): { stat: string; label: string; value: number } {
-  let best: string = CAP_STATS[0], bestV = (p as unknown as Record<string, number>)[CAP_STATS[0]] ?? 0;
+  let best: string = CAP_STATS[0], bestV = roleStatValue(p, CAP_STATS[0]);
   for (const s of CAP_STATS) {
-    const v = (p as unknown as Record<string, number>)[s] ?? 0;
+    const v = roleStatValue(p, s);
     if (v > bestV) { bestV = v; best = s; }
   }
   return { stat: best, label: STAT_LABELS[best] ?? best, value: bestV };
@@ -63,7 +72,7 @@ function captainBestStatOf(p: RoleablePlayer): { stat: string; label: string; va
 // Penalty reliability score used only to RANK candidates for the suggestion.
 // Mirrors the composure + trait weighting the engine uses on each kick.
 function penaltyScoreFor(p: RoleablePlayer): number {
-  return (p.composure ?? 0)
+  return roleStatValue(p, 'composure')
     + (p.traits?.includes('Especialista em Decisões') ? 10 : 0)
     + (p.traits?.includes('Frio na Final') ? 10 : 0);
 }
@@ -71,7 +80,7 @@ function penaltyScoreFor(p: RoleablePlayer): number {
 // Free-kick ranking — mirrors gameEngine.getFreeKickTaker (specialist trait first,
 // otherwise highest shooting + composure).
 function freeKickScoreFor(p: RoleablePlayer): number {
-  return (p.shooting ?? 0) + (p.composure ?? 0)
+  return roleStatValue(p, 'shooting') + roleStatValue(p, 'composure')
     + ((p.traits?.includes('Cobrador de Falta') || p.traits?.includes('Cobrança de Falta')) ? 50 : 0);
 }
 
@@ -98,6 +107,9 @@ export default function RolesSelector({
   const captain = players.find(p => p.id === captainId);
   const taker = players.find(p => p.id === penaltyTakerId);
   const fkTaker = players.find(p => p.id === freeKickTakerId);
+  const takerComposure = taker ? roleStatDisplay(taker, 'composure') : undefined;
+  const fkShooting = fkTaker ? roleStatDisplay(fkTaker, 'shooting') : undefined;
+  const fkComposure = fkTaker ? roleStatDisplay(fkTaker, 'composure') : undefined;
 
   return (
     <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
@@ -140,14 +152,14 @@ export default function RolesSelector({
         </span>
         <span className="rounded px-2 py-1" style={{ background: '#14142A', color: '#B8A875' }}>
           ⚽ Pênalti: <b style={{ color: '#FFF' }}>{taker ? taker.shortName : '—'}</b>
-          {taker?.composure !== undefined && <span style={{ color: '#C9A84C' }}> (comp. {taker.composure})</span>}
+          {takerComposure !== undefined && <span style={{ color: '#C9A84C' }}> (comp. {takerComposure})</span>}
         </span>
         <span className="rounded px-2 py-1" style={{ background: '#14142A', color: '#86B89A' }}>
           🎯 Falta: <b style={{ color: '#FFF' }}>{fkTaker ? fkTaker.shortName : '—'}</b>
-          {fkTaker && (fkTaker.shooting !== undefined || fkTaker.composure !== undefined) && (
+          {fkTaker && (fkShooting !== undefined || fkComposure !== undefined) && (
             <span style={{ color: '#22C55E' }}> ({[
-              fkTaker.shooting !== undefined ? `fin. ${fkTaker.shooting}` : null,
-              fkTaker.composure !== undefined ? `comp. ${fkTaker.composure}` : null,
+              fkShooting !== undefined ? `fin. ${fkShooting}` : null,
+              fkComposure !== undefined ? `comp. ${fkComposure}` : null,
             ].filter(Boolean).join(' · ')})</span>
           )}
         </span>
@@ -179,9 +191,9 @@ export default function RolesSelector({
               <span className="text-sm font-bold text-white truncate flex-1 min-w-0" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 {p.shortName}
               </span>
-              {p.composure !== undefined && (
+              {roleStatDisplay(p, 'composure') !== undefined && (
                 <span className="text-[9px] font-bold flex-shrink-0" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }} title="Compostura (cobrança de pênalti)">
-                  🧊 {p.composure}
+                  🧊 {roleStatDisplay(p, 'composure')}
                 </span>
               )}
               <span className="text-[9px] font-bold text-gray-500 flex-shrink-0" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
