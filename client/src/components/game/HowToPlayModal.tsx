@@ -298,7 +298,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
       icon: '📐', label: 'Formações',
       body: (
         <div className="space-y-3">
-          <P>O desenho do campo muda a distribuição das posições, as conexões e os pontos fortes do time. A formação do técnico também é uma fonte de química. Use os counters como uma pequena vantagem estratégica, não como uma regra absoluta.</P>
+          <P>O desenho do campo muda a distribuição das posições, as conexões e os pontos fortes do time. A formação do técnico também é uma fonte de química. Quando uma formação leva vantagem sobre a outra, o time favorecido recebe um <b style={{ color: GOLD }}>bônus temporário durante a partida</b>.</P>
           {FORMATIONS.map((formation) => (
             <Card key={formation.id}>
               <div className="mb-1 flex items-center gap-2">
@@ -309,7 +309,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
                 <InfoRow label="Pontos fortes" color="#34D399">{formation.strengths.join(' • ')}</InfoRow>
                 <InfoRow label="Pontos fracos" color="#F87171">{formation.weaknesses.join(' • ')}</InfoRow>
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5"><Chip color="#60A5FA">Countera: {formation.counters.join(', ')}</Chip><Chip color="#F97316">É counterada por: {formation.counteredBy.join(', ')}</Chip></div>
+              <div className="mt-2 flex flex-wrap gap-1.5"><Chip color="#60A5FA">Leva vantagem contra: {formation.counters.join(', ')}</Chip><Chip color="#F97316">Pode sofrer contra: {formation.counteredBy.join(', ')}</Chip></div>
             </Card>
           ))}
         </div>

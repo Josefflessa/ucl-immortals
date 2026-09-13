@@ -206,7 +206,7 @@ export const POSITION_GROUPS: Record<PositionGroup, string[]> = {
 export const POS_PT: Record<string, string> = {
   GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
   LWB: 'AE', RWB: 'AD', CDM: 'VOL', CM: 'MC',
-  CAM: 'MEI', LM: 'ML', RM: 'MD',
+  CAM: 'MEI', LM: 'ME', RM: 'MD',
   LW: 'PE', RW: 'PD', ST: 'CA',
   // Legacy saved data only: never generated for new cards and never shown as SA.
   CF: 'CA',

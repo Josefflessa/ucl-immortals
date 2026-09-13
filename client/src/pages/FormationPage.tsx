@@ -71,7 +71,7 @@ export default function FormationPage() {
               COMO LER OS INDICADORES
             </div>
             <p className="mt-1 text-sm leading-relaxed text-pretty" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
-              Controle gera mais iniciativa, volume de jogadas e posse. Ataque torna suas chances mais perigosas. Defesa reduz o perigo das chances adversárias. Um confronto favorável acrescenta +3 de força tática ao time.
+              Controle gera mais iniciativa, volume de jogadas e posse. Ataque torna suas chances mais perigosas. Defesa reduz o perigo das chances adversárias. Um confronto favorável concede um <b style={{ color: '#22C55E' }}>bônus temporário ao time durante a partida</b>.
             </p>
           </div>
 
@@ -142,15 +142,15 @@ export default function FormationPage() {
                     <ImpactMeter profile={formationProfile(formation.id)} />
                   </div>
 
-                  {/* Matchup info — leve vantagem/desvantagem situacional (não decide o jogo) */}
+                  {/* Matchup info — bônus situacional de equipe, aplicado somente durante a partida */}
                   {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
                     <div className="mt-3 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                       {formation.counters.length > 0 && (
-                        <>Confronto favorável contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span></>
+                        <>Confronto favorável contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span> <span style={{ color: '#22C55E' }}>(bônus durante a partida)</span></>
                       )}
                       {formation.counters.length > 0 && formation.counteredBy.length > 0 && ' · '}
                       {formation.counteredBy.length > 0 && (
-                        <>Pode sofrer contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span></>
+                        <>Pode sofrer contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span> <span style={{ color: '#F97316' }}>(o rival recebe um bônus na partida)</span></>
                       )}
                     </div>
                   )}
