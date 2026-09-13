@@ -900,7 +900,7 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   forasteiro: { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
   capitaoNato: { color: '#F97316', icon: '🗣️', label: 'CAPITÃO NATO', treatment: 'ring' },
   magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
-  prodigio: { color: '#38BDF8', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
+  prodigio: { color: '#FDE047', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
 };
 const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata', 'prodigio'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };

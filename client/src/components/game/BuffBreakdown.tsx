@@ -136,7 +136,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.capitaoNato && <Chip text="🗣️ BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)" color="#F97316" />}
                 {player.magnata && <Chip text="🤑 CRÉDITOS DA LIGA ×1,5 (TITULAR)" color="#16A34A" />}
                 {player.magnata && <Chip text="−5 EM TUDO" color="#EF4444" />}
-                {player.prodigio && <Chip text={`+${player.prodigioStarts ?? 0} EM CADA ATRIBUTO (${player.prodigioStarts ?? 0} TITULARIDADES)`} color="#38BDF8" />}
+                {player.prodigio && <Chip text={`+${player.prodigioStarts ?? 0} EM CADA ATRIBUTO (${player.prodigioStarts ?? 0} TITULARIDADES)`} color="#FDE047" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
                 {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
@@ -289,8 +289,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
           )}
 
           {prodigio.length > 0 && (
-            <Row icon="📈" name="PRODÍGIO" color="#38BDF8">
-              <div className="flex flex-wrap gap-1">{chips(prodigio, '#38BDF8')}</div>
+            <Row icon="📈" name="PRODÍGIO" color="#FDE047">
+              <div className="flex flex-wrap gap-1">{chips(prodigio, '#FDE047')}</div>
               <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 +1 em todos os atributos por cada partida iniciada como titular desde que a característica foi recebida.
               </div>

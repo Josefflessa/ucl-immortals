@@ -296,7 +296,31 @@ export default function FormationField({
             >
               <div className="relative" style={{ width: 92, height: 146, transform: `scale(${cardScale})`, transformOrigin: 'center center' }}>
                 <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
-                  {player ? <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} /> : <div style={{ width: 92, height: 146 }} aria-hidden="true" />}
+                  {player ? (
+                    <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} />
+                  ) : (
+                    <div
+                      className="flex flex-col items-center justify-center rounded-xl"
+                      aria-label={`Posição ${posLabel(pos.role)}`}
+                      style={{
+                        width: 92,
+                        height: 146,
+                        color: posColor,
+                        background: 'linear-gradient(160deg, rgba(9, 18, 28, 0.88), rgba(9, 11, 20, 0.96))',
+                        border: `1px dashed ${posColor}99`,
+                        boxShadow: `inset 0 0 0 1px ${posColor}22, 0 4px 12px rgba(0, 0, 0, 0.22)`,
+                        fontFamily: 'Rajdhani, sans-serif',
+                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)',
+                      }}
+                    >
+                      <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 25, lineHeight: 1 }}>
+                        {posLabel(pos.role)}
+                      </span>
+                      <span style={{ marginTop: 4, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: '#A7A7B8' }}>
+                        POSIÇÃO
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Live match data stays visible after replacing the token with a card. */}

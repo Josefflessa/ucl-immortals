@@ -4,28 +4,32 @@
 
 interface Axes { attack: number; defense: number; control: number; }
 
-// value → nível qualitativo -2..+2. Qualquer valor diferente de zero aparece como
-// uma tendência leve, para que uma pequena vantagem não pareça um empate perfeito.
+// value → nível qualitativo -3..+3. A escala mantém uma categoria intermediária para
+// que impactos médios não sejam apresentados como "muito".
 function level(v: number): number {
   const m = Math.abs(v);
-  const mag = m >= 1.5 ? 2 : m > 0 ? 1 : 0;
+  const mag = m >= 2 ? 3 : m >= 1 ? 2 : m > 0 ? 1 : 0;
   return Math.sign(v) * mag;
 }
 
 const ARROWS: Record<number, { txt: string; color: string }> = {
-  2:  { txt: '▲▲', color: '#22C55E' },
   1:  { txt: '▲',  color: '#7FCF6A' },
+  2:  { txt: '▲▲', color: '#4ADE80' },
+  3:  { txt: '▲▲▲', color: '#22C55E' },
   0:  { txt: '—',  color: '#4A4A5A' },
   [-1]: { txt: '▼',  color: '#F08A5D' },
-  [-2]: { txt: '▼▼', color: '#EF4444' },
+  [-2]: { txt: '▼▼', color: '#FB923C' },
+  [-3]: { txt: '▼▼▼', color: '#EF4444' },
 };
 
 const STATUS: Record<number, string> = {
-  2: 'Muito mais',
   1: 'Ligeiramente mais',
+  2: 'Mais',
+  3: 'Muito mais',
   0: 'Estável',
   [-1]: 'Ligeiramente menos',
-  [-2]: 'Muito menos',
+  [-2]: 'Menos',
+  [-3]: 'Muito menos',
 };
 
 const AXES: { key: keyof Axes; label: string; explanation: string }[] = [
