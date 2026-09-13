@@ -417,6 +417,37 @@ export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   debruyne: { id: 192985, ver: 23 }, // FIFA 23 — auge recente (91 OVR)
   dybala: { id: 211110, ver: 23 }, // FIFA 23 — referência de carreira (86 OVR)
   yashin: { id: 238380, ver: 26 }, // Lev Yashin Icon
+  // ── LOTE MISTO — retratos conferidos no SoFIFA ─────────────────────────────
+  s_cazorla: { id: 146562, ver: 25 },
+  j_moutinho: { id: 162347, ver: 25 },
+  nani: { id: 139068, ver: 15 },
+  koscielny: { id: 165229, ver: 16 },
+  sokratis: { id: 172879, ver: 19 },
+  hamsik: { id: 171877, ver: 19 },
+  lavezzi: { id: 159065, ver: 14 },
+  arbeloa: { id: 146741, ver: 16 },
+  bendtner: { id: 167706, ver: 14 },
+  gervinho: { id: 170733, ver: 15 },
+  van_persie: { id: 7826, ver: 19 },
+  de_rossi: { id: 53302, ver: 19 },
+  pjanic: { id: 180206, ver: 19 },
+  marchisio: { id: 173210, ver: 17 },
+  nasri: { id: 165239, ver: 15 },
+  sakho: { id: 183285, ver: 15 },
+  chicharito: { id: 178224, ver: 19 },
+  balotelli: { id: 186627, ver: 15 },
+  gameiro: { id: 176600, ver: 19 },
+  doumbia: { id: 188428, ver: 18 },
+  lacazette: { id: 193301, ver: 23 },
+  taarabt: { id: 179605, ver: 14 },
+  muniain: { id: 189575, ver: 23 },
+  javi_martinez: { id: 177610, ver: 20 },
+  arteta: { id: 45119, ver: 15 },
+  aduriz: { id: 106231, ver: 13 },
+  llorente: { id: 162131, ver: 18 },
+  moussa_sow: { id: 172124, ver: 17 },
+  giuseppe_rossi: { id: 162409, ver: 14 },
+  falcao_atleticomadrid: { id: 167397, ver: 14 },
 };
 
 const NATION_CODES: Record<string, string> = {
@@ -445,6 +476,12 @@ const NATION_CODES: Record<string, string> = {
   'Irlanda do Norte': 'gb-nir',
   'Egito': 'eg',
   'Irlanda': 'ie',
+  'Grécia': 'gr',
+  'Eslováquia': 'sk',
+  'Turquia': 'tr',
+  'Bósnia': 'ba',
+  'México': 'mx',
+  'Marrocos': 'ma',
   // A seleção soviética deixou de existir; a bandeira russa é a referência
   // visual disponível para representar seus jogadores históricos.
   'União Soviética': 'ru',
@@ -547,6 +584,32 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   zico: 'zico',
   zidane: 'zidane',
   zola: 'zola',
+  arda_guler_realmadrid: 'arda_guler_realmadrid',
+  garnacho_chelsea: 'garnacho_chelsea',
+  nico_williams_bilbao: 'nico_willians_bilbao',
+  olise_bayern: 'olise_bayern',
+  cubarsi_barcelona: 'cubarsi_barcelona',
+  joao_neves_psg: 'joao_neves_psg',
+  gavi_barcelona: 'gavi_barcelona',
+  vitor_roque_barcelona: 'vitor_roque_barcelona',
+  savinho_city: 'savinho_city',
+  joao_pedro_chelsea: 'joao_pedro_chelsea',
+  endrick_realmadrid: 'endrick_realmadrid',
+  estevao_chelsea: 'estevao_chelsea',
+  lewandowski: 'lewandowski_bayern',
+  lewandowski_bayern: 'lewandowski_bayern',
+  lewandowski_barcelona: 'lewandowski_barcelona',
+  bellingham: 'bellingham_realmadrid',
+  bellingham_realmadrid: 'bellingham_realmadrid',
+  bellingham_dortmund: 'bellingham_borussia',
+  ronaldinho_atleticomineiro: 'ronaldinho_atleticomineiro',
+  ramos: 'ramos_realmadrid',
+  ramos_realmadrid: 'ramos_realmadrid',
+  ramos_psg: 'ramos_psg',
+  ramos_sevilla: 'ramos_sevilla',
+  dimaria: 'dimaria_realmadrid',
+  dimaria_realmadrid: 'dimaria_realmadrid',
+  dimaria_psg: 'dimaria_psg',
 };
 
 function buildLocalPlayerUrls(playerId: string): string[] {
@@ -730,6 +793,9 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   messi_unico: { texture: '/cards/messi_unico.webp', render: '/players/unico/messi.webp', font: '#F7E08C', ring: '#C9A24C', photoX: 7, photoY: -2, photoW: 100 },
   cafu_unico: { texture: '/cards/cafu_unico.webp', render: '/players/unico/cafu.webp', font: '#F0E6C0', ring: '#D9B54A', photoX: 8, photoY: 14, photoW: 82 },
   cristiano_unico: { texture: '/cards/cristiano_unico.webp', render: '/players/unico/cristiano.webp', font: '#F3D477', ring: '#D6B45B', photoX: 17, photoY: 12, photoW: 85 },
+  lewandowski_unico: { texture: '/cards/lewandowski_unico.webp', render: '/players/unico/lewandowski.webp', font: '#F4DFA3', ring: '#C9A24C', photoX: 3, photoY: -2, photoW: 108 },
+  modric_unico: { texture: '/cards/modric_unico.webp', render: '/players/unico/modric.webp', font: '#F7E08C', ring: '#D9B54A', photoX: 2, photoY: -3, photoW: 108 },
+  kroos_unico: { texture: '/cards/kroos_unico.webp', render: '/players/unico/kroos.webp', font: '#F0E6C0', ring: '#38C982', photoX: 1, photoY: -2, photoW: 108 },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
@@ -824,7 +890,7 @@ function variantDesc(player: Player): string {
   if (player.noe) return 'NOÉ: +10 em cada atributo NELE e +30 na química geral — só enquanto for o ÚNICO titular com característica';
   if (player.forasteiro) return 'FORASTEIRO: +5 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
-  if (player.magnata) return 'MAGNATA: titular multiplica os pontos da partida de LIGA por 1.5 (mas −5 em cada atributo nele)';
+  if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida de liga por 1,5 (mas −5 em cada atributo nele)';
   return '';
 }
 

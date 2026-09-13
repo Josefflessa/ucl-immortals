@@ -14,7 +14,7 @@ const TIERS = [
 ];
 
 const Chip = ({ text }: { text: string }) => (
-  <span className="text-[10px] font-black px-2 py-0.5 rounded"
+  <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-black"
     style={{ background: '#C9A84C22', color: '#E8C84A', border: '1px solid #C9A84C44', fontFamily: 'Rajdhani, sans-serif' }}>
     {text}
   </span>
@@ -27,30 +27,46 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
 
   return (
     <div className="mt-3 pt-3 border-t" style={{ borderColor: '#1A1A2A' }}>
-      <div className="text-[10px] font-black tracking-widest text-gray-400 mb-1.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-        BÔNUS GLOBAL — A TODOS OS TITULARES
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+        <div className="text-xs font-black tracking-widest text-gray-300" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+          BÔNUS GLOBAL
+        </div>
+        <div className="text-xs font-bold uppercase tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+          todos os titulares
+        </div>
       </div>
+      <p className="text-sm leading-relaxed text-pretty" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
+        A química da equipe libera bônus que entram nos atributos de cada titular durante a partida.
+      </p>
       {active ? (
-        <div className="flex flex-wrap gap-1.5 items-center">
+        <div className="mt-3 flex flex-wrap gap-2 items-center">
           {b.passing > 0 && <Chip text={`+${b.passing * 2} Passe`} />}
           {b.pace > 0 && <Chip text={`+${b.pace * 2} Ritmo`} />}
           {b.special > 0 && <Chip text={`✨ +${b.special} em todos`} />}
         </div>
       ) : (
-        <div className="text-[10px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        <div className="mt-3 rounded-lg border px-3 py-2 text-sm leading-relaxed" style={{ color: '#8A8A9A', borderColor: '#24243A', background: '#0A0A14', fontFamily: 'Rajdhani, sans-serif' }}>
           Química abaixo de 45 — sem bônus global. Aumente a química para liberar.
         </div>
       )}
       {/* Tier table — the active tier is highlighted in gold. */}
-      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[9px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-        {TIERS.map(t => {
-          const isActive = activeTier?.min === t.min;
-          return (
-            <span key={t.min} style={{ color: isActive ? '#E8C84A' : '#5A5A6A', fontWeight: isActive ? 800 : 500 }}>
-              {t.label} → +{t.pas} Passe{t.rit > 0 ? `, +${t.rit} Ritmo` : ''}{t.special > 0 ? `, +${t.special} em todos ✨` : ''}
-            </span>
-          );
-        })}
+      <div className="mt-4">
+        <div className="text-xs font-black uppercase tracking-wider" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>
+          Escalas de química
+        </div>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {TIERS.map(t => {
+            const isActive = activeTier?.min === t.min;
+            return (
+              <div key={t.min} className="rounded-lg border px-3 py-2" style={{ color: isActive ? '#E8C84A' : '#8A8A9A', borderColor: isActive ? '#C9A84C88' : '#202034', background: isActive ? '#C9A84C12' : '#0A0A14', fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="text-sm font-black">{t.label} de química</div>
+                <div className="mt-0.5 text-xs leading-relaxed" style={{ color: isActive ? '#D8C47A' : '#6A6A7A' }}>
+                  +{t.pas} Passe{t.rit > 0 ? ` · +${t.rit} Ritmo` : ''}{t.special > 0 ? ` · +${t.special} em todos ✨` : ''}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

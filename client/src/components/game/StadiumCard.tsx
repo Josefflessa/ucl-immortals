@@ -60,7 +60,7 @@ export default function StadiumCard({ stadium = DEFAULT_STADIUM, variant = 'full
               <div className="text-[10px] font-bold leading-snug mt-0.5" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
                 ⚡ {stadium.themedAttrs.map(a => ATTR_PT[a]).join(' e ')}: <b>+{PRIME_THEMED_BONUS}</b> pra todos, <b>+{PRIME_THEMED_CLUB_BONUS}</b> pros jogadores {stadium.themedClub ? `do ${stadium.themedClub}` : `de ${stadium.themedNation}`}
               </div>
-              <div className="text-[10px] leading-snug mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>Vale só como mandante · não vale na final.</div>
+              <div className="text-[10px] leading-snug mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>Vale quando você é mandante. Final única é neutra; na ida e volta, vale no seu jogo em casa.</div>
             </>
           ) : (
             <>
@@ -68,7 +68,7 @@ export default function StadiumCard({ stadium = DEFAULT_STADIUM, variant = 'full
                 🏠 Em casa: +{stadium.homeAttrBonus} em TODOS os atributos de TODOS os seus titulares
               </div>
               <div className="text-[10px] leading-snug mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                Vale só quando você é o mandante · não vale na final (campo neutro).
+                Vale quando você é mandante. Final única é neutra; na ida e volta, vale no seu jogo em casa.
               </div>
             </>
           )}

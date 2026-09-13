@@ -111,6 +111,7 @@ export const CREST_CATALOG: CrestGroup[] = [
     league: "Turquia 🇹🇷", crests: [
       { id: "galatasaray", name: "Galatasaray", url: "https://upload.wikimedia.org/wikipedia/commons/2/20/Galatasaray_Sports_Club_Logo.svg" },
       { id: "besiktas", name: "Beşiktaş", url: "https://upload.wikimedia.org/wikipedia/commons/2/20/Logo_of_Be%C5%9Fikta%C5%9F_JK.svg" },
+      { id: "fenerbahce", name: "Fenerbahçe", url: "https://upload.wikimedia.org/wikipedia/commons/e/ed/Fenerbah%C3%A7e_Spor_Kul%C3%BCb%C3%BC_%28logo%2C_1923%29.svg" },
     ]
   },
   {

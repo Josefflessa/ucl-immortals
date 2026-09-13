@@ -18,10 +18,13 @@ import {
   playActiveKnockoutLeg,
   advanceKnockoutBracket,
   getActiveKnockoutMatches,
+  normalizeMatchPlan,
+  validateMatchPlan,
   rebuildTeamChemistry,
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
   bumpStarterAppearances, isEvolved, applyEvolvePoint, EVOLVE_POINTS,
   VariantFlag,
+  MatchPlan,
   Team,
   PlayerCard,
   MatchResult,
@@ -56,6 +59,7 @@ interface RoomPlayer {
   coachPrime: boolean; // Fase 2: técnico evoluído pro Prime → estádio temático
   formationId: string;
   playStyle: string;
+  matchPlan: MatchPlan;
   draftedPlayers: (Player | undefined)[];
   vetoesLeft: number;
   captain: string | null;
@@ -464,6 +468,7 @@ export function registerSocketHandlers(io: Server) {
             coachPrime: false,
             formationId: '4-3-3',
             playStyle: 'balanced',
+            matchPlan: normalizeMatchPlan(),
             draftedPlayers: Array(13).fill(undefined), // 11 titulares + 2 reservas
             vetoesLeft: 4,
             captain: null,
@@ -582,6 +587,7 @@ export function registerSocketHandlers(io: Server) {
         coachPrime: false,
         formationId: '4-3-3',
         playStyle: 'balanced',
+        matchPlan: normalizeMatchPlan(),
         draftedPlayers: Array(13).fill(undefined), // 11 titulares + 2 reservas
         vetoesLeft: 4,
         captain: null,
@@ -725,12 +731,14 @@ export function registerSocketHandlers(io: Server) {
     });
 
     // Player submits squad review (captain, penalty taker)
-    on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId }) => {
+    on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId, matchPlan }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (room.phase !== 'squad_review') return;
       if (playStyle != null && (!isValidId(playStyle) || !VALID_TACTIC_IDS.has(playStyle))) return;
       if (formationId != null && (!isValidId(formationId) || !VALID_FORMATION_IDS.has(formationId))) return;
+      const canonicalMatchPlan = matchPlan == null ? normalizeMatchPlan() : validateMatchPlan(matchPlan);
+      if (!canonicalMatchPlan) return;
 
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
@@ -752,6 +760,7 @@ export function registerSocketHandlers(io: Server) {
       player.draftedPlayers = orderedDraft;
       if (playStyle) player.playStyle = playStyle;
       if (formationId) player.formationId = formationId; // formation can be changed post-draft
+      player.matchPlan = canonicalMatchPlan;
       player.ready = true;
 
       // Start once every CONNECTED player is ready — a player who dropped during squad review
@@ -784,6 +793,7 @@ export function registerSocketHandlers(io: Server) {
             coachId: p.coachId,
             formationId: p.formationId,
             playStyle: p.playStyle ?? 'balanced',
+            matchPlan: normalizeMatchPlan(p.matchPlan),
             players: playerCards,
             captain: p.captain ?? undefined,
             penaltyTaker: p.penaltyTaker ?? undefined,
@@ -880,6 +890,25 @@ export function registerSocketHandlers(io: Server) {
         }
       }
       socket.emit("room_updated", room); // only this player's own lineup changed
+    });
+
+    // Each player owns their own automatic match plan. The server validates and stores the
+    // canonical version so an online client cannot inject arbitrary actions or more than two
+    // one-shot triggers into the authoritative simulation.
+    on("set_match_plan", ({ roomCode, matchPlan }) => {
+      const room = rooms.get(roomCode);
+      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const canonicalMatchPlan = validateMatchPlan(matchPlan);
+      if (!canonicalMatchPlan) return;
+
+      player.matchPlan = canonicalMatchPlan;
+      player.team.matchPlan = canonicalMatchPlan;
+      // Editing a plan after pressing "Estou pronto" invalidates that confirmation. This
+      // prevents a player from changing instructions while the host is resolving the round.
+      room.readyPlayers = room.readyPlayers.filter(id => id !== player.id);
+      io.to(roomCode).emit("room_updated", room);
     });
 
     // Swap two players in this player's squad (bench ↔ starter, or reorder the XI). Mirrors the
@@ -1651,6 +1680,7 @@ export function registerSocketHandlers(io: Server) {
         p.penaltyTaker = null;
         p.freeKickTaker = null;
         p.playStyle = 'balanced';
+        p.matchPlan = normalizeMatchPlan();
         p.team = null;
         p.ready = false;
         p.points = 0;

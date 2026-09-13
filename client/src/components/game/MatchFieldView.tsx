@@ -3,20 +3,13 @@
 // out on the pitch (formation), each card showing its live rating + goals/assists, plus the
 // coach and key info (tactic, formation, chemistry, average rating). Fully responsive.
 
-import { FORMATIONS, COACHES, getTacticById, Player } from '../../lib/gameData';
-import FormationField from './FormationField';
-
-interface MatchTeam {
-  name: string;
-  players: Player[];
-  coachId: string;
-  formationId: string;
-  playStyle: string;
-  totalChemistry?: number;
-}
+import { FORMATIONS, COACHES, getTacticById } from '../../lib/gameData';
+import { activeGoalkeeperForTeam, matchRoleForPlayer, type Team } from '../../lib/gameEngine';
+import FormationField, { type EmergencyGoalkeeperDisplay } from './FormationField';
 
 interface MatchFieldViewProps {
-  team: MatchTeam;
+  team: Team;
+  activePlayStyle?: string;
   ratings: Record<string, number>;          // by player.id
   goalsByPlayer?: Record<string, number>;
   assistsByPlayer?: Record<string, number>;
@@ -39,11 +32,34 @@ function Chip({ icon, label, value, color }: { icon: string; label: string; valu
   );
 }
 
-export default function MatchFieldView({ team, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent }: MatchFieldViewProps) {
+export default function MatchFieldView({ team, activePlayStyle, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent }: MatchFieldViewProps) {
   const formation = FORMATIONS.find(f => f.id === team.formationId) ?? FORMATIONS[0];
   const coach = COACHES.find(c => c.id === team.coachId);
-  const tactic = getTacticById(team.playStyle);
+  const tactic = getTacticById(activePlayStyle ?? team.playStyle);
   const starters = team.players.slice(0, 11);
+
+  // The match engine can move a line player to goal after a goalkeeper red card.
+  // Derive the same state from the match events so the live and post-match field
+  // views show the actual ten-man shape instead of continuing to display eleven
+  // active-looking tokens.
+  const redIds = new Set(
+    Object.entries(disciplineByPlayer ?? {})
+      .filter(([, discipline]) => discipline.red)
+      .map(([playerId]) => playerId),
+  );
+  const goalkeeperSlotIndex = formation.positions.findIndex(position => position.role === 'GK');
+  const originalGoalkeeper = starters.find(player => matchRoleForPlayer(team, player) === 'GK');
+  const activeGoalkeeper = activeGoalkeeperForTeam(team, redIds);
+  const emergencyGoalkeeper: EmergencyGoalkeeperDisplay | undefined = (
+    activeGoalkeeper.emergency &&
+    originalGoalkeeper &&
+    goalkeeperSlotIndex >= 0 &&
+    activeGoalkeeper.player.id !== originalGoalkeeper.id
+  ) ? {
+    playerId: activeGoalkeeper.player.id,
+    goalkeeperSlotIndex,
+    vacatedSlotIndex: starters.findIndex(player => player.id === activeGoalkeeper.player.id),
+  } : undefined;
 
   const rated = starters.map(p => ratings[p.id]).filter((r): r is number => r !== undefined);
   const avgRating = rated.length ? rated.reduce((a, b) => a + b, 0) / rated.length : 0;
@@ -86,7 +102,7 @@ export default function MatchFieldView({ team, ratings, goalsByPlayer, assistsBy
         {/* Info chips — wrap cleanly on mobile, sit in a row on wider screens */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           <Chip icon="📐" label="Formação" value={formation.name} color={accent} />
-          <Chip icon={tactic.icon} label="Tática" value={tactic.name} color="#818CF8" />
+          <Chip icon={tactic.icon} label={activePlayStyle ? 'Tática atual' : 'Tática inicial'} value={tactic.name} color="#818CF8" />
           {team.totalChemistry !== undefined && (
             <Chip icon="🔗" label="Química" value={`${team.totalChemistry}/100`} color="#22C55E" />
           )}
@@ -101,6 +117,22 @@ export default function MatchFieldView({ team, ratings, goalsByPlayer, assistsBy
       </div>
 
       {/* ── The pitch with live ratings ── */}
+      {emergencyGoalkeeper && originalGoalkeeper && (
+        <div
+          className="rounded-xl px-3 py-2"
+          role="status"
+          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.28)' }}
+        >
+          <div className="flex items-center gap-2 text-[11px] font-black" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+            <span>🟥 {originalGoalkeeper.shortName} foi expulso</span>
+            <span style={{ color: '#6B7280' }}>•</span>
+            <span style={{ color: '#FDE68A' }}>🧤 {activeGoalkeeper.player.shortName} assumiu o gol</span>
+          </div>
+          <div className="mt-0.5 text-[10px]" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+            O time segue com 10 jogadores e o goleiro emergencial sofre a penalidade de defesa da partida.
+          </div>
+        </div>
+      )}
       <FormationField
         formation={formation}
         players={starters}
@@ -108,6 +140,7 @@ export default function MatchFieldView({ team, ratings, goalsByPlayer, assistsBy
         goalsByPlayer={goalsByPlayer}
         assistsByPlayer={assistsByPlayer}
         disciplineByPlayer={disciplineByPlayer}
+        emergencyGoalkeeper={emergencyGoalkeeper}
       />
     </div>
   );

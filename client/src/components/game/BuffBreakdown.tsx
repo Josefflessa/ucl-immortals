@@ -34,7 +34,7 @@ function collect(eff: EffectiveStats, pick: (b: EffectiveStats['breakdown']['pac
 
 function Chip({ text, color }: { text: string; color: string }) {
   return (
-    <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+    <span className="text-[11px] leading-tight font-black px-2 py-1 rounded-md"
       style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'Rajdhani, sans-serif' }}>
       {text}
     </span>
@@ -43,10 +43,10 @@ function Chip({ text, color }: { text: string; color: string }) {
 
 function Row({ icon, name, color, children }: { icon: string; name: string; color: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2 py-1.5">
+    <div className="flex items-start gap-2.5 py-2.5">
       <span className="text-sm flex-shrink-0">{icon}</span>
       <div className="flex-1 min-w-0">
-        <div className="text-[10px] font-black tracking-wider" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{name}</div>
+        <div className="text-xs font-black tracking-wider" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{name}</div>
         <div className="mt-0.5">{children}</div>
       </div>
     </div>
@@ -100,11 +100,11 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
 
   return (
     <div className="px-4 py-3 border-t" style={{ borderColor: '#161626', background: '#09090f' }}>
-      <div className="text-[9px] font-black text-gray-400 tracking-widest mb-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="text-xs font-black text-gray-400 tracking-widest mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
         🧬 DE ONDE VEM O BÔNUS
       </div>
       {!anything ? (
-        <div className="text-[10px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        <div className="text-sm text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
           Sem modificadores ativos — atributos no valor base.
         </div>
       ) : (
@@ -133,7 +133,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.forasteiro && !forasteiroInactive && <Chip text="+5 EM TUDO" color="#22C55E" />}
                 {player.forasteiro && forasteiroInactive && <Chip text={isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — COMPARTILHA PAÍS OU CLUBE'} color="#EF4444" />}
                 {player.capitaoNato && <Chip text="🗣️ BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)" color="#F97316" />}
-                {player.magnata && <Chip text="🤑 PONTOS DE LIGA ×1.5 (TITULAR)" color="#16A34A" />}
+                {player.magnata && <Chip text="🤑 CRÉDITOS DA LIGA ×1,5 (TITULAR)" color="#16A34A" />}
                 {player.magnata && <Chip text="−5 EM TUDO" color="#EF4444" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
@@ -152,7 +152,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                                 : player.noe ? 'Só rende enquanto for o ÚNICO titular com característica: +10 em tudo nele e +30 na química geral (põe o time inteiro na arca). Qualquer outro especial no XI desliga.'
                                   : player.forasteiro ? 'Quando é o ÚNICO do seu país E do seu clube no XI, ganha +5 em tudo — transforma a química baixa em vantagem.'
                                     : player.capitaoNato ? 'Se for o CAPITÃO do time, o bônus de capitão (a melhor stat dele, dada a todos) vem DOBRADO.'
-                                      : player.magnata ? 'Como titular, multiplica os pontos da partida de LIGA por 1.5 — em troca de −5 em cada atributo nele.'
+                                      : player.magnata ? 'Como titular, multiplica os créditos da partida de liga por 1,5 — em troca de −5 em cada atributo nele.'
                                         : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
             </Row>

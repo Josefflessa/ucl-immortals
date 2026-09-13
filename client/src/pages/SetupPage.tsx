@@ -14,9 +14,10 @@ export default function SetupPage() {
     dispatch({ type: 'SET_DIFFICULTY', difficulty: diffId });
   };
 
-  const handleContinue = () => {
+  const handleContinue = (difficultyOverride?: string) => {
+    const difficulty = difficultyOverride ?? state.difficulty;
     if (isOnlineRoomCreation) {
-      createRoom(state.playerName.trim(), state.competitionFormat, state.difficulty);
+      createRoom(state.playerName.trim(), state.competitionFormat, difficulty);
       return;
     }
     dispatch({ type: 'SET_PHASE', phase: 'crest' });
@@ -56,6 +57,8 @@ export default function SetupPage() {
                   key={diff.id}
                   selected={isSelected}
                   onClick={() => handleSelect(diff.id)}
+                  onDoubleClick={() => handleContinue(diff.id)}
+                  title="Clique duas vezes para escolher e continuar"
                   className="ui-choice flex items-center gap-3.5 px-4 py-3.5"
                   style={{
                     background: isSelected ? `${color}14` : undefined,
@@ -111,7 +114,7 @@ export default function SetupPage() {
             <Button
               intent="primary"
               size="large"
-              onClick={handleContinue}
+              onClick={() => handleContinue()}
               className="flex-1"
             >
               {isOnlineRoomCreation ? 'CRIAR SALA →' : 'ESCOLHER ESCUDO →'}

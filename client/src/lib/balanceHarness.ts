@@ -180,7 +180,7 @@ export function tacticImpact(tactics: string[], n: number, ownStrength = 0.8, op
 // FAIR tactic comparison: every play-style faces every OTHER one, home and away, on the SAME
 // squad (only the tactic differs) — so the home edge cancels and no single reference skews it.
 // Rich box-score per tactic so we can see WHAT each one actually changes (possession, shot
-// volume, chance quality/conversion, clean sheets), not just win% vs balanced.
+// volume, chance danger/conversion, clean sheets), not just win% vs balanced.
 export function tacticMatrix(tactics: string[], n: number, strength = 0.8) {
   type Acc = {
     games: number; w: number; d: number; l: number;
@@ -288,7 +288,7 @@ export function formationImpact(formations: string[], n: number, strength = 0.8)
 // formation, once at home and once away (so the home edge and the counter matchups cancel
 // out across the field). Same squad on both sides → only the SHAPE differs. Reports a rich
 // box-score per formation so we can see WHAT each shape actually changes (possession, shot
-// volume, chance quality/conversion, clean sheets), not just win% vs one reference.
+// volume, chance danger/conversion, clean sheets), not just win% vs one reference.
 export function formationMatrix(formations: string[], n: number, strength = 0.8) {
   type Acc = {
     games: number; w: number; d: number; l: number;

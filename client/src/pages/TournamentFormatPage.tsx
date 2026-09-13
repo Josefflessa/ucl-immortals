@@ -155,8 +155,18 @@ export default function TournamentFormatPage() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const selectPreset = (id: CompetitionFormatId) => {
+    // Clicking the already-selected preset must not erase its advanced options.
+    // This also keeps a double click on a customized preset from resetting it.
+    if (format.id === id) return;
     setFormat(createCompetitionFormat(id));
     setError(null);
+  };
+
+  const continueWithPreset = (id: CompetitionFormatId) => {
+    const nextFormat = format.id === id ? format : createCompetitionFormat(id);
+    setFormat(nextFormat);
+    setError(null);
+    handleContinue(nextFormat);
   };
 
   const setNumber = (key: keyof CompetitionFormat, raw: string) => {
@@ -204,13 +214,14 @@ export default function TournamentFormatPage() {
     setError(null);
   };
 
-  const handleContinue = () => {
-    const validationError = validateCompetitionFormat(format);
+  const handleContinue = (formatOverride?: CompetitionFormat) => {
+    const nextFormat = formatOverride ?? format;
+    const validationError = validateCompetitionFormat(nextFormat);
     if (validationError) {
       setError(validationError);
       return;
     }
-    dispatch({ type: 'SET_COMPETITION_FORMAT', format });
+    dispatch({ type: 'SET_COMPETITION_FORMAT', format: nextFormat });
     dispatch({ type: 'SET_PHASE', phase: 'setup' });
   };
 
@@ -252,6 +263,8 @@ export default function TournamentFormatPage() {
                   key={option.id}
                   selected={selected}
                   onClick={() => selectPreset(option.id)}
+                  onDoubleClick={() => continueWithPreset(option.id)}
+                  title="Clique duas vezes para escolher e continuar"
                   className="ui-choice min-h-[164px] p-4 text-left transition-transform hover:-translate-y-0.5"
                   style={{
                     background: selected ? '#171523' : '#0F0F1A',
@@ -372,7 +385,7 @@ export default function TournamentFormatPage() {
               </ConfigSection>
             )}
 
-            <ConfigSection index={hasKnockout ? '03' : '02'} eyebrow="REGRAS DA COMPETIÇÃO" title="Recompensas e pontuação" description="Defina o ritmo dos reforços gratuitos e o peso de cada desempenho. Essas regras valem só para este torneio." icon={<CircleDollarSign size={17} />}>
+            <ConfigSection index={hasKnockout ? '03' : '02'} eyebrow="REGRAS DA COMPETIÇÃO" title="Recompensas e créditos" description="Defina o ritmo dos reforços gratuitos e os créditos ganhos por desempenho. Essas regras valem só para este torneio." icon={<CircleDollarSign size={17} />}>
               <div>
                 <div className="flex items-center gap-2 text-sm font-bold text-white"><ShieldCheck size={16} className="text-[#C9A84C]" /> Reforços gratuitos</div>
                 <p className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">A escolha aparece para o jogador quando o evento configurado é concluído.</p>
@@ -420,15 +433,16 @@ export default function TournamentFormatPage() {
               </div>
 
               <div className="mt-6 border-t border-[var(--ui-line-subtle)] pt-5">
-                <div className="flex items-center gap-2 text-sm font-bold text-white"><Trophy size={16} className="text-[#C9A84C]" /> Pontos de desempenho</div>
+                <div className="flex items-center gap-2 text-sm font-bold text-white"><Trophy size={16} className="text-[#C9A84C]" /> Créditos da loja</div>
+                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Créditos são a moeda usada na loja. A classificação do torneio continua sendo calculada separadamente pelos resultados.</p>
                 <div className="mt-3 flex flex-col gap-2">
-                  <ToggleRow title="Pontos por partida" description={format.rewards.pointsEnabled ? 'Vitória, gols e outros critérios valem para este formato.' : 'Nenhum critério de partida altera a pontuação da tabela.'} enabled={format.rewards.pointsEnabled} onToggle={() => { setFormat(previous => updateRewards(previous, { pointsEnabled: !previous.rewards.pointsEnabled })); setError(null); }} />
-                  {hasKnockout && <ToggleRow title="Pontos no mata-mata" description="Defina se as partidas eliminatórias também entram na pontuação." enabled={format.rewards.knockoutPointsEnabled} onToggle={() => { setFormat(previous => updateRewards(previous, { knockoutPointsEnabled: !previous.rewards.knockoutPointsEnabled })); setError(null); }} />}
+                  <ToggleRow title="Créditos por partida" description={format.rewards.pointsEnabled ? 'Vitória, gols e outros critérios adicionam saldo para gastar na loja.' : 'As partidas não adicionam créditos ao saldo da loja.'} enabled={format.rewards.pointsEnabled} onToggle={() => { setFormat(previous => updateRewards(previous, { pointsEnabled: !previous.rewards.pointsEnabled })); setError(null); }} />
+                  {hasKnockout && <ToggleRow title="Créditos no mata-mata" description="Defina se as partidas eliminatórias também dão créditos para a loja." enabled={format.rewards.knockoutPointsEnabled} onToggle={() => { setFormat(previous => updateRewards(previous, { knockoutPointsEnabled: !previous.rewards.knockoutPointsEnabled })); setError(null); }} />}
                 </div>
                 {format.rewards.pointsEnabled && (
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {([['win', 'Vitória'], ['draw', 'Empate'], ['loss', 'Derrota'], ['goalDifference', 'Saldo positivo'], ['goal', 'Gol marcado'], ['cleanSheet', 'Sem sofrer gol']] as const).map(([key, title]) => (
-                      <NumberField key={key} label={title} value={format.rewards.points[key]} min={0} max={MAX_POINTS_PER_RULE} onChange={value => setPoints(key, value)} helper={`0 a ${MAX_POINTS_PER_RULE} pontos.`} />
+                      <NumberField key={key} label={title} value={format.rewards.points[key]} min={0} max={MAX_POINTS_PER_RULE} onChange={value => setPoints(key, value)} helper={`0 a ${MAX_POINTS_PER_RULE} créditos.`} />
                     ))}
                   </div>
                 )}
@@ -479,7 +493,7 @@ export default function TournamentFormatPage() {
 
         <div className="mt-8 flex gap-3">
           <Button onClick={() => { dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null }); dispatch({ type: 'SET_PHASE', phase: 'menu' }); }} intent="ghost" className="border border-[var(--ui-line-subtle)]">← VOLTAR</Button>
-          <Button intent="primary" size="large" onClick={handleContinue} disabled={Boolean(validationError)} className="flex-1">ESCOLHER DIFICULDADE →</Button>
+          <Button intent="primary" size="large" onClick={() => handleContinue()} disabled={Boolean(validationError)} className="flex-1">ESCOLHER DIFICULDADE →</Button>
         </div>
       </PageContainer>
     </AppShell>

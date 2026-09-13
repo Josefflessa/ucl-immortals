@@ -160,7 +160,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
               <div className="space-y-1.5">
                 <div className="text-[10px] font-black tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>REQUISITOS</div>
                 <Req ok={wins >= PRIME_WINS_REQUIRED} label={`Vitórias na campanha: ${wins}/${PRIME_WINS_REQUIRED}`} />
-                <Req ok={points >= PRIME_COST} label={`Pontos: ${points}/${PRIME_COST}`} />
+                <Req ok={points >= PRIME_COST} label={`Créditos: ${points}/${PRIME_COST}`} />
               </div>
             </div>
 

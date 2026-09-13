@@ -12,6 +12,7 @@ const COACH_ICONS: Record<string, string> = {
   ancelotti: '⚖️',
   zidane: '⭐',
   ferguson: '❤️',
+  luis_enrique: '⚡',
 };
 
 const COACH_COLORS: Record<string, string> = {
@@ -21,6 +22,7 @@ const COACH_COLORS: Record<string, string> = {
   ancelotti: '#10B981',
   zidane: '#C9A84C',
   ferguson: '#F97316',
+  luis_enrique: '#38BDF8',
 };
 
 export default function CoachPage() {
@@ -28,6 +30,13 @@ export default function CoachPage() {
 
   const handleSelect = (coachId: string) => {
     dispatch({ type: 'SET_COACH', coachId });
+  };
+
+  const handleDoubleClick = (coachId: string) => {
+    // Ensure the card that received the double click is the one submitted,
+    // even if both click events are batched by the browser.
+    dispatch({ type: 'SET_COACH', coachId });
+    handleContinue();
   };
 
   const handleContinue = () => {
@@ -68,6 +77,8 @@ export default function CoachPage() {
                   key={coach.id}
                   selected={isSelected}
                   onClick={() => handleSelect(coach.id)}
+                  onDoubleClick={() => handleDoubleClick(coach.id)}
+                  title="Clique duas vezes para escolher e continuar"
                   className="ui-choice text-left p-5"
                   style={{
                     background: isSelected ? 'var(--ui-surface-2)' : undefined,

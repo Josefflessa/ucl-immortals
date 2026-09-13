@@ -98,7 +98,7 @@ export default function ShopTab() {
       <Panel tone="accent">
         <PanelBody className="flex items-center justify-between">
           <div>
-            <div className="ui-panel__title">Seus pontos</div>
+            <div className="ui-panel__title">Seus créditos</div>
             <div className="mt-1 text-xs text-[var(--ui-text-muted)]">Ganhe mais vencendo partidas com bom saldo de gols.</div>
           </div>
           <div className="font-display text-4xl text-[var(--ui-brand-strong)]">💰 {points}</div>
@@ -128,7 +128,7 @@ export default function ShopTab() {
               </div>
               <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{item.name}</div>
               <div className="text-[11px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{item.desc}</div>
-              {!affordable && item.id !== 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Pontos insuficientes</div>}
+              {!affordable && item.id !== 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes</div>}
               {!affordable && item.id === 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#F0E6C0', fontFamily: 'Rajdhani, sans-serif' }}>👀 Ver as cartas</div>}
             </button>
           );
@@ -211,7 +211,7 @@ export default function ShopTab() {
                             {availableUniqueCount === 0
                               ? 'Você já completou o catálogo de Cartas Únicas.'
                               : points < SHOP_COSTS.uniqueCard
-                                ? `Faltam ${SHOP_COSTS.uniqueCard - points} pontos para abrir o pacote.`
+                                ? `Faltam ${SHOP_COSTS.uniqueCard - points} créditos para abrir o pacote.`
                                 : 'O jogador será revelado em uma animação de abertura.'}
                           </p>
                           <button
@@ -232,7 +232,7 @@ export default function ShopTab() {
                 {/* TROCAR TÉCNICO */}
                 {active === 'coach' && (
                   <div className="space-y-2">
-                    <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o novo técnico (−{SHOP_COSTS.changeCoach} pontos):</p>
+                    <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o novo técnico (−{SHOP_COSTS.changeCoach} créditos):</p>
                     {COACHES.filter(c => c.id !== team.coachId).map(c => (
                       <button key={c.id} onClick={() => askConfirm('Trocar Técnico', `Trocar o comandante para ${c.name} por 💰 ${SHOP_COSTS.changeCoach}?`, () => { buyCoach(c.id); close(); })}
                         className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all hover:border-[#C9A84C]/60 active:scale-[0.99]"
@@ -309,8 +309,8 @@ export default function ShopTab() {
                     <div>
                       <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
                         {variantCount(selPlayer) === 1
-                          ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> ⭐ (−{SHOP_COSTS.turbinar} pontos):</>
-                          : <>Carta especial para <b style={{ color: '#C9A84C' }}>{selPlayer.shortName}</b> (−{SHOP_COSTS.turbinar} pontos):</>}
+                          ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> ⭐ (−{SHOP_COSTS.turbinar} créditos):</>
+                          : <>Carta especial para <b style={{ color: '#C9A84C' }}>{selPlayer.shortName}</b> (−{SHOP_COSTS.turbinar} créditos):</>}
                       </p>
                       <div className="space-y-2">
                         {TURBINAR_VARIANTS.filter(v => !(selPlayer as unknown as Record<string, unknown>)[v.key]).map(v => {
@@ -345,7 +345,7 @@ export default function ShopTab() {
                   return (
                     <div>
                       <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                        Clique na <b style={{ color: '#F87171' }}>característica</b> que quer remover (−{SHOP_COSTS.removeVariant} pontos). Cartas <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter duas — some só a que você escolher.
+                        Clique na <b style={{ color: '#F87171' }}>característica</b> que quer remover (−{SHOP_COSTS.removeVariant} créditos). Cartas <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter duas — some só a que você escolher.
                       </p>
                       <div className="space-y-3">
                         {groups.map(g => g.list.length === 0 ? null : (
@@ -416,7 +416,7 @@ export default function ShopTab() {
                         <p className="text-[10px] mb-3" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                           Já treinado {selPlayer.trainCount ?? 0}× — o próximo treino dele custará mais.
                         </p>
-                        {!affordable && <p className="text-[11px] mb-2 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Pontos insuficientes para este jogador.</p>}
+                        {!affordable && <p className="text-[11px] mb-2 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes para este jogador.</p>}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {TRAIN_ATTRS.map(a => (
                             <button key={a.key} disabled={!affordable}

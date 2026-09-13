@@ -6,7 +6,7 @@ import {
   Team, MatchResult, MatchEvent,
   getEffectiveAttribute, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat,
-  getPenaltyOrder, setStatIds, statKey, penaltyGoalChance,
+  getPenaltyOrder, activeGoalkeeperForTeam, matchRoleForPlayer, setStatIds, statKey, penaltyGoalChance, EMERGENCY_GK_PENALTY,
   captainBoostForTeam, computeCharacteristicBoosts, playerMatchDiscipline,
 } from '../lib/gameEngine';
 
@@ -32,6 +32,18 @@ const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 // text to avoid showing it twice (e.g. "⚽ ⚽ GOL CONTRA!").
 const stripLeadingEmoji = (s: string) =>
   s.replace(/^[\s☀-➿⬀-⯿️‍\uD800-\uDFFF]+/, '');
+
+// A trigger changes only the in-match mentalidade. The Team object stays immutable,
+// so post-match screens can keep showing the manager's configured starting tactic.
+function tacticAtMinute(team: Team, matchEvents: MatchEvent[], currentMinute: number): string {
+  let active = team.playStyle ?? 'balanced';
+  for (const event of matchEvents) {
+    if (event.teamId === team.id && event.type === 'tactic' && event.tacticAction && event.minute <= currentMinute) {
+      active = event.tacticAction;
+    }
+  }
+  return active;
+}
 
 
 export default function MatchSimPage() {
@@ -443,7 +455,7 @@ export default function MatchSimPage() {
             : isSaveOutcome
               ? (atkTeam.players.find(p => p.id === decisive.opponentId)?.shortName ?? 'Atacante')
               : (atkTeam.players.find(p => p.id === decisive.playerId)?.shortName ?? 'Atacante');
-          const gkName = defTeam.players.find(p => p.position === 'GK')?.shortName ?? defTeam.name;
+          const gkName = activeGoalkeeperForTeam(defTeam, undefined, replayResult.playerStats).player?.shortName ?? defTeam.name;
           const homeDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === homeTeam.id).length;
           const awayDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === awayTeam.id).length;
           const atkIsHome = atkId === homeTeam.id;
@@ -464,7 +476,7 @@ export default function MatchSimPage() {
           };
 
           setIsPlaying(false);
-          const replayApproach = selectApproach(atkTeam.playStyle ?? 'balanced');
+          const replayApproach = selectApproach(tacticAtMinute(atkTeam, [...events, ...otherEvs], nextMin));
           const replayBuildUp = isOwnGoal
             ? `😬 ${ogName} tenta cortar sob pressão na área do ${defTeam.name}, mas a bola desvia em direção ao próprio gol...`
             : buildUpDesc(replayApproach, attackerName, gkName, gkName, atkTeam.name);
@@ -487,7 +499,7 @@ export default function MatchSimPage() {
     }, getTickDuration());
 
     return () => clearTimeout(timer);
-  }, [isReplay, replayResult, isPlaying, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, homeTeam, awayTeam, momentum]);
+  }, [isReplay, replayResult, isPlaying, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, homeTeam, awayTeam, momentum, events]);
 
   // Scroll live events feed to bottom automatically
   useEffect(() => {
@@ -568,10 +580,11 @@ export default function MatchSimPage() {
     const attackTeam = isHomeTurn ? homeTeam : awayTeam;
     const defendTeam = isHomeTurn ? awayTeam : homeTeam;
 
-    const order = getPenaltyOrder(attackTeam);
+    const order = getPenaltyOrder(attackTeam, undefined, playerMatchStats);
     const takerIdx = Math.floor(currentKick / 2);
     const taker = order[takerIdx % order.length];
-    const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
+    const gkInfo = activeGoalkeeperForTeam(defendTeam, undefined, playerMatchStats);
+    const gk = gkInfo.player;
 
     const attackCoach = COACHES.find(c => c.id === attackTeam.coachId)!;
     const defendCoach = COACHES.find(c => c.id === defendTeam.coachId)!;
@@ -579,8 +592,8 @@ export default function MatchSimPage() {
     // vs the keeper's EFFECTIVE shot-stopping.
     const composure = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', getChemistryBonus(attackTeam.totalChemistry), attackTeam.playStyle ?? 'balanced')
       + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
-    const gkReflexes = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', getChemistryBonus(defendTeam.totalChemistry), defendTeam.playStyle ?? 'balanced')
-      + getGoalkeeperTraitBonus(gk.traits);
+    const gkReflexes = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', getChemistryBonus(defendTeam.totalChemistry), defendTeam.playStyle ?? 'balanced', { role: 'GK' })
+      + getGoalkeeperTraitBonus(gk.traits) - (gkInfo.emergency ? EMERGENCY_GK_PENALTY : 0);
     const isGoal = Math.random() < penaltyGoalChance(composure, gkReflexes);
 
     let desc = "";
@@ -734,16 +747,18 @@ export default function MatchSimPage() {
     if (awayGoals === 0) {
       homeTeam.players.slice(0, 11).forEach(p => {
         if (updatedStats[p.id]) {
-          if (p.position === 'GK') updatedStats[p.id].rating += 0.8;
-          else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) updatedStats[p.id].rating += 0.4;
+          const role = matchRoleForPlayer(homeTeam, p);
+          if (role === 'GK') updatedStats[p.id].rating += 0.8;
+          else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(role)) updatedStats[p.id].rating += 0.4;
         }
       });
     }
     if (homeGoals === 0) {
       awayTeam.players.slice(0, 11).forEach(p => {
         if (updatedStats[p.id]) {
-          if (p.position === 'GK') updatedStats[p.id].rating += 0.8;
-          else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) updatedStats[p.id].rating += 0.4;
+          const role = matchRoleForPlayer(awayTeam, p);
+          if (role === 'GK') updatedStats[p.id].rating += 0.8;
+          else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(role)) updatedStats[p.id].rating += 0.4;
         }
       });
     }
@@ -948,6 +963,7 @@ export default function MatchSimPage() {
       case 'save': return '🧤';
       case 'sub': return '🔄';
       case 'penalty': return '🎯';
+      case 'tactic': return '';
       case 'yellow': return '🟨';
       case 'red': return '🟥';
       case 'injury': return '🩹';
@@ -1202,7 +1218,7 @@ export default function MatchSimPage() {
       <div className="flex-1 min-h-0 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden relative z-10">
         
         {/* LEFT COLUMN: live feed */}
-        <div className="lg:col-span-2 flex flex-col min-h-[300px] sm:min-h-[420px] lg:min-h-0 lg:h-full rounded-2xl overflow-hidden border flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
+        <div className="lg:col-span-2 flex flex-col min-h-[360px] sm:min-h-[500px] lg:min-h-0 lg:h-full rounded-2xl overflow-hidden border flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
           
           {/* Live broadcast commentary banner */}
           <div className="p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: '#171725' }}>
@@ -1295,7 +1311,7 @@ export default function MatchSimPage() {
             className="flex-1 min-h-0 basis-0 overflow-y-auto overflow-x-hidden p-3 sm:p-5 space-y-2.5 sm:space-y-3.5 scroll-smooth"
             style={{ background: '#08080f' }}
           >
-            {events.filter(event => ['goal', 'penalty', 'yellow', 'red', 'injury'].includes(event.type)).length === 0 ? (
+            {events.filter(event => ['goal', 'penalty', 'tactic', 'yellow', 'red', 'injury'].includes(event.type)).length === 0 ? (
               <div className="h-full flex items-center justify-center flex-col text-center text-gray-500 py-8" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 <span className="text-5xl sm:text-6xl mb-3 animate-bounce">⚽</span>
                 <span className="text-sm sm:text-base font-bold text-white tracking-wide">ÁRBITRO APITA O INÍCIO!</span>
@@ -1303,18 +1319,23 @@ export default function MatchSimPage() {
               </div>
             ) : (
               events
-                .filter(event => ['goal', 'penalty', 'yellow', 'red', 'injury'].includes(event.type))
+                .filter(event => ['goal', 'penalty', 'tactic', 'yellow', 'red', 'injury'].includes(event.type))
                 .map((event, idx) => {
                   const isPlayerEvent = event.teamId === playerTeamId;
                   const isGoal = event.type === 'goal';
+                  const isTactic = event.type === 'tactic';
+                  const eventTeam = isTactic
+                    ? (event.teamId === homeTeam.id ? homeTeam : event.teamId === awayTeam.id ? awayTeam : undefined)
+                    : undefined;
                   const negative = event.type === 'yellow' || event.type === 'red' || event.type === 'injury';
                   // "Favorável" = bom PARA MIM. Gol meu é bom; cartão/lesão MINHA é ruim (o inverso).
                   const favorable = negative ? !isPlayerEvent : isPlayerEvent;
-                  const accentColor   = favorable ? '#22c55e' : '#ef4444';
-                  const bgColor       = favorable ? 'rgba(34, 197, 94, 0.07)' : 'rgba(239, 68, 68, 0.07)';
-                  const borderColor   = favorable ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+                  const accentColor   = isTactic ? '#c9a84c' : favorable ? '#22c55e' : '#ef4444';
+                  const bgColor       = isTactic ? 'rgba(201, 168, 76, 0.07)' : favorable ? 'rgba(34, 197, 94, 0.07)' : 'rgba(239, 68, 68, 0.07)';
+                  const borderColor   = isTactic ? 'rgba(201, 168, 76, 0.25)' : favorable ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
                   // Cor do texto destaca o TIPO do lance (vermelho dramático, lesão âmbar, amarelo).
                   const descColor = isGoal ? accentColor
+                    : isTactic ? '#e8c84a'
                     : event.type === 'red' ? '#f87171'
                       : event.type === 'injury' ? '#fbbf24'
                         : event.type === 'yellow' ? '#facc15'
@@ -1338,9 +1359,15 @@ export default function MatchSimPage() {
                         {event.minute}'
                       </span>
 
-                      <span className="text-sm sm:text-base flex-shrink-0">
-                        {getEventIcon(event.type)}
-                      </span>
+                      {isTactic ? (
+                        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center">
+                          <Crest crestId={eventTeam?.crestId} name={eventTeam?.name ?? event.description} size={38} />
+                        </span>
+                      ) : (
+                        <span className="text-sm sm:text-base flex-shrink-0">
+                          {getEventIcon(event.type)}
+                        </span>
+                      )}
 
                       <div className="flex-1 min-w-0">
                         <p
@@ -1355,10 +1382,12 @@ export default function MatchSimPage() {
                           style={{
                             fontFamily: 'Rajdhani, sans-serif',
                             color: accentColor,
-                            background: favorable ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                            background: isTactic ? 'rgba(201,168,76,0.12)' : favorable ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
                           }}
                         >
-                          {negative
+                          {isTactic
+                            ? 'TÁTICA ALTERADA'
+                            : negative
                             ? (isPlayerEvent ? '▼ SEU TIME' : '▲ ADVERSÁRIO')
                             : (isPlayerEvent ? '▲ A FAVOR' : '▼ ADVERSÁRIO')}
                         </span>
@@ -1495,6 +1524,7 @@ export default function MatchSimPage() {
                   return (
                     <MatchFieldView
                       team={t}
+                      activePlayStyle={tacticAtMinute(t, events, minute)}
                       ratings={ratings}
                       goalsByPlayer={goalsByPlayer}
                       assistsByPlayer={assistsByPlayer}
@@ -1626,11 +1656,11 @@ export default function MatchSimPage() {
       </AnimatePresence>
 
       {/* ── 6. FOOTER CONTROL CENTER ── */}
-      <div className="ui-topbar py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-2 sm:gap-4 z-10 flex-shrink-0">
+      <div className="ui-topbar py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-row flex-wrap items-center justify-center sm:justify-between gap-2 sm:gap-4 z-10 flex-shrink-0">
         
         {/* Online shows the live indicator; solo keeps pause/simulate controls. */}
         {broadcastMode ? (
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
+          <div className="flex items-center gap-2 w-auto justify-center sm:justify-start">
             {!isFinished && (
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
@@ -1639,7 +1669,7 @@ export default function MatchSimPage() {
             )}
           </div>
         ) : (
-        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-start">
+        <div className="flex items-center gap-2 sm:gap-3 w-auto justify-center sm:justify-start">
           <Button
             type="button"
             intent={isPlaying ? 'danger' : 'success'}
@@ -1657,7 +1687,7 @@ export default function MatchSimPage() {
         )}
 
         {/* Skip & Conclude Match Actions */}
-        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-end">
+        <div className="flex items-center gap-2 sm:gap-3 w-auto justify-center sm:justify-end">
           {!isFinished && !penaltyMode && !broadcastMode && state.mode !== 'online' && (
             <Button
               type="button"

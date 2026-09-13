@@ -20,6 +20,7 @@ export const MAX_POINTS_PER_RULE = 1000;
 export type CompetitionFormatId = 'league' | 'league_knockout' | 'groups_knockout' | 'knockout';
 export type ReinforcementMode = 'off' | 'round' | 'stage';
 
+/** Credits awarded to the player's shop balance after a completed match. */
 export interface CompetitionPointsConfig {
   win: number;
   draw: number;
@@ -185,10 +186,10 @@ function validateRewards(rewards: unknown, maxReinforcementWindow: number): stri
   if (value.reinforcement !== 'off' && value.reinforcement !== 'round' && value.reinforcement !== 'stage') return 'Escolha quando os reforços serão oferecidos.';
   if (!isInteger(value.reinforcementOptions) || value.reinforcementOptions < MIN_REINFORCEMENT_OPTIONS || value.reinforcementOptions > MAX_REINFORCEMENT_OPTIONS) return `As opções de reforço devem ficar entre ${MIN_REINFORCEMENT_OPTIONS} e ${MAX_REINFORCEMENT_OPTIONS}.`;
   if (value.reinforcement !== 'off' && value.reinforcementUntilRound !== null && (!isInteger(value.reinforcementUntilRound) || value.reinforcementUntilRound < 1 || value.reinforcementUntilRound > maxReinforcementWindow)) return `A janela de reforços deve ficar entre 1 e ${maxReinforcementWindow}.`;
-  if (typeof value.pointsEnabled !== 'boolean' || typeof value.knockoutPointsEnabled !== 'boolean') return 'Defina se a pontuação estará ativa nas fases.';
-  if (!value.points || typeof value.points !== 'object') return 'Defina os pontos da partida.';
+  if (typeof value.pointsEnabled !== 'boolean' || typeof value.knockoutPointsEnabled !== 'boolean') return 'Defina se os créditos da loja estarão ativos nas fases.';
+  if (!value.points || typeof value.points !== 'object') return 'Defina os créditos da partida.';
   for (const key of ['win', 'draw', 'loss', 'goalDifference', 'goal', 'cleanSheet'] as const) {
-    if (!isInteger(value.points[key]) || value.points[key] < 0 || value.points[key] > MAX_POINTS_PER_RULE) return `Cada regra de pontos deve ficar entre 0 e ${MAX_POINTS_PER_RULE}.`;
+    if (!isInteger(value.points[key]) || value.points[key] < 0 || value.points[key] > MAX_POINTS_PER_RULE) return `Cada regra de créditos deve ficar entre 0 e ${MAX_POINTS_PER_RULE}.`;
   }
   return null;
 }
@@ -289,5 +290,5 @@ export function competitionRewardSummary(format: CompetitionFormat): string {
   const rewards = normalized.rewards;
   const roundName = normalized.id === 'groups_knockout' ? 'rodada de grupos' : normalized.id === 'knockout' ? 'fase' : 'rodada da liga';
   const reinforcement = rewards.reinforcement === 'off' ? 'sem reforços automáticos' : rewards.reinforcement === 'round' ? `1 reforço a cada ${roundName} até a ${rewards.reinforcementUntilRound ?? 'última'}` : '1 reforço ao concluir cada fase eliminatória até o limite escolhido';
-  return `${reinforcement} · ${rewards.pointsEnabled ? 'pontos por partida ativos' : 'pontos por partida desligados'}`;
+  return `${reinforcement} · ${rewards.pointsEnabled ? 'créditos da loja ativos' : 'créditos da loja desligados'}`;
 }

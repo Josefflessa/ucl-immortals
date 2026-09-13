@@ -16,7 +16,7 @@ export default function SquadReviewPage() {
 
   const handleStart = () => {
     if (online) {
-      submitSquadReviewOnline(state.captain, state.penaltyTaker, state.freeKickTaker, state.draftedPlayers, state.selectedPlayStyle, state.selectedFormationId);
+      submitSquadReviewOnline(state.captain, state.penaltyTaker, state.freeKickTaker, state.draftedPlayers, state.selectedPlayStyle, state.selectedFormationId, state.selectedMatchPlan);
     } else {
       dispatch({ type: 'START_LEAGUE' });
     }
@@ -44,11 +44,13 @@ export default function SquadReviewPage() {
           coachId={state.selectedCoachId}
           formationId={state.selectedFormationId}
           playStyle={state.selectedPlayStyle}
+          matchPlan={state.selectedMatchPlan}
           captain={state.captain}
           penaltyTaker={state.penaltyTaker}
           freeKickTaker={state.freeKickTaker}
           onSetFormation={(id) => dispatch({ type: 'SET_FORMATION', formationId: id })}
           onSetPlayStyle={(id) => dispatch({ type: 'SET_PLAY_STYLE', playStyle: id })}
+          onSetMatchPlan={(plan) => dispatch({ type: 'SET_MATCH_PLAN', plan })}
           onSetCaptain={(id) => dispatch({ type: 'SET_CAPTAIN', playerId: id })}
           onSetPenaltyTaker={(id) => dispatch({ type: 'SET_PENALTY_TAKER', playerId: id })}
           onSetFreeKickTaker={(id) => dispatch({ type: 'SET_FREE_KICK_TAKER', playerId: id })}

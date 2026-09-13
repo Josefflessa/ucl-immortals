@@ -107,6 +107,14 @@ export default function CrestPage() {
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={() => pick(c.id)}
+                  onDoubleClick={() => {
+                    // A browser fires the second click before dblclick. Because a
+                    // single click on an already-selected crest clears it, write
+                    // the chosen crest again here before moving to the coach step.
+                    dispatch({ type: 'SET_CREST', crestId: c.id });
+                    handleContinue();
+                  }}
+                  title="Clique duas vezes para escolher e continuar"
                   className="ui-choice flex flex-col items-center gap-1.5 p-3"
                   data-selected={isSel}
                   style={{

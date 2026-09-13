@@ -35,12 +35,12 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 }
 
 const FORMATION_GUIDE = [
-  { id: '4-3-3', identity: 'Equilíbrio com pegada ofensiva', desc: 'Três atacantes dão largura e presença na área; o trio de meio sustenta. Versátil, boa por padrão.' },
-  { id: '4-2-3-1', identity: 'Controle e solidez', desc: 'Dois volantes blindam a defesa e um meia criativo arma o jogo. Mais equilibrada/defensiva.' },
-  { id: '4-4-2', identity: 'O clássico equilibrado', desc: 'Duas linhas de quatro bem organizadas e dupla de ataque. Sem pontos fracos, sem exageros.' },
-  { id: '3-5-2', identity: 'Domínio de meio-campo', desc: 'Cinco no meio controlam o jogo — mas as pontas ficam expostas (sem alas de origem).' },
-  { id: '3-4-3', identity: 'Ultraofensiva', desc: 'Muita gente no ataque e pressão alta: cria MUITO, porém a defesa de três sofre mais.' },
-  { id: '5-3-2', identity: 'Muralha', desc: 'Cinco defensores em bloco baixo: sofre pouquíssimo, mas cria pouco. Para segurar resultado.' },
+  { id: '4-3-3', identity: 'Equilíbrio com largura', desc: 'Três atacantes dão largura e presença na área, criando um bom volume pelos lados. É versátil, mas exige recomposição dos laterais.' },
+  { id: '4-2-3-1', identity: 'Controle e solidez', desc: 'Dois volantes protegem o centro e ajudam a criar sequências; o meia conecta o ataque. A presença direta na área é menor.' },
+  { id: '4-4-2', identity: 'O clássico equilibrado', desc: 'Duas linhas de quatro e dupla de ataque: uma estrutura simples, previsível e sem uma tendência extrema.' },
+  { id: '3-5-2', identity: 'Domínio de meio-campo', desc: 'Cinco no meio geram o maior volume de construção e posse. Em troca, os corredores dependem muito dos alas.' },
+  { id: '3-4-3', identity: 'Chances de alto perigo', desc: 'Três atacantes tornam as chances mais perigosas e pressionam a saída. A linha de três, porém, deixa o time mais exposto.' },
+  { id: '5-3-2', identity: 'Muralha', desc: 'Cinco defensores reduzem o perigo adversário. É segura, mas gera menos sequências e menos perigo quando ataca.' },
 ];
 
 const RARITIES: { r: Rarity; label: string; desc: string }[] = [
@@ -71,12 +71,12 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
               <Step n={3} title="Identidade do time">Escolha escudo, técnico e formação inicial.</Step>
               <Step n={4} title="Draft">Monte seu XI (11 titulares) + 2 reservas pro banco, escolhendo cartas rodada a rodada. Você tem 4 vetos.</Step>
               <Step n={5} title="Revisão do elenco">Ajuste formação, tática, capitão e cobradores; veja a química.</Step>
-              <Step n={6} title="Competição">Jogue cada rodada ou fase. Apostas, pontos, classificação, reforços e mata-mata seguem o formato escolhido.</Step>
+              <Step n={6} title="Competição">Jogue cada rodada ou fase. Apostas, créditos da loja, classificação, reforços e mata-mata seguem o formato escolhido.</Step>
             </div>
           </Card>
           <Card>
             <H>ENTRE AS PARTIDAS</H>
-            <P>No hub você pode: trocar formação/tática, mexer no time (banco ↔ titular), definir capitão e cobradores, e gastar pontos na <b style={{ color: GOLD }}>🛒 Loja</b>. Tudo isso afeta a próxima partida.</P>
+            <P>No hub você pode: trocar formação/tática, mexer no time (banco ↔ titular), definir capitão e cobradores, e gastar créditos na <b style={{ color: GOLD }}>🛒 Loja</b>. Tudo isso afeta a próxima partida.</P>
           </Card>
         </div>
       ),
@@ -129,7 +129,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
       icon: '📐', label: 'Formações',
       body: (
         <div className="space-y-3">
-          <P>A formação muda como o time cria e sofre chances. Cada uma tem uma identidade — nenhuma é "a melhor", depende do seu plano.</P>
+          <P>Controle gera mais iniciativa, volume de jogadas e posse; ataque torna suas chances mais perigosas; defesa reduz o perigo adversário. Cada formação combina esses eixos de um jeito — nenhuma é "a melhor", depende do seu plano.</P>
           {FORMATION_GUIDE.map(f => (
             <Card key={f.id}>
               <div className="flex items-center gap-2 mb-1">
@@ -216,12 +216,12 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
       ),
     },
     {
-      icon: '🛒', label: 'Loja & Pontos',
+      icon: '🛒', label: 'Loja & Créditos',
       body: (
         <div className="space-y-4">
           <Card accent="#34D39944">
-            <H>💰 Como ganhar pontos</H>
-            <P>A cada partida da liga você ganha pontos pelo desempenho: <b>vitória/empate/derrota</b>, <b>saldo de gols</b>, <b>gols marcados</b> e <b>não sofrer gol</b>. Até quem perde leva um pouco.</P>
+            <H>💰 Como ganhar créditos</H>
+            <P>A cada partida com créditos ativos, você ganha saldo para a loja pelo desempenho: <b>vitória/empate/derrota</b>, <b>saldo de gols</b>, <b>gols marcados</b> e <b>não sofrer gol</b>. Até quem perde leva um pouco. Esses créditos não alteram a classificação do torneio.</P>
           </Card>
           <H>O que dá pra comprar</H>
           {[

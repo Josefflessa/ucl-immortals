@@ -5,7 +5,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   getChemistryBonus, getChemistryLinks, computeCharacteristicBoosts, getEffectiveAttribute, getPlayerEffectiveStats,
   resolveOpenPlayChance, shotTypeForApproach, GK_SAVE_EDGE, ON_TARGET_RESISTANCE,
-  getPenaltyTaker, getPenaltyOrder, computeStandings, generateLeagueFixtures, buildKeyMinutes,
+  getPenaltyTaker, getPenaltyOrder, activeGoalkeeperForTeam, computeStandings, generateLeagueFixtures, simulateLeague, buildKeyMinutes,
+  matchRoleForPlayer, STANDARD_TABLE_POINTS,
   createKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
   PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant,
@@ -96,6 +97,17 @@ describe('encaixe de posição em 3 estados + penalidade', () => {
     const versNative = getPlayerEffectiveStats(vers, 0, false, coach.id, 0, 'balanced', { isSecondary: false }).overall;
     const versSecondary = getPlayerEffectiveStats(vers, 0, false, coach.id, 0, 'balanced', { isSecondary: true }).overall;
     expect(versSecondary).toBe(versNative); // sem penalidade
+  });
+});
+
+describe('papel real na formação', () => {
+  it('usa a vaga ocupada no XI para as ações da partida', () => {
+    const keeper = mkP({ id: 'keeper', position: 'GK' });
+    const winger = mkP({ id: 'winger', position: 'RW' });
+    const team = mkTeam('T', [keeper, winger, ...Array.from({ length: 9 }, () => mkP())]);
+
+    expect(matchRoleForPlayer(team, winger)).toBe('LB');
+    expect(matchRoleForPlayer(team, keeper)).toBe('GK');
   });
 });
 
@@ -246,7 +258,7 @@ describe('computeCharacteristicBoosts — team-effect characteristics', () => {
     expect(captainBoostFromStarters(starters, 'p0')?.amount).toBe(CAPTAIN_BOOST);
   });
 
-  it('🤑 Magnata multiplica os pontos de liga por 1.5 (titular) e NÃO empilha', () => {
+  it('🤑 Magnata multiplica os créditos da liga por 1,5 (titular) e NÃO empilha', () => {
     const mag = mkP({ id: 'm1', magnata: true });
     const mag2 = mkP({ id: 'm2', magnata: true });
     const rest = Array.from({ length: 10 }, (_, i) => mkP({ id: `r${i}` }));
@@ -506,6 +518,17 @@ describe('penalty takers — never the goalkeeper', () => {
     expect(order[order.length - 1].position).toBe('GK');
     expect(order[0].id).toBe('st');
   });
+  it('excludes an expelled player and uses a line player as emergency goalkeeper', () => {
+    const activeGk = activeGoalkeeperForTeam(team, new Set(['gk']));
+    expect(activeGk.player.id).toBe('st');
+    expect(activeGk.emergency).toBe(true);
+    expect(getPenaltyTaker(team, new Set(['st'])).id).not.toBe('st');
+    expect(getPenaltyOrder(team, new Set(['gk'])).some(p => p.id === 'gk')).toBe(false);
+  });
+  it('scopes exclusions to the team instance when ids are shared', () => {
+    expect(activeGoalkeeperForTeam(team, new Set(['other-team::gk'])).player.id).toBe('gk');
+    expect(getPenaltyTaker(team, new Set(['other-team::st'])).id).toBe('st');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -546,6 +569,24 @@ describe('computeStandings — table integrity', () => {
     const A = mkTeam('A', [mkP()]); const B = mkTeam('B', [mkP()]);
     const table = computeStandings([A, B], [{ round: 1, homeTeamId: 'A', awayTeamId: 'B', played: false }]);
     expect(table.every(t => t.played === 0)).toBe(true);
+  });
+
+  it('keeps table scoring configurable and independent from shop credits', () => {
+    const A = mkTeam('A', [mkP()]); const B = mkTeam('B', [mkP()]);
+    const fixture: LeagueFixture = { round: 1, homeTeamId: 'A', awayTeamId: 'B', played: true, result: result('A', 'B', 2, 0) };
+    const table = computeStandings([A, B], [fixture], { win: 5, draw: 2, loss: 1 });
+    expect(table.find(t => t.teamId === 'A')?.points).toBe(5);
+    expect(table.find(t => t.teamId === 'B')?.points).toBe(1);
+    expect(STANDARD_TABLE_POINTS).toEqual({ win: 3, draw: 1, loss: 0 });
+  });
+});
+
+describe('simulateLeague — legacy convenience API', () => {
+  it('uses the shared fixture generator instead of the old eight-match cap', () => {
+    const teams = Array.from({ length: 4 }, (_, i) => mkTeam(`T${i}`, Array.from({ length: 11 }, () => mkP())));
+    const season = simulateLeague(teams, 3);
+    expect(season.results).toHaveLength(6);
+    expect(season.standings.every(entry => entry.played === 3)).toBe(true);
   });
 });
 
@@ -616,6 +657,7 @@ describe('crest catalogue integrity', () => {
     expect(crestIdForClub('Bayern München')).toBe('bayern-munich');
     expect(crestIdForClub('Liverpool')).toBe('liverpool');
     expect(crestIdForClub('Brasil')).toBe('brazil');
+    expect(crestIdForClub('Fenerbahçe')).toBe('fenerbahce');
   });
 });
 

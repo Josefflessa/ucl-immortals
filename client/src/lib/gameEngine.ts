@@ -3,7 +3,7 @@
 
 import {
   Player, Coach, Formation,
-  PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, HISTORICAL_TRIOS,
+  PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, HISTORICAL_TRIOS, getTacticById,
   canonicalPosition, getPositionGroup, effectiveSecondaries,
 } from './gameData';
 import {
@@ -28,6 +28,10 @@ import {
   compressAggression, settleFactor, SECOND_YELLOW_LENIENCY,
 } from './discipline';
 import { DEFAULT_COMPETITION_FORMAT, normalizeCompetitionFormat, type CompetitionFormat } from './competition';
+
+// Re-export the discipline multiplier used by the UI so the selector and the match engine
+// always read the same source of truth.
+export { tacticAggression };
 
 // Premium variants keep their own card IDs for inventory/UI. Cards that represent
 // a different club/era may provide historicalPlayerId so historical chemistry
@@ -71,6 +75,121 @@ export function statKey(teamId: string, playerId: string): string {
   return `${teamId}::${playerId}`;
 }
 
+// Plano de jogo: mudanças automáticas de mentalidade baseadas no estado da
+// partida. O plano é pequeno de propósito: decisões importantes, sem virar um
+// construtor de regras difícil de ler ou abusar.
+export type MatchTriggerCondition = 'losing' | 'winning' | 'draw' | 'red_card' | 'opponent_red_card';
+export type MatchTriggerAction = 'balanced' | 'possession' | 'counter' | 'high_press' | 'defensive' | 'all_out_attack';
+
+export interface MatchTrigger {
+  id: string;
+  condition: MatchTriggerCondition;
+  /** Optional goal difference required by a losing/winning score condition. */
+  margin?: number;
+  minute: number;
+  action: MatchTriggerAction;
+}
+
+export interface MatchPlan {
+  triggers: MatchTrigger[];
+}
+
+export const MAX_MATCH_TRIGGERS = 3;
+export const MATCH_TRIGGER_MINUTES = [15, 30, 45, 55, 60, 65, 70, 75, 80, 85] as const;
+export const MATCH_TRIGGER_GOAL_MARGINS = [1, 2, 3, 4, 5] as const;
+export const MATCH_TRIGGER_CONDITIONS: readonly MatchTriggerCondition[] = [
+  'losing', 'draw', 'winning', 'red_card', 'opponent_red_card',
+];
+export const MATCH_TRIGGER_ACTIONS: readonly MatchTriggerAction[] = [
+  'balanced', 'possession', 'counter', 'high_press', 'defensive', 'all_out_attack',
+];
+
+export const DEFAULT_MATCH_PLAN: MatchPlan = {
+  triggers: [],
+};
+
+function isMatchTriggerCondition(value: unknown): value is MatchTriggerCondition {
+  return typeof value === 'string' && MATCH_TRIGGER_CONDITIONS.includes(value as MatchTriggerCondition);
+}
+
+function canonicalTriggerCondition(value: unknown): MatchTriggerCondition | null {
+  // Saves/rooms created before the compact score condition used these separate names.
+  if (value === 'losing_by' || value === 'losing_by_two') return 'losing';
+  if (value === 'winning_by' || value === 'winning_by_two') return 'winning';
+  if (value === 'scoreless') return 'draw';
+  return isMatchTriggerCondition(value) ? value : null;
+}
+
+function isScoreCondition(condition: MatchTriggerCondition): boolean {
+  return condition === 'losing' || condition === 'winning';
+}
+
+function normalizeGoalMargin(value: unknown): number {
+  return Math.max(1, Math.min(5, Math.round(Number(value) || 2)));
+}
+
+function isMatchTriggerAction(value: unknown): value is MatchTriggerAction {
+  return typeof value === 'string' && MATCH_TRIGGER_ACTIONS.includes(value as MatchTriggerAction);
+}
+
+/**
+ * Returns a safe, canonical plan for old saves/rooms and for generated bots.
+ * `undefined` means "start with no automatic changes"; an explicit empty array
+ * remains empty so the manager can deliberately keep automatic changes disabled.
+ */
+export function normalizeMatchPlan(input?: Partial<MatchPlan> | null): MatchPlan {
+  if (input == null) return { triggers: DEFAULT_MATCH_PLAN.triggers.map(trigger => ({ ...trigger })) };
+  const raw = (Array.isArray(input.triggers) ? input.triggers : []) as unknown[];
+  const triggers = raw
+    .filter((trigger): trigger is Record<string, unknown> => !!trigger && typeof trigger === 'object')
+    .map((trigger, index): MatchTrigger | null => {
+      const condition = canonicalTriggerCondition(trigger.condition);
+      if (!condition || !isMatchTriggerAction(trigger.action)) return null;
+
+      const normalized: MatchTrigger = {
+        id: typeof trigger.id === 'string' && trigger.id.trim() ? trigger.id.trim().slice(0, 40) : `trigger-${index + 1}`,
+        condition,
+        minute: condition === 'red_card' || condition === 'opponent_red_card'
+          ? 0
+          : Math.max(MATCH_TRIGGER_MINUTES[0], Math.min(85, Math.round(Number(trigger.minute) || 65))),
+        action: trigger.action,
+      };
+
+      const isLegacyMarginCondition = trigger.condition === 'losing_by'
+        || trigger.condition === 'winning_by'
+        || trigger.condition === 'losing_by_two'
+        || trigger.condition === 'winning_by_two';
+      if (isScoreCondition(condition) && (isLegacyMarginCondition || trigger.margin !== undefined)) {
+        normalized.margin = normalizeGoalMargin(isLegacyMarginCondition ? (trigger.margin ?? 2) : trigger.margin);
+      }
+      return normalized;
+    })
+    .filter((trigger): trigger is MatchTrigger => trigger !== null)
+    .slice(0, MAX_MATCH_TRIGGERS);
+  return { triggers };
+}
+
+/** Server-side validation boundary. Invalid client payloads are rejected. */
+export function validateMatchPlan(input: unknown): MatchPlan | null {
+  if (!input || typeof input !== 'object' || !Array.isArray((input as Partial<MatchPlan>).triggers)) return null;
+  const raw = (input as Partial<MatchPlan>).triggers!;
+  if (raw.length > MAX_MATCH_TRIGGERS) return null;
+  const plan = normalizeMatchPlan(input as Partial<MatchPlan>);
+  if (plan.triggers.length !== raw.length) return null;
+  if (new Set(plan.triggers.map(trigger => trigger.id)).size !== plan.triggers.length) return null;
+  return plan;
+}
+
+// Per-match discipline must follow the card instance, not only the player card id.
+// The same card can temporarily exist in both teams (especially in generated fixtures),
+// so a plain `Set.has(player.id)` could expel the copy on the other side as well.
+function isExcludedPlayer(team: Team, player: Player, excludedIds?: ReadonlySet<string>): boolean {
+  return !!excludedIds && (
+    excludedIds.has(player.id) ||
+    excludedIds.has(statKey(team.id, player.id))
+  );
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -78,6 +197,7 @@ export interface Team {
   coachPrime?: boolean; // Fase 2: técnico evoluído pro Prime → estádio temático
   formationId: string;
   playStyle: string;
+  matchPlan?: MatchPlan;
   players: PlayerCard[]; // 11 titulares
   captain?: string;
   penaltyTaker?: string;
@@ -97,15 +217,57 @@ export function formationRoleForPlayer(team: Team, player: Player): string | und
   return FORMATIONS.find(f => f.id === team.formationId)?.positions[index]?.role;
 }
 
+/**
+ * Role used by the match engine for a player in the starting XI.
+ *
+ * A card keeps its native position for identity, chemistry and display, but a
+ * match action must use the role occupied in the selected formation. Keeping
+ * this boundary in one helper prevents the simulation from mixing both ideas.
+ */
+export function matchRoleForPlayer(team: Team, player: Player): string {
+  return canonicalPosition(formationRoleForPlayer(team, player) ?? player.position);
+}
+
+/**
+ * Resolves the goalkeeper who can actually participate in the current match.
+ *
+ * A red-carded goalkeeper cannot keep making saves. The game keeps the
+ * formation slot intact for chemistry/display purposes, but the match engine
+ * uses the best available line player as an emergency goalkeeper and applies
+ * a separate shot-stopping penalty.
+ */
+export function activeGoalkeeperForTeam(
+  team: Team,
+  excludedIds?: ReadonlySet<string>,
+  playerStats?: Record<string, PlayerMatchStat>,
+): { player: PlayerCard; emergency: boolean } {
+  const starters = team.players.slice(0, 11);
+  const isUnavailable = (player: PlayerCard) => {
+    if (isExcludedPlayer(team, player, excludedIds)) return true;
+    const stat = playerStats?.[player.statId ?? statKey(team.id, player.id)];
+    return (stat?.redCards ?? 0) > 0;
+  };
+  const active = starters.filter(player => !isUnavailable(player));
+  const natural = active.find(player => matchRoleForPlayer(team, player) === 'GK');
+  if (natural) return { player: natural, emergency: false };
+
+  const emergency = [...active].sort((a, b) =>
+    ((b.defending ?? 0) + (b.physical ?? 0)) - ((a.defending ?? 0) + (a.physical ?? 0))
+  )[0] ?? starters[0] ?? team.players[0];
+  return { player: emergency, emergency: true };
+}
+
 export interface MatchEvent {
   minute: number;
-  type: 'goal' | 'save' | 'miss' | 'duel' | 'sub' | 'penalty' | 'foul' | 'momentum' | 'yellow' | 'red' | 'injury';
+  type: 'goal' | 'save' | 'miss' | 'duel' | 'sub' | 'penalty' | 'foul' | 'momentum' | 'tactic' | 'yellow' | 'red' | 'injury';
   description: string;
   teamId: string;
   playerId?: string;
   opponentId?: string;
   assisterId?: string;
   isSpecial?: boolean;
+  triggerId?: string;
+  tacticAction?: MatchTriggerAction;
   secondYellow?: boolean; // 🟨🟨 vermelho por 2º amarelo (o amarelo daquele jogo NÃO conta no acúmulo da temporada)
 }
 
@@ -190,6 +352,15 @@ export interface StandingsEntry {
   goalsAgainst: number;
   points: number;
 }
+
+/** Points that decide the tournament table, deliberately separate from shop credits. */
+export interface TablePointsConfig {
+  win: number;
+  draw: number;
+  loss: number;
+}
+
+export const STANDARD_TABLE_POINTS: TablePointsConfig = { win: 3, draw: 1, loss: 0 };
 
 export interface DraftState {
   round: number;
@@ -545,6 +716,18 @@ export function getCoachModifiersForPlayer(
       modifiers.vision += b;
       modifiers.activeEffects.push("Fergie Time: +10 Geral");
     }
+  } else if (coachId === 'luis_enrique') {
+    // Luis Enrique's identity is vertical circulation: midfielders find the next pass,
+    // while the front line attacks the space immediately after the build-up.
+    if (isMidfielder) {
+      modifiers.vision += 3;
+      modifiers.activeEffects.push("Transição Vertical: +3 Visão (MC)");
+    }
+    if (['ST', 'LW', 'RW'].includes(pos)) {
+      modifiers.pace += 2;
+      modifiers.dribbling += 2;
+      modifiers.activeEffects.push("Transição Vertical: +2 Ritmo/Drible (ataque)");
+    }
   }
 
   return modifiers;
@@ -776,9 +959,9 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
 // Midfield build-up rating: passing (execution) blended with vision (the incisive idea /
 // final ball). Vision is ~35% so a true playmaker lifts chance creation noticeably, without
 // overshadowing pure passing. Feeds midfieldBuildUpEdge → the QUALITY of chances created.
-export function teamPlaymaking(team: Team): number {
+export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): number {
   const xi = team.players.slice(0, 11);
-  const mids = xi.filter(p => ['CM', 'CAM', 'CDM', 'LM', 'RM'].includes(p.position));
+  const mids = xi.filter(p => ['CM', 'CAM', 'CDM', 'LM', 'RM'].includes(matchRoleForPlayer(team, p)));
   const pool = mids.length > 0 ? mids : xi;
   if (pool.length === 0) return 70;
   // EFFECTIVE passing/vision (coach, chemistry, traits, training, captain, tactic) — so a buffed
@@ -788,7 +971,7 @@ export function teamPlaymaking(team: Team): number {
   const captainBoost = captainBoostForTeam(team) ?? undefined;
   const charBoosts = computeCharacteristicBoosts(team.players);
   const eff = (p: PlayerCard, attr: 'passing' | 'vision') =>
-    getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, team.playStyle ?? 'balanced', {
+    getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, playStyleOverride ?? 'balanced', {
       captainBoost,
       charBoosts,
       role: formationRoleForPlayer(team, p),
@@ -830,7 +1013,7 @@ export function computePossession(
 // shooting+composure outfielder. Never the keeper.
 export function getFreeKickTaker(team: Team): PlayerCard {
   const starters = team.players.slice(0, 11);
-  const outfield = starters.filter(p => p.position !== 'GK');
+  const outfield = starters.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const pool = outfield.length > 0 ? outfield : starters;
   // The player's designated taker wins — but must be an outfielder (never the GK).
   if (team.freeKickTaker) {
@@ -845,14 +1028,17 @@ export function getFreeKickTaker(team: Team): PlayerCard {
 // Who gets on the end of a corner — a WEIGHTED RANDOM pick, not a fixed player.
 // Strong/tall players (CBs, strikers) and heading specialists go up far more often,
 // but a corner is a scramble, so it genuinely varies who heads it each time.
-export function getHeaderTarget(team: Team): PlayerCard {
+export function getHeaderTarget(team: Team, excludedIds?: ReadonlySet<string>): PlayerCard {
   const xi = team.players.slice(0, 11);
-  const pool = xi.filter(p => p.position !== 'GK');
-  const cand = pool.length > 0 ? pool : xi;
+  const available = xi.filter(p => !isExcludedPlayer(team, p, excludedIds));
+  const active = available.length > 0 ? available : xi;
+  const pool = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
+  const cand = pool.length > 0 ? pool : active;
   const weighted = cand.map(p => {
     let w = (p.physical + p.shooting) / 2;                           // base aerial threat
-    if (['CB', 'ST'].includes(canonicalPosition(p.position))) w *= 1.8; // these crash the box
-    else if (['LB', 'RB', 'CDM', 'CM'].includes(p.position)) w *= 0.7;
+    const role = matchRoleForPlayer(team, p);
+    if (['CB', 'ST'].includes(role)) w *= 1.8; // these crash the box
+    else if (['LB', 'RB', 'CDM', 'CM'].includes(role)) w *= 0.7;
     else w *= 0.4;                                                   // wingers/playmakers rarely head it
     if (p.traits.includes('Cabeceador Implacável')) w += 40;
     else if (p.traits.includes('Cabeceador')) w += 25;
@@ -964,7 +1150,7 @@ export function getEffectiveAttribute(
 //    accuracy curve atkShooting/(atkShooting + resistance)). Both raise = fewer goals.
 export const GK_SAVE_EDGE = 5;
 export const ON_TARGET_RESISTANCE = 48;
-// Global weight of FORMATION + TACTIC on results (chance volume + chance quality). 1.0 = baseline;
+// Global weight of FORMATION + TACTIC on results (chance volume + chance danger). 1.0 = baseline;
 // >1 makes the shape/style choice matter more (squad strength is untouched). Applied to every
 // formation/tactic scalar so the whole tactical contribution scales linearly by this factor.
 export const TACTICAL_INFLUENCE = 1.2;
@@ -973,6 +1159,18 @@ export const TACTICAL_INFLUENCE = 1.2;
 // avg strength-rank ~8 of 36, vs ~18.5 random) while upsets stay common (a rank
 // ~20+ team still lifts the trophy now and then). Football should be unpredictable.
 export const MATCH_NOISE = 20;
+
+// The three tactical axes have deliberately separate jobs in the match engine:
+//   - CONTROL creates more attacking sequences (initiative, shots and possession).
+//   - ATTACK makes the chances your team creates more dangerous.
+//   - DEFENSE reduces the danger of the chances the opponent creates.
+// These are named knobs so the rules remain auditable and balance changes do not silently mix
+// volume with chance quality.
+export const CHANCE_VOLUME_INFLUENCE = 2;
+export const FORMATION_ATTACK_DANGER_INFLUENCE = 1.6;
+export const TACTIC_ATTACK_DANGER_INFLUENCE = 1.6;
+export const FORMATION_DEFENSE_SUPPRESSION_INFLUENCE = 3.6;
+export const TACTIC_DEFENSE_SUPPRESSION_INFLUENCE = 2.2;
 
 // Home advantage: the host enjoys a small territorial edge (crowd, familiarity, no travel).
 // Modelado como +4 em TODOS os atributos do mandante — e como a força do time é a média dos
@@ -1034,7 +1232,9 @@ export const FORMATION_COUNTER_BONUS = 3;
 const FLAVOR_SHOT_RATE = 0.20;  // base chance the attacking side takes an extra attempt this minute
 const FLAVOR_FOUL_RATE = 0.24;  // base chance of a foul this minute
 export const FREE_KICK_CHANCE = 0.10; // fraction of fouls that are dangerous → a direct free kick
+export const PENALTY_FOUL_CHANCE = 0.15; // fraction of dangerous fouls judged inside the box → penalty
 export const CORNER_CHANCE = 0.14;    // fraction of corners that produce a header chance
+export const EMERGENCY_GK_PENALTY = 20; // line player in goal: temporary shot-stopping penalty
 // Momentum gained/lost by the team that scores. Lower = leads snowball less, so
 // fewer blowouts and more balanced (drawn) games.
 export const GOAL_MOMENTUM_SWING = 8;
@@ -1111,26 +1311,25 @@ export function buildKeyMinutes(isKnockout: boolean): number[] {
 // Small numbers on purpose — the formation TILTS the game, it never decides it.
 export interface FormationProfile { attack: number; defense: number; control: number; cross: number; }
 
-// Each shape's tactical fingerprint, tuned to its IDENTITY as a balanced TRADE-OFF: attack
-// (territory/chance volume) is paired with defense (exposure when defending), so an attacking
-// shape both scores AND concedes more, while a defensive shape does the reverse — no shape is
-// strictly better. control = midfield grip (possession + chance quality); cross = wide vs narrow
+// Each shape's tactical fingerprint, tuned to its identity as a trade-off: attack
+// (danger of the team's own chances) is paired with defense (suppression of opponent chance danger),
+// so an attacking shape can create deadlier moments while a defensive shape is harder to break — no shape is
+// strictly better. control = volume of attacking sequences and possession; cross = wide vs narrow
 // (shifts the chance mix between crosses and through-balls). Validated by the round-robin in
 // balance.test.ts ("formation impact"). Magnitudes stay small — the shape TILTS, never decides.
 const FORMATION_PROFILES: Record<string, FormationProfile> = {
-  // Attacking, wide, well-rounded: takes territory, leaves just a LITTLE space behind (mild cost).
-  '4-3-3':   { attack: 0.4, defense: 0, control: 0,  cross: 0 },
+  // Wide front three: chances are a little more dangerous and the shape creates steady volume.
+  '4-3-3':   { attack: 0.4, defense: 0,    control: 0.75, cross: 0 },
   // Patient control: double pivot is solid, the midfield owns the ball, but it's not direct.
   '4-2-3-1': { attack: -0.5, defense: 1, control: 0.75, cross: 0 },
-  // Classic and compact: two banks of four are defensively organised (+defense), with no special
-  // attacking or midfield tilt — the dependable all-rounder.
+  // Classic and compact: the dependable all-rounder, with a modest reduction in chance danger.
   '4-4-2':   { attack: 0,  defense: 0.75, control: 0, cross: 0 },
   // Midfield dominance through the middle, but only three at the back → ball-hungry yet exposed.
   '3-5-2':   { attack: 0,  defense: -0.25, control: 1.5, cross: -2 },
-  // All-out attack: floods forward (most chances) and is wide open at the back (MOST exposed).
-  '3-4-3':   { attack: 2,  defense: -2.5, control: 0,  cross: 1 },
-  // Impenetrable back five that cedes the ball and hits on the counter: fewest chances, meanest D.
-  '5-3-2':   { attack: -1, defense: 2,  control: 0,  cross: -2 },
+  // Three forwards: the chances it creates are much more dangerous, but the back line is exposed.
+  '3-4-3':   { attack: 2,  defense: -2.5, control: 0.5,  cross: 1 },
+  // Back five: suppresses the opponent well, but creates fewer sequences and less-dangerous chances.
+  '5-3-2':   { attack: -1, defense: 2,  control: -0.75, cross: -2 },
 };
 
 export function formationProfile(formationId: string): FormationProfile {
@@ -1168,25 +1367,46 @@ export function tacticStatBonus(playStyle: string, attr: string): number {
   }
 }
 
-// How a tactic shapes chance VOLUME (attack = territory/waves), how exposed it is
-// (defense = lower opponent chance quality), and midfield grip (control = build-up).
+// How a tactic shapes the same three axes as a formation:
+// attack = danger of own chances, defense = suppression of opponent chance danger,
+// control = volume of attacking sequences and possession.
 export function tacticProfile(playStyle: string): { attack: number; defense: number; control: number } {
   switch (playStyle) {
     case 'possession':     return { attack: 0, defense: 0, control: 1 };   // patient, owns the midfield
     case 'counter':        return { attack: 1, defense: 0, control: -1 };  // sits in, hits fast (fewer but better chances)
     case 'high_press':     return { attack: 1, defense: -1, control: 1 };  // aggressive: wins it high, but the high line leaves space behind
     case 'defensive':      return { attack: -2, defense: 2, control: -1 }; // few chances, very hard to break down
-    case 'all_out_attack': return { attack: 3, defense: -3.5, control: 0 }; // floods forward, wide open at the back
-    case 'balanced':       return { attack: 0, defense: 0, control: 0.5 }; // well-drilled, slight midfield presence, no weak spot
+    case 'all_out_attack': return { attack: 3, defense: -3.5, control: 0 }; // chances are very dangerous, but the team is open
+    case 'balanced':       return { attack: 0, defense: 0, control: 0.5 }; // steady volume, no major weakness
     default:               return { attack: 0, defense: 0, control: 0 };
   }
 }
 
+// Pure tactical translations used by the match loop. Keeping these calculations in named
+// functions makes the game's rules easy to inspect and gives balance tests a stable seam.
+export function tacticalChanceVolumeModifier(formationControl: number, tacticControl: number): number {
+  return (formationControl + tacticControl) * CHANCE_VOLUME_INFLUENCE * TACTICAL_INFLUENCE;
+}
+
+export function tacticalChanceDangerModifier(args: {
+  attackingFormationAttack: number;
+  attackingTacticAttack: number;
+  defendingFormationDefense: number;
+  defendingTacticDefense: number;
+}): number {
+  return (
+    args.attackingFormationAttack * FORMATION_ATTACK_DANGER_INFLUENCE
+    + args.attackingTacticAttack * TACTIC_ATTACK_DANGER_INFLUENCE
+    - args.defendingFormationDefense * FORMATION_DEFENSE_SUPPRESSION_INFLUENCE
+    - args.defendingTacticDefense * TACTIC_DEFENSE_SUPPRESSION_INFLUENCE
+  ) * TACTICAL_INFLUENCE;
+}
+
 /** Pick a weighted random attacker — center forwards get higher weight */
-function pickWeightedAttacker(players: PlayerCard[]): PlayerCard {
+function pickWeightedAttacker(players: PlayerCard[], roleForPlayer: (player: PlayerCard) => string = p => p.position): PlayerCard {
   const weighted: { player: PlayerCard; weight: number }[] = players.map(p => {
     let weight = 1;
-    const position = canonicalPosition(p.position);
+    const position = canonicalPosition(roleForPlayer(p));
     if (position === 'ST') weight = 5;
     else if (position === 'LW' || position === 'RW') weight = 3;
     else if (position === 'CAM' || position === 'LM' || position === 'RM') weight = 2;
@@ -1201,9 +1421,18 @@ function pickWeightedAttacker(players: PlayerCard[]): PlayerCard {
   return players[players.length - 1];
 }
 
-export function pickWeightedAssister(team: Team, scorerId: string, playerStats?: Record<string, PlayerMatchStat>): PlayerCard | null {
+export function pickWeightedAssister(
+  team: Team,
+  scorerId: string,
+  playerStats?: Record<string, PlayerMatchStat>,
+  excludedIds?: ReadonlySet<string>,
+): PlayerCard | null {
   // Teammates in the starting 11 who are not the scorer and not sent off
-  const teammates = team.players.slice(0, 11).filter(p => p.id !== scorerId);
+  const teammates = team.players.slice(0, 11).filter(p => {
+    if (p.id === scorerId || isExcludedPlayer(team, p, excludedIds)) return false;
+    const stat = playerStats?.[p.statId ?? statKey(team.id, p.id)];
+    return (stat?.redCards ?? 0) === 0;
+  });
   if (teammates.length === 0) return null;
 
   // 70% chance of an assist
@@ -1212,7 +1441,7 @@ export function pickWeightedAssister(team: Team, scorerId: string, playerStats?:
   const weighted: { player: PlayerCard; weight: number }[] = teammates.map(p => {
     let weight = 0.5; // default base weight for defenders/GK
     
-    const role = canonicalPosition(p.position);
+    const role = matchRoleForPlayer(team, p);
     if (['CAM', 'CM', 'LM', 'RM'].includes(role)) {
       weight = 5.0 + (p.passing / 10) + (p.vision / 10);
     } else if (['LW', 'RW'].includes(role)) {
@@ -1269,18 +1498,39 @@ export function runMatchSimulation(
   const homeChem = getChemistryBonus(home.totalChemistry);
   const awayChem = getChemistryBonus(away.totalChemistry);
 
-  // Midfield passing ratings (constant across the match) feed chance quality.
-  const homeMid = teamPlaymaking(home);
-  const awayMid = teamPlaymaking(away);
-
   const homeFormBonus = homeFormation.counters.includes(away.formationId) ? FORMATION_COUNTER_BONUS : 0;
   const awayFormBonus = awayFormation.counters.includes(home.formationId) ? FORMATION_COUNTER_BONUS : 0;
 
   // Formation shape + tactic both shape how each side creates/concedes chances.
   const homeProf = formationProfile(home.formationId);
   const awayProf = formationProfile(away.formationId);
-  const homeTac = tacticProfile(home.playStyle);
-  const awayTac = tacticProfile(away.playStyle);
+  // The active style can change during the match through the team's pre-configured plan.
+  // Keeping this state local to the simulation makes the same rules work for solo and online
+  // matches, while the tactic event below makes the change visible in the replay/history.
+  const lastTacticAction = (teamId: string, fallback: string) => {
+    const previous = events
+      .filter(event => event.type === 'tactic' && event.teamId === teamId && event.tacticAction)
+      .sort((a, b) => a.minute - b.minute);
+    return previous[previous.length - 1]?.tacticAction ?? fallback;
+  };
+  let homePlayStyle = lastTacticAction(home.id, home.playStyle ?? 'balanced');
+  let awayPlayStyle = lastTacticAction(away.id, away.playStyle ?? 'balanced');
+  const homeMatchPlan = normalizeMatchPlan(home.matchPlan);
+  const awayMatchPlan = normalizeMatchPlan(away.matchPlan);
+  const playmakingCache = new Map<string, number>();
+  const playmakingFor = (team: Team, style: string) => {
+    const key = `${team.id}:${style}`;
+    const cached = playmakingCache.get(key);
+    if (cached !== undefined) return cached;
+    const value = teamPlaymaking(team, style);
+    playmakingCache.set(key, value);
+    return value;
+  };
+  const firedTriggerKeys = new Set(
+    events
+      .filter(event => event.type === 'tactic' && event.triggerId)
+      .map(event => `${event.teamId}:${event.triggerId}`),
+  );
   // Captain leadership — computed once per side (the best stat is fixed for the match).
   const homeCaptainBoost = captainBoostForTeam(home) ?? undefined;
   const awayCaptainBoost = captainBoostForTeam(away) ?? undefined;
@@ -1321,12 +1571,36 @@ export function runMatchSimulation(
   // compute it ONCE here instead of every minute. Only the score-dependent Ferguson swing and
   // the host edge are applied per-minute below.
   // 🩹🟥 Estado disciplinar da partida: força base MUTÁVEL (recomputada por evento).
-  const sentOff = new Set<string>();                 // ids removidos (🟥) → time joga com 10
-  const injuredDebuff: Record<string, number> = {};  // id → jogador lesionado (capengando)
+  const sentOff = new Set<string>();                 // teamId::playerId removidos (🟥) → time joga com 10
+  const injuredDebuff: Record<string, number> = {};  // teamId::playerId → jogador lesionado (capengando)
   let homeExtraPenalty = 0, awayExtraPenalty = 0;     // penalidade fixa do 🟥 (RED_PENALTY/RED_GK_PENALTY)
-  const bookings = new Map<string, number>();         // id → nº de amarelos no jogo
+  const bookings = new Map<string, number>();         // teamId::playerId → nº de amarelos no jogo
   let totalCards = 0;                                  // 📉 nº de cartões no jogo (p/ o "juiz acalma")
+
+  // Extra time can be simulated as a second engine segment. Rehydrate the disciplinary
+  // state from the first segment so a red-card trigger, a suspended player and the red
+  // strength penalty remain active through the whole match.
+  for (const event of initialEvents) {
+    if (!event.teamId || !event.playerId) continue;
+    const eventTeam = event.teamId === home.id ? home : event.teamId === away.id ? away : undefined;
+    const eventPlayer = eventTeam?.players.find(player => player.id === event.playerId);
+    if (!eventTeam || !eventPlayer) continue;
+    const key = statKey(eventTeam.id, eventPlayer.id);
+    if (event.type === 'red') {
+      sentOff.add(key);
+      const penalty = matchRoleForPlayer(eventTeam, eventPlayer) === 'GK' ? RED_GK_PENALTY : RED_PENALTY;
+      if (eventTeam.id === home.id) homeExtraPenalty += penalty; else awayExtraPenalty += penalty;
+      totalCards++;
+    } else if (event.type === 'yellow') {
+      bookings.set(key, (bookings.get(key) ?? 0) + 1);
+      totalCards++;
+    } else if (event.type === 'injury') {
+      injuredDebuff[key] = INJURY_DEBUFF;
+    }
+  }
   const disc = () => ({ sentOff, injuredDebuff, injuryDebuff: INJURY_DEBUFF });
+  const isSentOff = (team: Team, player: Player) => isExcludedPlayer(team, player, sentOff);
+  const hasMatchInjury = (team: Team, player: Player) => Boolean(injuredDebuff[statKey(team.id, player.id)]);
   let homeBaseStrength = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus, disc()) + zidaneBonus(home);
   let awayBaseStrength = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus, disc()) + zidaneBonus(away);
   const recomputeStrength = () => {
@@ -1351,17 +1625,17 @@ export function runMatchSimulation(
     });
   };
   const pushYellow = (p: Player, team: Team, min: number, cutDanger = false) => {
-    // 🟨 texto puxa pelo perfil (compostura/posição) e por ter cortado um lance de perigo.
+    // 🟨 texto puxa pelo perfil (compostura/posição ocupada) e por ter cortado um lance de perigo.
     const stat = matchStatFor(p, team);
     if (stat) {
       stat.yellowCards++;
       stat.rating -= 0.5;
     }
-    events.push({ minute: min, type: 'yellow', teamId: team.id, playerId: p.id, description: yellowCardDesc(p.shortName, p.composure ?? 65, p.position, cutDanger) });
+    events.push({ minute: min, type: 'yellow', teamId: team.id, playerId: p.id, description: yellowCardDesc(p.shortName, p.composure ?? 65, matchRoleForPlayer(team, p), cutDanger) });
     totalCards++;
   };
   const applySendOff = (p: Player, team: Team, reason: 'red' | 'second-yellow', min: number) => {
-    if (sentOff.has(p.id)) return;
+    if (isSentOff(team, p)) return;
     totalCards++;
     const stat = matchStatFor(p, team);
     if (stat) {
@@ -1371,20 +1645,79 @@ export function runMatchSimulation(
     // 🟥 narração dramática e VARIADA — vermelho direto (viés por compostura) vs segundo amarelo.
     events.push({ minute: min, type: 'red', teamId: team.id, playerId: p.id, secondYellow: reason === 'second-yellow',
       description: reason === 'second-yellow' ? secondYellowDesc(p.shortName) : straightRedDesc(p.shortName, p.composure ?? 65) });
-    sentOff.add(p.id);
-    const pen = p.position === 'GK' ? RED_GK_PENALTY : RED_PENALTY;
+    sentOff.add(statKey(team.id, p.id));
+    const pen = matchRoleForPlayer(team, p) === 'GK' ? RED_GK_PENALTY : RED_PENALTY;
     if (team.id === home.id) homeExtraPenalty += pen; else awayExtraPenalty += pen;
     recomputeStrength();
   };
   const applyInjury = (p: Player, team: Team, min: number) => {
-    if (injuredDebuff[p.id] || sentOff.has(p.id)) return;
-    injuredDebuff[p.id] = INJURY_DEBUFF;
+    if (hasMatchInjury(team, p) || isSentOff(team, p)) return;
+    injuredDebuff[statKey(team.id, p.id)] = INJURY_DEBUFF;
     events.push({ minute: min, type: 'injury', teamId: team.id, playerId: p.id, description: injuryDesc(p.shortName) });
     recomputeStrength();
   };
-  const pickFouler = (pool: Player[]): Player | undefined => {
+  const activeGoalkeeper = (team: Team): { player: PlayerCard; emergency: boolean } =>
+    activeGoalkeeperForTeam(team, sentOff);
+
+  const activePlayStyleFor = (team: Team) => team.id === home.id ? homePlayStyle : awayPlayStyle;
+  const triggerConditionDescription = (trigger: MatchTrigger): string => {
+    switch (trigger.condition) {
+      case 'losing': return trigger.margin ? `estava perdendo por ${trigger.margin}+ gols` : 'estava perdendo';
+      case 'winning': return trigger.margin ? `estava vencendo por ${trigger.margin}+ gols` : 'estava vencendo';
+      case 'draw': return 'estava empatando';
+      case 'red_card': return 'recebeu um cartão vermelho';
+      case 'opponent_red_card': return 'o adversário recebeu um cartão vermelho';
+    }
+  };
+  const triggerMatches = (
+    team: Team,
+    trigger: MatchTrigger,
+    teamGoals: number,
+    opponentGoals: number,
+    currentMinute: number,
+  ) => {
+    const teamHasRedCard = Array.from(sentOff).some(key => key.split('::')[0] === team.id);
+    const opponentHasRedCard = Array.from(sentOff).some(key => key.split('::')[0] !== team.id);
+    if (trigger.condition === 'red_card') return teamHasRedCard;
+    if (trigger.condition === 'opponent_red_card') return opponentHasRedCard;
+    if (currentMinute < trigger.minute) return false;
+    if (trigger.condition === 'losing') return opponentGoals - teamGoals >= (trigger.margin ?? 1);
+    if (trigger.condition === 'winning') return teamGoals - opponentGoals >= (trigger.margin ?? 1);
+    if (trigger.condition === 'draw') return teamGoals === opponentGoals;
+    return false;
+  };
+  const applyNextTrigger = (
+    team: Team,
+    plan: MatchPlan,
+    currentStyle: string,
+    teamGoals: number,
+    opponentGoals: number,
+    currentMinute: number,
+  ) => {
+    const trigger = plan.triggers.find(candidate => {
+      const key = `${team.id}:${candidate.id}`;
+      return !firedTriggerKeys.has(key) && triggerMatches(
+        team, candidate, teamGoals, opponentGoals, currentMinute,
+      );
+    });
+    if (!trigger) return currentStyle;
+    const triggerKey = `${team.id}:${trigger.id}`;
+    firedTriggerKeys.add(triggerKey);
+    const nextTactic = getTacticById(trigger.action);
+    const previousTactic = getTacticById(currentStyle);
+    events.push({
+      minute: currentMinute,
+      type: 'tactic',
+      teamId: team.id,
+      triggerId: trigger.id,
+      tacticAction: trigger.action,
+      description: `Tática alterada: ${team.name} troca a tática ${previousTactic.name} pela tática ${nextTactic.name} porque ${triggerConditionDescription(trigger)}.`,
+    });
+    return trigger.action;
+  };
+  const pickFouler = (team: Team, pool: Player[]): Player | undefined => {
     if (pool.length === 0) return undefined;
-    const weights = pool.map(p => CARD_POS_MULT[canonicalPosition(p.position)] ?? 1);
+    const weights = pool.map(p => CARD_POS_MULT[matchRoleForPlayer(team, p)] ?? 1);
     const total = weights.reduce((s, w) => s + w, 0);
     let r = Math.random() * total;
     for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
@@ -1399,7 +1732,7 @@ export function runMatchSimulation(
     // 🩹 Lesão ALEATÓRIA (sem falta): prob. por titular por jogo diluída pelos minutos, por físico.
     for (const [team, side] of [[home, 'h'], [away, 'a']] as [Team, string][]) {
       for (const p of team.players.slice(0, 11)) {
-        if (injuredDebuff[p.id] || sentOff.has(p.id)) continue;
+        if (hasMatchInjury(team, p) || isSentOff(team, p)) continue;
         if (Math.random() < randomInjuryChance(p.physical ?? 70) / span) { applyInjury(p, team, minute); break; }
       }
       void side;
@@ -1415,15 +1748,36 @@ export function runMatchSimulation(
     const homeMomBonus = (homeMomentum - 50) * 0.25;
     const awayMomBonus = (awayMomentum - 50) * 0.25;
 
-    // Who carries the play this minute. An attacking shape pushes more territory (+attack), so it
-    // ATTACKS more often (chance volume). The price for that volume is paid in formMod below: an
-    // attacking shape's negative DEFENSE makes the chances it concedes far deadlier — so attack vs
-    // defense is a real trade-off (more/own chances vs leakier when caught out), not pure upside.
-    // The tactic's attacking intent is NOT applied here (it lifts own chance quality below instead).
-    const homeAttack = homeStrength + homeMomBonus + homeProf.attack * 2 * TACTICAL_INFLUENCE + (Math.random() * 2 - 1) * MATCH_NOISE;
-    const awayAttack = awayStrength + awayMomBonus + awayProf.attack * 2 * TACTICAL_INFLUENCE + (Math.random() * 2 - 1) * MATCH_NOISE;
+    // Evaluate both teams against the same pre-minute snapshot. A trigger is one-shot: once
+    // fired, it never loops back and repeatedly toggles the team's style.
+    const currentHomeStyle = homePlayStyle;
+    const currentAwayStyle = awayPlayStyle;
+    const nextHomeStyle = applyNextTrigger(
+      home, homeMatchPlan, currentHomeStyle, homeGoals, awayGoals, minute,
+    );
+    const nextAwayStyle = applyNextTrigger(
+      away, awayMatchPlan, currentAwayStyle, awayGoals, homeGoals, minute,
+    );
+    homePlayStyle = nextHomeStyle;
+    awayPlayStyle = nextAwayStyle;
+    const homeTac = tacticProfile(homePlayStyle);
+    const awayTac = tacticProfile(awayPlayStyle);
+    // Midfield passing ratings feed the quality of chances and follow the active tactic.
+    const homeMid = playmakingFor(home, homePlayStyle);
+    const awayMid = playmakingFor(away, awayPlayStyle);
 
-    const homeAttacks = homeAttack > awayAttack;
+    // Who carries the play this minute. CONTROL decides which side creates the sequence: it is
+    // the volume axis, so it affects initiative, box-score attempts and the side of each clear
+    // chance. ATTACK is intentionally absent here; it is applied below to make those chances
+    // dangerous. Keeping the two separate makes a controlled team different from a direct one.
+    const homeInitiative = homeStrength + homeMomBonus
+      + tacticalChanceVolumeModifier(homeProf.control, homeTac.control)
+      + (Math.random() * 2 - 1) * MATCH_NOISE;
+    const awayInitiative = awayStrength + awayMomBonus
+      + tacticalChanceVolumeModifier(awayProf.control, awayTac.control)
+      + (Math.random() * 2 - 1) * MATCH_NOISE;
+
+    const homeAttacks = homeInitiative > awayInitiative;
     const attackTeam = homeAttacks ? home : away;
     const defendTeam = homeAttacks ? away : home;
     const attackCoach = homeAttacks ? homeCoach : awayCoach;
@@ -1439,7 +1793,7 @@ export function runMatchSimulation(
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
     const playerContext = (team: Team, player: PlayerCard, ctx: typeof attackCtx) => ({
       ...ctx,
-      role: formationRoleForPlayer(team, player),
+      role: matchRoleForPlayer(team, player),
     });
 
     // A dead-ball danger may fire this minute only if we're clear of any key chance and of the
@@ -1462,26 +1816,32 @@ export function runMatchSimulation(
       // O mesmo lance alimenta o total do time, a estatística individual e, quando
       // aplicável, a lógica de cartão/lesão. O evento precisa existir para o replay
       // e para a agregação da temporada conseguirem atribuir a falta ao jogador.
-      const fouledPool = attackTeam.players.slice(0, 11).filter(p => !injuredDebuff[p.id] && !sentOff.has(p.id) && p.position !== 'GK');
+      const fouledPool = attackTeam.players.slice(0, 11).filter(p => !hasMatchInjury(attackTeam, p) && !isSentOff(attackTeam, p) && matchRoleForPlayer(attackTeam, p) !== 'GK');
       const fouled = fouledPool[Math.floor(Math.random() * fouledPool.length)];
+      let penaltyFoul = false;
 
       // 🟨🟥 Cartão do FALTADOR (lado defensor), ponderado por posição/compostura/ímpeto/tática/formação
       // E pela periculosidade da falta (falta dura ou que corta ameaça → mais cartão).
-      const foulerPool = defendTeam.players.slice(0, 11).filter(p => !sentOff.has(p.id) && p.position !== 'GK');
-      const fouler = pickFouler(foulerPool);
+      const foulerPool = defendTeam.players.slice(0, 11).filter(p => !isSentOff(defendTeam, p) && matchRoleForPlayer(defendTeam, p) !== 'GK');
+      const fouler = pickFouler(defendTeam, foulerPool);
       if (fouler) {
         pushFoul(fouler, fouled, defendTeam, minute);
+        // A dangerous foul is close enough to goal to become either a direct free kick
+        // or, rarely, a penalty-area foul. The penalty is resolved from THIS foul rather
+        // than from an unrelated luck event later in the match.
+        penaltyFoul = Boolean(fouled && dangerousFoul && Math.random() < PENALTY_FOUL_CHANCE);
         // tAgg = tática × formação × periculosidade × "juiz acalma" (settle) — sem o ímpeto cru.
-        const tAgg = tacticAggression(defendTeam.playStyle ?? 'balanced') * formationAggression(defendTeam.formationId) * dangerCardMult * settleFactor(totalCards);
+        const tAgg = tacticAggression(activePlayStyleFor(defendTeam)) * formationAggression(defendTeam.formationId) * dangerCardMult * settleFactor(totalCards);
         if (Math.random() < STRAIGHT_RED_PROB * tAgg) {
           applySendOff(fouler, defendTeam, 'red', minute);
         } else {
           // 🟨 Já amarelado? O juiz pensa mais antes do 2º amarelo (que expulsa) → chance cai um pouco.
-          const already = bookings.get(fouler.id) ?? 0;
+          const foulerKey = statKey(defendTeam.id, fouler.id);
+          const already = bookings.get(foulerKey) ?? 0;
           const bookedLeniency = already >= 1 ? SECOND_YELLOW_LENIENCY : 1;
-          if (Math.random() < yellowChance(fouler.position, fouler.composure ?? 65, cardAggression) * tAgg * bookedLeniency) {
+          if (Math.random() < yellowChance(matchRoleForPlayer(defendTeam, fouler), fouler.composure ?? 65, cardAggression) * tAgg * bookedLeniency) {
             if (already >= 1) applySendOff(fouler, defendTeam, 'second-yellow', minute);
-            else { bookings.set(fouler.id, already + 1); pushYellow(fouler, defendTeam, minute, dangerousFoul || cutThreat); }
+            else { bookings.set(foulerKey, already + 1); pushYellow(fouler, defendTeam, minute, dangerousFoul || cutThreat); }
           }
         }
       }
@@ -1490,15 +1850,71 @@ export function runMatchSimulation(
         applyInjury(fouled, attackTeam, minute);
       }
 
-      // A MESMA falta dura vira a cobrança perigosa (não re-rola — conexão real com o cartão acima).
-      if (dangerousFoul) {
+      // A MESMA falta perigosa vira pênalti ou cobrança direta — não há dois lances
+      // diferentes para a mesma falta.
+      if (penaltyFoul) {
         lastFlavorDangerMin = minute;
         dangerCount++;
-        const fkGk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
+        const penaltyTaker = getPenaltyTaker(attackTeam, sentOff);
+        const penaltyGkInfo = activeGoalkeeper(defendTeam);
+        const penaltyGk = penaltyGkInfo.player;
+        const penaltyTakerCtx = playerContext(attackTeam, penaltyTaker, attackCtx);
+        const penaltyGkCtx = { ...defendCtx, role: 'GK' };
+        const penComp = getEffectiveAttribute(penaltyTaker, 'composure', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), penaltyTakerCtx)
+          + getPenaltyComposureBonus(penaltyTaker.traits) + (penaltyTaker.id === attackTeam.penaltyTaker ? 5 : 0);
+        const penGkRef = getEffectiveAttribute(penaltyGk, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), penaltyGkCtx)
+          + getGoalkeeperTraitBonus(penaltyGk.traits) - (penaltyGkInfo.emergency ? EMERGENCY_GK_PENALTY : 0);
+        const isPenGoal = Math.random() < penaltyGoalChance(penComp, penGkRef);
+        if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
+        if (playerStats[penaltyTaker.statId!]) playerStats[penaltyTaker.statId!].shots++;
+
+        if (isPenGoal) {
+          if (homeAttacks) { homeGoals++; matchStats.homeShotsOnTarget++; } else { awayGoals++; matchStats.awayShotsOnTarget++; }
+          if (playerStats[penaltyTaker.statId!]) { playerStats[penaltyTaker.statId!].goals++; playerStats[penaltyTaker.statId!].shotsOnTarget++; playerStats[penaltyTaker.statId!].rating += 1.0; }
+          const foulerStat = fouler && playerStats[(fouler as PlayerCard).statId ?? statKey(defendTeam.id, fouler.id)];
+          if (foulerStat) foulerStat.rating -= 0.2;
+          events.push({
+            minute, type: 'goal',
+            description: penaltyGoalDesc(penaltyTaker.shortName, fouled?.shortName ?? 'um atacante', fouler?.shortName ?? 'um defensor', penaltyGk.shortName),
+            teamId: attackTeam.id, playerId: penaltyTaker.id, opponentId: penaltyGk.id, isSpecial: true,
+          });
+          lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: penaltyTaker.shortName, defName: fouler?.shortName ?? 'um defensor', gkName: penaltyGk.shortName, approach: 'longrange' };
+        } else if (Math.random() < 0.5) {
+          if (homeAttacks) { matchStats.homeShotsOnTarget++; matchStats.awaySaves++; } else { matchStats.awayShotsOnTarget++; matchStats.homeSaves++; }
+          if (playerStats[penaltyGk.statId!]) { playerStats[penaltyGk.statId!].saves++; playerStats[penaltyGk.statId!].rating += 0.8; }
+          if (playerStats[penaltyTaker.statId!]) playerStats[penaltyTaker.statId!].shotsOnTarget++;
+          events.push({
+            minute, type: 'save',
+            description: penaltySaveDesc(penaltyGk.shortName, penaltyTaker.shortName),
+            teamId: defendTeam.id, playerId: penaltyGk.id, opponentId: penaltyTaker.id,
+          });
+          lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: penaltyTaker.shortName, defName: fouler?.shortName ?? 'um defensor', gkName: penaltyGk.shortName, approach: 'longrange' };
+        } else {
+          if (playerStats[penaltyTaker.statId!]) playerStats[penaltyTaker.statId!].rating -= 0.6;
+          events.push({
+            minute, type: 'miss',
+            description: penaltyMissDesc(penaltyTaker.shortName),
+            teamId: attackTeam.id, playerId: penaltyTaker.id,
+          });
+          lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: penaltyTaker.shortName, defName: fouler?.shortName ?? 'um defensor', gkName: penaltyGk.shortName, approach: 'longrange' };
+        }
+        if (isPenGoal) {
+          const sw = homeAttacks ? 15 : -15;
+          homeMomentum = Math.min(100, Math.max(0, homeMomentum + sw));
+          awayMomentum = Math.min(100, Math.max(0, awayMomentum - sw));
+        } else {
+          const sw = homeAttacks ? -8 : 8;
+          homeMomentum = Math.min(100, Math.max(0, homeMomentum + sw));
+          awayMomentum = Math.min(100, Math.max(0, awayMomentum - sw));
+        }
+      } else if (dangerousFoul) {
+        lastFlavorDangerMin = minute;
+        dangerCount++;
+        const fkGk = activeGoalkeeper(defendTeam).player;
         const taker = getFreeKickTaker(attackTeam);
         const takerCtx = playerContext(attackTeam, taker, attackCtx);
-        const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', takerCtx);
-        const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', takerCtx);
+        const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), takerCtx);
+        const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), takerCtx);
         const goalChance = freeKickGoalChance(takerShoot, takerComp);
         const r = Math.random();
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
@@ -1552,11 +1968,11 @@ export function runMatchSimulation(
         if (dangerCount < MAX_DANGER && !nearKeyMinute && (minute - lastFlavorDangerMin >= DANGER_COOLDOWN) && Math.random() < CORNER_CHANCE) {
           lastFlavorDangerMin = minute;
           dangerCount++;
-          const cgk = defendTeam.players.slice(0, 11).find(p => p.position === 'GK') ?? defendTeam.players[0];
-          const header = getHeaderTarget(attackTeam);
+          const cgk = activeGoalkeeper(defendTeam).player;
+          const header = getHeaderTarget(attackTeam, sentOff);
           const headerCtx = playerContext(attackTeam, header, attackCtx);
-          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', headerCtx)
-            + getEffectiveAttribute(header, 'physical', attackCoach, 'Finalização', attackChem, attackTeam.playStyle ?? 'balanced', headerCtx)) / 2;
+          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), headerCtx)
+            + getEffectiveAttribute(header, 'physical', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), headerCtx)) / 2;
           const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
           const r2 = Math.random();
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
@@ -1565,7 +1981,7 @@ export function runMatchSimulation(
             if (homeAttacks) { homeGoals++; matchStats.homeShotsOnTarget++; } else { awayGoals++; matchStats.awayShotsOnTarget++; }
             if (playerStats[header.statId!]) { playerStats[header.statId!].goals++; playerStats[header.statId!].rating += 1.4; }
             if (playerStats[cgk.statId!]) playerStats[cgk.statId!].rating -= 0.3;
-            const assister = pickWeightedAssister(attackTeam, header.id, playerStats);
+            const assister = pickWeightedAssister(attackTeam, header.id, playerStats, sentOff);
             if (assister && playerStats[assister.statId!]) { playerStats[assister.statId!].assists++; playerStats[assister.statId!].rating += 0.7; }
             events.push({
               minute, type: 'goal',
@@ -1598,26 +2014,31 @@ export function runMatchSimulation(
 
     if (isKeyEventMinute && dangerCount < MAX_DANGER) {
       const attackers = attackTeam.players.slice(0, 11).filter(p =>
-        ['ST', 'LW', 'RW', 'CAM'].includes(canonicalPosition(p.position))
+        !isSentOff(attackTeam, p) && ['ST', 'LW', 'RW', 'CAM'].includes(matchRoleForPlayer(attackTeam, p))
       );
       const defenders = defendTeam.players.slice(0, 11).filter(p =>
-        ['CB', 'LB', 'RB', 'LWB', 'RWB', 'CDM'].includes(p.position)
+        !isSentOff(defendTeam, p) && ['CB', 'LB', 'RB', 'LWB', 'RWB', 'CDM'].includes(matchRoleForPlayer(defendTeam, p))
       );
 
-      const attacker = attackers.length > 0 ? pickWeightedAttacker(attackers) : attackTeam.players[10];
-      const defender = defenders[Math.floor(Math.random() * defenders.length)] || defendTeam.players[0];
-      const gk = defendTeam.players.find(p => p.position === 'GK') || defendTeam.players[0];
+      const activeAttackers = attackTeam.players.slice(0, 11).filter(p => !isSentOff(attackTeam, p));
+      const activeDefenders = defendTeam.players.slice(0, 11).filter(p => !isSentOff(defendTeam, p));
+      const attacker = attackers.length > 0
+        ? pickWeightedAttacker(attackers, p => matchRoleForPlayer(attackTeam, p))
+        : activeAttackers[activeAttackers.length - 1] ?? attackTeam.players[10];
+      const defender = defenders[Math.floor(Math.random() * defenders.length)] || activeDefenders[0] || defendTeam.players[0];
+      const gkInfo = activeGoalkeeper(defendTeam);
+      const gk = gkInfo.player;
 
       // The wide creator must be SOMEONE ELSE — never the attacker himself, or the build-up
       // reads "Fulano cruza para Fulano... Fulano cabeceia" (happens when the attacker is a
       // winger, or in a team with no other wide option). Only the degenerate 1-player team falls back.
-      const xiAtk = attackTeam.players.slice(0, 11);
-      const widePlayer = xiAtk.find(p => p.id !== attacker.id && ['LW', 'RW', 'LM', 'RM'].includes(p.position))
-        || xiAtk.find(p => p.id !== attacker.id && ['CAM', 'CM'].includes(p.position))
+      const xiAtk = attackTeam.players.slice(0, 11).filter(p => !isSentOff(attackTeam, p));
+      const widePlayer = xiAtk.find(p => p.id !== attacker.id && ['LW', 'RW', 'LM', 'RM'].includes(matchRoleForPlayer(attackTeam, p)))
+        || xiAtk.find(p => p.id !== attacker.id && ['CAM', 'CM'].includes(matchRoleForPlayer(attackTeam, p)))
         || xiAtk.find(p => p.id !== attacker.id)
         || attacker;
 
-      let approach: Approach = selectApproach(attackTeam.playStyle ?? 'balanced');
+      let approach: Approach = selectApproach(activePlayStyleFor(attackTeam));
       // Narrow formations (3-5-2 / 5-3-2) cross far less — swap some crosses for
       // central through-balls, which shifts their chances from headers to one-on-ones.
       if ((homeAttacks ? homeProf : awayProf).cross <= -2 && approach === 'cross' && Math.random() < 0.6) {
@@ -1626,7 +2047,7 @@ export function runMatchSimulation(
       const isLuckEvent = Math.random() < 0.04;
 
       if (isLuckEvent) {
-        dangerCount++; // a luck event always resolves into a clear chance (goal / penalty / woodwork)
+        dangerCount++; // a luck event always resolves into a clear chance (goal / woodwork)
         const randLuck = Math.random();
 
         if (randLuck < 0.15) {
@@ -1683,61 +2104,6 @@ export function runMatchSimulation(
           homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 20) : Math.max(0, homeMomentum - 20);
           awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 20) : Math.min(100, awayMomentum + 20);
 
-        } else if (randLuck < 0.86) {
-          // Penalty
-          const takers = attackTeam.players.slice(0, 11);
-          // Designated taker first; bots fall back to their most composed starter;
-          // finally guarantee a real player so `taker` is never undefined.
-          const taker = takers.find(p => p.id === attackTeam.penaltyTaker)
-            || (attackTeam.isBot ? [...takers].sort((a, b) => b.composure - a.composure)[0] : undefined)
-            || takers[0]
-            || attackTeam.players[0];
-          if (!taker) continue; // degenerate: team has no players at all — skip this minute
-          // Conversion follows the SAME model as the shootout (penaltyGoalChance): the taker's
-          // EFFECTIVE composure (+ penalty traits + designated bonus) vs the keeper's EFFECTIVE
-          // shot-stopping — never a flat rate, so buffs and a strong/weak keeper actually matter.
-          const takerCtx = playerContext(attackTeam, taker, attackCtx);
-          const gkCtx = playerContext(defendTeam, gk, defendCtx);
-          const penComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, attackTeam.playStyle, takerCtx)
-            + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
-          const penGkRef = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, gkCtx)
-            + getGoalkeeperTraitBonus(gk.traits);
-          const isPenGoal = Math.random() < penaltyGoalChance(penComp, penGkRef);
-          if (isPenGoal) {
-            if (homeAttacks) homeGoals++; else awayGoals++;
-            if (playerStats[taker.statId!]) { playerStats[taker.statId!].goals++; playerStats[taker.statId!].rating += 1.0; }
-            if (playerStats[defender.statId!]) playerStats[defender.statId!].rating -= 0.2;
-            events.push({
-              minute, type: 'goal',
-              description: penaltyGoalDesc(taker.shortName, attacker.shortName, defender.shortName, gk.shortName),
-              teamId: attackTeam.id, playerId: taker.id, opponentId: gk.id,
-            });
-            lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: taker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
-            homeMomentum = homeAttacks ? Math.min(100, homeMomentum + 15) : Math.max(0, homeMomentum - 15);
-            awayMomentum = homeAttacks ? Math.max(0, awayMomentum - 15) : Math.min(100, awayMomentum + 15);
-          } else {
-            if (Math.random() < 0.5) {
-              if (playerStats[gk.statId!]) { playerStats[gk.statId!].saves++; playerStats[gk.statId!].rating += 0.8; }
-              if (playerStats[taker.statId!]) playerStats[taker.statId!].rating -= 0.5;
-              events.push({
-                minute, type: 'save',
-                description: penaltySaveDesc(gk.shortName, taker.shortName),
-                teamId: defendTeam.id, playerId: gk.id, opponentId: taker.id,
-              });
-              lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: taker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
-            } else {
-              if (playerStats[taker.statId!]) playerStats[taker.statId!].rating -= 0.6;
-              events.push({
-                minute, type: 'miss',
-                description: penaltyMissDesc(taker.shortName),
-                teamId: attackTeam.id, playerId: taker.id,
-              });
-              lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: taker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
-            }
-            homeMomentum = homeAttacks ? Math.max(0, homeMomentum - 8) : Math.min(100, homeMomentum + 8);
-            awayMomentum = homeAttacks ? Math.min(100, awayMomentum + 8) : Math.max(0, awayMomentum - 8);
-          }
-
         } else {
           // Woodwork
           if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].shots++; playerStats[attacker.statId!].rating += 0.1; }
@@ -1760,33 +2126,34 @@ export function runMatchSimulation(
 
         const attackerCtx = playerContext(attackTeam, attacker, attackCtx);
         const defenderCtx = playerContext(defendTeam, defender, defendCtx);
-        const gkCtx = playerContext(defendTeam, gk, defendCtx);
-        const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, attackTeam.playStyle, attackerCtx);
-        const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, attackTeam.playStyle, attackerCtx);
-        const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, attackTeam.playStyle, attackerCtx);
-        const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defenderCtx);
-        const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, defenderCtx);
+        const gkCtx = { ...defendCtx, role: 'GK' };
+        const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), attackerCtx);
+        const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, activePlayStyleFor(attackTeam), attackerCtx);
+        const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, activePlayStyleFor(attackTeam), attackerCtx);
+        const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), defenderCtx);
+        const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), defenderCtx);
 
         // Trait effects are already baked into the effective attributes above
         // (see getEffectiveAttribute + trait catalog), so no extra bonuses here.
-        // Midfield control (passing) lifts the quality of the chance created.
-        // Formation + tactic tune chance QUALITY: the midfield-control battle and how
-        // solid the defending side is (a deep block lowers the chance; an open one raises it).
+        // Player playmaking still affects the quality of the build-up: a good midfield creates a
+        // cleaner entry independent of the formation axis. Formation/tactic axes then do only
+        // what their names promise: ATTACK raises own chance danger and DEFENSE suppresses the
+        // danger of the opponent's chance. CONTROL already decided who generated more sequences.
         const atkProf = homeAttacks ? homeProf : awayProf;
         const defProf = homeAttacks ? awayProf : homeProf;
         const atkTac = homeAttacks ? homeTac : awayTac;
         const defTac = homeAttacks ? awayTac : homeTac;
-        const formMod = (((atkProf.control + atkTac.control) - (defProf.control + defTac.control)) * 1.2
-          + atkTac.attack * 1.6                          // attacking intent → better own chances
-          - defProf.defense * 3.6                        // FORMATION defense: a deep block crushes chance quality,
-                                                         //   an exposed back line (defense<0) leaks deadly chances —
-                                                         //   strong enough to pay back the attacking shape's volume edge
-          - defTac.defense * 2.2                         // tactic defensive intent (already tuned)
-          ) * TACTICAL_INFLUENCE;                        // global weight of formation/tactic on chance quality
-        const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, attackTeam.playStyle) + formMod;
+        const formMod = tacticalChanceDangerModifier({
+          attackingFormationAttack: atkProf.attack,
+          attackingTacticAttack: atkTac.attack,
+          defendingFormationDefense: defProf.defense,
+          defendingTacticDefense: defTac.defense,
+        });
+        const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, activePlayStyleFor(attackTeam)) + formMod;
         const chance = resolveOpenPlayChance({
           atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
-          gkRating: getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, defendTeam.playStyle, gkCtx) + getGoalkeeperTraitBonus(gk.traits), approach,
+          gkRating: getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), gkCtx)
+            + getGoalkeeperTraitBonus(gk.traits) - (gkInfo.emergency ? EMERGENCY_GK_PENALTY : 0), approach,
         });
 
         if (chance.outcome !== 'duel') {
@@ -1806,12 +2173,12 @@ export function runMatchSimulation(
               if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].shotsOnTarget++; playerStats[attacker.statId!].rating += 1.4; }
               if (playerStats[gk.statId!]) playerStats[gk.statId!].rating -= 0.3;
               defendTeam.players.slice(0, 11).forEach(p => {
-                if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.statId!]) {
+                if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(matchRoleForPlayer(defendTeam, p)) && playerStats[p.statId!]) {
                   playerStats[p.statId!].rating -= 0.1;
                 }
               });
 
-              const assister = pickWeightedAssister(attackTeam, attacker.id, playerStats);
+              const assister = pickWeightedAssister(attackTeam, attacker.id, playerStats, sentOff);
               if (assister && playerStats[assister.statId!]) {
                 playerStats[assister.statId!].assists++;
                 playerStats[assister.statId!].rating += 0.8;
@@ -1836,7 +2203,7 @@ export function runMatchSimulation(
               // A shot on target forcing a save is a positive contribution, not a blemish.
               if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].shotsOnTarget++; playerStats[attacker.statId!].rating += 0.05; }
               // Whoever played the killer ball gets a key pass (rewards creators/midfield).
-              const creatorS = pickWeightedAssister(attackTeam, attacker.id, playerStats);
+              const creatorS = pickWeightedAssister(attackTeam, attacker.id, playerStats, sentOff);
               if (creatorS && playerStats[creatorS.statId!]) { playerStats[creatorS.statId!].keyPasses++; playerStats[creatorS.statId!].rating += 0.25; }
 
               const isCorner = Math.random() < 0.4;
@@ -1852,7 +2219,7 @@ export function runMatchSimulation(
           } else {
             if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.1;
             // The chance was still created — credit the supplier with a key pass.
-            const creatorM = pickWeightedAssister(attackTeam, attacker.id, playerStats);
+            const creatorM = pickWeightedAssister(attackTeam, attacker.id, playerStats, sentOff);
             if (creatorM && playerStats[creatorM.statId!]) { playerStats[creatorM.statId!].keyPasses++; playerStats[creatorM.statId!].rating += 0.15; }
             events.push({
               minute, type: 'miss',
@@ -1885,8 +2252,8 @@ export function runMatchSimulation(
         const possessTeam = homePossesses ? home : away;
         const dTeam = homePossesses ? away : home;
 
-        const midPlayers = possessTeam.players.slice(0, 11).filter(p => ['MID', 'CM', 'CDM', 'CAM', 'LM', 'RM'].includes(p.position));
-        const defPlayers = dTeam.players.slice(0, 11).filter(p => ['DEF', 'CB', 'LB', 'RB', 'CDM'].includes(p.position));
+        const midPlayers = possessTeam.players.slice(0, 11).filter(p => ['CM', 'CDM', 'CAM', 'LM', 'RM'].includes(matchRoleForPlayer(possessTeam, p)));
+        const defPlayers = dTeam.players.slice(0, 11).filter(p => ['CB', 'LB', 'RB', 'LWB', 'RWB', 'CDM'].includes(matchRoleForPlayer(dTeam, p)));
 
         const playerA = midPlayers[Math.floor(Math.random() * midPlayers.length)] || possessTeam.players[5];
         const defenderA = defPlayers[Math.floor(Math.random() * defPlayers.length)] || dTeam.players[2];
@@ -1899,7 +2266,7 @@ export function runMatchSimulation(
           possessTeam.id,
           playerA.shortName,
           defenderA.shortName,
-          possessTeam.playStyle ?? 'balanced',
+          activePlayStyleFor(possessTeam),
           coach?.id ?? '',
           dTeam.name,
           homeGoals,
@@ -1935,7 +2302,7 @@ export function runMatchSimulation(
     if (homeGoals > awayGoals) winner = home.id;
     else if (awayGoals > homeGoals) winner = away.id;
     else if (isKnockout) {
-      const pRes = simulatePenalties(home, away, playerStats);
+      const pRes = simulatePenalties(home, away, playerStats, homePlayStyle, awayPlayStyle);
       penaltyKicks = pRes.kicks;
       penaltyWinner = pRes.winner;
       homePenalties = pRes.homeScore;
@@ -1954,14 +2321,16 @@ export function runMatchSimulation(
     // Clean sheet bonuses
     if (awayGoals === 0) {
       home.players.slice(0, 11).forEach(p => {
-        if (p.position === 'GK' && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.8;
-        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.4;
+        const role = matchRoleForPlayer(home, p);
+        if (role === 'GK' && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.8;
+        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(role) && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.4;
       });
     }
     if (homeGoals === 0) {
       away.players.slice(0, 11).forEach(p => {
-        if (p.position === 'GK' && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.8;
-        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position) && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.4;
+        const role = matchRoleForPlayer(away, p);
+        if (role === 'GK' && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.8;
+        else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(role) && playerStats[p.statId!]) playerStats[p.statId!].rating += 0.4;
       });
     }
 
@@ -1993,13 +2362,14 @@ export function runMatchSimulation(
       ).id
     : '';
 
-  // Real possession (was hardcoded 50/50): strength + chance share + tactic.
+  // Real possession (was hardcoded 50/50): strength + chance share + the final active tactic.
   const homeBaseStr = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus);
   const awayBaseStr = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus);
   matchStats.homePos = computePossession(
     homeBaseStr, awayBaseStr, matchStats.homeShots, matchStats.awayShots,
-    home.playStyle ?? 'balanced', away.playStyle ?? 'balanced',
-    homeProf.control, awayProf.control,
+    homePlayStyle, awayPlayStyle,
+    homeProf.control + tacticProfile(homePlayStyle).control,
+    awayProf.control + tacticProfile(awayPlayStyle).control,
   );
   matchStats.awayPos = 100 - matchStats.homePos;
 
@@ -2113,13 +2483,15 @@ export function simulateMatch(
   // Clean sheet bonuses
   if (ag === 0) home.players.slice(0, 11).forEach(p => {
     if (!playerStats[p.statId!]) return;
-    if (p.position === 'GK') playerStats[p.statId!].rating += 0.8;
-    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) playerStats[p.statId!].rating += 0.4;
+    const role = matchRoleForPlayer(home, p);
+    if (role === 'GK') playerStats[p.statId!].rating += 0.8;
+    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(role)) playerStats[p.statId!].rating += 0.4;
   });
   if (hg === 0) away.players.slice(0, 11).forEach(p => {
     if (!playerStats[p.statId!]) return;
-    if (p.position === 'GK') playerStats[p.statId!].rating += 0.8;
-    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position)) playerStats[p.statId!].rating += 0.4;
+    const role = matchRoleForPlayer(away, p);
+    if (role === 'GK') playerStats[p.statId!].rating += 0.8;
+    else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(role)) playerStats[p.statId!].rating += 0.4;
   });
 
   // Win/loss adjustments
@@ -2298,7 +2670,7 @@ export function calculateTeamStrength(
   disc?: { sentOff?: Set<string>; injuredDebuff?: Record<string, number>; injuryDebuff?: number },
 ): number {
   let starters = team.players.slice(0, 11) as PlayerCard[];
-  if (disc?.sentOff && disc.sentOff.size > 0) starters = starters.filter(p => !disc.sentOff!.has(p.id));
+  if (disc?.sentOff && disc.sentOff.size > 0) starters = starters.filter(p => !isExcludedPlayer(team, p, disc.sentOff));
   // Guard against an empty lineup (would otherwise divide by zero → NaN strength).
   if (starters.length === 0) return 0;
   // Captain leadership: +CAPTAIN_BOOST on the captain's best stat, for every teammate (🗣️ Capitão Nato dobra).
@@ -2309,20 +2681,24 @@ export function calculateTeamStrength(
     // the coach, traits, the captain and perfect-chem are all folded in via getEffectiveAttribute,
     // so a buff that helps in a duel also helps win territory. TACTIC is deliberately excluded
     // (the '__neutral__' play-style yields no tactic bonus — NOT 'balanced', which now carries its
-    // own +2 buff) — tactics already shape possession + chance quality, so letting them tilt strength
+    // own +2 buff) — tactics already shape chance volume + chance danger, so letting them tilt strength
     // too would double-count them and distort each tactic's risk/reward.
-    const debuff = disc?.injuredDebuff?.[p.id] ? (disc.injuryDebuff ?? 0) : 0; // lesionado joga capengando
+    // Accept the canonical team-scoped key and the legacy player-only key used by older
+    // callers/tests. The scoped key always wins, so identical cards in opposing teams cannot
+    // accidentally share an injury state.
+    const injuryMarker = disc?.injuredDebuff?.[statKey(team.id, p.id)] ?? disc?.injuredDebuff?.[p.id];
+    const debuff = injuryMarker ? (disc?.injuryDebuff ?? 0) : 0; // lesionado joga capengando
     const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, '', chemBonus, '__neutral__', {
       captainBoost,
       charBoosts,
-      role: formationRoleForPlayer(team, p),
+      role: matchRoleForPlayer(team, p),
     }) - debuff;
     // GKs are evaluated on shot-stopping attributes (defending + physical), not the outfield
     // blend that low shooting/dribbling would distort. Outfielders use the six core stats PLUS
     // vision at half weight — playmaking is a real "control the game" signal. Composure is
     // deliberately NOT here: it's a clutch / dead-ball stat (penalties, free kicks), with no
     // open-play role, so it shouldn't tilt possession/territory.
-    const base = p.position === 'GK'
+    const base = matchRoleForPlayer(team, p) === 'GK'
       ? (v('defending') * 1.5 + v('physical') + v('pace') * 0.5) / 3
       : (v('pace') + v('shooting') + v('passing') + v('dribbling') + v('defending') + v('physical')
           + v('vision') * 0.5) / 6.5;
@@ -2348,10 +2724,20 @@ export function calculateTeamStrength(
 // the best outfield player by composure+shooting. NEVER the goalkeeper unless the
 // XI somehow has no outfield player. Fixes the old bug where the keeper (slot 0)
 // was the default taker.
-export function getPenaltyTaker(team: Team): PlayerCard {
+export function getPenaltyTaker(
+  team: Team,
+  excludedIds?: ReadonlySet<string>,
+  playerStats?: Record<string, PlayerMatchStat>,
+): PlayerCard {
   const starters = team.players.slice(0, 11);
-  const outfield = starters.filter(p => p.position !== 'GK');
-  const pool = outfield.length > 0 ? outfield : starters;
+  const available = starters.filter(p => {
+    if (isExcludedPlayer(team, p, excludedIds)) return false;
+    const stat = playerStats?.[p.statId ?? statKey(team.id, p.id)];
+    return (stat?.redCards ?? 0) === 0;
+  });
+  const active = available.length > 0 ? available : starters;
+  const outfield = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
+  const pool = outfield.length > 0 ? outfield : active;
   // The designated taker must be an outfielder — never the goalkeeper, even if a
   // stale/garbage penaltyTaker id points at him (that produced "GK scores penalty").
   if (team.penaltyTaker) {
@@ -2363,10 +2749,20 @@ export function getPenaltyTaker(team: Team): PlayerCard {
 
 // Ordered shootout takers: designated taker (or best outfield) first, then the
 // remaining outfield by composure+shooting, with the goalkeeper last of all.
-export function getPenaltyOrder(team: Team): PlayerCard[] {
+export function getPenaltyOrder(
+  team: Team,
+  excludedIds?: ReadonlySet<string>,
+  playerStats?: Record<string, PlayerMatchStat>,
+): PlayerCard[] {
   const starters = team.players.slice(0, 11);
-  const outfield = starters.filter(p => p.position !== 'GK');
-  const keepers = starters.filter(p => p.position === 'GK');
+  const available = starters.filter(p => {
+    if (isExcludedPlayer(team, p, excludedIds)) return false;
+    const stat = playerStats?.[p.statId ?? statKey(team.id, p.id)];
+    return (stat?.redCards ?? 0) === 0;
+  });
+  const active = available.length > 0 ? available : starters;
+  const outfield = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
+  const keepers = active.filter(p => matchRoleForPlayer(team, p) === 'GK');
   const sorted = [...outfield].sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting));
   const designated = team.penaltyTaker ? sorted.find(p => p.id === team.penaltyTaker) : undefined;
   const ordered = designated ? [designated, ...sorted.filter(p => p.id !== designated.id)] : sorted;
@@ -2375,16 +2771,29 @@ export function getPenaltyOrder(team: Team): PlayerCard[] {
 
 // Resolves a single penalty kick: taker EFFECTIVE composure (+ frieza traits, + designated
 // bonus) vs the keeper's EFFECTIVE shot-stopping (+ Reflexo Felino). Returns whether it went in.
-type PenCtx = { coach: Coach; chem: { passing: number; pace: number; special: number }; playStyle: string };
+type PenCtx = {
+  coach: Coach;
+  chem: { passing: number; pace: number; special: number };
+  playStyle: string;
+  role?: string;
+  emergencyGoalkeeper?: boolean;
+};
 function penaltyKickGoal(taker: PlayerCard, takerCtx: PenCtx, gk: PlayerCard, gkCtx: PenCtx, designatedTakerId: string): boolean {
   const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle)
     + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
-  const gkRef = getEffectiveAttribute(gk, 'defending', gkCtx.coach, 'Defesa', gkCtx.chem, gkCtx.playStyle)
-    + getGoalkeeperTraitBonus(gk.traits);
+  const gkRef = getEffectiveAttribute(gk, 'defending', gkCtx.coach, 'Defesa', gkCtx.chem, gkCtx.playStyle, {
+    role: gkCtx.role ?? 'GK',
+  }) + getGoalkeeperTraitBonus(gk.traits) - (gkCtx.emergencyGoalkeeper ? EMERGENCY_GK_PENALTY : 0);
   return Math.random() < penaltyGoalChance(comp, gkRef);
 }
 
-export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<string, PlayerMatchStat>): {
+export function simulatePenalties(
+  home: Team,
+  away: Team,
+  _playerStats?: Record<string, PlayerMatchStat>,
+  homePlayStyle = home.playStyle ?? 'balanced',
+  awayPlayStyle = away.playStyle ?? 'balanced',
+): {
   winner: string;
   homeScore: number;
   awayScore: number;
@@ -2394,15 +2803,19 @@ export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<
   let awayScore = 0;
   const kicks: PenaltyKick[] = [];
 
-  const homeTakers = getPenaltyOrder(home);
-  const awayTakers = getPenaltyOrder(away);
-  const homeGK = home.players.find(p => p.position === 'GK') || home.players[0];
-  const awayGK = away.players.find(p => p.position === 'GK') || away.players[0];
-  const homeTakerId = getPenaltyTaker(home).id;
-  const awayTakerId = getPenaltyTaker(away).id;
+  const homeGKInfo = activeGoalkeeperForTeam(home, undefined, _playerStats);
+  const awayGKInfo = activeGoalkeeperForTeam(away, undefined, _playerStats);
+  const homeGK = homeGKInfo.player;
+  const awayGK = awayGKInfo.player;
+  const homeTakers = getPenaltyOrder(home, undefined, _playerStats);
+  const awayTakers = getPenaltyOrder(away, undefined, _playerStats);
+  const homeTakerId = getPenaltyTaker(home, undefined, _playerStats).id;
+  const awayTakerId = getPenaltyTaker(away, undefined, _playerStats).id;
   // Per-team context so each kick uses EFFECTIVE composure/defending (coach, chemistry, traits…).
-  const homeCtx: PenCtx = { coach: COACHES.find(c => c.id === home.coachId)!, chem: getChemistryBonus(home.totalChemistry), playStyle: home.playStyle ?? 'balanced' };
-  const awayCtx: PenCtx = { coach: COACHES.find(c => c.id === away.coachId)!, chem: getChemistryBonus(away.totalChemistry), playStyle: away.playStyle ?? 'balanced' };
+  const homeCtx: PenCtx = { coach: COACHES.find(c => c.id === home.coachId)!, chem: getChemistryBonus(home.totalChemistry), playStyle: homePlayStyle };
+  const awayCtx: PenCtx = { coach: COACHES.find(c => c.id === away.coachId)!, chem: getChemistryBonus(away.totalChemistry), playStyle: awayPlayStyle };
+  const homeGKCtx: PenCtx = { ...homeCtx, role: 'GK', emergencyGoalkeeper: homeGKInfo.emergency };
+  const awayGKCtx: PenCtx = { ...awayCtx, role: 'GK', emergencyGoalkeeper: awayGKInfo.emergency };
 
   // Best-of-5, kick by kick, stopping as soon as the result is mathematically
   // decided (as in a real shootout — no pointless extra kicks).
@@ -2415,14 +2828,14 @@ export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<
 
   for (let i = 0; i < 5 && !decided; i++) {
     const homeTaker = homeTakers[homeKicks % homeTakers.length];
-    const homeGoal = penaltyKickGoal(homeTaker, homeCtx, awayGK, awayCtx, homeTakerId);
+    const homeGoal = penaltyKickGoal(homeTaker, homeCtx, awayGK, awayGKCtx, homeTakerId);
     if (homeGoal) homeScore++;
     homeKicks++;
     kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoal });
     if (clinched()) { decided = true; break; }
 
     const awayTaker = awayTakers[awayKicks % awayTakers.length];
-    const awayGoal = penaltyKickGoal(awayTaker, awayCtx, homeGK, homeCtx, awayTakerId);
+    const awayGoal = penaltyKickGoal(awayTaker, awayCtx, homeGK, homeGKCtx, awayTakerId);
     if (awayGoal) awayScore++;
     awayKicks++;
     kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoal });
@@ -2435,8 +2848,8 @@ export function simulatePenalties(home: Team, away: Team, _playerStats?: Record<
       const homeTaker = homeTakers[(5 + sd) % homeTakers.length];
       const awayTaker = awayTakers[(5 + sd) % awayTakers.length];
 
-      const homeGoalSD = penaltyKickGoal(homeTaker, homeCtx, awayGK, awayCtx, homeTakerId);
-      const awayGoalSD = penaltyKickGoal(awayTaker, awayCtx, homeGK, homeCtx, awayTakerId);
+      const homeGoalSD = penaltyKickGoal(homeTaker, homeCtx, awayGK, awayGKCtx, homeTakerId);
+      const awayGoalSD = penaltyKickGoal(awayTaker, awayCtx, homeGK, homeGKCtx, awayTakerId);
 
       kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoalSD });
       kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoalSD });
@@ -2483,9 +2896,9 @@ const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
-// 🤑 Magnata — titular multiplica os PONTOS da partida de LIGA por isto (não empilha: 1+ magnatas → 1 só).
+// 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
 export const MAGNATA_POINT_MULT = 1.5;
-// Pontos de LIGA ×MAGNATA_POINT_MULT se QUALQUER titular (0-10) for Magnata; senão ×1 (não empilha).
+// Créditos da liga ×MAGNATA_POINT_MULT se QUALQUER titular (0-10) for Magnata; senão ×1 (não empilha).
 export function magnataPointMultiplier(starters: (Player | undefined)[]): number {
   return starters.slice(0, 11).some(p => p?.magnata) ? MAGNATA_POINT_MULT : 1;
 }
@@ -2582,7 +2995,7 @@ function applyDraftVariant(p: Player): Player {
   acc += DRAFT_CAPITAO_CHANCE;
   if (r < acc) return { ...p, capitaoNato: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
-  // 🤑 Magnata — sacrifica −5 em tudo, mas multiplica os pontos da partida de liga (efeito em magnataPointMultiplier).
+  // 🤑 Magnata — sacrifica −5 em tudo, mas multiplica os créditos da partida de liga (efeito em magnataPointMultiplier).
   acc += DRAFT_MAGNATA_CHANCE;
   if (r < acc) {
     const b = MAGNATA_STAT_PENALTY;
@@ -2854,12 +3267,14 @@ export function pickBotTactic(formationId: string, difficulty: number): string {
   const lean = prof.attack - prof.defense;   // >0 = formação ofensiva · <0 = formação defensiva
   const d = Math.max(0, Math.min(1, difficulty)); // 0.45 fácil … 0.97 difícil
   const up = Math.max(0, lean), down = Math.max(0, -lean);
+  const creation = Math.max(0, prof.control);
+  const lowCreation = Math.max(0, -prof.control);
   const weights: Record<string, number> = {
     balanced:       2.0,
-    possession:     1.0 + up * 0.4 + d * 1.2,
-    counter:        1.0 + down * 0.4 + (1 - d) * 1.0,
-    high_press:     0.8 + up * 0.3 + d * 1.0,
-    defensive:      0.8 + down * 0.6 + (1 - d) * 1.2,
+    possession:     1.0 + up * 0.4 + creation * 0.7 + d * 1.2,
+    counter:        1.0 + down * 0.4 + lowCreation * 0.4 + (1 - d) * 1.0,
+    high_press:     0.8 + up * 0.3 + creation * 0.2 + d * 1.0,
+    defensive:      0.8 + down * 0.6 + lowCreation * 0.5 + (1 - d) * 1.2,
     all_out_attack: 0.5 + up * 0.6 + d * 0.6,
   };
   const entries = Object.entries(weights);
@@ -2997,74 +3412,32 @@ export function generateBotTeam(name: string, difficulty: number): Team {
 // ============================================================
 // LEAGUE SIMULATION
 // ============================================================
-export function simulateLeague(teams: Team[]): {
+/**
+ * Legacy convenience API used by older callers outside the reducer.
+ *
+ * The live game uses round-by-round fixtures, but this helper must still obey
+ * the same fixture generator instead of carrying the old hardcoded eight-match
+ * approximation. The optional round count keeps it useful for tools/tests.
+ */
+export function simulateLeague(teams: Team[], requestedRounds = Math.max(0, teams.length - 1)): {
   standings: StandingsEntry[];
   results: MatchResult[];
 } {
-  const results: MatchResult[] = [];
-  const standings: Record<string, StandingsEntry> = {};
-
-  // Init standings
-  for (const team of teams) {
-    standings[team.id] = {
-      teamId: team.id,
-      teamName: team.name,
-      played: 0, won: 0, drawn: 0, lost: 0,
-      goalsFor: 0, goalsAgainst: 0, points: 0,
-    };
+  if (teams.length < 2 || requestedRounds <= 0) {
+    return { standings: computeStandings(teams, []), results: [] };
   }
 
-  // Round-robin (simplified: each team plays 8 matches)
-  const matchups: [Team, Team][] = [];
-  for (let i = 0; i < teams.length; i++) {
-    for (let j = i + 1; j < teams.length; j++) {
-      matchups.push([teams[i], teams[j]]);
-    }
-  }
-
-  // Limit to 8 matches per team
-  const played: Record<string, number> = {};
-  for (const team of teams) played[team.id] = 0;
-
-  for (const [home, away] of matchups) {
-    if (played[home.id] >= 8 || played[away.id] >= 8) continue;
-
-    const result = simulateMatch(home, away);
-    results.push(result);
-    played[home.id]++;
-    played[away.id]++;
-
-    const hs = standings[home.id];
-    const as = standings[away.id];
-
-    hs.played++;
-    as.played++;
-    hs.goalsFor += result.homeGoals;
-    hs.goalsAgainst += result.awayGoals;
-    as.goalsFor += result.awayGoals;
-    as.goalsAgainst += result.homeGoals;
-
-    if (result.winner === home.id) {
-      hs.won++; hs.points += 3;
-      as.lost++;
-    } else if (result.winner === away.id) {
-      as.won++; as.points += 3;
-      hs.lost++;
-    } else {
-      hs.drawn++; hs.points++;
-      as.drawn++; as.points++;
-    }
-  }
-
-  const sortedStandings = Object.values(standings).sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    const gdA = a.goalsFor - a.goalsAgainst;
-    const gdB = b.goalsFor - b.goalsAgainst;
-    if (gdB !== gdA) return gdB - gdA;
-    return b.goalsFor - a.goalsFor;
+  const fixtures = generateLeagueFixtures(teams, requestedRounds).map(fixture => {
+    const home = teams.find(team => team.id === fixture.homeTeamId);
+    const away = teams.find(team => team.id === fixture.awayTeamId);
+    if (!home || !away) return fixture;
+    return { ...fixture, played: true, result: simulateMatch(home, away) };
   });
-
-  return { standings: sortedStandings, results };
+  const playedFixtures = fixtures.filter((fixture): fixture is LeagueFixture & { result: MatchResult } => fixture.played && !!fixture.result);
+  return {
+    standings: computeStandings(teams, playedFixtures),
+    results: playedFixtures.map(fixture => fixture.result),
+  };
 }
 
 // ============================================================
@@ -3269,7 +3642,11 @@ export function generateGroupFixtures(teams: Team[], groupCount: number, request
   return fixtures;
 }
 
-export function computeStandings(teams: Team[], fixtures: LeagueFixture[]): StandingsEntry[] {
+export function computeStandings(
+  teams: Team[],
+  fixtures: LeagueFixture[],
+  pointsConfig: TablePointsConfig = STANDARD_TABLE_POINTS,
+): StandingsEntry[] {
   const standings: Record<string, StandingsEntry> = {};
 
   for (const team of teams) {
@@ -3296,14 +3673,14 @@ export function computeStandings(teams: Team[], fixtures: LeagueFixture[]): Stan
     as.goalsAgainst += result.homeGoals;
 
     if (result.winner === homeTeamId) {
-      hs.won++; hs.points += 3;
-      as.lost++;
+      hs.won++; hs.points += pointsConfig.win;
+      as.lost++; as.points += pointsConfig.loss;
     } else if (result.winner === awayTeamId) {
-      as.won++; as.points += 3;
-      hs.lost++;
+      as.won++; as.points += pointsConfig.win;
+      hs.lost++; hs.points += pointsConfig.loss;
     } else {
-      hs.drawn++; hs.points++;
-      as.drawn++; as.points++;
+      hs.drawn++; hs.points += pointsConfig.draw;
+      as.drawn++; as.points += pointsConfig.draw;
     }
   }
 

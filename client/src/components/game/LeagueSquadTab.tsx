@@ -6,7 +6,7 @@ import SquadEditor from './SquadEditor';
 import { SHOP_COSTS } from '../../lib/shop';
 
 export default function LeagueSquadTab() {
-  const { state, dispatch, setMatchRolesOnline, swapPlayerTeamOnline, martirTargetsOnline, healInjuryOnline, evolveCoachPrimeOnline, setEvolvePointOnline, resetEvolvePointsOnline } = useGame();
+  const { state, dispatch, setMatchRolesOnline, setMatchPlanOnline, swapPlayerTeamOnline, martirTargetsOnline, healInjuryOnline, evolveCoachPrimeOnline, setEvolvePointOnline, resetEvolvePointsOnline } = useGame();
   const team = state.playerTeam;
   if (!team) return null;
   const online = state.mode === 'online';
@@ -39,6 +39,7 @@ export default function LeagueSquadTab() {
       coachId={team.coachId}
       formationId={team.formationId}
       playStyle={team.playStyle}
+      matchPlan={team.matchPlan}
       captain={team.captain}
       penaltyTaker={team.penaltyTaker}
       freeKickTaker={team.freeKickTaker}
@@ -48,6 +49,9 @@ export default function LeagueSquadTab() {
       onSetPlayStyle={(id) => online
         ? setMatchRolesOnline(cap, pen, fk, id)
         : dispatch({ type: 'SET_PLAYER_TEAM_PLAY_STYLE', playStyle: id })}
+      onSetMatchPlan={(plan) => online
+        ? setMatchPlanOnline(plan)
+        : dispatch({ type: 'SET_PLAYER_TEAM_MATCH_PLAN', plan })}
       onSetCaptain={(id) => online
         ? setMatchRolesOnline(id, pen, fk)
         : dispatch({ type: 'SET_PLAYER_TEAM_CAPTAIN', playerId: id })}

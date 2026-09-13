@@ -12,12 +12,14 @@ import {
   computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_GAMES, EVOLVE_POINTS, positionFit,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, hasOopRelief, type AttrKey } from '../../lib/traits';
+import type { MatchPlan } from '../../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import CoachStadiumPanel from './CoachStadiumPanel';
 import { stadiumFor } from '../../lib/stadium';
 import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE, getCardVariants } from './PlayerCard';
 import RolesSelector from './RolesSelector';
 import TacticSelector from './TacticSelector';
+import MatchPlanSelector from './MatchPlanSelector';
 import FormationSelector from './FormationSelector';
 import ChemistryBonusInfo from './ChemistryBonusInfo';
 import BuffBreakdown from './BuffBreakdown';
@@ -27,11 +29,13 @@ export interface SquadEditorProps {
   coachId: string;
   formationId: string;
   playStyle: string;
+  matchPlan?: MatchPlan;
   captain?: string | null;
   penaltyTaker?: string | null;
   freeKickTaker?: string | null;
   onSetFormation: (id: string) => void;
   onSetPlayStyle: (id: string) => void;
+  onSetMatchPlan?: (plan: MatchPlan) => void;
   onSetCaptain: (id: string) => void;
   onSetPenaltyTaker: (id: string) => void;
   onSetFreeKickTaker: (id: string) => void;
@@ -63,8 +67,9 @@ const EVOLVE_ATTRS: { key: AttrKey; label: string }[] = [
 
 export default function SquadEditor({
   players, coachId, formationId, playStyle,
+  matchPlan,
   captain, penaltyTaker, freeKickTaker,
-  onSetFormation, onSetPlayStyle, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets,
+  onSetFormation, onSetPlayStyle, onSetMatchPlan, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets,
   showCoachCard = true, footer, isKnockout = false,
   availability, onHealInjury, canAffordPhysio, physioCost = 250,
   coachPrime, points, wins, onEvolvePrime,
@@ -188,6 +193,9 @@ export default function SquadEditor({
 
       <FormationSelector value={formationId} onChange={onSetFormation} />
       <TacticSelector value={playStyle} onChange={onSetPlayStyle} />
+      {onSetMatchPlan ? (
+        <MatchPlanSelector value={matchPlan} playStyle={playStyle} onChange={onSetMatchPlan} />
+      ) : null}
 
       <RolesSelector
         players={xi}
@@ -316,7 +324,7 @@ export default function SquadEditor({
                       <button disabled={!canAffordPhysio} onClick={() => setConfirmPhysioFor(selectedPlayer.id)}
                         className="text-[11px] font-black px-3 py-1.5 rounded-lg tracking-wider disabled:opacity-40 transition-transform active:scale-95 flex items-center gap-1.5"
                         style={{ fontFamily: 'Rajdhani, sans-serif', background: '#0E7490', color: '#ECFEFF', border: '1px solid #22D3EE55' }}
-                        title={canAffordPhysio ? undefined : `Faltam pontos (custa ${physioCost})`}>
+                        title={canAffordPhysio ? undefined : `Faltam créditos (custa ${physioCost})`}>
                         🏥 Fisioterapia · −1 jogo
                         <span className="px-1.5 py-0.5 rounded" style={{ background: '#083344', color: '#67E8F9' }}>{physioCost} pts</span>
                       </button>
@@ -343,7 +351,7 @@ export default function SquadEditor({
                         Reduzir <b style={{ color: '#FFF' }}>1 jogo</b> de lesão de <b style={{ color: '#FFF' }}>{pp.shortName}</b>?
                       </p>
                       <p className="text-[12px] mb-4" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
-                        Fica <b style={{ color: '#FCD34D' }}>{Math.max(0, inj - 1)} jogo(s)</b> de fora · custa <b style={{ color: '#67E8F9' }}>{physioCost} pts</b>
+                        Fica <b style={{ color: '#FCD34D' }}>{Math.max(0, inj - 1)} jogo(s)</b> de fora · custa <b style={{ color: '#67E8F9' }}>{physioCost} créditos</b>
                       </p>
                       <div className="flex gap-2">
                         <button onClick={() => setConfirmPhysioFor(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#17171f', color: '#9A9AA5' }}>

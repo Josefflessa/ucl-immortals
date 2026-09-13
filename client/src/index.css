@@ -227,3 +227,24 @@ html {
 .spotlight-gold {
   background: radial-gradient(60% 60% at 50% 0%, var(--ui-brand-soft) 0%, transparent 70%);
 }
+
+/* Readability guardrails
+ *
+ * A few legacy gameplay panels still use fixed pixel utilities for compact
+ * labels. Keep those labels visually consistent with the newer panels by
+ * giving the smallest sizes a modest optical lift. This is intentionally
+ * limited to 8–11px utilities; normal text and responsive Tailwind sizes are
+ * left alone.
+ */
+@layer utilities {
+  .text-\[8px\] { font-size: 10px; }
+  .text-\[9px\] { font-size: 11px; }
+  .text-\[10px\] { font-size: 12px; }
+  .text-\[11px\] { font-size: 13px; }
+
+  @media (min-width: 640px) {
+    .sm\:text-\[9px\] { font-size: 11px; }
+    .sm\:text-\[10px\] { font-size: 12px; }
+    .sm\:text-\[11px\] { font-size: 13px; }
+  }
+}

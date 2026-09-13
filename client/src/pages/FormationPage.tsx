@@ -8,8 +8,6 @@ import FormationField from '../components/game/FormationField';
 import ImpactMeter from '../components/game/ImpactMeter';
 import { AppShell, Button, ChoiceCard, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 
-import { useState } from 'react';
-
 export default function FormationPage() {
   const { state, dispatch, submitSetupOnline } = useGame();
   const selectedCoach = COACHES.find(c => c.id === state.selectedCoachId);
@@ -19,6 +17,13 @@ export default function FormationPage() {
 
   const handleSelect = (formationId: string) => {
     dispatch({ type: 'SET_FORMATION', formationId });
+  };
+
+  const handleDoubleClick = (formationId: string) => {
+    // Ensure the formation that received the double click is the one submitted,
+    // even if both click events are batched by the browser.
+    dispatch({ type: 'SET_FORMATION', formationId });
+    handleContinue();
   };
 
   const handleContinue = () => {
@@ -61,6 +66,15 @@ export default function FormationPage() {
             className="mb-6"
           />
 
+          <div role="note" className="ui-panel ui-panel--inset mb-4 px-3 py-2.5">
+            <div className="text-xs font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+              COMO LER OS INDICADORES
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-pretty" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
+              Controle gera mais iniciativa, volume de jogadas e posse. Ataque torna suas chances mais perigosas. Defesa reduz o perigo das chances adversárias. Um confronto favorável acrescenta +3 de força tática ao time.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {FORMATIONS.map((formation) => {
               const isSelected = state.selectedFormationId === formation.id;
@@ -71,6 +85,8 @@ export default function FormationPage() {
                   key={formation.id}
                   selected={isSelected}
                   onClick={() => handleSelect(formation.id)}
+                  onDoubleClick={() => handleDoubleClick(formation.id)}
+                  title="Clique duas vezes para escolher e iniciar o draft"
                   className="ui-choice text-left p-4"
                   style={{
                     background: isSelected ? '#14142A' : '#0F0F1A',
@@ -104,7 +120,7 @@ export default function FormationPage() {
                   {/* Strengths */}
                   <div className="mb-2">
                     {formation.strengths.slice(0, 2).map(s => (
-                      <div key={s} className="flex items-center gap-1.5 text-xs mb-0.5"
+                      <div key={s} className="mb-0.5 flex items-center gap-1.5 text-sm"
                         style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
                         <span>+</span> {s}
                       </div>
@@ -114,7 +130,7 @@ export default function FormationPage() {
                   {/* Weaknesses */}
                   <div>
                     {formation.weaknesses.slice(0, 1).map(w => (
-                      <div key={w} className="flex items-center gap-1.5 text-xs"
+                      <div key={w} className="flex items-center gap-1.5 text-sm"
                         style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
                         <span>−</span> {w}
                       </div>
@@ -128,13 +144,13 @@ export default function FormationPage() {
 
                   {/* Matchup info — leve vantagem/desvantagem situacional (não decide o jogo) */}
                   {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
-                    <div className="mt-2 text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <div className="mt-3 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                       {formation.counters.length > 0 && (
-                        <>Vantagem contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span></>
+                        <>Confronto favorável contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span></>
                       )}
                       {formation.counters.length > 0 && formation.counteredBy.length > 0 && ' · '}
                       {formation.counteredBy.length > 0 && (
-                        <>Desvantagem contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span></>
+                        <>Pode sofrer contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span></>
                       )}
                     </div>
                   )}
@@ -167,19 +183,19 @@ export default function FormationPage() {
 
           {selectedFormation && (
             <Panel tone="inset" className="w-full p-4">
-              <div className="text-xs font-bold mb-2 tracking-widest"
+              <div className="mb-2 text-sm font-bold tracking-widest"
                 style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
                 ANÁLISE TÁTICA
               </div>
               <div className="space-y-1">
                 {selectedFormation.strengths.map(s => (
-                  <div key={s} className="flex items-start gap-2 text-xs"
+                  <div key={s} className="flex items-start gap-2 text-sm"
                     style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
                     <span className="flex-shrink-0">✓</span> {s}
                   </div>
                 ))}
                 {selectedFormation.weaknesses.map(w => (
-                  <div key={w} className="flex items-start gap-2 text-xs"
+                  <div key={w} className="flex items-start gap-2 text-sm"
                     style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
                     <span className="flex-shrink-0">✗</span> {w}
                   </div>

@@ -141,7 +141,7 @@ export default function MarketTab() {
                           disabled={cantAfford || alreadyOwn}
                           onClick={() => marketBuyOnline(li.id)}
                           className="ui-btn ui-btn--info min-h-8 px-3 text-[11px]"
-                          title={alreadyOwn ? 'Você já tem esse jogador' : cantAfford ? 'Pontos insuficientes' : undefined}
+                          title={alreadyOwn ? 'Você já tem esse jogador' : cantAfford ? 'Créditos insuficientes' : undefined}
                         >
                           Comprar
                         </button>

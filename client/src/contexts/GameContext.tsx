@@ -15,10 +15,11 @@ import {
   generateGroupFixtures, computeGroupQualifiedStandings,
   getAllPlayedMatchResults, createKnockoutBracket,
   generateUniquePackCard,
+  normalizeMatchPlan,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
   bumpStarterAppearances, isEvolved, applyEvolvePoint,
 } from '../lib/gameEngine';
-import type { VariantFlag } from '../lib/gameEngine';
+import type { MatchPlan, VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
 import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, revealEligibleKoBets, settleBet } from '../lib/bets';
@@ -60,6 +61,7 @@ export interface RoomPlayer {
   crestId?: string | null; // selected club crest
   coachId: string;
   formationId: string;
+  matchPlan?: MatchPlan;
   draftedPlayers: (Player | undefined)[];
   vetoesLeft: number;
   captain: string | null;
@@ -94,6 +96,7 @@ export interface GameState {
   selectedCoachId: string;
   selectedFormationId: string;
   selectedPlayStyle: string;
+  selectedMatchPlan: MatchPlan;
   captain: string | null;
   penaltyTaker: string | null;
   freeKickTaker: string | null;
@@ -178,7 +181,9 @@ export type GameAction =
   | { type: 'SET_COACH'; coachId: string }
   | { type: 'SET_FORMATION'; formationId: string }
   | { type: 'SET_PLAY_STYLE'; playStyle: string }
+  | { type: 'SET_MATCH_PLAN'; plan: MatchPlan }
   | { type: 'SET_PLAYER_TEAM_PLAY_STYLE'; playStyle: string }
+  | { type: 'SET_PLAYER_TEAM_MATCH_PLAN'; plan: MatchPlan }
   | { type: 'START_DRAFT' }
   | { type: 'DRAFT_PLAYER'; player: Player }
   | { type: 'VETO_DRAFT' }
@@ -261,6 +266,7 @@ const initialState: GameState = {
   selectedCoachId: 'guardiola',
   selectedFormationId: '4-3-3',
   selectedPlayStyle: 'balanced',
+  selectedMatchPlan: normalizeMatchPlan(),
   captain: null,
   penaltyTaker: null,
   freeKickTaker: null,
@@ -330,9 +336,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_PLAY_STYLE':
       return { ...state, selectedPlayStyle: action.playStyle };
 
+    case 'SET_MATCH_PLAN':
+      return { ...state, selectedMatchPlan: normalizeMatchPlan(action.plan) };
+
     case 'SET_PLAYER_TEAM_PLAY_STYLE':
       if (!state.playerTeam) return state;
       return { ...state, playerTeam: { ...state.playerTeam, playStyle: action.playStyle } };
+
+    case 'SET_PLAYER_TEAM_MATCH_PLAN':
+      if (!state.playerTeam) return state;
+      return { ...state, playerTeam: { ...state.playerTeam, matchPlan: normalizeMatchPlan(action.plan) } };
 
     case 'START_DRAFT': {
       const needed = getNeededPositions(state.selectedFormationId, Array(11).fill(undefined));
@@ -801,6 +814,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         coachId: state.selectedCoachId,
         formationId: state.selectedFormationId,
         playStyle: state.selectedPlayStyle,
+        matchPlan: normalizeMatchPlan(state.selectedMatchPlan),
         players: playerCards,
         captain: state.captain ?? undefined,
         penaltyTaker: state.penaltyTaker ?? undefined,
@@ -1011,9 +1025,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ? generateDraftOptions([], ownedIds).slice(0, rewards.reinforcementOptions)
         : null;
 
-      // Award shop points for the player's performance using this format's values.
+      // Award shop credits for the player's performance using this format's values.
       const matchPoints = computeMatchPointsWithConfig(action.result, state.playerTeam.id, rewards.points);
-      // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
+      // 🤑 Magnata — titular multiplica os créditos da partida de liga (não empilha).
       const magMult = magnataPointMultiplier(state.playerTeam.players);
       const earnedPoints = rewards.pointsEnabled ? Math.round(matchPoints.total * magMult) : 0;
 
@@ -1350,6 +1364,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         selectedCoachId: keepLocalPicks ? state.selectedCoachId : (me ? me.coachId : state.selectedCoachId),
         selectedFormationId: keepLocalPicks ? state.selectedFormationId : (me ? me.formationId : state.selectedFormationId),
         selectedPlayStyle: keepLocalPicks ? state.selectedPlayStyle : (me ? (me.playStyle ?? 'balanced') : state.selectedPlayStyle),
+        selectedMatchPlan: keepLocalPicks
+          ? state.selectedMatchPlan
+          : normalizeMatchPlan(me?.matchPlan ?? state.selectedMatchPlan),
         captain: keepLocalPicks ? state.captain : (me ? me.captain : state.captain),
         penaltyTaker: keepLocalPicks ? state.penaltyTaker : (me ? me.penaltyTaker : state.penaltyTaker),
         freeKickTaker: keepLocalPicks ? state.freeKickTaker : (me ? me.freeKickTaker : state.freeKickTaker),
@@ -1421,8 +1438,9 @@ interface GameContextType {
   submitSetupOnline: (coachId: string, formationId: string, crestId?: string | null) => void;
   draftPickOnline: (playerId: string) => void;
   draftVetoOnline: () => void;
-  submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string) => void;
+  submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string, matchPlan: MatchPlan) => void;
   setMatchRolesOnline: (captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, playStyle?: string, formationId?: string) => void;
+  setMatchPlanOnline: (matchPlan: MatchPlan) => void;
   // League — host only
   playRoundOnline: () => void;
   advanceRoundOnline: () => void;
@@ -1612,7 +1630,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.roomCode]);
 
-  const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string) => {
+  const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string, matchPlan: MatchPlan) => {
     if (socketRef.current && state.roomCode) {
       socketRef.current.emit("submit_squad_review", {
         roomCode: state.roomCode,
@@ -1622,6 +1640,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         draftedPlayers,
         playStyle,
         formationId,
+        matchPlan,
       });
     }
   }, [state.roomCode]);
@@ -1677,6 +1696,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [state.roomCode]);
   const shopOpenUniquePackOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_open_unique_pack", { roomCode: state.roomCode });
+  }, [state.roomCode]);
+
+  const setMatchPlanOnline = useCallback((matchPlan: MatchPlan) => {
+    if (socketRef.current && state.roomCode) {
+      socketRef.current.emit("set_match_plan", { roomCode: state.roomCode, matchPlan });
+    }
   }, [state.roomCode]);
   const shopClaimUniquePackOnline = useCallback(() => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_claim_unique_pack", { roomCode: state.roomCode });
@@ -1797,7 +1822,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const contextValue = useMemo(() => ({
     state, dispatch, getTeamById, getPlayerById, getCoachById, getFormationById,
     createRoom, joinRoom, startSetupOnline, submitSetupOnline,
-    draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline,
+    draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline, setMatchPlanOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,

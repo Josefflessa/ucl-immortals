@@ -30,6 +30,7 @@ export const PRIME_STADIUMS: Record<string, Stadium> = {
   mourinho:  { id: 'dragao',      name: 'Estádio do Dragão', photoUrl: '/stadiums/dragao.webp',      homeAttrBonus: 6, prime: true, themedAttrs: ['defending', 'physical'], themedNation: 'Portugal',       coachPhotoUrl: '/coaches/prime/mourinho.webp' },
   zidane:    { id: 'bernabeu',    name: 'Bernabéu',          photoUrl: '/stadiums/bernabeu.webp',    homeAttrBonus: 6, prime: true, themedAttrs: ['dribbling', 'shooting'], themedClub: 'Real Madrid',      coachPhotoUrl: '/coaches/prime/zidane.webp' },
   ferguson:  { id: 'oldtrafford', name: 'Old Trafford',      photoUrl: '/stadiums/oldtrafford.webp', homeAttrBonus: 6, prime: true, themedAttrs: ['pace', 'shooting'],     themedClub: 'Manchester United', coachPhotoUrl: '/coaches/prime/ferguson.webp' },
+  luis_enrique: { id: 'parc-des-princes', name: 'Parc des Princes', photoUrl: '/stadiums/parc-des-princes.webp', homeAttrBonus: 6, prime: true, themedAttrs: ['passing', 'pace'], themedClub: 'PSG', coachPhotoUrl: '/coaches/prime/luis-enrique.webp' },
 };
 
 export function stadiumFor(coachId: string, prime: boolean): Stadium {

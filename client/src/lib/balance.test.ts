@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { generateBotTeam, freeKickGoalChance, penaltyGoalChance } from './gameEngine';
+import {
+  generateBotTeam, freeKickGoalChance, penaltyGoalChance, formationProfile,
+  tacticalChanceVolumeModifier, tacticalChanceDangerModifier, computePossession,
+} from './gameEngine';
 import { TACTICS, FORMATIONS, COACHES } from './gameData';
 
 // ── Deterministic RNG for the statistical tests ────────────────────────────────
@@ -37,6 +40,34 @@ import {
 /* eslint-disable no-console */
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 const log = (s: string) => console.log(s);
+
+describe('motor — significado dos eixos táticos', () => {
+  it('mantém criação, perigo e proteção como efeitos independentes', () => {
+    const creator = formationProfile('3-5-2');
+    const threat = formationProfile('3-4-3');
+    const protector = formationProfile('5-3-2');
+
+    expect(tacticalChanceVolumeModifier(creator.control, 0)).toBeGreaterThan(
+      tacticalChanceVolumeModifier(protector.control, 0),
+    );
+    expect(tacticalChanceDangerModifier({
+      attackingFormationAttack: threat.attack,
+      attackingTacticAttack: 0,
+      defendingFormationDefense: 0,
+      defendingTacticDefense: 0,
+    })).toBeGreaterThan(0);
+    expect(tacticalChanceDangerModifier({
+      attackingFormationAttack: 0,
+      attackingTacticAttack: 0,
+      defendingFormationDefense: protector.defense,
+      defendingTacticDefense: 0,
+    })).toBeLessThan(0);
+
+    const controlPossession = computePossession(80, 80, 8, 8, 'balanced', 'balanced', creator.control, 0);
+    const neutralPossession = computePossession(80, 80, 8, 8, 'balanced', 'balanced', 0, 0);
+    expect(controlPossession).toBeGreaterThan(neutralPossession);
+  });
+});
 
 describe('balance — match-level panorama (even teams 0.80 vs 0.80)', () => {
   it('produces realistic football metrics', () => {
@@ -239,7 +270,7 @@ describe('balance — formation impact (same squad, only the shape differs)', ()
     expect(ppgRange).toBeLessThan(0.55); // every formation is competitive (≈ within half a PPG)
 
     // 2) IDENTITY — each shape behaves like its description.
-    // Attacking shape (3-4-3) outscores the back-five (5-3-2)…
+    // High-danger shape (3-4-3) outscores the back-five (5-3-2)…
     expect(byId['3-4-3'].goalsForAvg).toBeGreaterThan(byId['5-3-2'].goalsForAvg);
     // …but pays for it: it concedes clearly more than the back-five.
     expect(byId['3-4-3'].goalsAgainstAvg).toBeGreaterThan(byId['5-3-2'].goalsAgainstAvg);
@@ -247,7 +278,7 @@ describe('balance — formation impact (same squad, only the shape differs)', ()
     // allow a small tolerance instead of demanding a noise-level ordering).
     expect(byId['5-3-2'].goalsAgainstAvg).toBeLessThanOrEqual(byId['4-4-2'].goalsAgainstAvg + 0.15);
     expect(byId['5-3-2'].cleanSheetPct).toBeGreaterThan(byId['3-4-3'].cleanSheetPct);
-    // …and the most attacking shape (3-4-3) creates the most (most shots).
+    // …and its forward-heavy shape creates more attempts than the back-five.
     expect(byId['3-4-3'].shots).toBeGreaterThan(byId['5-3-2'].shots);
     // Control shapes (4-2-3-1, 3-5-2) own the ball more than the direct/defensive ones.
     expect(byId['4-2-3-1'].possession).toBeGreaterThan(byId['5-3-2'].possession);

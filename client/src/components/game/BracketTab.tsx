@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
+import { knockoutRoundLabel } from '../../lib/gameEngine';
 
 type Tie = {
   id: string;
@@ -21,8 +22,6 @@ type Tie = {
 };
 
 const ROUND_ORDER = ['playoffs', 'round16', 'quarters', 'semis', 'final'] as const;
-const ROUND_SLOTS: Record<string, number> = { playoffs: 8, round16: 8, quarters: 4, semis: 2, final: 1 };
-const ROUND_LABEL: Record<string, string> = { playoffs: 'Playoffs', round16: 'Oitavas', quarters: 'Quartas', semis: 'Semis', final: 'Final' };
 
 export default function BracketTab() {
   const { state } = useGame();
@@ -31,9 +30,12 @@ export default function BracketTab() {
 
   if (!knockoutBracket) return null;
   const kb = knockoutBracket as any;
+  const firstRoundSize = typeof kb.firstRoundSize === 'number' ? kb.firstRoundSize : 16;
   // A 16-team qualification line skips the playoff entirely. Hide that column
   // so the active marker and bracket hierarchy start at the Round of 16.
-  const roundOrder = kb.playoffs?.length ? ROUND_ORDER : ROUND_ORDER.filter(key => key !== 'playoffs');
+  const roundOrder = firstRoundSize < 16
+    ? (firstRoundSize === 4 ? ['round16', 'final'] : ['round16', 'quarters', 'final'])
+    : (kb.playoffs?.length ? ROUND_ORDER : ROUND_ORDER.filter(key => key !== 'playoffs'));
   const getTeamName = (teamId: string) => resolveTeamName(teamId, '');
 
   const isMe = (teamId: string) =>
@@ -47,6 +49,21 @@ export default function BracketTab() {
     if (key === 'semis') return kb.semiFinals || [];
     if (key === 'final') return kb.final ? [kb.final] : [];
     return kb[key] || [];
+  };
+
+  const slotsFor = (key: string): number => {
+    const real = tiesFor(key);
+    if (real.length > 0) return real.length;
+    if (firstRoundSize < 16) {
+      const compactSlots: Record<string, number> = {
+        round16: Math.max(1, firstRoundSize / 2),
+        quarters: Math.max(1, firstRoundSize / 4),
+        semis: Math.max(1, firstRoundSize / 8),
+        final: 1,
+      };
+      return compactSlots[key] ?? 1;
+    }
+    return ({ playoffs: 8, round16: 8, quarters: 4, semis: 2, final: 1 } as Record<string, number>)[key] ?? 1;
   };
 
   const TeamRow = ({ teamId, score, isWinner, hideScore }: { teamId: string; score: number | null; isWinner: boolean; hideScore: boolean }) => {
@@ -105,7 +122,7 @@ export default function BracketTab() {
           {roundOrder.map((key, ri) => {
             const status: 'done' | 'active' | 'future' = ri < curIdx ? 'done' : ri === curIdx ? 'active' : 'future';
             const real = tiesFor(key);
-            const slots = ROUND_SLOTS[key];
+            const slots = slotsFor(key);
             // Future rounds have no ties yet — render greyed placeholders so the tree shape reads.
             const cards: (Tie | null)[] = real.length > 0 ? real : Array.from({ length: slots }, () => null);
             return (
@@ -117,7 +134,7 @@ export default function BracketTab() {
                     color: status === 'active' ? '#080810' : status === 'done' ? '#6A6A7A' : '#44445A',
                     border: `1px solid ${status === 'active' ? '#C9A84C' : '#1A1A2A'}`,
                   }}>
-                  {ROUND_LABEL[key]}
+                  {knockoutRoundLabel(key, firstRoundSize)}
                 </div>
                 <div className="flex flex-col justify-around gap-2 flex-1">
                   {cards.map((tie, i) => (

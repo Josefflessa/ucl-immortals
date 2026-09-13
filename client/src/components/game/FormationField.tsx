@@ -16,6 +16,12 @@ export const CHEM_LINK_COLOR: Record<ChemLinkType, string> = {
   partner: '#22C55E', // dupla histórica
 };
 
+export interface EmergencyGoalkeeperDisplay {
+  playerId: string;
+  goalkeeperSlotIndex: number;
+  vacatedSlotIndex: number;
+}
+
 interface FormationFieldProps {
   formation: Formation;
   players: (Player | undefined)[];
@@ -32,6 +38,10 @@ interface FormationFieldProps {
   assistsByPlayer?: Record<string, number>;
   // 🟨🟥🩹 Disciplina/lesão por jogador (durante a partida). Expulso é escurecido + 🟥; lesionado 🩹.
   disciplineByPlayer?: Record<string, { yellow: number; red: boolean; injury: boolean }>;
+  // When the starting goalkeeper is sent off, the match engine keeps the XI order
+  // for identity but moves a line player into the goal. The field mirrors that
+  // state: the emergency keeper occupies the GK slot and his old slot is empty.
+  emergencyGoalkeeper?: EmergencyGoalkeeperDisplay;
 }
 
 const POSITION_COLORS: Record<string, string> = {
@@ -68,6 +78,7 @@ export default function FormationField({
   goalsByPlayer,
   assistsByPlayer,
   disciplineByPlayer,
+  emergencyGoalkeeper,
 }: FormationFieldProps) {
   const ratingMode = !!ratings;
   const ratingColor = (r: number) => r >= 8.5 ? '#d4af37' : r >= 7.5 ? '#22c55e' : r >= 6.5 ? '#e5e7eb' : r <= 5.3 ? '#ef4444' : '#f59e0b';
@@ -161,11 +172,23 @@ export default function FormationField({
 
       {/* Player tokens — positioned in % of the field so they track the fluid size */}
       {formation.positions.map((pos, index) => {
-        const player = players[index];
+        const isEmergencyGoalkeeperSlot = emergencyGoalkeeper?.goalkeeperSlotIndex === index;
+        const isVacatedSlot = emergencyGoalkeeper?.vacatedSlotIndex === index;
+        const emergencyPlayer = emergencyGoalkeeper
+          ? players.find(p => p?.id === emergencyGoalkeeper.playerId)
+          : undefined;
+        // The display order still belongs to the original XI. For the special red-card
+        // goalkeeper state, render the emergency line player in goal and leave his old
+        // position vacant so the field visibly remains a 10-man side.
+        const player = isEmergencyGoalkeeperSlot
+          ? emergencyPlayer
+          : isVacatedSlot
+            ? undefined
+            : players[index];
         const posColor = POSITION_COLORS[pos.role] || '#8A8A9A';
         const chemScore = player ? (chemistryScores[player.id] ?? 0) : 0;
         const rarityColor = player ? getRarityColor(player.rarity) : '#555';
-        const initials = player ? (PLAYER_INITIALS[player.id] || player.shortName.slice(0, 2).toUpperCase()) : '?';
+        const initials = player ? (PLAYER_INITIALS[player.id] || player.shortName.slice(0, 2).toUpperCase()) : isVacatedSlot ? '—' : '?';
         const photoUrl = player ? buildSofifaUrl(player.id, 120) : null;
         const tokenSize = compact ? 34 : 48;
         // Match (rating) mode: a more compact token with the rating/goals OVERLAID on the photo
@@ -205,8 +228,8 @@ export default function FormationField({
                   filter: sentOff ? 'grayscale(1)' : 'none',
                   background: player
                     ? `radial-gradient(circle, ${rarityColor}33 0%, #0F0F1A 100%)`
-                    : '#1A1A2A',
-                  border: isSelected ? '2px solid #FFF' : `2px solid ${player ? tokenColor : '#333'}`,
+                    : isVacatedSlot ? 'rgba(255,255,255,0.035)' : '#1A1A2A',
+                  border: isSelected ? '2px solid #FFF' : isVacatedSlot ? '1px dashed #6B7280' : `2px solid ${player ? tokenColor : '#333'}`,
                   boxShadow: isSelected
                     ? '0 0 12px #FFF'
                     : variants.length > 0
@@ -215,7 +238,7 @@ export default function FormationField({
                         ? `0 0 12px ${rarityColor}88`
                         : player ? `0 0 6px ${rarityColor}44` : 'none',
                   fontSize: compact ? '10px' : '13px',
-                  color: isSelected ? '#FFF' : (player ? rarityColor : '#555'),
+                  color: isSelected ? '#FFF' : (player ? rarityColor : isVacatedSlot ? '#9CA3AF' : '#555'),
                 }}
               >
                 {player && photoUrl ? (
@@ -230,6 +253,34 @@ export default function FormationField({
                   initials
                 )}
               </div>
+
+              {isEmergencyGoalkeeperSlot && player && (
+                <span
+                  className="absolute leading-none rounded-full font-black"
+                  title="Goleiro emergencial"
+                  style={{
+                    top: -6, right: -8, fontSize: compact ? '8px' : '9px', padding: '2px 3px',
+                    color: '#FDE68A', background: '#29200A', border: '1px solid #D4AF37',
+                    fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 4,
+                  }}
+                >
+                  🧤 GK
+                </span>
+              )}
+
+              {isVacatedSlot && (
+                <span
+                  className="absolute leading-none rounded-full font-black"
+                  title="Posição deixada pelo goleiro emergencial"
+                  style={{
+                    top: -6, right: -12, fontSize: compact ? '7px' : '8px', padding: '2px 3px',
+                    color: '#9CA3AF', background: '#11111B', border: '1px solid #4B5563',
+                    fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 4,
+                  }}
+                >
+                  VAGA
+                </span>
+              )}
 
               {/* Match mode — rating badge over the bottom edge, goals/assists at the top-right */}
               {ratingMode && player && (() => {

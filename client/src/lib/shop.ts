@@ -124,5 +124,5 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: '+10 em tudo NELE e +30 na química geral — SÓ enquanto for o único titular com característica.' },
   { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: '+5 em tudo quando é o único titular do seu país E do seu clube.' },
   { key: 'capitaoNato', icon: '🗣️', label: 'Capitão Nato', color: '#F97316', desc: 'Se for o CAPITÃO do time, o bônus de capitão vem DOBRADO.' },
-  { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os pontos da partida de LIGA por 1.5. Mas −5 em todos os atributos nele.' },
+  { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os créditos da partida de liga por 1,5. Mas −5 em todos os atributos nele.' },
 ];
