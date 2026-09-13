@@ -11,6 +11,7 @@
 //      designated taker; success scales with composure + the traits
 //      "Especialista em Decisões"/"Frio na Final" (+10 each). (gameEngine.simulatePenalties)
 
+import { useState } from 'react';
 import { POS_PT } from '../../lib/gameData';
 import type { EffectiveStats } from '../../lib/gameEngine';
 
@@ -95,6 +96,8 @@ export default function RolesSelector({
   onSetPenaltyTaker,
   onSetFreeKickTaker,
 }: RolesSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
   // Suggested picks: best captain = highest bonus (tiebreak overall);
   // best taker = highest penalty score; best free-kick = highest FK score.
   const suggestedCaptainId = [...players]
@@ -113,35 +116,28 @@ export default function RolesSelector({
 
   return (
     <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between gap-2 mb-1">
         <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
           FUNÇÕES DE JOGO
         </span>
-        <span className="text-[10px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-          CAPITÃO · PÊNALTI · FALTA
-        </span>
+        <button
+          type="button"
+          onClick={() => setIsOpen(open => !open)}
+          aria-expanded={isOpen}
+          aria-controls="game-roles-selector-content"
+          className="flex-shrink-0 rounded px-2 py-1 text-[10px] font-black transition-colors"
+          style={{
+            color: isOpen ? '#FFF' : '#C9A84C',
+            background: isOpen ? '#1A1A2A' : '#14142A',
+            border: `1px solid ${isOpen ? '#3A3A4A' : '#C9A84C66'}`,
+            fontFamily: 'Rajdhani, sans-serif',
+          }}
+        >
+          {isOpen ? 'FECHAR ▲' : 'ABRIR ▼'}
+        </button>
       </div>
-
-      {/* What each role does */}
-      <div className="grid sm:grid-cols-3 gap-2 mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-        <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #3B82F633', color: '#9AA8C8' }}>
-          <span className="font-black" style={{ color: '#3B82F6' }}>🅒 Capitão</span> — a <b style={{ color: '#FFF' }}>maior
-          estatística</b> dele vira <b style={{ color: '#FFF' }}>+{CAPTAIN_BOOST}</b> pra <b style={{ color: '#FFF' }}>todo o time</b>.
-          Ex.: capitão com Defesa altíssima → +{CAPTAIN_BOOST} Defesa pra todos.
-          <br /><span style={{ color: '#6A6A7A' }}>Dica: escolha pela estatística que seu time precisa.</span>
-        </div>
-        <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #C9A84C33', color: '#B8A875' }}>
-          <span className="font-black" style={{ color: '#C9A84C' }}>⚽ Pênalti</span> — bate os pênaltis
-          <b style={{ color: '#FFF' }}> durante o jogo</b> e a <b style={{ color: '#FFF' }}>1ª da disputa</b> (+5 compostura).
-          Sucesso depende da compostura e dos traits de frieza.
-          <br /><span style={{ color: '#6A6A7A' }}>Dica: maior compostura.</span>
-        </div>
-        <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #22C55E33', color: '#86B89A' }}>
-          <span className="font-black" style={{ color: '#22C55E' }}>🎯 Falta</span> — cobra as
-          <b style={{ color: '#FFF' }}> faltas perigosas</b> (cobrança direta) durante o jogo. O sucesso depende da
-          <b style={{ color: '#FFF' }}> finalização + compostura</b>.
-          <br /><span style={{ color: '#6A6A7A' }}>Dica: bom chute e frieza.</span>
-        </div>
+      <div className="mb-3 text-[10px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+        CAPITÃO · PÊNALTI · FALTA
       </div>
 
       {/* Current selection summary */}
@@ -165,23 +161,47 @@ export default function RolesSelector({
         </span>
       </div>
 
-      <div className="space-y-1.5">
-        {players.map((p) => {
+      {isOpen && (
+        <div id="game-roles-selector-content">
+          {/* What each role does */}
+          <div className="grid sm:grid-cols-3 gap-2 mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #3B82F633', color: '#9AA8C8' }}>
+              <span className="font-black" style={{ color: '#3B82F6' }}>🅒 Capitão</span> — a <b style={{ color: '#FFF' }}>maior
+              estatística</b> dele vira <b style={{ color: '#FFF' }}>+{CAPTAIN_BOOST}</b> pra <b style={{ color: '#FFF' }}>todo o time</b>.
+              Ex.: capitão com Defesa altíssima → +{CAPTAIN_BOOST} Defesa pra todos.
+              <br /><span style={{ color: '#6A6A7A' }}>Dica: escolha pela estatística que seu time precisa.</span>
+            </div>
+            <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #C9A84C33', color: '#B8A875' }}>
+              <span className="font-black" style={{ color: '#C9A84C' }}>⚽ Pênalti</span> — bate os pênaltis
+              <b style={{ color: '#FFF' }}> durante o jogo</b> e a <b style={{ color: '#FFF' }}>1ª da disputa</b> (+5 compostura).
+              Sucesso depende da compostura e dos traits de frieza.
+              <br /><span style={{ color: '#6A6A7A' }}>Dica: maior compostura.</span>
+            </div>
+            <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #22C55E33', color: '#86B89A' }}>
+              <span className="font-black" style={{ color: '#22C55E' }}>🎯 Falta</span> — cobra as
+              <b style={{ color: '#FFF' }}> faltas perigosas</b> (cobrança direta) durante o jogo. O sucesso depende da
+              <b style={{ color: '#FFF' }}> finalização + compostura</b>.
+              <br /><span style={{ color: '#6A6A7A' }}>Dica: bom chute e frieza.</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            {players.map((p) => {
           const isCaptain = captainId === p.id;
           const isTaker = penaltyTakerId === p.id;
           const isFreeKick = freeKickTakerId === p.id;
           const isSuggestedCap = !captainId && p.id === suggestedCaptainId;
           const isSuggestedTaker = !penaltyTakerId && p.id === suggestedTakerId;
           const isSuggestedFreeKick = !freeKickTakerId && p.id === suggestedFreeKickId;
-          return (
-            <div
-              key={p.id}
-              className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 px-2.5 py-2 rounded-lg sm:flex sm:gap-2"
-              style={{
-                background: isTaker || isCaptain || isFreeKick ? '#14142A' : '#0A0A14',
-                border: `1px solid ${isFreeKick ? '#22C55E55' : isTaker ? '#C9A84C55' : isCaptain ? '#3B82F655' : '#1A1A2A'}`,
-              }}
-            >
+              return (
+                <div
+                  key={p.id}
+                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 px-2.5 py-2 rounded-lg sm:flex sm:gap-2"
+                  style={{
+                    background: isTaker || isCaptain || isFreeKick ? '#14142A' : '#0A0A14',
+                    border: `1px solid ${isFreeKick ? '#22C55E55' : isTaker ? '#C9A84C55' : isCaptain ? '#3B82F655' : '#1A1A2A'}`,
+                  }}
+                >
               <span
                 className="text-[9px] font-black w-9 text-center rounded px-1 flex-shrink-0"
                 style={{ background: '#1c1c2e', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}
@@ -243,14 +263,16 @@ export default function RolesSelector({
                   {isSuggestedFreeKick ? '★ ' : ''}🎯 FAL
                 </button>
               </div>
-            </div>
-          );
-        })}
-      </div>
+                </div>
+              );
+            })}
+          </div>
 
-      <p className="text-[10px] mt-3" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-        ★ = sugestão automática enquanto a função não estiver definida.
-      </p>
+          <p className="text-[10px] mt-3" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+            ★ = sugestão automática enquanto a função não estiver definida.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
