@@ -176,7 +176,7 @@ export default function RolesSelector({
           return (
             <div
               key={p.id}
-              className="flex items-center gap-2 px-2.5 py-2 rounded-lg"
+              className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 px-2.5 py-2 rounded-lg sm:flex sm:gap-2"
               style={{
                 background: isTaker || isCaptain || isFreeKick ? '#14142A' : '#0A0A14',
                 border: `1px solid ${isFreeKick ? '#22C55E55' : isTaker ? '#C9A84C55' : isCaptain ? '#3B82F655' : '#1A1A2A'}`,
@@ -191,54 +191,58 @@ export default function RolesSelector({
               <span className="text-sm font-bold text-white truncate flex-1 min-w-0" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 {p.shortName}
               </span>
-              {roleStatDisplay(p, 'composure') !== undefined && (
-                <span className="text-[9px] font-bold flex-shrink-0" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }} title="Compostura (cobrança de pênalti)">
-                  🧊 {roleStatDisplay(p, 'composure')}
+              <div className="flex items-center justify-end gap-1.5 min-w-0">
+                {roleStatDisplay(p, 'composure') !== undefined && (
+                  <span className="text-[9px] font-bold flex-shrink-0" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }} title="Compostura (cobrança de pênalti)">
+                    🧊 {roleStatDisplay(p, 'composure')}
+                  </span>
+                )}
+                <span className="text-[9px] font-bold text-gray-500 flex-shrink-0" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  GER {overallForDisplay(p)}
                 </span>
-              )}
-              <span className="text-[9px] font-bold text-gray-500 flex-shrink-0" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                GER {overallForDisplay(p)}
-              </span>
+              </div>
 
-              <button
-                onClick={() => onSetCaptain(p.id)}
-                title={`Capitão → +${capBoostOf(p)} ${captainBestStatOf(p).label} pra todo o time${(p as unknown as Record<string, unknown>).capitaoNato ? ' (🗣️ Capitão Nato: dobrado)' : ''}${isSuggestedCap ? ' (sugerido)' : ''}`}
-                className="text-[10px] font-black px-2 py-1 rounded transition-all flex-shrink-0"
-                style={{
-                  fontFamily: 'Rajdhani, sans-serif',
-                  background: isCaptain ? '#3B82F6' : 'transparent',
-                  color: isCaptain ? '#FFF' : isSuggestedCap ? '#3B82F6' : '#6A6A7A',
-                  border: `1px solid ${isCaptain ? '#3B82F6' : isSuggestedCap ? '#3B82F699' : '#2A2A3A'}`,
-                }}
-              >
-                {isSuggestedCap ? '★ ' : ''}🅒 CAP
-              </button>
-              <button
-                onClick={() => onSetPenaltyTaker(p.id)}
-                title={isSuggestedTaker ? 'Sugerido: maior compostura' : 'Definir como cobrador de pênalti'}
-                className="text-[10px] font-black px-2 py-1 rounded transition-all flex-shrink-0"
-                style={{
-                  fontFamily: 'Rajdhani, sans-serif',
-                  background: isTaker ? '#C9A84C' : 'transparent',
-                  color: isTaker ? '#080810' : isSuggestedTaker ? '#C9A84C' : '#6A6A7A',
-                  border: `1px solid ${isTaker ? '#C9A84C' : isSuggestedTaker ? '#C9A84C99' : '#2A2A3A'}`,
-                }}
-              >
-                {isSuggestedTaker ? '★ ' : ''}⚽ PEN
-              </button>
-              <button
-                onClick={() => onSetFreeKickTaker(p.id)}
-                title={isSuggestedFreeKick ? 'Sugerido: melhor finalização + compostura' : 'Definir como cobrador de falta'}
-                className="text-[10px] font-black px-2 py-1 rounded transition-all flex-shrink-0"
-                style={{
-                  fontFamily: 'Rajdhani, sans-serif',
-                  background: isFreeKick ? '#22C55E' : 'transparent',
-                  color: isFreeKick ? '#080810' : isSuggestedFreeKick ? '#22C55E' : '#6A6A7A',
-                  border: `1px solid ${isFreeKick ? '#22C55E' : isSuggestedFreeKick ? '#22C55E99' : '#2A2A3A'}`,
-                }}
-              >
-                {isSuggestedFreeKick ? '★ ' : ''}🎯 FAL
-              </button>
+              <div className="col-span-3 grid grid-cols-3 gap-1.5 sm:contents">
+                <button
+                  onClick={() => onSetCaptain(p.id)}
+                  title={`Capitão → +${capBoostOf(p)} ${captainBestStatOf(p).label} pra todo o time${(p as unknown as Record<string, unknown>).capitaoNato ? ' (🗣️ Capitão Nato: dobrado)' : ''}${isSuggestedCap ? ' (sugerido)' : ''}`}
+                  className="w-full text-[10px] font-black px-2 py-1 rounded transition-all sm:w-auto"
+                  style={{
+                    fontFamily: 'Rajdhani, sans-serif',
+                    background: isCaptain ? '#3B82F6' : 'transparent',
+                    color: isCaptain ? '#FFF' : isSuggestedCap ? '#3B82F6' : '#6A6A7A',
+                    border: `1px solid ${isCaptain ? '#3B82F6' : isSuggestedCap ? '#3B82F699' : '#2A2A3A'}`,
+                  }}
+                >
+                  {isSuggestedCap ? '★ ' : ''}🅒 CAP
+                </button>
+                <button
+                  onClick={() => onSetPenaltyTaker(p.id)}
+                  title={isSuggestedTaker ? 'Sugerido: maior compostura' : 'Definir como cobrador de pênalti'}
+                  className="w-full text-[10px] font-black px-2 py-1 rounded transition-all sm:w-auto"
+                  style={{
+                    fontFamily: 'Rajdhani, sans-serif',
+                    background: isTaker ? '#C9A84C' : 'transparent',
+                    color: isTaker ? '#080810' : isSuggestedTaker ? '#C9A84C' : '#6A6A7A',
+                    border: `1px solid ${isTaker ? '#C9A84C' : isSuggestedTaker ? '#C9A84C99' : '#2A2A3A'}`,
+                  }}
+                >
+                  {isSuggestedTaker ? '★ ' : ''}⚽ PEN
+                </button>
+                <button
+                  onClick={() => onSetFreeKickTaker(p.id)}
+                  title={isSuggestedFreeKick ? 'Sugerido: melhor finalização + compostura' : 'Definir como cobrador de falta'}
+                  className="w-full text-[10px] font-black px-2 py-1 rounded transition-all sm:w-auto"
+                  style={{
+                    fontFamily: 'Rajdhani, sans-serif',
+                    background: isFreeKick ? '#22C55E' : 'transparent',
+                    color: isFreeKick ? '#080810' : isSuggestedFreeKick ? '#22C55E' : '#6A6A7A',
+                    border: `1px solid ${isFreeKick ? '#22C55E' : isSuggestedFreeKick ? '#22C55E99' : '#2A2A3A'}`,
+                  }}
+                >
+                  {isSuggestedFreeKick ? '★ ' : ''}🎯 FAL
+                </button>
+              </div>
             </div>
           );
         })}
