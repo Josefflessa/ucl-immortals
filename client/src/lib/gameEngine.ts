@@ -3238,7 +3238,7 @@ export function generateStarPackOptions(ownedIds: string[]): Player[] {
 // "Caça-Talentos": 4 players that can fill a chosen position, that the team doesn't own.
 export function generateScoutOptions(position: string, ownedIds: string[]): Player[] {
   let pool = PLAYERS.filter(p =>
-    !ownedIds.includes(p.id) && (p.position === position || (p.secondaryPositions ?? []).includes(position)));
+    !ownedIds.includes(p.id) && positionFit(p, position) !== 'off');
   if (pool.length < 4) pool = PLAYERS.filter(p => !ownedIds.includes(p.id));
   return shuffleWithRarityWeight(pool).slice(0, 4).map(p => ({ ...p }));
 }

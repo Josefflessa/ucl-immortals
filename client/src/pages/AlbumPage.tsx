@@ -12,6 +12,7 @@ import {
   type Player,
   type Rarity,
 } from '../lib/gameData';
+import { positionFit } from '../lib/gameEngine';
 import {
   AppShell,
   Button,
@@ -50,7 +51,9 @@ const RARITY_ORDER: Record<Rarity, number> = {
   bronze: 1,
 };
 
-const POSITION_ORDER = ['GK', ...POSITION_GROUPS.DEF, ...POSITION_GROUPS.MID, ...POSITION_GROUPS.ATT];
+// LWB/RWB são ids internos de compatibilidade; não são posições nativas usadas
+// pelas formações/cartas e não devem aparecer como opções no filtro do álbum.
+const POSITION_ORDER = ['GK', ...POSITION_GROUPS.DEF.filter(position => !['LWB', 'RWB'].includes(position)), ...POSITION_GROUPS.MID, ...POSITION_GROUPS.ATT];
 
 const GRID_OPTIONS: Array<{ columns: GridColumns; label: string; detail: string }> = [
   { columns: 3, label: 'Ampla', detail: '1–3 por linha' },
@@ -120,6 +123,12 @@ function useViewportWidth() {
 
 function getPositionLabel(position: string) {
   return POS_PT[position] ?? position;
+}
+
+function getPositionMatch(player: Player, position: string): 'primary' | 'secondary' | null {
+  if (position === 'ALL') return null;
+  const fit = positionFit(player, position);
+  return fit === 'native' ? 'primary' : fit === 'secondary' ? 'secondary' : null;
 }
 
 function FilterSelect({
@@ -286,7 +295,7 @@ export default function AlbumPage() {
     const normalizedSearch = normalize(search);
     const filtered = ALBUM_PLAYERS.filter(player => {
       const matchesSearch = !normalizedSearch || [player.shortName, player.fullName, player.club, player.nation].some(value => normalize(value).includes(normalizedSearch));
-      const matchesPosition = positionFilter === 'ALL' || player.position === positionFilter;
+      const matchesPosition = positionFilter === 'ALL' || positionFit(player, positionFilter) !== 'off';
       const matchesRarity = rarityFilter === 'ALL' || player.rarity === rarityFilter;
       const matchesNation = nationFilter === 'ALL' || player.nation === nationFilter;
       const matchesClub = clubFilter === 'ALL' || player.club === clubFilter;
@@ -396,7 +405,7 @@ export default function AlbumPage() {
 
               <FilterSelect id="album-position" label="Posição" value={positionFilter} onChange={handlePositionChange}>
                 <option value="ALL">Todas as posições</option>
-                {POSITION_ORDER.map(position => <option key={position} value={position}>{getPositionLabel(position)} · {position}</option>)}
+                {POSITION_ORDER.map(position => <option key={position} value={position}>{getPositionLabel(position)}</option>)}
               </FilterSelect>
 
               <FilterSelect id="album-rarity" label="Raridade" value={rarityFilter} onChange={handleRarityChange}>
@@ -472,6 +481,8 @@ export default function AlbumPage() {
               >
               {visiblePlayers.map(player => {
                 const color = getRarityColor(player.rarity);
+                const positionMatch = getPositionMatch(player, positionFilter);
+                const shownPosition = positionFilter === 'ALL' ? player.position : positionFilter;
                 return (
                   <article key={player.id} className="group flex min-w-0 flex-col items-center">
                     <button
@@ -486,7 +497,9 @@ export default function AlbumPage() {
                       <h3 className="truncate text-xs font-bold text-[var(--ui-text)]">{player.shortName}</h3>
                       <p className="mt-0.5 truncate text-[11px] text-[var(--ui-text-muted)]" title={player.club}>{player.club}</p>
                       <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color }}>
-                        <span>{getPositionLabel(player.position)}</span>
+                        <span>{getPositionLabel(shownPosition)}</span>
+                        <span className="text-[var(--ui-text-faint)]">·</span>
+                        <span>{positionMatch === 'secondary' ? '2ª posição' : 'Principal'}</span>
                         <span className="text-[var(--ui-text-faint)]">·</span>
                         <span>{RARITY_LABELS[player.rarity]}</span>
                       </div>

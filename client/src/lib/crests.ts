@@ -188,6 +188,18 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "sparta-prague", name: "Sparta Praga", url: "https://upload.wikimedia.org/wikipedia/commons/d/dd/AC-Sparta-LOGO2021.svg" },
       { id: "dinamo-zagreb", name: "Dinamo Zagreb", url: "https://upload.wikimedia.org/wikipedia/commons/5/56/Logo_GNK_Dinamo_Zagreb_%282019%29.svg" },
       { id: "girona", name: "Girona FC", url: "https://upload.wikimedia.org/wikipedia/en/f/f7/Girona_FC_Logo.svg" },
+      { id: "al-nassr", name: "Al Nassr", url: "https://upload.wikimedia.org/wikipedia/commons/3/3f/Nassr_FC_Logo.svg" },
+      { id: "atlanta-united", name: "Atlanta United", url: "https://upload.wikimedia.org/wikipedia/en/b/bb/Atlanta_MLS.svg" },
+      { id: "dalian-yifang", name: "Dalian YiFang FC", url: "https://upload.wikimedia.org/wikipedia/en/6/69/Dalian_Professional_F.C.svg" },
+      { id: "dynamo-moscow", name: "Dynamo Moscow", url: "https://upload.wikimedia.org/wikipedia/en/e/e7/Dynamo_Moscow_logo.svg" },
+      { id: "hertha-bsc", name: "Hertha BSC", url: "https://upload.wikimedia.org/wikipedia/commons/8/81/Hertha_BSC_Logo_2012.svg" },
+      { id: "hoffenheim", name: "Hoffenheim", url: "https://upload.wikimedia.org/wikipedia/commons/e/e7/Logo_TSG_Hoffenheim.svg" },
+      { id: "lokomotiv-moscow", name: "Lokomotiv Moscow", url: "https://upload.wikimedia.org/wikipedia/en/9/93/FC_Lokomotiv_Moscow_logo.svg" },
+      { id: "los-angeles-fc", name: "Los Angeles FC", url: "https://upload.wikimedia.org/wikipedia/commons/8/86/Los_Angeles_Football_Club.svg" },
+      { id: "basaksehir", name: "Medipol Başakşehir FK", url: "https://upload.wikimedia.org/wikipedia/en/e/e1/İstanbul_Başakşehir_logo.svg" },
+      { id: "parma", name: "Parma", url: "https://upload.wikimedia.org/wikipedia/commons/9/97/Logo_Parma_Calcio_1913_%28adozione_2016%29.svg" },
+      { id: "sassuolo", name: "Sassuolo", url: "https://upload.wikimedia.org/wikipedia/en/1/1c/US_Sassuolo_Calcio_logo.svg" },
+      { id: "toronto-fc", name: "Toronto FC", url: "https://upload.wikimedia.org/wikipedia/en/7/7c/Toronto_FC_Logo.svg" },
     ]
   },
 ];

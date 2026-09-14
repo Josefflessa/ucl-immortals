@@ -20,7 +20,7 @@ import {
 } from './gameEngine';
 import { betCapPrefix } from './bets';
 import { stadiumFor } from './stadium';
-import { PLAYERS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
+import { PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
 import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, crestIdForClub, getCrest } from './crests';
 
@@ -667,6 +667,10 @@ describe('crest catalogue integrity', () => {
     expect(crestIdForClub('Liverpool')).toBe('liverpool');
     expect(crestIdForClub('Brasil')).toBe('brazil');
     expect(crestIdForClub('Fenerbahçe')).toBe('fenerbahce');
+  });
+  it('resolves a crest for every club represented in the player catalogue', () => {
+    const clubs = [...new Set([...PLAYERS, ...UNIQUE_CARDS].map(player => player.club))];
+    expect(clubs.filter(club => !crestIdForClub(club))).toEqual([]);
   });
 });
 
