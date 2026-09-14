@@ -52,7 +52,7 @@ export default function ImpactMeter({ profile }: { profile: Axes }) {
             </span>
             <div className="mt-1 flex min-w-0 max-w-full items-center justify-center gap-0.5 leading-tight">
               <span className="shrink-0 text-sm font-black" style={{ color: a.color }}>{a.txt}</span>
-              <span className="min-w-0 whitespace-nowrap text-[9px] font-bold tracking-[-0.02em]" style={{ color: a.color }}>{STATUS[lvl]}</span>
+              <span className="min-w-0 whitespace-normal break-normal text-[9px] font-bold leading-[1.05] tracking-[-0.02em]" style={{ color: a.color }}>{STATUS[lvl]}</span>
             </div>
           </div>
         );
