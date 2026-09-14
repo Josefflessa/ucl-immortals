@@ -190,6 +190,10 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 65, shooting: 92, passing: 88, dribbling: 58, defending: 99, physical: 94, vision: 93, composure: 99, traits: ['Cobrador de Falta', 'Cobrador de Pênaltis'] },
   { id: 'garrincha_unico', basePlayerId: 'garrincha', historicalPlayerId: 'garrincha', shortName: 'Garrincha', fullName: 'Manuel Francisco dos Santos', position: 'RM', secondaryPositions: ['RW'], nation: 'Brasil', club: 'Botafogo', season: 'Única', rarity: 'unique', overall: 99,
     pace: 99, shooting: 94, passing: 92, dribbling: 99, defending: 38, physical: 78, vision: 96, composure: 98, traits: ['Dribblador Nato', 'Velocista'], historicalPartners: ['pele', 'socrates'] },
+  { id: 'ronaldinho_unico', basePlayerId: 'ronaldinho', historicalPlayerId: 'ronaldinho', shortName: 'Ronaldinho', fullName: 'Ronaldo de Assis Moreira', position: 'LM', secondaryPositions: ['LW', 'CAM'], nation: 'Brasil', club: 'Barcelona', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 94, shooting: 93, passing: 98, dribbling: 99, defending: 35, physical: 76, vision: 99, composure: 97, traits: ['Dribblador Nato', 'Visão de Jogo'], historicalPartners: ['etoo', 'xavi', 'iniesta'] },
+  { id: 'casemiro_unico', basePlayerId: 'casemiro', historicalPlayerId: 'casemiro', shortName: 'Casemiro', fullName: 'Carlos Henrique Casimiro', position: 'CDM', secondaryPositions: ['CM'], nation: 'Brasil', club: 'Real Madrid', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 82, shooting: 78, passing: 88, dribbling: 76, defending: 99, physical: 99, vision: 86, composure: 98, traits: ['Muralha', 'Força Bruta'], historicalPartners: ['modric', 'kroos', 'ramos'] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {

@@ -836,6 +836,8 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   kroos_unico: { texture: '/cards/kroos_unico.webp', render: '/players/unico/kroos.webp', font: '#F0E6C0', ring: '#38C982', photoX: 6, photoY: 4, photoW: 108 },
   rogerio_ceni_unico: { texture: '/cards/rogerio_ceni_unico.webp', render: '/players/unico/rogerio_ceni.webp', font: '#F6E7C1', ring: '#E23B3B', photoX: 11, photoY: 7, photoW: 90 },
   garrincha_unico: { texture: '/cards/garrincha_unico.webp', render: '/players/unico/garrincha.webp', font: '#F1E7D0', ring: '#D5B36A', photoX: 11, photoY: -5, photoW: 108 },
+  ronaldinho_unico: { texture: '/cards/ronaldinho_unico.webp', render: '/players/unico/ronaldinho.webp', font: '#F7D76B', ring: '#2D72E8', photoX: 6, photoY: 15, photoW: 114 },
+  casemiro_unico: { texture: '/cards/casemiro_unico.webp', render: '/players/unico/casemiro.webp', font: '#F4D36B', ring: '#2D72E8', photoX: -2, photoY: 12, photoW: 105 },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
