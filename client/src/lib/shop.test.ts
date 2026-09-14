@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { sellValue, canEvolvePrime, PRIME_COST, PRIME_WINS_REQUIRED, SHOP_COSTS } from './shop';
 
 describe('Pacote Único', () => {
-  it('custa 700 pontos', () => {
-    expect(SHOP_COSTS.uniqueCard).toBe(700);
+  it('custa 750 pontos', () => {
+    expect(SHOP_COSTS.uniqueCard).toBe(750);
   });
 });
 

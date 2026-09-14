@@ -281,7 +281,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
 
           <Card accent="#EF444444">
             <H>FORA DE POSIÇÃO</H>
-            <P>Na posição secundária, o jogador sofre uma redução de 7% nos atributos. Fora das posições compatíveis, a redução é de 15% e a química individual zera. <b style={{ color: '#FFF' }}>Coringa</b> é tratado como compatível com qualquer posição e não sofre essas penalidades.</P>
+            <P>Na posição secundária, o jogador sofre uma redução de 5% nos atributos. Fora das posições compatíveis, a redução é de 15% e a química individual zera. <b style={{ color: '#FFF' }}>Coringa</b> é tratado como compatível com qualquer posição e não sofre essas penalidades.</P>
           </Card>
 
           <Card>

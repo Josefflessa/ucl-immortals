@@ -40,19 +40,19 @@ const AXES: { key: keyof Axes; label: string; explanation: string }[] = [
 
 export default function ImpactMeter({ profile }: { profile: Axes }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-1.5">
       {AXES.map(({ key, label, explanation }) => {
         const lvl = level(profile[key]);
         const a = ARROWS[lvl];
         return (
-          <div key={key} role="img" title={`${label}: ${explanation}`} aria-label={`${label}: ${STATUS[lvl]}. ${explanation}`} className="flex min-h-[68px] min-w-0 flex-col items-center justify-center rounded-lg px-2 py-2 text-center"
+          <div key={key} role="img" title={`${label}: ${explanation}`} aria-label={`${label}: ${STATUS[lvl]}. ${explanation}`} className="flex min-h-[64px] min-w-0 overflow-hidden flex-col items-center justify-center rounded-lg px-1.5 py-1.5 text-center"
             style={{ background: '#0A0A14', border: '1px solid #1C1C30' }}>
-            <span className="text-[10px] font-black tracking-wider" style={{ color: '#9A9AAF', fontFamily: 'Rajdhani, sans-serif' }}>
+            <span className="text-[9px] font-black tracking-[0.08em]" style={{ color: '#9A9AAF', fontFamily: 'Rajdhani, sans-serif' }}>
               {label}
             </span>
-            <div className="mt-1 flex items-center gap-1.5 leading-none">
-              <span className="text-base font-black" style={{ color: a.color }}>{a.txt}</span>
-              <span className="text-xs font-bold" style={{ color: a.color }}>{STATUS[lvl]}</span>
+            <div className="mt-1 flex min-w-0 max-w-full items-center justify-center gap-1 leading-tight">
+              <span className="shrink-0 text-sm font-black" style={{ color: a.color }}>{a.txt}</span>
+              <span className="min-w-0 break-words text-[11px] font-bold" style={{ color: a.color }}>{STATUS[lvl]}</span>
             </div>
           </div>
         );

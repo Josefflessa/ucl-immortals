@@ -74,7 +74,7 @@ describe('vantagem de jogar em casa', () => {
 
 describe('encaixe de posição em 3 estados + penalidade', () => {
   it('positionFit: nativa / secundária (adjacência ou override) / fora', () => {
-    expect(SECONDARY_STAT_MULT).toBe(0.93);
+    expect(SECONDARY_STAT_MULT).toBe(0.95);
     expect(positionFit(mkP({ position: 'CB' }), 'CB')).toBe('native');
     expect(positionFit(mkP({ position: 'CB' }), 'CDM')).toBe('secondary');   // adjacência
     expect(positionFit(mkP({ position: 'CB' }), 'ST')).toBe('off');

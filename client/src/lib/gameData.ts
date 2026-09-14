@@ -153,7 +153,7 @@ export function canonicalPosition(position: string): string {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// CARTAS ÚNICAS — raridade "Única": só compráveis na loja (700 pts), overall 99,
+// CARTAS ÚNICAS — raridade "Única": só compráveis na loja (750 pts), overall 99,
 // perfil de elite realista, textura de fundo e cor de fonte próprias por carta
 // (ver UNIQUE_STYLE em PlayerCard). NÃO entram no draft nem nos bots (pool separado).
 // Posição/nação/clube normalmente acompanham a carta-base para a química funcionar

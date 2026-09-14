@@ -62,7 +62,7 @@ function areHistoricalPartners(a: Player, b: Player): boolean {
 export interface PlayerCard extends Player {
   chemistryScore: number; // 0-3
   isOOP: boolean;
-  isSecondary?: boolean; // jogando numa posição secundária (−7%)
+  isSecondary?: boolean; // jogando numa posição secundária (−5%)
   // Per-MATCH unique stat key ("teamId::playerId"). The same player (same id) can
   // appear on two teams (the pool is smaller than 36×11), so match stats must be
   // keyed per instance, not by playerId alone. Set by setStatIds() before a sim.
@@ -416,7 +416,7 @@ export function calculateChemistry(
     const player = players[i];
     const formationRole = formationRoles?.[i];
 
-    // Encaixe em 3 estados: nativa / secundária (−7%) / fora (−15%). 🃏 Coringa é sempre nativa.
+    // Encaixe em 3 estados: nativa / secundária (−5%) / fora (−15%). 🃏 Coringa é sempre nativa.
     const fit = formationRole ? positionFit(player, formationRole) : 'native';
     const isOOP = fit === 'off';
     outOfPosition[player.id] = isOOP;
@@ -519,7 +519,7 @@ export function getChemistryLinks(players: (Player | undefined)[], coachId: stri
 export interface StatBreakdown {
   base: number;       // raw attribute
   chem: number;       // delta from the individual-chemistry multiplier (pura, sem penalidade de posição)
-  position: number;   // 🔁 penalidade de posição (2ª = −7% / fora = −15%; 0 na nativa)
+  position: number;   // 🔁 penalidade de posição (2ª = −5% / fora = −15%; 0 na nativa)
   coach: number;      // coach per-attribute modifier
   trait: number;      // sum of always-on trait bonuses
   tactic: number;     // play-style (tactic) bonus
@@ -758,7 +758,7 @@ export function getPlayerEffectiveStats(
     captainBoost?: { stat: string; amount: number };
     // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
     charBoosts?: CharBoostMap;
-    // 🔁 jogando numa posição SECUNDÁRIA (−7%). Mantém a química (só o OOP zera).
+    // 🔁 jogando numa posição SECUNDÁRIA (−5%). Mantém a química (só o OOP zera).
     isSecondary?: boolean;
   }
 ): EffectiveStats {
@@ -767,7 +767,7 @@ export function getPlayerEffectiveStats(
   // Química PURA (OOP tem chem 0 → 1.00). A penalidade de POSIÇÃO é separada em posMult.
   const chemMult = effectiveChem === 3 ? 1.10 : effectiveChem === 2 ? 1.06 : effectiveChem === 1 ? 1.03 : 1.00;
   const oopMult = 0.85;
-  // Penalidade de posição: fora = −15%; secundária = −7%; nativa = 0%.
+  // Penalidade de posição: fora = −15%; secundária = −5%; nativa = 0%.
   const posMult = isOOP ? oopMult : (isSecondary ? SECONDARY_STAT_MULT : 1);
 
   const applyMult = (base: number) => Math.round(base * chemMult * posMult);
@@ -834,7 +834,7 @@ export function getPlayerEffectiveStats(
   const mkBreak = (base: number, mod: number, attr: AttrKey): StatBreakdown => ({
     base,
     chem: chemOnly(base) - base,                 // só química (sem penalidade de posição)
-    position: applyMult(base) - chemOnly(base),  // 🔁 penalidade de posição (2ª = −7% / fora = −15%)
+    position: applyMult(base) - chemOnly(base),  // 🔁 penalidade de posição (2ª = −5% / fora = −15%)
     coach: mod,
     trait: traitBonus(attr),
     tactic: styleBonus(attr),
@@ -1252,8 +1252,8 @@ export const TACTIC_DEFENSE_SUPPRESSION_INFLUENCE = 2.2;
 // é neutro; na final ida e volta cada equipe conserva o mando de uma partida.
 export const HOME_ATTR_BONUS = 3;
 
-// Jogar numa posição SECUNDÁRIA custa −7% (× 0.93) — entre a nativa (0%) e o fora-de-posição (−15%).
-export const SECONDARY_STAT_MULT = 0.93;
+// Jogar numa posição SECUNDÁRIA custa −5% (× 0.95) — entre a nativa (0%) e o fora-de-posição (−15%).
+export const SECONDARY_STAT_MULT = 0.95;
 export type PosFit = 'native' | 'secondary' | 'off';
 export function positionFit(player: { position: string; secondaryPositions?: string[]; coringa?: boolean }, role: string): PosFit {
   if (player.coringa) return 'native';                       // 🃏 imune

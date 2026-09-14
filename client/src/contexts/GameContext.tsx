@@ -204,7 +204,7 @@ export type GameAction =
   | { type: 'EVOLVE_COACH_PRIME' }
   | { type: 'SET_EVOLVE_POINT'; playerId: string; attr: AttrKey; delta: number }
   | { type: 'RESET_EVOLVE_POINTS'; playerId: string }
-  | { type: 'SHOP_OPEN_UNIQUE_PACK' } // cobra 700 e sorteia uma Única ainda não possuída
+  | { type: 'SHOP_OPEN_UNIQUE_PACK' } // cobra 750 e sorteia uma Única ainda não possuída
   | { type: 'SHOP_CLAIM_UNIQUE_PACK' } // adiciona a carta revelada ao banco, sem nova cobrança
   | { type: 'SHOP_OPEN_PACK'; kind: 'star' | 'scout'; options: Player[] } // COBRA ao abrir; guarda as opções
   | { type: 'SHOP_PICK_PACK'; player: Player } // escolhe 1 do pacote já pago (grátis) → banco

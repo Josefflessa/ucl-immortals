@@ -302,7 +302,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
             <Row icon="🔁" name="POSIÇÃO" color="#F59E0B">
               <div className="flex flex-wrap gap-1">{chips(position, '#F59E0B')}</div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                Penalidade por não jogar na posição nativa (2ª posição <b style={{ color: '#fcd34d' }}>−7%</b> · fora de posição <b style={{ color: '#fca5a5' }}>−15%</b>). A química não é afetada.
+                Penalidade por não jogar na posição nativa (2ª posição <b style={{ color: '#fcd34d' }}>−5%</b> · fora de posição <b style={{ color: '#fca5a5' }}>−15%</b>). A química não é afetada.
               </div>
             </Row>
           )}

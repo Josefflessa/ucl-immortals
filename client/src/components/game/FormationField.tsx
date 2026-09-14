@@ -8,6 +8,9 @@ import { isPlayerInPosition, ChemLink, ChemLinkType } from '../../lib/gameEngine
 import PlayerCard, { buildSofifaUrl, getCardVariants, type PlayerCardStats } from './PlayerCard';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
+const FIELD_CARD_WIDTH = 92;
+const FIELD_CARD_HEIGHT = 146;
+const FIELD_CARD_SIZE_MULTIPLIER = 1.1;
 
 // Result-only vertical layout. The compact field keeps the gameplay coordinates
 // from Formation; the card field uses these tuned coordinates so each formation
@@ -136,8 +139,10 @@ export default function FormationField({
   // card used by the TITULARES section from the rendered field width so it
   // remains readable while preserving separation on narrow screens.
   const cardScale = showPlayerCards
-    ? Math.min(1, Math.max(0.46, fieldPixelWidth > 0 ? (fieldPixelWidth * 0.18 - 8) / 92 : 0.9))
+    ? Math.min(1, Math.max(0.46, fieldPixelWidth > 0 ? (fieldPixelWidth * 0.18 - 8) / FIELD_CARD_WIDTH : 0.9)) * FIELD_CARD_SIZE_MULTIPLIER
     : 1;
+  const displayedCardWidth = FIELD_CARD_WIDTH * FIELD_CARD_SIZE_MULTIPLIER;
+  const displayedCardHeight = FIELD_CARD_HEIGHT * FIELD_CARD_SIZE_MULTIPLIER;
   // Keep the formation's original depth instead of snapping positions into broad
   // row bands. This matters in shapes such as 4-3-3, where the central striker
   // is intentionally ahead of the wingers. The small clamp keeps the outer card
@@ -287,14 +292,14 @@ export default function FormationField({
             <motion.div
               key={index}
               className="absolute flex items-center justify-center"
-              style={{ left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: 92, height: 146 }}
+              style={{ left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: displayedCardWidth, height: displayedCardHeight }}
               transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
               initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.04, duration: 0.2 }}
               onClick={() => player && onPlayerClick?.(player, index)}
             >
-              <div className="relative" style={{ width: 92, height: 146, transform: `scale(${cardScale})`, transformOrigin: 'center center' }}>
+              <div className="relative" style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center' }}>
                 <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
                   {player ? (
                     <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} />
