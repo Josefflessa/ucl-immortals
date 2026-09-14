@@ -150,6 +150,7 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "palmeiras", name: "Palmeiras", url: "https://upload.wikimedia.org/wikipedia/commons/1/10/Palmeiras_logo.svg" },
       { id: "sao-paulo", name: "São Paulo", url: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Brasao_do_Sao_Paulo_Futebol_Clube.svg" },
       { id: "santos", name: "Santos", url: "https://upload.wikimedia.org/wikipedia/commons/1/15/Santos_Logo.png" },
+      { id: "botafogo", name: "Botafogo", url: "https://upload.wikimedia.org/wikipedia/commons/5/52/Botafogo_de_Futebol_e_Regatas_logo.svg" },
       { id: "gremio", name: "Grêmio", url: "https://upload.wikimedia.org/wikipedia/commons/0/08/Gremio_logo.svg" },
       { id: "internacional", name: "Internacional", url: "https://upload.wikimedia.org/wikipedia/commons/c/c5/Sport_Club_Internacional_logo.svg" },
       { id: "atletico-mineiro", name: "Atlético Mineiro", url: "https://upload.wikimedia.org/wikipedia/commons/2/27/Clube_Atlético_Mineiro_logo.svg" },
