@@ -1076,22 +1076,25 @@ export function computePossession(
 
 // ── Free kick (direct) ────────────────────────────────────────────────────────
 // Best dead-ball taker: a "Cobrador de Falta" specialist first, else the highest
-// shooting+composure outfielder. Never the keeper. During a match, excludedIds
-// prevents an already sent-off player from taking a later free kick.
+// shooting+composure outfielder. A goalkeeper is eligible only when the card
+// explicitly has that specialist trait (Rogério Ceni is the intentional case).
+// During a match, excludedIds prevents an already sent-off player from taking a later free kick.
 export function getFreeKickTaker(team: Team, excludedIds?: ReadonlySet<string>): PlayerCard {
   const starters = team.players.slice(0, 11);
   const available = starters.filter(p => !isExcludedPlayer(team, p, excludedIds));
   const availableOutfield = available.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const outfield = starters.filter(p => matchRoleForPlayer(team, p) !== 'GK');
+  const isSpecialist = (p: PlayerCard) => p.traits.includes('Cobrador de Falta') || p.traits.includes('Cobrança de Falta');
   // A normal match always leaves an available outfielder. Keep a defensive
   // fallback for malformed/legacy lineups so this helper never returns undefined.
   const pool = availableOutfield.length > 0 ? availableOutfield : outfield.length > 0 ? outfield : starters;
-  // The player's designated taker wins — but must be an outfielder (never the GK).
+  // A designated taker wins when valid. A GK designation is accepted only for
+  // a card that explicitly carries the free-kick specialist trait.
   if (team.freeKickTaker) {
-    const chosen = pool.find(p => p.id === team.freeKickTaker);
-    if (chosen) return chosen;
+    const chosen = available.find(p => p.id === team.freeKickTaker);
+    if (chosen && (matchRoleForPlayer(team, chosen) !== 'GK' || isSpecialist(chosen))) return chosen;
   }
-  const specialist = pool.find(p => p.traits.includes('Cobrador de Falta') || p.traits.includes('Cobrança de Falta'));
+  const specialist = available.find(isSpecialist);
   if (specialist) return specialist;
   return [...pool].sort((a, b) => (b.shooting + b.composure) - (a.shooting + a.composure))[0];
 }
@@ -2813,9 +2816,9 @@ export function calculateTeamStrength(
 }
 
 // Resolves the designated penalty taker: the explicit choice if valid, otherwise
-// the best outfield player by composure+shooting. NEVER the goalkeeper unless the
-// XI somehow has no outfield player. Fixes the old bug where the keeper (slot 0)
-// was the default taker.
+// a penalty specialist and then the best outfield player by composure+shooting.
+// A goalkeeper is eligible only when the card explicitly has the penalty trait;
+// this preserves the normal rule while allowing specialist keepers such as Ceni.
 export function getPenaltyTaker(
   team: Team,
   excludedIds?: ReadonlySet<string>,
@@ -2830,17 +2833,21 @@ export function getPenaltyTaker(
   const active = available.length > 0 ? available : starters;
   const outfield = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const pool = outfield.length > 0 ? outfield : active;
-  // The designated taker must be an outfielder — never the goalkeeper, even if a
-  // stale/garbage penaltyTaker id points at him (that produced "GK scores penalty").
+  const isSpecialist = (p: PlayerCard) => p.traits.includes('Cobrador de Pênaltis');
+  // The designated taker must be an outfielder, unless the card explicitly
+  // carries the penalty specialist trait.
   if (team.penaltyTaker) {
-    const chosen = pool.find(p => p.id === team.penaltyTaker);
-    if (chosen) return chosen;
+    const chosen = active.find(p => p.id === team.penaltyTaker);
+    if (chosen && (matchRoleForPlayer(team, chosen) !== 'GK' || isSpecialist(chosen))) return chosen;
   }
+  const specialist = active.find(isSpecialist);
+  if (specialist) return specialist;
   return [...pool].sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting))[0];
 }
 
-// Ordered shootout takers: designated taker (or best outfield) first, then the
-// remaining outfield by composure+shooting, with the goalkeeper last of all.
+// Ordered shootout takers: the designated/specialist taker first, then the
+// remaining outfield by composure+shooting. A specialist goalkeeper is included
+// by the same exception used for in-match penalties; ordinary keepers stay last.
 export function getPenaltyOrder(
   team: Team,
   excludedIds?: ReadonlySet<string>,
@@ -2856,9 +2863,16 @@ export function getPenaltyOrder(
   const outfield = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const keepers = active.filter(p => matchRoleForPlayer(team, p) === 'GK');
   const sorted = [...outfield].sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting));
-  const designated = team.penaltyTaker ? sorted.find(p => p.id === team.penaltyTaker) : undefined;
-  const ordered = designated ? [designated, ...sorted.filter(p => p.id !== designated.id)] : sorted;
-  return [...ordered, ...keepers];
+  const isSpecialist = (p: PlayerCard) => p.traits.includes('Cobrador de Pênaltis');
+  const specialistKeepers = keepers.filter(isSpecialist).sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting));
+  const designated = team.penaltyTaker
+    ? active.find(p => p.id === team.penaltyTaker && (matchRoleForPlayer(team, p) !== 'GK' || isSpecialist(p)))
+    : undefined;
+  const specialists = active.filter(isSpecialist).sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting));
+  const first = designated ? [designated] : specialists;
+  const used = new Set(first.map(p => p.id));
+  const ordered = [...first, ...sorted.filter(p => !used.has(p.id))];
+  return [...ordered, ...keepers.filter(p => !used.has(p.id))];
 }
 
 // Resolves a single penalty kick: taker EFFECTIVE composure (+ frieza traits, + designated

@@ -5,7 +5,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   getChemistryBonus, getChemistryLinks, computeCharacteristicBoosts, getEffectiveAttribute, getPlayerEffectiveStats,
   resolveOpenPlayChance, shotTypeForApproach, GK_SAVE_EDGE, ON_TARGET_RESISTANCE,
-  getPenaltyTaker, getPenaltyOrder, activeGoalkeeperForTeam, computeStandings, generateLeagueFixtures, simulateLeague, buildKeyMinutes,
+  getFreeKickTaker, getPenaltyTaker, getPenaltyOrder, activeGoalkeeperForTeam, computeStandings, generateLeagueFixtures, simulateLeague, buildKeyMinutes,
   matchRoleForPlayer, STANDARD_TABLE_POINTS,
   createKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
@@ -506,7 +506,7 @@ describe('shotTypeForApproach', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('penalty takers — never the goalkeeper', () => {
+describe('penalty takers — goalkeeper specialists only', () => {
   const gk = mkP({ id: 'gk', position: 'GK', composure: 99, shooting: 99 });
   const striker = mkP({ id: 'st', position: 'ST', composure: 90, shooting: 90 });
   const mid = mkP({ id: 'mid', position: 'CM', composure: 70, shooting: 70 });
@@ -537,6 +537,13 @@ describe('penalty takers — never the goalkeeper', () => {
   it('scopes exclusions to the team instance when ids are shared', () => {
     expect(activeGoalkeeperForTeam(team, new Set(['other-team::gk'])).player.id).toBe('gk');
     expect(getPenaltyTaker(team, new Set(['other-team::st'])).id).toBe('st');
+  });
+  it('allows an explicitly specialist goalkeeper to take the set piece', () => {
+    const ceni = mkP({ id: 'rogerio_ceni_unico', position: 'GK', composure: 99, shooting: 92, traits: ['Cobrador de Falta', 'Cobrador de Pênaltis'] });
+    const ceniTeam = mkTeam('Ceni', [ceni, striker, mid, ...Array.from({ length: 8 }, () => mkP())]);
+    expect(getFreeKickTaker(ceniTeam).id).toBe('rogerio_ceni_unico');
+    expect(getPenaltyTaker(ceniTeam).id).toBe('rogerio_ceni_unico');
+    expect(getPenaltyOrder(ceniTeam)[0].id).toBe('rogerio_ceni_unico');
   });
 });
 
@@ -671,6 +678,12 @@ describe('crest catalogue integrity', () => {
   it('resolves a crest for every club represented in the player catalogue', () => {
     const clubs = [...new Set([...PLAYERS, ...UNIQUE_CARDS].map(player => player.club))];
     expect(clubs.filter(club => !crestIdForClub(club))).toEqual([]);
+  });
+  it('keeps the Rogério Ceni Unique card connected to the São Paulo crest', () => {
+    const ceni = UNIQUE_CARDS.find(player => player.id === 'rogerio_ceni_unico');
+    expect(ceni?.basePlayerId).toBe('rogerio_ceni');
+    expect(ceni?.rarity).toBe('unique');
+    expect(ceni?.club && crestIdForClub(ceni.club)).toBe('sao-paulo');
   });
 });
 

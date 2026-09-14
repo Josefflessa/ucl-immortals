@@ -186,6 +186,8 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 90, shooting: 88, passing: 99, dribbling: 98, defending: 75, physical: 80, vision: 99, composure: 99, traits: [], historicalCoaches: ['zidane'], historicalPartners: ['cristiano', 'kroos', 'ramos'] },
   { id: 'kroos_unico', basePlayerId: 'kroos', shortName: 'Kroos', fullName: 'Toni Kroos', position: 'CM', secondaryPositions: ['CDM'], nation: 'Alemanha', club: 'Real Madrid', season: 'Única', rarity: 'unique', overall: 99,
     pace: 72, shooting: 90, passing: 99, dribbling: 89, defending: 78, physical: 82, vision: 99, composure: 99, traits: [], historicalCoaches: ['zidane', 'ancelotti'], historicalPartners: ['modric', 'ramos', 'cristiano'] },
+  { id: 'rogerio_ceni_unico', basePlayerId: 'rogerio_ceni', shortName: 'Ceni', fullName: 'Rogério Ceni', position: 'GK', nation: 'Brasil', club: 'São Paulo', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 65, shooting: 92, passing: 88, dribbling: 58, defending: 99, physical: 94, vision: 93, composure: 99, traits: ['Cobrador de Falta', 'Cobrador de Pênaltis'] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {
