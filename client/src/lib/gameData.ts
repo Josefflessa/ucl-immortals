@@ -188,7 +188,7 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 72, shooting: 90, passing: 99, dribbling: 89, defending: 78, physical: 82, vision: 99, composure: 99, traits: [], historicalCoaches: ['zidane', 'ancelotti'], historicalPartners: ['modric', 'ramos', 'cristiano'] },
   { id: 'rogerio_ceni_unico', basePlayerId: 'rogerio_ceni', shortName: 'Ceni', fullName: 'Rogério Ceni', position: 'GK', nation: 'Brasil', club: 'São Paulo', season: 'Única', rarity: 'unique', overall: 99,
     pace: 65, shooting: 92, passing: 88, dribbling: 58, defending: 99, physical: 94, vision: 93, composure: 99, traits: ['Cobrador de Falta', 'Cobrador de Pênaltis'] },
-  { id: 'garrincha_unico', basePlayerId: 'garrincha', historicalPlayerId: 'garrincha', shortName: 'Garrincha', fullName: 'Manuel Francisco dos Santos', position: 'RW', secondaryPositions: ['RM'], nation: 'Brasil', club: 'Botafogo', season: 'Única', rarity: 'unique', overall: 99,
+  { id: 'garrincha_unico', basePlayerId: 'garrincha', historicalPlayerId: 'garrincha', shortName: 'Garrincha', fullName: 'Manuel Francisco dos Santos', position: 'RM', secondaryPositions: ['RW'], nation: 'Brasil', club: 'Botafogo', season: 'Única', rarity: 'unique', overall: 99,
     pace: 99, shooting: 94, passing: 92, dribbling: 99, defending: 38, physical: 78, vision: 96, composure: 98, traits: ['Dribblador Nato', 'Velocista'], historicalPartners: ['pele', 'socrates'] },
 ];
 
