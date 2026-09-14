@@ -50,9 +50,9 @@ export default function ImpactMeter({ profile }: { profile: Axes }) {
             <span className="text-[9px] font-black tracking-[0.08em]" style={{ color: '#9A9AAF', fontFamily: 'Rajdhani, sans-serif' }}>
               {label}
             </span>
-            <div className="mt-1 flex min-w-0 max-w-full items-center justify-center gap-1 leading-tight">
+            <div className="mt-1 flex min-w-0 max-w-full items-center justify-center gap-0.5 leading-tight">
               <span className="shrink-0 text-sm font-black" style={{ color: a.color }}>{a.txt}</span>
-              <span className="min-w-0 break-words text-[11px] font-bold" style={{ color: a.color }}>{STATUS[lvl]}</span>
+              <span className="min-w-0 whitespace-nowrap text-[9px] font-bold tracking-[-0.02em]" style={{ color: a.color }}>{STATUS[lvl]}</span>
             </div>
           </div>
         );
