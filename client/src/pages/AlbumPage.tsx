@@ -303,6 +303,12 @@ export default function AlbumPage() {
     });
 
     return filtered.sort((a, b) => {
+      if (positionFilter !== 'ALL') {
+        const aMatch = getPositionMatch(a, positionFilter);
+        const bMatch = getPositionMatch(b, positionFilter);
+        const positionOrder = (aMatch === 'primary' ? 0 : 1) - (bMatch === 'primary' ? 0 : 1);
+        if (positionOrder !== 0) return positionOrder;
+      }
       if (sortMode === 'overall') return b.overall - a.overall || a.shortName.localeCompare(b.shortName, 'pt-BR');
       if (sortMode === 'rarity') return RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity] || b.overall - a.overall || a.shortName.localeCompare(b.shortName, 'pt-BR');
       return a.shortName.localeCompare(b.shortName, 'pt-BR') || a.club.localeCompare(b.club, 'pt-BR') || b.overall - a.overall;
@@ -315,6 +321,10 @@ export default function AlbumPage() {
   const pageStart = (currentPage - 1) * pageSize;
   const visiblePlayers = filteredPlayers.slice(pageStart, pageStart + pageSize);
   const pageEnd = Math.min(pageStart + visiblePlayers.length, filteredPlayers.length);
+  const primaryPositionCount = positionFilter === 'ALL' ? 0 : filteredPlayers.filter(player => getPositionMatch(player, positionFilter) === 'primary').length;
+  const secondaryPositionCount = positionFilter === 'ALL' ? 0 : filteredPlayers.filter(player => getPositionMatch(player, positionFilter) === 'secondary').length;
+  const visiblePrimaryPlayers = positionFilter === 'ALL' ? [] : visiblePlayers.filter(player => getPositionMatch(player, positionFilter) === 'primary');
+  const visibleSecondaryPlayers = positionFilter === 'ALL' ? [] : visiblePlayers.filter(player => getPositionMatch(player, positionFilter) === 'secondary');
   const visibleColumns = viewportWidth < 640 ? gridColumns - 2 : viewportWidth < 1024 ? gridColumns - 1 : gridColumns;
   const viewportGutter = viewportWidth >= 1024 ? 64 : viewportWidth >= 640 ? 48 : 32;
   const availableGridWidth = Math.max(280, Math.min(viewportWidth, 1280) - viewportGutter);
@@ -339,6 +349,34 @@ export default function AlbumPage() {
   };
 
   const selectedVersionCount = selectedPlayer ? versionCounts.get(playerIdentity(selectedPlayer)) ?? 1 : 1;
+  const renderPlayerCard = (player: AlbumPlayer) => {
+    const color = getRarityColor(player.rarity);
+    const positionMatch = getPositionMatch(player, positionFilter);
+    const shownPosition = positionFilter === 'ALL' ? player.position : positionFilter;
+    const positionDescription = positionMatch === 'secondary' ? '2ª posição' : 'Principal';
+    const metaDescription = `${getPositionLabel(shownPosition)} · ${positionDescription} · ${RARITY_LABELS[player.rarity]}`;
+
+    return (
+      <article key={player.id} className="group flex min-w-0 flex-col items-center">
+        <button
+          type="button"
+          onClick={() => setSelectedPlayer(player)}
+          className="mx-auto rounded-[18px] p-1 outline-none transition-transform duration-150 ease-out hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
+          aria-label={`Ver detalhes de ${player.shortName}, versão ${player.club}`}
+        >
+          <PlayerCard player={player} lite scale={albumCardScale} />
+        </button>
+        <div className="mt-2 w-full min-w-0 text-center">
+          <h3 className="truncate text-xs font-bold text-[var(--ui-text)]">{player.shortName}</h3>
+          <p className="mt-0.5 truncate text-[11px] text-[var(--ui-text-muted)]" title={player.club}>{player.club}</p>
+          <div className="mt-1 w-full min-w-0 max-w-full text-center text-[9px] font-bold uppercase leading-tight tracking-[0.06em]" style={{ color }} title={metaDescription}>
+            <div className="truncate">{getPositionLabel(shownPosition)} · {positionDescription}</div>
+            <div className="truncate text-[var(--ui-text-muted)]">{RARITY_LABELS[player.rarity]}</div>
+          </div>
+        </div>
+      </article>
+    );
+  };
 
   return (
     <AppShell>
@@ -479,34 +517,20 @@ export default function AlbumPage() {
                 className="grid gap-x-3 gap-y-8 sm:gap-x-4"
                 style={{ gridTemplateColumns: `repeat(${visibleColumns}, minmax(0, 1fr))` }}
               >
-              {visiblePlayers.map(player => {
-                const color = getRarityColor(player.rarity);
-                const positionMatch = getPositionMatch(player, positionFilter);
-                const shownPosition = positionFilter === 'ALL' ? player.position : positionFilter;
-                return (
-                  <article key={player.id} className="group flex min-w-0 flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPlayer(player)}
-                      className="mx-auto rounded-[18px] p-1 outline-none transition-transform duration-150 ease-out hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
-                      aria-label={`Ver detalhes de ${player.shortName}, versão ${player.club}`}
-                    >
-                      <PlayerCard player={player} lite scale={albumCardScale} />
-                    </button>
-                    <div className="mt-2 w-full min-w-0 text-center">
-                      <h3 className="truncate text-xs font-bold text-[var(--ui-text)]">{player.shortName}</h3>
-                      <p className="mt-0.5 truncate text-[11px] text-[var(--ui-text-muted)]" title={player.club}>{player.club}</p>
-                      <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color }}>
-                        <span>{getPositionLabel(shownPosition)}</span>
-                        <span className="text-[var(--ui-text-faint)]">·</span>
-                        <span>{positionMatch === 'secondary' ? '2ª posição' : 'Principal'}</span>
-                        <span className="text-[var(--ui-text-faint)]">·</span>
-                        <span>{RARITY_LABELS[player.rarity]}</span>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
+                {positionFilter !== 'ALL' && visiblePrimaryPlayers.length > 0 ? (
+                  <div className="col-span-full flex items-center gap-2 border-b border-[var(--ui-line-subtle)] pb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--ui-brand-strong)]">Posição principal</span>
+                    <span className="text-[10px] font-semibold text-[var(--ui-text-faint)]">({primaryPositionCount})</span>
+                  </div>
+                ) : null}
+                {(positionFilter === 'ALL' ? visiblePlayers : visiblePrimaryPlayers).map(renderPlayerCard)}
+                {positionFilter !== 'ALL' && visibleSecondaryPlayers.length > 0 ? (
+                  <div className="col-span-full flex items-center gap-2 border-b border-[var(--ui-line-subtle)] pb-2 pt-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--ui-text-muted)]">2ª posição</span>
+                    <span className="text-[10px] font-semibold text-[var(--ui-text-faint)]">({secondaryPositionCount})</span>
+                  </div>
+                ) : null}
+                {visibleSecondaryPlayers.map(renderPlayerCard)}
               </div>
               <nav aria-label="Paginação do álbum" className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-4 sm:flex-row">
                 <span className="text-xs text-[var(--ui-text-muted)]">
