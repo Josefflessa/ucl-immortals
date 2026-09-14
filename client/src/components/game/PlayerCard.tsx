@@ -870,6 +870,8 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
     <img
       src={url}
       alt={fullName}
+      loading={lowRes ? 'lazy' : 'eager'}
+      decoding="async"
       referrerPolicy="no-referrer"
       onError={handleError}
       style={{
@@ -905,8 +907,9 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   capitaoNato: { color: '#F97316', icon: '🗣️', label: 'CAPITÃO NATO', treatment: 'ring' },
   magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
   prodigio: { color: '#FDE047', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
+  resiliente: { color: '#FB7185', icon: '🔥', label: 'RESILIENTE', treatment: 'pulse' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata', 'prodigio'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata', 'prodigio', 'resiliente'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -935,6 +938,10 @@ function variantDesc(player: Player): string {
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
   if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida de liga por 1,5 (mas −5 em cada atributo nele)';
   if (player.prodigio) return `PRODÍGIO: +1 em cada atributo por partida iniciada como titular (${player.prodigioStarts ?? 0} acumuladas)`;
+  if (player.resiliente) {
+    const defeats = player.resilienteDefeats ?? 0;
+    return `RESILIENTE: +${defeats * 2} em cada atributo após ${defeats} derrota${defeats === 1 ? '' : 's'} do time como titular`;
+  }
   return '';
 }
 
@@ -998,7 +1005,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {/* ⭐ Cartas Únicas: render posicionado (mesmo photoX/Y/W da carta grande — % funciona em qualquer tamanho) */}
         {uniq && (
           <div className="absolute inset-0" style={{ ...frameMask('93% 94%'), zIndex: 2, overflow: 'hidden' }}>
-            <img src={uniq.render} alt={player.fullName} referrerPolicy="no-referrer"
+            <img src={uniq.render} alt={player.fullName} loading="lazy" decoding="async" referrerPolicy="no-referrer"
               style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
           </div>
         )}
@@ -1033,7 +1040,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           <div className="flex flex-col items-center flex-shrink-0" style={{ paddingBottom: compactPhotoPadding, paddingLeft: '10%', paddingRight: '10%' }}>
             {/* bandeira (país) + escudo (clube) — ajudam a ler a química no MEU TIME */}
             <div className="flex items-center justify-center gap-1 mb-0.5">
-              {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
+              {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
               <Crest crestId={clubCrestId} name={player.club} size={12} className="drop-shadow-[0_1px_1px_rgba(0,0,0,.7)]" />
             </div>
             <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
@@ -1090,7 +1097,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       {/* ⭐ Cartas Únicas: render posicionado por carta (x/y/largura), ATRÁS do conteúdo (OVR/nome/stats por cima). */}
       {uniq && (
         <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 3, overflow: 'hidden' }}>
-          <img src={uniq.render} alt={player.fullName} referrerPolicy="no-referrer"
+          <img src={uniq.render} alt={player.fullName} loading="lazy" decoding="async" referrerPolicy="no-referrer"
             style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
         </div>
       )}
@@ -1108,7 +1115,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .8 }}>{displayOverall}</span>
           <span style={{ fontFamily: 'Rajdhani,sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
           <div style={{ width: 30, height: 1, background: 'rgba(247,238,202,.55)', margin: '3px 0' }} />
-          {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
+          {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
           <Crest crestId={clubCrestId} name={player.club} size={22} />
         </div>
         {/* foto (cartas normais; as Únicas usam o render grande atrás do conteúdo) */}

@@ -55,6 +55,8 @@ export interface Player {
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida de liga por 1,5, mas −5 em tudo nele
   prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos por titularidade acumulada
   prodigioStarts?: number; // 📈 titularidades acumuladas desde que a característica foi recebida
+  resiliente?: boolean;  // 🔥 Resiliente — cresce após cada derrota do time em que estiver no XI
+  resilienteDefeats?: number; // 🔥 derrotas do time contabilizadas enquanto foi titular
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).

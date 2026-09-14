@@ -4,7 +4,7 @@ import {
   calculateChemistry, getEffectiveAttribute, getPlayerEffectiveStats, getChemistryBonus,
   calculateTeamStrength, simulateMatch, generateBotTeam, generateDraftOptions,
   statKey, getPlayerSeasonStats, PREFERRED_FORMATION_CHEM_BONUS,
-  PlayerCard,
+  PlayerCard, MatchResult, applyDefeatGrowth, teamLostMatch, RESILIENTE_DEFEAT_BOOST,
 } from './gameEngine';
 
 const asCard = (p: Player, over: Partial<PlayerCard> = {}): PlayerCard =>
@@ -59,6 +59,58 @@ describe('getEffectiveAttribute', () => {
     const forward = getEffectiveAttribute(player, 'passing', coach, '', noChem, '__neutral__', { role: 'ST' });
     const midfielder = getEffectiveAttribute(player, 'passing', coach, '', noChem, '__neutral__', { role: 'CM' });
     expect(midfielder - forward).toBe(5); // DNA Guardiola: +5 Passe nos meio-campistas
+  });
+});
+
+describe('Resiliente', () => {
+  const result = (over: Partial<MatchResult> = {}): MatchResult => ({
+    homeTeamId: 'team',
+    awayTeamId: 'opponent',
+    homeGoals: 0,
+    awayGoals: 1,
+    events: [],
+    winner: 'opponent',
+    stats: {
+      homePos: 50, awayPos: 50, homeShots: 0, awayShots: 0,
+      homeShotsOnTarget: 0, awayShotsOnTarget: 0, homeFouls: 0,
+      awayFouls: 0, homeSaves: 0, awaySaves: 0, homeCorners: 0, awayCorners: 0,
+    },
+    ...over,
+  });
+
+  it('acumula +2 em todos os atributos após cada derrota, mas só para titulares', () => {
+    const team = generateBotTeam('Resiliente', 0.8);
+    expect(team.players.length).toBeGreaterThan(11);
+    const tracked = {
+      ...team,
+      players: team.players.map((player, index) =>
+        index === 0 || index === 11
+          ? { ...player, resiliente: true, resilienteDefeats: 0 }
+          : player
+      ),
+    };
+    const afterLoss = applyDefeatGrowth(tracked, result({ homeTeamId: tracked.id }));
+    expect(afterLoss.players[0].resilienteDefeats).toBe(1);
+    expect(afterLoss.players[11].resilienteDefeats).toBe(0);
+
+    const plain = asCard({ ...outfield, traits: [] });
+    const grown = asCard({ ...outfield, traits: [], resiliente: true, resilienteDefeats: 3 });
+    const base = getEffectiveAttribute(plain, 'pace', coach, '', noChem, '__neutral__');
+    const effective = getEffectiveAttribute(grown, 'pace', coach, '', noChem, '__neutral__');
+    expect(effective - base).toBe(RESILIENTE_DEFEAT_BOOST * 3);
+    expect(getPlayerEffectiveStats(grown, 0, false, coach.id, 0, '__neutral__').breakdown.pace.resiliente)
+      .toBe(RESILIENTE_DEFEAT_BOOST * 3);
+  });
+
+  it('não cresce em vitória/empate e reconhece derrota nos pênaltis', () => {
+    const team = generateBotTeam('Resiliente', 0.8);
+    const tracked = { ...team, players: team.players.map(player => ({ ...player, resiliente: true, resilienteDefeats: 2 })) };
+    expect(applyDefeatGrowth(tracked, result({ homeTeamId: tracked.id, homeGoals: 2, awayGoals: 0, winner: tracked.id }))).toBe(tracked);
+    expect(applyDefeatGrowth(tracked, result({ homeTeamId: tracked.id, homeGoals: 1, awayGoals: 1, winner: null }))).toBe(tracked);
+    const penaltyLoss = result({ homeTeamId: tracked.id, homeGoals: 1, awayGoals: 1, winner: 'opponent', penaltyWinner: 'opponent' });
+    expect(teamLostMatch(penaltyLoss, tracked.id)).toBe(true);
+    expect(applyDefeatGrowth(tracked, penaltyLoss).players[0].resilienteDefeats).toBe(3);
+    expect(applyDefeatGrowth(tracked, penaltyLoss).players[11].resilienteDefeats).toBe(2);
   });
 });
 

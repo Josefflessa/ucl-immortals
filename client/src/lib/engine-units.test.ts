@@ -721,13 +721,18 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.pace - src.pace).toBe(delta);
     expect(v.lobo).toBe(true);
   });
-  it('flag-only variants (idolo / decimoHomem / coringa) leave stats untouched', () => {
-    for (const key of ['idolo', 'decimoHomem', 'coringa'] as const) {
+  it('flag-only variants (idolo / decimoHomem / coringa / resiliente) leave stats untouched', () => {
+    for (const key of ['idolo', 'decimoHomem', 'coringa', 'resiliente'] as const) {
       const v = applyShopVariant(src, key);
       expect((v as Record<string, unknown>)[key]).toBe(true);
       expect(v.overall).toBe(src.overall);
       expect(v.pace).toBe(src.pace);
     }
+  });
+  it('🔥 Resiliente starts with zero accumulated defeats', () => {
+    const v = applyShopVariant(src, 'resiliente');
+    expect(v.resiliente).toBe(true);
+    expect(v.resilienteDefeats).toBe(0);
   });
   it('📈 Prodígio começa sem bônus e passa a somar pelas titularidades', () => {
     const v = applyShopVariant(src, 'prodigio');

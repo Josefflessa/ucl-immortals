@@ -348,6 +348,44 @@ export interface MatchResult {
   playerStats?: Record<string, PlayerMatchStat>;
 }
 
+/** True when a team lost the match, including a knockout loss on penalties. */
+export function teamLostMatch(result: MatchResult, teamId: string): boolean {
+  const isHome = result.homeTeamId === teamId;
+  const isAway = result.awayTeamId === teamId;
+  if (!isHome && !isAway) return false;
+
+  const goalsFor = isHome ? result.homeGoals : result.awayGoals;
+  const goalsAgainst = isHome ? result.awayGoals : result.homeGoals;
+  if (goalsFor !== goalsAgainst) return goalsFor < goalsAgainst;
+
+  // A tied score is normally a draw. In a knockout match, penaltyWinner (or the
+  // legacy winner field) is the deciding result and must count as a defeat.
+  const decidedWinner = result.penaltyWinner ?? result.winner;
+  return decidedWinner != null && decidedWinner !== teamId;
+}
+
+/** Apply a Resiliente stack to the cards carrying it in the match XI. Bench cards do not grow. */
+export function applyDefeatGrowth(team: Team, result: MatchResult): Team {
+  if (!teamLostMatch(result, team.id)) return team;
+
+  const starterIds = new Set(team.players.slice(0, 11).map(player => player.id));
+  let changed = false;
+  const players = team.players.map(player => {
+    if (!player.resiliente || !starterIds.has(player.id)) return player;
+    changed = true;
+    return {
+      ...player,
+      resilienteDefeats: (player.resilienteDefeats ?? 0) + 1,
+    };
+  });
+
+  return changed ? { ...team, players } : team;
+}
+
+export function applyDefeatGrowthForResults(team: Team, results: MatchResult[]): Team {
+  return results.reduce((current, result) => applyDefeatGrowth(current, result), team);
+}
+
 export interface StandingsEntry {
   teamId: string;
   teamName: string;
@@ -528,6 +566,7 @@ export interface StatBreakdown {
   train: number;      // 💪 shop "Treino" — permanent, stacking per-attribute boost
   evolve: number;     // ⭐ Carta Evoluída — bônus do atributo escolhido
   prodigio: number;   // 📈 Prodígio — +1 por titularidade desde que a carta recebeu a característica
+  resiliente: number; // 🔥 Resiliente — +2 em tudo por derrota do time
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
@@ -803,6 +842,10 @@ export function getPlayerEffectiveStats(
   const evolveBonus = (attr: AttrKey): number => player.evolvePoints?.[attr] ?? 0;
   // 📈 Prodígio: a cada partida iniciada como titular desde que a carta recebeu a característica.
   const prodigioBonus = (_attr: AttrKey): number => player.prodigio ? (player.prodigioStarts ?? 0) : 0;
+  // 🔥 Resiliente: cresce após cada derrota do time em que a carta foi titular.
+  const resilienteBonus = (_attr: AttrKey): number => player.resiliente
+    ? (player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST
+    : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing THIS player (Mártir/Ídolo/12º Homem).
   const charB = context?.charBoosts?.[player.id];
@@ -813,7 +856,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -843,6 +886,7 @@ export function getPlayerEffectiveStats(
     train: trainBonus(attr),
     evolve: evolveBonus(attr),
     prodigio: prodigioBonus(attr),
+    resiliente: resilienteBonus(attr),
     char: charBonus(attr),
   });
 
@@ -1191,6 +1235,9 @@ export function getEffectiveAttribute(
 
   // 📈 Prodígio: bônus permanente acumulado por titularidades desde que a característica foi recebida.
   base += player.prodigio ? (player.prodigioStarts ?? 0) : 0;
+
+  // 🔥 Resiliente: +2 em todos os atributos por derrota do time como titular.
+  base += player.resiliente ? (player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
   const cb = context?.charBoosts?.[player.id];
@@ -3001,6 +3048,7 @@ const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
 const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
 const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada titularidade
+const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
@@ -3027,6 +3075,7 @@ const INFORM_STAT_BOOST = 3;
 const LOBO_STAT_BOOST = 6;           // Lobo Solitário: a BIGGER personal boost (double the in-form)…
 export const LOBO_CHEM_PENALTY = 12; // …paid for with this much TEAM chemistry per lone wolf.
 export const PILAR_CHEM_BONUS = 12;  // Pilar: lifts the team's total chemistry by this much.
+export const RESILIENTE_DEFEAT_BOOST = 2;
 
 // Aplica o +N/−N das características assadas no BASE (Em Alta/Lobo/Mártir/Magnata). SEM teto de 99:
 // o base pode passar de 99 (o efetivo já era livre). Mantém só o PISO de 1 (nenhum stat vira 0/negativo).
@@ -3118,6 +3167,10 @@ function applyDraftVariant(p: Player): Player {
   // 📈 Prodígio — começa a contar titularidades a partir desta carta, sem herdar jogos anteriores.
   acc += DRAFT_PRODIGIO_CHANCE;
   if (r < acc) return { ...p, prodigio: true, prodigioStarts: 0, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🔥 Resiliente — starts at zero and grows only when its team loses a match.
+  acc += DRAFT_RESILIENTE_CHANCE;
+  if (r < acc) return { ...p, resiliente: true, resilienteDefeats: 0, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -3269,7 +3322,7 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata' | 'prodigio'): Player {
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente'): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
     // inForm/lobo add to every attribute; martir/magnata SUBTRACT from every attribute.
     const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : -MAGNATA_STAT_PENALTY;
@@ -3281,12 +3334,13 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
     };
   }
   if (variant === 'prodigio') return { ...player, prodigio: true, prodigioStarts: 0 };
+  if (variant === 'resiliente') return { ...player, resiliente: true, resilienteDefeats: player.resilienteDefeats ?? 0 };
   return { ...player, [variant]: true };
 }
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata', 'prodigio'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata', 'prodigio', 'resiliente'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -3323,6 +3377,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
   delete p.noe; delete p.forasteiro; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
+  delete p.resiliente; delete p.resilienteDefeats;
   return p;
 }
 
@@ -3348,6 +3403,7 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
   delete (p as unknown as Record<string, unknown>)[variant];
   if (variant === 'martir') delete p.martirTargets;
   if (variant === 'prodigio') delete p.prodigioStarts;
+  if (variant === 'resiliente') delete p.resilienteDefeats;
   return p;
 }
 

@@ -22,7 +22,7 @@ import {
   validateMatchPlan,
   rebuildTeamChemistry,
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
-  bumpStarterAppearances, isEvolved, applyEvolvePoint, EVOLVE_POINTS,
+  bumpStarterAppearances, isEvolved, applyEvolvePoint, EVOLVE_POINTS, applyDefeatGrowth,
   VariantFlag,
   MatchPlan,
   Team,
@@ -1435,7 +1435,7 @@ export function registerSocketHandlers(io: Server) {
             (f.homeTeamId === p.team!.id || f.awayTeamId === p.team!.id));
           if (fixture?.result) {
             // ⭐ +1 jogo pros 11 titulares deste jogador (progresso pra Carta Evoluída).
-            p.team = bumpStarterAppearances(p.team);
+            p.team = bumpStarterAppearances(applyDefeatGrowth(p.team, fixture.result));
             const rewards = room.competitionFormat.rewards;
             const mp = computeMatchPointsWithConfig(fixture.result, p.team.id, rewards.points);
             // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
@@ -1461,6 +1461,13 @@ export function registerSocketHandlers(io: Server) {
             && (rewards.reinforcement === 'round' || room.leagueRound === stageRounds);
           const ownedIds = p.team.players.map(pl => pl.id);
           p.reinforcementOptions = shouldOfferReinforcement ? generateDraftOptions([], ownedIds).slice(0, rewards.reinforcementOptions) : null;
+        });
+
+        // 🔥 Resiliente também cresce nas equipes controladas pelo servidor, sempre que
+        // a carta esteve no XI. A derrota de cada rodada é processada uma única vez aqui.
+        room.botTeams = room.botTeams.map(team => {
+          const fixture = roundFx.find(f => f.homeTeamId === team.id || f.awayTeamId === team.id);
+          return fixture?.result ? applyDefeatGrowth(team, fixture.result) : team;
         });
       }
 
@@ -1571,7 +1578,17 @@ export function registerSocketHandlers(io: Server) {
         room.discipline = applyMatchDiscipline(room.discipline, koTeamIds, legResults, nameOf).next;
         // ⭐ +1 jogo pros 11 titulares de cada humano que disputou esta perna (Carta Evoluída).
         const playedIds = new Set(koTeamIds);
-        room.players.forEach(p => { if (p.team && playedIds.has(p.team.id)) p.team = bumpStarterAppearances(p.team); });
+        const resultFor = (teamId: string) => legResults.find((result: MatchResult) =>
+          result.homeTeamId === teamId || result.awayTeamId === teamId);
+        room.players.forEach(p => {
+          if (!p.team || !playedIds.has(p.team.id)) return;
+          const result = resultFor(p.team.id);
+          p.team = bumpStarterAppearances(result ? applyDefeatGrowth(p.team, result) : p.team);
+        });
+        room.botTeams = room.botTeams.map(team => {
+          const result = resultFor(team.id);
+          return result ? applyDefeatGrowth(team, result) : team;
+        });
       }
 
       // Award shop points for each human's OWN leg (ida & volta) — same as the league, but with

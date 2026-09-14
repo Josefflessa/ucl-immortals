@@ -2,19 +2,42 @@
 // Spend the points earned each match. Each item opens a small flow (pick a coach / player /
 // variant / attribute / pack option) and dispatches the matching SHOP_* action; the reducer
 // validates the cost. Solo and online league flows share the same presentation.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
 import { COACHES, POS_PT, Player, UNIQUE_CARDS } from '../../lib/gameData';
 import { generateStarPackOptions, generateScoutOptions, hasVariant, canAddVariant, variantCount } from '../../lib/gameEngine';
 import type { VariantFlag } from '../../lib/gameEngine';
 import { SHOP_COSTS, trainCost, TRAIN_BOOST, TRAIN_ATTRS, TURBINAR_VARIANTS, ShopVariant, TrainAttr } from '../../lib/shop';
-import PlayerCard, { getCardVariants } from './PlayerCard';
+import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
 import UniquePackOpening from './UniquePackOpening';
 import { Button, Panel, PanelBody } from '../../design-system';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'train' | 'reroll' | 'unique';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
+
+// A grade do pacote Único é a parte mais pesada da loja: cada card tem textura,
+// render próprio e moldura. O aquecimento é idempotente e acontece fora do primeiro
+// paint, evitando que o clique precise iniciar todos os downloads ao mesmo tempo.
+const warmedUniqueAssets = new Map<string, HTMLImageElement>();
+const UNIQUE_ASSETS = Array.from(new Set(
+  UNIQUE_CARDS.flatMap(card => {
+    const style = UNIQUE_STYLE[card.id];
+    return style ? [style.texture, style.render] : [];
+  }),
+));
+
+function warmUniqueCardAssets() {
+  if (typeof window === 'undefined') return;
+  UNIQUE_ASSETS.forEach(src => {
+    if (warmedUniqueAssets.has(src)) return;
+    const image = new window.Image();
+    image.decoding = 'async';
+    image.src = src;
+    warmedUniqueAssets.set(src, image);
+    void image.decode?.().catch(() => {});
+  });
+}
 
 export default function ShopTab() {
   const { state, dispatch, shopChangeCoachOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
@@ -28,6 +51,13 @@ export default function ShopTab() {
   // 🛒 Confirmação de compra (premium) — reutilizada por todas as compras significativas da loja.
   const [confirmCfg, setConfirmCfg] = useState<null | { title: string; message: string; onConfirm: () => void }>(null);
   const askConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmCfg({ title, message, onConfirm });
+
+  // Deixa o catálogo pronto enquanto o usuário navega pela loja, sem disputar
+  // o primeiro frame da troca de aba.
+  useEffect(() => {
+    const timer = window.setTimeout(warmUniqueCardAssets, 180);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   if (!team) return null;
 
@@ -116,6 +146,7 @@ export default function ShopTab() {
             <button
               key={item.id}
               onClick={() => canOpen && openItem(item.id)}
+              onPointerDown={() => item.id === 'unique' && warmUniqueCardAssets()}
               disabled={!canOpen}
               className="ui-choice p-4 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ borderColor: (affordable || item.id === 'unique') ? item.color + '88' : undefined }}
@@ -158,7 +189,7 @@ export default function ShopTab() {
         {active && !pendingUniquePack && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="ui-modal-backdrop z-50 p-3 sm:p-4" onClick={close}>
-            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 14 }} transition={{ duration: 0.18 }}
+            <motion.div initial={{ y: 14 }} animate={{ y: 0 }} exit={{ y: 14 }} transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
               className="ui-modal ui-modal--wide flex max-h-[90vh] flex-col">
 
@@ -195,7 +226,7 @@ export default function ShopTab() {
                           {UNIQUE_CARDS.map(card => {
                             const owned = ownedIds.includes(card.id);
                             return (
-                              <div key={card.id} className="relative flex flex-col items-center gap-2">
+                              <div key={card.id} className="unique-card-catalog-tile relative flex flex-col items-center gap-2">
                                 <div className={owned ? 'opacity-100' : 'opacity-60 grayscale-[0.35]'}>
                                   <PlayerCard player={card} lite scale={0.82} />
                                 </div>

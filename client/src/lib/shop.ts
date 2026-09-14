@@ -110,7 +110,7 @@ export const TRAIN_ATTRS: { key: TrainAttr; label: string }[] = [
 ];
 
 // ── "Turbinar Carta" — the special variants the player can buy onto a card. ──
-export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata' | 'prodigio';
+export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente';
 export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: '+3 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: '+6 em todos os atributos, mas −12 na química geral do time.' },
@@ -126,4 +126,5 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'capitaoNato', icon: '🗣️', label: 'Capitão Nato', color: '#F97316', desc: 'Se for o CAPITÃO do time, o bônus de capitão vem DOBRADO.' },
   { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os créditos da partida de liga por 1,5. Mas −5 em todos os atributos nele.' },
   { key: 'prodigio', icon: '📈', label: 'Prodígio', color: '#FDE047', desc: '+1 em todos os atributos por cada partida iniciada como titular desde que recebeu a característica.' },
+  { key: 'resiliente', icon: '🔥', label: 'Resiliente', color: '#FB7185', desc: '+2 em todos os atributos a cada derrota do time em que for titular. Acumula.' },
 ];

@@ -216,6 +216,13 @@ html {
   font-feature-settings: "tnum";
 }
 
+/* Catalog tiles are independent visual units. On mobile, skip paint/layout for
+ * cards below the modal viewport until the user scrolls to them. */
+.unique-card-catalog-tile {
+  content-visibility: auto;
+  contain-intrinsic-size: 164px 294px;
+}
+
 /* Reusable elevated-surface treatment (subtle top highlight + depth) */
 .surface-card {
   background: linear-gradient(180deg, var(--ui-surface-2) 0%, var(--ui-surface-1) 100%);

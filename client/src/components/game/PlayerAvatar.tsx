@@ -45,6 +45,8 @@ export default function PlayerAvatar({
         <img
           src={url}
           alt=""
+          loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={handleError}
           className="w-full h-full object-cover"

@@ -17,7 +17,7 @@ import {
   generateUniquePackCard,
   normalizeMatchPlan,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
-  bumpStarterAppearances, isEvolved, applyEvolvePoint,
+  bumpStarterAppearances, isEvolved, applyEvolvePoint, applyDefeatGrowth, applyDefeatGrowthForResults,
 } from '../lib/gameEngine';
 import type { MatchPlan, VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
@@ -905,17 +905,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.playerTeam) return state;
       // Deprecated, but keep as fallback to instantly simulate remaining rounds
       const allTeams = [state.playerTeam, ...state.botTeams];
+      const newlySimulatedResults: MatchResult[] = [];
       const updatedFixtures = state.leagueFixtures.map(f => {
         if (f.played) return f;
         const home = allTeams.find(t => t.id === f.homeTeamId)!;
         const away = allTeams.find(t => t.id === f.awayTeamId)!;
         const result = simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings);
+        newlySimulatedResults.push(result);
         return { ...f, played: true, result };
       });
       const standings = computeStandings(allTeams, updatedFixtures);
       const results = updatedFixtures.map(f => f.result!).filter(Boolean);
+      const playerTeam = applyDefeatGrowthForResults(state.playerTeam, newlySimulatedResults);
+      const botTeams = state.botTeams.map(team => applyDefeatGrowthForResults(team, newlySimulatedResults));
       return {
         ...state,
+        playerTeam,
+        botTeams,
         leagueFixtures: updatedFixtures,
         leagueStandings: standings,
         leagueResults: results,
@@ -1045,6 +1051,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...b, settled: true, revealed: true, won: r.won, tier: r.tier, payout: r.payout };
       });
 
+      const updatedPlayerTeam = bumpStarterAppearances(applyDefeatGrowth(state.playerTeam, action.result));
+      const updatedBotTeams = state.botTeams.map(team => {
+        const fixture = roundFx.find(f => f.homeTeamId === team.id || f.awayTeamId === team.id);
+        return fixture?.result ? applyDefeatGrowth(team, fixture.result) : team;
+      });
+
       return {
         ...state,
         phase: 'league',
@@ -1060,18 +1072,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         bets: settledBets,
         discipline: disc.next,
         // ⭐ +1 jogo pros 11 titulares do jogador (progresso pra Carta Evoluída).
-        playerTeam: bumpStarterAppearances(state.playerTeam),
+        playerTeam: updatedPlayerTeam,
+        botTeams: updatedBotTeams,
       };
     }
 
     case 'SIMULATE_BOT_MATCHES': {
       if (!state.playerTeam) return state;
       const allTeams = [state.playerTeam, ...state.botTeams];
+      const newlySimulatedResults: MatchResult[] = [];
       const allFixtures = state.leagueFixtures.map(f => {
         if (f.round === state.leagueRound && !f.played) {
           const home = allTeams.find(t => t.id === f.homeTeamId)!;
           const away = allTeams.find(t => t.id === f.awayTeamId)!;
           const result = simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings);
+          newlySimulatedResults.push(result);
           return { ...f, played: true, result };
         }
         return f;
@@ -1079,8 +1094,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const standings = computeStandings(allTeams, allFixtures);
       // Collect ALL played results across all rounds to preserve stats
       const results = allFixtures.map(f => f.result!).filter(Boolean);
+      const playerTeam = applyDefeatGrowthForResults(state.playerTeam, newlySimulatedResults);
+      const botTeams = state.botTeams.map(team => applyDefeatGrowthForResults(team, newlySimulatedResults));
       return {
         ...state,
+        playerTeam,
+        botTeams,
         leagueFixtures: allFixtures,
         leagueStandings: standings,
         leagueResults: results,
@@ -1133,6 +1152,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const koNameOf = (teamId: string, playerId: string) =>
         allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
       const disc = applyMatchDiscipline(state.discipline, koTeamIds, legResults, koNameOf);
+      const playerTeam = applyDefeatGrowthForResults(state.playerTeam, legResults);
+      const botTeams = state.botTeams.map(team => applyDefeatGrowthForResults(team, legResults));
       // 🎯 Revela AGORA os palpites de confrontos que o jogador NÃO joga (placar já visível →
       // sem spoiler). O confronto próprio só revela depois que ele assistir (FINISH_KNOCKOUT_MATCH).
       // Sem isso, apostar num confronto alheio ficava eternamente "em andamento".
@@ -1155,7 +1176,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const stageReinforcement = shouldOfferStageReinforcement
         ? generateDraftOptions([], koOwnedIds).slice(0, koRewards.reinforcementOptions)
         : state.reinforcementOptions;
-      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam: bumpStarterAppearances(state.playerTeam), bets: revealed.bets, points: state.points + revealed.winnings, reinforcementOptions: stageReinforcement };
+      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam: bumpStarterAppearances(playerTeam), botTeams, bets: revealed.bets, points: state.points + revealed.winnings, reinforcementOptions: stageReinforcement };
     }
 
     case 'ADVANCE_KNOCKOUT': {
