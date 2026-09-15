@@ -4,7 +4,7 @@
 // change here shows up in both. It's purely presentational: data + callbacks come from props,
 // so each host wires its own state (drafted players vs the league team) and actions.
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks,
@@ -314,12 +314,10 @@ export default function SquadEditor({
       {footer}
 
       {/* Premium Player Modal */}
-      <AnimatePresence>
+      <>
         {selectedIndex !== null && selectedPlayer && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }}>
-            <motion.div
-              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
+            <div
               className="relative bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
             >
               {/* Fundo: textura da carta do jogador (a Única usa a sua própria), com véu leve p/ legibilidade */}
@@ -370,8 +368,7 @@ export default function SquadEditor({
                 const inj = availability?.[confirmPhysioFor]?.injured ?? 0;
                 return (
                   <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.82)' }} onClick={() => setConfirmPhysioFor(null)}>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.94, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                    <div
                       className="w-full max-w-sm rounded-2xl p-5 text-center" style={{ background: '#0b0b14', border: '1px solid #0E7490' }}
                       onClick={e => e.stopPropagation()}
                     >
@@ -395,7 +392,7 @@ export default function SquadEditor({
                           CONFIRMAR
                         </button>
                       </div>
-                    </motion.div>
+                    </div>
                   </div>
                 );
               })()}
@@ -736,7 +733,7 @@ export default function SquadEditor({
                   className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg text-sm font-black text-gray-300 hover:text-white hover:bg-white/5 transition-colors focus:outline-none whitespace-nowrap"
                   style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2E2E42' }}>Cancelar</button>
               </div>
-            </motion.div>
+            </div>
 
             {/* 🔍 Card do jogador em tela cheia (só pra ver de perto) */}
             {zoomCard && (
@@ -751,7 +748,7 @@ export default function SquadEditor({
             )}
           </div>
         )}
-      </AnimatePresence>
+      </>
     </motion.div>
   );
 }

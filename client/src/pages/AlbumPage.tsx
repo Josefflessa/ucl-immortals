@@ -562,6 +562,7 @@ export default function AlbumPage() {
 
       <Dialog open={selectedPlayer !== null} onOpenChange={open => { if (!open) setSelectedPlayer(null); }}>
         <DialogContent
+          disableAnimation
           overlayClassName="bg-black/85"
           closeButtonLabel="Fechar ficha do jogador"
           closeButtonClassName="right-3 top-3 flex size-10 items-center justify-center rounded-xl bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
