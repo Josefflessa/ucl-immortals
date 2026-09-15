@@ -494,9 +494,7 @@ export default function LeaguePage() {
           </div>
         )}
         {!isKnockout && !spoilerLock && playerStanding && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="rounded-xl p-4 mb-6"
             style={{
               background: qualifies
@@ -550,7 +548,7 @@ export default function LeaguePage() {
                 ))}
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Tabs — scrollable on mobile */}
@@ -595,11 +593,7 @@ export default function LeaguePage() {
           ? <SpoilerLock waiting={spoilerWaiting} label="CHAVEAMENTO OCULTO" />
           : <BracketTab />)}
         {activeTab === 'fixtures' && !isKnockout && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-3"
-          >
+          <div className="space-y-3">
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-bold tracking-widest text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 {isGroupStage ? 'TODAS AS PARTIDAS DA RODADA' : 'PARTIDAS DA RODADA'}
@@ -775,10 +769,7 @@ export default function LeaguePage() {
 
             {/* Advance controls */}
             {state.mode === 'online' ? (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-6 p-4 rounded-xl text-center border"
+              <div className="mt-6 p-4 rounded-xl text-center border"
                 style={{ background: '#0F0F1A', borderColor: '#1A1A2A' }}
               >
                 {state.isHost ? (
@@ -890,13 +881,9 @@ export default function LeaguePage() {
                     ⏳ Aguardando assistirem: {state.advanceBlocked.join(', ')}
                   </div>
                 )}
-              </motion.div>
+              </div>
             ) : (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-6"
-              >
+              <div className="mt-6">
                 {!isPlayerMatchPlayed ? (
                   /* Solo: o botão de JOGAR fica embaixo dos confrontos (igual ao host no online). */
                   <>
@@ -946,9 +933,9 @@ export default function LeaguePage() {
                       : isGroupStage ? '❌ ELIMINADO — FORA DA ZONA DO GRUPO' : `❌ ELIMINADO — FORA DO TOP ${qualifiedTeams}`}
                   </button>
                 )}
-              </motion.div>
+              </div>
             )}
-          </motion.div>
+          </div>
         )}
 
         {/* Standings table — league only (knockout has no table) */}
@@ -956,9 +943,7 @@ export default function LeaguePage() {
           <SpoilerLock waiting={spoilerWaiting} label="CLASSIFICAÇÃO OCULTA" />
         )}
         {activeTab === 'standings' && !isKnockout && !spoilerLock && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+          <div
             className="rounded-xl overflow-hidden overflow-x-auto"
             style={{ border: '1px solid #1A1A2A' }}
           >
@@ -1118,7 +1103,7 @@ export default function LeaguePage() {
             })}
             </div>
             )}
-          </motion.div>
+          </div>
         )}
 
         {/* Estatísticas da Temporada */}
@@ -1126,7 +1111,7 @@ export default function LeaguePage() {
           <SpoilerLock waiting={spoilerWaiting} label="ESTATÍSTICAS OCULTAS" />
         )}
         {activeTab === 'scorers' && !spoilerLock && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="space-y-4">
             {/* Sub-tabs share the same editorial navigation grammar as the hub tabs. */}
             <Tabs
               value={statsSubTab}
@@ -1276,7 +1261,7 @@ export default function LeaguePage() {
                 );
               })()}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Gestão do time */}
@@ -1287,11 +1272,7 @@ export default function LeaguePage() {
 
         {/* Results */}
         {activeTab === 'results' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-3"
-          >
+          <div className="space-y-3">
             {/* Sub-abas do HISTÓRICO */}
             <Tabs
               value={resultsSubTab}
@@ -1328,11 +1309,8 @@ export default function LeaguePage() {
                 const oppCrest = getTeamById(isHome ? result.awayTeamId : result.homeTeamId)?.crestId;
 
                 return (
-                  <motion.div
+                  <div
                     key={i}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: Math.min(i * 0.04, 0.25) }}
                     className="relative flex items-center gap-3 pl-4 pr-3 py-3 rounded-xl overflow-hidden"
                     style={{ background: 'linear-gradient(135deg,#12121e,#0b0b14)', border: `1px solid ${rc}33` }}
                   >
@@ -1367,7 +1345,7 @@ export default function LeaguePage() {
                         </button>
                       )}
                     </div>
-                  </motion.div>
+                  </div>
                 );
               })
             )}
@@ -1506,7 +1484,7 @@ export default function LeaguePage() {
               )}
             </div>
             )}
-          </motion.div>
+          </div>
         )}
 
       </PageContainer>

@@ -7,7 +7,6 @@
  * everyone has watched); future rounds show "A definir" placeholder slots. The player's
  * own path is highlighted in gold throughout.
  */
-import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
@@ -113,7 +112,7 @@ export default function BracketTab() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <div>
       <div className="mb-3 text-sm leading-relaxed text-[var(--ui-text-muted)]">
         Caminho até o título — seu time em <span style={{ color: '#C9A84C' }}>dourado</span>. O placar da fase em andamento fica oculto até todos assistirem.
       </div>
@@ -146,6 +145,6 @@ export default function BracketTab() {
           })}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
