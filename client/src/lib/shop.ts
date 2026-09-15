@@ -125,6 +125,6 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: '+5 em tudo quando é o único titular do seu país E do seu clube.' },
   { key: 'capitaoNato', icon: '🗣️', label: 'Capitão Nato', color: '#F97316', desc: 'Se for o CAPITÃO do time, o bônus de capitão vem DOBRADO.' },
   { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os créditos da partida de liga por 1,5. Mas −5 em todos os atributos nele.' },
-  { key: 'prodigio', icon: '📈', label: 'Prodígio', color: '#FDE047', desc: '+1 em todos os atributos por cada partida iniciada como titular desde que recebeu a característica.' },
+  { key: 'prodigio', icon: '📈', label: 'Prodígio', color: '#FDE047', desc: '+1 em todos os atributos a cada 2 partidas iniciadas como titular desde que recebeu a característica.' },
   { key: 'resiliente', icon: '🔥', label: 'Resiliente', color: '#FB7185', desc: '+2 em todos os atributos a cada derrota do time em que for titular. Acumula.' },
 ];

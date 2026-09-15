@@ -25,6 +25,7 @@ export default function PlayerAvatar({
   fallback,
 }: PlayerAvatarProps) {
   const urls = buildPlayerPhotoSources(playerId, true);
+  const isUnique = urls[0]?.startsWith('/players/unico/') ?? false;
 
   const [idx, setIdx] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -45,7 +46,7 @@ export default function PlayerAvatar({
         <img
           src={url}
           alt=""
-          loading="lazy"
+          loading={isUnique ? 'eager' : 'lazy'}
           decoding="async"
           referrerPolicy="no-referrer"
           onError={handleError}

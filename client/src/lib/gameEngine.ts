@@ -565,7 +565,7 @@ export interface StatBreakdown {
   captain: number;    // captain leadership bonus (+CAPTAIN_BOOST on the captain's best stat, for everyone)
   train: number;      // 💪 shop "Treino" — permanent, stacking per-attribute boost
   evolve: number;     // ⭐ Carta Evoluída — bônus do atributo escolhido
-  prodigio: number;   // 📈 Prodígio — +1 por titularidade desde que a carta recebeu a característica
+  prodigio: number;   // 📈 Prodígio — +1 a cada 2 titularidades desde que a carta recebeu a característica
   resiliente: number; // 🔥 Resiliente — +2 em tudo por derrota do time
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
@@ -840,8 +840,8 @@ export function getPlayerEffectiveStats(
   // other additive buffs — it feeds the per-attribute delta and therefore the effective overall.
   const trainBonus = (attr: AttrKey): number => player.trainBoosts?.[attr] ?? 0;
   const evolveBonus = (attr: AttrKey): number => player.evolvePoints?.[attr] ?? 0;
-  // 📈 Prodígio: a cada partida iniciada como titular desde que a carta recebeu a característica.
-  const prodigioBonus = (_attr: AttrKey): number => player.prodigio ? (player.prodigioStarts ?? 0) : 0;
+  // 📈 Prodígio: +1 a cada 2 partidas iniciadas como titular desde que a carta recebeu a característica.
+  const prodigioBonus = (_attr: AttrKey): number => player.prodigio ? prodigioStatBoost(player.prodigioStarts) : 0;
   // 🔥 Resiliente: cresce após cada derrota do time em que a carta foi titular.
   const resilienteBonus = (_attr: AttrKey): number => player.resiliente
     ? (player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST
@@ -1233,8 +1233,8 @@ export function getEffectiveAttribute(
   // ⭐ Carta Evoluída: bônus do único atributo escolhido (mesma natureza do Treino).
   base += (player.evolvePoints?.[attribute as keyof NonNullable<Player['evolvePoints']>] ?? 0);
 
-  // 📈 Prodígio: bônus permanente acumulado por titularidades desde que a característica foi recebida.
-  base += player.prodigio ? (player.prodigioStarts ?? 0) : 0;
+  // 📈 Prodígio: +1 a cada 2 titularidades desde que a característica foi recebida.
+  base += player.prodigio ? prodigioStatBoost(player.prodigioStarts) : 0;
 
   // 🔥 Resiliente: +2 em todos os atributos por derrota do time como titular.
   base += player.resiliente ? (player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST : 0;
@@ -3047,7 +3047,7 @@ const DRAFT_NOE_CHANCE = 0.02;        // 🛟 Noé — raro (é MUITO forte)
 const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
 const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
-const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada titularidade
+const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada 2 titularidades
 const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
@@ -3076,6 +3076,12 @@ const LOBO_STAT_BOOST = 6;           // Lobo Solitário: a BIGGER personal boost
 export const LOBO_CHEM_PENALTY = 12; // …paid for with this much TEAM chemistry per lone wolf.
 export const PILAR_CHEM_BONUS = 12;  // Pilar: lifts the team's total chemistry by this much.
 export const RESILIENTE_DEFEAT_BOOST = 2;
+export const PRODIGIO_STARTS_PER_BOOST = 2;
+
+/** Returns the permanent all-attribute bonus earned by Prodígio so far. */
+export function prodigioStatBoost(starts: number | undefined): number {
+  return Math.floor(Math.max(0, starts ?? 0) / PRODIGIO_STARTS_PER_BOOST);
+}
 
 // Aplica o +N/−N das características assadas no BASE (Em Alta/Lobo/Mártir/Magnata). SEM teto de 99:
 // o base pode passar de 99 (o efetivo já era livre). Mantém só o PISO de 1 (nenhum stat vira 0/negativo).

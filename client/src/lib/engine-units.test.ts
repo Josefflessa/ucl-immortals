@@ -15,6 +15,7 @@ import {
   HOME_ATTR_BONUS,
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
   isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
+  PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture, type MatchEvent,
 } from './gameEngine';
@@ -174,7 +175,7 @@ describe('⭐ cartas evoluídas', () => {
     expect(bumped.players.slice(0, 11).every(p => p.appearances === 1)).toBe(true);
     expect(bumped.players[11].appearances ?? 0).toBe(0);
   });
-  it('Prodígio: acumula +1 por titularidade e não evolui reservas', () => {
+  it('Prodígio: acumula titularidades e dá +1 a cada 2, sem evoluir reservas', () => {
     const prodigio = mkP({ prodigio: true, prodigioStarts: 0 });
     const team = mkTeam('T', [prodigio, ...Array.from({ length: 12 }, () => mkP())]);
     const once = bumpStarterAppearances(team);
@@ -182,6 +183,11 @@ describe('⭐ cartas evoluídas', () => {
     expect(once.players[11].prodigioStarts).toBeUndefined();
     const twice = bumpStarterAppearances(once);
     expect(twice.players[0].prodigioStarts).toBe(2);
+    expect(PRODIGIO_STARTS_PER_BOOST).toBe(2);
+    expect(prodigioStatBoost(0)).toBe(0);
+    expect(prodigioStatBoost(1)).toBe(0);
+    expect(prodigioStatBoost(2)).toBe(1);
+    expect(prodigioStatBoost(5)).toBe(2);
   });
 });
 
@@ -734,13 +740,17 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.resiliente).toBe(true);
     expect(v.resilienteDefeats).toBe(0);
   });
-  it('📈 Prodígio começa sem bônus e passa a somar pelas titularidades', () => {
+  it('📈 Prodígio começa sem bônus e soma +1 a cada 2 titularidades', () => {
     const v = applyShopVariant(src, 'prodigio');
     expect(v.prodigio).toBe(true);
     expect(v.prodigioStarts).toBe(0);
     const noChem = { passing: 0, pace: 0, special: 0 };
     const base = getEffectiveAttribute(card(src), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
+    const afterOneStart = getEffectiveAttribute(card({ ...v, prodigioStarts: 1 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
     const afterTwoStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 2 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
-    expect(afterTwoStarts - base).toBe(2);
+    const afterFourStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 4 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
+    expect(afterOneStart - base).toBe(0);
+    expect(afterTwoStarts - base).toBe(1);
+    expect(afterFourStarts - base).toBe(2);
   });
 });

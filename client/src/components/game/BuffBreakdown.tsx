@@ -4,7 +4,7 @@
 // team-wide chemistry, the coach, the player's traits (named, with what each grants)
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
-import { EffectiveStats, ChemLinkType, CharBoost, RESILIENTE_DEFEAT_BOOST } from '../../lib/gameEngine';
+import { EffectiveStats, ChemLinkType, CharBoost, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost } from '../../lib/gameEngine';
 import { Player } from '../../lib/gameData';
 import { getCardVariant } from './PlayerCard';
 
@@ -90,6 +90,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const variant = player ? getCardVariant(player) : null;
   const variantBoost = player?.baseOverall !== undefined ? (player.overall - player.baseOverall) : (player?.inForm ? 3 : player?.lobo ? 6 : 0);
   const variantColor = variant?.color === '#FFFFFF' ? '#E5E7EB' : (variant?.color ?? '#9AA8C8');
+  const prodigioStarts = player?.prodigioStarts ?? 0;
+  const prodigioBoost = prodigioStatBoost(prodigioStarts);
   // Named coach effects (e.g. "Visão de Jogo: +3 Geral") are ALREADY folded into the
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
@@ -137,7 +139,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.capitaoNato && <Chip text="🗣️ BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)" color="#F97316" />}
                 {player.magnata && <Chip text="🤑 CRÉDITOS DA LIGA ×1,5 (TITULAR)" color="#16A34A" />}
                 {player.magnata && <Chip text="−5 EM TUDO" color="#EF4444" />}
-                {player.prodigio && <Chip text={`+${player.prodigioStarts ?? 0} EM CADA ATRIBUTO (${player.prodigioStarts ?? 0} TITULARIDADES)`} color="#FDE047" />}
+                {player.prodigio && <Chip text={`+${prodigioBoost} EM CADA ATRIBUTO (${prodigioStarts} TITULARIDADE${prodigioStarts === 1 ? '' : 'S'} · 1 A CADA ${PRODIGIO_STARTS_PER_BOOST})`} color="#FDE047" />}
                 {player.resiliente && <Chip text={`+${(player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST} EM CADA ATRIBUTO (${player.resilienteDefeats ?? 0} DERROTA${(player.resilienteDefeats ?? 0) === 1 ? '' : 'S'} COMO TITULAR)`} color="#FB7185" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
@@ -157,7 +159,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                                   : player.forasteiro ? 'Quando é o ÚNICO do seu país E do seu clube no XI, ganha +5 em tudo — transforma a química baixa em vantagem.'
                                     : player.capitaoNato ? 'Se for o CAPITÃO do time, o bônus de capitão (a melhor stat dele, dada a todos) vem DOBRADO.'
                                         : player.magnata ? 'Como titular, multiplica os créditos da partida de liga por 1,5 — em troca de −5 em cada atributo nele.'
-                                          : player.prodigio ? `+1 em todos os atributos por titularidade acumulada (${player.prodigioStarts ?? 0} partida${(player.prodigioStarts ?? 0) === 1 ? '' : 's'} iniciada${(player.prodigioStarts ?? 0) === 1 ? '' : 's'} desde que recebeu a característica).`
+                                          : player.prodigio ? `+1 em todos os atributos a cada ${PRODIGIO_STARTS_PER_BOOST} partidas iniciadas como titular (${prodigioStarts} titularidade${prodigioStarts === 1 ? '' : 's'}; bônus atual +${prodigioBoost}).`
                                             : player.resiliente ? `A cada derrota do time em que for titular, ganha +${RESILIENTE_DEFEAT_BOOST} em todos os atributos. Já acumulou ${player.resilienteDefeats ?? 0} derrota${(player.resilienteDefeats ?? 0) === 1 ? '' : 's'} como titular.`
                                         : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
@@ -295,7 +297,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
             <Row icon="📈" name="PRODÍGIO" color="#FDE047">
               <div className="flex flex-wrap gap-1">{chips(prodigio, '#FDE047')}</div>
               <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                +1 em todos os atributos por cada partida iniciada como titular desde que a característica foi recebida.
+                +1 em todos os atributos a cada {PRODIGIO_STARTS_PER_BOOST} partidas iniciadas como titular desde que a característica foi recebida.
               </div>
             </Row>
           )}

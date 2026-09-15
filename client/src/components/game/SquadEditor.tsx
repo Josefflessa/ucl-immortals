@@ -581,16 +581,13 @@ export default function SquadEditor({
                       </div>
                       {evolved ? (
                         <div className="p-3.5">
-                          <div className="text-[11px] mb-2.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                            Atributo escolhido: <b style={{ color: '#22C55E' }}>{chosenAttr?.label ?? '—'}</b> com <b style={{ color: '#C9C9D5' }}>+{spent}</b>. Dá pra <b style={{ color: '#C9C9D5' }}>resetar</b> e escolher outro atributo.
-                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             {EVOLVE_ATTRS.map(a => (
                               <button
                                 key={a.key}
                                 disabled={spent > 0}
                                 onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, EVOLVE_POINTS)}
-                                className="flex items-center justify-between rounded-lg px-3 py-2.5 text-[11px] font-black transition-transform active:scale-[0.98]"
+                                className="flex items-center justify-center rounded-lg px-3 py-2.5 text-[11px] font-black transition-transform active:scale-[0.98]"
                                 style={{
                                   background: chosenAttr?.key === a.key ? '#0a2114' : '#0A0A12',
                                   color: chosenAttr?.key === a.key ? '#4ADE80' : '#6A6A7A',
@@ -599,8 +596,7 @@ export default function SquadEditor({
                                   fontFamily: 'Rajdhani, sans-serif',
                                 }}
                               >
-                                <span>{a.label}</span>
-                                <span>{chosenAttr?.key === a.key ? `+${EVOLVE_POINTS}` : 'ESCOLHER'}</span>
+                                <span>{a.label}{chosenAttr?.key === a.key ? ` · +${EVOLVE_POINTS}` : ''}</span>
                               </button>
                             ))}
                           </div>
@@ -648,6 +644,7 @@ export default function SquadEditor({
                       const preview = getChemPreview(idx);
                       const diffColor = preview.diff > 0 ? '#22C55E' : preview.diff < 0 ? '#EF4444' : '#8A8A9A';
                       const diffLabel = preview.diff > 0 ? `+${preview.diff}` : `${preview.diff}`;
+                      const isUnique = !!UNIQUE_STYLE[candidate.id];
                       const photoUrl = UNIQUE_STYLE[candidate.id]?.render ?? buildSofifaUrl(candidate.id, 120);
                       const variants = getCardVariants(candidate);
                       const { fit, role, occupant } = swapFit(candidate, idx);
@@ -663,7 +660,7 @@ export default function SquadEditor({
                           style={{ background: bgCol, borderColor: borderCol }}>
                           <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d]" style={{ border: `1.5px solid ${getRarityColor(candidate.rarity)}` }}>
                             {photoUrl
-                              ? <img src={photoUrl} alt={candidate.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} loading="lazy" referrerPolicy="no-referrer" />
+                              ? <img src={photoUrl} alt={candidate.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} loading={isUnique ? 'eager' : 'lazy'} referrerPolicy="no-referrer" />
                               : <span className="text-sm font-bold" style={{ color: getRarityColor(candidate.rarity) }}>⚽</span>}
                           </div>
                           <div className="flex-1 min-w-0">

@@ -1,7 +1,7 @@
 import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
-import { isEvolved } from '../../lib/gameEngine';
+import { isEvolved, PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost } from '../../lib/gameEngine';
 import { crestIdForClub } from '../../lib/crests';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 import Crest from './Crest';
@@ -937,7 +937,10 @@ function variantDesc(player: Player): string {
   if (player.forasteiro) return 'FORASTEIRO: +5 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
   if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida de liga por 1,5 (mas −5 em cada atributo nele)';
-  if (player.prodigio) return `PRODÍGIO: +1 em cada atributo por partida iniciada como titular (${player.prodigioStarts ?? 0} acumuladas)`;
+  if (player.prodigio) {
+    const starts = player.prodigioStarts ?? 0;
+    return `PRODÍGIO: +${prodigioStatBoost(starts)} em cada atributo · +1 a cada ${PRODIGIO_STARTS_PER_BOOST} titularidades (${starts} acumuladas)`;
+  }
   if (player.resiliente) {
     const defeats = player.resilienteDefeats ?? 0;
     return `RESILIENTE: +${defeats * 2} em cada atributo após ${defeats} derrota${defeats === 1 ? '' : 's'} do time como titular`;
@@ -1005,7 +1008,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {/* ⭐ Cartas Únicas: render posicionado (mesmo photoX/Y/W da carta grande — % funciona em qualquer tamanho) */}
         {uniq && (
           <div className="absolute inset-0" style={{ ...frameMask('93% 94%'), zIndex: 2, overflow: 'hidden' }}>
-            <img src={uniq.render} alt={player.fullName} loading="lazy" decoding="async" referrerPolicy="no-referrer"
+            <img src={uniq.render} alt={player.fullName} loading="eager" fetchPriority="high" decoding="async" referrerPolicy="no-referrer"
               style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
           </div>
         )}
@@ -1097,7 +1100,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       {/* ⭐ Cartas Únicas: render posicionado por carta (x/y/largura), ATRÁS do conteúdo (OVR/nome/stats por cima). */}
       {uniq && (
         <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 3, overflow: 'hidden' }}>
-          <img src={uniq.render} alt={player.fullName} loading="lazy" decoding="async" referrerPolicy="no-referrer"
+          <img src={uniq.render} alt={player.fullName} loading="eager" fetchPriority="high" decoding="async" referrerPolicy="no-referrer"
             style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
         </div>
       )}
