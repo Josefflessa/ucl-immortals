@@ -1583,19 +1583,12 @@ export default function LeaguePage() {
       </AnimatePresence>
 
       {/* ── End-of-round reinforcement pick ── */}
-      <AnimatePresence>
+      <>
         {state.reinforcementOptions && state.reinforcementOptions.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="ui-modal-backdrop z-50 p-3 sm:p-4"
           >
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
+            <div
               className="ui-modal ui-modal--wide flex max-h-[95vh] flex-col"
             >
               {/* Header */}
@@ -1671,10 +1664,10 @@ export default function LeaguePage() {
                   </Button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </>
 
       {/* ── Post-match points popup (knockout — there's no reinforcement modal there) ── */}
       <AnimatePresence>

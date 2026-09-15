@@ -3,7 +3,6 @@
 // variant / attribute / pack option) and dispatches the matching SHOP_* action; the reducer
 // validates the cost. Solo and online league flows share the same presentation.
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
 import { COACHES, POS_PT, Player, UNIQUE_CARDS } from '../../lib/gameData';
 import { generateStarPackOptions, generateScoutOptions, hasVariant, canAddVariant, variantCount } from '../../lib/gameEngine';
@@ -167,12 +166,9 @@ export default function ShopTab() {
       </div>
 
       {/* ⭐ A abertura ocupa a tela inteira: o pacote é a própria experiência, sem a modal padrão da loja. */}
-      <AnimatePresence>
+      <>
         {active === 'unique' && pendingUniquePack && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 z-[60]"
           >
             <UniquePackOpening
@@ -180,16 +176,16 @@ export default function ShopTab() {
               onClose={close}
               onClaim={() => { claimUniquePack(); close(); }}
             />
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </>
 
       {/* ── Modals ── */}
-      <AnimatePresence>
+      <>
         {active && !pendingUniquePack && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <div
             className="ui-modal-backdrop z-50 p-3 sm:p-4" onClick={close}>
-            <motion.div initial={{ y: 14 }} animate={{ y: 0 }} exit={{ y: 14 }} transition={{ duration: 0.18 }}
+            <div
               onClick={(e) => e.stopPropagation()}
               className="ui-modal ui-modal--wide flex max-h-[90vh] flex-col">
 
@@ -464,17 +460,16 @@ export default function ShopTab() {
                   })()
                 )}
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </>
 
       {/* 🛒 Confirmação de compra (premium) — acima do modal do item */}
-      <AnimatePresence>
+      <>
         {confirmCfg && (
           <div className="ui-modal-backdrop z-[70]" onClick={() => setConfirmCfg(null)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.94 }}
+            <div
               className="ui-modal max-w-sm border-[var(--ui-brand)] p-5 text-center"
               onClick={e => e.stopPropagation()}
             >
@@ -492,10 +487,10 @@ export default function ShopTab() {
                   CONFIRMAR
                 </Button>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
+      </>
     </div>
   );
 }
