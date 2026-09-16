@@ -12,6 +12,7 @@ import MatchDetailsModal from './MatchDetailsModal';
 import BetSlipModal from './BetSlipModal';
 import { buildKnockoutMatchKey, BET_ROUND_CAP, Bet } from '../../lib/bets';
 import { unavailableStarters } from '../../lib/discipline';
+import { getOnlineKnockoutParticipantIds, getReadinessStatus } from '../../lib/onlineReadiness';
 
 export default function KnockoutTiesTab() {
   const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
@@ -57,7 +58,7 @@ export default function KnockoutTiesTab() {
 
   const handlePlayLeg = () => {
     if (state.mode === 'online') {
-      if (!allReadyKO) return; // host inicia só com todos prontos (o host também confirma "pronto")
+      if (!allReadyKO) return; // host inicia só quando os participantes confirmam
       playKnockoutRoundOnline();
     } else {
       if (myUnavailableKO.length > 0) { setLineupWarning(myUnavailableKO.map(u => u.shortName ?? '?')); return; }
@@ -66,6 +67,7 @@ export default function KnockoutTiesTab() {
   };
   // ✅ Não-host confirma pronto (só com escalação válida).
   const handleReadyToggleKO = () => {
+    if (!iPlayThisRound) return;
     if (iAmReadyKO) { playerUnreadyOnline(); return; }
     if (myUnavailableKO.length > 0) { setLineupWarning(myUnavailableKO.map(u => u.shortName ?? '?')); return; }
     playerReadyOnline();
@@ -82,15 +84,15 @@ export default function KnockoutTiesTab() {
   // 🟥🩹 Escalação: bloqueia jogar a perna com titular indisponível (sem troca automática).
   const iPlayThisRound = matches.some(m => isPlayerTeam(m.homeTeamId) || isPlayerTeam(m.awayTeamId));
   const myUnavailableKO = (playerTeam && iPlayThisRound) ? unavailableStarters(playerTeam, state.discipline) : [];
-  // ✅ Ready-check (online): TODOS com tie (incluindo o host) confirmam "Estou pronto".
+  // ✅ Ready-check: only connected humans in an active tie participate. A host
+  // who has no tie can still control the room without confirming readiness.
   const readySet = new Set(state.onlineReadyPlayers);
-  const iAmReadyKO = !!localTeamId && readySet.has(localTeamId);
-  const humansWithTie = state.mode === 'online'
-    ? state.onlinePlayers.filter(p => p.team && matches.some(m => m.homeTeamId === p.id || m.awayTeamId === p.id))
+  const koParticipantIds = state.mode === 'online'
+    ? getOnlineKnockoutParticipantIds(state.onlinePlayers, matches)
     : [];
-  const totalReadyKO = humansWithTie.length;
-  const readyCountKO = state.onlineReadyPlayers.length;
-  const allReadyKO = readyCountKO >= totalReadyKO;
+  const iAmReadyKO = iPlayThisRound && !!localTeamId && readySet.has(localTeamId);
+  const koReadyStatus = getReadinessStatus(state.onlineReadyPlayers, koParticipantIds);
+  const { total: totalReadyKO, readyCount: readyCountKO, allReady: allReadyKO } = koReadyStatus;
 
   // SPECTATOR: a player with no tie in this round (eliminated / didn't qualify) can
   // watch any other human's match as a live broadcast. Their watch doesn't gate anyone.
@@ -434,8 +436,8 @@ export default function KnockoutTiesTab() {
                     🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU TIME.
                   </div>
                 )}
-                {/* ONLINE: o host também confirma "Estou pronto" (valida o próprio time). */}
-                {state.mode === 'online' && (
+                {/* ONLINE: só quem disputa um confronto confirma "Estou pronto". */}
+                {state.mode === 'online' && iPlayThisRound && (
                   iAmReadyKO ? (
                     <button onClick={handleReadyToggleKO} className="w-full py-3 rounded-xl font-black text-lg tracking-widest transition-all mb-2 active:scale-[0.98]"
                       style={{ fontFamily: 'Bebas Neue, sans-serif', background: '#0a1a0e', color: '#4ADE80', border: '1px solid #22C55E88', boxShadow: 'inset 0 3px 9px rgba(0,0,0,0.55)', transform: 'scale(0.985)' }} title="Toque para cancelar">
@@ -468,7 +470,7 @@ export default function KnockoutTiesTab() {
                 </button>
                 <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {state.mode === 'online' && !allReadyKO
-                    ? 'Todos (você incluso) precisam confirmar que estão prontos.'
+                    ? 'Todos os participantes do confronto precisam confirmar que estão prontos.'
                     : isFinalSingleLeg ? 'A grande final é em jogo único, em campo neutro.'
                       : isFinal ? 'A grande final será decidida em ida e volta, pelo placar agregado.'
                       : `Mata-mata em ida e volta — quem avança é decidido no placar agregado.${state.mode === 'online' ? ' Todos jogam ao mesmo tempo.' : ''}`}

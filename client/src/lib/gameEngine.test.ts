@@ -5,6 +5,7 @@ import {
   calculateTeamStrength, simulateMatch, generateBotTeam, generateDraftOptions,
   statKey, getPlayerSeasonStats, PREFERRED_FORMATION_CHEM_BONUS,
   PlayerCard, MatchResult, applyDefeatGrowth, teamLostMatch, RESILIENTE_DEFEAT_BOOST,
+  generateScoutOptions, SCOUT_MIN_OVERALL,
 } from './gameEngine';
 
 const asCard = (p: Player, over: Partial<PlayerCard> = {}): PlayerCard =>
@@ -13,6 +14,25 @@ const asCard = (p: Player, over: Partial<PlayerCard> = {}): PlayerCard =>
 const outfield = PLAYERS.find(p => p.position !== 'GK')!;
 const coach = COACHES[0];
 const noChem = { passing: 0, pace: 0, special: false };
+
+describe('scout pack filters', () => {
+  it('returns only unowned players with the requested primary position and minimum overall', () => {
+    const options = generateScoutOptions('RM', []);
+
+    expect(options).toHaveLength(4);
+    expect(options.every(player =>
+      player.position === 'RM'
+      && player.overall >= SCOUT_MIN_OVERALL,
+    )).toBe(true);
+  });
+
+  it('does not replace the strict filter with secondary-position players', () => {
+    const ownedRightMids = PLAYERS.filter(player => player.position === 'RM').map(player => player.id);
+    const options = generateScoutOptions('RM', ownedRightMids);
+
+    expect(options).toHaveLength(0);
+  });
+});
 
 describe('coach preferred-formation chemistry bonus', () => {
   it('adds the bonus to total chemistry only on the coach preferred formation', () => {

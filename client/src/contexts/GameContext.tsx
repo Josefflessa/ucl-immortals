@@ -235,6 +235,7 @@ export type GameAction =
   | { type: 'FINISH_GAME'; champion: string }
   | { type: 'RESET_GAME' }
   | { type: 'SET_ONLINE_STATE'; roomState: any; socketId: string }
+  | { type: 'SET_ONLINE_READY_PLAYERS'; readyPlayers: string[] }
   | { type: 'INIT_ONLINE'; socketId: string; roomCode: string; isHost: boolean }
   | { type: 'SET_ADVANCE_BLOCKED'; waiting: string[] | null }
   | { type: 'DISCONNECT_ONLINE' };
@@ -1432,6 +1433,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         isHost: action.isHost,
       };
 
+    case 'SET_ONLINE_READY_PLAYERS':
+      return { ...state, onlineReadyPlayers: action.readyPlayers };
+
     case 'SET_ADVANCE_BLOCKED':
       return { ...state, advanceBlocked: action.waiting };
 
@@ -1591,6 +1595,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     socketInstance.on("room_updated", (roomState: any) => {
       dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
+    });
+
+    socketInstance.on("ready_state_updated", ({ readyPlayers }: { readyPlayers?: string[] }) => {
+      dispatch({ type: 'SET_ONLINE_READY_PLAYERS', readyPlayers: readyPlayers || [] });
     });
 
     // Server refused an advance because not everyone has watched their match yet.

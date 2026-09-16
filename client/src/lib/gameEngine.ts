@@ -3308,11 +3308,16 @@ export function generateStarPackOptions(ownedIds: string[]): Player[] {
   return shuffleWithRarityWeight(pool).slice(0, 3).map(p => ({ ...p }));
 }
 
-// "Caça-Talentos": 4 players that can fill a chosen position, that the team doesn't own.
+// "Caça-Talentos": até 4 jogadores que têm a posição escolhida como PRINCIPAL,
+// que o time ainda não possui e com overall mínimo de 84. Não usar secundárias
+// aqui é intencional: o pacote serve para reforçar exatamente a vaga procurada.
+export const SCOUT_MIN_OVERALL = 84;
 export function generateScoutOptions(position: string, ownedIds: string[]): Player[] {
-  let pool = PLAYERS.filter(p =>
-    !ownedIds.includes(p.id) && positionFit(p, position) !== 'off');
-  if (pool.length < 4) pool = PLAYERS.filter(p => !ownedIds.includes(p.id));
+  const requestedPosition = canonicalPosition(position);
+  const pool = PLAYERS.filter(p =>
+    !ownedIds.includes(p.id)
+    && canonicalPosition(p.position) === requestedPosition
+    && p.overall >= SCOUT_MIN_OVERALL);
   return shuffleWithRarityWeight(pool).slice(0, 4).map(p => ({ ...p }));
 }
 

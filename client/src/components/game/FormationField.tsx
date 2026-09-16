@@ -376,6 +376,7 @@ export default function FormationField({
             <motion.div
               key={index}
               className={`absolute flex items-center justify-center ${canReorderPlayers && player ? 'cursor-grab active:cursor-grabbing' : ''} ${dragOverIndex === index ? 'z-20 rounded-xl ring-2 ring-[#E8C84A] ring-offset-2 ring-offset-[#08250E]' : ''}`}
+              data-player-slot={showPlayerCards ? index : undefined}
               style={{ left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: displayedCardWidth, height: displayedCardHeight }}
               transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
               initial={{ opacity: 0, scale: 0.92 }}

@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
 import { COACHES, POS_PT, Player, UNIQUE_CARDS } from '../../lib/gameData';
-import { generateStarPackOptions, generateScoutOptions, hasVariant, canAddVariant, variantCount } from '../../lib/gameEngine';
+import { generateStarPackOptions, generateScoutOptions, SCOUT_MIN_OVERALL, hasVariant, canAddVariant, variantCount } from '../../lib/gameEngine';
 import type { VariantFlag } from '../../lib/gameEngine';
 import { SHOP_COSTS, trainCost, TRAIN_BOOST, TRAIN_ATTRS, TURBINAR_VARIANTS, ShopVariant, TrainAttr } from '../../lib/shop';
 import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
@@ -82,7 +82,7 @@ export default function ShopTab() {
     { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador. Só em quem NÃO tem característica.' },
     { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: SHOP_COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
     { id: 'star', icon: '🌟', name: 'PACOTE DO CRAQUE', cost: SHOP_COSTS.starPack, color: '#F59E0B', desc: 'Paga ao abrir e escolhe 1 de 3 jogadores (overall 88+). Entra no banco.' },
-    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: 'Paga ao abrir e escolhe 1 de 4 da posição que você precisa.' },
+    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: `Paga ao abrir e escolhe 1 de até 4 jogadores ${SCOUT_MIN_OVERALL}+ da posição principal escolhida.` },
     { id: 'train', icon: '💪', name: 'TREINO INTENSIVO', cost: 'dyn', color: '#34D399', desc: `+${TRAIN_BOOST} permanente num atributo (sem teto). Custo sobe a cada treino no mesmo jogador.` },
     { id: 'reroll', icon: '🔄', name: 'REROLL DE REFORÇO', cost: SHOP_COSTS.reroll, color: '#F472B6', desc: `Re-sorteia as opções do reforço pós-partida. Acumula entre rodadas. Você tem: ${state.reinforcementRerolls}.` },
   ];
@@ -116,7 +116,7 @@ export default function ShopTab() {
 
   const pickScoutPosition = (pos: string) => {
     if (points < SHOP_COSTS.scout) return;
-    askConfirm('Caça-Talentos', `Abrir o Caça-Talentos de ${POS_PT[pos] ?? pos} por 💰 ${SHOP_COSTS.scout}? (você escolhe 1 de 4)`, () => {
+    askConfirm('Caça-Talentos', `Abrir o Caça-Talentos de ${POS_PT[pos] ?? pos} por 💰 ${SHOP_COSTS.scout}? (posição principal, overall ${SCOUT_MIN_OVERALL}+)`, () => {
       openPack('scout', generateScoutOptions(pos, ownedIds), pos); // COBRA ao abrir
     });
   };

@@ -1,4 +1,5 @@
-// UCL Immortals — Club crest catalogue (Wikimedia SVG/PNG, each URL individually verified).
+// UCL Immortals — Club crest catalogue. The Brazilian additions use local assets
+// so they remain available even when the remote image host is unavailable.
 // Auto-generated from a verified list; every filename self-documents its club so the image
 // always matches the name. Keyed by a stable slug `id`. Crests are lazy-loaded on demand.
 // Do NOT hand-edit ids — bots and saved games reference them.
@@ -159,6 +160,13 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "fluminense", name: "Fluminense", url: "https://upload.wikimedia.org/wikipedia/commons/1/12/Fluminense_Football_Club.svg" },
       { id: "ceara", name: "Ceará", url: "https://upload.wikimedia.org/wikipedia/commons/3/38/Cear%C3%A1_Sporting_Club_logo.svg" },
       { id: "fortaleza", name: "Fortaleza", url: "https://upload.wikimedia.org/wikipedia/commons/3/3d/Fortaleza_Esporte_Clube_logo.svg" },
+      { id: "cruzeiro", name: "Cruzeiro", url: "/crests/cruzeiro.svg" },
+      { id: "bahia", name: "Bahia", url: "/crests/bahia.svg" },
+      { id: "juventude", name: "Juventude", url: "/crests/juventude.svg" },
+      { id: "vitoria", name: "Vitória", url: "/crests/vitoria.svg" },
+      { id: "mirassol", name: "Mirassol", url: "/crests/mirassol.svg" },
+      { id: "bragantino", name: "Bragantino", url: "/crests/bragantino.png" },
+      { id: "sport", name: "Sport", url: "/crests/sport.svg" },
     ]
   },
   {

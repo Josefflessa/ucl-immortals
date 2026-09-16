@@ -3,10 +3,12 @@
 // matches in MEU TIME). Shows, in plain language, what each shape does in a match —
 // derived from formationProfile so the UI matches the actual engine behaviour.
 
+import { useState } from 'react';
 import { FORMATIONS } from '../../lib/gameData';
 import { formationProfile } from '../../lib/gameEngine';
 import ImpactMeter from './ImpactMeter';
 import { ChoiceCard } from '../../design-system';
+import FormationPreviewModal, { FormationInfoButton } from './FormationPreviewModal';
 
 interface Tag { label: string; color: string; }
 
@@ -36,6 +38,8 @@ interface Props { value: string | undefined; onChange: (id: string) => void; }
 
 export default function FormationSelector({ value, onChange }: Props) {
   const active = FORMATIONS.find(f => f.id === value) ?? FORMATIONS[0];
+  const [previewFormationId, setPreviewFormationId] = useState<string | null>(null);
+  const previewFormation = FORMATIONS.find(f => f.id === previewFormationId) ?? null;
 
   return (
     <div className="ui-panel p-4">
@@ -58,20 +62,22 @@ export default function FormationSelector({ value, onChange }: Props) {
         {FORMATIONS.map((f) => {
           const isActive = active.id === f.id;
           return (
-            <ChoiceCard
-              key={f.id}
-              selected={isActive}
-              onClick={() => onChange(f.id)}
-              title={`${f.name}: perfil de controle, ataque e defesa`}
-              className="px-3 py-3"
-            >
-              <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: isActive ? '#C9A84C' : '#FFF' }}>
-                {f.name}
-              </div>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {profileTags(f.id).slice(0, 2).map((t, i) => <Chip key={i} tag={t} />)}
-              </div>
-            </ChoiceCard>
+            <div key={f.id} className="relative h-full">
+              <ChoiceCard
+                selected={isActive}
+                onClick={() => onChange(f.id)}
+                title={`${f.name}: perfil de controle, ataque e defesa`}
+                className="h-full px-3 py-3 pr-11"
+              >
+                <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: isActive ? '#C9A84C' : '#FFF' }}>
+                  {f.name}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {profileTags(f.id).slice(0, 2).map((t, i) => <Chip key={i} tag={t} />)}
+                </div>
+              </ChoiceCard>
+              <FormationInfoButton formationName={f.name} onClick={() => setPreviewFormationId(f.id)} />
+            </div>
           );
         })}
       </div>
@@ -86,6 +92,12 @@ export default function FormationSelector({ value, onChange }: Props) {
         </div>
         <ImpactMeter profile={formationProfile(active.id)} />
       </div>
+
+      <FormationPreviewModal
+        formation={previewFormation}
+        open={previewFormation !== null}
+        onOpenChange={open => { if (!open) setPreviewFormationId(null); }}
+      />
     </div>
   );
 }

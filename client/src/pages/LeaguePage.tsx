@@ -19,6 +19,7 @@ import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import BetSlipModal from '../components/game/BetSlipModal';
 import { buildLeagueMatchKey, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
 import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
+import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus } from '../lib/onlineReadiness';
 import type { MatchResult, Team } from '../lib/gameEngine';
 import type { Player } from '../lib/gameData';
 import { POS_PT } from '../lib/gameData';
@@ -252,18 +253,21 @@ export default function LeaguePage() {
 
   // 🟥🩹 Escalação: titulares indisponíveis do MEU time (bloqueia jogar/pronto até ajustar).
   const myUnavailable = playerTeam ? unavailableStarters(playerTeam, state.discipline) : [];
-  // ✅ Ready-check (online): TODOS (incluindo o host) confirmam "Estou pronto"; o host inicia com todos prontos.
+  // ✅ Ready-check: only connected humans with a fixture in this round participate.
+  // A host who qualified directly (or has a bye) still controls the room, but does
+  // not need to confirm readiness for a match they are not playing.
   const readySet = new Set(state.onlineReadyPlayers);
-  const iAmReady = !!localTeamId && readySet.has(localTeamId);
-  const totalReady = state.mode === 'online' ? state.onlinePlayers.filter(p => !!p.team).length : 0;
-  const readyCount = state.onlineReadyPlayers.length;
-  const allReady = readyCount >= totalReady;
+  const leagueParticipantIds = state.mode === 'online'
+    ? getOnlineLeagueParticipantIds(state.onlinePlayers, currentRoundFixtures, leagueRound)
+    : [];
+  const leagueReadyStatus = getReadinessStatus(state.onlineReadyPlayers, leagueParticipantIds);
+  const isActiveLeagueParticipant = !!localTeamId && leagueParticipantIds.includes(localTeamId);
+  const iAmReady = isActiveLeagueParticipant && readySet.has(localTeamId!);
+  const { readyCount, total: totalReady, allReady } = leagueReadyStatus;
 
   // Online: which human players still need to watch their match before host can advance
   const humanPlayersWithMatch = state.mode === 'online'
-    ? state.onlinePlayers.filter(p =>
-        currentRoundFixtures.some(f => f.homeTeamId === p.id || f.awayTeamId === p.id)
-      )
+    ? state.onlinePlayers.filter(p => leagueParticipantIds.includes(p.id))
     : [];
   const allPlayersWatched = humanPlayersWithMatch.length === 0 ||
     humanPlayersWithMatch.every(p => state.onlineWatchedPlayers.includes(p.id));
@@ -275,7 +279,10 @@ export default function LeaguePage() {
 
   // Knockout equivalent: everyone in the active tie round must have watched the leg.
   const koMatches = isKnockout && state.knockoutBracket ? getActiveKnockoutMatches(state.knockoutBracket) : [];
-  const koHumans = state.mode === 'online' ? state.onlinePlayers.filter(p => koMatches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id)) : [];
+  const koParticipantIds = state.mode === 'online'
+    ? getOnlineKnockoutParticipantIds(state.onlinePlayers, koMatches)
+    : [];
+  const koHumans = state.mode === 'online' ? state.onlinePlayers.filter(p => koParticipantIds.includes(p.id)) : [];
   const koAllWatched = koHumans.length === 0 || koHumans.every(p => state.onlineWatchedPlayers.includes(p.id));
 
   // Unified anti-spoiler gate: the POSITION notice, CLASSIFICAÇÃO, ESTATÍSTICAS and (knockout)
@@ -328,6 +335,7 @@ export default function LeaguePage() {
   };
   // ✅ Não-host aperta "Estou pronto" (só se a escalação estiver ok).
   const handleReadyToggle = () => {
+    if (!isActiveLeagueParticipant) return;
     if (iAmReady) { playerUnreadyOnline(); return; }
     if (myUnavailable.length > 0) {
       const emergency = playerTeam ? getEmergencyReplacementTarget(playerTeam, state.discipline) : null;
@@ -786,9 +794,9 @@ export default function LeaguePage() {
               >
                 {state.isHost ? (
                   !allFixturesPlayed ? (
-                    /* Host: confirma "Estou pronto" (valida o próprio time) e depois inicia a rodada. */
+                    /* O host controla a rodada; só confirma pronto se também tiver partida. */
                     <>
-                      {iAmReady ? (
+                      {isActiveLeagueParticipant && (iAmReady ? (
                         <button onClick={handleReadyToggle}
                           className="w-full py-3 rounded-xl font-black text-lg tracking-widest transition-all mb-2 active:scale-[0.98]"
                           style={{ fontFamily: 'Bebas Neue, sans-serif', background: '#0a1a0e', color: '#4ADE80', border: '1px solid #22C55E88', boxShadow: 'inset 0 3px 9px rgba(0,0,0,0.55)', transform: 'scale(0.985)' }}
@@ -801,6 +809,11 @@ export default function LeaguePage() {
                           style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)', color: '#04140A', boxShadow: '0 4px 0 #16833f, 0 8px 18px rgba(34,197,94,0.25)' }}>
                           ✅ ESTOU PRONTO
                         </button>
+                      ))}
+                      {!isActiveLeagueParticipant && totalReady > 0 && (
+                        <div className="mb-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                          Você não disputa esta rodada; o anfitrião inicia quando os participantes confirmarem.
+                        </div>
                       )}
                       {totalReady > 0 && (
                         <div className="mb-2 text-[11px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: allReady ? '#22C55E' : '#C9A84C' }}>
@@ -821,7 +834,9 @@ export default function LeaguePage() {
                         ▶ JOGAR RODADA {leagueRound}
                       </button>
                       <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                        {allReady ? 'Todas as partidas começam ao mesmo tempo para todos.' : 'Todos (você incluso) precisam confirmar que estão prontos.'}
+                        {allReady
+                          ? 'Todas as partidas começam ao mesmo tempo para todos.'
+                          : 'Todos os participantes com partida precisam confirmar que estão prontos.'}
                       </div>
                     </>
                   ) : !allPlayersWatched ? (
@@ -862,8 +877,8 @@ export default function LeaguePage() {
                   )
                 ) : (
                   !allFixturesPlayed ? (
-                    /* ✅ Não-host: confirma "Estou pronto" (só com escalação válida). */
-                    <>
+                    /* ✅ Só quem tem partida nesta rodada confirma "Estou pronto". */
+                    isActiveLeagueParticipant ? <>
                       {iAmReady ? (
                         <button onClick={handleReadyToggle}
                           className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all active:scale-[0.98]"
@@ -880,6 +895,15 @@ export default function LeaguePage() {
                       )}
                       <div className="mt-2 text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
                         {readyCount}/{totalReady} pronto{totalReady !== 1 ? 's' : ''} · o anfitrião inicia quando todos confirmarem.
+                      </div>
+                    </> : <>
+                      {totalReady > 0 && (
+                        <div className="mb-2 text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                          {readyCount}/{totalReady} participantes prontos.
+                        </div>
+                      )}
+                      <div className="py-2 text-sm font-bold text-yellow-500/80" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                        Você não disputa esta rodada. Aguardando o anfitrião iniciar.
                       </div>
                     </>
                   ) : (

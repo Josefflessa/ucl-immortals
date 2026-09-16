@@ -19,6 +19,7 @@ import {
   TRAIN_BOOST,
   TURBINAR_VARIANTS,
 } from '../../lib/shop';
+import { SCOUT_MIN_OVERALL } from '../../lib/gameEngine';
 import {
   COMPETITION_FORMAT_PRESETS,
   DEFAULT_POINTS_CONFIG,
@@ -100,7 +101,7 @@ const ECONOMY_ITEMS = [
   { icon: '✨', name: 'Turbinar carta', cost: SHOP_COSTS.turbinar, d: 'Aplica uma característica especial a um jogador que ainda não tem uma.' },
   { icon: '🧹', name: 'Remover característica', cost: SHOP_COSTS.removeVariant, d: 'Remove a característica atual para liberar uma nova aplicação de Turbinar.' },
   { icon: '🌟', name: 'Pacote do Craque', cost: SHOP_COSTS.starPack, d: 'Oferece três opções de jogadores de overall 88 ou mais.' },
-  { icon: '🔍', name: 'Caça-talentos', cost: SHOP_COSTS.scout, d: 'Oferece quatro opções filtradas pela posição que você precisa.' },
+  { icon: '🔍', name: 'Caça-talentos', cost: SHOP_COSTS.scout, d: `Oferece até quatro jogadores ${SCOUT_MIN_OVERALL}+ cuja posição principal é a escolhida.` },
   { icon: '💪', name: 'Treino intensivo', cost: trainCost(0), d: `Aumenta um atributo em +${TRAIN_BOOST}; o custo sobe a cada treino no mesmo jogador.` },
   { icon: '🔄', name: 'Reroll de reforço', cost: SHOP_COSTS.reroll, d: 'Gera um token para sortear novas opções no reforço pós-partida; tokens acumulam.' },
   { icon: '⭐', name: 'Pacote Único', cost: SHOP_COSTS.uniqueCard, d: 'Compra uma carta Única aleatória de overall 99; ela pode ter até duas características.' },

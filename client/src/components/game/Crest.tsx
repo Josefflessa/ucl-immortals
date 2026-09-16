@@ -40,6 +40,7 @@ function CrestImpl({ crestId, name, size = 24, className }: CrestProps) {
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
+        draggable={false}
         onError={() => setFailed(true)}
         className={className}
         style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }}

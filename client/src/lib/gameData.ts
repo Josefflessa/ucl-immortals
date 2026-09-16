@@ -1,6 +1,8 @@
 // UCL Immortals — Game Data
 // Players, Coaches, Formations, Historical Trios
 
+import { BRAZILIAN_STARTERS } from './brazilianStarters';
+
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
 
@@ -612,6 +614,7 @@ export const HISTORICAL_TRIOS: HistoricalTrio[] = [
 // PLAYERS DATABASE
 // ============================================================
 export const PLAYERS: Player[] = [
+  ...BRAZILIAN_STARTERS,
   // ===== IMMORTALS =====
   {
     id: 'messi',

@@ -495,6 +495,11 @@ const NATION_CODES: Record<string, string> = {
   'Bósnia': 'ba',
   'México': 'mx',
   'Marrocos': 'ma',
+  'Angola': 'ao',
+  'Equador': 'ec',
+  'Paraguai': 'py',
+  'Peru': 'pe',
+  'Venezuela': 've',
   // A seleção soviética deixou de existir; a bandeira russa é a referência
   // visual disponível para representar seus jogadores históricos.
   'União Soviética': 'ru',
@@ -874,6 +879,7 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
       loading={lowRes ? 'lazy' : 'eager'}
       decoding="async"
       referrerPolicy="no-referrer"
+      draggable={false}
       onError={handleError}
       style={{
         width: '100%',

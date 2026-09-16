@@ -37,6 +37,7 @@ import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTI
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
 import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
+import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
 import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
@@ -96,7 +97,7 @@ interface RoomState {
   // Synchronization: which human players have confirmed watching the current round/leg
   watchedRoundPlayers: string[];
   watchedKnockoutLegPlayers: string[];
-  readyPlayers: string[];    // ✅ jogadores (não-host) que confirmaram "Estou pronto" p/ a rodada/perna atual
+  readyPlayers: string[];    // ✅ participantes da rodada/perna atual que confirmaram "Estou pronto"
   discipline: DisciplineMap; // 🟨🟥🩹 disponibilidade por jogador (todos os times)
   market: MarketListing[];   // 🏪 anúncios do mercado online (jogadores em escrow, fora dos elencos)
   draftState: {
@@ -192,6 +193,40 @@ function isHost(room: RoomState, socketId: string): boolean {
   return !!host && host.socketId === socketId;
 }
 
+function leagueParticipantIds(room: RoomState): string[] {
+  return getOnlineLeagueParticipantIds(room.players, room.leagueFixtures, room.leagueRound);
+}
+
+function knockoutParticipantIds(room: RoomState): string[] {
+  return room.knockoutBracket
+    ? getOnlineKnockoutParticipantIds(room.players, getActiveKnockoutMatches(room.knockoutBracket))
+    : [];
+}
+
+function invalidateReady(room: RoomState, playerId: string): void {
+  room.readyPlayers = room.readyPlayers.filter(id => id !== playerId);
+}
+
+function emitReadyState(io: Server, room: RoomState): void {
+  // Readiness is shared UI state, while room_updated may contain private shop
+  // offers and balances. Keep the two channels separate.
+  io.to(room.code).emit("ready_state_updated", { readyPlayers: room.readyPlayers });
+}
+
+function pruneReadyPlayers(room: RoomState, participantIds: string[]): void {
+  const participants = new Set(participantIds);
+  room.readyPlayers = room.readyPlayers.filter(id => participants.has(id));
+}
+
+function currentKnockoutLegWasPlayed(room: RoomState, tie: any): boolean {
+  if (!room.knockoutBracket) return false;
+  const isFinalRound = room.knockoutBracket.currentRound === 'final';
+  const isSingleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
+  return isSingleLeg
+    ? !!tie.played && !!tie.result
+    : room.knockoutBracket.currentLeg === 2 ? !!tie.leg2 : !!tie.leg1;
+}
+
 // Whether every human in the active knockout round has confirmed watching the leg
 // that was just played. Used to gate BOTH playing the next leg (ida → volta) and
 // advancing the bracket (after the volta) — so the host can never skip ahead.
@@ -204,9 +239,7 @@ function knockoutWatchStatus(room: RoomState): { allWatched: boolean; waiting: s
     : (bracket as any)[roundKey] || [];
   // Only CONNECTED humans gate advancement — a player who left/disconnected must not
   // freeze the host waiting for a "watch" that will never come.
-  const humanIdsInRound = room.players
-    .filter(p => p.connected && currentMatches.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id))
-    .map(p => p.id);
+  const humanIdsInRound = getOnlineKnockoutParticipantIds(room.players, currentMatches);
   const allWatched = humanIdsInRound.every(id => room.watchedKnockoutLegPlayers.includes(id));
   const waiting = room.players
     .filter(p => humanIdsInRound.includes(p.id) && !room.watchedKnockoutLegPlayers.includes(p.id))
@@ -218,9 +251,8 @@ function knockoutWatchStatus(room: RoomState): { allWatched: boolean; waiting: s
 // assistiram, credita de uma vez os pontos da partida (pendentes) + os ganhos dos palpites.
 // Idempotente: zera pendingMatchPoints e marca bets revealed após creditar.
 function creditLeagueRoundIfAllWatched(room: RoomState): void {
-  const roundFixtures = room.leagueFixtures.filter(f => f.round === room.leagueRound);
-  const withFixture = room.players.filter(p => p.connected && roundFixtures.some(f => f.homeTeamId === p.id || f.awayTeamId === p.id));
-  const allWatched = withFixture.length > 0 && withFixture.every(p => room.watchedRoundPlayers.includes(p.id));
+  const withFixture = leagueParticipantIds(room);
+  const allWatched = withFixture.length > 0 && withFixture.every(id => room.watchedRoundPlayers.includes(id));
   if (!allWatched) return;
   const betPrefix = `L${room.leagueRound}:`;
   room.players.forEach(p => {
@@ -644,7 +676,8 @@ export function registerSocketHandlers(io: Server) {
       player.ready = true;
 
       // Check if all players have submitted setup
-      const allReady = room.players.every(p => p.ready);
+      const connectedPlayers = room.players.filter(p => p.connected);
+      const allReady = connectedPlayers.length > 0 && connectedPlayers.every(p => p.ready);
       if (allReady) {
         // Build Snake Draft Order for 13 rounds (11 titulares + 2 reservas)
         const numPlayers = room.players.length;
@@ -889,7 +922,9 @@ export function registerSocketHandlers(io: Server) {
           player.team.totalChemistry = chemData.total;
         }
       }
-      socket.emit("room_updated", room); // only this player's own lineup changed
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     // Each player owns their own automatic match plan. The server validates and stores the
@@ -899,7 +934,7 @@ export function registerSocketHandlers(io: Server) {
       const room = rooms.get(roomCode);
       if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team) return;
+      if (!player || !player.connected || !player.team) return;
       const canonicalMatchPlan = validateMatchPlan(matchPlan);
       if (!canonicalMatchPlan) return;
 
@@ -907,7 +942,7 @@ export function registerSocketHandlers(io: Server) {
       player.team.matchPlan = canonicalMatchPlan;
       // Editing a plan after pressing "Estou pronto" invalidates that confirmation. This
       // prevents a player from changing instructions while the host is resolving the round.
-      room.readyPlayers = room.readyPlayers.filter(id => id !== player.id);
+      invalidateReady(room, player.id);
       io.to(roomCode).emit("room_updated", room);
     });
 
@@ -937,12 +972,14 @@ export function registerSocketHandlers(io: Server) {
       player.penaltyTaker = penaltyTaker ?? null;
       player.freeKickTaker = freeKickTaker ?? null;
       // ✅ Mudou a escalação → precisa reconfirmar "Estou pronto".
-      if (room.readyPlayers.includes(player.id)) {
-        room.readyPlayers = room.readyPlayers.filter(id => id !== player.id);
+      const wasReady = room.readyPlayers.includes(player.id);
+      invalidateReady(room, player.id);
+      if (wasReady) {
         io.to(roomCode).emit("room_updated", room);
       } else {
         socket.emit("room_updated", room);
       }
+      if (wasReady) emitReadyState(io, room);
     });
 
     // 🩸 Mártir — set which (up to 2) XI teammates receive the +3. Validated against the CURRENT XI.
@@ -957,7 +994,9 @@ export function registerSocketHandlers(io: Server) {
       const starterIds = new Set(player.team.players.slice(0, 11).map(p => p.id));
       const valid = (targetIds || []).filter(id => id !== playerId && starterIds.has(id)).slice(0, 2);
       player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, martirTargets: valid } : p);
-      socket.emit("room_updated", room); // only this player's own team changed
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     // ⭐ Carta Evoluída: escolher 1 atributo e aplicar os 6 pontos (só carta evoluída do próprio time).
@@ -969,7 +1008,9 @@ export function registerSocketHandlers(io: Server) {
       if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr) || !Number.isInteger(delta) || delta !== EVOLVE_POINTS) return;
       player.team.players = player.team.players.map(p =>
         (p.id === playerId && isEvolved(p)) ? { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta) } : p);
-      socket.emit("room_updated", room); // only this player's own team changed
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
     on("reset_evolve_points", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
@@ -977,7 +1018,9 @@ export function registerSocketHandlers(io: Server) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, evolvePoints: {} } : p);
-      socket.emit("room_updated", room); // only this player's own team changed
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     // ============================================================
@@ -997,7 +1040,9 @@ export function registerSocketHandlers(io: Server) {
       player.coachId = coachId;
       player.team.coachId = coachId;
       player.team = rebuildTeamChemistry(player.team);
-      socket.emit("room_updated", room); // only this player's own team changed
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     on("evolve_coach_prime", ({ roomCode }: { roomCode: string }) => {
@@ -1010,7 +1055,9 @@ export function registerSocketHandlers(io: Server) {
       player.points -= PRIME_COST;
       player.coachPrime = true;
       player.team.coachPrime = true;
-      socket.emit("room_updated", room); // só o time deste jogador mudou
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     // ⭐ Pacote Único — cobra na abertura, sorteia no servidor e guarda o resultado
@@ -1054,7 +1101,9 @@ export function registerSocketHandlers(io: Server) {
       // Assim, um estado inconsistente não faz o jogador perder uma compra já paga.
       player.pendingUniquePack = null;
       player.team.players = [...player.team.players, card];
+      invalidateReady(room, player.id);
       socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     // 🛒 Abrir pacote (Craque/Caça-Talentos): COBRA aqui e guarda as opções → impede re-sortear de graça.
@@ -1093,8 +1142,10 @@ export function registerSocketHandlers(io: Server) {
       if (valid && chosen) {
         const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
         player.team.players = [...player.team.players, card];
+        invalidateReady(room, player.id);
       }
       socket.emit("room_updated", room);
+      if (valid && chosen) emitReadyState(io, room);
     });
 
     on("shop_turbinar", ({ roomCode, playerId, variant }: { roomCode: string; playerId: string; variant: ShopVariant }) => {
@@ -1111,7 +1162,9 @@ export function registerSocketHandlers(io: Server) {
       player.team.players = player.team.players.map(p =>
         p.id === playerId ? ({ ...applyShopVariant(p, variant), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
       player.team = rebuildTeamChemistry(player.team);
-      socket.emit("room_updated", room); // only this player's own team changed
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     // 🧹 Remove a card's characteristic (so a new one can be applied via Turbinar).
@@ -1128,7 +1181,9 @@ export function registerSocketHandlers(io: Server) {
       player.team.players = player.team.players.map(p =>
         p.id === playerId ? ({ ...(variantKey ? stripSpecificVariant(p, variantKey) : stripVariant(p)), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
       player.team = rebuildTeamChemistry(player.team);
-      socket.emit("room_updated", room); // only this player's own team changed
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     // 🎯 PALPITE — apostar/editar. Escrow debitado na hora; validado no servidor (fundos, teto,
@@ -1145,7 +1200,7 @@ export function registerSocketHandlers(io: Server) {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player) return;
+      if (!player || !player.connected) return;
       if (!Number.isInteger(stake) || stake <= 0 || !Number.isInteger(homeGoals) || !Number.isInteger(awayGoals) || homeGoals < 0 || awayGoals < 0) return;
 
       // A partida-alvo tem que existir, ser da rodada/perna ativa e ainda NÃO ter sido jogada.
@@ -1210,7 +1265,9 @@ export function registerSocketHandlers(io: Server) {
       if (!room.discipline[key] || room.discipline[key].injured <= 0) return;
       player.points -= SHOP_COSTS.physio;
       room.discipline = healInjury(room.discipline, player.team.id, playerId);
+      invalidateReady(room, player.id);
       socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     on("shop_train", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: TrainAttr }) => {
@@ -1230,7 +1287,9 @@ export function registerSocketHandlers(io: Server) {
         boosts[attr] = (boosts[attr] ?? 0) + TRAIN_BOOST;
         return { ...p, trainBoosts: boosts, trainCount: (p.trainCount ?? 0) + 1 };
       });
-      socket.emit("room_updated", room); // only this player's own team changed
+      invalidateReady(room, player.id);
+      socket.emit("room_updated", room);
+      emitReadyState(io, room);
     });
 
     // 🔄 Buy a reinforcement re-roll token (unlimited; persists across rounds).
@@ -1256,7 +1315,8 @@ export function registerSocketHandlers(io: Server) {
       player.team.players = player.team.players.filter((_, i) => i !== idx);
       delete room.discipline[`${player.team.id}:${playerId}`];
       player.points += sellValue(sold.rarity);
-      socket.emit("room_updated", room);
+      invalidateReady(room, player.id);
+      io.to(roomCode).emit("room_updated", room);
     });
 
     // 🏪 Mercado online — ANUNCIAR uma reserva (escrow: sai do banco do vendedor).
@@ -1273,6 +1333,7 @@ export function registerSocketHandlers(io: Server) {
       seller.team.players = seller.team.players.filter((_, i) => i !== idx);
       delete room.discipline[`${seller.team.id}:${playerId}`];
       room.market.push({ id: `m${++marketSeq}`, sellerId: seller.id, sellerName: seller.name, player, price });
+      invalidateReady(room, seller.id);
       io.to(room.code).emit("room_updated", room);
     });
 
@@ -1285,6 +1346,7 @@ export function registerSocketHandlers(io: Server) {
       if (!seller || !seller.team || !li || li.sellerId !== seller.id) return;
       seller.team.players.push({ ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard);
       room.market = room.market.filter(l => l.id !== listingId);
+      invalidateReady(room, seller.id);
       io.to(room.code).emit("room_updated", room);
     });
 
@@ -1304,6 +1366,7 @@ export function registerSocketHandlers(io: Server) {
       seller.points += li.price;
       buyer.team.players.push({ ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard);
       room.market = room.market.filter(l => l.id !== listingId);
+      invalidateReady(room, buyer.id);
       io.to(room.code).emit("room_updated", room);
     });
 
@@ -1329,6 +1392,7 @@ export function registerSocketHandlers(io: Server) {
       if (player.reinforcementOptions?.some(o => o.id === chosen.id) && !player.team.players.some(p => p.id === chosen.id)) {
         const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
         player.team.players = [...player.team.players, card];
+        invalidateReady(room, player.id);
       }
       player.reinforcementOptions = null;
       socket.emit("room_updated", room); // only this player's own bench changed
@@ -1366,7 +1430,7 @@ export function registerSocketHandlers(io: Server) {
       }
 
       player.team = updatedTeam;
-      room.readyPlayers = room.readyPlayers.filter(id => id !== player.id);
+      invalidateReady(room, player.id);
       io.to(room.code).emit("room_updated", room);
     });
 
@@ -1378,13 +1442,17 @@ export function registerSocketHandlers(io: Server) {
     // current round at once (single source of truth) so the scores/data are
     // identical on every device. Each human then watches their own match as a
     // deterministic replay of the result the server produced here.
-    // ✅ "Estou pronto" — um jogador NÃO-host confirma que está pronto p/ a rodada. Só pode com
-    // escalação válida (nenhum suspenso/lesionado no XI); senão avisa o porquê.
+    // ✅ "Estou pronto" — só um participante humano conectado da rodada/perna atual
+    // pode confirmar, e a escalação precisa estar válida.
     on("player_ready", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team) return;
+      if (!player || !player.connected || !player.team) return;
+      if (room.phase !== 'league' && room.phase !== 'knockout') return;
+      const participantIds = room.phase === 'league' ? leagueParticipantIds(room) : knockoutParticipantIds(room);
+      pruneReadyPlayers(room, participantIds);
+      if (!participantIds.includes(player.id)) return;
       const bad = unavailableStarters(player.team, room.discipline);
       if (bad.length > 0) { socket.emit("ready_blocked", { players: bad.map((u: any) => u.shortName) }); return; }
       if (!room.readyPlayers.includes(player.id)) room.readyPlayers.push(player.id);
@@ -1404,11 +1472,10 @@ export function registerSocketHandlers(io: Server) {
       if (!room || room.phase !== 'league') return;
       if (!isHost(room, socket.id)) return;
 
-      // ✅ TODOS os jogadores com jogo na rodada (INCLUINDO o host) precisam ter apertado "Estou
-      // pronto" — e o próprio player_ready valida a escalação de cada um ao confirmar.
-      const withFixture = room.players.filter(p => p.connected && p.team
-        && room.leagueFixtures.some(f => f.round === room.leagueRound && (f.homeTeamId === p.id || f.awayTeamId === p.id)));
-      if (!withFixture.every(p => room.readyPlayers.includes(p.id))) return; // ainda faltam prontos
+      // ✅ Apenas humanos conectados com partida na rodada entram no ready-check.
+      const participantIds = leagueParticipantIds(room);
+      pruneReadyPlayers(room, participantIds);
+      if (!participantIds.every(id => room.readyPlayers.includes(id))) return; // ainda faltam prontos
 
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
@@ -1507,13 +1574,11 @@ export function registerSocketHandlers(io: Server) {
 
       // Block advancement until every CONNECTED human with a match this round has watched
       // (a player who left/disconnected must not freeze the host).
-      const playersWithFixture = room.players.filter(p =>
-        p.connected && roundFixtures.some(f => f.homeTeamId === p.id || f.awayTeamId === p.id)
-      );
-      const allWatched = playersWithFixture.every(p => room.watchedRoundPlayers.includes(p.id));
+      const playersWithFixture = getOnlineLeagueParticipantIds(room.players, roundFixtures, room.leagueRound);
+      const allWatched = playersWithFixture.every(id => room.watchedRoundPlayers.includes(id));
       if (!allWatched) {
-        const waiting = playersWithFixture
-          .filter(p => !room.watchedRoundPlayers.includes(p.id))
+        const waiting = room.players
+          .filter(p => playersWithFixture.includes(p.id) && !room.watchedRoundPlayers.includes(p.id))
           .map(p => p.name);
         socket.emit("advance_blocked", { waiting });
         return;
@@ -1563,11 +1628,10 @@ export function registerSocketHandlers(io: Server) {
         }
       }
 
-      // ✅ Ready-check do mata-mata: TODOS com tie na rodada (incluindo o host) prontos.
-      const activeTies = getActiveKnockoutMatches(room.knockoutBracket) as any[];
-      const koWithTie = room.players.filter(p => p.connected && p.team
-        && activeTies.some((m: any) => m.homeTeamId === p.id || m.awayTeamId === p.id));
-      if (!koWithTie.every(p => room.readyPlayers.includes(p.id))) return;
+      // ✅ Ready-check do mata-mata: apenas humanos conectados em confronto ativo.
+      const participantIds = knockoutParticipantIds(room);
+      pruneReadyPlayers(room, participantIds);
+      if (!participantIds.every(id => room.readyPlayers.includes(id))) return;
 
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
@@ -1690,18 +1754,32 @@ export function registerSocketHandlers(io: Server) {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player) return;
+      if (!player || !player.connected) return;
 
       if (type === 'league') {
+        if (room.phase !== 'league') return;
+        const participantIds = leagueParticipantIds(room);
+        const fixture = room.leagueFixtures.find(f => f.round === room.leagueRound
+          && (f.homeTeamId === player.id || f.awayTeamId === player.id));
+        // A watch confirmation is accepted only for the participant's own,
+        // already simulated fixture in the active round.
+        if (!participantIds.includes(player.id) || !fixture?.played || !fixture.result) return;
         if (!room.watchedRoundPlayers.includes(player.id)) {
           room.watchedRoundPlayers.push(player.id);
         }
         creditLeagueRoundIfAllWatched(room); // 🎯 revela pontos+palpites quando todos assistiram
-      } else {
+      } else if (type === 'knockout') {
+        if (room.phase !== 'knockout' || !room.knockoutBracket) return;
+        const activeTies = getActiveKnockoutMatches(room.knockoutBracket) as any[];
+        const participantIds = knockoutParticipantIds(room);
+        const tie = activeTies.find(m => m.homeTeamId === player.id || m.awayTeamId === player.id);
+        if (!participantIds.includes(player.id) || !tie || !currentKnockoutLegWasPlayed(room, tie)) return;
         if (!room.watchedKnockoutLegPlayers.includes(player.id)) {
           room.watchedKnockoutLegPlayers.push(player.id);
         }
         creditKnockoutLegIfAllWatched(room);
+      } else {
+        return;
       }
 
       io.to(roomCode).emit("room_updated", room);
@@ -1793,6 +1871,11 @@ export function registerSocketHandlers(io: Server) {
         // timer that transfers only if they never come back (real abandonment).
         const wasHost = room.players[idx].id === room.hostId;
         room.players[idx].connected = false;
+        // A reconnect must explicitly confirm the current state again. This also
+        // removes stale confirmations immediately so the UI and server agree.
+        invalidateReady(room, room.players[idx].id);
+        room.watchedRoundPlayers = room.watchedRoundPlayers.filter(id => id !== room.players[idx].id);
+        room.watchedKnockoutLegPlayers = room.watchedKnockoutLegPlayers.filter(id => id !== room.players[idx].id);
         recomputeHost(room);
         io.to(code).emit("room_updated", room);
         if (wasHost) scheduleHostGraceTransfer(io, room);

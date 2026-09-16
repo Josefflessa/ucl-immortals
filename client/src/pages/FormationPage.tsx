@@ -82,78 +82,78 @@ export default function FormationPage() {
 
               return (
                 <ChoiceCard
-                  key={formation.id}
-                  selected={isSelected}
-                  onClick={() => handleSelect(formation.id)}
-                  onDoubleClick={() => handleDoubleClick(formation.id)}
-                  title="Clique duas vezes para escolher e iniciar o draft"
-                  className="ui-choice text-left p-4"
-                  style={{
-                    background: isSelected ? '#14142A' : '#0F0F1A',
-                    border: `1px solid ${isSelected ? '#C9A84C' : isPreferred ? '#C9A84C44' : '#1A1A2A'}`,
-                    boxShadow: isSelected ? '0 0 0 1px rgba(201,168,76,0.18)' : 'none',
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span
-                      className="text-2xl font-black"
-                      style={{
-                        fontFamily: 'Bebas Neue, sans-serif',
-                        color: isSelected ? '#C9A84C' : '#FFFFFF',
-                        letterSpacing: '0.1em',
-                      }}
-                    >
-                      {formation.name}
-                    </span>
-                    {isPreferred && (
-                      <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                        style={{ background: '#C9A84C22', color: '#C9A84C', border: '1px solid #C9A84C44', fontFamily: 'Rajdhani, sans-serif' }}>
-                        ⭐ Preferida
+                    key={formation.id}
+                    selected={isSelected}
+                    onClick={() => handleSelect(formation.id)}
+                    onDoubleClick={() => handleDoubleClick(formation.id)}
+                    title="Clique duas vezes para escolher e iniciar o draft"
+                    className="ui-choice text-left p-4"
+                    style={{
+                      background: isSelected ? '#14142A' : '#0F0F1A',
+                      border: `1px solid ${isSelected ? '#C9A84C' : isPreferred ? '#C9A84C44' : '#1A1A2A'}`,
+                      boxShadow: isSelected ? '0 0 0 1px rgba(201,168,76,0.18)' : 'none',
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span
+                        className="text-2xl font-black"
+                        style={{
+                          fontFamily: 'Bebas Neue, sans-serif',
+                          color: isSelected ? '#C9A84C' : '#FFFFFF',
+                          letterSpacing: '0.1em',
+                        }}
+                      >
+                        {formation.name}
                       </span>
-                    )}
-                    {isSelected && !isPreferred && (
-                      <div className="w-4 h-4 rounded-full flex items-center justify-center text-xs"
-                        style={{ background: '#C9A84C', color: '#080810', fontWeight: 'bold' }}>✓</div>
-                    )}
-                  </div>
-
-                  {/* Strengths */}
-                  <div className="mb-2">
-                    {formation.strengths.slice(0, 2).map(s => (
-                      <div key={s} className="mb-0.5 flex items-center gap-1.5 text-sm"
-                        style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
-                        <span>+</span> {s}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Weaknesses */}
-                  <div>
-                    {formation.weaknesses.slice(0, 1).map(w => (
-                      <div key={w} className="flex items-center gap-1.5 text-sm"
-                        style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
-                        <span>−</span> {w}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Impacto qualitativo (setas) */}
-                  <div className="mt-2">
-                    <ImpactMeter profile={formationProfile(formation.id)} />
-                  </div>
-
-                  {/* Matchup info — bônus situacional de equipe, aplicado somente durante a partida */}
-                  {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
-                    <div className="mt-3 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                      {formation.counters.length > 0 && (
-                        <>Confronto favorável contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span> <span style={{ color: '#22C55E' }}>(bônus durante a partida)</span></>
+                      {isPreferred && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                          style={{ background: '#C9A84C22', color: '#C9A84C', border: '1px solid #C9A84C44', fontFamily: 'Rajdhani, sans-serif' }}>
+                          ⭐ Preferida
+                        </span>
                       )}
-                      {formation.counters.length > 0 && formation.counteredBy.length > 0 && ' · '}
-                      {formation.counteredBy.length > 0 && (
-                        <>Pode sofrer contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span> <span style={{ color: '#F97316' }}>(o rival recebe um bônus na partida)</span></>
+                      {isSelected && !isPreferred && (
+                        <div className="w-4 h-4 rounded-full flex items-center justify-center text-xs"
+                          style={{ background: '#C9A84C', color: '#080810', fontWeight: 'bold' }}>✓</div>
                       )}
                     </div>
-                  )}
+
+                    {/* Strengths */}
+                    <div className="mb-2">
+                      {formation.strengths.slice(0, 2).map(s => (
+                        <div key={s} className="mb-0.5 flex items-center gap-1.5 text-sm"
+                          style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
+                          <span>+</span> {s}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Weaknesses */}
+                    <div>
+                      {formation.weaknesses.slice(0, 1).map(w => (
+                        <div key={w} className="flex items-center gap-1.5 text-sm"
+                          style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
+                          <span>−</span> {w}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Impacto qualitativo (setas) */}
+                    <div className="mt-2">
+                      <ImpactMeter profile={formationProfile(formation.id)} />
+                    </div>
+
+                    {/* Matchup info — bônus situacional de equipe, aplicado somente durante a partida */}
+                    {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
+                      <div className="mt-3 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                        {formation.counters.length > 0 && (
+                          <>Confronto favorável contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span> <span style={{ color: '#22C55E' }}>(bônus durante a partida)</span></>
+                        )}
+                        {formation.counters.length > 0 && formation.counteredBy.length > 0 && ' · '}
+                        {formation.counteredBy.length > 0 && (
+                          <>Pode sofrer contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span> <span style={{ color: '#F97316' }}>(o rival recebe um bônus na partida)</span></>
+                        )}
+                      </div>
+                    )}
                 </ChoiceCard>
               );
             })}
@@ -221,6 +221,7 @@ export default function FormationPage() {
           </Button>
         </div>
       </PageContainer>
+
     </AppShell>
   );
 }

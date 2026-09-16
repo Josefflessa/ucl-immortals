@@ -126,6 +126,13 @@
     font-family: var(--font-ui), sans-serif;
     overscroll-behavior-y: none; /* 📱 reforça o bloqueio do pull-to-refresh no mobile */
   }
+  /* As imagens fazem parte dos cards e não devem iniciar o drag/download nativo
+   * quando o jogador estiver sendo arrastado pelo campo ou pelo banco. */
+  img {
+    -webkit-user-drag: none;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   [type="button"]:not(:disabled),
