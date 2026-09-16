@@ -838,6 +838,7 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   garrincha_unico: { texture: '/cards/garrincha_unico.webp', render: '/players/unico/garrincha.webp', font: '#F1E7D0', ring: '#D5B36A', photoX: 11, photoY: -5, photoW: 108 },
   ronaldinho_unico: { texture: '/cards/ronaldinho_unico.webp', render: '/players/unico/ronaldinho.webp', font: '#F7D76B', ring: '#2D72E8', photoX: 6, photoY: 15, photoW: 114 },
   casemiro_unico: { texture: '/cards/casemiro_unico.webp', render: '/players/unico/casemiro.webp', font: '#F4D36B', ring: '#2D72E8', photoX: -2, photoY: 12, photoW: 105 },
+  adriano_unico: { texture: '/cards/adriano_unico.webp', render: '/players/unico/adriano.webp', font: '#F4D36B', ring: '#2D72E8', photoX: -1, photoY: 12, photoW: 103 },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
@@ -989,6 +990,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       <CompactWrapper
         {...compactMotion}
         onClick={onClick}
+        data-player-card="true"
         className={`relative select-none flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
         style={{ width: 92, height: 146, filter: selected ? 'drop-shadow(0 0 8px rgba(255,255,255,.7))' : `drop-shadow(0 0 5px ${cRing}66)` }}
       >
@@ -1077,6 +1079,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
     <CardWrapper
       {...cardMotionProps}
       onClick={onClick}
+      data-player-card="true"
       className={`relative select-none flex ${onClick ? 'cursor-pointer' : ''}`}
       style={{ width: 200, height: 324, filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 8px 14px rgba(0,0,0,.5))` }}
     >

@@ -12,6 +12,11 @@ export const BET_MAX_GOALS = 15;      // teto do stepper de placar (0..15 por la
 
 export interface Bet {
   matchKey: string;      // id estável da partida (ver builders abaixo)
+  // The score is stored from the perspective of the actual home/away teams of
+  // that leg. These ids were added after the first version of betting so old
+  // saved bets remain valid without them.
+  homeTeamId?: string;
+  awayTeamId?: string;
   homeGoals: number;     // placar palpitado (perspectiva do mando da partida)
   awayGoals: number;
   stake: number;
@@ -25,11 +30,20 @@ export interface Bet {
 // Compara o palpite com o placar real (orientado ao mando daquela partida).
 export function settleBet(
   bet: Bet,
-  result: { homeGoals: number; awayGoals: number }
+  result: { homeGoals: number; awayGoals: number; homeTeamId?: string; awayTeamId?: string }
 ): { won: boolean; tier: 'exact' | 'outcome' | 'miss'; payout: number } {
-  const exact = bet.homeGoals === result.homeGoals && bet.awayGoals === result.awayGoals;
+  // A two-legged tie changes its home/away order on the return leg. New bets
+  // carry the leg's team ids, so a stale UI/order can never turn a win into a
+  // loss merely because the two teams were displayed in the opposite order.
+  const reversed = !!bet.homeTeamId && !!bet.awayTeamId
+    && !!result.homeTeamId && !!result.awayTeamId
+    && bet.homeTeamId === result.awayTeamId
+    && bet.awayTeamId === result.homeTeamId;
+  const betHomeGoals = reversed ? bet.awayGoals : bet.homeGoals;
+  const betAwayGoals = reversed ? bet.homeGoals : bet.awayGoals;
+  const exact = betHomeGoals === result.homeGoals && betAwayGoals === result.awayGoals;
   const sign = (h: number, a: number) => Math.sign(h - a); // 1 casa / 0 empate / -1 fora
-  const outcomeRight = sign(bet.homeGoals, bet.awayGoals) === sign(result.homeGoals, result.awayGoals);
+  const outcomeRight = sign(betHomeGoals, betAwayGoals) === sign(result.homeGoals, result.awayGoals);
   if (exact) return { won: true, tier: 'exact', payout: Math.round(bet.stake * BET_EXACT_MULT) };
   if (outcomeRight) return { won: true, tier: 'outcome', payout: Math.round(bet.stake * BET_OUTCOME_MULT) };
   return { won: false, tier: 'miss', payout: 0 };

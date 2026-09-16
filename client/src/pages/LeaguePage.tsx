@@ -59,7 +59,13 @@ export default function LeaguePage() {
   const [resultsSubTab, setResultsSubTab] = useState<'mine' | 'rounds'>('mine');
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null);
   // 🎯 Palpite — slip aberto (qual partida) e helpers de teto/consulta.
-  const [betSlip, setBetSlip] = useState<{ matchKey: string; homeName: string; awayName: string } | null>(null);
+  const [betSlip, setBetSlip] = useState<{
+    matchKey: string;
+    homeName: string;
+    awayName: string;
+    homeTeamId?: string;
+    awayTeamId?: string;
+  } | null>(null);
   // 🟥🩹 Aviso "ajuste a escalação" — lista de nomes indisponíveis no XI.
   const [lineupWarning, setLineupWarning] = useState<string[] | null>(null);
   // 🆘 Contratação emergencial — abre quando não há reserva disponível para a posição.
@@ -751,7 +757,13 @@ export default function LeaguePage() {
                     }
                     return (
                       <div className="mt-2 text-center">
-                        <button onClick={() => setBetSlip({ matchKey, homeName, awayName })}
+                        <button onClick={() => setBetSlip({
+                          matchKey,
+                          homeName,
+                          awayName,
+                          homeTeamId: fixture.homeTeamId,
+                          awayTeamId: fixture.awayTeamId,
+                        })}
                           className="px-3 py-1 rounded-lg text-[11px] font-black tracking-wider transition-transform hover:scale-[1.03]"
                           style={{ fontFamily: 'Rajdhani, sans-serif', background: myBet ? '#C9A84C22' : '#0F0F1A', color: '#E8C84A', border: '1px solid #C9A84C55' }}>
                           {myBet ? `🎯 Palpite: ${myBet.homeGoals}-${myBet.awayGoals} · ${myBet.stake} (editar)` : '🎯 Palpitar'}
@@ -1490,20 +1502,12 @@ export default function LeaguePage() {
       </PageContainer>
 
       {/* ── Contratação emergencial: vaga titular sem cobertura no banco ── */}
-      <AnimatePresence>
-        {emergencySelection && emergencySelection.options.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+      {emergencySelection && emergencySelection.options.length > 0 && (
+          <div
             className="ui-modal-backdrop z-50 p-3 sm:p-4"
             onClick={() => setEmergencySelection(null)}
           >
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
+            <div
               onClick={e => e.stopPropagation()}
               className="ui-modal ui-modal--wide flex max-h-[95vh] flex-col"
             >
@@ -1555,10 +1559,9 @@ export default function LeaguePage() {
                   VOLTAR
                 </Button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* ── End-of-round reinforcement pick ── */}
       <>
@@ -1699,8 +1702,7 @@ export default function LeaguePage() {
       )}
 
       {/* 🎯 Slip de palpite */}
-      <AnimatePresence>
-        {betSlip && (() => {
+      {betSlip && (() => {
           const myBet = betFor(betSlip.matchKey);
           const capLeft = remainingCap + (myBet?.stake ?? 0); // editar reaproveita o próprio stake
           return (
@@ -1708,8 +1710,16 @@ export default function LeaguePage() {
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
               onConfirm={(hg, ag, stake) => {
-                if (online) shopPlaceBetOnline(betSlip.matchKey, hg, ag, stake);
-                else dispatch({ type: 'PLACE_BET', matchKey: betSlip.matchKey, homeGoals: hg, awayGoals: ag, stake });
+                if (online) shopPlaceBetOnline(betSlip.matchKey, hg, ag, stake, betSlip.homeTeamId, betSlip.awayTeamId);
+                else dispatch({
+                  type: 'PLACE_BET',
+                  matchKey: betSlip.matchKey,
+                  homeTeamId: betSlip.homeTeamId,
+                  awayTeamId: betSlip.awayTeamId,
+                  homeGoals: hg,
+                  awayGoals: ag,
+                  stake,
+                });
                 setBetSlip(null);
               }}
               onCancelBet={myBet ? () => {
@@ -1721,7 +1731,6 @@ export default function LeaguePage() {
             />
           );
         })()}
-      </AnimatePresence>
 
       {/* 🚫 Aviso: tentou jogar com titular indisponível (solo) */}
       <AnimatePresence>

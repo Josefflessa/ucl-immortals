@@ -18,7 +18,13 @@ export default function KnockoutTiesTab() {
   const { knockoutBracket, playerTeam } = state;
   const online = state.mode === 'online';
   const { localTeamId, getTeamName: resolveTeamName } = useTeams();
-  const [betSlip, setBetSlip] = useState<{ matchKey: string; homeName: string; awayName: string } | null>(null);
+  const [betSlip, setBetSlip] = useState<{
+    matchKey: string;
+    homeName: string;
+    awayName: string;
+    homeTeamId?: string;
+    awayTeamId?: string;
+  } | null>(null);
   const [lineupWarning, setLineupWarning] = useState<string[] | null>(null); // 🚫 aviso de escalação inválida (solo)
   // 🎯 Palpite — POR JOGO: cada partida do mata-mata tem o seu próprio teto (BET_ROUND_CAP), então dá
   // pra apostar em cada jogo (ida E volta) de forma independente, sem um travar o outro.
@@ -224,13 +230,13 @@ export default function KnockoutTiesTab() {
                               {match.result.homeGoals} - {match.result.awayGoals}
                             </div>
                             {/* Placares de cada perna — grandes e rotulados */}
-                            <div className="mt-1.5 flex flex-col gap-1">
-                              <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#4338CA22', border: '1px solid #4338CA55' }}>
-                                <span className="text-[8px] sm:text-[9px] font-black tracking-widest text-indigo-300" style={{ fontFamily: 'Rajdhani, sans-serif' }}>IDA</span>
+                              <div className="mt-1.5 flex flex-col gap-1">
+                                <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#4338CA22', border: '1px solid #4338CA55' }}>
+                                <span className="text-[8px] sm:text-[9px] font-black tracking-widest text-indigo-300 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>IDA · {homeName} × {awayName}</span>
                                 <span className="text-sm sm:text-base font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C7D2FE' }}>{l1.homeGoals}-{l1.awayGoals}</span>
                               </div>
                               <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#0D948822', border: '1px solid #14B8A655' }}>
-                                <span className="text-[8px] sm:text-[9px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#5EEAD4' }}>VOLTA</span>
+                                <span className="text-[8px] sm:text-[9px] font-black tracking-widest truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#5EEAD4' }}>VOLTA · {awayName} × {homeName}</span>
                                 <span className="text-sm sm:text-base font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#99F6E4' }}>{l2.homeGoals}-{l2.awayGoals}</span>
                               </div>
                               {match.result.penaltyWinner && (
@@ -352,6 +358,15 @@ export default function KnockoutTiesTab() {
                     )}
                   </div>
 
+                  {/* A volta inverte o mando. Keep that order visible before the bet is placed,
+                      so a score such as 1–0 can never be confused with the first-leg order. */}
+                  {twoLeg && currentLeg === 2 && !l2 && (
+                    <div className="mb-3 mx-auto w-fit max-w-full rounded-md px-2.5 py-1 text-center text-[10px] font-bold"
+                      style={{ background: '#0D948814', border: '1px solid #14B8A644', color: '#5EEAD4', fontFamily: 'Rajdhani, sans-serif' }}>
+                      VOLTA: <strong>{awayName}</strong> × <strong>{homeName}</strong> · mando invertido
+                    </div>
+                  )}
+
                   {/* 🎯 Palpite — botão na perna ativa (pré-jogo) + badges das pernas reveladas */}
                   {!iAmSpectator && (() => {
                     const isSingleLegTie = !twoLeg;
@@ -360,6 +375,8 @@ export default function KnockoutTiesTab() {
                     const legPlayed = legNum === 2 ? !!l2 : !!(l1 || match.result);
                     const betHome = legNum === 2 ? awayName : homeName; // volta: mando invertido
                     const betAway = legNum === 2 ? homeName : awayName;
+                    const betHomeId = legNum === 2 ? match.awayTeamId : match.homeTeamId;
+                    const betAwayId = legNum === 2 ? match.homeTeamId : match.awayTeamId;
                     const myActiveBet = betFor(activeKey);
                     const legWord = isSingleLegTie ? '' : (legNum === 2 ? 'volta' : 'ida');
                     const badge = (b: Bet | undefined, word: string) => {
@@ -373,7 +390,13 @@ export default function KnockoutTiesTab() {
                     return (
                       <div className="mb-3 flex flex-col items-center gap-1">
                         {!legPlayed && !hideScore && (
-                          <button onClick={() => setBetSlip({ matchKey: activeKey, homeName: betHome, awayName: betAway })}
+                          <button onClick={() => setBetSlip({
+                            matchKey: activeKey,
+                            homeName: betHome,
+                            awayName: betAway,
+                            homeTeamId: betHomeId,
+                            awayTeamId: betAwayId,
+                          })}
                             className="px-3 py-1 rounded-lg text-[11px] font-black tracking-wider transition-transform hover:scale-[1.03]"
                             style={{ fontFamily: 'Rajdhani, sans-serif', background: myActiveBet ? '#C9A84C22' : '#0F0F1A', color: '#E8C84A', border: '1px solid #C9A84C55' }}>
                             {myActiveBet ? `🎯 Palpite ${legWord}: ${myActiveBet.homeGoals}-${myActiveBet.awayGoals} · ${myActiveBet.stake} (editar)` : `🎯 Palpitar ${legWord}`}
@@ -532,8 +555,7 @@ export default function KnockoutTiesTab() {
       </AnimatePresence>
 
       {/* 🎯 Slip de palpite (mata-mata) */}
-      <AnimatePresence>
-        {betSlip && (() => {
+      {betSlip && (() => {
           const myBet = betFor(betSlip.matchKey);
           const capLeft = state.competitionFormat?.matchSettings?.betRoundCap ?? BET_ROUND_CAP; // por jogo: cada partida vai até o teto cheio
           return (
@@ -541,8 +563,16 @@ export default function KnockoutTiesTab() {
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
               onConfirm={(hg, ag, stake) => {
-                if (online) shopPlaceBetOnline(betSlip.matchKey, hg, ag, stake);
-                else dispatch({ type: 'PLACE_BET', matchKey: betSlip.matchKey, homeGoals: hg, awayGoals: ag, stake });
+                if (online) shopPlaceBetOnline(betSlip.matchKey, hg, ag, stake, betSlip.homeTeamId, betSlip.awayTeamId);
+                else dispatch({
+                  type: 'PLACE_BET',
+                  matchKey: betSlip.matchKey,
+                  homeTeamId: betSlip.homeTeamId,
+                  awayTeamId: betSlip.awayTeamId,
+                  homeGoals: hg,
+                  awayGoals: ag,
+                  stake,
+                });
                 setBetSlip(null);
               }}
               onCancelBet={myBet ? () => {
@@ -554,7 +584,6 @@ export default function KnockoutTiesTab() {
             />
           );
         })()}
-      </AnimatePresence>
 
       {/* 🚫 Aviso: tentou jogar a perna com titular indisponível (solo) */}
       <AnimatePresence>

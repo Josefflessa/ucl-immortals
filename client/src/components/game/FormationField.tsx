@@ -1,7 +1,7 @@
 // UCL Immortals — FormationField Component
 // Tactical field with player positions and chemistry lines
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import { motion } from 'framer-motion';
 import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
 import { isPlayerInPosition, ChemLink, ChemLinkType } from '../../lib/gameEngine';
@@ -52,6 +52,8 @@ interface FormationFieldProps {
   showChemLines?: boolean;
   chemLinks?: ChemLink[];
   onPlayerClick?: (player: Player, posIndex: number) => void;
+  // Optional quick reorder for squad-management fields: drag one starter onto another.
+  onPlayerDrop?: (fromIndex: number, toIndex: number) => void;
   compact?: boolean;
   // Card-field presentation: render the production compact PlayerCard at each
   // position instead of the small circular token.
@@ -101,6 +103,7 @@ export default function FormationField({
   showChemLines = false,
   chemLinks,
   onPlayerClick,
+  onPlayerDrop,
   compact = false,
   showPlayerCards = false,
   effectiveStats = {},
@@ -114,7 +117,11 @@ export default function FormationField({
   const fieldRef = useRef<HTMLDivElement>(null);
   const fieldId = useId().replace(/:/g, '');
   const [fieldPixelWidth, setFieldPixelWidth] = useState(0);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const didDragRef = useRef(false);
   const ratingMode = !!ratings;
+  const canReorderPlayers = showPlayerCards && !!onPlayerDrop;
   const ratingColor = (r: number) => r >= 8.5 ? '#d4af37' : r >= 7.5 ? '#22c55e' : r >= 6.5 ? '#e5e7eb' : r <= 5.3 ? '#ef4444' : '#f59e0b';
   // Intrinsic aspect used for the SVG viewBox + token sizing maths. The field itself is now
   // FLUID: it fills its container up to maxW and keeps this aspect ratio, so it never overflows
@@ -135,14 +142,34 @@ export default function FormationField({
     return () => observer.disconnect();
   }, [showPlayerCards]);
 
+  // A drag originating in the bench lives outside this component's field-card
+  // handlers. Listen at document level so a cancelled drag or a drop on empty
+  // grass can never leave an old destination highlighted.
+  useEffect(() => {
+    if (!canReorderPlayers) return;
+    const clearDragState = () => {
+      setDraggingIndex(null);
+      setDragOverIndex(null);
+    };
+    document.addEventListener('dragend', clearDragState);
+    document.addEventListener('drop', clearDragState);
+    return () => {
+      document.removeEventListener('dragend', clearDragState);
+      document.removeEventListener('drop', clearDragState);
+    };
+  }, [canReorderPlayers]);
+
   // Five compact cards is the tightest supported row (5-3-2). Size the same
   // card used by the TITULARES section from the rendered field width so it
   // remains readable while preserving separation on narrow screens.
   const cardScale = showPlayerCards
     ? Math.min(1, Math.max(0.46, fieldPixelWidth > 0 ? (fieldPixelWidth * 0.18 - 8) / FIELD_CARD_WIDTH : 0.9)) * FIELD_CARD_SIZE_MULTIPLIER
     : 1;
-  const displayedCardWidth = FIELD_CARD_WIDTH * FIELD_CARD_SIZE_MULTIPLIER;
-  const displayedCardHeight = FIELD_CARD_HEIGHT * FIELD_CARD_SIZE_MULTIPLIER;
+  // Keep the native drop target exactly aligned with the visible scaled card.
+  // The previous fixed wrapper was wider than the card on narrow fields, so a
+  // drop on nearby grass could still be interpreted as a drop on the player.
+  const displayedCardWidth = FIELD_CARD_WIDTH * cardScale;
+  const displayedCardHeight = FIELD_CARD_HEIGHT * cardScale;
   // Keep the formation's original depth instead of snapping positions into broad
   // row bands. This matters in shapes such as 4-3-3, where the central striker
   // is intentionally ahead of the wingers. The small clamp keeps the outer card
@@ -160,10 +187,67 @@ export default function FormationField({
     return '#EF4444';
   };
 
+  const handlePlayerDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
+    if (!canReorderPlayers || !players[index]) return;
+    didDragRef.current = true;
+    setDraggingIndex(index);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+    event.dataTransfer.setData('application/x-ucl-player-index', String(index));
+
+    // Browsers otherwise pick the first draggable child (the portrait) as the
+    // native ghost image. Use the whole positioned card so the shortcut feels
+    // like moving a card, not just dragging its photo.
+    const cardElement = event.currentTarget.querySelector<HTMLElement>('[data-player-card="true"]') ?? event.currentTarget;
+    const cardRect = cardElement.getBoundingClientRect();
+    event.dataTransfer.setDragImage(cardElement, cardRect.width / 2, cardRect.height / 2);
+  };
+
+  const readDraggedIndex = (event: DragEvent<HTMLDivElement>) => {
+    const rawIndex = event.dataTransfer.getData('application/x-ucl-player-index') || event.dataTransfer.getData('text/plain');
+    const sourceIndex = Number(rawIndex);
+    return Number.isInteger(sourceIndex) && sourceIndex >= 0 ? sourceIndex : null;
+  };
+
+  const handlePlayerDragOver = (event: DragEvent<HTMLDivElement>, index: number) => {
+    const sourceIndex = draggingIndex ?? readDraggedIndex(event);
+    if (!canReorderPlayers || sourceIndex === null || sourceIndex === index || !players[index]) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handlePlayerDrop = (event: DragEvent<HTMLDivElement>, targetIndex: number) => {
+    if (!canReorderPlayers || !players[targetIndex]) return;
+    event.preventDefault();
+    const sourceIndex = draggingIndex ?? readDraggedIndex(event);
+    if (sourceIndex !== null && sourceIndex !== targetIndex) {
+      onPlayerDrop?.(sourceIndex, targetIndex);
+    }
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleFieldDrop = () => {
+    // A drop on the field background is intentionally a no-op: it cancels the
+    // pending target instead of guessing which nearby player was intended.
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handlePlayerDragEnd = () => {
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+    // A native drag may be followed by a synthetic click. Ignore that click, but
+    // release the guard on the next task so a later intentional click still works.
+    window.setTimeout(() => { didDragRef.current = false; }, 0);
+  };
+
   return (
     <div
       ref={fieldRef}
       className="relative rounded-xl overflow-hidden mx-auto"
+      onDrop={handleFieldDrop}
       style={{
         width: '100%',
         maxWidth: maxW,
@@ -291,15 +375,33 @@ export default function FormationField({
           return (
             <motion.div
               key={index}
-              className="absolute flex items-center justify-center"
+              className={`absolute flex items-center justify-center ${canReorderPlayers && player ? 'cursor-grab active:cursor-grabbing' : ''} ${dragOverIndex === index ? 'z-20 rounded-xl ring-2 ring-[#E8C84A] ring-offset-2 ring-offset-[#08250E]' : ''}`}
               style={{ left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: displayedCardWidth, height: displayedCardHeight }}
               transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
               initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.04, duration: 0.2 }}
-              onClick={() => player && onPlayerClick?.(player, index)}
+              draggable={canReorderPlayers && !!player}
+              // Use the native capture handlers because Framer Motion reserves
+              // onDragStart/onDragEnd for its own pointer-drag API.
+              onDragStartCapture={event => handlePlayerDragStart(event, index)}
+              onDragOver={event => handlePlayerDragOver(event, index)}
+              onDragLeave={event => {
+                const related = event.relatedTarget;
+                if (!(related instanceof Node) || !event.currentTarget.contains(related)) setDragOverIndex(null);
+              }}
+              onDrop={event => handlePlayerDrop(event, index)}
+              onDragEndCapture={handlePlayerDragEnd}
+              onClick={() => {
+                if (didDragRef.current) {
+                  didDragRef.current = false;
+                  return;
+                }
+                if (player) onPlayerClick?.(player, index);
+              }}
+              title={canReorderPlayers && player ? 'Arraste sobre outro jogador para trocar' : undefined}
             >
-              <div className="relative" style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center' }}>
+              <div className="relative" style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center', opacity: draggingIndex === index ? 0.52 : 1 }}>
                 <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
                   {player ? (
                     <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} />

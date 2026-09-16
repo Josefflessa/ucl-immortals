@@ -38,7 +38,7 @@ export function PageContainer({ className, narrow = false, wide = false, ...prop
 export function TopBar({ className, logoUrl = '/icons/logo_ucl.png', title = 'UCL IMMORTALS', playerName, right, ...props }: HTMLAttributes<HTMLDivElement> & { logoUrl?: string; title?: string; playerName?: string; right?: ReactNode }) {
   return (
     <header className={cn('ui-topbar', className)} {...props}>
-      <div className="ui-shell ui-topbar__inner">
+      <div className={cn('ui-shell ui-topbar__inner', playerName && right && 'ui-topbar__inner--with-context')}>
         <div className="ui-brand-lockup">
           <img src={logoUrl} alt="" aria-hidden="true" />
           <span>{title}</span>

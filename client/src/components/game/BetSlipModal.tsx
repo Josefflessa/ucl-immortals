@@ -1,7 +1,6 @@
 // UCL Immortals — slip de PALPITE. Escolha um placar + valor. Sem odds por confronto:
 // só os múltiplos fixos (1.5× resultado · 2.5× placar exato) como info genérica.
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Bet, BET_MAX_GOALS, BET_OUTCOME_MULT, BET_EXACT_MULT } from '../../lib/bets';
 import { Button } from '../../design-system';
 
@@ -29,10 +28,8 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
   const stakeOk = stake > 0 && stake <= maxStake;
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="ui-modal-backdrop" onClick={onClose}>
-      <motion.div initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
-        className="ui-modal max-w-sm">
+    <div className="ui-modal-backdrop" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="ui-modal max-w-sm">
         <div className="ui-modal__header">
           <div>
             <h2 className="ui-modal__title">🎯 Palpite</h2>
@@ -52,6 +49,11 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
         </div>
 
         <div className="ui-modal__body ui-stack">
+          <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-[10px] font-bold tracking-widest leading-tight text-[var(--ui-text-faint)]">
+            MANDANTE <span className="text-[var(--ui-text-muted)]">{homeName}</span>
+            <span className="mx-2 text-[var(--ui-brand-strong)]">×</span>
+            VISITANTE <span className="text-[var(--ui-text-muted)]">{awayName}</span>
+          </div>
           <div className="flex items-center justify-center gap-3">
             <Stepper label={homeName} value={hg} set={setHg} max={BET_MAX_GOALS} />
             <span className="text-xl font-black text-gray-600">×</span>
@@ -81,7 +83,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
             )}
           </div>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

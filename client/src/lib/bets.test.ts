@@ -16,6 +16,36 @@ describe('settleBet', () => {
   it('resultado errado perde tudo', () => {
     expect(settleBet(bet(), { homeGoals: 0, awayGoals: 2 })).toEqual({ won: false, tier: 'miss', payout: 0 });
   });
+  it('liquida a vitória do meu time na volta usando o mando real da perna', () => {
+    const returnLegBet = bet({
+      matchKey: 'Kt:2',
+      homeTeamId: 'opponent',
+      awayTeamId: 'me',
+      homeGoals: 0,
+      awayGoals: 1,
+    });
+    expect(settleBet(returnLegBet, {
+      homeTeamId: 'opponent',
+      awayTeamId: 'me',
+      homeGoals: 0,
+      awayGoals: 1,
+    })).toEqual({ won: true, tier: 'exact', payout: Math.round(100 * BET_EXACT_MULT) });
+  });
+  it('corrige a orientação quando um palpite legado veio na ordem da ida', () => {
+    const legacyReturnBet = bet({
+      matchKey: 'Kt:2',
+      homeTeamId: 'me',
+      awayTeamId: 'opponent',
+      homeGoals: 1,
+      awayGoals: 0,
+    });
+    expect(settleBet(legacyReturnBet, {
+      homeTeamId: 'opponent',
+      awayTeamId: 'me',
+      homeGoals: 0,
+      awayGoals: 1,
+    })).toEqual({ won: true, tier: 'exact', payout: Math.round(100 * BET_EXACT_MULT) });
+  });
   it('arredonda o payout de stake ímpar', () => {
     expect(settleBet(bet({ stake: 33 }), { homeGoals: 2, awayGoals: 1 }).payout).toBe(Math.round(33 * BET_EXACT_MULT));
   });

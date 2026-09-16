@@ -1133,7 +1133,15 @@ export function registerSocketHandlers(io: Server) {
 
     // 🎯 PALPITE — apostar/editar. Escrow debitado na hora; validado no servidor (fundos, teto,
     // fase, e a partida-alvo ainda não jogada). Só o autor recebe o room_updated (não vaza).
-    on("place_bet", ({ roomCode, matchKey, homeGoals, awayGoals, stake }: { roomCode: string; matchKey: string; homeGoals: number; awayGoals: number; stake: number }) => {
+    on("place_bet", ({ roomCode, matchKey, homeTeamId, awayTeamId, homeGoals, awayGoals, stake }: {
+      roomCode: string;
+      matchKey: string;
+      homeTeamId?: string;
+      awayTeamId?: string;
+      homeGoals: number;
+      awayGoals: number;
+      stake: number;
+    }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -1142,10 +1150,14 @@ export function registerSocketHandlers(io: Server) {
 
       // A partida-alvo tem que existir, ser da rodada/perna ativa e ainda NÃO ter sido jogada.
       let prefix: string;
+      let actualHomeTeamId: string | undefined;
+      let actualAwayTeamId: string | undefined;
       if (room.phase === 'league') {
         const fx = room.leagueFixtures.find(f => buildLeagueMatchKey(f.round, f.homeTeamId, f.awayTeamId) === matchKey);
         if (!fx || fx.round !== room.leagueRound || fx.played) return;
         prefix = `L${room.leagueRound}:`;
+        actualHomeTeamId = fx.homeTeamId;
+        actualAwayTeamId = fx.awayTeamId;
       } else if (room.phase === 'knockout' && room.knockoutBracket) {
         const leg = room.knockoutBracket.currentLeg;
         const active = getActiveKnockoutMatches(room.knockoutBracket) as any[];
@@ -1153,16 +1165,24 @@ export function registerSocketHandlers(io: Server) {
         const legPlayed = tie && (leg === 2 ? !!tie.leg2 : !!(tie.leg1 || tie.result));
         if (!tie || legPlayed) return;
         prefix = matchKey; // por jogo: teto próprio de cada partida (ida/volta independentes)
+        actualHomeTeamId = leg === 2 ? tie.awayTeamId : tie.homeTeamId;
+        actualAwayTeamId = leg === 2 ? tie.homeTeamId : tie.awayTeamId;
       } else {
         return;
       }
+
+      // The client sends the IDs that label the score selectors. Validate them
+      // against the authoritative fixture and always store the server's order;
+      // this makes a return-leg bet immune to home/away inversion or stale UI.
+      if ((homeTeamId != null && homeTeamId !== actualHomeTeamId)
+        || (awayTeamId != null && awayTeamId !== actualAwayTeamId)) return;
 
       const existing = player.bets.find(b => b.matchKey === matchKey);
       const escrowDelta = stake - (existing?.stake ?? 0);
       if (escrowDelta > player.points) return;
       const betCap = room.competitionFormat.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
       if (!canPlaceStake(player.bets, prefix, matchKey, stake, betCap)) return;
-      const bet: Bet = { matchKey, homeGoals, awayGoals, stake };
+      const bet: Bet = { matchKey, homeTeamId: actualHomeTeamId, awayTeamId: actualAwayTeamId, homeGoals, awayGoals, stake };
       player.bets = existing ? player.bets.map(b => b.matchKey === matchKey ? bet : b) : [...player.bets, bet];
       player.points -= escrowDelta;
       socket.emit("room_updated", room);

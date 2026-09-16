@@ -196,6 +196,8 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 94, shooting: 93, passing: 98, dribbling: 99, defending: 35, physical: 76, vision: 99, composure: 97, traits: ['Dribblador Nato', 'Visão de Jogo'], historicalPartners: ['etoo', 'xavi', 'iniesta'] },
   { id: 'casemiro_unico', basePlayerId: 'casemiro', historicalPlayerId: 'casemiro', shortName: 'Casemiro', fullName: 'Carlos Henrique Casimiro', position: 'CDM', secondaryPositions: ['CM'], nation: 'Brasil', club: 'Real Madrid', season: 'Única', rarity: 'unique', overall: 99,
     pace: 82, shooting: 78, passing: 88, dribbling: 76, defending: 99, physical: 99, vision: 86, composure: 98, traits: ['Muralha', 'Força Bruta'], historicalPartners: ['modric', 'kroos', 'ramos'] },
+  { id: 'adriano_unico', historicalPlayerId: 'adriano_inter', shortName: 'Adriano', fullName: 'Adriano Leite Ribeiro', position: 'ST', secondaryPositions: ['LW'], nation: 'Brasil', club: 'Inter Milan', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 93, shooting: 99, passing: 83, dribbling: 91, defending: 38, physical: 98, vision: 82, composure: 94, traits: ['Finalizador', 'Força Bruta'] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {

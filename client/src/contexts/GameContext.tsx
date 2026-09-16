@@ -213,7 +213,7 @@ export type GameAction =
   | { type: 'SHOP_TRAIN'; playerId: string; attr: TrainAttr }
   | { type: 'SHOP_BUY_REROLL' }
   | { type: 'REROLL_REINFORCEMENT' }
-  | { type: 'PLACE_BET'; matchKey: string; homeGoals: number; awayGoals: number; stake: number }
+  | { type: 'PLACE_BET'; matchKey: string; homeTeamId?: string; awayTeamId?: string; homeGoals: number; awayGoals: number; stake: number }
   | { type: 'CANCEL_BET'; matchKey: string }
   | { type: 'HEAL_INJURY'; playerId: string }
   | { type: 'EMERGENCY_REPLACE_PLAYER'; starterId: string; player: Player }
@@ -735,7 +735,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (escrowDelta > state.points) return state;               // saldo insuficiente
       const betCap = state.competitionFormat?.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
       if (!canPlaceStake(state.bets, prefix, action.matchKey, action.stake, betCap)) return state; // teto da rodada
-      const bet: Bet = { matchKey: action.matchKey, homeGoals: action.homeGoals, awayGoals: action.awayGoals, stake: action.stake };
+      const bet: Bet = {
+        matchKey: action.matchKey,
+        homeTeamId: action.homeTeamId,
+        awayTeamId: action.awayTeamId,
+        homeGoals: action.homeGoals,
+        awayGoals: action.awayGoals,
+        stake: action.stake,
+      };
       const bets = existing
         ? state.bets.map(b => b.matchKey === action.matchKey ? bet : b)
         : [...state.bets, bet];
@@ -1481,7 +1488,7 @@ interface GameContextType {
   shopPickPackOnline: (player: Player) => void;
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
   shopRemoveVariantOnline: (playerId: string, variantKey?: VariantFlag) => void;
-  shopPlaceBetOnline: (matchKey: string, homeGoals: number, awayGoals: number, stake: number) => void;
+  shopPlaceBetOnline: (matchKey: string, homeGoals: number, awayGoals: number, stake: number, homeTeamId?: string, awayTeamId?: string) => void;
   shopCancelBetOnline: (matchKey: string) => void;
   healInjuryOnline: (playerId: string) => void;
   emergencyReplaceOnline: (starterId: string, playerId: string) => void;
@@ -1743,8 +1750,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopRemoveVariantOnline = useCallback((playerId: string, variantKey?: VariantFlag) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_remove_variant", { roomCode: state.roomCode, playerId, variantKey });
   }, [state.roomCode]);
-  const shopPlaceBetOnline = useCallback((matchKey: string, homeGoals: number, awayGoals: number, stake: number) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("place_bet", { roomCode: state.roomCode, matchKey, homeGoals, awayGoals, stake });
+  const shopPlaceBetOnline = useCallback((matchKey: string, homeGoals: number, awayGoals: number, stake: number, homeTeamId?: string, awayTeamId?: string) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("place_bet", { roomCode: state.roomCode, matchKey, homeGoals, awayGoals, stake, homeTeamId, awayTeamId });
   }, [state.roomCode]);
   const shopCancelBetOnline = useCallback((matchKey: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("cancel_bet", { roomCode: state.roomCode, matchKey });

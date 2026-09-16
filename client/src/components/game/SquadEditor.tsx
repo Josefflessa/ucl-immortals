@@ -3,7 +3,7 @@
 // elenco" screen AND the in-league "MEU TIME" tab. Both used to be near-duplicates; now any
 // change here shows up in both. It's purely presentational: data + callbacks come from props,
 // so each host wires its own state (drafted players vs the league team) and actions.
-import { useState } from 'react';
+import { useRef, useState, type DragEvent, type PointerEvent } from 'react';
 import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
@@ -80,6 +80,11 @@ export default function SquadEditor({
   const [zoomCard, setZoomCard] = useState(false);
   // 🏥 Fisioterapia: guarda o id do jogador aguardando CONFIRMAÇÃO (nada de comprar num clique só).
   const [confirmPhysioFor, setConfirmPhysioFor] = useState<string | null>(null);
+  // Atalho de troca: a reserva pode ser arrastada até o campo, mas a alteração
+  // só é aplicada depois da confirmação do usuário.
+  const [pendingSwap, setPendingSwap] = useState<{ fromIndex: number; toIndex: number } | null>(null);
+  const fieldPreviewRef = useRef<HTMLDivElement>(null);
+  const benchHoldTimerRef = useRef<number | null>(null);
   // 🟨🟥🩹 Badge de disponibilidade de um jogador (ou null se está tudo certo).
   const availBadge = (playerId: string): { txt: string; color: string } | null => {
     const a = availability?.[playerId];
@@ -153,6 +158,57 @@ export default function SquadEditor({
   const selectedIsOOP = selectedPlayer ? (chemData.outOfPosition[selectedPlayer.id] ?? false) : false;
   const selectedIsSecondary = selectedPlayer ? (chemData.secondaryPos[selectedPlayer.id] ?? false) : false;
 
+  const clearBenchHoldTimer = () => {
+    if (benchHoldTimerRef.current !== null) {
+      window.clearTimeout(benchHoldTimerRef.current);
+      benchHoldTimerRef.current = null;
+    }
+  };
+
+  const revealFieldPreview = () => {
+    clearBenchHoldTimer();
+    fieldPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const handleBenchPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    clearBenchHoldTimer();
+    // No touch, a long press revela o campo mesmo quando o navegador não emite
+    // os eventos nativos de drag-and-drop de forma consistente.
+    if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+      benchHoldTimerRef.current = window.setTimeout(revealFieldPreview, 260);
+    }
+  };
+
+  const handleBenchDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
+    clearBenchHoldTimer();
+    revealFieldPreview();
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+    event.dataTransfer.setData('application/x-ucl-player-index', String(index));
+    const cardElement = event.currentTarget.querySelector<HTMLElement>('[data-player-card="true"]') ?? event.currentTarget;
+    const cardRect = cardElement.getBoundingClientRect();
+    event.dataTransfer.setDragImage(cardElement, cardRect.width / 2, cardRect.height / 2);
+  };
+
+  const requestPlayerSwap = (fromIndex: number, toIndex: number) => {
+    if (fromIndex < 0 || fromIndex >= players.length || toIndex < 0 || toIndex >= players.length || fromIndex === toIndex) return;
+    if (!players[fromIndex] || !players[toIndex]) return;
+    setPendingSwap({ fromIndex, toIndex });
+  };
+
+  const confirmPlayerSwap = () => {
+    if (!pendingSwap) return;
+    onSwap(pendingSwap.fromIndex, pendingSwap.toIndex);
+    setPendingSwap(null);
+    setSelectedIndex(null);
+  };
+
+  const pendingFromPlayer = pendingSwap ? players[pendingSwap.fromIndex] : null;
+  const pendingToPlayer = pendingSwap ? players[pendingSwap.toIndex] : null;
+  const pendingTargetRole = pendingSwap ? formationRoles[pendingSwap.toIndex] : undefined;
+  const pendingSourceRole = pendingSwap ? formationRoles[pendingSwap.fromIndex] : undefined;
+  const pendingIsStarterSwap = pendingSwap ? pendingSwap.fromIndex < 11 : false;
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
       {/* Team overall + chemistry summary */}
@@ -171,9 +227,10 @@ export default function SquadEditor({
           <div className="h-full rounded-full transition-all duration-500" style={{ width: `${chemData.total}%`, background: chemColor }} />
         </div>
         {coach && formation?.id === coach.preferredFormation && (
-          <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px]"
+          <div className="mt-2 w-full flex items-start gap-1.5 px-2 py-1.5 rounded-md text-[11px] leading-snug"
             style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'Rajdhani, sans-serif' }}>
-            ✓ Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do técnico ({coach.name})
+            <span className="shrink-0" aria-hidden="true">✓</span>
+            <span className="min-w-0 break-words">Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do técnico ({coach.name})</span>
           </div>
         )}
         {/* Cartas especiais que mexem na QUÍMICA GERAL (total) do time — Pilar (+) e Lobo Solitário (−). */}
@@ -236,12 +293,12 @@ export default function SquadEditor({
       />
 
       <p className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-        Clique em um jogador para trocar posições e ver buffs ativos do treinador.
+        Clique para editar e ver os buffs. Arraste um titular ou reserva sobre outro para iniciar uma troca rápida.
       </p>
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {formation && (
-          <div className="lg:w-[420px] flex-shrink-0 space-y-2">
+          <div ref={fieldPreviewRef} className="lg:w-[420px] flex-shrink-0 space-y-2 scroll-mt-6">
             <FormationField
               formation={formation}
               players={xi}
@@ -252,6 +309,7 @@ export default function SquadEditor({
               chemLinks={chemLinks}
               selectedPlayerIndex={selectedIndex}
               onPlayerClick={(_player, posIndex) => setSelectedIndex(posIndex)}
+              onPlayerDrop={requestPlayerSwap}
             />
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px]" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
               <span className="font-bold tracking-wider text-[#6A6A7A]">CONEXÕES:</span>
@@ -290,7 +348,17 @@ export default function SquadEditor({
                   {bench.map((player, i) => {
                     const ab = availBadge(player.id);
                     return (
-                      <div key={player.id} className="relative">
+                      <div
+                        key={player.id}
+                        className="relative cursor-grab active:cursor-grabbing"
+                        draggable
+                        onPointerDown={handleBenchPointerDown}
+                        onPointerUp={clearBenchHoldTimer}
+                        onPointerCancel={clearBenchHoldTimer}
+                        onDragStart={event => handleBenchDragStart(event, 11 + i)}
+                        onDragEnd={clearBenchHoldTimer}
+                        title="Segure para levar ao campo e solte sobre um titular"
+                      >
                         <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} compact selected={selectedIndex === 11 + i} onClick={() => setSelectedIndex(11 + i)} />
                         {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[8px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
                           style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'Rajdhani, sans-serif' }}>{ab.txt}</span>}
@@ -299,7 +367,7 @@ export default function SquadEditor({
                   })}
                 </div>
                 <p className="text-[11px] mt-2" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                  Clique num reserva e escolha <b style={{ color: '#C9A84C' }}>"Trocar com"</b> um titular para colocá-lo no time.
+                  Segure uma reserva para levar o campo à tela e solte-a sobre um titular. A troca só acontece após confirmar.
                 </p>
               </>
             ) : (
@@ -344,17 +412,27 @@ export default function SquadEditor({
                 const a = availability?.[selectedPlayer.id];
                 if (!a || (a.banned === 0 && a.injured === 0 && a.yellows === 0)) return null;
                 return (
-                  <div className="relative z-10 px-6 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
-                    <div className="text-xs font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: a.banned ? '#FCA5A5' : a.injured ? '#FCD34D' : '#EAB308' }}>
+                  <div className="relative z-10 flex flex-col items-stretch gap-3 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
+                    <div className="min-w-0 text-xs font-bold leading-tight" style={{ fontFamily: 'Rajdhani, sans-serif', color: a.banned ? '#FCA5A5' : a.injured ? '#FCD34D' : '#EAB308' }}>
                       {a.banned > 0 ? `🟥 Suspenso — fora de ${a.banned} jogo(s)` : a.injured > 0 ? `🩹 Lesionado — fora de ${a.injured} jogo(s)` : `🟨 ${a.yellows} amarelo(s) acumulado(s)`}
                     </div>
                     {a.injured > 0 && onHealInjury && (
                       <button disabled={!canAffordPhysio} onClick={() => setConfirmPhysioFor(selectedPlayer.id)}
-                        className="text-[11px] font-black px-3 py-1.5 rounded-lg tracking-wider disabled:opacity-40 transition-transform active:scale-95 flex items-center gap-1.5"
+                        type="button"
+                        className="flex w-full flex-shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[11px] font-black tracking-wider whitespace-nowrap disabled:opacity-40 transition-transform active:scale-95 sm:w-auto"
                         style={{ fontFamily: 'Rajdhani, sans-serif', background: '#0E7490', color: '#ECFEFF', border: '1px solid #22D3EE55' }}
                         title={canAffordPhysio ? undefined : `Faltam créditos (custa ${physioCost})`}>
-                        🏥 Fisioterapia · −1 jogo
-                        <span className="px-1.5 py-0.5 rounded" style={{ background: '#083344', color: '#67E8F9' }}>{physioCost} pts</span>
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="text-lg leading-none" aria-hidden="true">🏥</span>
+                          <span className="flex flex-col leading-none">
+                            <span>FISIOTERAPIA</span>
+                            <span className="mt-1 text-[10px] font-bold tracking-wide" style={{ color: '#A5F3FC' }}>−1 JOGO DE LESÃO</span>
+                          </span>
+                        </span>
+                        <span className="flex flex-col items-end rounded-lg px-2 py-1 leading-none" style={{ background: '#083344', color: '#67E8F9' }}>
+                          <span className="text-sm font-black tabular-nums">{physioCost}</span>
+                          <span className="mt-0.5 text-[9px] tracking-wider">PTS</span>
+                        </span>
                       </button>
                     )}
                   </div>
@@ -746,6 +824,63 @@ export default function SquadEditor({
           </div>
         )}
       </>
+
+      {/* Confirmação da troca rápida — soltar um card nunca altera o elenco sozinho. */}
+      {pendingSwap && pendingFromPlayer && pendingToPlayer && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
+          onClick={() => setPendingSwap(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quick-swap-title"
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#C9A84C66] bg-[#0B0B14] shadow-[0_0_40px_rgba(0,0,0,.55)]"
+            onClick={event => event.stopPropagation()}
+          >
+            <div className="border-b border-[#242436] bg-[#11111D] px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#C9A84C55] bg-[#C9A84C18] text-xl text-[#E8C84A]" aria-hidden="true">↔</div>
+                <div className="min-w-0">
+                  <h3 id="quick-swap-title" className="text-lg font-black tracking-widest text-[#E8C84A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                    {pendingIsStarterSwap ? 'CONFIRMAR TROCA DE POSIÇÃO' : 'CONFIRMAR ENTRADA NO TIME'}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    Confira o movimento antes de aplicar ao elenco.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 px-5 py-4" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="rounded-xl border border-[#22C55E44] bg-[#22C55E0D] px-3 py-2.5">
+                <div className="text-[10px] font-black tracking-widest text-[#4ADE80]">{pendingIsStarterSwap ? 'VAI PARA A POSIÇÃO' : 'ENTRA EM CAMPO'}</div>
+                <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">
+                  <span className="truncate">{pendingFromPlayer.shortName}</span>
+                  <span className="shrink-0 text-xs text-[#86EFAC]">→ {POS_PT[pendingTargetRole ?? ''] ?? pendingTargetRole ?? 'TITULAR'}</span>
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#F59E0B44] bg-[#F59E0B0D] px-3 py-2.5">
+                <div className="text-[10px] font-black tracking-widest text-[#FBBF24]">{pendingIsStarterSwap ? 'TROCA DE POSIÇÃO' : 'SAI DA VAGA'}</div>
+                <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">
+                  <span className="truncate">{pendingToPlayer.shortName}</span>
+                  <span className="shrink-0 text-xs text-[#FCD34D]">→ {pendingIsStarterSwap ? (POS_PT[pendingSourceRole ?? ''] ?? pendingSourceRole ?? 'TITULAR') : 'BANCO'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 border-t border-[#242436] px-5 py-4">
+              <button type="button" onClick={() => setPendingSwap(null)} className="flex-1 rounded-xl border border-[#2E2E42] bg-[#17171F] py-2.5 text-xs font-black tracking-widest text-[#A9A9B8] transition-colors hover:bg-[#222230] hover:text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                CANCELAR
+              </button>
+              <button type="button" onClick={confirmPlayerSwap} className="flex-1 rounded-xl border border-[#C9A84C] bg-[#C9A84C] py-2.5 text-xs font-black tracking-widest text-[#090910] transition-colors hover:bg-[#E8C84A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                CONFIRMAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </motion.div>
   );
 }

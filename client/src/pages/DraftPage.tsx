@@ -393,15 +393,17 @@ export default function DraftPage() {
               <span className="font-display text-lg text-[var(--ui-text)]">{round}</span>
               <span className="text-xs text-[var(--ui-text-faint)]">/ {totalRounds}</span>
             </div>
-            <Button
-              type="button"
-              intent="danger"
-              onClick={handleVeto}
-              disabled={vetoesLeft <= 0 || !isMyTurn}
-              className="min-h-9 px-3 text-xs"
-            >
-              <Ban size={14} /> VETAR ({vetoesLeft})
-            </Button>
+            {isMyTurn && (
+              <Button
+                type="button"
+                intent="danger"
+                onClick={handleVeto}
+                disabled={vetoesLeft <= 0}
+                className="min-h-9 px-3 text-xs"
+              >
+                <Ban size={14} /> VETAR ({vetoesLeft})
+              </Button>
+            )}
           </div>
         )}
       />
