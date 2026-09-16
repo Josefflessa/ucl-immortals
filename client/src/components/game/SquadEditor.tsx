@@ -3,7 +3,7 @@
 // elenco" screen AND the in-league "MEU TIME" tab. Both used to be near-duplicates; now any
 // change here shows up in both. It's purely presentational: data + callbacks come from props,
 // so each host wires its own state (drafted players vs the league team) and actions.
-import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
 import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
@@ -80,14 +80,13 @@ export default function SquadEditor({
   const [zoomCard, setZoomCard] = useState(false);
   // 🏥 Fisioterapia: guarda o id do jogador aguardando CONFIRMAÇÃO (nada de comprar num clique só).
   const [confirmPhysioFor, setConfirmPhysioFor] = useState<string | null>(null);
-  // Atalho de troca: a reserva pode ser arrastada até o campo, mas a alteração
-  // só é aplicada depois da confirmação do usuário.
+  // Atalho de troca: segurar uma reserva arma o modo de substituição; o titular
+  // escolhido no campo só é trocado depois da confirmação do usuário.
   const [pendingSwap, setPendingSwap] = useState<{ fromIndex: number; toIndex: number } | null>(null);
+  const [benchSwapSourceIndex, setBenchSwapSourceIndex] = useState<number | null>(null);
   const fieldPreviewRef = useRef<HTMLDivElement>(null);
   const benchHoldTimerRef = useRef<number | null>(null);
-  const [touchDrag, setTouchDrag] = useState<{ fromIndex: number; x: number; y: number; targetIndex: number | null } | null>(null);
-  const touchDragRef = useRef<{ fromIndex: number; x: number; y: number; targetIndex: number | null } | null>(null);
-  const touchDragClickGuardRef = useRef(false);
+  const benchHoldClickGuardRef = useRef(false);
   const benchPointerStartRef = useRef<{ index: number; x: number; y: number } | null>(null);
   // 🟨🟥🩹 Badge de disponibilidade de um jogador (ou null se está tudo certo).
   const availBadge = (playerId: string): { txt: string; color: string } | null => {
@@ -171,33 +170,34 @@ export default function SquadEditor({
 
   const revealFieldPreview = () => {
     clearBenchHoldTimer();
-    // A smooth scroll can interrupt the browser's native drag ghost. During a
-    // real drag, move there immediately so the card stays attached to the pointer.
+    // Keep the destination visible immediately so the user can choose the
+    // titular without having to maintain a drag gesture during the scroll.
     fieldPreviewRef.current?.scrollIntoView({ behavior: 'auto', block: 'center' });
   };
 
-  const startTouchBenchDrag = () => {
+  const startBenchSwapSelection = () => {
     const start = benchPointerStartRef.current;
-    if (!start || touchDragRef.current) return;
-    const nextDrag = { fromIndex: start.index, x: start.x, y: start.y, targetIndex: null };
-    touchDragRef.current = nextDrag;
-    setTouchDrag(nextDrag);
+    if (!start) return;
+    setBenchSwapSourceIndex(start.index);
+    setSelectedIndex(null);
+    // Releasing the long press also produces a click on the reserve card. That
+    // click must not reopen its player modal after the shortcut was armed.
+    benchHoldClickGuardRef.current = true;
     revealFieldPreview();
   };
 
   const handleBenchPointerDown = (event: PointerEvent<HTMLDivElement>, index: number) => {
+    if (event.button !== 0) return;
     clearBenchHoldTimer();
     benchPointerStartRef.current = { index, x: event.clientX, y: event.clientY };
-    // No touch, a long press starts a small custom drag. This keeps a visible
-    // card under the finger even on browsers that do not emit native drag events.
-    if (event.pointerType === 'touch' || event.pointerType === 'pen') {
-      benchHoldTimerRef.current = window.setTimeout(startTouchBenchDrag, 280);
-    }
+    // The gesture is intentionally a long press for every input type. It only
+    // reveals the field and arms a selection; the next click chooses the target.
+    benchHoldTimerRef.current = window.setTimeout(startBenchSwapSelection, 280);
   };
 
   const handleBenchPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const start = benchPointerStartRef.current;
-    if (!start || touchDragRef.current) return;
+    if (!start) return;
     const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
     if (distance > 12) {
       clearBenchHoldTimer();
@@ -205,23 +205,14 @@ export default function SquadEditor({
     }
   };
 
-  const handleBenchDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
+  const handleBenchPointerEnd = () => {
     clearBenchHoldTimer();
     benchPointerStartRef.current = null;
-    // If the touch fallback has already started, do not let the browser create
-    // a second native ghost on top of our card preview.
-    if (touchDragRef.current) {
-      event.preventDefault();
-      event.stopPropagation();
-      return;
+    // The long press itself is followed by a synthetic click in browsers.
+    // Ignore that one click, then restore normal reserve-card selection.
+    if (benchHoldClickGuardRef.current) {
+      window.setTimeout(() => { benchHoldClickGuardRef.current = false; }, 0);
     }
-    revealFieldPreview();
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', String(index));
-    event.dataTransfer.setData('application/x-ucl-player-index', String(index));
-    const cardElement = event.currentTarget.querySelector<HTMLElement>('[data-player-card="true"]') ?? event.currentTarget;
-    const cardRect = cardElement.getBoundingClientRect();
-    event.dataTransfer.setDragImage(cardElement, cardRect.width / 2, cardRect.height / 2);
   };
 
   const requestPlayerSwap = (fromIndex: number, toIndex: number) => {
@@ -229,49 +220,6 @@ export default function SquadEditor({
     if (!players[fromIndex] || !players[toIndex]) return;
     setPendingSwap({ fromIndex, toIndex });
   };
-
-  // Touch browsers are inconsistent with HTML5 drag-and-drop. Once a reserve
-  // card is held, keep a real card preview under the pointer and resolve the
-  // target from the field slot currently beneath it.
-  useEffect(() => {
-    if (!touchDrag) return;
-
-    const handlePointerMove = (event: globalThis.PointerEvent) => {
-      const active = touchDragRef.current;
-      if (!active || (event.pointerType !== 'touch' && event.pointerType !== 'pen')) return;
-      event.preventDefault();
-      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-player-slot]');
-      const rawTarget = target ? Number(target.dataset.playerSlot) : NaN;
-      const targetIndex = Number.isInteger(rawTarget) && rawTarget >= 0 && rawTarget < 11 && players[rawTarget]
-        ? rawTarget
-        : null;
-      const nextDrag = { ...active, x: event.clientX, y: event.clientY, targetIndex };
-      touchDragRef.current = nextDrag;
-      setTouchDrag(nextDrag);
-    };
-
-    const finishPointerDrag = () => {
-      const active = touchDragRef.current;
-      if (!active) return;
-      if (active.targetIndex !== null && players[active.targetIndex]) {
-        setPendingSwap({ fromIndex: active.fromIndex, toIndex: active.targetIndex });
-      }
-      touchDragRef.current = null;
-      benchPointerStartRef.current = null;
-      setTouchDrag(null);
-      touchDragClickGuardRef.current = true;
-      window.setTimeout(() => { touchDragClickGuardRef.current = false; }, 0);
-    };
-
-    document.addEventListener('pointermove', handlePointerMove, { passive: false });
-    document.addEventListener('pointerup', finishPointerDrag);
-    document.addEventListener('pointercancel', finishPointerDrag);
-    return () => {
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', finishPointerDrag);
-      document.removeEventListener('pointercancel', finishPointerDrag);
-    };
-  }, [touchDrag !== null]);
 
   const confirmPlayerSwap = () => {
     if (!pendingSwap) return;
@@ -370,12 +318,32 @@ export default function SquadEditor({
       />
 
       <p className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-        Clique para editar e ver os buffs. Arraste um titular ou reserva sobre outro para iniciar uma troca rápida.
+        Clique para editar e ver os buffs. Segure uma reserva para escolher no campo quem ela vai substituir.
       </p>
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {formation && (
           <div ref={fieldPreviewRef} className="lg:w-[420px] flex-shrink-0 space-y-2 scroll-mt-6">
+            {benchSwapSourceIndex !== null && players[benchSwapSourceIndex] && (
+              <div
+                role="status"
+                className="flex items-center gap-2 rounded-xl border border-[#C9A84C66] bg-[#17151B] px-3 py-2.5 text-xs"
+                style={{ color: '#F4D56A', fontFamily: 'Rajdhani, sans-serif' }}
+              >
+                <span className="min-w-0 flex-1">
+                  Escolha no campo quem vai sair para entrar <b>{players[benchSwapSourceIndex].shortName}</b>.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBenchSwapSourceIndex(null)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#C9A84C66] text-base font-black text-[#F4D56A] transition-colors hover:bg-[#C9A84A22]"
+                  aria-label="Cancelar escolha de substituição"
+                  title="Cancelar"
+                >
+                  ×
+                </button>
+              </div>
+            )}
             <FormationField
               formation={formation}
               players={xi}
@@ -385,7 +353,14 @@ export default function SquadEditor({
               showChemLines
               chemLinks={chemLinks}
               selectedPlayerIndex={selectedIndex}
-              onPlayerClick={(_player, posIndex) => setSelectedIndex(posIndex)}
+              onPlayerClick={(_player, posIndex) => {
+                if (benchSwapSourceIndex !== null) {
+                  requestPlayerSwap(benchSwapSourceIndex, posIndex);
+                  setBenchSwapSourceIndex(null);
+                  return;
+                }
+                setSelectedIndex(posIndex);
+              }}
               onPlayerDrop={requestPlayerSwap}
             />
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px]" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
@@ -427,21 +402,18 @@ export default function SquadEditor({
                     return (
                       <div
                         key={player.id}
-                        className="relative cursor-grab active:cursor-grabbing"
-                        style={{ touchAction: 'none', opacity: touchDrag?.fromIndex === 11 + i ? 0.3 : 1 }}
-                        draggable
+                        className="relative cursor-pointer"
+                        style={{ touchAction: 'none', opacity: 1 }}
                         onPointerDown={event => handleBenchPointerDown(event, 11 + i)}
                         onPointerMove={handleBenchPointerMove}
-                        onPointerUp={() => { clearBenchHoldTimer(); benchPointerStartRef.current = null; }}
-                        onPointerCancel={() => { clearBenchHoldTimer(); benchPointerStartRef.current = null; }}
-                        onDragStart={event => handleBenchDragStart(event, 11 + i)}
-                        onDragEnd={() => { clearBenchHoldTimer(); benchPointerStartRef.current = null; }}
-                        title="Segure para levar ao campo e solte sobre um titular"
+                        onPointerUp={handleBenchPointerEnd}
+                        onPointerCancel={handleBenchPointerEnd}
+                        title="Segure para escolher no campo quem será substituído"
                       >
-                        <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} compact selected={selectedIndex === 11 + i}
+                        <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} compact selected={selectedIndex === 11 + i || benchSwapSourceIndex === 11 + i}
                           onClick={() => {
-                            if (touchDragClickGuardRef.current) {
-                              touchDragClickGuardRef.current = false;
+                            if (benchHoldClickGuardRef.current) {
+                              benchHoldClickGuardRef.current = false;
                               return;
                             }
                             setSelectedIndex(11 + i);
@@ -453,7 +425,7 @@ export default function SquadEditor({
                   })}
                 </div>
                 <p className="text-[11px] mt-2" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                  Segure uma reserva para levar o campo à tela e solte-a sobre um titular. A troca só acontece após confirmar.
+                  Segure uma reserva para levar o campo à tela e clique no titular que ela vai substituir.
                 </p>
               </>
             ) : (
@@ -464,21 +436,6 @@ export default function SquadEditor({
           </div>
         </div>
       </div>
-
-      {touchDrag && players[touchDrag.fromIndex] && (
-        <div
-          className="pointer-events-none fixed z-[100]"
-          style={{
-            left: touchDrag.x,
-            top: touchDrag.y,
-            transform: 'translate(-50%, -50%) rotate(2deg)',
-            filter: 'drop-shadow(0 10px 18px rgba(0,0,0,.7))',
-            opacity: 0.96,
-          }}
-        >
-          <PlayerCard player={players[touchDrag.fromIndex]} effectiveStats={effectiveStatsById[players[touchDrag.fromIndex].id]} compact lite />
-        </div>
-      )}
 
       {footer}
 
