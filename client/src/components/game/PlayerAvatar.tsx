@@ -39,6 +39,7 @@ export default function PlayerAvatar({
 
   return (
     <div
+      onContextMenu={event => event.preventDefault()}
       className={`overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d] ${rounded}`}
       style={{ width: size, height: size, border: ring ? `1.5px solid ${color}` : undefined }}
     >
@@ -49,6 +50,7 @@ export default function PlayerAvatar({
           loading={isUnique ? 'eager' : 'lazy'}
           decoding="async"
           referrerPolicy="no-referrer"
+          draggable={false}
           onError={handleError}
           className="w-full h-full object-cover"
           style={{ objectPosition: 'center top', scale: '1.2' }}

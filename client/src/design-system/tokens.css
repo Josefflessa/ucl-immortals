@@ -590,6 +590,7 @@
     padding: 18px;
     overscroll-behavior: contain;
     touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 
   .ui-modal__footer {

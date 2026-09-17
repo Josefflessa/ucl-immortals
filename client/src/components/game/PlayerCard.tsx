@@ -996,6 +996,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       <CompactWrapper
         {...compactMotion}
         onClick={onClick}
+        onContextMenu={event => event.preventDefault()}
         data-player-card="true"
         className={`relative select-none flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
         style={{ width: 92, height: 146, filter: selected ? 'drop-shadow(0 0 8px rgba(255,255,255,.7))' : `drop-shadow(0 0 5px ${cRing}66)` }}
@@ -1016,7 +1017,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {/* ⭐ Cartas Únicas: render posicionado (mesmo photoX/Y/W da carta grande — % funciona em qualquer tamanho) */}
         {uniq && (
           <div className="absolute inset-0" style={{ ...frameMask('93% 94%'), zIndex: 2, overflow: 'hidden' }}>
-            <img src={uniq.render} alt={player.fullName} loading="eager" fetchPriority="high" decoding="async" referrerPolicy="no-referrer"
+            <img src={uniq.render} alt={player.fullName} loading="eager" fetchPriority="high" decoding="async" referrerPolicy="no-referrer" draggable={false}
               style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
           </div>
         )}
@@ -1085,6 +1086,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
     <CardWrapper
       {...cardMotionProps}
       onClick={onClick}
+      onContextMenu={event => event.preventDefault()}
       data-player-card="true"
       className={`relative select-none flex ${onClick ? 'cursor-pointer' : ''}`}
       style={{ width: 200, height: 324, filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 8px 14px rgba(0,0,0,.5))` }}
@@ -1109,7 +1111,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       {/* ⭐ Cartas Únicas: render posicionado por carta (x/y/largura), ATRÁS do conteúdo (OVR/nome/stats por cima). */}
       {uniq && (
         <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 3, overflow: 'hidden' }}>
-          <img src={uniq.render} alt={player.fullName} loading="eager" fetchPriority="high" decoding="async" referrerPolicy="no-referrer"
+          <img src={uniq.render} alt={player.fullName} loading="eager" fetchPriority="high" decoding="async" referrerPolicy="no-referrer" draggable={false}
             style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
         </div>
       )}

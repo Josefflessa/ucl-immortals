@@ -132,6 +132,7 @@
     -webkit-user-drag: none;
     -webkit-touch-callout: none;
     user-select: none;
+    -webkit-user-select: none;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),

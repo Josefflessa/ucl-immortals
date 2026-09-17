@@ -139,7 +139,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
 
   return (
     <div className="ui-modal-backdrop" onClick={onClose}>
-      <div onClick={event => event.stopPropagation()} className="ui-modal ui-modal--wide max-w-2xl">
+      <div onClick={event => event.stopPropagation()} className="ui-modal ui-modal--wide max-w-2xl flex max-h-[92dvh] flex-col">
         <div className="ui-modal__header">
           <div className="min-w-0">
             <h2 className="ui-modal__title">🎯 Bilhete de aposta</h2>
@@ -150,7 +150,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
           <button type="button" onClick={onClose} aria-label="Fechar" className="ui-icon-btn">✕</button>
         </div>
 
-        <div className="ui-modal__body ui-stack">
+        <div className="ui-modal__body ui-stack min-h-0 flex-1">
           <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-[10px] font-bold tracking-widest leading-tight text-[var(--ui-text-faint)]">
             <span>MANDANTE</span><span className="text-[var(--ui-text-muted)]">{homeName}</span>
             <span className="mx-2 text-[var(--ui-brand-strong)]">×</span>
@@ -174,7 +174,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                     disabled={!exactSelection && selections.length >= BET_BUILDER_MAX_SELECTIONS}
                     className="rounded-md border px-2.5 py-1.5 text-[10px] font-black tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                     style={{ borderColor: exactSelection ? '#C9A84C' : '#252538', background: exactSelection ? '#C9A84C22' : '#0F0F1A', color: exactSelection ? '#E8C84A' : '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                    {exactSelection ? 'INCLUÍDO · 2,5×' : 'ADICIONAR'}
+                    {exactSelection ? 'INCLUÍDO' : 'ADICIONAR'}
                   </button>
                 </div>
                 <div className={`flex items-center justify-center gap-3 ${exactSelection ? '' : 'opacity-45'}`}>
@@ -229,11 +229,10 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                 : 'Marque pelo menos uma condição acima.'}
             </div>
             {builderMultiplier != null && (
-              <div className="mt-2 flex flex-col items-center gap-1">
+              <div className="mt-2 flex justify-center">
                 <span className="inline-flex items-center rounded-full border border-[var(--ui-success)]/35 bg-[var(--ui-success)]/10 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-[var(--ui-success)]">
                   Multiplicador: {builderMultiplier.toFixed(2)}×
                 </span>
-                {exactOnly && <span className="text-[10px] font-bold text-[var(--ui-text-faint)]">Exige o placar exato</span>}
               </div>
             )}
           </div>

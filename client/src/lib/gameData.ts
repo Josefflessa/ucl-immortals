@@ -2,6 +2,8 @@
 // Players, Coaches, Formations, Historical Trios
 
 import { BRAZILIAN_STARTERS } from './brazilianStarters';
+import { BRAZILIAN_NOTABLE_ADDITIONS } from './brazilianNotableAdditions';
+import { MAJOR_LEAGUE_ADDITIONS } from './majorLeaguePlayers';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
@@ -147,6 +149,22 @@ export function getRarityGlow(rarity: Rarity): string {
     case 'silver': return '0 0 8px rgba(168,168,184,0.2)';
     case 'bronze': return '0 0 6px rgba(205,127,50,0.2)';
   }
+}
+
+// Raridade das cartas regulares: a faixa é determinada pelo overall BASE.
+// O cadastro antigo ainda mantém os rótulos escritos em cada objeto, mas a
+// regra abaixo é a única fonte de verdade no catálogo exportado. Isso evita
+// divergências como uma carta 74 ouro ou uma carta 84 prata.
+export function rarityForBaseOverall(overall: number): Exclude<Rarity, 'unique'> {
+  if (overall <= 74) return 'bronze';
+  if (overall <= 79) return 'silver';
+  if (overall <= 87) return 'gold';
+  if (overall <= 93) return 'legendary';
+  return 'immortal';
+}
+
+function normalizeRegularPlayerRarity(player: Player): Player {
+  return { ...player, rarity: rarityForBaseOverall(player.overall) };
 }
 
 // `CF` was the former internal code for Segundo Atacante. It is no longer a
@@ -615,6 +633,8 @@ export const HISTORICAL_TRIOS: HistoricalTrio[] = [
 // ============================================================
 export const PLAYERS: Player[] = [
   ...BRAZILIAN_STARTERS,
+  ...BRAZILIAN_NOTABLE_ADDITIONS,
+  ...MAJOR_LEAGUE_ADDITIONS,
   // ===== IMMORTALS =====
   {
     id: 'messi',
@@ -5274,4 +5294,4 @@ export const PLAYERS: Player[] = [
     composure: 91, vision: 70,
     traits: [],
   },
-];
+].map(normalizeRegularPlayerRarity);
