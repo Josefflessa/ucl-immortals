@@ -1,4 +1,4 @@
-import { Server, Socket } from "socket.io";
+import type { RealtimeServer, RealtimeSocket } from "./realtime.js";
 
 // Import game engine functions
 import {
@@ -40,6 +40,7 @@ import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN
 import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, createBet, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
+import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
 import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
 import { DRAFT_TURN_SECONDS } from "../shared/const.js";
@@ -51,7 +52,7 @@ import {
 } from "../client/src/lib/competition.js";
 import type { CompetitionFormat } from "../client/src/lib/competition.js";
 
-interface RoomPlayer {
+export interface RoomPlayer {
   socketId: string;
   clientId?: string; // identidade persistente do cliente (reconexão robusta, mesmo entre refreshes)
   id: string;
@@ -80,7 +81,7 @@ interface RoomPlayer {
   pendingMatchPoints?: number;        // pontos da partida calculados, NÃO creditados até a revelação
 }
 
-interface RoomState {
+export interface RoomState {
   code: string;
   phase: 'lobby' | 'setup' | 'draft' | 'squad_review' | 'league' | 'knockout' | 'report';
   difficulty: string;
@@ -119,8 +120,183 @@ interface RoomState {
   };
 }
 
-const rooms = new Map<string, RoomState>();
-let marketSeq = 0; // 🏪 sequência de ids de anúncio do mercado (único no processo)
+interface RoomSyncSession {
+  snapshot: unknown | null;
+  revision: number;
+  supportsPatches: boolean;
+}
+
+// Sync state is kept per socket instead of per room because some actions are
+// intentionally private (bets, shop offers and balances). This also lets a
+// reconnected client receive a clean snapshot without forcing every other
+// participant to download the room again.
+export type GameTimerKind = 'room_cleanup' | 'host_grace' | 'draft_turn';
+
+/** Durable Objects replace Node's process-local timers with persisted alarms. */
+export interface GameTimerScheduler {
+  schedule(kind: GameTimerKind, roomCode: string, delayMs: number): void;
+  cancel(kind: GameTimerKind, roomCode: string): void;
+}
+
+export interface GameRuntime {
+  /** A Durable Object owns exactly one code; omitted for the Node server. */
+  roomCode?: string;
+  rooms: Map<string, RoomState>;
+  marketSeq: number;
+  roomSyncSessions: Map<string, RoomSyncSession>;
+  cleanupTimers: Map<string, ReturnType<typeof setTimeout>>;
+  hostGraceTimers: Map<string, ReturnType<typeof setTimeout>>;
+  draftTurnTimers: Map<string, ReturnType<typeof setTimeout>>;
+  scheduler?: GameTimerScheduler;
+}
+
+export function createGameRuntime(options: Pick<GameRuntime, 'roomCode' | 'scheduler'> = {}): GameRuntime {
+  return {
+    roomCode: options.roomCode,
+    scheduler: options.scheduler,
+    rooms: new Map<string, RoomState>(),
+    marketSeq: 0,
+    roomSyncSessions: new Map<string, RoomSyncSession>(),
+    cleanupTimers: new Map<string, ReturnType<typeof setTimeout>>(),
+    hostGraceTimers: new Map<string, ReturnType<typeof setTimeout>>(),
+    draftTurnTimers: new Map<string, ReturnType<typeof setTimeout>>(),
+  };
+}
+
+// The existing handlers are deliberately synchronous. Switching these references
+// around one event at a time lets the exact same rules run in Node (default
+// runtime) and in an isolated Durable Object runtime without duplicating logic.
+const defaultRuntime = createGameRuntime();
+let activeRuntime = defaultRuntime;
+let rooms = defaultRuntime.rooms;
+let marketSeq = defaultRuntime.marketSeq;
+let roomSyncSessions = defaultRuntime.roomSyncSessions;
+let cleanupTimers = defaultRuntime.cleanupTimers;
+let hostGraceTimers = defaultRuntime.hostGraceTimers;
+let draftTurnTimers = defaultRuntime.draftTurnTimers;
+
+export function runWithGameRuntime<T>(runtime: GameRuntime, callback: () => T): T {
+  const previous = {
+    runtime: activeRuntime,
+    rooms,
+    marketSeq,
+    roomSyncSessions,
+    cleanupTimers,
+    hostGraceTimers,
+    draftTurnTimers,
+  };
+
+  activeRuntime = runtime;
+  rooms = runtime.rooms;
+  marketSeq = runtime.marketSeq;
+  roomSyncSessions = runtime.roomSyncSessions;
+  cleanupTimers = runtime.cleanupTimers;
+  hostGraceTimers = runtime.hostGraceTimers;
+  draftTurnTimers = runtime.draftTurnTimers;
+
+  try {
+    return callback();
+  } finally {
+    runtime.marketSeq = marketSeq;
+    activeRuntime = previous.runtime;
+    rooms = previous.rooms;
+    marketSeq = previous.marketSeq;
+    roomSyncSessions = previous.roomSyncSessions;
+    cleanupTimers = previous.cleanupTimers;
+    hostGraceTimers = previous.hostGraceTimers;
+    draftTurnTimers = previous.draftTurnTimers;
+  }
+}
+
+function getRoomSyncSession(socket: RealtimeSocket): RoomSyncSession {
+  const existing = roomSyncSessions.get(socket.id);
+  if (existing) return existing;
+  const created: RoomSyncSession = { snapshot: null, revision: 0, supportsPatches: false };
+  roomSyncSessions.set(socket.id, created);
+  return created;
+}
+
+function rememberInitialRoomSnapshot(socket: RealtimeSocket, room: RoomState): { roomState: RoomState; syncRevision: number } {
+  const session = getRoomSyncSession(socket);
+  session.snapshot = cloneRoomJson(room);
+  session.revision = 0;
+  return { roomState: session.snapshot as RoomState, syncRevision: session.revision };
+}
+
+function emitInitialRoom(
+  socket: RealtimeSocket,
+  event: 'room_created' | 'joined_room',
+  payload: Record<string, unknown>,
+  room: RoomState,
+): void {
+  const { roomState, syncRevision } = rememberInitialRoomSnapshot(socket, room);
+  socket.emit(event, { ...payload, roomState, syncRevision });
+}
+
+function emitRoomSnapshot(socket: RealtimeSocket, room: RoomState): void {
+  const { roomState, syncRevision } = rememberInitialRoomSnapshot(socket, room);
+  socket.emit('room_snapshot', { roomState, syncRevision });
+}
+
+interface RoomUpdateOptions {
+  onlySocketId?: string;
+  excludeSocketId?: string;
+}
+
+/**
+ * Send the smallest safe representation of the current room to each target.
+ * New clients receive a versioned patch stream; old clients continue to get
+ * room_updated snapshots for backwards compatibility during deployment.
+ */
+function jsonByteLength(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+}
+
+function emitRoomUpdate(io: RealtimeServer, room: RoomState, options: RoomUpdateOptions = {}): void {
+  const roomSocketIds = options.onlySocketId
+    ? [options.onlySocketId]
+    : Array.from(io.sockets.adapter.rooms.get(room.code) ?? []);
+  const nextSnapshot = cloneRoomJson(room);
+  const nextSnapshotBytes = jsonByteLength(nextSnapshot);
+
+  for (const socketId of roomSocketIds) {
+    if (options.excludeSocketId === socketId) continue;
+    const target = io.sockets.sockets.get(socketId);
+    if (!target) continue;
+
+    const session = getRoomSyncSession(target);
+    if (!session.supportsPatches) {
+      target.emit('room_updated', nextSnapshot);
+      session.snapshot = nextSnapshot;
+      continue;
+    }
+
+    if (session.snapshot == null) {
+      session.snapshot = nextSnapshot;
+      session.revision = 0;
+      target.emit('room_snapshot', { roomState: nextSnapshot, syncRevision: session.revision });
+      continue;
+    }
+
+    const patch: RoomPatchOperation[] = diffRoomJson(session.snapshot, nextSnapshot);
+    if (patch.length === 0) continue;
+
+    const baseRevision = session.revision;
+    const revision = baseRevision + 1;
+    session.snapshot = nextSnapshot;
+    session.revision = revision;
+
+    // Large structural changes (for example a full new lineup) are safer and
+    // cheaper as a snapshot. Small actions such as a pick, ready or training
+    // update only the changed paths.
+    const patchBytes = jsonByteLength(patch);
+    if (patchBytes >= nextSnapshotBytes) {
+      target.emit('room_snapshot', { roomState: nextSnapshot, syncRevision: revision });
+    } else {
+      target.emit('room_patch', { baseRevision, revision, patch });
+    }
+  }
+}
 
 const VALID_COACH_IDS = new Set(COACHES.map(c => c.id));
 const VALID_FORMATION_IDS = new Set(FORMATIONS.map(f => f.id));
@@ -132,6 +308,10 @@ const VALID_VARIANTS = new Set(TURBINAR_VARIANTS.map(v => v.key));
 
 function isValidId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 80;
+}
+
+function isValidRoomCode(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Z]{4}$/.test(value);
 }
 
 function isValidOptionalId(value: unknown): value is string | null | undefined {
@@ -178,7 +358,6 @@ function getUniqueRoomCode(): string {
 
 // Pending deletions for rooms whose players have all left (kept off the RoomState
 // so the timer object is never serialized to clients).
-const cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const ROOM_CLEANUP_MS = 5 * 60 * 1000; // delete an all-empty room after 5 min
 
 // O host controla a progressão. A regra é ESTÁVEL (ver room-host.ts): mantém o host
@@ -208,7 +387,7 @@ function invalidateReady(room: RoomState, playerId: string): void {
   room.readyPlayers = room.readyPlayers.filter(id => id !== playerId);
 }
 
-function emitReadyState(io: Server, room: RoomState): void {
+function emitReadyState(io: RealtimeServer, room: RoomState): void {
   // Readiness is shared UI state, while room_updated may contain private shop
   // offers and balances. Keep the two channels separate.
   io.to(room.code).emit("ready_state_updated", { readyPlayers: room.readyPlayers });
@@ -291,20 +470,22 @@ function scheduleRoomCleanupIfEmpty(room: RoomState): void {
     cancelRoomCleanup(room.code);
     return;
   }
+  if (activeRuntime.scheduler) {
+    activeRuntime.scheduler.schedule('room_cleanup', room.code, ROOM_CLEANUP_MS);
+    return;
+  }
   if (cleanupTimers.has(room.code)) return;
   const timer = setTimeout(() => {
-    cleanupTimers.delete(room.code);
-    const cur = rooms.get(room.code);
-    if (cur && !cur.players.some(p => p.connected)) {
-      clearDraftTurnTimer(room.code);
-      rooms.delete(room.code);
-      console.log(`Room ${room.code} deleted (all players left)`);
-    }
+    runRoomCleanup(room.code);
   }, ROOM_CLEANUP_MS);
   cleanupTimers.set(room.code, timer);
 }
 
 function cancelRoomCleanup(code: string): void {
+  if (activeRuntime.scheduler) {
+    activeRuntime.scheduler.cancel('room_cleanup', code);
+    return;
+  }
   const t = cleanupTimers.get(code);
   if (t) { clearTimeout(t); cleanupTimers.delete(code); }
 }
@@ -313,29 +494,25 @@ function cancelRoomCleanup(code: string): void {
 // sempre reconecta em segundos — ver reconexão automática no cliente). Só se continuar
 // offline após este tempo passamos o host pro primeiro conectado, pra não travar a sala
 // num abandono real. Cancelado assim que o host reconecta.
-const hostGraceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const HOST_GRACE_MS = 30 * 1000;
 
 function cancelHostGrace(code: string): void {
+  if (activeRuntime.scheduler) {
+    activeRuntime.scheduler.cancel('host_grace', code);
+    return;
+  }
   const t = hostGraceTimers.get(code);
   if (t) { clearTimeout(t); hostGraceTimers.delete(code); }
 }
 
-function scheduleHostGraceTransfer(io: Server, room: RoomState): void {
+function scheduleHostGraceTransfer(io: RealtimeServer, room: RoomState): void {
+  if (activeRuntime.scheduler) {
+    activeRuntime.scheduler.schedule('host_grace', room.code, HOST_GRACE_MS);
+    return;
+  }
   if (hostGraceTimers.has(room.code)) return;
   const timer = setTimeout(() => {
-    hostGraceTimers.delete(room.code);
-    const cur = rooms.get(room.code);
-    if (!cur) return;
-    const host = cur.players.find(p => p.id === cur.hostId);
-    if (host && !host.connected) {               // host realmente sumiu → transfere
-      const fc = cur.players.find(p => p.connected);
-      if (fc) {
-        cur.hostId = fc.id;
-        io.to(cur.code).emit("room_updated", cur);
-        console.log(`Host transferido (abandono) na sala ${cur.code} → ${fc.name}`);
-      }
-    }
+    runHostGraceTransfer(io, room.code);
   }, HOST_GRACE_MS);
   hostGraceTimers.set(room.code, timer);
 }
@@ -386,7 +563,7 @@ function applyDraftPick(room: RoomState, activePlayer: RoomPlayer, chosenPlayer:
 // Auto-picks (first available option) for any disconnected player whose turn it
 // is, so the draft never stalls on someone who left. Stops at the first connected
 // player. Emits once if any auto-pick happened.
-function autoPickDisconnected(io: Server, room: RoomState): void {
+function autoPickDisconnected(io: RealtimeServer, room: RoomState): void {
   let picked = false;
   let guard = 0;
   while (room.phase === 'draft' && guard++ < 1000) {
@@ -405,52 +582,95 @@ function autoPickDisconnected(io: Server, room: RoomState): void {
     if (!applyDraftPick(room, active, chosen)) break;
     picked = true;
   }
-  if (picked) io.to(room.code).emit("room_updated", room);
+  if (picked) emitRoomUpdate(io, room);
 }
 
 // ── Draft turn timer ── auto-picks for a CONNECTED player who sits idle on their turn, so a
 // single AFK player can't freeze the whole draft. (Disconnected players are covered separately
 // by autoPickDisconnected.) Kept off RoomState so the timer object is never serialized.
-const draftTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const DRAFT_TURN_MS = DRAFT_TURN_SECONDS * 1000;
 
 function clearDraftTurnTimer(code: string): void {
+  if (activeRuntime.scheduler) {
+    activeRuntime.scheduler.cancel('draft_turn', code);
+    return;
+  }
   const t = draftTurnTimers.get(code);
   if (t) { clearTimeout(t); draftTurnTimers.delete(code); }
 }
 
 // (Re)arm the idle-turn timer for whoever is on the clock. No-op when the draft is over or the
 // active player is disconnected. Safe to call after any draft state change — it always resets.
-function scheduleDraftTurnTimer(io: Server, room: RoomState): void {
+function scheduleDraftTurnTimer(io: RealtimeServer, room: RoomState): void {
   clearDraftTurnTimer(room.code);
   if (room.phase !== 'draft') return;
   const active = room.players.find(p => p.id === room.draftState.draftOrder[room.draftState.turnIndex]);
   if (!active || !active.connected) return;
+  if (activeRuntime.scheduler) {
+    activeRuntime.scheduler.schedule('draft_turn', room.code, DRAFT_TURN_MS);
+    return;
+  }
   const timer = setTimeout(() => {
-    draftTurnTimers.delete(room.code);
-    const cur = rooms.get(room.code);
-    if (!cur || cur.phase !== 'draft') return;
-    const ds = cur.draftState;
-    const a = cur.players.find(p => p.id === ds.draftOrder[ds.turnIndex]);
-    if (!a) return;
-    let options = ds.currentOptionsByPlayer[a.id];
-    if (!options || options.length === 0) {
-      options = generateDraftOptions(getNeededPositions(a.formationId, a.draftedPlayers), ds.alreadyDraftedIds);
-      ds.currentOptionsByPlayer[a.id] = options;
-    }
-    if (options[0]) {
-      if (applyDraftPick(cur, a, options[0])) {
-        io.to(cur.code).emit("room_updated", cur);
-        autoPickDisconnected(io, cur);     // next player might be offline
-        scheduleDraftTurnTimer(io, cur);   // arm for the new active player
-      }
-    }
+    runDraftTurnTimer(io, room.code);
   }, DRAFT_TURN_MS);
   draftTurnTimers.set(room.code, timer);
 }
 
-export function registerSocketHandlers(io: Server) {
-  io.on("connection", (socket: Socket) => {
+function runRoomCleanup(roomCode: string): void {
+  cleanupTimers.delete(roomCode);
+  const room = rooms.get(roomCode);
+  if (!room || room.players.some(p => p.connected)) return;
+  clearDraftTurnTimer(roomCode);
+  cancelHostGrace(roomCode);
+  rooms.delete(roomCode);
+  console.log(`Room ${roomCode} deleted (all players left)`);
+}
+
+function runHostGraceTransfer(io: RealtimeServer, roomCode: string): void {
+  hostGraceTimers.delete(roomCode);
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  const host = room.players.find(p => p.id === room.hostId);
+  if (host && !host.connected) {
+    const replacement = room.players.find(p => p.connected);
+    if (replacement) {
+      room.hostId = replacement.id;
+      emitRoomUpdate(io, room);
+      console.log(`Host transferido (abandono) na sala ${room.code} → ${replacement.name}`);
+    }
+  }
+}
+
+function runDraftTurnTimer(io: RealtimeServer, roomCode: string): void {
+  draftTurnTimers.delete(roomCode);
+  const room = rooms.get(roomCode);
+  if (!room || room.phase !== 'draft') return;
+  const draftState = room.draftState;
+  const active = room.players.find(p => p.id === draftState.draftOrder[draftState.turnIndex]);
+  if (!active) return;
+  let options = draftState.currentOptionsByPlayer[active.id];
+  if (!options || options.length === 0) {
+    options = generateDraftOptions(getNeededPositions(active.formationId, active.draftedPlayers), draftState.alreadyDraftedIds);
+    draftState.currentOptionsByPlayer[active.id] = options;
+  }
+  if (options[0] && applyDraftPick(room, active, options[0])) {
+    emitRoomUpdate(io, room);
+    autoPickDisconnected(io, room);
+    scheduleDraftTurnTimer(io, room);
+  }
+}
+
+/** Called by Durable Object alarms. Node timers use the same implementation. */
+export function runGameTimer(io: RealtimeServer, runtime: GameRuntime, kind: GameTimerKind, roomCode: string): void {
+  runWithGameRuntime(runtime, () => {
+    if (kind === 'room_cleanup') runRoomCleanup(roomCode);
+    else if (kind === 'host_grace') runHostGraceTransfer(io, roomCode);
+    else runDraftTurnTimer(io, roomCode);
+  });
+}
+
+export function registerSocketHandlers(io: RealtimeServer) {
+  io.on("connection", (socket: RealtimeSocket) => {
     console.log(`Socket connected: ${socket.id}`);
 
     // Registra um handler de gameplay com rede de segurança: se ELE ESTOURAR no meio,
@@ -468,8 +688,24 @@ export function registerSocketHandlers(io: Server) {
       });
     };
 
+    // Clients that understand the incremental protocol opt in explicitly.
+    // Until then, the legacy full-snapshot event remains available so a
+    // rolling deploy never strands an older browser tab.
+    on("client_capabilities", ({ roomUpdates }: { roomUpdates?: unknown }) => {
+      if (roomUpdates === 1) getRoomSyncSession(socket).supportsPatches = true;
+    });
+
+    // A patch gap is never guessed through. The client asks for the current
+    // authoritative state and resumes the patch stream from that revision.
+    on("sync_room", ({ roomCode }: { roomCode?: unknown }) => {
+      if (!isValidId(roomCode)) return;
+      const room = rooms.get(roomCode);
+      if (!room || !room.players.some(player => player.socketId === socket.id)) return;
+      emitRoomSnapshot(socket, room);
+    });
+
     // Create Room
-    on("create_room", ({ creatorName, competitionFormat, difficulty, clientId }: { creatorName: string; competitionFormat?: unknown; difficulty?: unknown; clientId?: string }) => {
+    on("create_room", ({ creatorName, competitionFormat, difficulty, clientId, roomCode: requestedRoomCode }: { creatorName: string; competitionFormat?: unknown; difficulty?: unknown; clientId?: string; roomCode?: unknown }) => {
       const requestedFormat = competitionFormat ?? DEFAULT_COMPETITION_FORMAT;
       const formatError = validateCompetitionFormat(requestedFormat);
       if (formatError) {
@@ -481,7 +717,22 @@ export function registerSocketHandlers(io: Server) {
         socket.emit("action_error", { event: "create_room", message: "Escolha uma dificuldade válida para os bots." });
         return;
       }
-      const roomCode = getUniqueRoomCode();
+      const requestedCode = typeof requestedRoomCode === 'string' ? requestedRoomCode.toUpperCase() : undefined;
+      if (requestedCode !== undefined && !isValidRoomCode(requestedCode)) {
+        socket.emit("action_error", { event: "create_room", message: "Código de sala inválido." });
+        return;
+      }
+      const roomCode = requestedCode ?? getUniqueRoomCode();
+      // A Cloudflare room object is intentionally scoped to one code. Without
+      // this guard a forged message could create a second room in that object.
+      if (activeRuntime.roomCode && roomCode !== activeRuntime.roomCode) {
+        socket.emit("action_error", { event: "create_room", message: "Código de sala não corresponde à conexão." });
+        return;
+      }
+      if (rooms.has(roomCode)) {
+        socket.emit("action_error", { event: "create_room", message: "Este código acabou de ser usado. Tente criar a sala novamente." });
+        return;
+      }
       const newRoom: RoomState = {
         code: roomCode,
         phase: 'lobby',
@@ -541,7 +792,7 @@ export function registerSocketHandlers(io: Server) {
 
       rooms.set(roomCode, newRoom);
       socket.join(roomCode);
-      socket.emit("room_created", { roomCode, roomState: newRoom });
+      emitInitialRoom(socket, "room_created", { roomCode }, newRoom);
       console.log(`Room created: ${roomCode} by ${creatorName}`);
     });
 
@@ -566,8 +817,8 @@ export function registerSocketHandlers(io: Server) {
         cancelHostGrace(code); // host voltou (ou outro jogador) → não transfere
         recomputeHost(room);
         socket.join(code);
-        socket.emit("joined_room", { roomCode: code, player: byClient, roomState: room });
-        io.to(code).emit("room_updated", room);
+        emitInitialRoom(socket, "joined_room", { roomCode: code, player: byClient }, room);
+        emitRoomUpdate(io, room, { excludeSocketId: socket.id });
         if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
         console.log(`Player reconnected (clientId): ${byClient.name} to ${code}`);
         return;
@@ -590,8 +841,8 @@ export function registerSocketHandlers(io: Server) {
         cancelHostGrace(code); // host voltou (ou outro jogador) → não transfere
         recomputeHost(room);
         socket.join(code);
-        socket.emit("joined_room", { roomCode: code, player: existingPlayer, roomState: room });
-        io.to(code).emit("room_updated", room);
+        emitInitialRoom(socket, "joined_room", { roomCode: code, player: existingPlayer }, room);
+        emitRoomUpdate(io, room, { excludeSocketId: socket.id });
         // A reconnected player may have been the one we were waiting on for a pick.
         if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
         console.log(`Player reconnected: ${playerName} to ${code}`);
@@ -638,8 +889,8 @@ export function registerSocketHandlers(io: Server) {
       room.players.push(newPlayer);
       recomputeHost(room);
       socket.join(code);
-      socket.emit("joined_room", { roomCode: code, player: newPlayer, roomState: room });
-      io.to(code).emit("room_updated", room);
+      emitInitialRoom(socket, "joined_room", { roomCode: code, player: newPlayer }, room);
+      emitRoomUpdate(io, room, { excludeSocketId: socket.id });
       console.log(`Player joined: ${playerName} to ${code}`);
     });
 
@@ -653,7 +904,7 @@ export function registerSocketHandlers(io: Server) {
       }
       room.phase = 'setup';
       room.players.forEach(p => { p.ready = false; });
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // Player submits coach & formation
@@ -712,7 +963,7 @@ export function registerSocketHandlers(io: Server) {
         room.draftState.currentOptionsByPlayer[firstPlayerId] = options;
       }
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
       // If the draft just started on a disconnected player, don't stall.
       if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
     });
@@ -737,7 +988,7 @@ export function registerSocketHandlers(io: Server) {
         socket.emit("action_error", { event: "draft_pick", message: "Essa carta não cabe em uma vaga válida do seu time." });
         return;
       }
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
       // If the turn landed on someone who has disconnected, keep the draft moving.
       autoPickDisconnected(io, room);
       scheduleDraftTurnTimer(io, room); // arm the idle timer for the new active player
@@ -760,7 +1011,7 @@ export function registerSocketHandlers(io: Server) {
       const options = generateDraftOptions(needed, room.draftState.alreadyDraftedIds);
       room.draftState.currentOptionsByPlayer[activePlayerId] = options;
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
       scheduleDraftTurnTimer(io, room); // fresh time after a veto
     });
 
@@ -876,7 +1127,7 @@ export function registerSocketHandlers(io: Server) {
         }
       }
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // Player updates captain / penalty taker for their own team (pre-league and
@@ -924,7 +1175,7 @@ export function registerSocketHandlers(io: Server) {
         }
       }
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -944,7 +1195,7 @@ export function registerSocketHandlers(io: Server) {
       // Editing a plan after pressing "Estou pronto" invalidates that confirmation. This
       // prevents a player from changing instructions while the host is resolving the round.
       invalidateReady(room, player.id);
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // Swap two players in this player's squad (bench ↔ starter, or reorder the XI). Mirrors the
@@ -976,9 +1227,9 @@ export function registerSocketHandlers(io: Server) {
       const wasReady = room.readyPlayers.includes(player.id);
       invalidateReady(room, player.id);
       if (wasReady) {
-        io.to(roomCode).emit("room_updated", room);
+        emitRoomUpdate(io, room);
       } else {
-        socket.emit("room_updated", room);
+        emitRoomUpdate(io, room, { onlySocketId: socket.id });
       }
       if (wasReady) emitReadyState(io, room);
     });
@@ -996,7 +1247,7 @@ export function registerSocketHandlers(io: Server) {
       const valid = (targetIds || []).filter(id => id !== playerId && starterIds.has(id)).slice(0, 2);
       player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, martirTargets: valid } : p);
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1010,7 +1261,7 @@ export function registerSocketHandlers(io: Server) {
       player.team.players = player.team.players.map(p =>
         (p.id === playerId && isEvolved(p)) ? { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta) } : p);
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
     on("reset_evolve_points", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
@@ -1020,7 +1271,7 @@ export function registerSocketHandlers(io: Server) {
       if (!player || !player.team) return;
       player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, evolvePoints: {} } : p);
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1042,7 +1293,7 @@ export function registerSocketHandlers(io: Server) {
       player.team.coachId = coachId;
       player.team = rebuildTeamChemistry(player.team);
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1057,7 +1308,7 @@ export function registerSocketHandlers(io: Server) {
       player.coachPrime = true;
       player.team.coachPrime = true;
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1081,7 +1332,7 @@ export function registerSocketHandlers(io: Server) {
       }
       player.points -= cost;
       player.pendingUniquePack = { ...chosen };
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
     // ⭐ Revelar a carta já sorteada: valida novamente no catálogo autoritativo.
@@ -1094,7 +1345,7 @@ export function registerSocketHandlers(io: Server) {
       const canonical = UNIQUE_CARDS.find(card => card.id === pending.id);
       if (!canonical || player.team.players.some(card => card.id === canonical.id)) {
         socket.emit("action_error", { event: "shop_claim_unique_pack", message: "Não foi possível adicionar esta Carta Única." });
-        socket.emit("room_updated", room);
+        emitRoomUpdate(io, room, { onlySocketId: socket.id });
         return;
       }
       const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
@@ -1103,7 +1354,7 @@ export function registerSocketHandlers(io: Server) {
       player.pendingUniquePack = null;
       player.team.players = [...player.team.players, card];
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1127,7 +1378,7 @@ export function registerSocketHandlers(io: Server) {
       if (kind === 'star' && options.some(o => o.overall < 88)) return;       // pacote do craque = 88+
       player.points -= cost;
       player.pendingPack = { kind, options: options.map(option => ({ ...option })) };
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
     // 🛒 Escolher 1 do pacote JÁ PAGO (sem cobrar de novo) → banco.
@@ -1145,7 +1396,7 @@ export function registerSocketHandlers(io: Server) {
         player.team.players = [...player.team.players, card];
         invalidateReady(room, player.id);
       }
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       if (valid && chosen) emitReadyState(io, room);
     });
 
@@ -1164,7 +1415,7 @@ export function registerSocketHandlers(io: Server) {
         p.id === playerId ? ({ ...applyShopVariant(p, variant), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
       player.team = rebuildTeamChemistry(player.team);
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1183,7 +1434,7 @@ export function registerSocketHandlers(io: Server) {
         p.id === playerId ? ({ ...(variantKey ? stripSpecificVariant(p, variantKey) : stripVariant(p)), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
       player.team = rebuildTeamChemistry(player.team);
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1257,7 +1508,7 @@ export function registerSocketHandlers(io: Server) {
       if (!bet) return;
       player.bets = existing ? player.bets.map(b => b.matchKey === matchKey ? bet : b) : [...player.bets, bet];
       player.points -= escrowDelta;
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
     on("cancel_bet", ({ roomCode, matchKey }: { roomCode: string; matchKey: string }) => {
@@ -1269,7 +1520,7 @@ export function registerSocketHandlers(io: Server) {
       if (!existing || existing.settled) return;
       player.points += existing.stake;
       player.bets = player.bets.filter(b => b.matchKey !== matchKey);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
     // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador do time do autor (paga PHYSIO_COST).
@@ -1283,7 +1534,7 @@ export function registerSocketHandlers(io: Server) {
       player.points -= SHOP_COSTS.physio;
       room.discipline = healInjury(room.discipline, player.team.id, playerId);
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1305,7 +1556,7 @@ export function registerSocketHandlers(io: Server) {
         return { ...p, trainBoosts: boosts, trainCount: (p.trainCount ?? 0) + 1 };
       });
       invalidateReady(room, player.id);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
@@ -1317,7 +1568,7 @@ export function registerSocketHandlers(io: Server) {
       if (!player || player.points < SHOP_COSTS.reroll) return;
       player.points -= SHOP_COSTS.reroll;
       player.reinforcementRerolls += 1;
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
     // 🏪 Mercado — VENDER uma reserva PRA BANCA por valor fixo (igual o solo). Só pontos + banco mudam.
@@ -1333,7 +1584,7 @@ export function registerSocketHandlers(io: Server) {
       delete room.discipline[`${player.team.id}:${playerId}`];
       player.points += sellValue(sold.rarity);
       invalidateReady(room, player.id);
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // 🏪 Mercado online — ANUNCIAR uma reserva (escrow: sai do banco do vendedor).
@@ -1351,7 +1602,7 @@ export function registerSocketHandlers(io: Server) {
       delete room.discipline[`${seller.team.id}:${playerId}`];
       room.market.push({ id: `m${++marketSeq}`, sellerId: seller.id, sellerName: seller.name, player, price });
       invalidateReady(room, seller.id);
-      io.to(room.code).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // 🏪 Mercado online — CANCELAR um anúncio (devolve o jogador pro banco do vendedor).
@@ -1364,7 +1615,7 @@ export function registerSocketHandlers(io: Server) {
       seller.team.players.push({ ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard);
       room.market = room.market.filter(l => l.id !== listingId);
       invalidateReady(room, seller.id);
-      io.to(room.code).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // 🏪 Mercado online — COMPRAR um anúncio (transfere jogador + pontos, atômico).
@@ -1384,7 +1635,7 @@ export function registerSocketHandlers(io: Server) {
       buyer.team.players.push({ ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard);
       room.market = room.market.filter(l => l.id !== listingId);
       invalidateReady(room, buyer.id);
-      io.to(room.code).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // 🔄 Spend a token to re-roll THIS player's reinforcement options.
@@ -1396,7 +1647,7 @@ export function registerSocketHandlers(io: Server) {
       player.reinforcementRerolls -= 1;
       const ownedIds = player.team.players.map(p => p.id);
       player.reinforcementOptions = generateDraftOptions([], ownedIds).slice(0, room.competitionFormat.rewards.reinforcementOptions);
-      socket.emit("room_updated", room);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
     // End-of-round reinforcement (free pick, same as solo): 1 of 6 → bench.
@@ -1412,7 +1663,7 @@ export function registerSocketHandlers(io: Server) {
         invalidateReady(room, player.id);
       }
       player.reinforcementOptions = null;
-      socket.emit("room_updated", room); // only this player's own bench changed
+      emitRoomUpdate(io, room, { onlySocketId: socket.id }); // only this player's own bench changed
     });
 
     on("dismiss_reinforcement", ({ roomCode }: { roomCode: string }) => {
@@ -1421,7 +1672,7 @@ export function registerSocketHandlers(io: Server) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
       player.reinforcementOptions = null;
-      socket.emit("room_updated", room); // only this player's own state changed
+      emitRoomUpdate(io, room, { onlySocketId: socket.id }); // only this player's own state changed
     });
 
     // 🆘 Contratação emergencial — quando não há reserva disponível para cobrir uma
@@ -1448,7 +1699,7 @@ export function registerSocketHandlers(io: Server) {
 
       player.team = updatedTeam;
       invalidateReady(room, player.id);
-      io.to(room.code).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // ============================================================
@@ -1473,7 +1724,7 @@ export function registerSocketHandlers(io: Server) {
       const bad = unavailableStarters(player.team, room.discipline);
       if (bad.length > 0) { socket.emit("ready_blocked", { players: bad.map((u: any) => u.shortName) }); return; }
       if (!room.readyPlayers.includes(player.id)) room.readyPlayers.push(player.id);
-      io.to(roomCode).emit("room_updated", room); // todos veem a contagem
+      emitRoomUpdate(io, room); // todos veem a contagem
     });
     on("player_unready", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
@@ -1481,7 +1732,7 @@ export function registerSocketHandlers(io: Server) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
       room.readyPlayers = room.readyPlayers.filter(id => id !== player.id);
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     on("play_round", ({ roomCode }) => {
@@ -1575,7 +1826,7 @@ export function registerSocketHandlers(io: Server) {
         });
       }
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // Host advances to the next round (or to the knockout) — only allowed once
@@ -1619,7 +1870,7 @@ export function registerSocketHandlers(io: Server) {
         room.discipline = resetYellowsForKnockout(room.discipline); // 🟨 amarelos zeram no mata-mata
       }
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // ============================================================
@@ -1739,7 +1990,7 @@ export function registerSocketHandlers(io: Server) {
         });
       });
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // Host advances the bracket — only once the active round has been played.
@@ -1762,7 +2013,7 @@ export function registerSocketHandlers(io: Server) {
         room.phase = 'report';
       }
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // Player confirms they finished watching their match replay for the current round/leg.
@@ -1799,7 +2050,7 @@ export function registerSocketHandlers(io: Server) {
         return;
       }
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // Restart game in room (host only — otherwise any player could wipe progress)
@@ -1855,12 +2106,13 @@ export function registerSocketHandlers(io: Server) {
         currentOptionsByPlayer: {}
       };
 
-      io.to(roomCode).emit("room_updated", room);
+      emitRoomUpdate(io, room);
     });
 
     // Disconnect (evento de ciclo de vida — fica no socket.on cru, fora do wrapper)
     socket.on("disconnect", () => {
       console.log(`Socket disconnected: ${socket.id}`);
+      roomSyncSessions.delete(socket.id);
       // Find rooms where player was present
       rooms.forEach((room: RoomState, code: string) => {
         const idx = room.players.findIndex((p: RoomPlayer) => p.socketId === socket.id);
@@ -1878,7 +2130,7 @@ export function registerSocketHandlers(io: Server) {
             return;
           }
           recomputeHost(room);
-          io.to(code).emit("room_updated", room);
+          emitRoomUpdate(io, room);
           return;
         }
 
@@ -1894,7 +2146,7 @@ export function registerSocketHandlers(io: Server) {
         room.watchedRoundPlayers = room.watchedRoundPlayers.filter(id => id !== room.players[idx].id);
         room.watchedKnockoutLegPlayers = room.watchedKnockoutLegPlayers.filter(id => id !== room.players[idx].id);
         recomputeHost(room);
-        io.to(code).emit("room_updated", room);
+        emitRoomUpdate(io, room);
         if (wasHost) scheduleHostGraceTransfer(io, room);
         if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
         scheduleRoomCleanupIfEmpty(room);

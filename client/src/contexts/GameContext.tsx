@@ -2,7 +2,7 @@
 // Central state management for the entire game session
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useMemo } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 import {
   Player, Coach, Formation, COACHES, FORMATIONS, PLAYERS,
   DIFFICULTY_LEVELS,
@@ -29,6 +29,8 @@ import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem, getClientId } from '../lib/storage';
 import { DEFAULT_COMPETITION_FORMAT, DEFAULT_REWARDS_CONFIG, normalizeCompetitionFormat, type CompetitionFormat, validateCompetitionFormat } from '../lib/competition';
+import { applyRoomPatch, type RoomPatchOperation } from '../../../shared/room-sync';
+import { DurableRealtimeSocket, type RealtimeClientSocket } from '../lib/realtimeSocket';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -1505,6 +1507,13 @@ interface GameContextType {
 
 const GameContext = createContext<GameContextType | null>(null);
 
+// Production builds use the Durable Object endpoint on the same Cloudflare
+// hostname. Keeping Socket.IO for Vite development (or an explicit legacy
+// override) preserves the existing local development workflow.
+function usesDurableRealtime(): boolean {
+  return !import.meta.env.DEV && import.meta.env.VITE_REALTIME_TRANSPORT !== 'socketio';
+}
+
 // Exported separately to avoid HMR incompatibility
 export const useGame = () => {
   const ctx = useContext(GameContext);
@@ -1514,7 +1523,11 @@ export const useGame = () => {
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<RealtimeClientSocket | null>(null);
+  const socketRoomCodeRef = useRef<string | null>(null);
+  const onlineRoomRef = useRef<any | null>(null);
+  const onlineSyncRevisionRef = useRef<number | null>(null);
+  const syncRequestPendingRef = useRef(false);
 
   // Auto disconnect on unmount
   useEffect(() => {
@@ -1525,20 +1538,40 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const connectSocket = useCallback(() => {
-    if (socketRef.current) return socketRef.current;
+  const connectSocket = useCallback((requestedRoomCode?: string) => {
+    const durableRealtime = usesDurableRealtime();
+    const roomCode = requestedRoomCode?.toUpperCase() || getStorageItem(STORAGE_KEYS.roomCode)?.toUpperCase();
+    if (socketRef.current) {
+      // A failed join/create may leave a live socket pointing to a different
+      // room object. Recreate it instead of leaking actions into that room.
+      if (!durableRealtime || !roomCode || socketRoomCodeRef.current === roomCode) return socketRef.current;
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
 
-    // Em dev e no deploy acoplado, VITE_SOCKET_URL fica vazio e conectamos na
-    // mesma origin da página (Socket.io integrado ao servidor Vite/produção).
-    // No deploy separado (frontend na Cloudflare Pages, servidor socket em outro
-    // host), VITE_SOCKET_URL aponta pro host do servidor Socket.io.
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || undefined;
-    const socketInstance = io(socketUrl, {
-      transports: ["websocket", "polling"],
-      autoConnect: true,
-    });
+    if (durableRealtime && !roomCode) {
+      throw new Error('Uma sala é necessária para abrir a conexão online.');
+    }
+
+    // O Socket.IO continua disponível para `pnpm dev`. No build publicado o
+    // transporte é WebSocket nativo, atendido pelo Durable Object da própria
+    // Cloudflare; não há host externo de backend para configurar.
+    const socketInstance: RealtimeClientSocket = durableRealtime
+      ? new DurableRealtimeSocket(roomCode!)
+      : io(import.meta.env.VITE_SOCKET_URL || undefined, {
+        transports: ['websocket', 'polling'],
+        autoConnect: true,
+      }) as unknown as RealtimeClientSocket;
 
     socketRef.current = socketInstance;
+    socketRoomCodeRef.current = roomCode ?? null;
+
+    const requestRoomSync = () => {
+      const roomCode = getStorageItem(STORAGE_KEYS.roomCode);
+      if (!roomCode || syncRequestPendingRef.current) return;
+      syncRequestPendingRef.current = true;
+      socketInstance.emit("sync_room", { roomCode });
+    };
 
     // `connect` dispara no primeiro conecte E em toda reconexão de transporte (o
     // socket caiu e o socket.io reconectou sozinho, sem recarregar a página). Numa
@@ -1551,6 +1584,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     let reconnectToastId: string | number | undefined;
     socketInstance.on("connect", () => {
       console.log("Socket connected to server:", socketInstance.id);
+      // Opt into incremental room updates. The server still supports the
+      // legacy full-snapshot event for older clients during a rolling deploy.
+      socketInstance.emit("client_capabilities", { roomUpdates: 1 });
       if (hasConnectedOnce) {
         const roomCode = getStorageItem(STORAGE_KEYS.roomCode);
         const playerName = getStorageItem(STORAGE_KEYS.playerName);
@@ -1571,6 +1607,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     // socket.io tenta reconectar (o `connect` acima re-entra na sala e limpa o aviso).
     // Ignora saídas intencionais (o próprio jogador saiu) e quando não há sala ativa.
     socketInstance.on("disconnect", (reason: string) => {
+      onlineRoomRef.current = null;
+      onlineSyncRevisionRef.current = null;
+      syncRequestPendingRef.current = false;
       const inRoom = getStorageItem(STORAGE_KEYS.roomCode);
       if (inRoom && reason !== "io client disconnect" && reconnectToastId === undefined) {
         reconnectToastId = toast.loading("Conexão perdida — reconectando…");
@@ -1584,7 +1623,50 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("room_updated", (roomState: any) => {
+      // Legacy server / legacy browser compatibility. A full update is also a
+      // valid recovery point, but without a revision we wait for a snapshot
+      // before applying any subsequent patch.
+      onlineRoomRef.current = roomState;
+      onlineSyncRevisionRef.current = null;
+      syncRequestPendingRef.current = false;
       dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
+    });
+
+    socketInstance.on("room_snapshot", ({ roomState, syncRevision }: { roomState?: any; syncRevision?: number }) => {
+      if (!roomState || typeof syncRevision !== 'number' || !Number.isInteger(syncRevision) || syncRevision < 0) {
+        requestRoomSync();
+        return;
+      }
+      onlineRoomRef.current = roomState;
+      onlineSyncRevisionRef.current = syncRevision;
+      syncRequestPendingRef.current = false;
+      dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
+    });
+
+    socketInstance.on("room_patch", ({ baseRevision, revision, patch }: {
+      baseRevision?: number;
+      revision?: number;
+      patch?: RoomPatchOperation[];
+    }) => {
+      if (!onlineRoomRef.current
+        || !Number.isInteger(baseRevision)
+        || !Number.isInteger(revision)
+        || revision !== (baseRevision as number) + 1
+        || onlineSyncRevisionRef.current !== baseRevision
+        || !Array.isArray(patch)) {
+        requestRoomSync();
+        return;
+      }
+
+      try {
+        const nextRoom = applyRoomPatch(onlineRoomRef.current, patch);
+        onlineRoomRef.current = nextRoom;
+        onlineSyncRevisionRef.current = revision as number;
+        syncRequestPendingRef.current = false;
+        dispatch({ type: 'SET_ONLINE_STATE', roomState: nextRoom, socketId: socketInstance.id || "" });
+      } catch {
+        requestRoomSync();
+      }
     });
 
     socketInstance.on("ready_state_updated", ({ readyPlayers }: { readyPlayers?: string[] }) => {
@@ -1597,6 +1679,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("room_created", ({ roomCode, roomState }) => {
+      onlineRoomRef.current = roomState;
+      onlineSyncRevisionRef.current = 0;
+      syncRequestPendingRef.current = false;
       const me = roomState.players[0];
       if (me) {
         setStorageItem(STORAGE_KEYS.playerName, me.name);
@@ -1607,6 +1692,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("joined_room", ({ roomCode, player, roomState }) => {
+      onlineRoomRef.current = roomState;
+      onlineSyncRevisionRef.current = 0;
+      syncRequestPendingRef.current = false;
       setStorageItem(STORAGE_KEYS.playerName, player.name);
       setStorageItem(STORAGE_KEYS.roomCode, roomCode);
       dispatch({ type: 'INIT_ONLINE', socketId: socketInstance.id || "", roomCode, isHost: player.id === 'player_0' });
@@ -1614,6 +1702,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("error_message", (msg: string) => {
+      onlineRoomRef.current = null;
+      onlineSyncRevisionRef.current = null;
+      syncRequestPendingRef.current = false;
       toast.error(msg);
       removeStorageItem(STORAGE_KEYS.playerName);
       removeStorageItem(STORAGE_KEYS.roomCode);
@@ -1624,13 +1715,32 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const createRoom = useCallback((creatorName: string, competitionFormat: CompetitionFormat, difficulty?: string) => {
-    const s = connectSocket();
-    s.emit("create_room", { creatorName, competitionFormat, difficulty, clientId: getClientId() });
+    if (!usesDurableRealtime()) {
+      const s = connectSocket();
+      s.emit("create_room", { creatorName, competitionFormat, difficulty, clientId: getClientId() });
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/realtime/room-code', { method: 'POST' });
+        const body = await response.json().catch(() => null) as { roomCode?: unknown; message?: unknown } | null;
+        if (!response.ok || typeof body?.roomCode !== 'string') {
+          throw new Error(typeof body?.message === 'string' ? body.message : 'Não foi possível criar a sala online.');
+        }
+        const roomCode = body.roomCode.toUpperCase();
+        const socket = connectSocket(roomCode);
+        socket.emit('create_room', { creatorName, competitionFormat, difficulty, clientId: getClientId(), roomCode });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Não foi possível criar a sala online.');
+      }
+    })();
   }, [connectSocket]);
 
   const joinRoom = useCallback((roomCode: string, playerName: string) => {
-    const s = connectSocket();
-    s.emit("join_room", { roomCode, playerName, clientId: getClientId() });
+    const normalizedRoomCode = roomCode.trim().toUpperCase();
+    const s = connectSocket(normalizedRoomCode);
+    s.emit("join_room", { roomCode: normalizedRoomCode, playerName, clientId: getClientId() });
   }, [connectSocket]);
 
   const startSetupOnline = useCallback(() => {
@@ -1808,6 +1918,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       socketRef.current.disconnect();
       socketRef.current = null;
     }
+    socketRoomCodeRef.current = null;
     removeStorageItem(STORAGE_KEYS.playerName);
     removeStorageItem(STORAGE_KEYS.roomCode);
     dispatch({ type: 'DISCONNECT_ONLINE' });

@@ -8,6 +8,7 @@ import { networkInterfaces } from "os";
 // Single source of truth for all multiplayer socket logic. The dev server
 // (vite.config.ts) wires the same module, so dev and prod run identical code.
 import { registerSocketHandlers } from "./handlers.js";
+import type { RealtimeServer } from "./realtime.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,7 +34,12 @@ async function startServer() {
     cors: {
       origin: "*",
       methods: ["GET", "POST"]
-    }
+    },
+    // Keep WebSocket frames compressed and polling fallback responses
+    // compressed as well. Patches are the primary saving; compression is an
+    // additional guard for snapshots and older clients.
+    perMessageDeflate: true,
+    httpCompression: true,
   });
 
   const localIp = getLocalIpAddress();
@@ -57,7 +63,7 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  registerSocketHandlers(io);
+  registerSocketHandlers(io as unknown as RealtimeServer);
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

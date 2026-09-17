@@ -4,7 +4,20 @@
   // publica essa pasta. "single-page-application" faz todas as rotas caírem
   // no index.html (necessário pro roteamento client-side do React).
   "name": "ucl-immortals",
+  "main": "server/cloudflare-worker.ts",
   "compatibility_date": "2026-07-01",
+  "durable_objects": {
+    "bindings": [
+      { "name": "GAME_ROOM", "class_name": "GameRoom" },
+      { "name": "ROOM_DIRECTORY", "class_name": "RoomDirectory" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["GameRoom", "RoomDirectory"]
+    }
+  ],
   "assets": {
     "directory": "./dist/public",
     "not_found_handling": "single-page-application"

@@ -163,7 +163,7 @@ export function rarityForBaseOverall(overall: number): Exclude<Rarity, 'unique'>
   return 'immortal';
 }
 
-function normalizeRegularPlayerRarity(player: Player): Player {
+function normalizeRegularPlayerRarity<T extends { overall: number }>(player: T): T & { rarity: Exclude<Rarity, 'unique'> } {
   return { ...player, rarity: rarityForBaseOverall(player.overall) };
 }
 

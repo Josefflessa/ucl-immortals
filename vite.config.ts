@@ -7,6 +7,7 @@ import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 import { Server as SocketIOServer } from "socket.io";
 import { registerSocketHandlers } from "./server/handlers";
+import type { RealtimeServer } from "./server/realtime";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -214,9 +215,11 @@ function vitePluginSocketIO(): Plugin {
         cors: {
           origin: "*",
           methods: ["GET", "POST"]
-        }
+        },
+        perMessageDeflate: true,
+        httpCompression: true,
       });
-      registerSocketHandlers(io);
+      registerSocketHandlers(io as unknown as RealtimeServer);
       console.log("🔌 [Vite] Socket.io server integrated successfully!");
     }
   };
