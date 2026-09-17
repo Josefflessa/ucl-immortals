@@ -4,7 +4,7 @@
 import {
   Player, Coach, Formation,
   PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, HISTORICAL_TRIOS, getTacticById,
-  canonicalPosition, getPositionGroup, effectiveSecondaries,
+  canonicalPosition, getPositionGroup, effectiveSecondaries, type Rarity,
 } from './gameData';
 import {
   selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
@@ -240,8 +240,8 @@ export function matchRoleForPlayer(team: Team, player: Player): string {
  *
  * A red-carded goalkeeper cannot keep making saves. The game keeps the
  * formation slot intact for chemistry/display purposes, but the match engine
- * uses the best available line player as an emergency goalkeeper and applies
- * a separate shot-stopping penalty.
+ * uses the best available line player as an emergency goalkeeper. The shared
+ * goalkeeper resolver handles the reduced aptitude for any non-GK in the role.
  */
 export function activeGoalkeeperForTeam(
   team: Team,
@@ -255,8 +255,13 @@ export function activeGoalkeeperForTeam(
     return (stat?.redCards ?? 0) > 0;
   };
   const active = starters.filter(player => !isUnavailable(player));
-  const natural = active.find(player => matchRoleForPlayer(team, player) === 'GK');
-  if (natural) return { player: natural, emergency: false };
+  const assigned = active.find(player => matchRoleForPlayer(team, player) === 'GK');
+  // A line player can occupy the GK slot (for example through Coringa), but that
+  // does not make the card a natural goalkeeper. The match resolver applies the
+  // role-specific penalty; `emergency` remains reserved for a forced replacement
+  // after the natural keeper is unavailable, so the UI does not report a red-card
+  // emergency when the manager deliberately chose a line player for the slot.
+  if (assigned) return { player: assigned, emergency: false };
 
   const emergency = [...active].sort((a, b) =>
     ((b.defending ?? 0) + (b.physical ?? 0)) - ((a.defending ?? 0) + (a.physical ?? 0))
@@ -558,6 +563,7 @@ export interface StatBreakdown {
   base: number;       // raw attribute
   chem: number;       // delta from the individual-chemistry multiplier (pura, sem penalidade de posição)
   position: number;   // 🔁 penalidade de posição (2ª = −5% / fora = −15%; 0 na nativa)
+  goalkeeper: number; // 🧤 aptidão no gol — ajuste exclusivo da DEF de jogadores de linha
   coach: number;      // coach per-attribute modifier
   trait: number;      // sum of always-on trait bonuses
   tactic: number;     // play-style (tactic) bonus
@@ -865,7 +871,11 @@ export function getPlayerEffectiveStats(
   const shooting  = eff(player.shooting, modifiers.shooting, 'shooting');
   const passing   = eff(player.passing, modifiers.passing, 'passing');
   const dribbling = eff(player.dribbling, modifiers.dribbling, 'dribbling');
-  const defending = eff(player.defending, modifiers.defending, 'defending');
+  const defendingBeforeGoalkeeper = eff(player.defending, modifiers.defending, 'defending');
+  // A falta de aptidão para o gol é uma limitação da DEF para fazer defesas — não
+  // uma penalidade geral na carta. Assim, FIS/RIT e os demais atributos continuam
+  // exatamente como calculados pela posição e pela química.
+  const defending = goalkeeperAptitudeDefending(player, defendingBeforeGoalkeeper, context?.role);
   const physical  = eff(player.physical, modifiers.physical, 'physical');
   // Vision & composure are full attributes too (they drive possession, playmaking and
   // penalties), so they go through the exact same pipeline and surface in the breakdown.
@@ -874,10 +884,11 @@ export function getPlayerEffectiveStats(
 
   // Per-source breakdown (base + chem + coach + trait + tactic + globalChem = effective,
   // barring the rare Math.max(1, …) floor). Lets the UI show where each point comes from.
-  const mkBreak = (base: number, mod: number, attr: AttrKey): StatBreakdown => ({
+  const mkBreak = (base: number, mod: number, attr: AttrKey, goalkeeper = 0): StatBreakdown => ({
     base,
     chem: chemOnly(base) - base,                 // só química (sem penalidade de posição)
     position: applyMult(base) - chemOnly(base),  // 🔁 penalidade de posição (2ª = −5% / fora = −15%)
+    goalkeeper,
     coach: mod,
     trait: traitBonus(attr),
     tactic: styleBonus(attr),
@@ -926,7 +937,7 @@ export function getPlayerEffectiveStats(
       shooting: mkBreak(player.shooting, modifiers.shooting, 'shooting'),
       passing: mkBreak(player.passing, modifiers.passing, 'passing'),
       dribbling: mkBreak(player.dribbling, modifiers.dribbling, 'dribbling'),
-      defending: mkBreak(player.defending, modifiers.defending, 'defending'),
+      defending: mkBreak(player.defending, modifiers.defending, 'defending', defending - defendingBeforeGoalkeeper),
       physical: mkBreak(player.physical, modifiers.physical, 'physical'),
       vision: mkBreak(player.vision, modifiers.vision, 'vision'),
       composure: mkBreak(player.composure, modifiers.composure, 'composure'),
@@ -1367,7 +1378,45 @@ const FLAVOR_FOUL_RATE = 0.24;  // base chance of a foul this minute
 export const FREE_KICK_CHANCE = 0.10; // fraction of fouls that are dangerous → a direct free kick
 export const PENALTY_FOUL_CHANCE = 0.15; // fraction of dangerous fouls judged inside the box → penalty
 export const CORNER_CHANCE = 0.14;    // fraction of corners that produce a header chance
-export const EMERGENCY_GK_PENALTY = 20; // line player in goal: temporary shot-stopping penalty
+// A goalkeeper is a specialized role. Coringa removes the normal out-of-position
+// penalty, but it does not teach a defender or midfielder how to keep goal. Their
+// DEF still helps, at a reduced role-specific efficiency, while FIS/RIT and the other
+// attributes remain untouched by this goalkeeper-specific factor. Goalkeeper-only
+// traits remain exclusive to cards whose native position is GK.
+export const OUTFIELD_GK_MULTIPLIER = 0.70;
+
+export function isOutfieldGoalkeeper(
+  player: Pick<Player, 'position'>,
+  role?: string,
+): boolean {
+  return !!role
+    && canonicalPosition(role) === 'GK'
+    && canonicalPosition(player.position) !== 'GK';
+}
+
+// Applies the goalkeeper aptitude rule exactly once to the effective DEF. Keeping
+// this helper shared by the detail view, team-strength calculation and save model
+// prevents the UI and match engine from drifting apart or double-penalizing cards.
+export function goalkeeperAptitudeDefending(
+  player: Pick<Player, 'position'>,
+  effectiveDefending: number,
+  role?: string,
+): number {
+  return isOutfieldGoalkeeper(player, role)
+    ? Math.max(1, Math.round(effectiveDefending * OUTFIELD_GK_MULTIPLIER))
+    : effectiveDefending;
+}
+
+export function goalkeeperShotStoppingRating(
+  player: Pick<Player, 'position'>,
+  effectiveDefending: number,
+  traits: string[],
+): number {
+  const isNaturalGoalkeeper = canonicalPosition(player.position) === 'GK';
+  const roleDefending = goalkeeperAptitudeDefending(player, effectiveDefending, 'GK');
+  const specialistBonus = isNaturalGoalkeeper ? getGoalkeeperTraitBonus(traits) : 0;
+  return Math.max(1, roleDefending + specialistBonus);
+}
 // Momentum gained/lost by the team that scores. Lower = leads snowball less, so
 // fewer blowouts and more balanced (drawn) games.
 export const GOAL_MOMENTUM_SWING = 8;
@@ -2001,8 +2050,11 @@ export function runMatchSimulation(
         const penaltyGkCtx = { ...defendCtx, role: 'GK' };
         const penComp = getEffectiveAttribute(penaltyTaker, 'composure', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), penaltyTakerCtx)
           + getPenaltyComposureBonus(penaltyTaker.traits) + (penaltyTaker.id === attackTeam.penaltyTaker ? 5 : 0);
-        const penGkRef = getEffectiveAttribute(penaltyGk, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), penaltyGkCtx)
-          + getGoalkeeperTraitBonus(penaltyGk.traits) - (penaltyGkInfo.emergency ? EMERGENCY_GK_PENALTY : 0);
+        const penGkRef = goalkeeperShotStoppingRating(
+          penaltyGk,
+          getEffectiveAttribute(penaltyGk, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), penaltyGkCtx),
+          penaltyGk.traits,
+        );
         const isPenGoal = Math.random() < penaltyGoalChance(penComp, penGkRef);
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
         if (playerStats[penaltyTaker.statId!]) playerStats[penaltyTaker.statId!].shots++;
@@ -2291,8 +2343,12 @@ export function runMatchSimulation(
         const buildUp = midfieldBuildUpEdge(homeAttacks ? homeMid : awayMid, homeAttacks ? awayMid : homeMid, activePlayStyleFor(attackTeam)) + formMod;
         const chance = resolveOpenPlayChance({
           atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
-          gkRating: getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), gkCtx)
-            + getGoalkeeperTraitBonus(gk.traits) - (gkInfo.emergency ? EMERGENCY_GK_PENALTY : 0), approach,
+          gkRating: goalkeeperShotStoppingRating(
+            gk,
+            getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), gkCtx),
+            gk.traits,
+          ),
+          approach,
         });
 
         if (chance.outcome !== 'duel') {
@@ -2830,18 +2886,20 @@ export function calculateTeamStrength(
     // accidentally share an injury state.
     const injuryMarker = disc?.injuredDebuff?.[statKey(team.id, p.id)] ?? disc?.injuredDebuff?.[p.id];
     const debuff = injuryMarker ? (disc?.injuryDebuff ?? 0) : 0; // lesionado joga capengando
+    const role = matchRoleForPlayer(team, p);
     const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, '', chemBonus, '__neutral__', {
       captainBoost,
       charBoosts,
-      role: matchRoleForPlayer(team, p),
+      role,
     }) - debuff;
     // GKs are evaluated on shot-stopping attributes (defending + physical), not the outfield
     // blend that low shooting/dribbling would distort. Outfielders use the six core stats PLUS
     // vision at half weight — playmaking is a real "control the game" signal. Composure is
     // deliberately NOT here: it's a clutch / dead-ball stat (penalties, free kicks), with no
     // open-play role, so it shouldn't tilt possession/territory.
-    const base = matchRoleForPlayer(team, p) === 'GK'
-      ? (v('defending') * 1.5 + v('physical') + v('pace') * 0.5) / 3
+    const gkDefending = goalkeeperAptitudeDefending(p, v('defending'), role);
+    const base = role === 'GK'
+      ? ((gkDefending * 1.5 + v('physical') + v('pace') * 0.5) / 3)
       : (v('pace') + v('shooting') + v('passing') + v('dribbling') + v('defending') + v('physical')
           + v('vision') * 0.5) / 6.5;
     return sum + base;
@@ -2934,9 +2992,13 @@ type PenCtx = {
 function penaltyKickGoal(taker: PlayerCard, takerCtx: PenCtx, gk: PlayerCard, gkCtx: PenCtx, designatedTakerId: string): boolean {
   const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle)
     + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
-  const gkRef = getEffectiveAttribute(gk, 'defending', gkCtx.coach, 'Defesa', gkCtx.chem, gkCtx.playStyle, {
-    role: gkCtx.role ?? 'GK',
-  }) + getGoalkeeperTraitBonus(gk.traits) - (gkCtx.emergencyGoalkeeper ? EMERGENCY_GK_PENALTY : 0);
+  const gkRef = goalkeeperShotStoppingRating(
+    gk,
+    getEffectiveAttribute(gk, 'defending', gkCtx.coach, 'Defesa', gkCtx.chem, gkCtx.playStyle, {
+      role: gkCtx.role ?? 'GK',
+    }),
+    gk.traits,
+  );
   return Math.random() < penaltyGoalChance(comp, gkRef);
 }
 
@@ -3028,6 +3090,19 @@ export function simulatePenalties(
 // ============================================================
 
 const DRAFT_OPTIONS_COUNT = 6;
+
+// Draft rarity is sampled once per offer slot (there are six slots). The player
+// count inside each bucket does not dilute the configured tier chance; it only
+// decides which card is selected within that tier. If a tier has no eligible
+// cards left, the remaining tiers are naturally renormalized.
+export type DraftRarity = Exclude<Rarity, 'unique'>;
+export const DRAFT_RARITY_CHANCES: Readonly<Record<DraftRarity, number>> = {
+  bronze: 0.14,
+  silver: 0.44,
+  gold: 0.33,
+  legendary: 0.08,
+  immortal: 0.01,
+};
 
 // ── Draft card variants (arcade variety) ──────────────────────
 // Each card in the draft pool has a small chance to spawn as a boosted "in-form"
@@ -3209,6 +3284,37 @@ function canPlayDraftPosition(player: Player, position: string): boolean {
   return player.position === position || effectiveSecondaries(player).includes(position);
 }
 
+// A draft slot can be `null` after a RoomState crosses the Socket.IO/JSON
+// boundary (undefined array entries are serialized as null). Treat both as
+// empty everywhere so solo and online drafts see the same formation needs.
+function isEmptyDraftSlot(player: Player | null | undefined): boolean {
+  return player == null;
+}
+
+// Shared placement rule for solo and online drafts. A card may fill its primary
+// position first, then an effective secondary position. If the XI is complete,
+// any remaining card goes to the first reserve slot. An incompatible card is
+// never allowed to occupy an arbitrary starter slot such as the goalkeeper.
+export function draftSlotIndex(
+  formationId: string,
+  drafted: (Player | null | undefined)[],
+  player: Player,
+): number {
+  const formation = FORMATIONS.find(f => f.id === formationId);
+  const roles = formation?.positions.map(p => p.role) ?? [];
+  const preferredRoles = [player.position, ...effectiveSecondaries(player)];
+  for (const preferredRole of preferredRoles) {
+    const targetIndex = roles.findIndex((role, index) =>
+      role === preferredRole && isEmptyDraftSlot(drafted[index])
+    );
+    if (targetIndex !== -1) return targetIndex;
+  }
+
+  const startersComplete = drafted.slice(0, 11).every(slot => !isEmptyDraftSlot(slot));
+  if (!startersComplete) return -1;
+  return drafted.findIndex((slot, index) => index >= 11 && isEmptyDraftSlot(slot));
+}
+
 // Position demand keeps rarity weighting inside the set of roles that are still
 // open in the formation. Once a role is filled, it cannot reappear until the
 // starter XI is complete (unless the player can fill another open role).
@@ -3224,14 +3330,25 @@ function draftPositionNeedWeight(player: Player, neededPositions: string[]): num
   return 0.4;
 }
 
-function shuffleWithDraftNeed(pool: Player[], neededPositions: string[]): Player[] {
+function shuffleWithDraftNeed(pool: Player[], neededPositions: string[], limit = Number.POSITIVE_INFINITY): Player[] {
   const remaining = [...pool];
   const shuffled: Player[] = [];
 
-  while (remaining.length > 0) {
+  while (remaining.length > 0 && shuffled.length < limit) {
+    // Preserve the configured chance for each rarity bucket, then use the
+    // positional need only to choose a card inside that bucket.
+    const rarityNeedTotals = new Map<DraftRarity, number>();
+    for (const player of remaining) {
+      const rarity = player.rarity as DraftRarity;
+      const needWeight = draftPositionNeedWeight(player, neededPositions);
+      rarityNeedTotals.set(rarity, (rarityNeedTotals.get(rarity) ?? 0) + needWeight);
+    }
     const weighted = remaining.map(player => {
-      const rarityWeight = player.rarity === 'immortal' ? 1 : player.rarity === 'legendary' ? 2 : player.rarity === 'gold' ? 4 : player.rarity === 'silver' ? 6 : 8;
-      return { player, weight: rarityWeight * draftPositionNeedWeight(player, neededPositions) };
+      const rarity = player.rarity as DraftRarity;
+      const needWeight = draftPositionNeedWeight(player, neededPositions);
+      const rarityNeedTotal = rarityNeedTotals.get(rarity) ?? needWeight;
+      const rarityChance = DRAFT_RARITY_CHANCES[rarity] ?? 0;
+      return { player, weight: rarityChance * needWeight / rarityNeedTotal };
     });
     const total = weighted.reduce((sum, item) => sum + item.weight, 0);
     let roll = Math.random() * total;
@@ -3257,7 +3374,7 @@ export function generateDraftOptions(
   const fullAvailable = PLAYERS.filter(p => !alreadyDrafted.includes(p.id));
 
   if (neededPositions.length === 0) {
-    return withDraftVariants(shuffleWithRarityWeight(fullAvailable).slice(0, DRAFT_OPTIONS_COUNT));
+    return withDraftVariants(shuffleWithDraftNeed(fullAvailable, [], DRAFT_OPTIONS_COUNT));
   }
 
   // Hard-gate the starter draft to the remaining formation roles. This keeps
@@ -3280,9 +3397,9 @@ export function generateDraftOptions(
     : [];
 
   // Shuffle each bucket
-  const shuffledExact = shuffleWithDraftNeed(exactMatch, neededPositions);
-  const shuffledGroup = shuffleWithDraftNeed(groupMatch, neededPositions);
-  const shuffledAll   = shuffleWithDraftNeed(available, neededPositions);
+  const shuffledExact = shuffleWithDraftNeed(exactMatch, neededPositions, 1);
+  const shuffledGroup = shuffleWithDraftNeed(groupMatch, neededPositions, 1);
+  const shuffledAll   = shuffleWithDraftNeed(available, neededPositions, DRAFT_OPTIONS_COUNT);
 
   // Guaranteed slot: prefer exact match, fall back to group, then any
   const guaranteed = shuffledExact[0] ?? shuffledGroup[0] ?? shuffledAll[0];
@@ -3420,14 +3537,14 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
 
 export function getNeededPositions(
   formationId: string,
-  drafted: (Player | undefined)[],
+  drafted: (Player | null | undefined)[],
 ): string[] {
   const formation = FORMATIONS.find(f => f.id === formationId);
   if (!formation) return [];
 
   const missing: string[] = [];
   for (let i = 0; i < 11; i++) {
-    if (drafted[i] === undefined) {
+    if (drafted[i] == null) {
       missing.push(formation.positions[i].role);
     }
   }
@@ -3768,41 +3885,170 @@ export interface LeagueFixture {
   groupId?: number;
 }
 
-export function generateLeagueFixtures(teams: Team[], requestedRounds = DEFAULT_COMPETITION_FORMAT.leagueRounds): LeagueFixture[] {
-  const fixtures: LeagueFixture[] = [];
-  const N = teams.length;
-  const tempTeams = [...teams];
+export type ScheduleRng = () => number;
 
-  // With N teams, the circle method has N - 1 unique rounds. Keep this helper
-  // defensive because it is also used by tests and old saved sessions.
-  const rawRounds = Number.isFinite(requestedRounds) ? Math.trunc(requestedRounds) : DEFAULT_COMPETITION_FORMAT.leagueRounds;
-  const rounds = Math.min(Math.max(rawRounds, 1), Math.max(1, N - 1));
-  const matchesPerRound = Math.floor(N / 2);
-  const list = tempTeams.slice(1); // 13 teams
-  
-  for (let r = 0; r < rounds; r++) {
-    const roundNumber = r + 1;
-    
-    // Pair team 0
-    const home0 = tempTeams[0].id;
-    const away0 = list[r % list.length].id;
-    if (r % 2 === 0) {
-      fixtures.push({ round: roundNumber, homeTeamId: home0, awayTeamId: away0, played: false });
-    } else {
-      fixtures.push({ round: roundNumber, homeTeamId: away0, awayTeamId: home0, played: false });
-    }
-    
-    for (let i = 1; i < matchesPerRound; i++) {
-      const homeIdx = (r - i + list.length) % list.length;
-      const awayIdx = (r + i) % list.length;
-      if (homeIdx !== awayIdx) {
-        fixtures.push({
-          round: roundNumber,
-          homeTeamId: list[homeIdx].id,
-          awayTeamId: list[awayIdx].id,
-          played: false
-        });
+interface LeaguePairing {
+  round: number;
+  teamAId: string;
+  teamBId: string;
+}
+
+/** Fisher–Yates used only when a new competition draw is created. */
+export function shuffleTeamsForDraw<T>(teams: T[], rng: ScheduleRng = Math.random): T[] {
+  const shuffled = [...teams];
+  for (let index = shuffled.length - 1; index > 0; index--) {
+    const raw = Number(rng());
+    const safe = Number.isFinite(raw) ? Math.min(0.999999999, Math.max(0, raw)) : 0.5;
+    const swapIndex = Math.floor(safe * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function normalizedLeagueRounds(teamCount: number, requestedRounds: number): number {
+  if (teamCount < 2) return 0;
+  const rawRounds = Number.isFinite(requestedRounds)
+    ? Math.trunc(requestedRounds)
+    : DEFAULT_COMPETITION_FORMAT.leagueRounds;
+  return Math.min(Math.max(rawRounds, 1), teamCount - 1);
+}
+
+/**
+ * Creates the pairings first, independently of home/away. This is the actual
+ * draw: every round is generated up front by the circle method, so no later
+ * round is re-sorted based on the live table and no pair can repeat early just
+ * because the teams arrived in a fixed array order.
+ */
+function generateLeaguePairings(teams: Team[], requestedRounds: number): LeaguePairing[] {
+  const rounds = normalizedLeagueRounds(teams.length, requestedRounds);
+  if (rounds === 0) return [];
+
+  // The dummy slot keeps the helper correct for odd-sized custom groups too.
+  const slots: Array<Team | null> = [...teams];
+  if (slots.length % 2 !== 0) slots.push(null);
+
+  const pairings: LeaguePairing[] = [];
+  for (let round = 0; round < rounds; round++) {
+    for (let index = 0; index < slots.length / 2; index++) {
+      const left = slots[index];
+      const right = slots[slots.length - 1 - index];
+      if (left && right) {
+        pairings.push({ round: round + 1, teamAId: left.id, teamBId: right.id });
       }
+    }
+
+    // Keep the first slot fixed and rotate the other slots one place. Over
+    // N−1 rounds this visits every possible opponent exactly once.
+    const last = slots.pop()!;
+    slots.splice(1, 0, last);
+  }
+  return pairings;
+}
+
+/**
+ * Orients the already-drawn pairings while balancing the venue split. The
+ * default 36-team/8-round competition therefore gives every team exactly four
+ * home and four away matches, like the real league phase. For odd degrees a
+ * temporary dummy edge makes the difference at most one match.
+ */
+function orientLeaguePairings(pairings: LeaguePairing[], teams: Team[], rng: ScheduleRng): LeagueFixture[] {
+  if (pairings.length === 0) return [];
+
+  const degree = new Map<string, number>(teams.map(team => [team.id, 0]));
+  pairings.forEach(pairing => {
+    degree.set(pairing.teamAId, (degree.get(pairing.teamAId) ?? 0) + 1);
+    degree.set(pairing.teamBId, (degree.get(pairing.teamBId) ?? 0) + 1);
+  });
+
+  // An Euler orientation gives equal home/away counts at every even-degree
+  // vertex. Odd-degree vertices receive one temporary dummy edge and therefore
+  // finish with the only possible split: floor/ceil(degree / 2).
+  const dummyId = '__schedule_dummy__';
+  const edges = pairings.map(pairing => ({ a: pairing.teamAId, b: pairing.teamBId, real: true }));
+  degree.forEach((teamDegree, teamId) => {
+    if (teamDegree % 2 !== 0) edges.push({ a: teamId, b: dummyId, real: false });
+  });
+
+  const adjacency = new Map<string, number[]>();
+  edges.forEach((edge, edgeIndex) => {
+    if (!adjacency.has(edge.a)) adjacency.set(edge.a, []);
+    if (!adjacency.has(edge.b)) adjacency.set(edge.b, []);
+    adjacency.get(edge.a)!.push(edgeIndex);
+    adjacency.get(edge.b)!.push(edgeIndex);
+  });
+
+  const used = new Array(edges.length).fill(false);
+  const oriented = new Map<number, { home: string; away: string }>();
+
+  for (const start of Array.from(adjacency.keys())) {
+    if (!adjacency.get(start)!.some(edgeIndex => !used[edgeIndex])) continue;
+    const componentEdges: number[] = [];
+
+    const visit = (teamId: string): void => {
+      const incident = adjacency.get(teamId) ?? [];
+      for (const edgeIndex of incident) {
+        if (used[edgeIndex]) continue;
+        used[edgeIndex] = true;
+        const edge = edges[edgeIndex];
+        const other = edge.a === teamId ? edge.b : edge.a;
+        oriented.set(edgeIndex, { home: teamId, away: other });
+        componentEdges.push(edgeIndex);
+        visit(other);
+      }
+    };
+
+    visit(start);
+    // Reversing a whole Euler component preserves the balance and gives the
+    // draw a fresh venue orientation instead of tying it to array order.
+    if (rng() >= 0.5) {
+      for (const edgeIndex of componentEdges) {
+        const direction = oriented.get(edgeIndex)!;
+        oriented.set(edgeIndex, { home: direction.away, away: direction.home });
+      }
+    }
+  }
+
+  return pairings.map((pairing, index) => {
+    const direction = oriented.get(index);
+    return {
+      round: pairing.round,
+      homeTeamId: direction?.home ?? pairing.teamAId,
+      awayTeamId: direction?.away ?? pairing.teamBId,
+      played: false,
+    };
+  });
+}
+
+function generateLeagueFixturesFromOrder(teams: Team[], requestedRounds: number, rng: ScheduleRng): LeagueFixture[] {
+  return orientLeaguePairings(generateLeaguePairings(teams, requestedRounds), teams, rng);
+}
+
+/** Deterministic generator retained for legacy tools and saved-session tests. */
+export function generateLeagueFixtures(teams: Team[], requestedRounds = DEFAULT_COMPETITION_FORMAT.leagueRounds): LeagueFixture[] {
+  return generateLeagueFixturesFromOrder(teams, requestedRounds, () => 0);
+}
+
+/**
+ * Draws the complete league schedule once, at competition creation time. The
+ * resulting fixtures are stored in state/server room state, so solo and online
+ * never re-roll a later round and all online clients see the same draw.
+ */
+export function generateRandomLeagueFixtures(
+  teams: Team[],
+  requestedRounds = DEFAULT_COMPETITION_FORMAT.leagueRounds,
+  rng: ScheduleRng = Math.random,
+): LeagueFixture[] {
+  return generateLeagueFixturesFromOrder(shuffleTeamsForDraw(teams, rng), requestedRounds, rng);
+}
+
+function generateGroupFixturesFromOrder(teams: Team[], groupCount: number, requestedRounds: number, rng: ScheduleRng): LeagueFixture[] {
+  if (groupCount < 1 || teams.length % groupCount !== 0) return [];
+  const perGroup = teams.length / groupCount;
+  const fixtures: LeagueFixture[] = [];
+  for (let group = 0; group < groupCount; group++) {
+    const groupTeams = teams.slice(group * perGroup, (group + 1) * perGroup);
+    for (const fixture of generateLeagueFixturesFromOrder(groupTeams, requestedRounds, rng)) {
+      fixtures.push({ ...fixture, groupId: group });
     }
   }
   return fixtures;
@@ -3810,16 +4056,17 @@ export function generateLeagueFixtures(teams: Team[], requestedRounds = DEFAULT_
 
 /** Generates one shared matchday schedule for a groups format. */
 export function generateGroupFixtures(teams: Team[], groupCount: number, requestedRounds: number): LeagueFixture[] {
-  if (groupCount < 1 || teams.length % groupCount !== 0) return [];
-  const perGroup = teams.length / groupCount;
-  const fixtures: LeagueFixture[] = [];
-  for (let group = 0; group < groupCount; group++) {
-    const groupTeams = teams.slice(group * perGroup, (group + 1) * perGroup);
-    for (const fixture of generateLeagueFixtures(groupTeams, requestedRounds)) {
-      fixtures.push({ ...fixture, groupId: group });
-    }
-  }
-  return fixtures;
+  return generateGroupFixturesFromOrder(teams, groupCount, requestedRounds, () => 0);
+}
+
+/** Randomly draws group allocation and every group's complete schedule once. */
+export function generateRandomGroupFixtures(
+  teams: Team[],
+  groupCount: number,
+  requestedRounds: number,
+  rng: ScheduleRng = Math.random,
+): LeagueFixture[] {
+  return generateGroupFixturesFromOrder(shuffleTeamsForDraw(teams, rng), groupCount, requestedRounds, rng);
 }
 
 export function computeStandings(
@@ -3931,11 +4178,57 @@ export interface KnockoutBracket {
   finalSingleLeg?: boolean;
 }
 
+interface BracketEntrant {
+  teamId: string;
+  seed?: number;
+  fromPlayoff?: number;
+}
+
+/**
+ * In a two-legged tie the better seed (lower league position) hosts the
+ * return. The bracket keeps the first-leg home/away order because match keys,
+ * bets and replays use that order; this helper only chooses which side starts
+ * at home. An unresolved play-off placeholder is treated as the lower seed
+ * until its winner is known.
+ */
+function orientBracketEntrants(left: BracketEntrant, right: BracketEntrant, twoLegged: boolean): { home: BracketEntrant; away: BracketEntrant } {
+  if (!twoLegged) return { home: left, away: right };
+  if (left.seed !== undefined && right.seed !== undefined) {
+    return left.seed < right.seed
+      ? { home: right, away: left }
+      : { home: left, away: right };
+  }
+  if (left.seed !== undefined) return { home: right, away: left };
+  if (right.seed !== undefined) return { home: left, away: right };
+  return { home: left, away: right };
+}
+
+function makeBracketTie(
+  id: string,
+  left: BracketEntrant,
+  right: BracketEntrant,
+  twoLegged: boolean,
+  isSingleLeg?: boolean,
+): any {
+  const { home, away } = orientBracketEntrants(left, right, twoLegged);
+  return {
+    id,
+    homeTeamId: home.teamId,
+    awayTeamId: away.teamId,
+    ...(home.seed !== undefined ? { homeSeed: home.seed } : {}),
+    ...(away.seed !== undefined ? { awaySeed: away.seed } : {}),
+    ...(home.fromPlayoff !== undefined ? { homeFromPo: home.fromPlayoff } : {}),
+    ...(away.fromPlayoff !== undefined ? { awayFromPo: away.fromPlayoff } : {}),
+    ...(isSingleLeg !== undefined ? { isSingleLeg } : {}),
+    played: false,
+  };
+}
+
 // ============================================================
 // KNOCKOUT BRACKET — faithful to the new UEFA Champions League format
 // 36 teams → 8-round league phase →
 //   • 1st–8th: qualify straight to the Round of 16 (seeded)
-//   • 9th–24th: enter the knockout play-off round (single-leg here)
+//   • 9th–24th: enter the knockout play-off round (two legs)
 //   • 25th–36th: eliminated
 // Play-off winners join the top 8 in the Round of 16, then Quarters → Semis → Final.
 // The bracket path is fixed up front (1 and 2 can only meet in the final) and the
@@ -3949,6 +4242,7 @@ export interface KnockoutBracket {
 export function createKnockoutBracket(
   standings: StandingsEntry[],
   requestedFormat = DEFAULT_COMPETITION_FORMAT,
+  rng: ScheduleRng = Math.random,
 ): KnockoutBracket {
   const format = normalizeCompetitionFormat(requestedFormat);
   const seedId = (pos: number) => standings[pos - 1]?.teamId;
@@ -3958,13 +4252,14 @@ export function createKnockoutBracket(
   // the existing UI so 4/8/16-team brackets remain backwards compatible.
   if (format.id === 'knockout') {
     const entrants = standings.slice(0, format.teamCount);
-    const firstRound = Array.from({ length: Math.floor(entrants.length / 2) }, (_, index) => ({
-      id: `ko_${index}`,
-      homeTeamId: entrants[index]?.teamId ?? '',
-      awayTeamId: entrants[entrants.length - 1 - index]?.teamId ?? '',
-      played: false,
-      isSingleLeg: format.knockoutLegs === 1,
-    }));
+    const firstRound = Array.from({ length: Math.floor(entrants.length / 2) }, (_, index) => {
+      const left: BracketEntrant = { teamId: entrants[index]?.teamId ?? '', seed: index + 1 };
+      const right: BracketEntrant = {
+        teamId: entrants[entrants.length - 1 - index]?.teamId ?? '',
+        seed: entrants.length - index,
+      };
+      return makeBracketTie(`ko_${index}`, left, right, format.knockoutLegs === 2, format.knockoutLegs === 1);
+    });
     return {
       playoffs: [],
       round16: firstRound,
@@ -3985,35 +4280,49 @@ export function createKnockoutBracket(
   // playoff and sends the top 16 straight to the Round of 16.
   const playoffCount = format.qualifiedTeams - 16;
   const directCount = 16 - playoffCount;
-  const playoffs = [];
-  for (let i = 0; i < playoffCount; i++) {
-    playoffs.push({
-      id: `po_${i}`,
-      homeTeamId: seedId(directCount + i + 1), // seeded half
-      awayTeamId: seedId(format.qualifiedTeams - i), // unseeded half, reversed
-      played: false,
-    });
+  const playoffs: any[] = [];
+
+  const addPlayoffDrawGroup = (seedRanks: number[], unseedRanks: number[]) => {
+    const drawnSeeds = shuffleTeamsForDraw(seedRanks, rng);
+    const drawnUnseeded = shuffleTeamsForDraw(unseedRanks, rng);
+    for (let i = 0; i < drawnSeeds.length; i++) {
+      const seeded: BracketEntrant = { teamId: seedId(drawnSeeds[i]) ?? '', seed: drawnSeeds[i] };
+      const unseeded: BracketEntrant = { teamId: seedId(drawnUnseeded[i]) ?? '', seed: drawnUnseeded[i] };
+      // UEFA-style play-off draw: the seeded side is paired within its
+      // ranking band and hosts the return leg.
+      playoffs.push(makeBracketTie(`po_${playoffs.length}`, seeded, unseeded, format.knockoutLegs === 2));
+    }
+  };
+
+  if (format.qualifiedTeams === 24 && playoffCount === 8) {
+    // The real Champions League draw uses four seeded pairs against four
+    // unseeded pairs, with the pairing bands fixed and the clubs inside each
+    // band drawn randomly.
+    addPlayoffDrawGroup([9, 10], [23, 24]);
+    addPlayoffDrawGroup([11, 12], [21, 22]);
+    addPlayoffDrawGroup([13, 14], [19, 20]);
+    addPlayoffDrawGroup([15, 16], [17, 18]);
+  } else {
+    const seededRanks = Array.from({ length: playoffCount }, (_, index) => directCount + index + 1);
+    const unseededRanks = Array.from({ length: playoffCount }, (_, index) => format.qualifiedTeams - index);
+    addPlayoffDrawGroup(seededRanks, unseededRanks);
   }
 
   // Standard 16-slot bracket order: top seeds 1 and 2 remain on opposite sides.
-  // Ranks after `directCount` are placeholders for playoff winners. This lets any
-  // validated Q in [16, 24] produce a complete, deterministic bracket.
+  // Ranks after `directCount` are placeholders for playoff winners. This keeps
+  // the bracket path stable after the initial draw while still allowing the
+  // playoff pairings inside UEFA-style ranking bands to be randomized.
   const r16Ranks = [1, 16, 8, 9, 4, 13, 5, 12, 2, 15, 7, 10, 3, 14, 6, 11];
-  const entrantForRank = (rank: number) => rank <= directCount
-    ? { teamId: seedId(rank) }
-    : { teamId: '', fromPlayoff: rank - directCount - 1 };
   const round16 = Array.from({ length: 8 }, (_, idx) => {
-    const home = entrantForRank(r16Ranks[idx * 2]);
-    const away = entrantForRank(r16Ranks[idx * 2 + 1]);
-    return {
-      id: `r16_${idx}`,
-      homeTeamId: home.teamId,
-      awayTeamId: away.teamId,
-      ...(home.fromPlayoff !== undefined ? { homeFromPo: home.fromPlayoff } : {}),
-      ...(away.fromPlayoff !== undefined ? { awayFromPo: away.fromPlayoff } : {}),
-      ...(format.knockoutLegs === 1 ? { isSingleLeg: true } : {}),
-      played: false,
-    };
+    const leftRank = r16Ranks[idx * 2];
+    const rightRank = r16Ranks[idx * 2 + 1];
+    const left: BracketEntrant = leftRank <= directCount
+      ? { teamId: seedId(leftRank) ?? '', seed: leftRank }
+      : { teamId: '', fromPlayoff: leftRank - directCount - 1 };
+    const right: BracketEntrant = rightRank <= directCount
+      ? { teamId: seedId(rightRank) ?? '', seed: rightRank }
+      : { teamId: '', fromPlayoff: rightRank - directCount - 1 };
+    return makeBracketTie(`r16_${idx}`, left, right, format.knockoutLegs === 2, format.knockoutLegs === 1);
   });
 
   return {
@@ -4164,11 +4473,12 @@ export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null 
   if (list.length === 0 || !list.every((m: any) => m.played && m.result)) return null;
 
   const winnerOf = (m: any): string => m.result.winner ?? m.result.penaltyWinner;
-  const nextTie = (id: string, homeTeamId: string, awayTeamId: string) => ({
-    id, homeTeamId, awayTeamId,
-    ...(bracket.knockoutLegs === 1 ? { isSingleLeg: true } : {}),
-    played: false,
+  const winnerEntrant = (m: any): BracketEntrant => ({
+    teamId: winnerOf(m),
+    seed: winnerOf(m) === m.homeTeamId ? m.homeSeed : m.awaySeed,
   });
+  const nextTie = (id: string, left: BracketEntrant, right: BracketEntrant, isSingleLeg = bracket.knockoutLegs === 1) =>
+    makeBracketTie(id, left, right, !isSingleLeg, isSingleLeg);
 
   if (round === 'playoffs') {
     // Slot each playoff winner into its predetermined Round-of-16 berth. Depending
@@ -4176,17 +4486,25 @@ export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null 
     for (const tie of bracket.round16) {
       const homePo = tie.homeFromPo !== undefined ? bracket.playoffs[tie.homeFromPo] : undefined;
       const awayPo = tie.awayFromPo !== undefined ? bracket.playoffs[tie.awayFromPo] : undefined;
-      if (homePo) tie.homeTeamId = winnerOf(homePo);
-      if (awayPo) tie.awayTeamId = winnerOf(awayPo);
+      if (homePo) {
+        const winner = winnerEntrant(homePo);
+        tie.homeTeamId = winner.teamId;
+        tie.homeSeed = winner.seed;
+      }
+      if (awayPo) {
+        const winner = winnerEntrant(awayPo);
+        tie.awayTeamId = winner.teamId;
+        tie.awaySeed = winner.seed;
+      }
     }
     bracket.currentRound = 'round16';
     bracket.currentLeg = 1;
     return null;
   }
   if (round === 'round16') {
-    const w = bracket.round16.map(winnerOf);
+    const w = bracket.round16.map(winnerEntrant);
     if (w.length === 2) {
-      bracket.final = { id: 'final', homeTeamId: w[0], awayTeamId: w[1], played: false, isSingleLeg: bracket.finalSingleLeg !== false };
+      bracket.final = nextTie('final', w[0], w[1], bracket.finalSingleLeg !== false);
       bracket.currentRound = 'final';
     } else if (w.length === 4) {
       bracket.quarterFinals = [
@@ -4207,9 +4525,9 @@ export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null 
     return null;
   }
   if (round === 'quarters') {
-    const w = bracket.quarterFinals.map(winnerOf);
+    const w = bracket.quarterFinals.map(winnerEntrant);
     if (w.length === 2) {
-      bracket.final = { id: 'final', homeTeamId: w[0], awayTeamId: w[1], played: false, isSingleLeg: bracket.finalSingleLeg !== false };
+      bracket.final = nextTie('final', w[0], w[1], bracket.finalSingleLeg !== false);
       bracket.currentRound = 'final';
     } else {
       bracket.semiFinals = [
@@ -4222,10 +4540,10 @@ export function advanceKnockoutBracket(bracket: KnockoutBracket): string | null 
     return null;
   }
   if (round === 'semis') {
-    const w = bracket.semiFinals.map(winnerOf);
+    const w = bracket.semiFinals.map(winnerEntrant);
     // The final follows the selected format. Single-leg finals are neutral;
     // two-legged finals use the normal home/away aggregate flow.
-    bracket.final = { id: 'final', homeTeamId: w[0], awayTeamId: w[1], played: false, isSingleLeg: bracket.finalSingleLeg !== false };
+    bracket.final = nextTie('final', w[0], w[1], bracket.finalSingleLeg !== false);
     bracket.currentRound = 'final';
     bracket.currentLeg = 1;
     return null;

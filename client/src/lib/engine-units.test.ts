@@ -5,9 +5,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   getChemistryBonus, getChemistryLinks, computeCharacteristicBoosts, getEffectiveAttribute, getPlayerEffectiveStats,
   resolveOpenPlayChance, shotTypeForApproach, GK_SAVE_EDGE, ON_TARGET_RESISTANCE,
-  getFreeKickTaker, getPenaltyTaker, getPenaltyOrder, activeGoalkeeperForTeam, computeStandings, generateLeagueFixtures, simulateLeague, buildKeyMinutes,
+  getFreeKickTaker, getPenaltyTaker, getPenaltyOrder, activeGoalkeeperForTeam, goalkeeperShotStoppingRating, OUTFIELD_GK_MULTIPLIER, computeStandings, generateLeagueFixtures, generateRandomLeagueFixtures, simulateLeague, buildKeyMinutes,
   matchRoleForPlayer, STANDARD_TABLE_POINTS,
-  createKnockoutBracket,
+  createKnockoutBracket, advanceKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
   PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST,
@@ -17,6 +17,7 @@ import {
   isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
+  draftSlotIndex, getNeededPositions, DRAFT_RARITY_CHANCES,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture, type MatchEvent,
 } from './gameEngine';
 import { betCapPrefix } from './bets';
@@ -112,6 +113,47 @@ describe('papel real na formação', () => {
   });
 });
 
+describe('aptidão específica de goleiro', () => {
+  it('não transforma um jogador de linha em goleiro só por usar Coringa', () => {
+    const defender = mkP({ position: 'CB', defending: 99, physical: 99, coringa: true });
+    const naturalKeeper = mkP({ position: 'GK', defending: 80, traits: ['Reflexo Felino'] });
+
+    expect(goalkeeperShotStoppingRating(defender, 99, defender.traits)).toBe(Math.round(99 * OUTFIELD_GK_MULTIPLIER));
+    expect(goalkeeperShotStoppingRating(naturalKeeper, 80, naturalKeeper.traits)).toBe(90);
+    expect(goalkeeperShotStoppingRating(naturalKeeper, 80, naturalKeeper.traits)).toBeGreaterThan(
+      goalkeeperShotStoppingRating(defender, 99, defender.traits),
+    );
+  });
+
+  it('mantém a aptidão reduzida quando o goleiro natural sai', () => {
+    const defender = mkP({ position: 'CB', defending: 99, coringa: true });
+    const keeper = mkP({ position: 'GK' });
+    const team = mkTeam('T', [keeper, defender, ...Array.from({ length: 9 }, () => mkP())]);
+    const active = activeGoalkeeperForTeam(team, new Set([keeper.id]));
+
+    expect(active.player.id).toBe(defender.id);
+    expect(active.emergency).toBe(true);
+    expect(goalkeeperShotStoppingRating(defender, 99, defender.traits)).toBe(69);
+  });
+
+  it('aplica o fator de aptidão somente na DEF exibida, sem reduzir os demais atributos', () => {
+    const defender = mkP({
+      position: 'CB', coringa: true,
+      defending: 100, physical: 100, pace: 100,
+      shooting: 100, passing: 100, dribbling: 100, vision: 100, composure: 100,
+    });
+    const effective = getPlayerEffectiveStats(
+      defender, 0, false, '', 0, '__neutral__', { role: 'GK' },
+    );
+
+    expect(effective.defending).toBe(Math.round(100 * OUTFIELD_GK_MULTIPLIER));
+    expect(effective.physical).toBe(100);
+    expect(effective.pace).toBe(100);
+    expect(effective.breakdown.defending.goalkeeper).toBe(-30);
+    expect(effective.breakdown.physical.goalkeeper).toBe(0);
+  });
+});
+
 describe('posições secundárias — adjacência + override', () => {
   it('usa a adjacência por posição quando não há explícita', () => {
     expect(effectiveSecondaries({ position: 'CB' })).toEqual(['CDM']);
@@ -120,6 +162,39 @@ describe('posições secundárias — adjacência + override', () => {
   });
   it('secondaryPositions explícito vence a adjacência', () => {
     expect(effectiveSecondaries({ position: 'CB', secondaryPositions: ['RB'] })).toEqual(['RB']);
+  });
+});
+
+describe('encaixe do draft na formação', () => {
+  it('usa a secundária padrão e prioriza CM para o Casemiro em 4-4-2', () => {
+    const casemiro = PLAYERS.find(player => player.id === 'casemiro')!;
+    expect(casemiro.secondaryPositions).toBeUndefined();
+    expect(draftSlotIndex('4-4-2', Array(13).fill(undefined), casemiro)).toBe(6);
+  });
+
+  it('trata slots nulos vindos do JSON como posições vazias', () => {
+    expect(getNeededPositions('4-3-3', Array(11).fill(null))).toHaveLength(11);
+    expect(draftSlotIndex('4-3-3', Array(13).fill(null), PLAYERS.find(player => player.id === 'casemiro')!)).toBe(6);
+  });
+
+  it('não usa o goleiro como fallback para uma carta incompatível', () => {
+    const drafted: (Player | undefined)[] = Array(13).fill(undefined);
+    for (let index = 1; index < 11; index++) drafted[index] = mkP({ id: `filled-${index}`, position: 'ST' });
+    expect(draftSlotIndex('4-3-3', drafted, mkP({ position: 'ST', id: 'new-st' }))).toBe(-1);
+  });
+});
+
+describe('curva de raridade do draft', () => {
+  it('usa a distribuição anterior por vaga da oferta', () => {
+    const total = Object.values(DRAFT_RARITY_CHANCES).reduce((sum, chance) => sum + chance, 0);
+    expect(total).toBeCloseTo(1, 10);
+    expect(DRAFT_RARITY_CHANCES).toEqual({
+      bronze: 0.14,
+      silver: 0.44,
+      gold: 0.33,
+      legendary: 0.08,
+      immortal: 0.01,
+    });
   });
 });
 
@@ -619,6 +694,51 @@ describe('generateLeagueFixtures', () => {
     expect(fx.length).toBeGreaterThan(0);
     expect(fx.every(f => f.homeTeamId !== f.awayTeamId)).toBe(true);
     expect(fx.every(f => teams.some(t => t.id === f.homeTeamId) && teams.some(t => t.id === f.awayTeamId))).toBe(true);
+  });
+
+  it('draws the full schedule once with one match per round and a balanced venue split', () => {
+    const teams = Array.from({ length: 36 }, (_, i) => mkTeam(`Draw${i}`, [mkP()]));
+    const fixtures = generateRandomLeagueFixtures(teams, 8, () => 0.37);
+    const pairKeys = new Set<string>();
+    const homeCount = new Map<string, number>();
+    const awayCount = new Map<string, number>();
+
+    expect(fixtures).toHaveLength(36 * 8 / 2);
+    for (let round = 1; round <= 8; round++) {
+      const roundTeams = fixtures
+        .filter(fixture => fixture.round === round)
+        .flatMap(fixture => [fixture.homeTeamId, fixture.awayTeamId]);
+      expect(new Set(roundTeams).size).toBe(36);
+    }
+    for (const fixture of fixtures) {
+      const pairKey = [fixture.homeTeamId, fixture.awayTeamId].sort().join('|');
+      expect(pairKeys.has(pairKey)).toBe(false);
+      pairKeys.add(pairKey);
+      homeCount.set(fixture.homeTeamId, (homeCount.get(fixture.homeTeamId) ?? 0) + 1);
+      awayCount.set(fixture.awayTeamId, (awayCount.get(fixture.awayTeamId) ?? 0) + 1);
+    }
+    expect(pairKeys.size).toBe(fixtures.length);
+    expect(teams.every(team => homeCount.get(team.id) === 4 && awayCount.get(team.id) === 4)).toBe(true);
+  });
+});
+
+describe('knockout seeding and return leg', () => {
+  it('draws UEFA-style play-off bands and gives the better league seed the return leg', () => {
+    const teams = Array.from({ length: 36 }, (_, i) => mkTeam(`Seed${i}`, [mkP()]));
+    const standings = teams.map((team, index) => ({
+      teamId: team.id, teamName: team.name, played: 8, won: 8 - index, drawn: 0, lost: index,
+      goalsFor: 20 - index, goalsAgainst: index, points: 24 - index,
+    }));
+    const bracket = createKnockoutBracket(standings, undefined, () => 0.37);
+
+    expect(bracket.playoffs).toHaveLength(8);
+    expect(bracket.playoffs.every((tie: any) => tie.homeSeed > tie.awaySeed)).toBe(true);
+    for (const tie of bracket.playoffs) {
+      tie.played = true;
+      tie.result = { winner: tie.homeTeamId };
+    }
+    expect(advanceKnockoutBracket(bracket)).toBeNull();
+    expect(bracket.round16.every((tie: any) => tie.homeSeed > tie.awaySeed)).toBe(true);
   });
 });
 

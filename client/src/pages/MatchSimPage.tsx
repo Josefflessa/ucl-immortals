@@ -6,7 +6,7 @@ import {
   Team, MatchResult, MatchEvent,
   getEffectiveAttribute, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat,
-  getPenaltyOrder, activeGoalkeeperForTeam, matchRoleForPlayer, setStatIds, statKey, penaltyGoalChance, EMERGENCY_GK_PENALTY,
+  getPenaltyOrder, activeGoalkeeperForTeam, matchRoleForPlayer, setStatIds, statKey, penaltyGoalChance, goalkeeperShotStoppingRating,
   captainBoostForTeam, computeCharacteristicBoosts, playerMatchDiscipline,
 } from '../lib/gameEngine';
 
@@ -14,7 +14,7 @@ import {
 const captainBoostCtx = (team: Team) => captainBoostForTeam(team) ?? undefined;
 // 🩸❤️🪑 Team-effect characteristics (Mártir/Ídolo/12º Homem) — per-player boosts for this side.
 const charBoostsCtx = (team: Team) => computeCharacteristicBoosts(team.players);
-import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../lib/traits';
+import { getPenaltyComposureBonus } from '../lib/traits';
 import {
   selectApproach, buildUpDesc, dangerAttemptMsg, saveCelebMsg, missCelebMsg,
   Approach,
@@ -592,8 +592,11 @@ export default function MatchSimPage() {
     // vs the keeper's EFFECTIVE shot-stopping.
     const composure = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', getChemistryBonus(attackTeam.totalChemistry), attackTeam.playStyle ?? 'balanced')
       + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
-    const gkReflexes = getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', getChemistryBonus(defendTeam.totalChemistry), defendTeam.playStyle ?? 'balanced', { role: 'GK' })
-      + getGoalkeeperTraitBonus(gk.traits) - (gkInfo.emergency ? EMERGENCY_GK_PENALTY : 0);
+    const gkReflexes = goalkeeperShotStoppingRating(
+      gk,
+      getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', getChemistryBonus(defendTeam.totalChemistry), defendTeam.playStyle ?? 'balanced', { role: 'GK' }),
+      gk.traits,
+    );
     const isGoal = Math.random() < penaltyGoalChance(composure, gkReflexes);
 
     let desc = "";

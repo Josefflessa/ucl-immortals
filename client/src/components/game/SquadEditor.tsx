@@ -3,7 +3,7 @@
 // elenco" screen AND the in-league "MEU TIME" tab. Both used to be near-duplicates; now any
 // change here shows up in both. It's purely presentational: data + callbacks come from props,
 // so each host wires its own state (drafted players vs the league team) and actions.
-import { useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
 import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
@@ -84,10 +84,24 @@ export default function SquadEditor({
   // escolhido no campo só é trocado depois da confirmação do usuário.
   const [pendingSwap, setPendingSwap] = useState<{ fromIndex: number; toIndex: number } | null>(null);
   const [benchSwapSourceIndex, setBenchSwapSourceIndex] = useState<number | null>(null);
+  const [benchDraggingIndex, setBenchDraggingIndex] = useState<number | null>(null);
   const fieldPreviewRef = useRef<HTMLDivElement>(null);
   const benchHoldTimerRef = useRef<number | null>(null);
   const benchHoldClickGuardRef = useRef(false);
+  const benchDragClickGuardRef = useRef(false);
   const benchPointerStartRef = useRef<{ index: number; x: number; y: number } | null>(null);
+  const [isDesktopInput, setIsDesktopInput] = useState(false);
+
+  // Native HTML5 dragging is reliable with a mouse/trackpad and gives the same
+  // interaction as the titular cards. Touch devices keep the long-press shortcut
+  // because native draggable elements are inconsistent on mobile browsers.
+  useEffect(() => {
+    const query = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const update = () => setIsDesktopInput(query.matches);
+    update();
+    query.addEventListener?.('change', update);
+    return () => query.removeEventListener?.('change', update);
+  }, []);
   // 🟨🟥🩹 Badge de disponibilidade de um jogador (ou null se está tudo certo).
   const availBadge = (playerId: string): { txt: string; color: string } | null => {
     const a = availability?.[playerId];
@@ -187,6 +201,7 @@ export default function SquadEditor({
   };
 
   const handleBenchPointerDown = (event: PointerEvent<HTMLDivElement>, index: number) => {
+    if (isDesktopInput) return;
     if (event.button !== 0) return;
     clearBenchHoldTimer();
     benchPointerStartRef.current = { index, x: event.clientX, y: event.clientY };
@@ -196,6 +211,7 @@ export default function SquadEditor({
   };
 
   const handleBenchPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (isDesktopInput) return;
     const start = benchPointerStartRef.current;
     if (!start) return;
     const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
@@ -206,6 +222,7 @@ export default function SquadEditor({
   };
 
   const handleBenchPointerEnd = () => {
+    if (isDesktopInput) return;
     clearBenchHoldTimer();
     benchPointerStartRef.current = null;
     // The long press itself is followed by a synthetic click in browsers.
@@ -213,6 +230,28 @@ export default function SquadEditor({
     if (benchHoldClickGuardRef.current) {
       window.setTimeout(() => { benchHoldClickGuardRef.current = false; }, 0);
     }
+  };
+
+  const handleBenchDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
+    if (!isDesktopInput) return;
+    clearBenchHoldTimer();
+    benchPointerStartRef.current = null;
+    benchDragClickGuardRef.current = true;
+    setBenchDraggingIndex(index);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+    event.dataTransfer.setData('application/x-ucl-player-index', String(index));
+
+    // Use the complete compact card as the native ghost, rather than only the
+    // portrait nested inside it.
+    const cardElement = event.currentTarget.querySelector<HTMLElement>('[data-player-card="true"]') ?? event.currentTarget;
+    const cardRect = cardElement.getBoundingClientRect();
+    event.dataTransfer.setDragImage(cardElement, cardRect.width / 2, cardRect.height / 2);
+  };
+
+  const handleBenchDragEnd = () => {
+    setBenchDraggingIndex(null);
+    window.setTimeout(() => { benchDragClickGuardRef.current = false; }, 0);
   };
 
   const requestPlayerSwap = (fromIndex: number, toIndex: number) => {
@@ -318,7 +357,7 @@ export default function SquadEditor({
       />
 
       <p className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-        Clique para editar e ver os buffs. Segure uma reserva para escolher no campo quem ela vai substituir.
+        Clique para editar e ver os buffs. {isDesktopInput ? 'Arraste uma reserva sobre um titular para trocar.' : 'Segure uma reserva para escolher no campo quem ela vai substituir.'}
       </p>
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
@@ -353,6 +392,11 @@ export default function SquadEditor({
               showChemLines
               chemLinks={chemLinks}
               selectedPlayerIndex={selectedIndex}
+              positionGuidePlayer={benchSwapSourceIndex !== null
+                ? players[benchSwapSourceIndex] ?? null
+                : benchDraggingIndex !== null
+                  ? players[benchDraggingIndex] ?? null
+                  : null}
               onPlayerClick={(_player, posIndex) => {
                 if (benchSwapSourceIndex !== null) {
                   requestPlayerSwap(benchSwapSourceIndex, posIndex);
@@ -402,18 +446,22 @@ export default function SquadEditor({
                     return (
                       <div
                         key={player.id}
-                        className="relative cursor-pointer"
+                        className={`relative cursor-pointer ${isDesktopInput ? 'cursor-grab active:cursor-grabbing' : ''}`}
                         style={{ touchAction: 'none', opacity: 1 }}
+                        draggable={isDesktopInput}
+                        onDragStart={event => handleBenchDragStart(event, 11 + i)}
+                        onDragEnd={handleBenchDragEnd}
                         onPointerDown={event => handleBenchPointerDown(event, 11 + i)}
                         onPointerMove={handleBenchPointerMove}
                         onPointerUp={handleBenchPointerEnd}
                         onPointerCancel={handleBenchPointerEnd}
-                        title="Segure para escolher no campo quem será substituído"
+                        title={isDesktopInput ? 'Arraste sobre um titular para trocar' : 'Segure para escolher no campo quem será substituído'}
                       >
                         <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} compact selected={selectedIndex === 11 + i || benchSwapSourceIndex === 11 + i}
                           onClick={() => {
-                            if (benchHoldClickGuardRef.current) {
+                            if (benchHoldClickGuardRef.current || benchDragClickGuardRef.current) {
                               benchHoldClickGuardRef.current = false;
+                              benchDragClickGuardRef.current = false;
                               return;
                             }
                             setSelectedIndex(11 + i);
@@ -665,7 +713,7 @@ export default function SquadEditor({
                         </div>
                       )}
 
-                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} charBoost={charBoosts[selectedPlayer.id]} isStarter={isStarter} />
+                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} charBoost={charBoosts[selectedPlayer.id]} isStarter={isStarter} formationRole={isStarter ? formationRole : undefined} />
                     </div>
                   );
                 })()}

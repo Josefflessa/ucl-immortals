@@ -933,7 +933,7 @@ export function getCardVariants(player: Player): CardVariant[] {
 function variantDesc(player: Player): string {
   if (player.inForm) return `Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 3} em cada atributo; o GER da carta já inclui este bônus`;
   if (player.lobo) return `LOBO SOLITÁRIO: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 6} em cada atributo; o GER da carta já inclui este bônus, mas −12 na QUÍMICA GERAL do time`;
-  if (player.coringa) return 'CORINGA: joga em qualquer posição sem perder estatísticas nem química';
+  if (player.coringa) return 'CORINGA: joga em qualquer posição sem penalidade de posição ou química; no gol, jogador de linha tem aptidão reduzida';
   if (player.nomade) return 'NÔMADE: conta como qualquer nação na química';
   if (player.pilar) return 'PILAR: +12 na QUÍMICA GERAL do time';
   if (player.martir) return 'MÁRTIR: −6 em cada atributo nele, mas dá +3 em tudo a 2 titulares';

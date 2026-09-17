@@ -4,25 +4,26 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import {
-  Player, Coach, Formation, COACHES, FORMATIONS, PLAYERS, effectiveSecondaries,
+  Player, Coach, Formation, COACHES, FORMATIONS, PLAYERS,
   DIFFICULTY_LEVELS,
 } from '../lib/gameData';
 import {
   Team, PlayerCard, MatchResult, StandingsEntry, DraftState, ImmortalReport,
   calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier,
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
-  LeagueFixture, generateLeagueFixtures, computeStandings, rebuildTeamChemistry,
-  generateGroupFixtures, computeGroupQualifiedStandings,
+  LeagueFixture, generateRandomLeagueFixtures, computeStandings, rebuildTeamChemistry,
+  generateRandomGroupFixtures, computeGroupQualifiedStandings,
   getAllPlayedMatchResults, createKnockoutBracket,
   generateUniquePackCard,
   normalizeMatchPlan,
+  draftSlotIndex,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
   bumpStarterAppearances, isEvolved, applyEvolvePoint, applyDefeatGrowth, applyDefeatGrowthForResults,
 } from '../lib/gameEngine';
 import type { MatchPlan, VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
-import { Bet, buildLeagueMatchKey, canPlaceStake, betCapPrefix, revealEligibleKoBets, settleBet, BET_ROUND_CAP } from '../lib/bets';
+import { Bet, BetBuilderSelection, BetMarket, buildLeagueMatchKey, canPlaceStake, betCapPrefix, createBet, revealEligibleKoBets, settleBet, BET_ROUND_CAP } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, applyEmergencyReplacement } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
@@ -165,6 +166,9 @@ export interface KnockoutMatch {
   leg2?: MatchResult;     // second leg (two-legged ties)
   isSingleLeg?: boolean;  // the grand final is a single match
   played: boolean;
+  homeSeed?: number;      // lower seed = better league-phase campaign
+  awaySeed?: number;
+  homeFromPo?: number;    // R16 only: index into playoffs whose winner fills homeTeamId
   awayFromPo?: number;    // R16 only: index into playoffs whose winner fills awayTeamId
 }
 
@@ -213,7 +217,7 @@ export type GameAction =
   | { type: 'SHOP_TRAIN'; playerId: string; attr: TrainAttr }
   | { type: 'SHOP_BUY_REROLL' }
   | { type: 'REROLL_REINFORCEMENT' }
-  | { type: 'PLACE_BET'; matchKey: string; homeTeamId?: string; awayTeamId?: string; homeGoals: number; awayGoals: number; stake: number }
+  | { type: 'PLACE_BET'; matchKey: string; homeTeamId?: string; awayTeamId?: string; homeGoals?: number; awayGoals?: number; stake: number; market?: BetMarket; selections?: BetBuilderSelection[] }
   | { type: 'CANCEL_BET'; matchKey: string }
   | { type: 'HEAL_INJURY'; playerId: string }
   | { type: 'EMERGENCY_REPLACE_PLAYER'; starterId: string; player: Player }
@@ -369,28 +373,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.draftState) return state;
       const currentRound = state.draftState.round;
       const newDrafted = [...state.draftedPlayers];
-
-      const formation = FORMATIONS.find(f => f.id === state.selectedFormationId);
-      const roles = formation?.positions.map(p => p.role) ?? [];
-
-      let targetIndex = roles.findIndex((role, idx) =>
-        role === action.player.position && newDrafted[idx] === undefined
-      );
-
-      const effectiveSecondaryPositions = effectiveSecondaries(action.player);
-      if (targetIndex === -1 && effectiveSecondaryPositions.length > 0) {
-        targetIndex = roles.findIndex((role, idx) =>
-          effectiveSecondaryPositions.includes(role) && newDrafted[idx] === undefined
-        );
-      }
-
-      if (targetIndex === -1) {
-        targetIndex = newDrafted.findIndex(p => p === undefined);
-      }
-
-      if (targetIndex === -1) {
-        targetIndex = currentRound - 1;
-      }
+      const targetIndex = draftSlotIndex(state.selectedFormationId, newDrafted, action.player);
+      // A malformed/stale option must not overwrite a valid starter slot. The
+      // server applies the same guard; in normal drafts this path is unreachable.
+      if (targetIndex === -1) return state;
 
       newDrafted[targetIndex] = action.player;
 
@@ -736,14 +722,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (escrowDelta > state.points) return state;               // saldo insuficiente
       const betCap = state.competitionFormat?.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
       if (!canPlaceStake(state.bets, prefix, action.matchKey, action.stake, betCap)) return state; // teto da rodada
-      const bet: Bet = {
+      if (existing?.settled) return state;
+      const bet = createBet({
         matchKey: action.matchKey,
         homeTeamId: action.homeTeamId,
         awayTeamId: action.awayTeamId,
         homeGoals: action.homeGoals,
         awayGoals: action.awayGoals,
         stake: action.stake,
-      };
+        market: action.market,
+        selections: action.selections,
+      });
+      if (!bet) return state;
       const bets = existing
         ? state.bets.map(b => b.matchKey === action.matchKey ? bet : b)
         : [...state.bets, bet];
@@ -877,8 +867,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       const allTeams = [playerTeam, ...botTeams];
       const fixtures = state.competitionFormat.id === 'groups_knockout'
-        ? generateGroupFixtures(allTeams, state.competitionFormat.groupCount, state.competitionFormat.groupRounds)
-        : generateLeagueFixtures(allTeams, state.competitionFormat.leagueRounds);
+        ? generateRandomGroupFixtures(allTeams, state.competitionFormat.groupCount, state.competitionFormat.groupRounds)
+        : generateRandomLeagueFixtures(allTeams, state.competitionFormat.leagueRounds);
       const standings = computeStandings(allTeams, []);
 
       if (state.competitionFormat.id === 'knockout') {
@@ -1492,7 +1482,7 @@ interface GameContextType {
   shopPickPackOnline: (player: Player) => void;
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
   shopRemoveVariantOnline: (playerId: string, variantKey?: VariantFlag) => void;
-  shopPlaceBetOnline: (matchKey: string, homeGoals: number, awayGoals: number, stake: number, homeTeamId?: string, awayTeamId?: string) => void;
+  shopPlaceBetOnline: (matchKey: string, homeGoals: number, awayGoals: number, stake: number, homeTeamId?: string, awayTeamId?: string, market?: BetMarket, selections?: BetBuilderSelection[]) => void;
   shopCancelBetOnline: (matchKey: string) => void;
   healInjuryOnline: (playerId: string) => void;
   emergencyReplaceOnline: (starterId: string, playerId: string) => void;
@@ -1758,8 +1748,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopRemoveVariantOnline = useCallback((playerId: string, variantKey?: VariantFlag) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("shop_remove_variant", { roomCode: state.roomCode, playerId, variantKey });
   }, [state.roomCode]);
-  const shopPlaceBetOnline = useCallback((matchKey: string, homeGoals: number, awayGoals: number, stake: number, homeTeamId?: string, awayTeamId?: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("place_bet", { roomCode: state.roomCode, matchKey, homeGoals, awayGoals, stake, homeTeamId, awayTeamId });
+  const shopPlaceBetOnline = useCallback((matchKey: string, homeGoals: number, awayGoals: number, stake: number, homeTeamId?: string, awayTeamId?: string, market?: BetMarket, selections?: BetBuilderSelection[]) => {
+    if (socketRef.current && state.roomCode) socketRef.current.emit("place_bet", { roomCode: state.roomCode, matchKey, homeGoals, awayGoals, stake, homeTeamId, awayTeamId, market, selections });
   }, [state.roomCode]);
   const shopCancelBetOnline = useCallback((matchKey: string) => {
     if (socketRef.current && state.roomCode) socketRef.current.emit("cancel_bet", { roomCode: state.roomCode, matchKey });

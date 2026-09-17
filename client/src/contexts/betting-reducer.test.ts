@@ -45,6 +45,17 @@ describe('PLACE_BET / CANCEL_BET (escrow)', () => {
     expect(s.points).toBe(500);
     expect(s.bets).toHaveLength(0);
   });
+  it('guarda uma combinada no mesmo bilhete e calcula o retorno', () => {
+    const s = gameReducer(base(), {
+      type: 'PLACE_BET', matchKey: 'L1:a-b', stake: 100, market: 'builder',
+      selections: [
+        { type: 'both_score', value: true },
+        { type: 'total_goals', operator: 'over', line: 2.5 },
+      ],
+    });
+    expect(s.points).toBe(400);
+    expect(s.bets[0]).toMatchObject({ market: 'builder', stake: 100, multiplier: 2.2 });
+  });
 });
 
 describe('FINISH_LEAGUE_MATCH liquida e credita os palpites', () => {

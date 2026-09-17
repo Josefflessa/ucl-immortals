@@ -23,6 +23,66 @@ import MatchSimPage from "./pages/MatchSimPage";
   img.src = `/cards/${n}.webp`;
 });
 
+// Modal aberto não pode deixar a página por baixo continuar rolando. O lock é
+// centralizado aqui para cobrir tanto os modais do design system quanto os
+// overlays legados que usam apenas `fixed inset-0`, sem bloquear o scroll
+// interno do próprio modal.
+const OPEN_MODAL_SELECTOR = '.ui-modal-backdrop, .fixed.inset-0, [role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]';
+
+function ModalScrollLock() {
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previous = {
+      htmlOverflow: html.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyOverflow: body.style.overflow,
+    };
+    let locked = false;
+    let scrollY = 0;
+
+    const setLocked = (next: boolean) => {
+      if (next === locked) return;
+      locked = next;
+      if (next) {
+        scrollY = window.scrollY;
+        html.style.overflow = 'hidden';
+        body.style.position = 'fixed';
+        body.style.top = `-${scrollY}px`;
+        body.style.left = '0';
+        body.style.right = '0';
+        body.style.width = '100%';
+        body.style.overflow = 'hidden';
+        return;
+      }
+      html.style.overflow = previous.htmlOverflow;
+      body.style.position = previous.bodyPosition;
+      body.style.top = previous.bodyTop;
+      body.style.left = previous.bodyLeft;
+      body.style.right = previous.bodyRight;
+      body.style.width = previous.bodyWidth;
+      body.style.overflow = previous.bodyOverflow;
+      window.scrollTo(0, scrollY);
+    };
+
+    const update = () => setLocked(document.querySelector(OPEN_MODAL_SELECTOR) !== null);
+    const observer = new MutationObserver(update);
+    update();
+    observer.observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-state'] });
+
+    return () => {
+      observer.disconnect();
+      setLocked(false);
+    };
+  }, []);
+
+  return null;
+}
+
 function GameRouter() {
   const { state } = useGame();
 
@@ -60,6 +120,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <GameProvider>
+            <ModalScrollLock />
             <GameRouter />
             <InstallPrompt />
           </GameProvider>

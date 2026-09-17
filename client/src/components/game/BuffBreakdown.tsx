@@ -4,7 +4,7 @@
 // team-wide chemistry, the coach, the player's traits (named, with what each grants)
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
-import { EffectiveStats, ChemLinkType, CharBoost, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost } from '../../lib/gameEngine';
+import { EffectiveStats, ChemLinkType, CharBoost, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, isOutfieldGoalkeeper, prodigioStatBoost } from '../../lib/gameEngine';
 import { Player } from '../../lib/gameData';
 import { getCardVariant } from './PlayerCard';
 
@@ -62,7 +62,7 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   forasteiro: { icon: '🧳', label: 'FORASTEIRO', color: '#A3E635' },
 };
 
-export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean }) {
+export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter, formationRole }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean; formationRole?: string }) {
   // 🪑 12º Homem só rende NO BANCO — se estiver jogando, fica sem efeito. Sinaliza esse estado
   // (é a única característica cujo efeito liga/desliga de um jeito contraintuitivo).
   const decimoInactive = !!player?.decimoHomem && isStarter === true;
@@ -92,11 +92,17 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const variantColor = variant?.color === '#FFFFFF' ? '#E5E7EB' : (variant?.color ?? '#9AA8C8');
   const prodigioStarts = player?.prodigioStarts ?? 0;
   const prodigioBoost = prodigioStatBoost(prodigioStarts);
+  const isOutfieldInGoal = !!player && isOutfieldGoalkeeper(player, formationRole);
+  const goalkeeperDefDelta = eff.breakdown.defending.goalkeeper;
+  const goalkeeperDefBefore = eff.defending - goalkeeperDefDelta;
+  const goalkeeperDefLoss = Math.max(0, goalkeeperDefBefore - eff.defending);
+  const positionColor = eff.isOOP ? '#EF4444' : '#EAB308';
+  const positionLabel = eff.isOOP ? 'FORA DE POSIÇÃO · −15%' : '2ª POSIÇÃO · −5%';
   // Named coach effects (e.g. "Visão de Jogo: +3 Geral") are ALREADY folded into the
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || prodigio.length > 0 || resiliente.length > 0 || position.length > 0 || char.length > 0 || !!variant;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || prodigio.length > 0 || resiliente.length > 0 || position.length > 0 || char.length > 0 || !!variant || isOutfieldInGoal;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -147,7 +153,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.nomade && <Chip text="QUALQUER NAÇÃO NA QUÍMICA" color={variantColor} />}
               </div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                {player.coringa ? 'Joga em qualquer posição sem penalidade de stats nem química.'
+                {player.coringa ? 'Joga em qualquer posição sem penalidade de posição ou química. No gol, ainda sofre a penalidade de aptidão de goleiro por ser jogador de linha.'
                   : player.nomade ? 'Forma vínculo de química com jogadores de qualquer nação.'
                     : player.pilar ? 'Eleva a QUÍMICA GERAL do time (o número total) só por estar na escalação.'
                       : player.lobo ? 'Boost individual forte — mas reduz a QUÍMICA GERAL do time (o número total).'
@@ -203,6 +209,17 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                   Na posição certa, mas sem vínculos (clube/nação/técnico) com os titulares.
                 </div>
               ) : null}
+            </Row>
+          )}
+
+          {isOutfieldInGoal && (
+            <Row icon="🧤" name="APTIDÃO NO GOL" color="#F59E0B">
+              <div className="flex flex-wrap gap-1">
+                <Chip text={`−30% DEF = −${goalkeeperDefLoss} DEF`} color="#F59E0B" />
+              </div>
+              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                Jogadores de linha aproveitam 70% da Defesa para defender. O valor exibido já inclui o ajuste.
+              </div>
             </Row>
           )}
 
@@ -313,10 +330,10 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
 
           {/* 🔁 POSIÇÃO — penalidade por jogar fora da nativa (química fica intacta). */}
           {position.length > 0 && (
-            <Row icon="🔁" name="POSIÇÃO" color="#F59E0B">
-              <div className="flex flex-wrap gap-1">{chips(position, '#F59E0B')}</div>
+            <Row icon="🔁" name={positionLabel} color={positionColor}>
+              <div className="flex flex-wrap items-center gap-1">{chips(position, positionColor)}</div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                Penalidade por não jogar na posição nativa (2ª posição <b style={{ color: '#fcd34d' }}>−5%</b> · fora de posição <b style={{ color: '#fca5a5' }}>−15%</b>). A química não é afetada.
+                A penalidade acima é aplicada aos atributos da carta. A química não é afetada.
               </div>
             </Row>
           )}

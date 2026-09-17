@@ -16,8 +16,8 @@ import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerCard from '../components/game/PlayerCard';
 import Crest from '../components/game/Crest';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
-import BetSlipModal from '../components/game/BetSlipModal';
-import { buildLeagueMatchKey, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
+import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
+import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
 import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus } from '../lib/onlineReadiness';
 import type { MatchResult, Team } from '../lib/gameEngine';
@@ -442,7 +442,7 @@ export default function LeaguePage() {
     if (myTie.leg2 && !watched.includes(`${myTie.id}_l2`)) {
       dispatch({
         type: 'WATCH_ONLINE_MATCH',
-        teams: [teamB, teamA], // return leg: B hosts
+        teams: [teamB, teamA], // return leg: the first-leg visitor hosts
         result: myTie.leg2,
         knockout: { matchId: myTie.id, round, leg: 2, firstLeg: { home: myTie.leg1?.awayGoals ?? 0, away: myTie.leg1?.homeGoals ?? 0 } },
       });
@@ -760,6 +760,7 @@ export default function LeaguePage() {
                       }
                       const txt = myBet.tier === 'exact' ? `✅ Palpite: placar exato (+${myBet.payout})`
                         : myBet.tier === 'outcome' ? `✅ Palpite: resultado certo (+${myBet.payout})`
+                          : myBet.tier === 'builder' ? `✅ Aposta certa (+${myBet.payout})`
                           : `❌ Palpite perdido (−${myBet.stake})`;
                       return <div className="mt-2 text-center text-[11px] font-black" style={{ color: myBet.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
                     }
@@ -774,7 +775,7 @@ export default function LeaguePage() {
                         })}
                           className="px-3 py-1 rounded-lg text-[11px] font-black tracking-wider transition-transform hover:scale-[1.03]"
                           style={{ fontFamily: 'Rajdhani, sans-serif', background: myBet ? '#C9A84C22' : '#0F0F1A', color: '#E8C84A', border: '1px solid #C9A84C55' }}>
-                          {myBet ? `🎯 Palpite: ${myBet.homeGoals}-${myBet.awayGoals} · ${myBet.stake} (editar)` : '🎯 Palpitar'}
+                          {myBet ? `🎯 ${myBet.market === 'builder' ? 'Aposta' : 'Palpite'}: ${describeBet(myBet)} · ${myBet.stake} (editar)` : '🎯 Palpitar'}
                         </button>
                       </div>
                     );
@@ -1733,16 +1734,18 @@ export default function LeaguePage() {
             <BetSlipModal
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
-              onConfirm={(hg, ag, stake) => {
-                if (online) shopPlaceBetOnline(betSlip.matchKey, hg, ag, stake, betSlip.homeTeamId, betSlip.awayTeamId);
+              onConfirm={(submission: BetSlipSubmission) => {
+                if (online) shopPlaceBetOnline(betSlip.matchKey, submission.homeGoals, submission.awayGoals, submission.stake, betSlip.homeTeamId, betSlip.awayTeamId, submission.market, submission.selections);
                 else dispatch({
                   type: 'PLACE_BET',
                   matchKey: betSlip.matchKey,
                   homeTeamId: betSlip.homeTeamId,
                   awayTeamId: betSlip.awayTeamId,
-                  homeGoals: hg,
-                  awayGoals: ag,
-                  stake,
+                  homeGoals: submission.homeGoals,
+                  awayGoals: submission.awayGoals,
+                  stake: submission.stake,
+                  market: submission.market,
+                  selections: submission.selections,
                 });
                 setBetSlip(null);
               }}

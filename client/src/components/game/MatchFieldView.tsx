@@ -143,7 +143,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
             <span style={{ color: '#FDE68A' }}>🧤 {activeGoalkeeper.player.shortName} assumiu o gol</span>
           </div>
           <div className="mt-0.5 text-[10px]" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-            O time segue com 10 jogadores e o goleiro emergencial sofre a penalidade de defesa da partida.
+            O time segue com 10 jogadores e o goleiro emergencial tem aptidão reduzida para defender.
           </div>
         </div>
       )}

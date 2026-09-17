@@ -4,7 +4,7 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import { motion } from 'framer-motion';
 import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
-import { isPlayerInPosition, ChemLink, ChemLinkType } from '../../lib/gameEngine';
+import { isPlayerInPosition, positionFit, ChemLink, ChemLinkType } from '../../lib/gameEngine';
 import PlayerCard, { buildSofifaUrl, getCardVariants, type PlayerCardStats } from './PlayerCard';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
@@ -62,6 +62,9 @@ interface FormationFieldProps {
   // stays on card values; Meu Time supplies it for both starters and the bench.
   effectiveStats?: Record<string, PlayerCardStats>;
   selectedPlayerIndex?: number | null;
+  // When a player is being moved (starter drag or reserve long-press shortcut),
+  // colour every field slot according to that player's position fit.
+  positionGuidePlayer?: Player | null;
   // Match mode — when provided, each token shows the live RATING (colour-coded) plus goal/assist
   // markers instead of the chemistry dot. Keyed by player.id (unique within a single XI).
   ratings?: Record<string, number>;
@@ -108,6 +111,7 @@ export default function FormationField({
   showPlayerCards = false,
   effectiveStats = {},
   selectedPlayerIndex = null,
+  positionGuidePlayer = null,
   ratings,
   goalsByPlayer,
   assistsByPlayer,
@@ -122,6 +126,13 @@ export default function FormationField({
   const didDragRef = useRef(false);
   const ratingMode = !!ratings;
   const canReorderPlayers = showPlayerCards && !!onPlayerDrop;
+  // A starter gets its guide from the native drag state. A reserve is supplied
+  // by SquadEditor after its long press, so the user can release the gesture
+  // and then click the titular target without losing the guide.
+  const guidedPlayer = positionGuidePlayer ?? (draggingIndex !== null ? players[draggingIndex] : null);
+  const positionGuideActive = canReorderPlayers && !!guidedPlayer && (
+    positionGuidePlayer !== null || draggingIndex !== null
+  );
   const ratingColor = (r: number) => r >= 8.5 ? '#d4af37' : r >= 7.5 ? '#22c55e' : r >= 6.5 ? '#e5e7eb' : r <= 5.3 ? '#ef4444' : '#f59e0b';
   // Intrinsic aspect used for the SVG viewBox + token sizing maths. The field itself is now
   // FLUID: it fills its container up to maxW and keeps this aspect ratio, so it never overflows
@@ -370,14 +381,34 @@ export default function FormationField({
         // (como no card) e aparecem num chip com o(s) ícone(s) no canto inferior esquerdo.
         const variants = player ? getCardVariants(player) : [];
         const tokenColor = variants[0]?.color ?? rarityColor;
+        const positionFitType = positionGuideActive && guidedPlayer
+          ? positionFit(guidedPlayer, pos.role)
+          : null;
+        const positionGuideColor = positionFitType === 'native'
+          ? '#22C55E'
+          : positionFitType === 'secondary'
+            ? '#EAB308'
+            : positionFitType === 'off'
+              ? '#EF4444'
+              : null;
+        // Do not colour the source card itself during a starter drag; the
+        // remaining cards are the possible destinations. For a reserve source,
+        // all eleven field cards are destinations.
+        const isPositionGuideTarget = positionGuideColor !== null && index !== draggingIndex;
 
         if (showPlayerCards) {
           return (
             <motion.div
               key={index}
-              className={`absolute flex items-center justify-center ${canReorderPlayers && player ? 'cursor-grab active:cursor-grabbing' : ''} ${dragOverIndex === index ? 'z-20 rounded-xl ring-2 ring-[#E8C84A] ring-offset-2 ring-offset-[#08250E]' : ''}`}
+              className={`absolute flex items-center justify-center ${canReorderPlayers && player ? 'cursor-grab active:cursor-grabbing' : ''} ${dragOverIndex === index ? 'z-20' : ''}`}
               data-player-slot={showPlayerCards ? index : undefined}
-              style={{ left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: displayedCardWidth, height: displayedCardHeight }}
+              style={{
+                left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: displayedCardWidth, height: displayedCardHeight,
+                ...(isPositionGuideTarget ? {
+                  borderRadius: 12,
+                  boxShadow: `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`,
+                } : {}),
+              }}
               transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
               initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -416,7 +447,9 @@ export default function FormationField({
                         color: posColor,
                         background: 'linear-gradient(160deg, rgba(9, 18, 28, 0.88), rgba(9, 11, 20, 0.96))',
                         border: `1px dashed ${posColor}99`,
-                        boxShadow: `inset 0 0 0 1px ${posColor}22, 0 4px 12px rgba(0, 0, 0, 0.22)`,
+                        boxShadow: isPositionGuideTarget
+                          ? `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`
+                          : `inset 0 0 0 1px ${posColor}22, 0 4px 12px rgba(0, 0, 0, 0.22)`,
                         fontFamily: 'Rajdhani, sans-serif',
                         textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)',
                       }}

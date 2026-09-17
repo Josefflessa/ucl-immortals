@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { settleBet, roundStakeUsed, canPlaceStake, buildLeagueMatchKey, BET_EXACT_MULT, BET_OUTCOME_MULT, Bet } from './bets';
+import {
+  calculateBuilderMultiplier,
+  canPlaceStake,
+  buildLeagueMatchKey,
+  BET_EXACT_MULT,
+  BET_OUTCOME_MULT,
+  Bet,
+  createBet,
+  roundStakeUsed,
+  settleBet,
+} from './bets';
 
 const bet = (over: Partial<Bet> = {}): Bet => ({ matchKey: 'L1:a-b', homeGoals: 2, awayGoals: 1, stake: 100, ...over });
 
@@ -64,5 +74,64 @@ describe('teto por rodada', () => {
   });
   it('buildLeagueMatchKey monta o prefixo esperado', () => {
     expect(buildLeagueMatchKey(3, 'x', 'y')).toBe('L3:x-y');
+  });
+});
+
+describe('aposta combinada', () => {
+  const builderSelections = [
+    { type: 'both_score', value: true as const },
+    { type: 'total_goals', operator: 'over' as const, line: 2.5 as const },
+  ];
+
+  it('aceita uma ou mais condições, sem repetir o mesmo mercado', () => {
+    expect(calculateBuilderMultiplier(builderSelections)).toBe(2.2);
+    expect(createBet({ matchKey: 'L1:a-b', stake: 100, market: 'builder', selections: [{ type: 'both_score', value: true }] })).toMatchObject({ market: 'builder', multiplier: 1.7 });
+    expect(createBet({
+      matchKey: 'L1:a-b', stake: 100, market: 'builder',
+      selections: [...builderSelections, { type: 'both_score', value: false as const }],
+    })).toBeNull();
+  });
+
+  it('só paga quando todas as condições da combinada acontecem', () => {
+    const combined = createBet({ matchKey: 'L1:a-b', stake: 100, market: 'builder', selections: builderSelections });
+    expect(combined?.multiplier).toBe(2.2);
+    expect(settleBet(combined!, { homeGoals: 2, awayGoals: 1 })).toEqual({ won: true, tier: 'builder', payout: 220 });
+    expect(settleBet(combined!, { homeGoals: 1, awayGoals: 1 })).toEqual({ won: false, tier: 'miss', payout: 0 });
+    expect(settleBet(combined!, { homeGoals: 3, awayGoals: 0 })).toEqual({ won: false, tier: 'miss', payout: 0 });
+  });
+
+  it('trata placar exato como condição própria, sem herdar o resultado simples', () => {
+    const exactOnly = createBet({
+      matchKey: 'L1:a-b', stake: 100, market: 'builder',
+      selections: [{ type: 'exact_score', homeGoals: 2, awayGoals: 1 }],
+    });
+    expect(settleBet(exactOnly!, { homeGoals: 2, awayGoals: 1 })).toEqual({ won: true, tier: 'exact', payout: 250 });
+    expect(settleBet(exactOnly!, { homeGoals: 3, awayGoals: 0 })).toEqual({ won: false, tier: 'miss', payout: 0 });
+  });
+
+  it('mantém a perspectiva correta na volta do mata-mata', () => {
+    const combined = createBet({
+      matchKey: 'Kt:2', homeTeamId: 'me', awayTeamId: 'opponent', stake: 50,
+      market: 'builder', selections: [
+        { type: 'outcome', value: 'home' as const },
+        { type: 'both_score', value: true as const },
+      ],
+    });
+    expect(settleBet(combined!, {
+      homeTeamId: 'opponent', awayTeamId: 'me', homeGoals: 1, awayGoals: 2,
+    }).won).toBe(true);
+  });
+
+  it('permite escolher a linha de gols e a liquida de forma estrita', () => {
+    const combined = createBet({
+      matchKey: 'L1:a-b', stake: 100, market: 'builder', selections: [
+        { type: 'outcome', value: 'home' as const },
+        { type: 'total_goals', operator: 'over' as const, line: 3.5 as const },
+      ],
+    });
+    expect(combined?.multiplier).toBe(2.38);
+    expect(settleBet(combined!, { homeGoals: 3, awayGoals: 1 })).toEqual({ won: true, tier: 'builder', payout: 238 });
+    expect(settleBet(combined!, { homeGoals: 2, awayGoals: 1 })).toEqual({ won: false, tier: 'miss', payout: 0 });
+    expect(createBet({ matchKey: 'L1:a-b', stake: 100, market: 'builder', selections: [{ type: 'total_goals', operator: 'over', line: 2 }] })).toBeNull();
   });
 });

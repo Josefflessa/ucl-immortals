@@ -122,7 +122,7 @@ export const CREST_CATALOG: CrestGroup[] = [
   },
   {
     league: "Bélgica 🇧🇪", crests: [
-      { id: "club-brugge", name: "Club Brugge", url: "https://upload.wikimedia.org/wikipedia/en/d/d0/Club_Brugge_KV_logo.svg" },
+      { id: "club-brugge", name: "Club Brugge", url: "/crests/club-brugge.png" },
       { id: "anderlecht", name: "Anderlecht", url: "https://upload.wikimedia.org/wikipedia/en/7/77/R.S.C._Anderlecht.svg" },
     ]
   },

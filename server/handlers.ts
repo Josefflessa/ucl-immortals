@@ -8,8 +8,8 @@ import {
   generateStarPackOptions,
   generateScoutOptions,
   generateUniquePackCard,
-  generateLeagueFixtures,
-  generateGroupFixtures,
+  generateRandomLeagueFixtures,
+  generateRandomGroupFixtures,
   computeStandings,
   computeGroupQualifiedStandings,
   simulateMatch,
@@ -23,6 +23,7 @@ import {
   rebuildTeamChemistry,
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
   bumpStarterAppearances, isEvolved, applyEvolvePoint, EVOLVE_POINTS, applyDefeatGrowth,
+  draftSlotIndex,
   VariantFlag,
   MatchPlan,
   Team,
@@ -36,7 +37,7 @@ import {
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
-import { Bet, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
+import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, createBet, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
@@ -342,19 +343,14 @@ function scheduleHostGraceTransfer(io: Server, room: RoomState): void {
 // Slots the chosen player into the active player's lineup and advances the draft
 // turn (or moves to squad review when the draft is complete). Shared by the
 // draft_pick handler and the disconnected-player auto-pick.
-function applyDraftPick(room: RoomState, activePlayer: RoomPlayer, chosenPlayer: Player): void {
+function applyDraftPick(room: RoomState, activePlayer: RoomPlayer, chosenPlayer: Player): boolean {
   const ds = room.draftState;
   const currentRound = ds.round;
   const newDrafted = [...activePlayer.draftedPlayers];
-  const formation = FORMATIONS.find(f => f.id === activePlayer.formationId);
-  const roles = formation?.positions.map(p => p.role) ?? [];
-
-  let targetIndex = roles.findIndex((role, idx) => role === chosenPlayer.position && newDrafted[idx] === undefined);
-  if (targetIndex === -1 && chosenPlayer.secondaryPositions) {
-    targetIndex = roles.findIndex((role, idx) => chosenPlayer.secondaryPositions!.includes(role) && newDrafted[idx] === undefined);
-  }
-  if (targetIndex === -1) targetIndex = newDrafted.findIndex(p => p === undefined);
-  if (targetIndex === -1) targetIndex = currentRound - 1;
+  const targetIndex = draftSlotIndex(activePlayer.formationId, newDrafted, chosenPlayer);
+  // Never overwrite a starter with an incompatible card. This can only happen
+  // if an old/stale client submits an option that is no longer valid.
+  if (targetIndex === -1) return false;
 
   newDrafted[targetIndex] = chosenPlayer;
   activePlayer.draftedPlayers = newDrafted;
@@ -384,6 +380,7 @@ function applyDraftPick(room: RoomState, activePlayer: RoomPlayer, chosenPlayer:
       ds.currentOptionsByPlayer[nextPlayerId] = generateDraftOptions(nextNeeded, ds.alreadyDraftedIds);
     }
   }
+  return true;
 }
 
 // Auto-picks (first available option) for any disconnected player whose turn it
@@ -405,7 +402,7 @@ function autoPickDisconnected(io: Server, room: RoomState): void {
     }
     const chosen = options[0];
     if (!chosen) break;
-    applyDraftPick(room, active, chosen);
+    if (!applyDraftPick(room, active, chosen)) break;
     picked = true;
   }
   if (picked) io.to(room.code).emit("room_updated", room);
@@ -442,10 +439,11 @@ function scheduleDraftTurnTimer(io: Server, room: RoomState): void {
       ds.currentOptionsByPlayer[a.id] = options;
     }
     if (options[0]) {
-      applyDraftPick(cur, a, options[0]);
-      io.to(cur.code).emit("room_updated", cur);
-      autoPickDisconnected(io, cur);     // next player might be offline
-      scheduleDraftTurnTimer(io, cur);   // arm for the new active player
+      if (applyDraftPick(cur, a, options[0])) {
+        io.to(cur.code).emit("room_updated", cur);
+        autoPickDisconnected(io, cur);     // next player might be offline
+        scheduleDraftTurnTimer(io, cur);   // arm for the new active player
+      }
     }
   }, DRAFT_TURN_MS);
   draftTurnTimers.set(room.code, timer);
@@ -735,7 +733,10 @@ export function registerSocketHandlers(io: Server) {
       const chosenPlayer = options.find(p => p.id === playerId);
       if (!chosenPlayer) return;
 
-      applyDraftPick(room, activePlayer, chosenPlayer);
+      if (!applyDraftPick(room, activePlayer, chosenPlayer)) {
+        socket.emit("action_error", { event: "draft_pick", message: "Essa carta não cabe em uma vaga válida do seu time." });
+        return;
+      }
       io.to(roomCode).emit("room_updated", room);
       // If the turn landed on someone who has disconnected, keep the draft moving.
       autoPickDisconnected(io, room);
@@ -862,8 +863,8 @@ export function registerSocketHandlers(io: Server) {
         const allTeams = [...room.players.map(p => p.team!), ...room.botTeams];
 
         room.leagueFixtures = room.competitionFormat.id === 'groups_knockout'
-          ? generateGroupFixtures(allTeams, room.competitionFormat.groupCount, room.competitionFormat.groupRounds)
-          : generateLeagueFixtures(allTeams, room.competitionFormat.leagueRounds);
+          ? generateRandomGroupFixtures(allTeams, room.competitionFormat.groupCount, room.competitionFormat.groupRounds)
+          : generateRandomLeagueFixtures(allTeams, room.competitionFormat.leagueRounds);
         room.leagueStandings = computeStandings(allTeams, []);
         room.leagueRound = 1;
         if (room.competitionFormat.id === 'knockout') {
@@ -1188,20 +1189,23 @@ export function registerSocketHandlers(io: Server) {
 
     // 🎯 PALPITE — apostar/editar. Escrow debitado na hora; validado no servidor (fundos, teto,
     // fase, e a partida-alvo ainda não jogada). Só o autor recebe o room_updated (não vaza).
-    on("place_bet", ({ roomCode, matchKey, homeTeamId, awayTeamId, homeGoals, awayGoals, stake }: {
+    on("place_bet", ({ roomCode, matchKey, homeTeamId, awayTeamId, homeGoals, awayGoals, stake, market, selections }: {
       roomCode: string;
       matchKey: string;
       homeTeamId?: string;
       awayTeamId?: string;
-      homeGoals: number;
-      awayGoals: number;
+      homeGoals?: number;
+      awayGoals?: number;
       stake: number;
+      market?: BetMarket;
+      selections?: unknown;
     }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.connected) return;
-      if (!Number.isInteger(stake) || stake <= 0 || !Number.isInteger(homeGoals) || !Number.isInteger(awayGoals) || homeGoals < 0 || awayGoals < 0) return;
+      if (typeof matchKey !== 'string' || matchKey.length === 0 || matchKey.length > 160
+        || !Number.isInteger(stake) || stake <= 0) return;
 
       // A partida-alvo tem que existir, ser da rodada/perna ativa e ainda NÃO ter sido jogada.
       let prefix: string;
@@ -1233,11 +1237,24 @@ export function registerSocketHandlers(io: Server) {
         || (awayTeamId != null && awayTeamId !== actualAwayTeamId)) return;
 
       const existing = player.bets.find(b => b.matchKey === matchKey);
+      if (existing?.settled) return;
       const escrowDelta = stake - (existing?.stake ?? 0);
       if (escrowDelta > player.points) return;
       const betCap = room.competitionFormat.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
       if (!canPlaceStake(player.bets, prefix, matchKey, stake, betCap)) return;
-      const bet: Bet = { matchKey, homeTeamId: actualHomeTeamId, awayTeamId: actualAwayTeamId, homeGoals, awayGoals, stake };
+      // The canonical builder parser also calculates and locks its multiplier.
+      // The client never gets to choose odds or bypass the minimum/unique-market rules.
+      const bet = createBet({
+        matchKey,
+        homeTeamId: actualHomeTeamId,
+        awayTeamId: actualAwayTeamId,
+        homeGoals,
+        awayGoals,
+        stake,
+        market,
+        selections,
+      });
+      if (!bet) return;
       player.bets = existing ? player.bets.map(b => b.matchKey === matchKey ? bet : b) : [...player.bets, bet];
       player.points -= escrowDelta;
       socket.emit("room_updated", room);

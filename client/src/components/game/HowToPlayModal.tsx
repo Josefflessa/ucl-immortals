@@ -214,7 +214,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
             <H>O QUE OBSERVAR NA CARTA</H>
             <div className="grid gap-2 sm:grid-cols-2">
               <InfoRow label="Overall e atributos">São os números da carta para comparação no draft. Traits e características incorporadas podem alterá-los, mas buffs do seu time ainda não entram aqui.</InfoRow>
-              <InfoRow label="Posição e encaixe">Priorize quem serve para a vaga. Uma carta com posição secundária cobre funções próximas, mas sofre a penalidade correspondente; o Coringa é a exceção e cobre qualquer posição sem penalidade.</InfoRow>
+              <InfoRow label="Posição e encaixe">Priorize quem serve para a vaga. Uma carta com posição secundária cobre funções próximas, mas sofre a penalidade correspondente; o Coringa cobre qualquer posição sem penalidade de posição ou química. No gol, porém, jogadores de linha continuam com desempenho de goleiro improvisado.</InfoRow>
               <InfoRow label="Visão e compostura">São mostradas porque alimentam criação, decisões, pênaltis e algumas habilidades de técnico/traits.</InfoRow>
               <InfoRow label="Estilos de jogo">Cada jogador recebe características aleatórias de acordo com a carta e a posição. Elas podem ser permanentes ou condicionais, como final, mata-mata ou situação do placar.</InfoRow>
             </div>
@@ -282,7 +282,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
 
           <Card accent="#EF444444">
             <H>FORA DE POSIÇÃO</H>
-            <P>Na posição secundária, o jogador sofre uma redução de 5% nos atributos. Fora das posições compatíveis, a redução é de 15% e a química individual zera. <b style={{ color: '#FFF' }}>Coringa</b> é tratado como compatível com qualquer posição e não sofre essas penalidades.</P>
+            <P>Na posição secundária, o jogador sofre uma redução de 5% nos atributos. Fora das posições compatíveis, a redução é de 15% e a química individual zera. <b style={{ color: '#FFF' }}>Coringa</b> é tratado como compatível com qualquer posição e não sofre essas penalidades; no gol, um jogador de linha ainda recebe a penalidade específica por não ter aptidão natural de goleiro.</P>
           </Card>
 
           <Card>
@@ -444,7 +444,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
 
           <Card>
             <H>APOSTAS</H>
-            <P>Você pode apostar no vencedor ou no placar exato quando a aposta estiver disponível. Acertar o resultado paga <b style={{ color: '#34D399' }}>1,5×</b> o valor apostado; acertar o placar exato paga <b style={{ color: '#34D399' }}>2,5×</b>. Errar perde a stake. O limite configurado vale para o total apostado no escopo da rodada ou do confronto.</P>
+            <P>Você monta um único bilhete por partida e pode marcar uma ou mais condições: placar exato, resultado, total de gols e ambas marcam. Todas as condições marcadas precisam acontecer. O resultado simples paga <b style={{ color: '#34D399' }}>1,5×</b>, o placar exato <b style={{ color: '#34D399' }}>2,5×</b> e o multiplicador do bilhete aparece antes da confirmação. Errar perde a stake; o limite configurado vale para o total apostado no escopo da rodada ou do confronto.</P>
           </Card>
 
           <H>LOJA</H>

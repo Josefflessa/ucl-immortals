@@ -9,8 +9,8 @@ import { useGame, KnockoutMatch } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
 import { MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel } from '../../lib/gameEngine';
 import MatchDetailsModal from './MatchDetailsModal';
-import BetSlipModal from './BetSlipModal';
-import { buildKnockoutMatchKey, BET_ROUND_CAP, Bet } from '../../lib/bets';
+import BetSlipModal, { type BetSlipSubmission } from './BetSlipModal';
+import { buildKnockoutMatchKey, describeBet, BET_ROUND_CAP, Bet } from '../../lib/bets';
 import { unavailableStarters } from '../../lib/discipline';
 import { getOnlineKnockoutParticipantIds, getReadinessStatus } from '../../lib/onlineReadiness';
 
@@ -360,12 +360,17 @@ export default function KnockoutTiesTab() {
                     )}
                   </div>
 
-                  {/* A volta inverte o mando. Keep that order visible before the bet is placed,
-                      so a score such as 1–0 can never be confused with the first-leg order. */}
+                  {/* Keep the return-leg order visible before a bet is placed, so a score such as
+                      1–0 can never be confused with the first-leg order. New seeded ties put the
+                      better league campaign at home in the return; old saved brackets retain the
+                      legacy inverted order. */}
                   {twoLeg && currentLeg === 2 && !l2 && (
                     <div className="mb-3 mx-auto w-fit max-w-full rounded-md px-2.5 py-1 text-center text-[10px] font-bold"
                       style={{ background: '#0D948814', border: '1px solid #14B8A644', color: '#5EEAD4', fontFamily: 'Rajdhani, sans-serif' }}>
-                      VOLTA: <strong>{awayName}</strong> × <strong>{homeName}</strong> · mando invertido
+                      VOLTA: <strong>{awayName}</strong> × <strong>{homeName}</strong>
+                      {match.homeSeed !== undefined && match.awaySeed !== undefined
+                        ? ` · ${match.awaySeed}º melhor campanha em casa`
+                        : ' · mando invertido'}
                     </div>
                   )}
 
@@ -375,7 +380,7 @@ export default function KnockoutTiesTab() {
                     const legNum = isSingleLegTie ? 1 : currentLeg;
                     const activeKey = buildKnockoutMatchKey(match.id, legNum);
                     const legPlayed = legNum === 2 ? !!l2 : !!(l1 || match.result);
-                    const betHome = legNum === 2 ? awayName : homeName; // volta: mando invertido
+                    const betHome = legNum === 2 ? awayName : homeName; // volta: o visitante da ida manda
                     const betAway = legNum === 2 ? homeName : awayName;
                     const betHomeId = legNum === 2 ? match.awayTeamId : match.homeTeamId;
                     const betAwayId = legNum === 2 ? match.homeTeamId : match.awayTeamId;
@@ -386,6 +391,7 @@ export default function KnockoutTiesTab() {
                       if (hideScore || !b.revealed) return <div key={word} className="text-[10px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>🎯 palpite {word} em andamento</div>;
                       const txt = b.tier === 'exact' ? `✅ Palpite ${word}: placar exato (+${b.payout})`
                         : b.tier === 'outcome' ? `✅ Palpite ${word}: resultado certo (+${b.payout})`
+                        : b.tier === 'builder' ? `✅ Aposta ${word}: certa (+${b.payout})`
                           : `❌ Palpite ${word} perdido (−${b.stake})`;
                       return <div key={word} className="text-[11px] font-black" style={{ color: b.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
                     };
@@ -401,7 +407,7 @@ export default function KnockoutTiesTab() {
                           })}
                             className="px-3 py-1 rounded-lg text-[11px] font-black tracking-wider transition-transform hover:scale-[1.03]"
                             style={{ fontFamily: 'Rajdhani, sans-serif', background: myActiveBet ? '#C9A84C22' : '#0F0F1A', color: '#E8C84A', border: '1px solid #C9A84C55' }}>
-                            {myActiveBet ? `🎯 Palpite ${legWord}: ${myActiveBet.homeGoals}-${myActiveBet.awayGoals} · ${myActiveBet.stake} (editar)` : `🎯 Palpitar ${legWord}`}
+                            {myActiveBet ? `🎯 ${myActiveBet.market === 'builder' ? 'Aposta' : 'Palpite'} ${legWord}: ${describeBet(myActiveBet)} · ${myActiveBet.stake} (editar)` : `🎯 Palpitar ${legWord}`}
                           </button>
                         )}
                         {isSingleLegTie
@@ -564,16 +570,18 @@ export default function KnockoutTiesTab() {
             <BetSlipModal
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
-              onConfirm={(hg, ag, stake) => {
-                if (online) shopPlaceBetOnline(betSlip.matchKey, hg, ag, stake, betSlip.homeTeamId, betSlip.awayTeamId);
+              onConfirm={(submission: BetSlipSubmission) => {
+                if (online) shopPlaceBetOnline(betSlip.matchKey, submission.homeGoals, submission.awayGoals, submission.stake, betSlip.homeTeamId, betSlip.awayTeamId, submission.market, submission.selections);
                 else dispatch({
                   type: 'PLACE_BET',
                   matchKey: betSlip.matchKey,
                   homeTeamId: betSlip.homeTeamId,
                   awayTeamId: betSlip.awayTeamId,
-                  homeGoals: hg,
-                  awayGoals: ag,
-                  stake,
+                  homeGoals: submission.homeGoals,
+                  awayGoals: submission.awayGoals,
+                  stake: submission.stake,
+                  market: submission.market,
+                  selections: submission.selections,
                 });
                 setBetSlip(null);
               }}
