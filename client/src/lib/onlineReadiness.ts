@@ -22,6 +22,14 @@ export interface ReadinessTie {
   awayTeamId: string;
 }
 
+export interface KnockoutWatchTie {
+  isSingleLeg?: boolean;
+  played?: boolean;
+  result?: unknown;
+  leg1?: unknown;
+  leg2?: unknown;
+}
+
 const isConnected = (player: ReadinessPlayer): boolean => player.connected !== false;
 
 export function getOnlineLeagueParticipantIds(
@@ -44,6 +52,33 @@ export function getOnlineKnockoutParticipantIds(
     .filter(player => player.team && isConnected(player)
       && ties.some(tie => tie.homeTeamId === player.id || tie.awayTeamId === player.id))
     .map(player => player.id);
+}
+
+/**
+ * Checks the exact knockout leg that a client says it finished watching.
+ *
+ * After the first leg is simulated, the bracket advances `currentLeg` to 2
+ * before the replay is finished. The leg must therefore come from the watch
+ * event, not from the bracket's current pointer. The fallback keeps older
+ * clients working while they roll out the leg-aware payload.
+ */
+export function knockoutLegWasPlayed(
+  tie: KnockoutWatchTie,
+  currentRound: string,
+  currentLeg: number,
+  requestedLeg?: number,
+): boolean {
+  const isSingleLeg = tie.isSingleLeg === true
+    || (currentRound === 'final' && tie.isSingleLeg === undefined);
+  if (isSingleLeg) return Boolean(tie.played && tie.result);
+
+  const leg = requestedLeg === 1 || requestedLeg === 2
+    ? requestedLeg
+    // Legacy clients sent no leg. Between ida and volta, the only played leg
+    // is leg 1; after the volta, leg 2 is the latest played leg.
+    : currentLeg === 2 && tie.leg1 && !tie.leg2 ? 1 : currentLeg;
+
+  return leg === 1 ? Boolean(tie.leg1) : leg === 2 ? Boolean(tie.leg2) : false;
 }
 
 export interface ReadinessStatus {

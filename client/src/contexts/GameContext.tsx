@@ -1474,8 +1474,10 @@ interface GameContextType {
   advanceKnockoutRoundOnline: () => void;
   restartRoomOnline: () => void;
   disconnectOnline: () => void;
-  // Each player emits this when they finish watching their match replay
-  notifyMatchWatchedOnline: (type: 'league' | 'knockout') => void;
+  // Each player emits this when they finish watching their match replay. A
+  // knockout replay identifies the exact tie/leg so ida remains confirmable
+  // after the bracket pointer has advanced to the volta.
+  notifyMatchWatchedOnline: (type: 'league' | 'knockout', knockout?: { matchId: string; leg?: number }) => void;
   shopChangeCoachOnline: (coachId: string) => void;
   evolveCoachPrimeOnline: () => void;
   shopOpenUniquePackOnline: () => void;
@@ -1818,9 +1820,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.roomCode]);
 
-  const notifyMatchWatchedOnline = useCallback((type: 'league' | 'knockout') => {
+  const notifyMatchWatchedOnline = useCallback((type: 'league' | 'knockout', knockout?: { matchId: string; leg?: number }) => {
     if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("player_match_watched", { roomCode: state.roomCode, type });
+      socketRef.current.emit("player_match_watched", { roomCode: state.roomCode, type, ...knockout });
     }
   }, [state.roomCode]);
 

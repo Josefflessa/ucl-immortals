@@ -38,7 +38,7 @@ import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTI
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
 import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, createBet, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
-import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds } from "../client/src/lib/onlineReadiness.js";
+import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
@@ -396,15 +396,6 @@ function emitReadyState(io: RealtimeServer, room: RoomState): void {
 function pruneReadyPlayers(room: RoomState, participantIds: string[]): void {
   const participants = new Set(participantIds);
   room.readyPlayers = room.readyPlayers.filter(id => participants.has(id));
-}
-
-function currentKnockoutLegWasPlayed(room: RoomState, tie: any): boolean {
-  if (!room.knockoutBracket) return false;
-  const isFinalRound = room.knockoutBracket.currentRound === 'final';
-  const isSingleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
-  return isSingleLeg
-    ? !!tie.played && !!tie.result
-    : room.knockoutBracket.currentLeg === 2 ? !!tie.leg2 : !!tie.leg1;
 }
 
 // Whether every human in the active knockout round has confirmed watching the leg
@@ -2018,7 +2009,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
     // Player confirms they finished watching their match replay for the current round/leg.
     // The host cannot advance until all human players who have a match have confirmed.
-    on("player_match_watched", ({ roomCode, type }: { roomCode: string; type: 'league' | 'knockout' }) => {
+    on("player_match_watched", ({ roomCode, type, matchId, leg }: {
+      roomCode: string;
+      type: 'league' | 'knockout';
+      matchId?: string;
+      leg?: number;
+    }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
@@ -2040,8 +2036,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
         if (room.phase !== 'knockout' || !room.knockoutBracket) return;
         const activeTies = getActiveKnockoutMatches(room.knockoutBracket) as any[];
         const participantIds = knockoutParticipantIds(room);
-        const tie = activeTies.find(m => m.homeTeamId === player.id || m.awayTeamId === player.id);
-        if (!participantIds.includes(player.id) || !tie || !currentKnockoutLegWasPlayed(room, tie)) return;
+        const tie = activeTies.find(m => matchId && m.id === matchId)
+          ?? activeTies.find(m => m.homeTeamId === player.id || m.awayTeamId === player.id);
+        const playerIsInTie = !!tie && (tie.homeTeamId === player.id || tie.awayTeamId === player.id);
+        const isPlayedLeg = tie && knockoutLegWasPlayed(
+          tie,
+          room.knockoutBracket.currentRound,
+          room.knockoutBracket.currentLeg,
+          leg,
+        );
+        if (!participantIds.includes(player.id) || !playerIsInTie || !isPlayedLeg) return;
         if (!room.watchedKnockoutLegPlayers.includes(player.id)) {
           room.watchedKnockoutLegPlayers.push(player.id);
         }

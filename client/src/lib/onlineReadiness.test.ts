@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getOnlineKnockoutParticipantIds, getOnlineLeagueParticipantIds, getReadinessStatus } from './onlineReadiness';
+import { getOnlineKnockoutParticipantIds, getOnlineLeagueParticipantIds, getReadinessStatus, knockoutLegWasPlayed } from './onlineReadiness';
 
 const team = {};
 
@@ -40,5 +40,22 @@ describe('online readiness participants', () => {
     });
     expect(getReadinessStatus([], [])).toEqual({ readyCount: 0, total: 0, allReady: true });
   });
-});
 
+  it('accepts the watched first leg after the bracket pointer moves to the return leg', () => {
+    const tie = {
+      homeTeamId: 'a',
+      awayTeamId: 'bot',
+      leg1: { homeGoals: 1, awayGoals: 0 },
+      isSingleLeg: false,
+    };
+
+    expect(knockoutLegWasPlayed(tie, 'playoffs', 2, 1)).toBe(true);
+    expect(knockoutLegWasPlayed(tie, 'playoffs', 2)).toBe(true);
+    expect(knockoutLegWasPlayed(tie, 'playoffs', 2, 2)).toBe(false);
+  });
+
+  it('handles the completed return leg and single-leg final correctly', () => {
+    expect(knockoutLegWasPlayed({ leg1: {}, leg2: {}, isSingleLeg: false }, 'round16', 2, 2)).toBe(true);
+    expect(knockoutLegWasPlayed({ played: true, result: {} }, 'final', 1)).toBe(true);
+  });
+});

@@ -729,7 +729,7 @@ export default function MatchSimPage() {
     // stats and uses player ids instead of per-team statIds).
     if (replayResult) {
       if (activeKnockoutMatch) {
-        if (state.mode === 'online' && !state.spectating) notifyMatchWatchedOnline('knockout');
+        if (state.mode === 'online' && !state.spectating) notifyMatchWatchedOnline('knockout', activeKnockoutMatch);
         dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: replayResult });
       } else {
         if (state.mode === 'online') notifyMatchWatchedOnline('league');
@@ -809,7 +809,7 @@ export default function MatchSimPage() {
     if (activeKnockoutMatch) {
       // Spectators (eliminated players watching someone else's tie) must NOT notify the
       // advance-gate — they aren't participants in this round.
-      if (state.mode === 'online' && !state.spectating) notifyMatchWatchedOnline('knockout');
+      if (state.mode === 'online' && !state.spectating) notifyMatchWatchedOnline('knockout', activeKnockoutMatch);
       dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
     } else {
       if (state.mode === 'online') notifyMatchWatchedOnline('league');
