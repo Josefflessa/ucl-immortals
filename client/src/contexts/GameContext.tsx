@@ -1534,6 +1534,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   // socket/reconnect instead of rendering the room back in time.
   const authoritativeRoomRevisionRef = useRef<number | null>(null);
   const syncRequestPendingRef = useRef(false);
+  const commandSequenceRef = useRef(0);
+
+  // Every gameplay action gets an opaque command ID. The Durable Object stores
+  // a bounded receipt for it, so a reconnect can safely retry the exact action
+  // without charging twice or advancing a bracket twice.
+  const emitOnlineAction = useCallback((event: string, payload: Record<string, unknown> = {}) => {
+    if (!socketRef.current || !state.roomCode) return;
+    commandSequenceRef.current += 1;
+    const entropy = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID().replaceAll('-', '')
+      : Math.random().toString(36).slice(2);
+    const commandId = `${getClientId()}-${Date.now().toString(36)}-${commandSequenceRef.current}-${entropy}`;
+    const roomEpoch = onlineRoomRef.current?.roomEpoch;
+    socketRef.current.emit(event, {
+      ...payload,
+      commandId,
+      ...(Number.isSafeInteger(roomEpoch) && roomEpoch > 0 ? { roomEpoch } : {}),
+    });
+  }, [state.roomCode]);
 
   // Auto disconnect on unmount
   useEffect(() => {
@@ -1652,6 +1671,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on("action_dropped", () => {
       if (!isCurrentSocket()) return;
       toast.error("Conexão instável: a ação não foi enviada. Aguarde a reconexão e tente novamente.");
+    });
+
+    // A rejected command is terminal (it was not applied), but the browser may
+    // have been acting on a stale phase/balance. Pull one authoritative snapshot
+    // so the UI immediately explains the current room instead of remaining stale.
+    socketInstance.on("command_ack", ({ status }: { status?: string }) => {
+      if (!isCurrentSocket()) return;
+      if (status === 'rejected') requestRoomSync();
     });
 
     socketInstance.on("room_updated", (roomState: any) => {
@@ -1790,179 +1817,153 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [connectSocket]);
 
   const startSetupOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("start_setup", { roomCode: state.roomCode });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("start_setup", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const submitSetupOnline = useCallback((coachId: string, formationId: string, crestId?: string | null) => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("submit_setup", { roomCode: state.roomCode, coachId, formationId, crestId });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("submit_setup", { roomCode: state.roomCode, coachId, formationId, crestId });
+  }, [emitOnlineAction, state.roomCode]);
 
   const draftPickOnline = useCallback((playerId: string) => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("draft_pick", { roomCode: state.roomCode, playerId });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("draft_pick", { roomCode: state.roomCode, playerId });
+  }, [emitOnlineAction, state.roomCode]);
 
   const draftVetoOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("draft_veto", { roomCode: state.roomCode });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("draft_veto", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string, matchPlan: MatchPlan) => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("submit_squad_review", {
-        roomCode: state.roomCode,
-        captain,
-        penaltyTaker,
-        freeKickTaker,
-        draftedPlayers,
-        playStyle,
-        formationId,
-        matchPlan,
-      });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("submit_squad_review", {
+      roomCode: state.roomCode,
+      captain,
+      penaltyTaker,
+      freeKickTaker,
+      draftedPlayers,
+      playStyle,
+      formationId,
+      matchPlan,
+    });
+  }, [emitOnlineAction, state.roomCode]);
 
   const setMatchRolesOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, playStyle?: string, formationId?: string) => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker, freeKickTaker, playStyle, formationId });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker, freeKickTaker, playStyle, formationId });
+  }, [emitOnlineAction, state.roomCode]);
 
   const playRoundOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("play_round", { roomCode: state.roomCode });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("play_round", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const advanceRoundOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("advance_round", { roomCode: state.roomCode });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("advance_round", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const playKnockoutRoundOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("play_knockout_round", { roomCode: state.roomCode });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("play_knockout_round", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const advanceKnockoutRoundOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("advance_knockout_round", { roomCode: state.roomCode });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("advance_knockout_round", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const restartRoomOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("restart_room", { roomCode: state.roomCode });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("restart_room", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const notifyMatchWatchedOnline = useCallback((type: 'league' | 'knockout', knockout?: { matchId: string; leg?: number }) => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("player_match_watched", {
-        roomCode: state.roomCode,
-        type,
-        ...(type === 'league' ? { round: state.leagueRound } : {}),
-        ...knockout,
-      });
-    }
-  }, [state.roomCode, state.leagueRound]);
+    emitOnlineAction("player_match_watched", {
+      roomCode: state.roomCode,
+      type,
+      ...(type === 'league' ? { round: state.leagueRound } : {}),
+      ...knockout,
+    });
+  }, [emitOnlineAction, state.roomCode, state.leagueRound]);
 
   // ── Shop (online): emit to the server, which validates + broadcasts the new team/points ──
   const shopChangeCoachOnline = useCallback((coachId: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_change_coach", { roomCode: state.roomCode, coachId });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_change_coach", { roomCode: state.roomCode, coachId });
+  }, [emitOnlineAction, state.roomCode]);
   const evolveCoachPrimeOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("evolve_coach_prime", { roomCode: state.roomCode });
-  }, [state.roomCode]);
+    emitOnlineAction("evolve_coach_prime", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
   const shopOpenUniquePackOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_open_unique_pack", { roomCode: state.roomCode });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_open_unique_pack", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const setMatchPlanOnline = useCallback((matchPlan: MatchPlan) => {
-    if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("set_match_plan", { roomCode: state.roomCode, matchPlan });
-    }
-  }, [state.roomCode]);
+    emitOnlineAction("set_match_plan", { roomCode: state.roomCode, matchPlan });
+  }, [emitOnlineAction, state.roomCode]);
   const shopClaimUniquePackOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_claim_unique_pack", { roomCode: state.roomCode });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_claim_unique_pack", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
   const shopOpenPackOnline = useCallback((kind: 'star' | 'scout', position?: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_open_pack", { roomCode: state.roomCode, kind, position });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_open_pack", { roomCode: state.roomCode, kind, position });
+  }, [emitOnlineAction, state.roomCode]);
   const shopPickPackOnline = useCallback((player: Player) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_pick_pack", { roomCode: state.roomCode, playerId: player.id });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_pick_pack", { roomCode: state.roomCode, playerId: player.id });
+  }, [emitOnlineAction, state.roomCode]);
   const shopTurbinarOnline = useCallback((playerId: string, variant: ShopVariant) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_turbinar", { roomCode: state.roomCode, playerId, variant });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_turbinar", { roomCode: state.roomCode, playerId, variant });
+  }, [emitOnlineAction, state.roomCode]);
   const shopTrainOnline = useCallback((playerId: string, attr: TrainAttr) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_train", { roomCode: state.roomCode, playerId, attr });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_train", { roomCode: state.roomCode, playerId, attr });
+  }, [emitOnlineAction, state.roomCode]);
   const shopRemoveVariantOnline = useCallback((playerId: string, variantKey?: VariantFlag) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_remove_variant", { roomCode: state.roomCode, playerId, variantKey });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_remove_variant", { roomCode: state.roomCode, playerId, variantKey });
+  }, [emitOnlineAction, state.roomCode]);
   const shopPlaceBetOnline = useCallback((matchKey: string, homeGoals: number, awayGoals: number, stake: number, homeTeamId?: string, awayTeamId?: string, market?: BetMarket, selections?: BetBuilderSelection[]) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("place_bet", { roomCode: state.roomCode, matchKey, homeGoals, awayGoals, stake, homeTeamId, awayTeamId, market, selections });
-  }, [state.roomCode]);
+    emitOnlineAction("place_bet", { roomCode: state.roomCode, matchKey, homeGoals, awayGoals, stake, homeTeamId, awayTeamId, market, selections });
+  }, [emitOnlineAction, state.roomCode]);
   const shopCancelBetOnline = useCallback((matchKey: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("cancel_bet", { roomCode: state.roomCode, matchKey });
-  }, [state.roomCode]);
+    emitOnlineAction("cancel_bet", { roomCode: state.roomCode, matchKey });
+  }, [emitOnlineAction, state.roomCode]);
   const healInjuryOnline = useCallback((playerId: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("heal_injury", { roomCode: state.roomCode, playerId });
-  }, [state.roomCode]);
+    emitOnlineAction("heal_injury", { roomCode: state.roomCode, playerId });
+  }, [emitOnlineAction, state.roomCode]);
   const emergencyReplaceOnline = useCallback((starterId: string, playerId: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("emergency_replace_player", { roomCode: state.roomCode, starterId, playerId });
-  }, [state.roomCode]);
+    emitOnlineAction("emergency_replace_player", { roomCode: state.roomCode, starterId, playerId });
+  }, [emitOnlineAction, state.roomCode]);
   const marketSellOnline = useCallback((playerId: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("market_sell", { roomCode: state.roomCode, playerId });
-  }, [state.roomCode]);
+    emitOnlineAction("market_sell", { roomCode: state.roomCode, playerId });
+  }, [emitOnlineAction, state.roomCode]);
   const marketListOnline = useCallback((playerId: string, price: number) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("market_list", { roomCode: state.roomCode, playerId, price });
-  }, [state.roomCode]);
+    emitOnlineAction("market_list", { roomCode: state.roomCode, playerId, price });
+  }, [emitOnlineAction, state.roomCode]);
   const marketCancelOnline = useCallback((listingId: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("market_cancel", { roomCode: state.roomCode, listingId });
-  }, [state.roomCode]);
+    emitOnlineAction("market_cancel", { roomCode: state.roomCode, listingId });
+  }, [emitOnlineAction, state.roomCode]);
   const marketBuyOnline = useCallback((listingId: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("market_buy", { roomCode: state.roomCode, listingId });
-  }, [state.roomCode]);
+    emitOnlineAction("market_buy", { roomCode: state.roomCode, listingId });
+  }, [emitOnlineAction, state.roomCode]);
   const playerReadyOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("player_ready", { roomCode: state.roomCode });
-  }, [state.roomCode]);
+    emitOnlineAction("player_ready", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
   const playerUnreadyOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("player_unready", { roomCode: state.roomCode });
-  }, [state.roomCode]);
+    emitOnlineAction("player_unready", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
   const swapPlayerTeamOnline = useCallback((indexA: number, indexB: number) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("swap_player_team", { roomCode: state.roomCode, indexA, indexB });
-  }, [state.roomCode]);
+    emitOnlineAction("swap_player_team", { roomCode: state.roomCode, indexA, indexB });
+  }, [emitOnlineAction, state.roomCode]);
   const martirTargetsOnline = useCallback((playerId: string, targetIds: string[]) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("set_martir_targets", { roomCode: state.roomCode, playerId, targetIds });
-  }, [state.roomCode]);
+    emitOnlineAction("set_martir_targets", { roomCode: state.roomCode, playerId, targetIds });
+  }, [emitOnlineAction, state.roomCode]);
   const setEvolvePointOnline = useCallback((playerId: string, attr: AttrKey, delta: number) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("set_evolve_point", { roomCode: state.roomCode, playerId, attr, delta });
-  }, [state.roomCode]);
+    emitOnlineAction("set_evolve_point", { roomCode: state.roomCode, playerId, attr, delta });
+  }, [emitOnlineAction, state.roomCode]);
   const resetEvolvePointsOnline = useCallback((playerId: string) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("reset_evolve_points", { roomCode: state.roomCode, playerId });
-  }, [state.roomCode]);
+    emitOnlineAction("reset_evolve_points", { roomCode: state.roomCode, playerId });
+  }, [emitOnlineAction, state.roomCode]);
   const shopBuyRerollOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("shop_buy_reroll", { roomCode: state.roomCode });
-  }, [state.roomCode]);
+    emitOnlineAction("shop_buy_reroll", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
   const rerollReinforcementOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("reroll_reinforcement", { roomCode: state.roomCode });
-  }, [state.roomCode]);
+    emitOnlineAction("reroll_reinforcement", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
   const pickReinforcementOnline = useCallback((player: Player) => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("pick_reinforcement", { roomCode: state.roomCode, player });
-  }, [state.roomCode]);
+    emitOnlineAction("pick_reinforcement", { roomCode: state.roomCode, player });
+  }, [emitOnlineAction, state.roomCode]);
   const dismissReinforcementOnline = useCallback(() => {
-    if (socketRef.current && state.roomCode) socketRef.current.emit("dismiss_reinforcement", { roomCode: state.roomCode });
-  }, [state.roomCode]);
+    emitOnlineAction("dismiss_reinforcement", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
 
   const disconnectOnline = useCallback(() => {
     if (socketRef.current) {

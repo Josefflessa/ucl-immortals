@@ -85,6 +85,24 @@ export interface RoomState {
   code: string;
   /** Monotonic authoritative revision. Clients use it to reject late snapshots. */
   stateRevision: number;
+  /** Changes whenever the host starts a new match in the same room code. */
+  roomEpoch: number;
+  /** Persisted receipts make retried commands safe after reconnects. */
+  commandReceipts?: Array<{
+    commandId: string;
+    event: string;
+    stateRevision: number;
+  }>;
+  /** Private durable recovery marker; never exposed in room views. */
+  lastCheckpoint?: {
+    phase: RoomState['phase'];
+    leagueRound: number;
+    knockoutRound: string | null;
+    knockoutLeg: number | null;
+    stateRevision: number;
+    savedAt: number;
+    reason: string;
+  };
   phase: 'lobby' | 'setup' | 'draft' | 'squad_review' | 'league' | 'knockout' | 'report';
   difficulty: string;
   competitionFormat: CompetitionFormat;
@@ -266,6 +284,10 @@ function jsonByteLength(value: unknown): number {
  */
 function roomViewForSocket(room: RoomState, socketId: string): RoomState {
   const view = cloneRoomJson(room);
+  // These fields are server-only persistence metadata. In particular, command
+  // receipts must not reveal another client's retry history.
+  delete view.commandReceipts;
+  delete view.lastCheckpoint;
   const viewer = room.players.find(player => player.socketId === socketId);
   const viewerId = viewer?.id;
 
@@ -356,6 +378,8 @@ const VALID_TRAIN_ATTRS = new Set(TRAIN_ATTRS.map(a => a.key));
 const VALID_VARIANTS = new Set(TURBINAR_VARIANTS.map(v => v.key));
 const MAX_PLAYER_NAME_LENGTH = 32;
 const MAX_CLIENT_ID_LENGTH = 80;
+const MAX_COMMAND_ID_LENGTH = 120;
+const MAX_COMMAND_RECEIPTS = 256;
 const MAX_EVENTS_PER_SECOND = 120;
 
 function normalizePlayerName(value: unknown): string | null {
@@ -381,6 +405,58 @@ function isShopPhase(room: RoomState): boolean {
 
 function isValidId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 80;
+}
+
+function commandIdFromPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const value = (payload as { commandId?: unknown }).commandId;
+  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_COMMAND_ID_LENGTH) return null;
+  // Opaque client IDs use this compact alphabet; it also keeps control
+  // characters out of persisted recovery metadata.
+  return /^[A-Za-z0-9:_-]+$/.test(value) ? value : null;
+}
+
+function roomEpochFromPayload(payload: unknown): number | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const value = (payload as { roomEpoch?: unknown }).roomEpoch;
+  return Number.isSafeInteger(value) && (value as number) > 0 ? value as number : null;
+}
+
+function roomMutationDigest(room: RoomState): string {
+  const snapshot = cloneRoomJson(room);
+  // Bookkeeping must not turn an otherwise rejected/no-op action into a
+  // gameplay mutation.
+  snapshot.stateRevision = 0;
+  delete snapshot.commandReceipts;
+  delete snapshot.lastCheckpoint;
+  return JSON.stringify(snapshot);
+}
+
+function rememberCommand(room: RoomState, event: string, commandId: string): void {
+  const receipts = room.commandReceipts ?? [];
+  const existingIndex = receipts.findIndex(receipt => receipt.commandId === commandId);
+  if (existingIndex >= 0) receipts.splice(existingIndex, 1);
+  receipts.push({ commandId, event, stateRevision: room.stateRevision });
+  if (receipts.length > MAX_COMMAND_RECEIPTS) {
+    receipts.splice(0, receipts.length - MAX_COMMAND_RECEIPTS);
+  }
+  room.commandReceipts = receipts;
+}
+
+function findCommand(room: RoomState, commandId: string): { event: string; stateRevision: number } | undefined {
+  return room.commandReceipts?.find(receipt => receipt.commandId === commandId);
+}
+
+function markRoomCheckpoint(room: RoomState, reason: string): void {
+  room.lastCheckpoint = {
+    phase: room.phase,
+    leagueRound: room.leagueRound,
+    knockoutRound: room.knockoutBracket?.currentRound ?? null,
+    knockoutLeg: room.knockoutBracket?.currentLeg ?? null,
+    stateRevision: room.stateRevision,
+    savedAt: Date.now(),
+    reason: reason.slice(0, 80),
+  };
 }
 
 function roomCodeFromPayload(payload: unknown): string | null {
@@ -809,11 +885,71 @@ export function registerSocketHandlers(io: RealtimeServer) {
         // bracket transition or readiness update.
         const previousRoomSnapshot = previousRoom ? cloneRoomJson(previousRoom) : undefined;
         const previousMarketSeq = marketSeq;
+        const commandId = commandIdFromPayload(payload);
+        const expectedRoomEpoch = roomEpochFromPayload(payload);
         try {
+          if (previousRoom && expectedRoomEpoch !== null && expectedRoomEpoch !== previousRoom.roomEpoch) {
+            // A queued command from a previous restart must never act on the
+            // new match that happens to reuse the same four-letter room code.
+            if (commandId) {
+              socket.emit('command_ack', {
+                commandId,
+                event,
+                status: 'rejected',
+                reason: 'stale_room_epoch',
+                stateRevision: previousRoom.stateRevision,
+              });
+            }
+            return;
+          }
+          if (previousRoom && commandId) {
+            const receipt = findCommand(previousRoom, commandId);
+            if (receipt) {
+              // A response may have been lost while the client disconnected.
+              // Replaying the exact command is acknowledged, never executed.
+              socket.emit('command_ack', {
+                commandId,
+                event: receipt.event,
+                status: 'already_applied',
+                stateRevision: receipt.stateRevision,
+              });
+              return;
+            }
+          }
           if (previousRoom && event !== 'client_capabilities' && event !== 'sync_room') {
             bumpRoomRevision(previousRoom);
           }
           handler(payload);
+
+          const nextRoom = roomCode ? rooms.get(roomCode) : undefined;
+          const changed = previousRoomSnapshot && nextRoom
+            ? roomMutationDigest(previousRoomSnapshot) !== roomMutationDigest(nextRoom)
+            : !previousRoomSnapshot && !!nextRoom;
+          if (nextRoom && changed) {
+            if (commandId) rememberCommand(nextRoom, event, commandId);
+            // This marker is intentionally private. Durable Objects persist the
+            // complete room after the handler returns, so it becomes a recovery
+            // point only after the transaction commits.
+            markRoomCheckpoint(nextRoom, event);
+            if (commandId) {
+              socket.emit('command_ack', {
+                commandId,
+                event,
+                status: 'applied',
+                stateRevision: nextRoom.stateRevision,
+              });
+            }
+          } else if (nextRoom && commandId) {
+            // A command that reached the authoritative handler but was no-op
+            // or invalid is terminal too. Tell the client to stop retrying it;
+            // the next intentional click will receive a fresh command ID.
+            socket.emit('command_ack', {
+              commandId,
+              event,
+              status: 'rejected',
+              stateRevision: nextRoom.stateRevision,
+            });
+          }
         } catch (err) {
           if (roomCode) {
             if (previousRoomSnapshot) rooms.set(roomCode, previousRoomSnapshot);
@@ -883,6 +1019,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const newRoom: RoomState = {
         code: roomCode,
         stateRevision: 1,
+        roomEpoch: 1,
+        commandReceipts: [],
         phase: 'lobby',
         difficulty: requestedDifficulty,
         competitionFormat: normalizeCompetitionFormat(requestedFormat),
@@ -2288,6 +2426,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room || !isHost(room, socket.id)) return;
 
       clearDraftTurnTimer(roomCode);
+      room.roomEpoch = Number.isSafeInteger(room.roomEpoch) && room.roomEpoch < Number.MAX_SAFE_INTEGER
+        ? room.roomEpoch + 1
+        : 1;
       room.phase = 'lobby';
       room.difficulty = 'gold';
       room.players.forEach(p => {
@@ -2336,6 +2477,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
         history: [],
         currentOptionsByPlayer: {}
       };
+      // A restart begins a new authoritative match. Receipts from the previous
+      // match must not be able to suppress a command in the new one.
+      room.commandReceipts = [];
+      room.lastCheckpoint = undefined;
 
       emitRoomUpdate(io, room);
     });

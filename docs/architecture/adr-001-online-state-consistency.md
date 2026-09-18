@@ -8,9 +8,9 @@ Aceito
 
 Uma partida online pode atravessar reconexões, hibernação do Durable Object,
 troca de host e mensagens que chegam fora do instante em que foram geradas.
-Um snapshot atrasado não pode substituir uma fase mais nova, e um clique de
-gameplay feito durante uma queda não deve ser executado depois sobre um estado
-que o jogador já não está vendo.
+Um snapshot atrasado não pode substituir uma fase mais nova, e uma ação feita
+durante uma queda só pode ser repetida depois se continuar válida para a mesma
+partida e se tiver sido identificada por um comando idempotente.
 
 ## Decisão
 
@@ -18,9 +18,15 @@ que o jogador já não está vendo.
   escalações, resultados e avanço do campeonato.
 - Cada sala mantém uma `stateRevision` monotônica. O cliente rejeita snapshots
   mais antigos e ignora eventos de sockets que já não são a conexão ativa.
-- A fila de reconexão fica limitada a handshake e sincronização (`join_room`,
-  `create_room`, capacidades e `sync_room`). Ações de gameplay são descartadas
-  durante a queda e podem ser repetidas depois da sincronização.
+- Cada ação de gameplay recebe um `commandId` opaco. A sala persiste uma janela
+  limitada de recibos e responde com ACK aplicado, já aplicado ou rejeitado.
+  Assim, uma ação enviada cuja resposta se perdeu pode ser repetida sem duplicar
+  compra, aposta, draft ou avanço de fase. O cliente mantém em fila apenas
+  comandos identificados durante a reconexão; o servidor continua validando a
+  fase, o jogador e o saldo em toda tentativa.
+- A sala também mantém uma `roomEpoch`, incrementada ao reiniciar a partida.
+  Comandos enfileirados antes do reinício são rejeitados, mesmo que o código da
+  sala continue igual.
 - Cada handler faz backup da sala antes de executar. Exceções restauram o
   backup e não podem persistir uma mutação parcial.
 - Confirmações de assistência são vinculadas à rodada/perna exata. Quedas
@@ -33,6 +39,10 @@ que o jogador já não está vendo.
 - No Durable Object, as mensagens de estado ficam em buffer durante a ação e só
   são enviadas depois que a persistência termina. Falha de persistência restaura
   sala, timers e cursores de sincronização e não publica uma transação incompleta.
+- Cada commit atualiza um checkpoint privado e inclui versão do formato de
+  armazenamento. Ao carregar, o objeto valida a estrutura mínima da sala e
+  falha fechado diante de um registro inválido, evitando substituir uma partida
+  corrompida por um lobby novo.
 - Cada cliente recebe uma visão da sala filtrada por socket. Credenciais de
   reconexão, saldo, apostas e pacotes pendentes permanecem privados; opções do
   draft também são entregues apenas ao jogador da vez.
@@ -42,9 +52,9 @@ que o jogador já não está vendo.
 
 ## Consequências
 
-O jogador precisa repetir um clique feito enquanto estava sem conexão, o que é
-intencional: evita compras, avanços ou reinícios antigos sendo executados em
-uma fase diferente. A sala faz algumas cópias JSON pequenas por ação, mas o
-limite de jogadores torna esse custo previsível e favorece integridade sobre
-micro-otimização. Clientes antigos continuam recebendo snapshots completos;
-clientes atuais usam o fluxo versionado.
+Comandos de uma queda curta podem ser concluídos automaticamente; comandos
+rejeitados continuam exigindo uma nova intenção do jogador. O servidor ainda
+faz cópias JSON pequenas por ação, mas o limite de jogadores torna esse custo
+previsível e favorece integridade sobre micro-otimização. Clientes antigos
+continuam recebendo snapshots completos; clientes atuais usam o fluxo
+versionado e os ACKs de comando.

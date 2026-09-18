@@ -32,9 +32,12 @@ interface RoomReservation {
 }
 
 interface StoredGameRoom {
+  /** Storage format version. Older records remain readable and are upgraded in memory. */
+  schemaVersion?: 2;
   room: RoomState;
   marketSeq: number;
   savedRevision?: number;
+  savedAt?: number;
   timers?: Array<[GameTimerKind, number]>;
 }
 
@@ -59,6 +62,25 @@ interface DurableTransactionSnapshot {
 const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const RESERVATION_TTL_MS = 10 * 60 * 1000;
 const CLAIM_TTL_MS = 2 * 60 * 1000;
+const MAX_PERSISTED_COMMAND_RECEIPTS = 256;
+
+function isPersistedRoom(value: unknown): value is RoomState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const room = value as Partial<RoomState>;
+  return isValidRoomCode(room.code)
+    && Number.isSafeInteger(room.stateRevision)
+    && (room.stateRevision as number) >= 0
+    && typeof room.phase === 'string'
+    && ['lobby', 'setup', 'draft', 'squad_review', 'league', 'knockout', 'report'].includes(room.phase)
+    && Array.isArray(room.players)
+    && Array.isArray(room.botTeams)
+    && Array.isArray(room.leagueFixtures)
+    && Array.isArray(room.leagueStandings)
+    && Array.isArray(room.leagueResults)
+    && Array.isArray(room.readyPlayers)
+    && room.draftState !== null
+    && typeof room.draftState === 'object';
+}
 
 function generateRoomCode(): string {
   const bytes = new Uint8Array(4);
@@ -514,8 +536,11 @@ export class GameRoom {
       // An alarm can wake a hibernated object without a WebSocket attachment.
       // The durable state itself is therefore the source of truth for its room
       // identity in that lifecycle path.
-      if (!stored.room || !isValidRoomCode(stored.room.code)) {
-        throw new Error('Estado persistido com código de sala inválido.');
+      if (!isPersistedRoom(stored.room)) {
+        // Fail closed instead of silently creating a new lobby over a damaged
+        // or partially written match. This preserves the last known progress
+        // for manual recovery and prevents a corrupted state from advancing.
+        throw new Error('Estado persistido inválido; inicialização destrutiva recusada.');
       }
       if (this.roomCode && stored.room.code !== this.roomCode) {
         throw new Error('Estado persistido pertence a outra sala.');
@@ -531,6 +556,17 @@ export class GameRoom {
           ? stored.savedRevision
           : 1;
       }
+      if (!Number.isSafeInteger(stored.room.roomEpoch) || stored.room.roomEpoch < 1) {
+        stored.room.roomEpoch = 1;
+      }
+      // Rooms created before command idempotency was deployed remain fully
+      // playable. Their new private receipt log starts empty and is bounded.
+      stored.room.commandReceipts = Array.isArray(stored.room.commandReceipts)
+        ? stored.room.commandReceipts
+          .filter(receipt => receipt && typeof receipt.commandId === 'string' && typeof receipt.event === 'string'
+            && Number.isSafeInteger(receipt.stateRevision))
+          .slice(-MAX_PERSISTED_COMMAND_RECEIPTS)
+        : [];
       this.runtime.rooms.set(this.roomCode, stored.room);
       this.runtime.marketSeq = stored.marketSeq;
       this.wasPersisted = true;
@@ -569,9 +605,11 @@ export class GameRoom {
         throw new Error('Tentativa de persistir uma versão antiga da sala foi bloqueada.');
       }
       const storedRoom: StoredGameRoom = {
+        schemaVersion: 2,
         room: cloneRoomJson(room),
         marketSeq: this.runtime.marketSeq,
         savedRevision: revision,
+        savedAt: Date.now(),
         timers: Array.from(this.scheduledTimers.entries()),
       };
       await this.state.storage.put('game', storedRoom);

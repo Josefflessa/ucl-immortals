@@ -152,4 +152,71 @@ describe('game runtime isolation', () => {
     expect(runtime.rooms.size).toBe(0);
     expect(socket.sent.find(message => message.event === 'action_error')).toBeTruthy();
   });
+
+  it('applies a command only once when the client retries after a lost response', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+    runWithGameRuntime(runtime, () => host.receive('start_setup', { roomCode: 'ABCD' }));
+
+    const commandId = 'setup-command-1';
+    runWithGameRuntime(runtime, () => host.receive('submit_setup', {
+      roomCode: 'ABCD', coachId: 'guardiola', formationId: '4-3-3', commandId,
+    }));
+    runWithGameRuntime(runtime, () => host.receive('submit_setup', {
+      roomCode: 'ABCD', coachId: 'klopp', formationId: '4-2-3-1', commandId,
+    }));
+
+    const room = runtime.rooms.get('ABCD')!;
+    expect(room.players[0].coachId).toBe('guardiola');
+    expect(room.players[0].formationId).toBe('4-3-3');
+    expect(room.commandReceipts).toHaveLength(1);
+    expect(host.sent.some(message => (
+      message.event === 'command_ack'
+      && (message.payload as any)?.commandId === commandId
+      && (message.payload as any)?.status === 'already_applied'
+    ))).toBe(true);
+
+    const guestView = guest.sent.filter(message => message.event === 'room_updated').at(-1)?.payload as any;
+    expect(guestView.commandReceipts).toBeUndefined();
+    expect(guestView.lastCheckpoint).toBeUndefined();
+  });
+
+  it('rejects a queued command from the previous match after a room restart', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => host.receive('restart_room', {
+      roomCode: 'ABCD', commandId: 'restart-1', roomEpoch: 1,
+    }));
+    expect(runtime.rooms.get('ABCD')?.roomEpoch).toBe(2);
+
+    runWithGameRuntime(runtime, () => host.receive('start_setup', {
+      roomCode: 'ABCD', commandId: 'old-start', roomEpoch: 1,
+    }));
+
+    expect(runtime.rooms.get('ABCD')?.phase).toBe('lobby');
+    expect(host.sent.some(message => (
+      message.event === 'command_ack'
+      && (message.payload as any)?.commandId === 'old-start'
+      && (message.payload as any)?.reason === 'stale_room_epoch'
+    ))).toBe(true);
+  });
 });

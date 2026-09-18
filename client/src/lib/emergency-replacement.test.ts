@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { generateBotTeam } from './gameEngine';
+import { generateBotTeam, positionFit } from './gameEngine';
+import { FORMATIONS } from './gameData';
 import {
   applyEmergencyReplacement,
   availKey,
@@ -12,7 +13,10 @@ describe('contratação emergencial', () => {
   it('oferece prata/bronze compatível e coloca a escolha no XI sem criar carta especial', () => {
     const original = generateBotTeam('Emergency FC', 0.7);
     const team = { ...original, players: original.players.slice(0, 11) };
-    const starter = team.players.find(p => p.position !== 'GK') ?? team.players[0];
+    const formation = FORMATIONS.find(item => item.id === team.formationId)!;
+    const starterIndex = team.players.findIndex((p, index) =>
+      p.position !== 'GK' && positionFit(p, formation.positions[index]?.role ?? '') === 'native');
+    const starter = team.players[starterIndex >= 0 ? starterIndex : 0];
     const discipline: DisciplineMap = {
       [availKey(team.id, starter.id)]: { yellows: 0, banned: 1, injured: 0 },
     };
