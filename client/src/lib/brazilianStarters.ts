@@ -3451,7 +3451,7 @@ const BRAZILIAN_STARTERS_BASE: Player[] = [
   },
   {
     "id": "brasileirao_14183203",
-    "shortName": "Benjamín Rollheiser",
+    "shortName": "Rollheiser",
     "fullName": "Benjamín Rollheiser",
     "position": "LW",
     "secondaryPositions": [

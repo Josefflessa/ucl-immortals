@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getOnlineKnockoutParticipantIds, getOnlineLeagueParticipantIds, getReadinessStatus, knockoutLegWasPlayed } from './onlineReadiness';
+import { getOnlineKnockoutParticipantIds, getOnlineLeagueParticipantIds, getReadinessStatus, isOnlineHumanMatch, knockoutLegWasPlayed, sortMatchesForOnlineDisplay } from './onlineReadiness';
 
 const team = {};
 
@@ -57,5 +57,20 @@ describe('online readiness participants', () => {
   it('handles the completed return leg and single-leg final correctly', () => {
     expect(knockoutLegWasPlayed({ leg1: {}, leg2: {}, isSingleLeg: false }, 'round16', 2, 2)).toBe(true);
     expect(knockoutLegWasPlayed({ played: true, result: {} }, 'final', 1)).toBe(true);
+  });
+
+  it('puts the local and other human matches before bot-only matches, stably', () => {
+    const matches = [
+      { id: 'bot-a', homeTeamId: 'bot-1', awayTeamId: 'bot-2' },
+      { id: 'other-human', homeTeamId: 'human-b', awayTeamId: 'bot-3' },
+      { id: 'local', homeTeamId: 'local', awayTeamId: 'bot-4' },
+      { id: 'bot-b', homeTeamId: 'bot-5', awayTeamId: 'bot-6' },
+      { id: 'human-v-human', homeTeamId: 'human-c', awayTeamId: 'human-d' },
+    ];
+
+    expect(sortMatchesForOnlineDisplay(matches, new Set(['local', 'human-b', 'human-c', 'human-d']), 'local').map(match => match.id))
+      .toEqual(['local', 'other-human', 'human-v-human', 'bot-a', 'bot-b']);
+    expect(isOnlineHumanMatch(matches[1], new Set(['human-b']))).toBe(true);
+    expect(isOnlineHumanMatch(matches[0], new Set(['human-b']))).toBe(false);
   });
 });

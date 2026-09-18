@@ -9,16 +9,17 @@ import { useGame, KnockoutMatch } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
 import { MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel } from '../../lib/gameEngine';
 import MatchDetailsModal from './MatchDetailsModal';
+import Crest from './Crest';
 import BetSlipModal, { type BetSlipSubmission } from './BetSlipModal';
 import { buildKnockoutMatchKey, describeBet, BET_ROUND_CAP, Bet } from '../../lib/bets';
 import { unavailableStarters } from '../../lib/discipline';
-import { getOnlineKnockoutParticipantIds, getReadinessStatus } from '../../lib/onlineReadiness';
+import { getOnlineKnockoutParticipantIds, getReadinessStatus, isOnlineHumanMatch, sortMatchesForOnlineDisplay } from '../../lib/onlineReadiness';
 
 export default function KnockoutTiesTab() {
   const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
   const { knockoutBracket, playerTeam } = state;
   const online = state.mode === 'online';
-  const { localTeamId, getTeamName: resolveTeamName } = useTeams();
+  const { allTeams, localTeamId, getTeamName: resolveTeamName } = useTeams();
   const [betSlip, setBetSlip] = useState<{
     matchKey: string;
     homeName: string;
@@ -50,6 +51,7 @@ export default function KnockoutTiesTab() {
 
   const isPlayerTeam = (teamId: string) =>
     teamId === playerTeam?.id ||
+    teamId === localTeamId ||
     (state.mode === 'online' && state.onlinePlayers.some(p => p.id === teamId && p.socketId === state.socketId));
 
   // Solo: the player drives progression locally. Online: only the host does.
@@ -77,7 +79,14 @@ export default function KnockoutTiesTab() {
     else dispatch({ type: 'ADVANCE_KNOCKOUT' });
   };
 
-  const matches = getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[];
+  const onlineHumanTeamIds = online
+    ? new Set(state.onlinePlayers.map(player => player.id))
+    : new Set<string>();
+  const matches = sortMatchesForOnlineDisplay(
+    getActiveKnockoutMatches(knockoutBracket) as KnockoutMatch[],
+    onlineHumanTeamIds,
+    online ? localTeamId : undefined,
+  );
 
   const round = knockoutBracket.currentRound;
 
@@ -154,9 +163,14 @@ export default function KnockoutTiesTab() {
           {matches.map((match, i) => {
             const homeName = getTeamName(match.homeTeamId);
             const awayName = getTeamName(match.awayTeamId);
+            const homeCrestId = allTeams.find(team => team.id === match.homeTeamId)?.crestId;
+            const awayCrestId = allTeams.find(team => team.id === match.awayTeamId)?.crestId;
             const homeIsPlayer = isPlayerTeam(match.homeTeamId);
             const awayIsPlayer = isPlayerTeam(match.awayTeamId);
             const hasPlayer = homeIsPlayer || awayIsPlayer;
+            const hasHumanMatch = online && isOnlineHumanMatch(match, onlineHumanTeamIds);
+            const homeIsHuman = onlineHumanTeamIds.has(match.homeTeamId);
+            const awayIsHuman = onlineHumanTeamIds.has(match.awayTeamId);
             const twoLeg = isFinal ? match.isSingleLeg === false : match.isSingleLeg !== true;
             const l1 = match.leg1;
             const l2 = match.leg2;
@@ -184,15 +198,21 @@ export default function KnockoutTiesTab() {
                 className="rounded-2xl overflow-hidden"
                 style={{
                   background: '#0F0F1A',
-                  border: `1px solid ${hasPlayer ? '#C9A84C44' : '#1A1A2A'}`,
-                  boxShadow: hasPlayer ? '0 0 20px rgba(201,168,76,0.1)' : 'none',
+                  border: `1px solid ${hasPlayer ? '#C9A84C44' : hasHumanMatch ? '#6366F155' : '#1A1A2A'}`,
+                  boxShadow: hasPlayer
+                    ? '0 0 20px rgba(201,168,76,0.1)'
+                    : hasHumanMatch ? '0 0 20px rgba(99,102,241,0.1)' : 'none',
                 }}
               >
                 {/* Match header */}
-                {hasPlayer && (
+                {(hasPlayer || hasHumanMatch) && (
                   <div className="px-4 py-1.5 text-xs font-bold tracking-widest text-center"
-                    style={{ background: '#C9A84C22', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
-                    ⭐ SEU TIME
+                    style={{
+                      background: hasPlayer ? '#C9A84C22' : '#6366F122',
+                      color: hasPlayer ? '#C9A84C' : '#A5B4FC',
+                      fontFamily: 'Rajdhani, sans-serif',
+                    }}>
+                    {hasPlayer ? '⭐ SEU TIME' : '👥 PARTIDA DE JOGADORES'}
                   </div>
                 )}
                 <div className="px-4 sm:px-6 py-4 sm:py-5">
@@ -202,11 +222,12 @@ export default function KnockoutTiesTab() {
                       <div className="text-sm sm:text-lg font-black leading-tight truncate"
                         style={{
                           fontFamily: 'Bebas Neue, sans-serif',
-                          color: homeIsPlayer ? '#C9A84C' : '#FFFFFF',
+                          color: homeIsPlayer ? '#C9A84C' : homeIsHuman ? '#A5B4FC' : '#FFFFFF',
                         }}>
                         {homeName}
                       </div>
                     </div>
+                    <Crest crestId={homeCrestId} name={homeName} size={26} />
 
                     {/* Score / VS */}
                     <div className="flex-shrink-0 w-24 sm:w-36 text-center">
@@ -275,11 +296,12 @@ export default function KnockoutTiesTab() {
                     </div>
 
                     {/* Away team */}
+                    <Crest crestId={awayCrestId} name={awayName} size={26} />
                     <div className={`flex-1 min-w-0 ${awayIsPlayer ? 'text-yellow-400' : ''}`}>
                       <div className="text-sm sm:text-lg font-black leading-tight truncate"
                         style={{
                           fontFamily: 'Bebas Neue, sans-serif',
-                          color: awayIsPlayer ? '#C9A84C' : '#FFFFFF',
+                          color: awayIsPlayer ? '#C9A84C' : awayIsHuman ? '#A5B4FC' : '#FFFFFF',
                         }}>
                         {awayName}
                       </div>
@@ -359,20 +381,6 @@ export default function KnockoutTiesTab() {
                       </span>
                     )}
                   </div>
-
-                  {/* Keep the return-leg order visible before a bet is placed, so a score such as
-                      1–0 can never be confused with the first-leg order. New seeded ties put the
-                      better league campaign at home in the return; old saved brackets retain the
-                      legacy inverted order. */}
-                  {twoLeg && currentLeg === 2 && !l2 && (
-                    <div className="mb-3 mx-auto w-fit max-w-full rounded-md px-2.5 py-1 text-center text-[10px] font-bold"
-                      style={{ background: '#0D948814', border: '1px solid #14B8A644', color: '#5EEAD4', fontFamily: 'Rajdhani, sans-serif' }}>
-                      VOLTA: <strong>{awayName}</strong> × <strong>{homeName}</strong>
-                      {match.homeSeed !== undefined && match.awaySeed !== undefined
-                        ? ` · ${match.awaySeed}º melhor campanha em casa`
-                        : ' · mando invertido'}
-                    </div>
-                  )}
 
                   {/* 🎯 Palpite — botão na perna ativa (pré-jogo) + badges das pernas reveladas */}
                   {!iAmSpectator && (() => {

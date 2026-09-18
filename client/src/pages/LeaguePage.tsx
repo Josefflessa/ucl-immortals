@@ -19,7 +19,7 @@ import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
 import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
 import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
-import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus } from '../lib/onlineReadiness';
+import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus, sortMatchesForOnlineDisplay } from '../lib/onlineReadiness';
 import type { MatchResult, Team } from '../lib/gameEngine';
 import type { Player } from '../lib/gameData';
 import { POS_PT } from '../lib/gameData';
@@ -239,7 +239,14 @@ export default function LeaguePage() {
   // Todos os confrontos da rodada ficam disponíveis na tela. No modo de grupos,
   // eles são organizados visualmente por grupo e o grupo do jogador é destacado.
   const currentRoundFixtures = leagueFixtures.filter(f => f.round === leagueRound);
-  const displayedRoundFixtures = currentRoundFixtures;
+  const onlineHumanTeamIds = state.mode === 'online'
+    ? new Set(state.onlinePlayers.map(player => player.id))
+    : new Set<string>();
+  const displayedRoundFixtures = sortMatchesForOnlineDisplay(
+    currentRoundFixtures,
+    onlineHumanTeamIds,
+    state.mode === 'online' ? localTeamId : undefined,
+  );
   // A janela anti-spoiler só existe depois que o servidor simulou pelo menos
   // uma partida desta rodada. Antes do início, `watched` naturalmente está
   // vazio e não pode ser interpretado como "há alguém atrasado".

@@ -1,6 +1,7 @@
 // UCL Immortals — Setup Page
 // Choose difficulty level before coach selection
 
+import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '../lib/gameData';
@@ -9,6 +10,7 @@ import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } fr
 export default function SetupPage() {
   const { state, dispatch, createRoom } = useGame();
   const isOnlineRoomCreation = state.onlineSetupIntent === 'create';
+  const lastDifficultyClick = useRef<{ id: string; at: number } | null>(null);
 
   const handleSelect = (diffId: string) => {
     dispatch({ type: 'SET_DIFFICULTY', difficulty: diffId });
@@ -21,6 +23,20 @@ export default function SetupPage() {
       return;
     }
     dispatch({ type: 'SET_PHASE', phase: 'crest' });
+  };
+
+  const handleDifficultyClick = (diffId: string) => {
+    const now = performance.now();
+    const previous = lastDifficultyClick.current;
+    const isDoubleClick = previous?.id === diffId && now - previous.at <= 500;
+
+    handleSelect(diffId);
+    lastDifficultyClick.current = isDoubleClick ? null : { id: diffId, at: now };
+
+    // Use the clicked card as the source of truth. This avoids depending on a
+    // state update completing between the two clicks, which was unreliable in
+    // the online room-creation flow on some browsers.
+    if (isDoubleClick) handleContinue(diffId);
   };
 
   const handleBack = () => {
@@ -56,8 +72,7 @@ export default function SetupPage() {
                 <ChoiceCard
                   key={diff.id}
                   selected={isSelected}
-                  onClick={() => handleSelect(diff.id)}
-                  onDoubleClick={() => handleContinue(diff.id)}
+                  onClick={() => handleDifficultyClick(diff.id)}
                   title="Clique duas vezes para escolher e continuar"
                   className="ui-choice flex items-center gap-3.5 px-4 py-3.5"
                   style={{

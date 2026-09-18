@@ -39,7 +39,7 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "sevilla", name: "Sevilla", url: "https://upload.wikimedia.org/wikipedia/en/3/3b/Sevilla_FC_logo.svg" },
       { id: "valencia", name: "Valencia", url: "https://upload.wikimedia.org/wikipedia/en/c/ce/Valenciacf.svg" },
       { id: "villarreal", name: "Villarreal", url: "https://upload.wikimedia.org/wikipedia/en/b/b9/Villarreal_CF_logo-en.svg" },
-      { id: "real-betis", name: "Real Betis", url: "https://upload.wikimedia.org/wikipedia/en/1/13/Real_betis_logo.svg" },
+      { id: "real-betis", name: "Real Betis", url: "/crests/real-betis.svg" },
       { id: "athletic-bilbao", name: "Athletic Bilbao", url: "https://upload.wikimedia.org/wikipedia/en/9/98/Club_Athletic_Bilbao_logo.svg" },
       { id: "real-sociedad", name: "Real Sociedad", url: "https://upload.wikimedia.org/wikipedia/en/f/f1/Real_Sociedad_logo.svg" },
       { id: "celta-vigo", name: "Celta Vigo", url: "https://upload.wikimedia.org/wikipedia/en/1/12/RC_Celta_de_Vigo_logo.svg" },
@@ -134,7 +134,7 @@ export const CREST_CATALOG: CrestGroup[] = [
   {
     league: "Ucrânia 🇺🇦", crests: [
       { id: "shakhtar-donetsk", name: "Shakhtar Donetsk", url: "https://upload.wikimedia.org/wikipedia/en/a/a1/FC_Shakhtar_Donetsk.svg" },
-      { id: "dynamo-kyiv", name: "Dynamo Kyiv", url: "https://upload.wikimedia.org/wikipedia/commons/8/8b/Dynamo_logo.svg" },
+      { id: "dynamo-kyiv", name: "Dynamo Kyiv", url: "/crests/dynamo-kyiv.svg" },
     ]
   },
   {
@@ -310,6 +310,8 @@ export const BOT_CREST_MAP: Record<string, string> = {
   'Celtic FC': 'celtic',
   'Club Brugge': 'club-brugge',
   'Shakhtar Donetsk': 'shakhtar-donetsk',
+  'Real Betis': 'real-betis',
+  'Dynamo Kyiv': 'dynamo-kyiv',
   'RB Salzburg': 'red-bull-salzburg',
   'Lazio Roma': 'lazio',
   'Estrela Vermelha': 'red-star',

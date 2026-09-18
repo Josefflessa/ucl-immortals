@@ -17,6 +17,44 @@ export interface ReadinessFixture {
   awayTeamId: string;
 }
 
+export interface TeamMatchDisplay {
+  homeTeamId: string;
+  awayTeamId: string;
+}
+
+/**
+ * Puts human-player matches before bot-only matches without changing the
+ * order inside either group. The local player's match gets the first slot so
+ * it remains the quickest one to find on a round screen.
+ */
+export function sortMatchesForOnlineDisplay<T extends TeamMatchDisplay>(
+  matches: T[],
+  humanTeamIds: ReadonlySet<string>,
+  localTeamId?: string,
+): T[] {
+  return matches
+    .map((match, index) => {
+      const isLocalMatch = localTeamId !== undefined
+        && (match.homeTeamId === localTeamId || match.awayTeamId === localTeamId);
+      const isHumanMatch = humanTeamIds.has(match.homeTeamId) || humanTeamIds.has(match.awayTeamId);
+
+      return {
+        match,
+        index,
+        priority: isLocalMatch ? 0 : isHumanMatch ? 1 : 2,
+      };
+    })
+    .sort((a, b) => a.priority - b.priority || a.index - b.index)
+    .map(entry => entry.match);
+}
+
+export function isOnlineHumanMatch(
+  match: TeamMatchDisplay,
+  humanTeamIds: ReadonlySet<string>,
+): boolean {
+  return humanTeamIds.has(match.homeTeamId) || humanTeamIds.has(match.awayTeamId);
+}
+
 export interface ReadinessTie {
   homeTeamId: string;
   awayTeamId: string;
