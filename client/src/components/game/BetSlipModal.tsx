@@ -151,10 +151,16 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
         </div>
 
         <div className="ui-modal__body ui-stack min-h-0 flex-1">
-          <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-[10px] font-bold tracking-widest leading-tight text-[var(--ui-text-faint)]">
-            <span>MANDANTE</span><span className="text-[var(--ui-text-muted)]">{homeName}</span>
-            <span className="mx-2 text-[var(--ui-brand-strong)]">×</span>
-            <span>VISITANTE</span><span className="text-[var(--ui-text-muted)]">{awayName}</span>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 border-b border-[var(--ui-border)] pb-3 text-center text-[10px] font-bold tracking-widest leading-tight text-[var(--ui-text-faint)]">
+            <div className="min-w-0">
+              <span className="block">MANDANTE</span>
+              <span className="mt-1 block break-words text-xs font-black tracking-normal text-[var(--ui-text-muted)]">{homeName}</span>
+            </div>
+            <span className="pt-3 text-[var(--ui-brand-strong)]">×</span>
+            <div className="min-w-0">
+              <span className="block">VISITANTE</span>
+              <span className="mt-1 block break-words text-xs font-black tracking-normal text-[var(--ui-text-muted)]">{awayName}</span>
+            </div>
           </div>
 
           <section className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-3" aria-labelledby="bet-markets-title">

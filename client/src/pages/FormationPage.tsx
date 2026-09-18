@@ -122,7 +122,8 @@ export default function FormationPage() {
                       {formation.strengths.slice(0, 2).map(s => (
                         <div key={s} className="mb-0.5 flex items-center gap-1.5 text-sm"
                           style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
-                          <span>+</span> {s}
+                          <span className="shrink-0">+</span>
+                          <span className="min-w-0 break-words leading-snug">{s}</span>
                         </div>
                       ))}
                     </div>
@@ -130,9 +131,10 @@ export default function FormationPage() {
                     {/* Weaknesses */}
                     <div>
                       {formation.weaknesses.slice(0, 1).map(w => (
-                        <div key={w} className="flex items-center gap-1.5 text-sm"
+                        <div key={w} className="flex items-start gap-1.5 text-sm"
                           style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
-                          <span>−</span> {w}
+                          <span className="shrink-0">−</span>
+                          <span className="min-w-0 break-words leading-snug">{w}</span>
                         </div>
                       ))}
                     </div>
@@ -191,13 +193,15 @@ export default function FormationPage() {
                 {selectedFormation.strengths.map(s => (
                   <div key={s} className="flex items-start gap-2 text-sm"
                     style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
-                    <span className="flex-shrink-0">✓</span> {s}
+                    <span className="flex-shrink-0">✓</span>
+                    <span className="min-w-0 break-words leading-snug">{s}</span>
                   </div>
                 ))}
                 {selectedFormation.weaknesses.map(w => (
                   <div key={w} className="flex items-start gap-2 text-sm"
                     style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
-                    <span className="flex-shrink-0">✗</span> {w}
+                    <span className="flex-shrink-0">✗</span>
+                    <span className="min-w-0 break-words leading-snug">{w}</span>
                   </div>
                 ))}
               </div>

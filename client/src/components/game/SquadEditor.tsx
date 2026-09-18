@@ -648,7 +648,7 @@ export default function SquadEditor({
                               <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#EF444422', color: '#EF4444', border: '1px solid #EF444444', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO</span>
                             )}
                             {selectedIsSecondary && (
-                              <span className="text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −5%</span>
+                              <span className="whitespace-nowrap text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −5%</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 min-w-0">

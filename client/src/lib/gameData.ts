@@ -218,6 +218,10 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 82, shooting: 78, passing: 88, dribbling: 76, defending: 99, physical: 99, vision: 86, composure: 98, traits: ['Muralha', 'Força Bruta'], historicalPartners: ['modric', 'kroos', 'ramos'] },
   { id: 'adriano_unico', historicalPlayerId: 'adriano_inter', shortName: 'Adriano', fullName: 'Adriano Leite Ribeiro', position: 'ST', secondaryPositions: ['LW'], nation: 'Brasil', club: 'Inter Milan', season: 'Única', rarity: 'unique', overall: 99,
     pace: 93, shooting: 99, passing: 83, dribbling: 91, defending: 38, physical: 98, vision: 82, composure: 94, traits: ['Finalizador', 'Força Bruta'] },
+  { id: 'gattuso_unico', shortName: 'Gattuso', fullName: 'Gennaro Ivan Gattuso', position: 'CDM', secondaryPositions: ['CB'], nation: 'Itália', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 84, shooting: 62, passing: 84, dribbling: 72, defending: 99, physical: 99, vision: 78, composure: 96, traits: ['Marcação Pesada', 'Motorzinho'], historicalPartners: ['pirlo', 'maldini', 'nesta', 'kaka_milan'] },
+  { id: 'nesta_unico', basePlayerId: 'nesta', historicalPlayerId: 'nesta', shortName: 'Nesta', fullName: 'Alessandro Nesta', position: 'CB', secondaryPositions: ['CDM'], nation: 'Itália', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 84, shooting: 44, passing: 82, dribbling: 68, defending: 99, physical: 94, vision: 82, composure: 98, traits: ['Interceptador', 'Posicionamento'], historicalCoaches: ['ancelotti'], historicalPartners: ['maldini', 'pirlo', 'gattuso_unico'] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {
@@ -635,6 +639,9 @@ export const PLAYERS: Player[] = [
   ...BRAZILIAN_STARTERS,
   ...BRAZILIAN_NOTABLE_ADDITIONS,
   ...MAJOR_LEAGUE_ADDITIONS,
+  // The audited major-league expansion stays available in
+  // `majorLeagueCatalogExpansion.ts`, but remains out of the live pool until
+  // its local portraits are ready and verified.
   // ===== IMMORTALS =====
   {
     id: 'messi',

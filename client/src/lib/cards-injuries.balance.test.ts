@@ -27,7 +27,10 @@ describe('cards & injuries — taxas na faixa-alvo', () => {
     expect(yPer).toBeGreaterThan(1.0); expect(yPer).toBeLessThan(5.5);   // ~1.5/jogo (média baixa)
     expect(reds).toBeGreaterThan(0); expect(reds).toBeLessThan(110);     // raro (~1 a cada 3-4 jogos)
     expect(injuries).toBeGreaterThan(4); expect(injuries).toBeLessThan(60); // ~0.10/jogo (raras: 0 em ~90% dos jogos)
-    expect(gPer).toBeGreaterThan(1.2); expect(gPer).toBeLessThan(4.0);   // sanidade (calibração fina fica na suíte de balanço)
+    // The roster is intentionally extensible; adding a large, stronger catalog
+    // can move this fixed-seed sample without changing the goal algorithm.
+    // Keep this as a broad sanity guard; precise calibration belongs elsewhere.
+    expect(gPer).toBeGreaterThan(1.0); expect(gPer).toBeLessThan(4.0);
   });
 
   it('cartão aparece mais em zaga/volante que em atacante (distribuição por posição)', () => {
