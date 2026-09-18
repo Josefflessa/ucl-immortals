@@ -83,6 +83,8 @@ export interface RoomPlayer {
 
 export interface RoomState {
   code: string;
+  /** Monotonic authoritative revision. Clients use it to reject late snapshots. */
+  stateRevision: number;
   phase: 'lobby' | 'setup' | 'draft' | 'squad_review' | 'league' | 'knockout' | 'report';
   difficulty: string;
   competitionFormat: CompetitionFormat;
@@ -99,6 +101,9 @@ export interface RoomState {
   // Synchronization: which human players have confirmed watching the current round/leg
   watchedRoundPlayers: string[];
   watchedKnockoutLegPlayers: string[];
+  /** Exact result window those confirmations belong to; rejects late frames. */
+  watchedLeagueRound: number | null;
+  watchedKnockoutLegKey: { round: string; leg: number } | null;
   readyPlayers: string[];    // ✅ participantes da rodada/perna atual que confirmaram "Estou pronto"
   discipline: DisciplineMap; // 🟨🟥🩹 disponibilidade por jogador (todos os times)
   market: MarketListing[];   // 🏪 anúncios do mercado online (jogadores em escrow, fora dos elencos)
@@ -218,7 +223,7 @@ function getRoomSyncSession(socket: RealtimeSocket): RoomSyncSession {
 
 function rememberInitialRoomSnapshot(socket: RealtimeSocket, room: RoomState): { roomState: RoomState; syncRevision: number } {
   const session = getRoomSyncSession(socket);
-  session.snapshot = cloneRoomJson(room);
+  session.snapshot = roomViewForSocket(room, socket.id);
   session.revision = 0;
   return { roomState: session.snapshot as RoomState, syncRevision: session.revision };
 }
@@ -230,7 +235,8 @@ function emitInitialRoom(
   room: RoomState,
 ): void {
   const { roomState, syncRevision } = rememberInitialRoomSnapshot(socket, room);
-  socket.emit(event, { ...payload, roomState, syncRevision });
+  const ownPlayer = (roomState as RoomState).players.find(player => player.socketId === socket.id);
+  socket.emit(event, { ...payload, player: ownPlayer ?? payload.player, roomState, syncRevision });
 }
 
 function emitRoomSnapshot(socket: RealtimeSocket, room: RoomState): void {
@@ -252,17 +258,60 @@ function jsonByteLength(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
 
+/**
+ * The room object is authoritative, but not every field is public information.
+ * In particular, a player's clientId is a reconnection credential and balances,
+ * pending packs and bets are private. Build a per-socket view before calculating
+ * patches so those fields never cross the wire to another participant.
+ */
+function roomViewForSocket(room: RoomState, socketId: string): RoomState {
+  const view = cloneRoomJson(room);
+  const viewer = room.players.find(player => player.socketId === socketId);
+  const viewerId = viewer?.id;
+
+  view.players = view.players.map(player => {
+    if (player.id === viewerId) return player;
+    return {
+      ...player,
+      clientId: undefined,
+      points: 0,
+      lastMatchPoints: null,
+      reinforcementOptions: null,
+      reinforcementRerolls: 0,
+      pendingPack: null,
+      pendingUniquePack: null,
+      bets: [],
+      pendingMatchPoints: undefined,
+    };
+  });
+
+  // Draft options are private to the player whose turn is active. History and
+  // the already-picked ids remain public so the draft UI can render correctly.
+  const activePlayerId = view.draftState.draftOrder[view.draftState.turnIndex];
+  const activePlayer = view.players.find(player => player.id === activePlayerId);
+  if (!activePlayer || activePlayer.id !== viewerId) {
+    view.draftState.currentOptionsByPlayer = {};
+  } else {
+    const options = view.draftState.currentOptionsByPlayer[activePlayerId];
+    view.draftState.currentOptionsByPlayer = options
+      ? { [activePlayerId]: options }
+      : {};
+  }
+
+  return view;
+}
+
 function emitRoomUpdate(io: RealtimeServer, room: RoomState, options: RoomUpdateOptions = {}): void {
   const roomSocketIds = options.onlySocketId
     ? [options.onlySocketId]
     : Array.from(io.sockets.adapter.rooms.get(room.code) ?? []);
-  const nextSnapshot = cloneRoomJson(room);
-  const nextSnapshotBytes = jsonByteLength(nextSnapshot);
-
   for (const socketId of roomSocketIds) {
     if (options.excludeSocketId === socketId) continue;
     const target = io.sockets.sockets.get(socketId);
     if (!target) continue;
+
+    const nextSnapshot = roomViewForSocket(room, socketId);
+    const nextSnapshotBytes = jsonByteLength(nextSnapshot);
 
     const session = getRoomSyncSession(target);
     if (!session.supportsPatches) {
@@ -305,9 +354,55 @@ const VALID_CREST_IDS = new Set(ALL_CRESTS.map(c => c.id));
 const VALID_POSITION_IDS = new Set(Object.values(POSITION_GROUPS).flat());
 const VALID_TRAIN_ATTRS = new Set(TRAIN_ATTRS.map(a => a.key));
 const VALID_VARIANTS = new Set(TURBINAR_VARIANTS.map(v => v.key));
+const MAX_PLAYER_NAME_LENGTH = 32;
+const MAX_CLIENT_ID_LENGTH = 80;
+const MAX_EVENTS_PER_SECOND = 120;
+
+function normalizePlayerName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const name = value.trim();
+  if (name.length === 0 || name.length > MAX_PLAYER_NAME_LENGTH) return null;
+  // Names are rendered in multiple contexts and must never contain controls or
+  // line breaks that could corrupt logs/UI layout.
+  if (/[\u0000-\u001F\u007F-\u009F]/.test(name)) return null;
+  return name;
+}
+
+function isValidClientId(value: unknown): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && value.length <= MAX_CLIENT_ID_LENGTH
+    && /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+function isShopPhase(room: RoomState): boolean {
+  return room.phase === 'league' || room.phase === 'knockout';
+}
 
 function isValidId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 80;
+}
+
+function roomCodeFromPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const value = (payload as { roomCode?: unknown }).roomCode;
+  if (typeof value !== 'string') return null;
+  const code = value.trim().toUpperCase();
+  return isValidRoomCode(code) ? code : null;
+}
+
+/**
+ * Advance the authoritative version before a handler can emit a snapshot.
+ * A room is deliberately small (at most the online player cap), so using a
+ * single revision is considerably safer than trying to infer freshness from
+ * each browser's private patch counter.
+ */
+function bumpRoomRevision(room: RoomState): void {
+  const current = Number.isSafeInteger(room.stateRevision) && room.stateRevision >= 0
+    ? room.stateRevision
+    : 0;
+  if (current >= Number.MAX_SAFE_INTEGER) throw new Error('A versão da sala excedeu o limite seguro.');
+  room.stateRevision = current + 1;
 }
 
 function isValidRoomCode(value: unknown): value is string {
@@ -336,7 +431,9 @@ function canonicalDraftOrder(submitted: unknown, authoritative: (Player | undefi
     return byId.get(id);
   });
   const authoritativeCount = authoritative.filter(Boolean).length;
-  return ids.length === authoritativeCount ? ordered : null;
+  // A squad review is only valid once the complete 11+2 draft exists. This
+  // prevents a reconnect/race from starting a competition with a partial team.
+  return authoritativeCount === 13 && ids.length === authoritativeCount ? ordered : null;
 }
 
 function generateRoomCode(): string {
@@ -416,6 +513,19 @@ function knockoutWatchStatus(room: RoomState): { allWatched: boolean; waiting: s
     .filter(p => humanIdsInRound.includes(p.id) && !room.watchedKnockoutLegPlayers.includes(p.id))
     .map(p => p.name);
   return { allWatched, waiting };
+}
+
+function knockoutLegAlreadyPlayed(room: RoomState): boolean {
+  const bracket = room.knockoutBracket;
+  if (!bracket) return false;
+  const ties = getActiveKnockoutMatches(bracket) as any[];
+  if (ties.length === 0) return false;
+  const isFinal = bracket.currentRound === 'final';
+  return ties.every(tie => {
+    const singleLeg = tie.isSingleLeg === true || (isFinal && tie.isSingleLeg === undefined);
+    if (singleLeg) return Boolean(tie.played && tie.result);
+    return bracket.currentLeg === 1 ? Boolean(tie.leg1) : Boolean(tie.leg2);
+  });
 }
 
 // 🎯 Revelação da rodada de LIGA: quando todos os humanos conectados com jogo na rodada já
@@ -573,7 +683,10 @@ function autoPickDisconnected(io: RealtimeServer, room: RoomState): void {
     if (!applyDraftPick(room, active, chosen)) break;
     picked = true;
   }
-  if (picked) emitRoomUpdate(io, room);
+  if (picked) {
+    bumpRoomRevision(room);
+    emitRoomUpdate(io, room);
+  }
 }
 
 // ── Draft turn timer ── auto-picks for a CONNECTED player who sits idle on their turn, so a
@@ -626,6 +739,7 @@ function runHostGraceTransfer(io: RealtimeServer, roomCode: string): void {
     const replacement = room.players.find(p => p.connected);
     if (replacement) {
       room.hostId = replacement.id;
+      bumpRoomRevision(room);
       emitRoomUpdate(io, room);
       console.log(`Host transferido (abandono) na sala ${room.code} → ${replacement.name}`);
     }
@@ -645,6 +759,7 @@ function runDraftTurnTimer(io: RealtimeServer, roomCode: string): void {
     draftState.currentOptionsByPlayer[active.id] = options;
   }
   if (options[0] && applyDraftPick(room, active, options[0])) {
+    bumpRoomRevision(room);
     emitRoomUpdate(io, room);
     autoPickDisconnected(io, room);
     scheduleDraftTurnTimer(io, room);
@@ -661,6 +776,8 @@ export function runGameTimer(io: RealtimeServer, runtime: GameRuntime, kind: Gam
 }
 
 export function registerSocketHandlers(io: RealtimeServer) {
+  const rateWindows = new Map<string, { startedAt: number; count: number; warned: boolean }>();
+
   io.on("connection", (socket: RealtimeSocket) => {
     console.log(`Socket connected: ${socket.id}`);
 
@@ -670,9 +787,39 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // pra ele mostrar um toast em vez de congelar. (O `disconnect` fica no socket.on cru.)
     const on = (event: string, handler: (payload: any) => void) => {
       socket.on(event, (payload: any) => {
+        const now = Date.now();
+        const previousWindow = rateWindows.get(socket.id);
+        const currentWindow = !previousWindow || now - previousWindow.startedAt >= 1000
+          ? { startedAt: now, count: 0, warned: false }
+          : previousWindow;
+        currentWindow.count += 1;
+        rateWindows.set(socket.id, currentWindow);
+        if (currentWindow.count > MAX_EVENTS_PER_SECOND) {
+          if (!currentWindow.warned) {
+            currentWindow.warned = true;
+            socket.emit("action_error", { event, message: "Muitas ações em pouco tempo. Aguarde um instante." });
+          }
+          return;
+        }
+
+        const roomCode = roomCodeFromPayload(payload);
+        const previousRoom = roomCode ? rooms.get(roomCode) : undefined;
+        // Handlers mutate the authoritative room in place. Keep a transaction-sized
+        // backup so an unexpected exception cannot persist a half-applied purchase,
+        // bracket transition or readiness update.
+        const previousRoomSnapshot = previousRoom ? cloneRoomJson(previousRoom) : undefined;
+        const previousMarketSeq = marketSeq;
         try {
+          if (previousRoom && event !== 'client_capabilities' && event !== 'sync_room') {
+            bumpRoomRevision(previousRoom);
+          }
           handler(payload);
         } catch (err) {
+          if (roomCode) {
+            if (previousRoomSnapshot) rooms.set(roomCode, previousRoomSnapshot);
+            else if (!previousRoom) rooms.delete(roomCode);
+          }
+          marketSeq = previousMarketSeq;
           console.error(`Erro no handler "${event}" (socket ${socket.id}):`, err);
           socket.emit("action_error", { event, message: "Algo deu errado ao processar a ação. Tenta de novo." });
         }
@@ -697,6 +844,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
     // Create Room
     on("create_room", ({ creatorName, competitionFormat, difficulty, clientId, roomCode: requestedRoomCode }: { creatorName: string; competitionFormat?: unknown; difficulty?: unknown; clientId?: string; roomCode?: unknown }) => {
+      const normalizedCreatorName = normalizePlayerName(creatorName);
+      if (!normalizedCreatorName) {
+        socket.emit("action_error", { event: "create_room", message: `O nome deve ter entre 1 e ${MAX_PLAYER_NAME_LENGTH} caracteres.` });
+        return;
+      }
+      if (clientId != null && !isValidClientId(clientId)) {
+        socket.emit("action_error", { event: "create_room", message: "Identidade do dispositivo inválida. Recarregue a página e tente novamente." });
+        return;
+      }
       const requestedFormat = competitionFormat ?? DEFAULT_COMPETITION_FORMAT;
       const formatError = validateCompetitionFormat(requestedFormat);
       if (formatError) {
@@ -708,7 +864,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         socket.emit("action_error", { event: "create_room", message: "Escolha uma dificuldade válida para os bots." });
         return;
       }
-      const requestedCode = typeof requestedRoomCode === 'string' ? requestedRoomCode.toUpperCase() : undefined;
+      const requestedCode = typeof requestedRoomCode === 'string' ? requestedRoomCode.trim().toUpperCase() : undefined;
       if (requestedCode !== undefined && !isValidRoomCode(requestedCode)) {
         socket.emit("action_error", { event: "create_room", message: "Código de sala inválido." });
         return;
@@ -726,6 +882,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       }
       const newRoom: RoomState = {
         code: roomCode,
+        stateRevision: 1,
         phase: 'lobby',
         difficulty: requestedDifficulty,
         competitionFormat: normalizeCompetitionFormat(requestedFormat),
@@ -735,7 +892,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
             socketId: socket.id,
             clientId,
             id: 'player_0',
-            name: creatorName,
+            name: normalizedCreatorName,
             coachId: 'guardiola',
             coachPrime: false,
             formationId: '4-3-3',
@@ -767,6 +924,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         champion: null,
         watchedRoundPlayers: [],
         watchedKnockoutLegPlayers: [],
+        watchedLeagueRound: null,
+        watchedKnockoutLegKey: null,
         readyPlayers: [],
         discipline: {},
         market: [],
@@ -784,12 +943,25 @@ export function registerSocketHandlers(io: RealtimeServer) {
       rooms.set(roomCode, newRoom);
       socket.join(roomCode);
       emitInitialRoom(socket, "room_created", { roomCode }, newRoom);
-      console.log(`Room created: ${roomCode} by ${creatorName}`);
+      console.log(`Room created: ${roomCode} by ${normalizedCreatorName}`);
     });
 
     // Join Room
     on("join_room", ({ roomCode, playerName, clientId }: { roomCode: string; playerName: string; clientId?: string }) => {
-      const code = roomCode.toUpperCase();
+      const code = typeof roomCode === 'string' ? roomCode.trim().toUpperCase() : '';
+      const normalizedPlayerName = normalizePlayerName(playerName);
+      if (!isValidRoomCode(code)) {
+        socket.emit("error_message", "Código de sala inválido.");
+        return;
+      }
+      if (!normalizedPlayerName) {
+        socket.emit("error_message", `O nome deve ter entre 1 e ${MAX_PLAYER_NAME_LENGTH} caracteres.`);
+        return;
+      }
+      if (clientId != null && !isValidClientId(clientId)) {
+        socket.emit("error_message", "Identidade do dispositivo inválida. Recarregue a página e tente novamente.");
+        return;
+      }
       const room = rooms.get(code);
 
       if (!room) {
@@ -805,7 +977,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         byClient.socketId = socket.id;
         byClient.connected = true;
         cancelRoomCleanup(code);
-        cancelHostGrace(code); // host voltou (ou outro jogador) → não transfere
+        if (byClient.id === room.hostId) cancelHostGrace(code); // só o host que voltou cancela a transferência
         recomputeHost(room);
         socket.join(code);
         emitInitialRoom(socket, "joined_room", { roomCode: code, player: byClient }, room);
@@ -816,7 +988,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       }
 
       // Check if player name already exists (Reconnect Scenario)
-      const existingPlayer = room.players.find(p => p.name.toLowerCase() === playerName.trim().toLowerCase());
+      const existingPlayer = room.players.find(p => p.name.toLowerCase() === normalizedPlayerName.toLowerCase());
       if (existingPlayer) {
         // Only treat a name match as a RECONNECT if that player is actually offline. If they're
         // still connected, this is a different person with a clashing name — reject it, otherwise
@@ -825,18 +997,25 @@ export function registerSocketHandlers(io: RealtimeServer) {
           socket.emit("error_message", "Já existe um jogador com esse nome nesta sala. Escolha outro nome.");
           return;
         }
+        // A name match is only a legacy fallback for rooms created before the
+        // persistent client identity existed. Once a clientId is stored, a
+        // different browser cannot hijack that seat by typing the same name.
+        if (existingPlayer.clientId && existingPlayer.clientId !== clientId) {
+          socket.emit("error_message", "Esta vaga pertence a outro dispositivo. Reconecte pelo mesmo navegador.");
+          return;
+        }
         existingPlayer.socketId = socket.id;
         existingPlayer.connected = true;
         if (clientId) existingPlayer.clientId = clientId; // adota a identidade p/ reconexões futuras
         cancelRoomCleanup(code);
-        cancelHostGrace(code); // host voltou (ou outro jogador) → não transfere
+        if (existingPlayer.id === room.hostId) cancelHostGrace(code); // só o host que voltou cancela a transferência
         recomputeHost(room);
         socket.join(code);
         emitInitialRoom(socket, "joined_room", { roomCode: code, player: existingPlayer }, room);
         emitRoomUpdate(io, room, { excludeSocketId: socket.id });
         // A reconnected player may have been the one we were waiting on for a pick.
         if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
-        console.log(`Player reconnected: ${playerName} to ${code}`);
+        console.log(`Player reconnected: ${normalizedPlayerName} to ${code}`);
         return;
       }
 
@@ -854,7 +1033,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         socketId: socket.id,
         clientId,
         id: `player_${room.players.length}`,
-        name: playerName.trim(),
+        name: normalizedPlayerName,
         coachId: 'guardiola',
         coachPrime: false,
         formationId: '4-3-3',
@@ -1274,6 +1453,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_change_coach", ({ roomCode, coachId }: { roomCode: string; coachId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(coachId) || !VALID_COACH_IDS.has(coachId)) return;
@@ -1291,6 +1471,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("evolve_coach_prime", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || player.coachPrime) return;
       const wins = room.leagueStandings.find(s => s.teamId === player.team!.id)?.won ?? 0;
@@ -1308,12 +1489,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_open_unique_pack", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || player.pendingUniquePack || player.pendingPack) return;
       if (room.phase !== 'league' && room.phase !== 'knockout') return;
       const cost = SHOP_COSTS.uniqueCard;
       if (player.points < cost) {
-        socket.emit("action_error", { event: "shop_open_unique_pack", message: `Você precisa de ${cost} pontos para abrir este pacote.` });
+        socket.emit("action_error", { event: "shop_open_unique_pack", message: `Saldo insuficiente: você tem ${player.points} pontos e precisa de ${cost}.` });
+        // A rejected purchase is also a recovery point. This corrects a stale
+        // balance on the browser without changing any authoritative progress.
+        emitRoomSnapshot(socket, room);
         return;
       }
       const chosen = generateUniquePackCard(player.team.players.map(p => p.id));
@@ -1330,6 +1515,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_claim_unique_pack", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || !player.pendingUniquePack) return;
       const pending = player.pendingUniquePack;
@@ -1355,6 +1541,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_open_pack", ({ roomCode, kind, position }: { roomCode: string; kind: 'star' | 'scout'; position?: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || player.pendingPack) return;              // um pacote pendente por vez
       if (kind !== 'star' && kind !== 'scout') return;
@@ -1376,24 +1563,32 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_pick_pack", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || !player.pendingPack || !isValidId(playerId)) return;
       const valid = player.pendingPack.options.some(o => o.id === playerId)
         && !player.team.players.some(p => p.id === playerId);
       const chosen = PLAYERS.find(p => p.id === playerId);
-      player.pendingPack = null;
-      if (valid && chosen) {
-        const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
-        player.team.players = [...player.team.players, card];
-        invalidateReady(room, player.id);
+      // A stale tab or a malformed request must never consume a pack that was
+      // already paid for. Keep it pending so the player can reconnect and pick
+      // again from the authoritative offer.
+      if (!valid || !chosen) {
+        socket.emit("action_error", { event: "shop_pick_pack", message: "Essa opção não está mais disponível. O pacote continua reservado para você." });
+        emitRoomSnapshot(socket, room);
+        return;
       }
+      player.pendingPack = null;
+      const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
+      player.team.players = [...player.team.players, card];
+      invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      if (valid && chosen) emitReadyState(io, room);
+      emitReadyState(io, room);
     });
 
     on("shop_turbinar", ({ roomCode, playerId, variant }: { roomCode: string; playerId: string; variant: ShopVariant }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || !VALID_VARIANTS.has(variant)) return;
@@ -1414,6 +1609,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_remove_variant", ({ roomCode, playerId, variantKey }: { roomCode: string; playerId: string; variantKey?: VariantFlag }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || (variantKey != null && !VALID_VARIANTS.has(variantKey))) return;
@@ -1447,7 +1643,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.connected) return;
       if (typeof matchKey !== 'string' || matchKey.length === 0 || matchKey.length > 160
-        || !Number.isInteger(stake) || stake <= 0) return;
+        || !Number.isSafeInteger(stake) || stake <= 0) return;
 
       // A partida-alvo tem que existir, ser da rodada/perna ativa e ainda NÃO ter sido jogada.
       let prefix: string;
@@ -1519,7 +1715,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || player.points < SHOP_COSTS.physio) return;
+      if (!player || !player.team || !isValidId(playerId) || player.points < SHOP_COSTS.physio) return;
       const key = `${player.team.id}:${playerId}`;
       if (!room.discipline[key] || room.discipline[key].injured <= 0) return;
       player.points -= SHOP_COSTS.physio;
@@ -1532,6 +1728,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_train", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: TrainAttr }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr)) return;
@@ -1555,6 +1752,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_buy_reroll", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || player.points < SHOP_COSTS.reroll) return;
       player.points -= SHOP_COSTS.reroll;
@@ -1566,6 +1764,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("market_sell", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       const idx = player.team.players.findIndex(p => p.id === playerId);
@@ -1582,12 +1781,13 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("market_list", ({ roomCode, playerId, price }: { roomCode: string; playerId: string; price: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const seller = room.players.find(p => p.socketId === socket.id);
       if (!seller || !seller.team) return;
       const idx = seller.team.players.findIndex(p => p.id === playerId);
       if (idx < 11) return; // só reserva (índice ≥ 11); -1 ou titular bloqueia
       const player = seller.team.players[idx];
-      if (typeof price !== 'number' || price < marketMinPrice(player)) return;
+      if (!Number.isSafeInteger(price) || price < marketMinPrice(player)) return;
       // escrow: tira do elenco e limpa a disciplina do jogador
       seller.team.players = seller.team.players.filter((_, i) => i !== idx);
       delete room.discipline[`${seller.team.id}:${playerId}`];
@@ -1600,6 +1800,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("market_cancel", ({ roomCode, listingId }: { roomCode: string; listingId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const seller = room.players.find(p => p.socketId === socket.id);
       const li = room.market.find(l => l.id === listingId);
       if (!seller || !seller.team || !li || li.sellerId !== seller.id) return;
@@ -1613,6 +1814,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("market_buy", ({ roomCode, listingId }: { roomCode: string; listingId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const buyer = room.players.find(p => p.socketId === socket.id);
       const li = room.market.find(l => l.id === listingId);
       if (!buyer || !buyer.team || !li) return;
@@ -1633,6 +1835,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("reroll_reinforcement", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || player.reinforcementRerolls <= 0 || !player.reinforcementOptions) return;
       player.reinforcementRerolls -= 1;
@@ -1647,12 +1850,18 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || !chosen) return;
-      // Must be one of the offered options and not already owned.
-      if (player.reinforcementOptions?.some(o => o.id === chosen.id) && !player.team.players.some(p => p.id === chosen.id)) {
-        const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
-        player.team.players = [...player.team.players, card];
-        invalidateReady(room, player.id);
+      // The client sends the selected id for convenience, but never gets to
+      // submit the card's stats/traits. Rebuild it from the server catalog.
+      const offered = player.reinforcementOptions?.find(o => o.id === chosen.id);
+      const canonical = offered && PLAYERS.find(option => option.id === offered.id);
+      if (!canonical || player.team.players.some(p => p.id === canonical.id)) {
+        socket.emit("action_error", { event: "pick_reinforcement", message: "Essa carta não está mais disponível. Sua escolha continua reservada." });
+        emitRoomSnapshot(socket, room);
+        return;
       }
+      const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
+      player.team.players = [...player.team.players, card];
+      invalidateReady(room, player.id);
       player.reinforcementOptions = null;
       emitRoomUpdate(io, room, { onlySocketId: socket.id }); // only this player's own bench changed
     });
@@ -1772,6 +1981,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
         // Reset watch confirmations so the new round requires fresh confirmation
         room.watchedRoundPlayers = [];
+        room.watchedLeagueRound = room.leagueRound;
         room.readyPlayers = []; // ✅ próxima rodada exige "prontos" de novo
         // Award shop points + offer the end-of-round reinforcement to each human (same as solo).
         room.players.forEach(p => {
@@ -1858,6 +2068,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
           ? computeGroupQualifiedStandings(allTeams, room.leagueFixtures, room.competitionFormat)
           : room.leagueStandings;
         room.knockoutBracket = createKnockoutBracket(bracketStandings, room.competitionFormat);
+        room.watchedRoundPlayers = [];
+        room.watchedLeagueRound = null;
+        room.watchedKnockoutLegPlayers = [];
+        room.watchedKnockoutLegKey = null;
         room.discipline = resetYellowsForKnockout(room.discipline); // 🟨 amarelos zeram no mata-mata
       }
 
@@ -1875,6 +2089,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
       if (!isHost(room, socket.id)) return;
+      // Once a leg has been simulated, a repeated click must not reset the
+      // watch/readiness window or manufacture a second transition.
+      if (knockoutLegAlreadyPlayed(room)) return;
 
       // About to play the SECOND leg (volta)? Gate it just like advancing: every
       // human must have watched the FIRST leg (ida) first. Without this the host
@@ -1910,6 +2127,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       playActiveKnockoutLeg(room.knockoutBracket, resolve as any, room.competitionFormat.matchSettings);
       // Reset watch confirmations for this new leg
       room.watchedKnockoutLegPlayers = [];
+      room.watchedKnockoutLegKey = { round: room.knockoutBracket.currentRound, leg: legPlayed };
       room.readyPlayers = []; // ✅ próxima perna/rodada exige "prontos" de novo
 
       // 🟨🟥🩹 Aplica a disciplina da PERNA recém-jogada.
@@ -2009,11 +2227,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
     // Player confirms they finished watching their match replay for the current round/leg.
     // The host cannot advance until all human players who have a match have confirmed.
-    on("player_match_watched", ({ roomCode, type, matchId, leg }: {
+    on("player_match_watched", ({ roomCode, type, matchId, leg, round }: {
       roomCode: string;
       type: 'league' | 'knockout';
       matchId?: string;
       leg?: number;
+      round?: number;
     }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
@@ -2022,6 +2241,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
       if (type === 'league') {
         if (room.phase !== 'league') return;
+        if (round != null && room.watchedLeagueRound != null && round !== room.watchedLeagueRound) return;
         const participantIds = leagueParticipantIds(room);
         const fixture = room.leagueFixtures.find(f => f.round === room.leagueRound
           && (f.homeTeamId === player.id || f.awayTeamId === player.id));
@@ -2039,11 +2259,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
         const tie = activeTies.find(m => matchId && m.id === matchId)
           ?? activeTies.find(m => m.homeTeamId === player.id || m.awayTeamId === player.id);
         const playerIsInTie = !!tie && (tie.homeTeamId === player.id || tie.awayTeamId === player.id);
+        const expectedLeg = room.watchedKnockoutLegKey?.round === room.knockoutBracket.currentRound
+          ? room.watchedKnockoutLegKey.leg
+          : room.knockoutBracket.currentLeg === 2 && tie?.leg1 && !tie.leg2 ? 1 : room.knockoutBracket.currentLeg;
+        const requestedLeg = leg === 1 || leg === 2 ? leg : expectedLeg;
+        if (requestedLeg !== expectedLeg) return;
         const isPlayedLeg = tie && knockoutLegWasPlayed(
           tie,
           room.knockoutBracket.currentRound,
           room.knockoutBracket.currentLeg,
-          leg,
+          requestedLeg,
         );
         if (!participantIds.includes(player.id) || !playerIsInTie || !isPlayedLeg) return;
         if (!room.watchedKnockoutLegPlayers.includes(player.id)) {
@@ -2097,6 +2322,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
       room.champion = null;
       room.watchedRoundPlayers = [];
       room.watchedKnockoutLegPlayers = [];
+      room.watchedLeagueRound = null;
+      room.watchedKnockoutLegKey = null;
       room.readyPlayers = [];
       room.discipline = {};
       room.market = [];
@@ -2116,6 +2343,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // Disconnect (evento de ciclo de vida — fica no socket.on cru, fora do wrapper)
     socket.on("disconnect", () => {
       console.log(`Socket disconnected: ${socket.id}`);
+      rateWindows.delete(socket.id);
       roomSyncSessions.delete(socket.id);
       // Find rooms where player was present
       rooms.forEach((room: RoomState, code: string) => {
@@ -2134,6 +2362,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
             return;
           }
           recomputeHost(room);
+          bumpRoomRevision(room);
           emitRoomUpdate(io, room);
           return;
         }
@@ -2144,12 +2373,13 @@ export function registerSocketHandlers(io: RealtimeServer) {
         // timer that transfers only if they never come back (real abandonment).
         const wasHost = room.players[idx].id === room.hostId;
         room.players[idx].connected = false;
-        // A reconnect must explicitly confirm the current state again. This also
-        // removes stale confirmations immediately so the UI and server agree.
+        // Readiness belongs to the current connection/session and must be
+        // confirmed again. Watch confirmations, however, are durable facts:
+        // if the player already watched the exact current result, a transient
+        // reconnect must not make the host wait for a replay that already happened.
         invalidateReady(room, room.players[idx].id);
-        room.watchedRoundPlayers = room.watchedRoundPlayers.filter(id => id !== room.players[idx].id);
-        room.watchedKnockoutLegPlayers = room.watchedKnockoutLegPlayers.filter(id => id !== room.players[idx].id);
         recomputeHost(room);
+        bumpRoomRevision(room);
         emitRoomUpdate(io, room);
         if (wasHost) scheduleHostGraceTransfer(io, room);
         if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }

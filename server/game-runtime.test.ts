@@ -86,4 +86,70 @@ describe('game runtime isolation', () => {
     expect(hostA.sent.find(message => message.event === 'room_created')).toBeTruthy();
     expect(hostB.sent.find(message => message.event === 'room_created')).toBeTruthy();
   });
+
+  it('publishes a newer authoritative revision when a player joins', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    expect(runtime.rooms.get('ABCD')?.stateRevision).toBe(1);
+
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+
+    expect(runtime.rooms.get('ABCD')?.stateRevision).toBe(2);
+    const joined = guest.sent.find(message => message.event === 'joined_room');
+    expect((joined?.payload as any)?.roomState.stateRevision).toBe(2);
+  });
+
+  it('does not expose another player\'s reconnection credential or private state', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice-secret',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno-secret' });
+    });
+
+    const guestViewAtHost = host.sent
+      .filter(message => message.event === 'room_updated')
+      .at(-1)?.payload as any;
+    const guestInHostView = guestViewAtHost.players.find((player: any) => player.name === 'Bruno');
+    expect(guestInHostView.clientId).toBeUndefined();
+    expect(guestInHostView.bets).toEqual([]);
+    expect(guestInHostView.pendingPack).toBeNull();
+
+    const joinedPayload = guest.sent.find(message => message.event === 'joined_room')?.payload as any;
+    const ownView = joinedPayload.roomState.players.find((player: any) => player.name === 'Bruno');
+    expect(ownView.clientId).toBe('bruno-secret');
+  });
+
+  it('rejects empty or oversized player names before creating a room', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const socket = new FakeSocket('socket-host', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(socket));
+
+    runWithGameRuntime(runtime, () => socket.receive('create_room', {
+      roomCode: 'ABCD', creatorName: '   ', difficulty: 'gold', clientId: 'alice',
+    }));
+    expect(runtime.rooms.size).toBe(0);
+    expect(socket.sent.find(message => message.event === 'action_error')).toBeTruthy();
+  });
 });

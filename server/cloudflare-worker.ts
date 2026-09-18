@@ -11,6 +11,7 @@ import {
   type RoomState,
 } from './handlers.js';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime.js';
+import { cloneRoomJson } from '../shared/room-sync.js';
 import {
   MAX_REALTIME_MESSAGE_BYTES,
   encodeRealtimeMessage,
@@ -25,13 +26,16 @@ interface Env {
 }
 
 interface RoomReservation {
-  state: 'reserved' | 'active';
+  state: 'reserved' | 'claimed' | 'active';
+  token: string;
   expiresAt?: number;
 }
 
 interface StoredGameRoom {
   room: RoomState;
   marketSeq: number;
+  savedRevision?: number;
+  timers?: Array<[GameTimerKind, number]>;
 }
 
 interface SocketAttachment {
@@ -44,8 +48,17 @@ interface SocketAttachment {
   supportsPatches?: boolean;
 }
 
+interface DurableTransactionSnapshot {
+  roomPresent: boolean;
+  room: RoomState | null;
+  marketSeq: number;
+  syncSessions: Array<[string, { snapshot: unknown | null; revision: number; supportsPatches: boolean }]>;
+  timers: Array<[GameTimerKind, number]>;
+}
+
 const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const RESERVATION_TTL_MS = 10 * 60 * 1000;
+const CLAIM_TTL_MS = 2 * 60 * 1000;
 
 function generateRoomCode(): string {
   const bytes = new Uint8Array(4);
@@ -75,9 +88,10 @@ export class RoomDirectory {
         const key = `room:${roomCode}`;
         const existing = await this.state.storage.get<RoomReservation>(key);
         if (existing?.state === 'active') continue;
-        if (existing?.state === 'reserved' && (existing.expiresAt ?? 0) > Date.now()) continue;
-        await this.state.storage.put(key, { state: 'reserved', expiresAt: Date.now() + RESERVATION_TTL_MS } satisfies RoomReservation);
-        return Response.json({ roomCode });
+        if ((existing?.state === 'reserved' || existing?.state === 'claimed') && (existing.expiresAt ?? 0) > Date.now()) continue;
+        const token = crypto.randomUUID();
+        await this.state.storage.put(key, { state: 'reserved', token, expiresAt: Date.now() + RESERVATION_TTL_MS } satisfies RoomReservation);
+        return Response.json({ roomCode, reservationToken: token });
       }
       return Response.json({ message: 'Não foi possível reservar um código de sala.' }, { status: 503 });
     }
@@ -86,11 +100,28 @@ export class RoomDirectory {
     if (!isValidRoomCode(roomCode)) return new Response('Invalid room code', { status: 400 });
     const key = `room:${roomCode}`;
 
+    const token = url.searchParams.get('token');
+    const reservation = await this.state.storage.get<RoomReservation>(key);
+    if (url.pathname === '/claim') {
+      if (!reservation || reservation.token !== token
+        || !['reserved', 'claimed'].includes(reservation.state)
+        || (reservation.expiresAt ?? 0) <= Date.now()) {
+        return new Response('Reservation unavailable', { status: 409 });
+      }
+      await this.state.storage.put(key, { ...reservation, state: 'claimed', expiresAt: Date.now() + CLAIM_TTL_MS });
+      return new Response(null, { status: 204 });
+    }
     if (url.pathname === '/confirm') {
-      await this.state.storage.put(key, { state: 'active' } satisfies RoomReservation);
+      if (!reservation || reservation.token !== token || !['reserved', 'claimed'].includes(reservation.state)) {
+        return new Response('Reservation unavailable', { status: 409 });
+      }
+      await this.state.storage.put(key, { ...reservation, state: 'active', expiresAt: undefined });
       return new Response(null, { status: 204 });
     }
     if (url.pathname === '/release') {
+      if (reservation && reservation.token !== token && reservation.state !== 'active') {
+        return new Response('Reservation unavailable', { status: 409 });
+      }
       await this.state.storage.delete(key);
       return new Response(null, { status: 204 });
     }
@@ -122,11 +153,11 @@ class DurableSocket implements RealtimeSocket {
   }
 
   emit(event: string, payload?: unknown): void {
-    try {
-      this.webSocket.send(encodeRealtimeMessage({ type: 'event', event, payload }));
-    } catch {
-      // A close event will perform the authoritative disconnect cleanup.
-    }
+    this.server.send(this, event, payload);
+  }
+
+  webSocketSend(message: string): void {
+    this.webSocket.send(message);
   }
 
   join(roomCode: string): void {
@@ -175,6 +206,7 @@ class DurableSocket implements RealtimeSocket {
 class DurableRealtimeServer implements RealtimeServer {
   private readonly connectionHandlers: Array<(socket: RealtimeSocket) => void> = [];
   private readonly byWebSocket = new Map<WebSocket, DurableSocket>();
+  private pendingMessages: Array<{ socket: DurableSocket; event: string; payload?: unknown }> | null = null;
   readonly sockets = {
     adapter: { rooms: new Map<string, Set<string>>() },
     sockets: new Map<string, RealtimeSocket>(),
@@ -182,6 +214,37 @@ class DurableRealtimeServer implements RealtimeServer {
 
   on(event: 'connection', handler: (socket: RealtimeSocket) => void): void {
     if (event === 'connection') this.connectionHandlers.push(handler);
+  }
+
+  beginTransaction(): void {
+    if (this.pendingMessages) throw new Error('Já existe uma transação de mensagens ativa.');
+    this.pendingMessages = [];
+  }
+
+  send(socket: DurableSocket, event: string, payload?: unknown): void {
+    if (this.pendingMessages) {
+      this.pendingMessages.push({ socket, event, payload });
+      return;
+    }
+    this.sendNow(socket, event, payload);
+  }
+
+  sendNow(socket: DurableSocket, event: string, payload?: unknown): void {
+    try {
+      socket.webSocketSend(encodeRealtimeMessage({ type: 'event', event, payload }));
+    } catch {
+      // A close event will perform the authoritative disconnect cleanup.
+    }
+  }
+
+  commit(): void {
+    const messages = this.pendingMessages;
+    this.pendingMessages = null;
+    messages?.forEach(message => this.sendNow(message.socket, message.event, message.payload));
+  }
+
+  rollback(): void {
+    this.pendingMessages = null;
   }
 
   to(roomCode: string) {
@@ -263,6 +326,8 @@ export class GameRoom {
   private roomCode = '';
   private initialized = false;
   private wasPersisted = false;
+  private lastPersistedRevision = 0;
+  private reservationToken: string | undefined;
 
   constructor(
     private readonly state: DurableObjectState,
@@ -295,25 +360,57 @@ export class GameRoom {
       }
       const incoming = parseRealtimeMessage(message);
       if (!incoming) return;
-      runWithGameRuntime(this.runtime, () => {
-        const socket = this.server.get(webSocket);
-        socket?.dispatch(incoming.event, incoming.payload);
-        if (incoming.event === 'client_capabilities'
-          && incoming.payload !== null
-          && typeof incoming.payload === 'object'
-          && (incoming.payload as { roomUpdates?: unknown }).roomUpdates === 1) {
-          socket?.markSupportsPatches();
+      if (incoming.event === 'create_room' && !this.runtime.rooms.has(this.roomCode)) {
+        const payload = incoming.payload;
+        const reservationToken = payload && typeof payload === 'object' && !Array.isArray(payload)
+          ? (payload as { reservationToken?: unknown }).reservationToken
+          : undefined;
+        if (typeof reservationToken !== 'string' || reservationToken.length > 100
+          || !(await this.claimReservation(reservationToken))) {
+          const socket = this.server.get(webSocket);
+          if (socket) this.server.sendNow(socket, 'action_error', { event: 'create_room', message: 'A reserva desta sala expirou ou já foi usada. Crie uma nova sala.' });
+          return;
         }
-      });
-      await this.persist(incoming.event === 'create_room');
+        this.reservationToken = reservationToken;
+      }
+      const snapshot = this.takeTransactionSnapshot();
+      this.server.beginTransaction();
+      try {
+        runWithGameRuntime(this.runtime, () => {
+          const socket = this.server.get(webSocket);
+          socket?.dispatch(incoming.event, incoming.payload);
+          if (incoming.event === 'client_capabilities'
+            && incoming.payload !== null
+            && typeof incoming.payload === 'object'
+            && (incoming.payload as { roomUpdates?: unknown }).roomUpdates === 1) {
+            socket?.markSupportsPatches();
+          }
+        });
+        await this.persistWithRetry(incoming.event === 'create_room');
+        this.server.commit();
+      } catch (error) {
+        this.restoreTransactionSnapshot(snapshot);
+        this.server.rollback();
+        webSocket.close(1011, 'Não foi possível confirmar a ação');
+        throw error;
+      }
     });
   }
 
   webSocketClose(webSocket: WebSocket): Promise<void> {
     return this.serially(async () => {
       await this.ensureInitializedFromSocket(webSocket);
-      runWithGameRuntime(this.runtime, () => this.server.detach(webSocket));
-      await this.persist(false);
+      const snapshot = this.takeTransactionSnapshot();
+      this.server.beginTransaction();
+      try {
+        runWithGameRuntime(this.runtime, () => this.server.detach(webSocket));
+        await this.persistWithRetry(false);
+        this.server.commit();
+      } catch (error) {
+        this.restoreTransactionSnapshot(snapshot);
+        this.server.rollback();
+        throw error;
+      }
     });
   }
 
@@ -328,11 +425,20 @@ export class GameRoom {
       const due = Array.from(this.scheduledTimers.entries())
         .filter(([, at]) => at <= now)
         .map(([kind]) => kind);
-      for (const kind of due) {
-        this.scheduledTimers.delete(kind);
-        runGameTimer(this.server, this.runtime, kind, this.roomCode);
+      const snapshot = this.takeTransactionSnapshot();
+      this.server.beginTransaction();
+      try {
+        for (const kind of due) {
+          this.scheduledTimers.delete(kind);
+          runGameTimer(this.server, this.runtime, kind, this.roomCode);
+        }
+        await this.persistWithRetry(false);
+        this.server.commit();
+      } catch (error) {
+        this.restoreTransactionSnapshot(snapshot);
+        this.server.rollback();
+        throw error;
       }
-      await this.persist(false);
     });
   }
 
@@ -340,6 +446,42 @@ export class GameRoom {
     const result = this.serial.then(work, work);
     this.serial = result.then(() => undefined, () => undefined);
     return result;
+  }
+
+  private takeTransactionSnapshot(): DurableTransactionSnapshot {
+    const room = this.runtime.rooms.get(this.roomCode);
+    return {
+      roomPresent: !!room,
+      room: room ? cloneRoomJson(room) : null,
+      marketSeq: this.runtime.marketSeq,
+      syncSessions: Array.from(this.runtime.roomSyncSessions.entries()).map(([socketId, session]) => [
+        socketId,
+        {
+          snapshot: session.snapshot == null ? null : cloneRoomJson(session.snapshot),
+          revision: session.revision,
+          supportsPatches: session.supportsPatches,
+        },
+      ]),
+      timers: Array.from(this.scheduledTimers.entries()),
+    };
+  }
+
+  private restoreTransactionSnapshot(snapshot: DurableTransactionSnapshot): void {
+    if (snapshot.roomPresent && snapshot.room) this.runtime.rooms.set(this.roomCode, snapshot.room);
+    else this.runtime.rooms.delete(this.roomCode);
+    this.runtime.marketSeq = snapshot.marketSeq;
+
+    this.runtime.roomSyncSessions.clear();
+    snapshot.syncSessions.forEach(([socketId, session]) => {
+      this.runtime.roomSyncSessions.set(socketId, {
+        snapshot: session.snapshot == null ? null : cloneRoomJson(session.snapshot),
+        revision: session.revision,
+        supportsPatches: session.supportsPatches,
+      });
+    });
+
+    this.scheduledTimers.clear();
+    snapshot.timers.forEach(([kind, at]) => this.scheduledTimers.set(kind, at));
   }
 
   private async ensureInitialized(roomCode: string): Promise<void> {
@@ -364,7 +506,7 @@ export class GameRoom {
 
   private async ensureInitializedFromStorage(): Promise<void> {
     if (this.initialized) return;
-    const [stored, timers] = await Promise.all([
+    const [stored, legacyTimers] = await Promise.all([
       this.state.storage.get<StoredGameRoom>('game'),
       this.state.storage.get<Array<[GameTimerKind, number]>>('timers'),
     ]);
@@ -372,16 +514,42 @@ export class GameRoom {
       // An alarm can wake a hibernated object without a WebSocket attachment.
       // The durable state itself is therefore the source of truth for its room
       // identity in that lifecycle path.
+      if (!stored.room || !isValidRoomCode(stored.room.code)) {
+        throw new Error('Estado persistido com código de sala inválido.');
+      }
+      if (this.roomCode && stored.room.code !== this.roomCode) {
+        throw new Error('Estado persistido pertence a outra sala.');
+      }
       if (!this.roomCode) {
-        if (!isValidRoomCode(stored.room.code)) throw new Error('Estado persistido com código de sala inválido.');
         this.roomCode = stored.room.code;
         this.runtime.roomCode = this.roomCode;
+      }
+      // Older rooms did not have a global revision. They are upgraded in
+      // memory once, without changing their gameplay data.
+      if (!Number.isSafeInteger(stored.room.stateRevision) || stored.room.stateRevision < 0) {
+        stored.room.stateRevision = stored.savedRevision && Number.isSafeInteger(stored.savedRevision)
+          ? stored.savedRevision
+          : 1;
       }
       this.runtime.rooms.set(this.roomCode, stored.room);
       this.runtime.marketSeq = stored.marketSeq;
       this.wasPersisted = true;
+      this.lastPersistedRevision = stored.room.stateRevision;
+    } else {
+      // A browser may open an unjoined socket before the creator's first
+      // message arrives. That connection is harmless and must not prevent the
+      // creator from initializing the room. A socket that already restored a
+      // room membership, however, proves that durable state disappeared; fail
+      // closed instead of silently replacing a live game with a new lobby.
+      const hasJoinedSocket = this.state.getWebSockets().some(webSocket => {
+        const attachment = webSocket.deserializeAttachment() as SocketAttachment | null;
+        return attachment?.joinedRoomCode === this.roomCode;
+      });
+      if (hasJoinedSocket) {
+        throw new Error('Sala ativa sem estado persistido; recusando inicialização destrutiva.');
+      }
     }
-    for (const [kind, at] of timers ?? []) {
+    for (const [kind, at] of stored?.timers ?? legacyTimers ?? []) {
       // Alarms are at-least-once and can be delayed during an outage. Keep an
       // overdue timer so `alarm()` executes it immediately after a wake-up
       // instead of silently losing an auto-pick/cleanup/host transfer.
@@ -394,17 +562,32 @@ export class GameRoom {
   private async persist(confirmReservation: boolean): Promise<void> {
     const room = this.runtime.rooms.get(this.roomCode);
     if (room) {
-      await this.state.storage.put('game', { room, marketSeq: this.runtime.marketSeq } satisfies StoredGameRoom);
+      const revision = Number.isSafeInteger(room.stateRevision) && room.stateRevision >= 0
+        ? room.stateRevision
+        : 0;
+      if (revision < this.lastPersistedRevision) {
+        throw new Error('Tentativa de persistir uma versão antiga da sala foi bloqueada.');
+      }
+      const storedRoom: StoredGameRoom = {
+        room: cloneRoomJson(room),
+        marketSeq: this.runtime.marketSeq,
+        savedRevision: revision,
+        timers: Array.from(this.scheduledTimers.entries()),
+      };
+      await this.state.storage.put('game', storedRoom);
       this.wasPersisted = true;
-      if (confirmReservation) await this.directoryRequest('/confirm');
+      this.lastPersistedRevision = revision;
+      if (confirmReservation) await this.directoryRequest('/confirm', this.reservationToken);
     } else if (this.wasPersisted) {
       await this.state.storage.delete('game');
-      await this.directoryRequest('/release');
+      await this.directoryRequest('/release', this.reservationToken);
       this.wasPersisted = false;
     }
 
     if (room) {
-      await this.state.storage.put('timers', Array.from(this.scheduledTimers.entries()));
+      // `timers` is embedded in the same durable record as the room. Keep the
+      // legacy key untouched for older deployments; new loads prefer the
+      // embedded value, avoiding a room/timer split-brain after a crash.
       const nextAlarm = Math.min(...Array.from(this.scheduledTimers.values()));
       if (Number.isFinite(nextAlarm)) await this.state.storage.setAlarm(nextAlarm);
       else await this.state.storage.deleteAlarm();
@@ -415,10 +598,40 @@ export class GameRoom {
     }
   }
 
-  private async directoryRequest(path: '/confirm' | '/release'): Promise<void> {
+  private async persistWithRetry(confirmReservation: boolean): Promise<void> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await this.persist(confirmReservation);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 25 * (attempt + 1)));
+      }
+    }
+    console.error('Falha ao persistir o estado da sala após tentativas:', lastError);
+    throw lastError instanceof Error ? lastError : new Error('Não foi possível persistir a sala.');
+  }
+
+  private async claimReservation(token: string): Promise<boolean> {
     try {
       const id = this.env.ROOM_DIRECTORY.idFromName('room-directory');
-      await this.env.ROOM_DIRECTORY.get(id).fetch(`https://room-directory${path}?room=${this.roomCode}`, { method: 'POST' });
+      const response = await this.env.ROOM_DIRECTORY.get(id).fetch(
+        `https://room-directory/claim?room=${this.roomCode}&token=${encodeURIComponent(token)}`,
+        { method: 'POST' },
+      );
+      return response.ok;
+    } catch (error) {
+      console.error('Room directory claim failed:', error);
+      return false;
+    }
+  }
+
+  private async directoryRequest(path: '/confirm' | '/release', token?: string): Promise<void> {
+    try {
+      const id = this.env.ROOM_DIRECTORY.idFromName('room-directory');
+      const suffix = token ? `&token=${encodeURIComponent(token)}` : '';
+      await this.env.ROOM_DIRECTORY.get(id).fetch(`https://room-directory${path}?room=${this.roomCode}${suffix}`, { method: 'POST' });
     } catch (error) {
       // The room remains authoritative if the auxiliary index is temporarily
       // unavailable; a stale reservation is safer than deleting live state.

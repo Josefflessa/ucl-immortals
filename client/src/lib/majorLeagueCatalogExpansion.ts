@@ -135,3 +135,15 @@ export const MAJOR_LEAGUE_CATALOG_EXPANSION: Player[] = [
   catalogPlayer({ id: 'gyokeres_sporting', basePlayerId: 'gyokeres', historicalPlayerId: 'gyokeres_sporting', shortName: 'Gyökeres', fullName: 'Viktor Gyökeres', position: 'ST', nation: 'Suécia', club: 'Sporting CP', season: '2024/25', overall: 87, pace: 91, shooting: 86, passing: 60, dribbling: 82, defending: 31, physical: 87, composure: 82, vision: 59 }),
 
 ];
+
+// Frimpong's Leverkusen version is already present in the live catalog. Keep
+// the audited source entry for traceability, but do not expose a duplicate
+// card to drafts, scouting, or the regular player pool.
+export const MAJOR_LEAGUE_CATALOG_EXCLUDED_IDS: ReadonlySet<string> = new Set([
+  'frimpong_leverkusen',
+]);
+
+export const MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE: Player[] =
+  MAJOR_LEAGUE_CATALOG_EXPANSION.filter(
+    player => !MAJOR_LEAGUE_CATALOG_EXCLUDED_IDS.has(player.id),
+  );

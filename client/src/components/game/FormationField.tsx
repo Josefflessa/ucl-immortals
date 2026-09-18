@@ -136,6 +136,12 @@ export default function FormationField({
   const [pointerDrag, setPointerDrag] = useState<PointerDragState | null>(null);
   const didDragRef = useRef(false);
   const pointerDragRef = useRef<PointerDragState | null>(null);
+  const pointerPreviewRef = useRef<HTMLDivElement | null>(null);
+  const pointerAnimationFrameRef = useRef<number | null>(null);
+  const pointerVisualPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerFieldRectRef = useRef<DOMRect | null>(null);
+  const pointerDropTargetsRef = useRef<Array<{ index: number; rect: DOMRect }>>([]);
+  const dragOverIndexRef = useRef<number | null>(null);
   const [nativeDragEnabled, setNativeDragEnabled] = useState(false);
   const ratingMode = !!ratings;
   const canReorderPlayers = showPlayerCards && !!onPlayerDrop;
@@ -185,6 +191,7 @@ export default function FormationField({
   useEffect(() => {
     if (!canReorderPlayers) return;
     const clearDragState = () => {
+      dragOverIndexRef.current = null;
       setDraggingIndex(null);
       setDragOverIndex(null);
     };
@@ -227,6 +234,7 @@ export default function FormationField({
   const handlePlayerDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
     if (!canUseNativeDrag || !players[index]) return;
     didDragRef.current = true;
+    dragOverIndexRef.current = null;
     setDraggingIndex(index);
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', String(index));
@@ -251,7 +259,10 @@ export default function FormationField({
     if (!canReorderPlayers || sourceIndex === null || sourceIndex === index || !players[index]) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
-    setDragOverIndex(index);
+    if (dragOverIndexRef.current !== index) {
+      dragOverIndexRef.current = index;
+      setDragOverIndex(index);
+    }
   };
 
   const handlePlayerDrop = (event: DragEvent<HTMLDivElement>, targetIndex: number) => {
@@ -261,6 +272,7 @@ export default function FormationField({
     if (sourceIndex !== null && sourceIndex !== targetIndex) {
       onPlayerDrop?.(sourceIndex, targetIndex);
     }
+    dragOverIndexRef.current = null;
     setDraggingIndex(null);
     setDragOverIndex(null);
   };
@@ -268,11 +280,13 @@ export default function FormationField({
   const handleFieldDrop = () => {
     // A drop on the field background is intentionally a no-op: it cancels the
     // pending target instead of guessing which nearby player was intended.
+    dragOverIndexRef.current = null;
     setDraggingIndex(null);
     setDragOverIndex(null);
   };
 
   const handlePlayerDragEnd = () => {
+    dragOverIndexRef.current = null;
     setDraggingIndex(null);
     setDragOverIndex(null);
     // A native drag may be followed by a synthetic click. Ignore that click, but
@@ -280,14 +294,21 @@ export default function FormationField({
     window.setTimeout(() => { didDragRef.current = false; }, 0);
   };
 
-  const getPointerDropTarget = (clientX: number, clientY: number, sourceIndex: number) => {
+  const cachePointerDropTargets = () => {
     const slots = fieldRef.current?.querySelectorAll<HTMLElement>('[data-player-slot]');
-    if (!slots) return null;
+    pointerDropTargetsRef.current = slots
+      ? Array.from(slots).flatMap(slot => {
+        const index = Number(slot.dataset.playerSlot);
+        return Number.isInteger(index) && players[index]
+          ? [{ index, rect: slot.getBoundingClientRect() }]
+          : [];
+      })
+      : [];
+  };
 
-    for (const slot of Array.from(slots)) {
-      const targetIndex = Number(slot.dataset.playerSlot);
-      if (!Number.isInteger(targetIndex) || targetIndex === sourceIndex || !players[targetIndex]) continue;
-      const rect = slot.getBoundingClientRect();
+  const getPointerDropTarget = (clientX: number, clientY: number, sourceIndex: number) => {
+    for (const { index: targetIndex, rect } of pointerDropTargetsRef.current) {
+      if (targetIndex === sourceIndex) continue;
       if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
         return targetIndex;
       }
@@ -298,6 +319,14 @@ export default function FormationField({
 
   const clearPointerDrag = () => {
     pointerDragRef.current = null;
+    if (pointerAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(pointerAnimationFrameRef.current);
+      pointerAnimationFrameRef.current = null;
+    }
+    pointerVisualPositionRef.current = null;
+    pointerFieldRectRef.current = null;
+    pointerDropTargetsRef.current = [];
+    dragOverIndexRef.current = null;
     setPointerDrag(null);
     setDraggingIndex(null);
     setDragOverIndex(null);
@@ -310,6 +339,8 @@ export default function FormationField({
     if (!canReorderPlayers || event.pointerType === 'mouse' || !players[index] || event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    pointerFieldRectRef.current = fieldRef.current?.getBoundingClientRect() ?? null;
+    cachePointerDropTargets();
     pointerDragRef.current = {
       index,
       pointerId: event.pointerId,
@@ -329,7 +360,7 @@ export default function FormationField({
     const distance = Math.hypot(event.clientX - current.startX, event.clientY - current.startY);
     if (!current.active && distance < 8) return;
 
-    const fieldRect = fieldRef.current?.getBoundingClientRect();
+    const fieldRect = pointerFieldRectRef.current;
     if (!fieldRect) return;
     const next: PointerDragState = {
       ...current,
@@ -338,9 +369,30 @@ export default function FormationField({
       active: true,
     };
     pointerDragRef.current = next;
-    setPointerDrag(next);
-    setDraggingIndex(next.index);
-    setDragOverIndex(getPointerDropTarget(event.clientX, event.clientY, next.index));
+    // The pointer can generate dozens of events per frame. Keep the moving
+    // preview outside React's render loop; only the first activation and a
+    // changed drop target need component state updates.
+    if (!current.active) {
+      setPointerDrag(next);
+      setDraggingIndex(next.index);
+    } else {
+      pointerVisualPositionRef.current = { x: next.x, y: next.y };
+      if (pointerAnimationFrameRef.current === null) {
+        pointerAnimationFrameRef.current = requestAnimationFrame(() => {
+          pointerAnimationFrameRef.current = null;
+          const position = pointerVisualPositionRef.current;
+          const preview = pointerPreviewRef.current;
+          if (!position || !preview) return;
+          preview.style.left = `${position.x}px`;
+          preview.style.top = `${position.y}px`;
+        });
+      }
+    }
+    const nextTarget = getPointerDropTarget(event.clientX, event.clientY, next.index);
+    if (dragOverIndexRef.current !== nextTarget) {
+      dragOverIndexRef.current = nextTarget;
+      setDragOverIndex(nextTarget);
+    }
     didDragRef.current = true;
   };
 
@@ -535,7 +587,12 @@ export default function FormationField({
               onDragOver={event => handlePlayerDragOver(event, index)}
               onDragLeave={event => {
                 const related = event.relatedTarget;
-                if (!(related instanceof Node) || !event.currentTarget.contains(related)) setDragOverIndex(null);
+                if (!(related instanceof Node) || !event.currentTarget.contains(related)) {
+                  if (dragOverIndexRef.current === index) {
+                    dragOverIndexRef.current = null;
+                    setDragOverIndex(null);
+                  }
+                }
               }}
               onDrop={event => handlePlayerDrop(event, index)}
               onDragEndCapture={handlePlayerDragEnd}
@@ -838,6 +895,7 @@ export default function FormationField({
         if (!draggedPlayer) return null;
         return (
           <div
+            ref={pointerPreviewRef}
             className="absolute z-50 pointer-events-none"
             aria-hidden="true"
             style={{
@@ -848,6 +906,7 @@ export default function FormationField({
               transform: 'translate(-50%, -50%)',
               opacity: 0.96,
               filter: 'drop-shadow(0 10px 16px rgba(0,0,0,.55))',
+              willChange: 'left, top',
             }}
           >
             <div style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center' }}>

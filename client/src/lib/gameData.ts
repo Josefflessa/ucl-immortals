@@ -4,6 +4,7 @@
 import { BRAZILIAN_STARTERS } from './brazilianStarters';
 import { BRAZILIAN_NOTABLE_ADDITIONS } from './brazilianNotableAdditions';
 import { MAJOR_LEAGUE_ADDITIONS } from './majorLeaguePlayers';
+import { MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE } from './majorLeagueCatalogExpansion';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
@@ -639,9 +640,7 @@ export const PLAYERS: Player[] = [
   ...BRAZILIAN_STARTERS,
   ...BRAZILIAN_NOTABLE_ADDITIONS,
   ...MAJOR_LEAGUE_ADDITIONS,
-  // The audited major-league expansion stays available in
-  // `majorLeagueCatalogExpansion.ts`, but remains out of the live pool until
-  // its local portraits are ready and verified.
+  ...MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE,
   // ===== IMMORTALS =====
   {
     id: 'messi',

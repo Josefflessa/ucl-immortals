@@ -1529,6 +1529,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const socketRoomCodeRef = useRef<string | null>(null);
   const onlineRoomRef = useRef<any | null>(null);
   const onlineSyncRevisionRef = useRef<number | null>(null);
+  // Server-side room revision. Unlike the per-socket patch counter, this is
+  // shared by every connection and lets us reject a late snapshot from an old
+  // socket/reconnect instead of rendering the room back in time.
+  const authoritativeRoomRevisionRef = useRef<number | null>(null);
   const syncRequestPendingRef = useRef(false);
 
   // Auto disconnect on unmount
@@ -1549,6 +1553,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       if (!durableRealtime || !roomCode || socketRoomCodeRef.current === roomCode) return socketRef.current;
       socketRef.current.disconnect();
       socketRef.current = null;
+      authoritativeRoomRevisionRef.current = null;
     }
 
     if (durableRealtime && !roomCode) {
@@ -1567,12 +1572,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     socketRef.current = socketInstance;
     socketRoomCodeRef.current = roomCode ?? null;
+    authoritativeRoomRevisionRef.current = null;
 
     const requestRoomSync = () => {
       const roomCode = getStorageItem(STORAGE_KEYS.roomCode);
       if (!roomCode || syncRequestPendingRef.current) return;
       syncRequestPendingRef.current = true;
       socketInstance.emit("sync_room", { roomCode });
+    };
+
+    const isCurrentSocket = () => socketRef.current === socketInstance;
+    const acceptRoomState = (roomState: any): boolean => {
+      if (!isCurrentSocket() || !roomState || typeof roomState !== 'object') return false;
+      const incomingRevision = Number.isSafeInteger(roomState.stateRevision) && roomState.stateRevision >= 0
+        ? roomState.stateRevision as number
+        : null;
+      const currentRevision = authoritativeRoomRevisionRef.current;
+      // Once a versioned state has been accepted, an unversioned legacy frame
+      // can only be older data from a rolling connection and must not overwrite it.
+      if (incomingRevision === null && currentRevision !== null) return false;
+      if (incomingRevision !== null && currentRevision !== null && incomingRevision < currentRevision) return false;
+      if (incomingRevision !== null) authoritativeRoomRevisionRef.current = incomingRevision;
+      return true;
     };
 
     // `connect` dispara no primeiro conecte E em toda reconexão de transporte (o
@@ -1585,6 +1606,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     let hasConnectedOnce = false;
     let reconnectToastId: string | number | undefined;
     socketInstance.on("connect", () => {
+      if (!isCurrentSocket()) return;
       console.log("Socket connected to server:", socketInstance.id);
       // Opt into incremental room updates. The server still supports the
       // legacy full-snapshot event for older clients during a rolling deploy.
@@ -1609,8 +1631,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     // socket.io tenta reconectar (o `connect` acima re-entra na sala e limpa o aviso).
     // Ignora saídas intencionais (o próprio jogador saiu) e quando não há sala ativa.
     socketInstance.on("disconnect", (reason: string) => {
+      if (!isCurrentSocket()) return;
       onlineRoomRef.current = null;
       onlineSyncRevisionRef.current = null;
+      authoritativeRoomRevisionRef.current = null;
       syncRequestPendingRef.current = false;
       const inRoom = getStorageItem(STORAGE_KEYS.roomCode);
       if (inRoom && reason !== "io client disconnect" && reconnectToastId === undefined) {
@@ -1621,10 +1645,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     // Uma ação estourou no servidor (o wrapper de handlers avisou). Em vez de a tela
     // ficar travada sem feedback, mostramos um toast.
     socketInstance.on("action_error", ({ message }: { message?: string }) => {
+      if (!isCurrentSocket()) return;
       toast.error(message || "Algo deu errado ao processar a ação. Tenta de novo.");
     });
 
+    socketInstance.on("action_dropped", () => {
+      if (!isCurrentSocket()) return;
+      toast.error("Conexão instável: a ação não foi enviada. Aguarde a reconexão e tente novamente.");
+    });
+
     socketInstance.on("room_updated", (roomState: any) => {
+      if (!acceptRoomState(roomState)) return;
       // Legacy server / legacy browser compatibility. A full update is also a
       // valid recovery point, but without a revision we wait for a snapshot
       // before applying any subsequent patch.
@@ -1635,10 +1666,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("room_snapshot", ({ roomState, syncRevision }: { roomState?: any; syncRevision?: number }) => {
+      if (!isCurrentSocket()) return;
       if (!roomState || typeof syncRevision !== 'number' || !Number.isInteger(syncRevision) || syncRevision < 0) {
         requestRoomSync();
         return;
       }
+      if (!acceptRoomState(roomState)) return;
       onlineRoomRef.current = roomState;
       onlineSyncRevisionRef.current = syncRevision;
       syncRequestPendingRef.current = false;
@@ -1650,6 +1683,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       revision?: number;
       patch?: RoomPatchOperation[];
     }) => {
+      if (!isCurrentSocket()) return;
       if (!onlineRoomRef.current
         || !Number.isInteger(baseRevision)
         || !Number.isInteger(revision)
@@ -1662,6 +1696,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const nextRoom = applyRoomPatch(onlineRoomRef.current, patch);
+        if (!acceptRoomState(nextRoom)) return;
         onlineRoomRef.current = nextRoom;
         onlineSyncRevisionRef.current = revision as number;
         syncRequestPendingRef.current = false;
@@ -1672,15 +1707,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("ready_state_updated", ({ readyPlayers }: { readyPlayers?: string[] }) => {
+      if (!isCurrentSocket()) return;
       dispatch({ type: 'SET_ONLINE_READY_PLAYERS', readyPlayers: readyPlayers || [] });
     });
 
     // Server refused an advance because not everyone has watched their match yet.
     socketInstance.on("advance_blocked", ({ waiting }: { waiting: string[] }) => {
+      if (!isCurrentSocket()) return;
       dispatch({ type: 'SET_ADVANCE_BLOCKED', waiting: waiting || [] });
     });
 
     socketInstance.on("room_created", ({ roomCode, roomState }) => {
+      if (!acceptRoomState(roomState)) return;
       onlineRoomRef.current = roomState;
       onlineSyncRevisionRef.current = 0;
       syncRequestPendingRef.current = false;
@@ -1694,6 +1732,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("joined_room", ({ roomCode, player, roomState }) => {
+      if (!acceptRoomState(roomState)) return;
       onlineRoomRef.current = roomState;
       onlineSyncRevisionRef.current = 0;
       syncRequestPendingRef.current = false;
@@ -1704,8 +1743,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on("error_message", (msg: string) => {
+      if (!isCurrentSocket()) return;
       onlineRoomRef.current = null;
       onlineSyncRevisionRef.current = null;
+      authoritativeRoomRevisionRef.current = null;
       syncRequestPendingRef.current = false;
       toast.error(msg);
       removeStorageItem(STORAGE_KEYS.playerName);
@@ -1726,13 +1767,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       try {
         const response = await fetch('/api/realtime/room-code', { method: 'POST' });
-        const body = await response.json().catch(() => null) as { roomCode?: unknown; message?: unknown } | null;
+        const body = await response.json().catch(() => null) as { roomCode?: unknown; reservationToken?: unknown; message?: unknown } | null;
         if (!response.ok || typeof body?.roomCode !== 'string') {
           throw new Error(typeof body?.message === 'string' ? body.message : 'Não foi possível criar a sala online.');
         }
+        if (typeof body.reservationToken !== 'string' || body.reservationToken.length === 0) {
+          throw new Error('A reserva da sala não foi confirmada. Tente criar novamente.');
+        }
         const roomCode = body.roomCode.toUpperCase();
         const socket = connectSocket(roomCode);
-        socket.emit('create_room', { creatorName, competitionFormat, difficulty, clientId: getClientId(), roomCode });
+        socket.emit('create_room', { creatorName, competitionFormat, difficulty, clientId: getClientId(), roomCode, reservationToken: body.reservationToken });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Não foi possível criar a sala online.');
       }
@@ -1822,9 +1866,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const notifyMatchWatchedOnline = useCallback((type: 'league' | 'knockout', knockout?: { matchId: string; leg?: number }) => {
     if (socketRef.current && state.roomCode) {
-      socketRef.current.emit("player_match_watched", { roomCode: state.roomCode, type, ...knockout });
+      socketRef.current.emit("player_match_watched", {
+        roomCode: state.roomCode,
+        type,
+        ...(type === 'league' ? { round: state.leagueRound } : {}),
+        ...knockout,
+      });
     }
-  }, [state.roomCode]);
+  }, [state.roomCode, state.leagueRound]);
 
   // ── Shop (online): emit to the server, which validates + broadcasts the new team/points ──
   const shopChangeCoachOnline = useCallback((coachId: string) => {
@@ -1921,6 +1970,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       socketRef.current = null;
     }
     socketRoomCodeRef.current = null;
+    authoritativeRoomRevisionRef.current = null;
     removeStorageItem(STORAGE_KEYS.playerName);
     removeStorageItem(STORAGE_KEYS.roomCode);
     dispatch({ type: 'DISCONNECT_ONLINE' });

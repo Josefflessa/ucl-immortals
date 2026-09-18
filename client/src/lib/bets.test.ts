@@ -92,6 +92,17 @@ describe('aposta combinada', () => {
     })).toBeNull();
   });
 
+  it('não reduz a cotação ao combinar vitória com mais de 0,5 gols', () => {
+    const combined = createBet({
+      matchKey: 'L1:a-b', stake: 100, market: 'builder', selections: [
+        { type: 'outcome', value: 'home' as const },
+        { type: 'total_goals', operator: 'over' as const, line: 0.5 as const },
+      ],
+    });
+    expect(combined?.multiplier).toBe(BET_OUTCOME_MULT);
+    expect(combined?.multiplier).toBeGreaterThanOrEqual(BET_OUTCOME_MULT);
+  });
+
   it('só paga quando todas as condições da combinada acontecem', () => {
     const combined = createBet({ matchKey: 'L1:a-b', stake: 100, market: 'builder', selections: builderSelections });
     expect(combined?.multiplier).toBe(2.2);

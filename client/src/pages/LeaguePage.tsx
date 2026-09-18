@@ -240,6 +240,11 @@ export default function LeaguePage() {
   // eles são organizados visualmente por grupo e o grupo do jogador é destacado.
   const currentRoundFixtures = leagueFixtures.filter(f => f.round === leagueRound);
   const displayedRoundFixtures = currentRoundFixtures;
+  // A janela anti-spoiler só existe depois que o servidor simulou pelo menos
+  // uma partida desta rodada. Antes do início, `watched` naturalmente está
+  // vazio e não pode ser interpretado como "há alguém atrasado".
+  const hasPlayedLeagueResult = currentRoundFixtures.some(f => f.played && !!f.result);
+  const allFixturesPlayed = currentRoundFixtures.every(f => f.played);
   const roundGroupIds: Array<number | null> = isGroupStage
     ? Array.from(new Set(displayedRoundFixtures.map(fixture => fixture.groupId ?? 0))).sort((a, b) => a - b)
     : [null];
@@ -273,9 +278,9 @@ export default function LeaguePage() {
     humanPlayersWithMatch.every(p => state.onlineWatchedPlayers.includes(p.id));
   const waitingForCount = humanPlayersWithMatch.filter(p => !state.onlineWatchedPlayers.includes(p.id)).length;
 
-  // ONLINE: hide ALL scores until every player has confirmed watching the replay.
-  // This prevents the host (or anyone else) from seeing results before others finish.
-  const hideRoundScore = state.mode === 'online' && !allPlayersWatched;
+  // ONLINE: hide scores only while a result from the current round is waiting
+  // for the required viewers. An unplayed round has no spoiler to hide.
+  const hideRoundScore = state.mode === 'online' && hasPlayedLeagueResult && !allPlayersWatched;
 
   // Knockout equivalent: everyone in the active tie round must have watched the leg.
   const koMatches = isKnockout && state.knockoutBracket ? getActiveKnockoutMatches(state.knockoutBracket) : [];
@@ -284,10 +289,20 @@ export default function LeaguePage() {
     : [];
   const koHumans = state.mode === 'online' ? state.onlinePlayers.filter(p => koParticipantIds.includes(p.id)) : [];
   const koAllWatched = koHumans.length === 0 || koHumans.every(p => state.onlineWatchedPlayers.includes(p.id));
+  const koHasPlayedResult = koMatches.some((match: any) => {
+    const singleLeg = match.isSingleLeg === true
+      || (state.knockoutBracket?.currentRound === 'final' && match.isSingleLeg === undefined);
+    if (singleLeg) return !!match.played && !!match.result;
+    // After the first leg the bracket points to leg 2, but the first-leg
+    // result is precisely what remains hidden until everyone watches it.
+    return state.knockoutBracket?.currentLeg === 2 ? !!match.leg1 : !!match.leg2;
+  });
 
   // Unified anti-spoiler gate: the POSITION notice, CLASSIFICAÇÃO, ESTATÍSTICAS and (knockout)
   // CHAVEAMENTO only reveal/update once EVERYONE in the round has left their match.
-  const spoilerLock = state.mode === 'online' && (isKnockout ? !koAllWatched : !allPlayersWatched);
+  const spoilerLock = state.mode === 'online' && (isKnockout
+    ? koHasPlayedResult && !koAllWatched
+    : hasPlayedLeagueResult && !allPlayersWatched);
   const spoilerWaiting = isKnockout
     ? koHumans.filter(p => !state.onlineWatchedPlayers.includes(p.id)).length
     : waitingForCount;
@@ -297,9 +312,6 @@ export default function LeaguePage() {
     f => f.homeTeamId === playerTeam?.id || f.awayTeamId === playerTeam?.id
   );
   const isPlayerMatchPlayed = playerFixture?.played ?? false;
-
-  // Check if all fixtures in this round are played
-  const allFixturesPlayed = currentRoundFixtures.every(f => f.played);
 
   const handlePlayPlayerMatch = () => {
     // 🟥🩹 Bloqueio: se não houver reserva compatível, oferece contratação gratuita

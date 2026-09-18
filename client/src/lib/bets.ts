@@ -133,9 +133,19 @@ export function builderSelectionMultiplier(selection: BetBuilderSelection): numb
 export function calculateBuilderMultiplier(selections: unknown): number | null {
   const normalized = normalizeBuilderSelections(selections);
   if (!normalized) return null;
-  const product = normalized.reduce((total, selection) => total * builderSelectionMultiplier(selection), 1);
+  const individualMultipliers = normalized.map(builderSelectionMultiplier);
+  const product = individualMultipliers.reduce((total, multiplier) => total * multiplier, 1);
   const discount = BET_BUILDER_CORRELATION_DISCOUNT[normalized.length as 1 | 2 | 3 | 4];
-  return Math.min(BET_BUILDER_MAX_MULTIPLIER, Math.round(product * discount * 100) / 100);
+  const discountedProduct = product * discount;
+  // A correlação pode reduzir o produto, mas nunca pode transformar uma
+  // condição adicional em uma pior cotação do que a melhor condição isolada.
+  // Ex.: "Casa vence" (1,50) + "Mais de 0,5 gols" (1,15) continua em 1,50,
+  // pois uma vitória da casa já implica pelo menos um gol na partida.
+  const strongestIndividual = Math.max(...individualMultipliers);
+  return Math.min(
+    BET_BUILDER_MAX_MULTIPLIER,
+    Math.round(Math.max(strongestIndividual, discountedProduct) * 100) / 100,
+  );
 }
 
 /** Creates a canonical ticket for both solo state and the authoritative server. */

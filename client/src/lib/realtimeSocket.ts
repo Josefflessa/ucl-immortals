@@ -13,8 +13,12 @@ export interface RealtimeClientSocket {
   disconnect(): void;
 }
 
-const MAX_QUEUED_MESSAGES = 100;
+const MAX_QUEUED_MESSAGES = 16;
 const RECONNECT_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000, 8_000];
+// Replaying an old gameplay click after a reconnect is dangerous: the room may
+// already be in another leg, phase or balance. Only messages needed to establish
+// identity and obtain the latest authoritative snapshot are safe to queue.
+const QUEUEABLE_EVENTS = new Set(['client_capabilities', 'create_room', 'join_room', 'sync_room']);
 
 function websocketUrl(roomCode: string): string {
   const configured = import.meta.env.VITE_REALTIME_URL as string | undefined;
@@ -27,8 +31,9 @@ function websocketUrl(roomCode: string): string {
 
 /**
  * Native WebSocket client with the small behavior subset used by the game.
- * Outbound actions are queued while a reconnect is in progress, matching the
- * previous Socket.IO UX without silently discarding an intentional action.
+ * Outbound gameplay actions are intentionally not queued while a reconnect is in
+ * progress. The server is authoritative; after reconnect the UI receives a fresh
+ * room snapshot and the player can repeat an action against that current state.
  */
 export class DurableRealtimeSocket implements RealtimeClientSocket {
   private socket: WebSocket | null = null;
@@ -60,14 +65,24 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
   emit(event: string, payload?: unknown): this {
     const message = encodeRealtimeMessage({ type: 'event', event, payload });
     if (this.socket?.readyState === WebSocket.OPEN && this._id) {
-      this.socket.send(message);
+      try {
+        this.socket.send(message);
+      } catch {
+        if (QUEUEABLE_EVENTS.has(event)) this.queue(message);
+        else this.dispatch('action_dropped', { event });
+      }
       return this;
     }
 
+    if (QUEUEABLE_EVENTS.has(event)) this.queue(message);
+    else this.dispatch('action_dropped', { event });
+    return this;
+  }
+
+  private queue(message: string): void {
     // A bounded queue protects the browser if the network remains unavailable.
     if (this.pendingMessages.length >= MAX_QUEUED_MESSAGES) this.pendingMessages.shift();
     this.pendingMessages.push(message);
-    return this;
   }
 
   disconnect(): void {
