@@ -56,6 +56,14 @@ describe('PLACE_BET / CANCEL_BET (escrow)', () => {
     expect(s.points).toBe(400);
     expect(s.bets[0]).toMatchObject({ market: 'builder', stake: 100, multiplier: 2.2 });
   });
+  it('bloqueia total de cartões quando a competição desabilita cartões', () => {
+    const s = gameReducer(base({ competitionFormat: { matchSettings: { cardsEnabled: false } } as any }), {
+      type: 'PLACE_BET', matchKey: 'L1:a-b', stake: 100, market: 'builder',
+      selections: [{ type: 'total_cards', operator: 'over', line: 1.5 }],
+    });
+    expect(s.bets).toHaveLength(0);
+    expect(s.points).toBe(500);
+  });
 });
 
 describe('FINISH_LEAGUE_MATCH liquida e credita os palpites', () => {
@@ -90,6 +98,21 @@ describe('FINISH_LEAGUE_MATCH liquida e credita os palpites', () => {
     expect(cdBet.revealed).toBe(true);
     expect(cdBet.tier).toBe('miss');
     expect(cdBet.payout).toBe(0);
+  });
+
+  it('não duplica a titularidade quando o mesmo encerramento é processado duas vezes', () => {
+    const players = Array.from({ length: 13 }, (_, index) => ({ id: `p${index}`, appearances: 0 }));
+    const state = base({
+      playerTeam: { id: 'me', players } as any,
+      botTeams: [{ id: 'b', players: [] }] as any,
+      leagueFixtures: [{ round: 1, homeTeamId: 'me', awayTeamId: 'b', played: false }],
+    });
+    const result = mkResult('me', 'b', 1, 0);
+    const first = gameReducer(state, { type: 'FINISH_LEAGUE_MATCH', result } as GameAction);
+    const second = gameReducer(first, { type: 'FINISH_LEAGUE_MATCH', result } as GameAction);
+    expect(first.playerTeam!.players[0].appearances).toBe(1);
+    expect(second.playerTeam!.players[0].appearances).toBe(1);
+    expect(second.leagueFixtures[0].played).toBe(true);
   });
 });
 

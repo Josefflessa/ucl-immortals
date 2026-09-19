@@ -18,12 +18,13 @@ import {
   normalizeMatchPlan,
   draftSlotIndex,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
-  bumpStarterAppearances, isEvolved, applyEvolvePoint, applyDefeatGrowth, applyDefeatGrowthForResults,
+  bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups,
+  getEvolutionLevel, isEvolved, applyEvolvePoint, EVOLVE_POINTS, applyDefeatGrowth, applyDefeatGrowthForResults,
 } from '../lib/gameEngine';
 import type { MatchPlan, VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
-import { Bet, BetBuilderSelection, BetMarket, buildLeagueMatchKey, canPlaceStake, betCapPrefix, createBet, revealEligibleKoBets, settleBet, BET_ROUND_CAP } from '../lib/bets';
+import { Bet, BetBuilderSelection, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, betCapPrefix, createBet, revealEligibleKoBets, settleBet, BET_ROUND_CAP } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, applyEmergencyReplacement } from '../lib/discipline';
 import { PHYSIO_COST } from '../lib/discipline';
 import { MarketListing } from '../lib/market';
@@ -575,7 +576,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.playerTeam) return state;
       const players = state.playerTeam.players.map(p => {
         if (p.id !== action.playerId || !isEvolved(p)) return p;
-        return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, action.attr, action.delta) };
+        const unlockedPoints = getEvolutionLevel(p) * EVOLVE_POINTS;
+        return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, action.attr, action.delta, unlockedPoints) };
       });
       return { ...state, playerTeam: { ...state.playerTeam, players } };
     }
@@ -715,6 +717,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'PLACE_BET': {
       // 🎯 Aposta (escrow): debita o stake AGORA. Editar o mesmo jogo ajusta pela diferença.
       if (!state.playerTeam || action.stake <= 0) return state;
+      // O mercado de cartões só existe quando a disciplina foi habilitada no
+      // formato desta competição. A mesma regra é aplicada pelo servidor no
+      // online; aqui evitamos uma UI/estado local divergente no solo.
+      if (action.market === 'builder'
+        && state.competitionFormat?.matchSettings?.cardsEnabled === false
+        && builderUsesTotalCards(action.selections)) return state;
       // Teto por rodada de liga (Lr:) ou POR PARTIDA no mata-mata (o próprio matchKey) —
       // igual o servidor. Antes usava 'K' genérico, que somava TODOS os jogos do KO num
       // teto só (aposta na 2ª partida sumia calada depois de 200 no total).
@@ -905,19 +913,36 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.playerTeam) return state;
       // Deprecated, but keep as fallback to instantly simulate remaining rounds
       const allTeams = [state.playerTeam, ...state.botTeams];
-      const newlySimulatedResults: MatchResult[] = [];
+      const newlySimulatedResults: Array<{ fixture: LeagueFixture; result: MatchResult }> = [];
       const updatedFixtures = state.leagueFixtures.map(f => {
         if (f.played) return f;
         const home = allTeams.find(t => t.id === f.homeTeamId)!;
         const away = allTeams.find(t => t.id === f.awayTeamId)!;
-        const result = simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings);
-        newlySimulatedResults.push(result);
-        return { ...f, played: true, result };
+        const rHome = resolveAvailableLineup(home, state.discipline).team;
+        const rAway = resolveAvailableLineup(away, state.discipline).team;
+        const result = stampMatchStartingLineups(
+          simulateMatch(rHome, rAway, false, false, true, false, state.competitionFormat?.matchSettings),
+          rHome,
+          rAway,
+        );
+        const playedFixture = { ...f, played: true, result };
+        newlySimulatedResults.push({ fixture: playedFixture, result });
+        return playedFixture;
       });
       const standings = computeStandings(allTeams, updatedFixtures);
       const results = updatedFixtures.map(f => f.result!).filter(Boolean);
-      const playerTeam = applyDefeatGrowthForResults(state.playerTeam, newlySimulatedResults);
-      const botTeams = state.botTeams.map(team => applyDefeatGrowthForResults(team, newlySimulatedResults));
+      let playerTeam = applyDefeatGrowthForResults(state.playerTeam, newlySimulatedResults.map(item => item.result));
+      // Even the legacy instant-simulation path must use the captured XI and a
+      // stable match key, otherwise a retry could silently skip or duplicate evolution.
+      for (const item of newlySimulatedResults) {
+        if (item.fixture.homeTeamId !== playerTeam.id && item.fixture.awayTeamId !== playerTeam.id) continue;
+        playerTeam = bumpStarterAppearances(
+          playerTeam,
+          startingIdsForResult(item.result, playerTeam.id, playerTeam),
+          buildLeagueMatchKey(item.fixture.round, item.fixture.homeTeamId, item.fixture.awayTeamId),
+        );
+      }
+      const botTeams = state.botTeams.map(team => applyDefeatGrowthForResults(team, newlySimulatedResults.map(item => item.result)));
       return {
         ...state,
         playerTeam,
@@ -960,7 +985,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // aqui preservamos o currentMatchResult existente pra não interferir.
       const currentMatchResult = state.mode === 'online'
         ? state.currentMatchResult
-        : simulateMatch(rHome, rAway, false, false, true, false, state.competitionFormat?.matchSettings);
+        : stampMatchStartingLineups(
+            simulateMatch(rHome, rAway, false, false, true, false, state.competitionFormat?.matchSettings),
+            rHome,
+            rAway,
+          );
 
       return {
         ...state,
@@ -987,11 +1016,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       if (!state.playerTeam) return state;
       const allTeams = [state.playerTeam, ...state.botTeams];
-      
+      const playerFixture = state.leagueFixtures.find(f =>
+        f.round === state.leagueRound
+        && (f.homeTeamId === state.playerTeam!.id || f.awayTeamId === state.playerTeam!.id)
+      );
+      // A second finish event can arrive after a reconnect or a double click.
+      // The fixture itself is the authoritative once-only gate in solo mode.
+      if (!playerFixture || playerFixture.played) return state;
+
+      const replayHome = state.currentMatchTeams?.find(team => team.id === action.result.homeTeamId);
+      const replayAway = state.currentMatchTeams?.find(team => team.id === action.result.awayTeamId);
+      const playerResult = replayHome && replayAway
+        ? stampMatchStartingLineups(action.result, replayHome, replayAway)
+        : action.result;
+
       // Save result for the player's fixture in the current round
       let allFixtures = state.leagueFixtures.map(f => {
         if (f.round === state.leagueRound && (f.homeTeamId === state.playerTeam?.id || f.awayTeamId === state.playerTeam?.id)) {
-          return { ...f, played: true, result: action.result };
+          return { ...f, played: true, result: playerResult };
         }
         return f;
       });
@@ -1002,7 +1044,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (f.round === state.leagueRound && !f.played) {
           const home = resolveAvailableLineup(allTeams.find(t => t.id === f.homeTeamId)!, state.discipline).team;
           const away = resolveAvailableLineup(allTeams.find(t => t.id === f.awayTeamId)!, state.discipline).team;
-          const result = simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings);
+          const result = stampMatchStartingLineups(
+            simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings),
+            home,
+            away,
+          );
           return { ...f, played: true, result };
         }
         return f;
@@ -1033,7 +1079,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         : null;
 
       // Award shop credits for the player's performance using this format's values.
-      const matchPoints = computeMatchPointsWithConfig(action.result, state.playerTeam.id, rewards.points);
+      const matchPoints = computeMatchPointsWithConfig(playerResult, state.playerTeam.id, rewards.points);
       // 🤑 Magnata — titular multiplica os créditos da partida de liga (não empilha).
       const magMult = magnataPointMultiplier(state.playerTeam.players);
       const earnedPoints = rewards.pointsEnabled ? Math.round(matchPoints.total * magMult) : 0;
@@ -1051,7 +1097,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...b, settled: true, revealed: true, won: r.won, tier: r.tier, payout: r.payout };
       });
 
-      const updatedPlayerTeam = bumpStarterAppearances(applyDefeatGrowth(state.playerTeam, action.result));
+      const updatedPlayerTeam = bumpStarterAppearances(
+        applyDefeatGrowth(state.playerTeam, playerResult),
+        startingIdsForResult(playerResult, state.playerTeam.id, replayHome?.id === state.playerTeam.id ? replayHome : replayAway?.id === state.playerTeam.id ? replayAway : state.playerTeam),
+        buildLeagueMatchKey(playerFixture.round, playerFixture.homeTeamId, playerFixture.awayTeamId),
+      );
       const updatedBotTeams = state.botTeams.map(team => {
         const fixture = roundFx.find(f => f.homeTeamId === team.id || f.awayTeamId === team.id);
         return fixture?.result ? applyDefeatGrowth(team, fixture.result) : team;
@@ -1136,23 +1186,62 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // tie as a synchronized replay (KnockoutPage auto-opens it).
       if (!state.knockoutBracket || !state.playerTeam) return state;
       const allTeams = [state.playerTeam, ...state.botTeams];
+      const activeBefore = getActiveKnockoutMatches(state.knockoutBracket) as any[];
+      const legNum = state.knockoutBracket.currentLeg;
+      const isFinalRoundBefore = state.knockoutBracket.currentRound === 'final';
+      const legAlreadyPlayed = activeBefore.length > 0 && activeBefore.every(tie => {
+        const singleLeg = tie.isSingleLeg === true || (isFinalRoundBefore && tie.isSingleLeg === undefined);
+        return singleLeg
+          ? Boolean(tie.played && tie.result)
+          : legNum === 2 ? Boolean(tie.leg2) : Boolean(tie.leg1);
+      });
+      // The same transition must be safe if the UI/replay dispatches it twice.
+      if (legAlreadyPlayed) return state;
+
       const bracket: KnockoutBracket = JSON.parse(JSON.stringify(state.knockoutBracket));
       const isFinalRound = bracket.currentRound === 'final';
+      const resolvedTeams = new Map<string, Team>();
       // 🟨🟥🩹 Resolve as escalações contra a disciplina antes de simular a perna (bots inclusos).
       const resolveFn = (id: string) => {
+        const cached = resolvedTeams.get(id);
+        if (cached) return cached;
         const t = allTeams.find(tm => tm.id === id);
-        return t ? resolveAvailableLineup(t, state.discipline).team : undefined;
+        if (!t) return undefined;
+        const resolved = resolveAvailableLineup(t, state.discipline).team;
+        resolvedTeams.set(id, resolved);
+        return resolved;
       };
       playActiveKnockoutLeg(bracket as any, resolveFn as any, state.competitionFormat?.matchSettings);
       // Aplica a disciplina da PERNA recém-jogada (times da rodada ativa).
       const active = getActiveKnockoutMatches(bracket) as any[];
-      const legNum = state.knockoutBracket.currentLeg;
-      const legResults = active.map(t => legNum === 2 ? t.leg2 : t.leg1).filter(Boolean);
+      const legResults = active.map(tie => {
+        const singleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
+        const result = singleLeg ? tie.result : legNum === 2 ? tie.leg2 : tie.leg1;
+        if (!result) return null;
+        const stamped = stampMatchStartingLineups(
+          result,
+          resolvedTeams.get(result.homeTeamId) ?? allTeams.find(team => team.id === result.homeTeamId) ?? { players: [] },
+          resolvedTeams.get(result.awayTeamId) ?? allTeams.find(team => team.id === result.awayTeamId) ?? { players: [] },
+        );
+        if (singleLeg) tie.result = stamped;
+        else if (legNum === 2) tie.leg2 = stamped;
+        else tie.leg1 = stamped;
+        return stamped;
+      }).filter((result): result is MatchResult => Boolean(result));
       const koTeamIds = Array.from(new Set(active.flatMap(t => [t.homeTeamId, t.awayTeamId])));
       const koNameOf = (teamId: string, playerId: string) =>
         allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
       const disc = applyMatchDiscipline(state.discipline, koTeamIds, legResults, koNameOf);
-      const playerTeam = applyDefeatGrowthForResults(state.playerTeam, legResults);
+      const playerTeamAfterGrowth = applyDefeatGrowthForResults(state.playerTeam, legResults);
+      const playerResult = legResults.find(result => result.homeTeamId === state.playerTeam!.id || result.awayTeamId === state.playerTeam!.id);
+      const playerTie = active.find(tie => tie.homeTeamId === state.playerTeam!.id || tie.awayTeamId === state.playerTeam!.id);
+      const playerTeam = playerResult && playerTie
+        ? bumpStarterAppearances(
+            playerTeamAfterGrowth,
+            startingIdsForResult(playerResult, state.playerTeam.id, resolvedTeams.get(state.playerTeam.id) ?? state.playerTeam),
+            buildKnockoutMatchKey(playerTie.id, legNum),
+          )
+        : playerTeamAfterGrowth;
       const botTeams = state.botTeams.map(team => applyDefeatGrowthForResults(team, legResults));
       // 🎯 Revela AGORA os palpites de confrontos que o jogador NÃO joga (placar já visível →
       // sem spoiler). O confronto próprio só revela depois que ele assistir (FINISH_KNOCKOUT_MATCH).
@@ -1176,7 +1265,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const stageReinforcement = shouldOfferStageReinforcement
         ? generateDraftOptions([], koOwnedIds).slice(0, koRewards.reinforcementOptions)
         : state.reinforcementOptions;
-      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam: bumpStarterAppearances(playerTeam), botTeams, bets: revealed.bets, points: state.points + revealed.winnings, reinforcementOptions: stageReinforcement };
+      return { ...state, knockoutBracket: bracket, discipline: disc.next, playerTeam, botTeams, bets: revealed.bets, points: state.points + revealed.winnings, reinforcementOptions: stageReinforcement };
     }
 
     case 'ADVANCE_KNOCKOUT': {

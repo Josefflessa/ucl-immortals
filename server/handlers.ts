@@ -22,7 +22,8 @@ import {
   validateMatchPlan,
   rebuildTeamChemistry,
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
-  bumpStarterAppearances, isEvolved, applyEvolvePoint, EVOLVE_POINTS, applyDefeatGrowth,
+  bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups,
+  getEvolutionLevel, isEvolved, applyEvolvePoint, EVOLVE_POINTS, applyDefeatGrowth,
   draftSlotIndex,
   VariantFlag,
   MatchPlan,
@@ -37,7 +38,7 @@ import {
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
-import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, createBet, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
+import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, createBet, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
@@ -1559,15 +1560,18 @@ export function registerSocketHandlers(io: RealtimeServer) {
       emitReadyState(io, room);
     });
 
-    // ⭐ Carta Evoluída: escolher 1 atributo e aplicar os 6 pontos (só carta evoluída do próprio time).
+    // ⭐ Carta Evoluída: aplicar um pacote de 6 pontos ao atributo escolhido (só carta do próprio time).
     on("set_evolve_point", ({ roomCode, playerId, attr, delta }: { roomCode: string; playerId: string; attr: any; delta: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr) || !Number.isInteger(delta) || delta !== EVOLVE_POINTS) return;
-      player.team.players = player.team.players.map(p =>
-        (p.id === playerId && isEvolved(p)) ? { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta) } : p);
+      player.team.players = player.team.players.map(p => {
+        if (p.id !== playerId || !isEvolved(p)) return p;
+        const unlockedPoints = getEvolutionLevel(p) * EVOLVE_POINTS;
+        return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta, unlockedPoints) };
+      });
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
@@ -1818,6 +1822,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (escrowDelta > player.points) return;
       const betCap = room.competitionFormat.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
       if (!canPlaceStake(player.bets, prefix, matchKey, stake, betCap)) return;
+      // A disciplina da competição é a fonte de verdade para os mercados de
+      // cartões. Revalidar no servidor impede que um cliente alterado crie uma
+      // aposta que a partida não tem como liquidar.
+      if (market === 'builder'
+        && room.competitionFormat.matchSettings?.cardsEnabled === false
+        && builderUsesTotalCards(selections)) return;
       // The canonical builder parser also calculates and locks its multiplier.
       // The client never gets to choose odds or bypass the minimum/unique-market rules.
       const bet = createBet({
@@ -2093,18 +2103,23 @@ export function registerSocketHandlers(io: RealtimeServer) {
           const away = allTeams.find(t => t.id === f.awayTeamId);
           if (!home || !away) return f;
           // 🟨🟥🩹 Bots resolvem a escalação (humanos já estão válidos pelo bloqueio acima).
+          // Capture the XI before the authoritative result is stored. The replay
+          // may happen later, after the user has edited the squad again.
+          const resolvedHome = resolveAvailableLineup(home, room.discipline).team;
+          const resolvedAway = resolveAvailableLineup(away, room.discipline).team;
           const result = simulateMatch(
-            resolveAvailableLineup(home, room.discipline).team,
-            resolveAvailableLineup(away, room.discipline).team,
+            resolvedHome,
+            resolvedAway,
             false,
             false,
             true,
             false,
             room.competitionFormat.matchSettings,
           );
-          room.leagueResults.push(result);
+          const authoritativeResult = stampMatchStartingLineups(result, resolvedHome, resolvedAway);
+          room.leagueResults.push(authoritativeResult);
           simulatedAny = true;
-          return { ...f, played: true, result };
+          return { ...f, played: true, result: authoritativeResult };
         }
         return f;
       });
@@ -2129,7 +2144,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
             (f.homeTeamId === p.team!.id || f.awayTeamId === p.team!.id));
           if (fixture?.result) {
             // ⭐ +1 jogo pros 11 titulares deste jogador (progresso pra Carta Evoluída).
-            p.team = bumpStarterAppearances(applyDefeatGrowth(p.team, fixture.result));
+            p.team = bumpStarterAppearances(
+              applyDefeatGrowth(p.team, fixture.result),
+              startingIdsForResult(fixture.result, p.team.id, p.team),
+              buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
+            );
             const rewards = room.competitionFormat.rewards;
             const mp = computeMatchPointsWithConfig(fixture.result, p.team.id, rewards.points);
             // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
@@ -2249,10 +2268,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
+      const resolvedTeams = new Map<string, Team>();
       // 🟨🟥🩹 Resolve as escalações contra a disciplina antes de simular a perna (bots inclusos).
       const resolve = (id: string) => {
+        const cached = resolvedTeams.get(id);
+        if (cached) return cached;
         const t = allTeams.find(tm => tm.id === id);
-        return t ? resolveAvailableLineup(t, room.discipline).team : undefined;
+        if (!t) return undefined;
+        const resolved = resolveAvailableLineup(t, room.discipline).team;
+        resolvedTeams.set(id, resolved);
+        return resolved;
       };
 
       // Which leg is being played now (playActiveKnockoutLeg may bump currentLeg 1→2 afterwards).
@@ -2271,7 +2296,20 @@ export function registerSocketHandlers(io: RealtimeServer) {
       // 🟨🟥🩹 Aplica a disciplina da PERNA recém-jogada.
       {
         const active = getActiveKnockoutMatches(room.knockoutBracket) as any[];
-        const legResults = active.map((t: any) => legPlayed === 2 ? t.leg2 : t.leg1).filter(Boolean);
+        const legResults = active.map((tie: any) => {
+          const singleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
+          const result = singleLeg ? tie.result : legPlayed === 2 ? tie.leg2 : tie.leg1;
+          if (!result) return null;
+          const stamped = stampMatchStartingLineups(
+            result,
+            resolvedTeams.get(result.homeTeamId) ?? allTeams.find(team => team.id === result.homeTeamId) ?? { players: [] },
+            resolvedTeams.get(result.awayTeamId) ?? allTeams.find(team => team.id === result.awayTeamId) ?? { players: [] },
+          );
+          if (singleLeg) tie.result = stamped;
+          else if (legPlayed === 2) tie.leg2 = stamped;
+          else tie.leg1 = stamped;
+          return stamped;
+        }).filter((result): result is MatchResult => Boolean(result));
         const koTeamIds = Array.from(new Set(active.flatMap((t: any) => [t.homeTeamId, t.awayTeamId]))) as string[];
         const nameOf = (teamId: string, playerId: string) => allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
         room.discipline = applyMatchDiscipline(room.discipline, koTeamIds, legResults, nameOf).next;
@@ -2282,7 +2320,13 @@ export function registerSocketHandlers(io: RealtimeServer) {
         room.players.forEach(p => {
           if (!p.team || !playedIds.has(p.team.id)) return;
           const result = resultFor(p.team.id);
-          p.team = bumpStarterAppearances(result ? applyDefeatGrowth(p.team, result) : p.team);
+          if (!result) return;
+          const tie = active.find((candidate: any) => candidate.homeTeamId === p.team!.id || candidate.awayTeamId === p.team!.id);
+          p.team = bumpStarterAppearances(
+            applyDefeatGrowth(p.team, result),
+            startingIdsForResult(result, p.team.id, p.team),
+            tie ? buildKnockoutMatchKey(tie.id, legPlayed) : undefined,
+          );
         });
         room.botTeams = room.botTeams.map(team => {
           const result = resultFor(team.id);

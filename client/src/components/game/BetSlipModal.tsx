@@ -9,6 +9,7 @@ import {
   BET_BUILDER_MIN_SELECTIONS,
   BET_EXACT_MULT,
   BET_MAX_GOALS,
+  BET_TOTAL_CARDS_LINES,
   BET_TOTAL_GOALS_LINES,
   calculateBuilderMultiplier,
   normalizeBuilderSelections,
@@ -41,6 +42,7 @@ function sameSelection(a: BetBuilderSelection, b: BetBuilderSelection): boolean 
   if (a.type === 'exact_score' && b.type === 'exact_score') return a.homeGoals === b.homeGoals && a.awayGoals === b.awayGoals;
   if (a.type === 'outcome' && b.type === 'outcome') return a.value === b.value;
   if (a.type === 'total_goals' && b.type === 'total_goals') return a.operator === b.operator && a.line === b.line;
+  if (a.type === 'total_cards' && b.type === 'total_cards') return a.operator === b.operator && a.line === b.line;
   return a.type === 'both_score' && b.type === 'both_score' && a.value === b.value;
 }
 
@@ -52,6 +54,7 @@ function selectionLabel(selection: BetBuilderSelection, homeName: string, awayNa
   if (selection.type === 'exact_score') return `Placar ${selection.homeGoals}-${selection.awayGoals}`;
   if (selection.type === 'outcome') return selection.value === 'home' ? 'Casa vence' : selection.value === 'away' ? 'Fora vence' : 'Empate';
   if (selection.type === 'total_goals') return `${selection.operator === 'over' ? 'Mais de' : 'Menos de'} ${formatGoalLine(selection.line)} gols`;
+  if (selection.type === 'total_cards') return `${selection.operator === 'over' ? 'Mais de' : 'Menos de'} ${formatGoalLine(selection.line)} cartões`;
   return selection.value ? 'Ambas marcam: sim' : 'Ambas marcam: não';
 }
 
@@ -70,12 +73,13 @@ function Choice({ label, active, onClick, disabled = false }: { label: string; a
   );
 }
 
-export default function BetSlipModal({ homeName, awayName, existing, remainingCap, points, onConfirm, onCancelBet, onClose }: {
+export default function BetSlipModal({ homeName, awayName, existing, remainingCap, points, cardsEnabled, onConfirm, onCancelBet, onClose }: {
   homeName: string;
   awayName: string;
   existing?: Bet;
   remainingCap: number;
   points: number;
+  cardsEnabled: boolean;
   onConfirm: (submission: BetSlipSubmission) => void;
   onCancelBet?: () => void;
   onClose: () => void;
@@ -94,6 +98,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
   const exactSelection = selections.find((selection): selection is Extract<BetBuilderSelection, { type: 'exact_score' }> => selection.type === 'exact_score');
   const exactOnly = selections.length === 1 && !!exactSelection;
   const totalGoalsSelection = selections.find((selection): selection is Extract<BetBuilderSelection, { type: 'total_goals' }> => selection.type === 'total_goals');
+  const totalCardsSelection = selections.find((selection): selection is Extract<BetBuilderSelection, { type: 'total_cards' }> => selection.type === 'total_cards');
   const builderMultiplier = calculateBuilderMultiplier(selections);
   const stakeOk = stake > 0 && stake <= maxStake && selections.length >= BET_BUILDER_MIN_SELECTIONS && builderMultiplier != null;
   const canAddMarket = (type: BetBuilderSelection['type']) => selections.some(selection => selection.type === type) || selections.length < BET_BUILDER_MAX_SELECTIONS;
@@ -135,6 +140,17 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
     const line = Number(rawLine);
     if ((operator !== 'over' && operator !== 'under') || !BET_TOTAL_GOALS_LINES.includes(line as typeof BET_TOTAL_GOALS_LINES[number])) return;
     choose({ type: 'total_goals', operator, line: line as typeof BET_TOTAL_GOALS_LINES[number] });
+  };
+
+  const updateTotalCards = (value: string) => {
+    if (!value) {
+      setSelections(previous => previous.filter(selection => selection.type !== 'total_cards'));
+      return;
+    }
+    const [operator, rawLine] = value.split(':');
+    const line = Number(rawLine);
+    if ((operator !== 'over' && operator !== 'under') || !BET_TOTAL_CARDS_LINES.includes(line as typeof BET_TOTAL_CARDS_LINES[number])) return;
+    choose({ type: 'total_cards', operator, line: line as typeof BET_TOTAL_CARDS_LINES[number] });
   };
 
   return (
@@ -215,6 +231,25 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                 </select>
               </div>
 
+              {cardsEnabled && (
+                <div>
+                  <div className="mb-1.5 text-[10px] font-black tracking-widest text-[var(--ui-text-faint)]">TOTAL DE CARTÕES</div>
+                  <select value={totalCardsSelection ? `${totalCardsSelection.operator}:${totalCardsSelection.line}` : ''}
+                    onChange={event => updateTotalCards(event.target.value)} disabled={!canAddMarket('total_cards')}
+                    className="ui-input w-full cursor-pointer text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <option value="">Não selecionar</option>
+                    <optgroup label="Mais de">
+                      {BET_TOTAL_CARDS_LINES.map(line => <option key={`over-cards-${line}`} value={`over:${line}`}>Mais de {formatGoalLine(line)} cartões</option>)}
+                    </optgroup>
+                    <optgroup label="Menos de">
+                      {BET_TOTAL_CARDS_LINES.map(line => <option key={`under-cards-${line}`} value={`under:${line}`}>Menos de {formatGoalLine(line)} cartões</option>)}
+                    </optgroup>
+                  </select>
+                  <div className="mt-1 text-[10px] text-[var(--ui-text-faint)]">Amarelos e vermelhos da partida.</div>
+                </div>
+              )}
+
               <div>
                 <div className="mb-1.5 text-[10px] font-black tracking-widest text-[var(--ui-text-faint)]">AMBAS MARCAM</div>
                 <div className="grid grid-cols-2 gap-2">
@@ -234,6 +269,11 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                 ? selections.map(selection => selectionLabel(selection, homeName, awayName)).join('  +  ')
                 : 'Marque pelo menos uma condição acima.'}
             </div>
+            {selections.length > 0 && builderMultiplier == null && (
+              <div className="mt-2 text-[11px] font-bold text-[var(--ui-danger)]">
+                Essas condições não podem acontecer juntas. Ajuste o bilhete para continuar.
+              </div>
+            )}
             {builderMultiplier != null && (
               <div className="mt-2 flex justify-center">
                 <span className="inline-flex items-center rounded-full border border-[var(--ui-success)]/35 bg-[var(--ui-success)]/10 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-[var(--ui-success)]">
@@ -253,6 +293,8 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
             <div className="mt-1 text-xs text-[var(--ui-text-muted)]">
               {selections.length === 0
                 ? 'Marque uma ou mais condições para ver o retorno.'
+                : builderMultiplier == null
+                  ? 'Remova uma das condições incompatíveis para calcular o retorno.'
                 : exactOnly
                   ? <>Retorno: {Math.round(stake * BET_EXACT_MULT)} se o placar for exato</>
                   : builderMultiplier != null

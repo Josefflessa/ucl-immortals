@@ -1,7 +1,7 @@
 import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
-import { isEvolved, PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost } from '../../lib/gameEngine';
+import { getEvolutionLevel, PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost } from '../../lib/gameEngine';
 import { crestIdForClub } from '../../lib/crests';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 import Crest from './Crest';
@@ -802,9 +802,20 @@ function getCardTheme(rarity: string): {
 const RARITY_FILE: Record<string, string> = {
   immortal: 'bg-imortal', legendary: 'bg-lendario', gold: 'bg-ouro', silver: 'bg-prata', bronze: 'bg-bronze',
 };
-export function cardTexture(rarity: string, evolved = false): string {
+const RARITY_SLUG: Record<string, string> = {
+  immortal: 'imortal', legendary: 'lendario', gold: 'ouro', silver: 'prata', bronze: 'bronze',
+};
+export function cardTexture(rarity: string, evolutionLevel: number | boolean = 0): string {
   const base = RARITY_FILE[rarity] ?? RARITY_FILE.bronze;
-  return evolved ? `/cards/${base}-emforma.webp` : `/cards/${base}.webp`;
+  // Keep boolean support for older call sites while using one consistent
+  // nivel1/nivel2/nivel3 naming scheme for every evolved texture.
+  const level = typeof evolutionLevel === 'boolean'
+    ? (evolutionLevel ? 1 : 0)
+    : Math.max(0, Math.min(3, Math.floor(evolutionLevel)));
+  if (level === 0) return `/cards/${base}.webp`;
+  const slug = RARITY_SLUG[rarity] ?? RARITY_SLUG.bronze;
+  if (level === 1) return `/cards/${slug}_nivel1.webp`;
+  return `/cards/${slug}_nivel${level}.webp`;
 }
 
 // Por raridade: cor do anel metálico, glow, e o FILTRO que tinge a moldura dourada do frame
@@ -844,8 +855,10 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   ronaldinho_unico: { texture: '/cards/ronaldinho_unico.webp', render: '/players/unico/ronaldinho.webp', font: '#F7D76B', ring: '#2D72E8', photoX: 6, photoY: 15, photoW: 114 },
   casemiro_unico: { texture: '/cards/casemiro_unico.webp', render: '/players/unico/casemiro.webp', font: '#F4D36B', ring: '#2D72E8', photoX: -2, photoY: 12, photoW: 105 },
   adriano_unico: { texture: '/cards/adriano_unico.webp', render: '/players/unico/adriano.webp', font: '#F4D36B', ring: '#2D72E8', photoX: -1, photoY: 12, photoW: 103 },
+  ronaldo_unico: { texture: '/cards/ronaldo_unico.webp', render: '/players/unico/ronaldo.webp', font: '#FFF0A8', ring: '#D6B45B', photoX: 21, photoY: 14, photoW: 82 },
   gattuso_unico: { texture: '/cards/gattuso_unico.webp', render: '/players/unico/gattuso.webp', font: '#EEF2FF', ring: '#B7C6FF', photoX: 22, photoY: 12, photoW: 75 },
   nesta_unico: { texture: '/cards/nesta_unico.webp', render: '/players/unico/nesta.webp', font: '#FFF1D6', ring: '#5EDBD0', photoX: 9, photoY: -5, photoW: 116 },
+  delpiero_unico: { texture: '/cards/delpiero_unico.webp', render: '/players/unico/delpiero.webp', font: '#F5D27A', ring: '#C9A24C', photoX: 6, photoY: 8, photoW: 102 },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
@@ -961,7 +974,8 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
-  const evolved = isEvolved(player);
+  const evolutionLevel = getEvolutionLevel(player);
+  const evolved = evolutionLevel > 0;
   const variant = getCardVariant(player);
   const variants = getCardVariants(player);           // todas (Únicas podem ter 2)
   // ⭐ DUAS características (só Únicas): a moldura fica na cor da 1ª e uma linha no centro na cor da 2ª.
@@ -1012,7 +1026,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           ...frameMask('93% 94%'), zIndex: 1, background:
             `linear-gradient(180deg,rgba(0,0,0,.34),transparent 28%),` +
             `linear-gradient(0deg,rgba(0,0,0,.58),transparent 40%),` +
-            `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolved)}) center/cover no-repeat,` +
+            `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolutionLevel)}) center/cover no-repeat,` +
             `${theme.bg}`
         }} />
 
@@ -1106,7 +1120,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           `linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),` +
           `linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 46%),` +
           `radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%),` +
-          `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolved)}) center/cover no-repeat,` +
+          `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolutionLevel)}) center/cover no-repeat,` +
           `${theme.bg}`
       }} />
 

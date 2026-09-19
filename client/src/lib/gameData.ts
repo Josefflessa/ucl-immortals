@@ -8,6 +8,9 @@ import { MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE } from './majorLeagueCatalogExpansi
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
+// Visual/progression level for standard cards. Unique cards intentionally do
+// not participate in the evolution track.
+export type EvolutionLevel = 0 | 1 | 2 | 3;
 
 export interface Player {
   id: string;
@@ -69,8 +72,16 @@ export interface Player {
     pace?: number; shooting?: number; passing?: number; dribbling?: number;
     defending?: number; physical?: number; vision?: number; composure?: number;
   };
-  // ⭐ Carta Evoluída (jogou EVOLVE_GAMES como titular): progresso + bônus no atributo escolhido.
+  // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3;
+  // cada nível libera mais 6 pontos para distribuir nos atributos.
   appearances?: number;
+  // Explicit evolution level for the expanded visual track. Existing cards
+  // without this field the level is derived from the cumulative appearances.
+  evolutionLevel?: EvolutionLevel;
+  // Identificadores das partidas/pernas que já concederam uma titularidade.
+  // Mantido na carta para que uma repetição do mesmo evento nunca conte duas vezes,
+  // inclusive depois de reconexão ou reenvio da ação no online.
+  appearanceMatchIds?: string[];
   evolvePoints?: {
     pace?: number; shooting?: number; passing?: number; dribbling?: number;
     defending?: number; physical?: number; vision?: number; composure?: number;
@@ -219,10 +230,14 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 82, shooting: 78, passing: 88, dribbling: 76, defending: 99, physical: 99, vision: 86, composure: 98, traits: ['Muralha', 'Força Bruta'], historicalPartners: ['modric', 'kroos', 'ramos'] },
   { id: 'adriano_unico', historicalPlayerId: 'adriano_inter', shortName: 'Adriano', fullName: 'Adriano Leite Ribeiro', position: 'ST', secondaryPositions: ['LW'], nation: 'Brasil', club: 'Inter Milan', season: 'Única', rarity: 'unique', overall: 99,
     pace: 93, shooting: 99, passing: 83, dribbling: 91, defending: 38, physical: 98, vision: 82, composure: 94, traits: ['Finalizador', 'Força Bruta'] },
+  { id: 'ronaldo_unico', basePlayerId: 'ronaldo_nazario', historicalPlayerId: 'ronaldo_inter', shortName: 'Ronaldo', fullName: 'Ronaldo Luís Nazário de Lima', position: 'ST', secondaryPositions: ['RW'], nation: 'Brasil', club: 'Inter Milan', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 99, shooting: 99, passing: 91, dribbling: 99, defending: 35, physical: 94, vision: 91, composure: 97, traits: ['Finalizador', 'Dribblador Nato', 'Velocista', 'Força Bruta'], historicalPartners: ['zanetti'] },
   { id: 'gattuso_unico', shortName: 'Gattuso', fullName: 'Gennaro Ivan Gattuso', position: 'CDM', secondaryPositions: ['CB'], nation: 'Itália', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
     pace: 84, shooting: 62, passing: 84, dribbling: 72, defending: 99, physical: 99, vision: 78, composure: 96, traits: ['Marcação Pesada', 'Motorzinho'], historicalPartners: ['pirlo', 'maldini', 'nesta', 'kaka_milan'] },
   { id: 'nesta_unico', basePlayerId: 'nesta', historicalPlayerId: 'nesta', shortName: 'Nesta', fullName: 'Alessandro Nesta', position: 'CB', secondaryPositions: ['CDM'], nation: 'Itália', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
     pace: 84, shooting: 44, passing: 82, dribbling: 68, defending: 99, physical: 94, vision: 82, composure: 98, traits: ['Interceptador', 'Posicionamento'], historicalCoaches: ['ancelotti'], historicalPartners: ['maldini', 'pirlo', 'gattuso_unico'] },
+  { id: 'delpiero_unico', basePlayerId: 'delpiero', historicalPlayerId: 'delpiero', shortName: 'Del Piero', fullName: 'Alessandro Del Piero', position: 'ST', secondaryPositions: ['CAM'], nation: 'Itália', club: 'Juventus', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 91, shooting: 98, passing: 93, dribbling: 97, defending: 40, physical: 78, vision: 97, composure: 99, traits: ['Finalizador', 'Cobrador de Falta'], historicalPartners: ['buffon'] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {

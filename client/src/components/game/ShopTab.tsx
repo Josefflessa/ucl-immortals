@@ -14,6 +14,7 @@ import { Button, Panel, PanelBody } from '../../design-system';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'train' | 'reroll' | 'unique';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
+const UNIQUE_POSITION_FILTERS = SCOUT_POSITIONS.filter(position => UNIQUE_CARDS.some(card => card.position === position));
 
 // A grade do pacote Único é a parte mais pesada da loja: cada card tem textura,
 // render próprio e moldura. O aquecimento é idempotente e acontece fora do primeiro
@@ -47,6 +48,7 @@ export default function ShopTab() {
   const pendingUniquePack = state.pendingUniquePack; // ⭐ carta sorteada e reservada até a revelação
   const [active, setActive] = useState<ItemId | null>(null);
   const [selPlayerId, setSelPlayerId] = useState<string | null>(null);
+  const [uniquePositionFilter, setUniquePositionFilter] = useState('');
   // 🛒 Confirmação de compra (premium) — reutilizada por todas as compras significativas da loja.
   const [confirmCfg, setConfirmCfg] = useState<null | { title: string; message: string; onConfirm: () => void }>(null);
   const askConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmCfg({ title, message, onConfirm });
@@ -73,6 +75,9 @@ export default function ShopTab() {
   const buyReroll = () => online ? shopBuyRerollOnline() : dispatch({ type: 'SHOP_BUY_REROLL' });
   const ownedIds = team.players.map(p => p.id);
   const selPlayer = team.players.find(p => p.id === selPlayerId) ?? null;
+  const visibleUniqueCards = uniquePositionFilter
+    ? UNIQUE_CARDS.filter(card => card.position === uniquePositionFilter)
+    : [];
 
   const close = () => { setActive(null); setSelPlayerId(null); };
 
@@ -218,21 +223,46 @@ export default function ShopTab() {
                           <span className="text-sm leading-none">✨</span>
                           <span>As Únicas têm <b style={{ color: '#F0E6C0' }}>overall 99</b>, visual exclusivo e podem carregar <b style={{ color: '#F0E6C0' }}>duas características</b> ao mesmo tempo. Você já tem <b style={{ color: '#FFF' }}>{ownedUniqueCount}</b> de {UNIQUE_CARDS.length}.</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-5 justify-items-center">
-                          {UNIQUE_CARDS.map(card => {
-                            const owned = ownedIds.includes(card.id);
-                            return (
-                              <div key={card.id} className="unique-card-catalog-tile relative flex flex-col items-center gap-2">
-                                <div className={owned ? 'opacity-100' : 'opacity-60 grayscale-[0.35]'}>
-                                  <PlayerCard player={card} lite scale={0.82} />
-                                </div>
-                                <span className="text-[10px] font-black px-3 py-1 rounded-full tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#8A8A9A', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
-                                  {owned ? 'JÁ TEM' : 'A DESCOBRIR'}
-                                </span>
-                              </div>
-                            );
-                          })}
+                        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg px-3 py-2" style={{ background: '#07070f', border: '1px solid #1A1A2A' }}>
+                          <label htmlFor="unique-position-filter" className="text-[10px] font-black tracking-widest" style={{ color: '#CFCFE0', fontFamily: 'Rajdhani, sans-serif' }}>
+                            FILTRAR POR POSIÇÃO
+                          </label>
+                          <select
+                            id="unique-position-filter"
+                            value={uniquePositionFilter}
+                            onChange={event => setUniquePositionFilter(event.target.value)}
+                            className="ui-input min-w-0 cursor-pointer text-xs font-bold sm:w-56"
+                            style={{ fontFamily: 'Rajdhani, sans-serif' }}
+                          >
+                            <option value="">Selecione uma posição</option>
+                            {UNIQUE_POSITION_FILTERS.map(position => (
+                              <option key={position} value={position}>
+                                {POS_PT[position] ?? position} ({UNIQUE_CARDS.filter(card => card.position === position).length})
+                              </option>
+                            ))}
+                          </select>
                         </div>
+                        {uniquePositionFilter ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-5 justify-items-center">
+                            {visibleUniqueCards.map(card => {
+                              const owned = ownedIds.includes(card.id);
+                              return (
+                                <div key={card.id} className="unique-card-catalog-tile relative flex flex-col items-center gap-2">
+                                  <div className={owned ? 'opacity-100' : 'opacity-60 grayscale-[0.35]'}>
+                                    <PlayerCard player={card} lite scale={0.82} />
+                                  </div>
+                                  <span className="text-[10px] font-black px-3 py-1 rounded-full tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#8A8A9A', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
+                                    {owned ? 'JÁ TEM' : 'A DESCOBRIR'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl px-4 py-8 text-center text-xs font-bold" style={{ background: '#07070f', border: '1px dashed #2A2A3A', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            Escolha uma posição para visualizar as Cartas Únicas.
+                          </div>
+                        )}
                         <div className="mt-5 rounded-xl p-3 text-center" style={{ background: '#07070f', border: '1px solid #F0E6C033' }}>
                           <p className="mb-3 text-xs" style={{ color: canBuyPack ? '#CFCFE0' : '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
                             {availableUniqueCount === 0

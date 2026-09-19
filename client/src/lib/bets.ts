@@ -22,6 +22,11 @@ export const BET_BUILDER_CORRELATION_DISCOUNT = {
   3: 0.58,
   4: 0.48,
 } as const;
+// O desconto de correlação é deliberadamente conservador, mas uma condição
+// válida e não redundante nunca pode virar "grátis" por causa dele. Esse
+// acréscimo mínimo é uma regra de balanceamento do jogo, não uma odd de casa
+// real: mantém a leitura intuitiva de que um mercado adicional aumenta o prêmio.
+export const BET_BUILDER_MIN_ADDITIONAL_MULTIPLIER = 0.2;
 export const BET_BUILDER_MAX_MULTIPLIER = 2.75;
 export const BET_TOTAL_GOALS_LINES = [0.5, 1.5, 2.5, 3.5, 4.5] as const;
 export type BetTotalGoalsLine = typeof BET_TOTAL_GOALS_LINES[number];
@@ -30,12 +35,24 @@ const BET_TOTAL_GOALS_MULTIPLIERS: Record<'over' | 'under', Record<BetTotalGoals
   under: { 0.5: 2.65, 1.5: 2.1, 2.5: 1.8, 3.5: 1.45, 4.5: 1.2 },
 };
 
+// Cartões são mais frequentes que gols e têm distribuição própria no motor
+// (amarelos e vermelhos entram como eventos separados). Por isso o mercado
+// reutiliza as linhas intuitivas de 0,5 a 4,5, mas não reaproveita as odds de
+// gols. O teto da combinada continua sendo aplicado depois.
+export const BET_TOTAL_CARDS_LINES = [0.5, 1.5, 2.5, 3.5, 4.5] as const;
+export type BetTotalCardsLine = typeof BET_TOTAL_CARDS_LINES[number];
+const BET_TOTAL_CARDS_MULTIPLIERS: Record<'over' | 'under', Record<BetTotalCardsLine, number>> = {
+  over: { 0.5: 1.15, 1.5: 1.65, 2.5: 2.15, 3.5: 2.55, 4.5: 2.75 },
+  under: { 0.5: 2.75, 1.5: 1.85, 2.5: 1.5, 3.5: 1.3, 4.5: 1.15 },
+};
+
 export type BetMarket = 'score' | 'builder';
 
 export type BetBuilderSelection =
   | { type: 'exact_score'; homeGoals: number; awayGoals: number }
   | { type: 'outcome'; value: 'home' | 'draw' | 'away' }
   | { type: 'total_goals'; operator: 'over' | 'under'; line: BetTotalGoalsLine }
+  | { type: 'total_cards'; operator: 'over' | 'under'; line: BetTotalCardsLine }
   | { type: 'both_score'; value: boolean };
 
 export type BetDraft = {
@@ -109,6 +126,12 @@ export function normalizeBuilderSelections(value: unknown): BetBuilderSelection[
       parsed.push({ type: 'total_goals', operator: raw.operator, line: raw.line as BetTotalGoalsLine });
       continue;
     }
+    if (raw.type === 'total_cards'
+      && (raw.operator === 'over' || raw.operator === 'under')
+      && BET_TOTAL_CARDS_LINES.includes(raw.line as BetTotalCardsLine)) {
+      parsed.push({ type: 'total_cards', operator: raw.operator, line: raw.line as BetTotalCardsLine });
+      continue;
+    }
     if (raw.type === 'both_score' && typeof raw.value === 'boolean') {
       parsed.push({ type: 'both_score', value: raw.value });
       continue;
@@ -125,26 +148,102 @@ export function builderSelectionMultiplier(selection: BetBuilderSelection): numb
   if (selection.type === 'exact_score') return BET_EXACT_MULT;
   if (selection.type === 'outcome') return BET_OUTCOME_MULT;
   if (selection.type === 'total_goals') return BET_TOTAL_GOALS_MULTIPLIERS[selection.operator][selection.line];
+  if (selection.type === 'total_cards') return BET_TOTAL_CARDS_MULTIPLIERS[selection.operator][selection.line];
   if (selection.type === 'both_score') return selection.value ? 1.7 : 1.6;
   return 0;
+}
+
+function selectionMatchesScore(selection: BetBuilderSelection, homeGoals: number, awayGoals: number): boolean {
+  if (selection.type === 'exact_score') return homeGoals === selection.homeGoals && awayGoals === selection.awayGoals;
+  if (selection.type === 'outcome') {
+    const sign = Math.sign(homeGoals - awayGoals);
+    return selection.value === (sign > 0 ? 'home' : sign < 0 ? 'away' : 'draw');
+  }
+  if (selection.type === 'total_goals') {
+    const total = homeGoals + awayGoals;
+    return selection.operator === 'over' ? total > selection.line : total < selection.line;
+  }
+  // Card totals are an independent result dimension. Returning true here keeps
+  // score-domain feasibility/implication checks from treating them as a
+  // contradictory score condition; settlement evaluates the real events.
+  if (selection.type === 'total_cards') return true;
+  return (homeGoals > 0 && awayGoals > 0) === selection.value;
+}
+
+function selectionDimension(selection: BetBuilderSelection): 'score' | 'cards' {
+  return selection.type === 'total_cards' ? 'cards' : 'score';
+}
+
+/**
+ * Uses the same bounded score domain accepted by the game to identify logical
+ * relationships between markets. This prevents impossible tickets and avoids
+ * paying extra for conditions already guaranteed by a more specific one.
+ */
+function selectionSetIsPossible(selections: BetBuilderSelection[]): boolean {
+  for (let homeGoals = 0; homeGoals <= BET_MAX_GOALS; homeGoals += 1) {
+    for (let awayGoals = 0; awayGoals <= BET_MAX_GOALS; awayGoals += 1) {
+      if (selections.every(selection => selectionMatchesScore(selection, homeGoals, awayGoals))) return true;
+    }
+  }
+  return false;
+}
+
+function selectionImplies(source: BetBuilderSelection, target: BetBuilderSelection): boolean {
+  if (selectionDimension(source) !== selectionDimension(target)) return false;
+  let sourceHasExample = false;
+  for (let homeGoals = 0; homeGoals <= BET_MAX_GOALS; homeGoals += 1) {
+    for (let awayGoals = 0; awayGoals <= BET_MAX_GOALS; awayGoals += 1) {
+      if (!selectionMatchesScore(source, homeGoals, awayGoals)) continue;
+      sourceHasExample = true;
+      if (!selectionMatchesScore(target, homeGoals, awayGoals)) return false;
+    }
+  }
+  return sourceHasExample;
+}
+
+/** Returns the number of yellow/red card events, or null for an unavailable result. */
+export function countMatchCards(events: unknown): number | null {
+  if (!Array.isArray(events)) return null;
+  return events.reduce((total, event) => (
+    isRecord(event) && (event.type === 'yellow' || event.type === 'red') ? total + 1 : total
+  ), 0);
+}
+
+/** Used by both solo and the authoritative server to gate the card market. */
+export function builderUsesTotalCards(selections: unknown): boolean {
+  return normalizeBuilderSelections(selections)?.some(selection => selection.type === 'total_cards') ?? false;
+}
+
+function selectionsUsedForPricing(selections: BetBuilderSelection[]): BetBuilderSelection[] {
+  // If A implies B, B adds no uncertainty or value to the ticket. Keep it in
+  // the stored conditions for strict settlement, but do not charge/pay it a
+  // second time in the multiplier.
+  return selections.filter((selection, index) => !selections.some((other, otherIndex) => (
+    index !== otherIndex && selectionImplies(other, selection)
+  )));
 }
 
 /** Returns the locked, conservative multiplier for a valid combined ticket. */
 export function calculateBuilderMultiplier(selections: unknown): number | null {
   const normalized = normalizeBuilderSelections(selections);
   if (!normalized) return null;
-  const individualMultipliers = normalized.map(builderSelectionMultiplier);
+  if (!selectionSetIsPossible(normalized)) return null;
+
+  const pricedSelections = selectionsUsedForPricing(normalized);
+  const individualMultipliers = pricedSelections.map(builderSelectionMultiplier);
   const product = individualMultipliers.reduce((total, multiplier) => total * multiplier, 1);
-  const discount = BET_BUILDER_CORRELATION_DISCOUNT[normalized.length as 1 | 2 | 3 | 4];
+  const discount = BET_BUILDER_CORRELATION_DISCOUNT[pricedSelections.length as 1 | 2 | 3 | 4];
   const discountedProduct = product * discount;
   // A correlação pode reduzir o produto, mas nunca pode transformar uma
   // condição adicional em uma pior cotação do que a melhor condição isolada.
   // Ex.: "Casa vence" (1,50) + "Mais de 0,5 gols" (1,15) continua em 1,50,
   // pois uma vitória da casa já implica pelo menos um gol na partida.
   const strongestIndividual = Math.max(...individualMultipliers);
+  const minimumMeaningfulCombination = strongestIndividual
+    + BET_BUILDER_MIN_ADDITIONAL_MULTIPLIER * Math.max(0, pricedSelections.length - 1);
   return Math.min(
     BET_BUILDER_MAX_MULTIPLIER,
-    Math.round(Math.max(strongestIndividual, discountedProduct) * 100) / 100,
+    Math.round(Math.max(strongestIndividual, discountedProduct, minimumMeaningfulCombination) * 100) / 100,
   );
 }
 
@@ -195,6 +294,7 @@ export function describeBet(bet: Pick<Bet, 'market' | 'selections' | 'homeGoals'
       if (selection.type === 'exact_score') return `Placar ${selection.homeGoals}-${selection.awayGoals}`;
       if (selection.type === 'outcome') return selection.value === 'home' ? 'Casa' : selection.value === 'away' ? 'Fora' : 'Empate';
       if (selection.type === 'total_goals') return `${selection.operator === 'over' ? '+' : '-'}${selection.line.toString().replace('.', ',')} gols`;
+      if (selection.type === 'total_cards') return `${selection.operator === 'over' ? '+' : '-'}${selection.line.toString().replace('.', ',')} cartões`;
       return selection.value ? 'Ambas' : 'Não ambas';
     }).join(' + ');
     return 'Combinada';
@@ -206,17 +306,13 @@ function builderSelectionHit(
   selection: BetBuilderSelection,
   homeGoals: number,
   awayGoals: number,
+  totalCards: number | null,
 ): boolean {
-  if (selection.type === 'exact_score') return homeGoals === selection.homeGoals && awayGoals === selection.awayGoals;
-  if (selection.type === 'outcome') {
-    const sign = Math.sign(homeGoals - awayGoals);
-    return selection.value === (sign > 0 ? 'home' : sign < 0 ? 'away' : 'draw');
+  if (selection.type === 'total_cards') {
+    if (totalCards == null) return false;
+    return selection.operator === 'over' ? totalCards > selection.line : totalCards < selection.line;
   }
-  if (selection.type === 'total_goals') {
-    const total = homeGoals + awayGoals;
-    return selection.operator === 'over' ? total > selection.line : total < selection.line;
-  }
-  return (homeGoals > 0 && awayGoals > 0) === selection.value;
+  return selectionMatchesScore(selection, homeGoals, awayGoals);
 }
 
 // Compara o palpite com o placar real (orientado ao mando daquela partida).
@@ -227,6 +323,7 @@ export function settleBet(
     awayGoals: number;
     homeTeamId?: string;
     awayTeamId?: string;
+    events?: unknown;
   }
 ): { won: boolean; tier: 'exact' | 'outcome' | 'builder' | 'miss'; payout: number } {
   // A two-legged tie changes its home/away order on the return leg. New bets
@@ -246,10 +343,12 @@ export function settleBet(
     if (!selections || multiplier == null) return { won: false, tier: 'miss', payout: 0 };
     const effectiveHomeGoals = reversed ? result.awayGoals : result.homeGoals;
     const effectiveAwayGoals = reversed ? result.homeGoals : result.awayGoals;
+    const totalCards = countMatchCards(result.events);
     const won = selections.every(selection => builderSelectionHit(
       selection,
       effectiveHomeGoals,
       effectiveAwayGoals,
+      totalCards,
     ));
     const exactOnly = selections.length === 1 && selections[0].type === 'exact_score';
     return won

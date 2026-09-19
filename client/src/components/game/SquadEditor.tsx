@@ -7,9 +7,9 @@ import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from '
 import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
-  calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks,
+  calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, getEvolutionLevel,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
-  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_GAMES, EVOLVE_POINTS, positionFit, type EffectiveStats,
+  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, positionFit, type EffectiveStats,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, type AttrKey } from '../../lib/traits';
 import type { MatchPlan } from '../../lib/gameEngine';
@@ -54,7 +54,7 @@ export interface SquadEditorProps {
   points?: number;
   wins?: number;
   onEvolvePrime?: () => void;
-  // ⭐ Cartas Evoluídas: escolher 1 atributo para receber os 6 pontos (só no MEU TIME).
+  // ⭐ Cartas Evoluídas: cada nível libera 6 pontos para distribuir (só no MEU TIME).
   onSetEvolvePoint?: (playerId: string, attr: AttrKey, delta: number) => void;
   onResetEvolvePoints?: (playerId: string) => void;
 }
@@ -495,7 +495,7 @@ export default function SquadEditor({
               className="relative bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
             >
               {/* Fundo: textura da carta do jogador (a Única usa a sua própria), com véu leve p/ legibilidade */}
-              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity, isEvolved(selectedPlayer))})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity, getEvolutionLevel(selectedPlayer))})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
               <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, background: 'linear-gradient(180deg,rgba(9,9,16,.52),rgba(9,9,16,.6))' }} />
 
               <div className="relative z-10 flex items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
@@ -750,40 +750,56 @@ export default function SquadEditor({
                   );
                 })()}
 
-                {/* ⭐ Carta Evoluída — escolhe 1 atributo para receber os 6 pontos */}
-                {onSetEvolvePoint && (() => {
-                  const evolved = isEvolved(selectedPlayer);
+                {/* ⭐ Evolução cumulativa — cada nível libera mais um pacote de 6 pontos */}
+                {onSetEvolvePoint && selectedPlayer.rarity !== 'unique' && (() => {
+                  const evolutionLevel = getEvolutionLevel(selectedPlayer);
+                  const evolved = evolutionLevel > 0;
                   const ep = selectedPlayer.evolvePoints ?? {};
                   const spent = evolvePointsSpent(ep);
-                  const chosenAttr = EVOLVE_ATTRS.find(a => (ep[a.key] ?? 0) > 0);
+                  const unlockedPoints = evolutionLevel * EVOLVE_POINTS;
+                  const availablePoints = Math.max(0, unlockedPoints - spent);
                   const apps = selectedPlayer.appearances ?? 0;
+                  const nextThreshold = evolutionLevel < 3 ? EVOLVE_LEVEL_THRESHOLDS[evolutionLevel + 1] : null;
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${evolved ? '#22C55E55' : '#1A1A2A'}` }}>
                       <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
-                        <span className="text-[11px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ CARTA EVOLUÍDA</span>
-                        {evolved && <span className="text-[11px] font-black" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>+{EVOLVE_POINTS} em 1 atributo</span>}
+                        <span className="text-[11px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ EVOLUÇÃO · NÍVEL {evolutionLevel}/3</span>
+                        {evolved && <span className="text-[11px] font-black" style={{ color: availablePoints > 0 ? '#4ADE80' : '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>{availablePoints > 0 ? `+${availablePoints} DISPONÍVEIS` : `+${spent} APLICADOS`}</span>}
                       </div>
                       {evolved ? (
                         <div className="p-3.5">
+                          <div className="text-[10px] mb-2 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            Cada nível libera <b style={{ color: '#C9C9D5' }}>+{EVOLVE_POINTS}</b>. Você pode colocar todos os pontos no mesmo atributo.
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             {EVOLVE_ATTRS.map(a => (
                               <button
                                 key={a.key}
-                                disabled={spent > 0}
+                                disabled={availablePoints < EVOLVE_POINTS}
                                 onClick={() => onSetEvolvePoint(selectedPlayer.id, a.key, EVOLVE_POINTS)}
                                 className="flex items-center justify-center rounded-lg px-3 py-2.5 text-[11px] font-black transition-transform active:scale-[0.98]"
                                 style={{
-                                  background: chosenAttr?.key === a.key ? '#0a2114' : '#0A0A12',
-                                  color: chosenAttr?.key === a.key ? '#4ADE80' : '#6A6A7A',
-                                  border: `1px solid ${chosenAttr?.key === a.key ? '#22C55E88' : '#1A1A2A'}`,
-                                  cursor: spent > 0 ? 'default' : 'pointer',
+                                  background: (ep[a.key] ?? 0) > 0 ? '#0a2114' : '#0A0A12',
+                                  color: (ep[a.key] ?? 0) > 0 ? '#4ADE80' : availablePoints >= EVOLVE_POINTS ? '#C9C9D5' : '#6A6A7A',
+                                  border: `1px solid ${(ep[a.key] ?? 0) > 0 ? '#22C55E88' : '#1A1A2A'}`,
+                                  cursor: availablePoints >= EVOLVE_POINTS ? 'pointer' : 'default',
                                   fontFamily: 'Rajdhani, sans-serif',
                                 }}
                               >
-                                <span>{a.label}{chosenAttr?.key === a.key ? ` · +${EVOLVE_POINTS}` : ''}</span>
+                                <span>{a.label}{(ep[a.key] ?? 0) > 0 ? ` · +${ep[a.key]}` : ''}</span>
                               </button>
                             ))}
                           </div>
+                          {nextThreshold !== null && availablePoints === 0 && (
+                            <div className="text-[10px] mt-2.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                              Nível {evolutionLevel + 1} libera mais <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS}</b> em {nextThreshold} titularidades.
+                            </div>
+                          )}
+                          {evolutionLevel === 3 && availablePoints === 0 && (
+                            <div className="text-[10px] mt-2.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                              Evolução máxima alcançada: <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS * 3}</b> distribuídos.
+                            </div>
+                          )}
                           {onResetEvolvePoints && spent > 0 && (
                             <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2.5 py-2.5 rounded-lg text-[11px] font-black tracking-wide transition-transform active:scale-[0.98]" style={{ background: '#1A1A2A', color: '#9A9AAA', border: '1px solid #2A2A3A', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>
                           )}
@@ -791,14 +807,14 @@ export default function SquadEditor({
                       ) : (
                         <div className="p-3">
                           <div className="flex items-center justify-between text-[11px] font-bold mb-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                            <span style={{ color: '#8A8A9A' }}>Jogos para evoluir</span>
-                            <span style={{ color: '#C9C9D5' }}>{Math.min(apps, EVOLVE_GAMES)}/{EVOLVE_GAMES}</span>
+                            <span style={{ color: '#8A8A9A' }}>Titularidades para evoluir</span>
+                            <span style={{ color: '#C9C9D5' }}>{Math.min(apps, EVOLVE_LEVEL_THRESHOLDS[1])}/{EVOLVE_LEVEL_THRESHOLDS[1]}</span>
                           </div>
                           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1A1A2A' }}>
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, apps / EVOLVE_GAMES * 100)}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, apps / EVOLVE_LEVEL_THRESHOLDS[1] * 100)}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
                           </div>
                           <div className="text-[10px] mt-1.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                            Use esta carta como titular por {EVOLVE_GAMES} jogos pra evoluir. Ao evoluir, escolha um atributo para receber <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS}</b> de uma vez.
+                            Use esta carta como titular por {EVOLVE_LEVEL_THRESHOLDS[1]} jogos para liberar o nível 1 e receber <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS}</b> pontos.
                           </div>
                         </div>
                       )}

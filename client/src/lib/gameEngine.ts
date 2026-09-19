@@ -4,7 +4,7 @@
 import {
   Player, Coach, Formation,
   PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, HISTORICAL_TRIOS, getTacticById,
-  canonicalPosition, getPositionGroup, effectiveSecondaries, type Rarity,
+  canonicalPosition, getPositionGroup, effectiveSecondaries, type Rarity, type EvolutionLevel,
 } from './gameData';
 import {
   selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
@@ -334,6 +334,11 @@ export interface MatchResult {
   awayPenalties?: number;
   penaltyKicks?: PenaltyKick[]; // kick-by-kick sequence for client replay
   durationMinutes?: number; // 90 (league/first leg) or 120 (extra time)
+  /** The XI captured when this match/leg was started, before replay or later edits. */
+  startingLineups?: {
+    home: string[];
+    away: string[];
+  };
   mvp?: string;
   topDuel?: { attacker: string; defender: string; winner: string };
   stats: {
@@ -1241,7 +1246,7 @@ export function getEffectiveAttribute(
   // 💪 Shop "Treino": permanent, stacking per-attribute boost bought in the shop (no cap).
   base += (player.trainBoosts?.[attribute as keyof NonNullable<Player['trainBoosts']>] ?? 0);
 
-  // ⭐ Carta Evoluída: bônus do único atributo escolhido (mesma natureza do Treino).
+  // ⭐ Carta Evoluída: bônus dos atributos escolhidos (mesma natureza do Treino).
   base += (player.evolvePoints?.[attribute as keyof NonNullable<Player['evolvePoints']>] ?? 0);
 
   // 📈 Prodígio: +1 a cada 2 titularidades desde que a característica foi recebida.
@@ -1330,11 +1335,29 @@ export const PRIME_HOME_ATTR_BONUS = 6;   // uniforme em casa (vs +3 do padrão)
 export const PRIME_THEMED_BONUS = 3;      // nos 2 atributos do tema, todos os titulares do mandante
 export const PRIME_THEMED_CLUB_BONUS = 6; // nos 2 atributos, pros do clube/nação daquele estádio
 
-// ⭐ Cartas Evoluídas: 6 jogos como titular → escolhe 1 atributo e recebe +6 nele.
-export const EVOLVE_GAMES = 6;
+// ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3.
+// Cada nível libera um pacote independente de 6 pontos; os pacotes podem ser
+// colocados no mesmo atributo (até +18 no total).
+export const EVOLVE_LEVEL_THRESHOLDS = [0, 4, 8, 12] as const;
+export const EVOLVE_GAMES = EVOLVE_LEVEL_THRESHOLDS[1];
 export const EVOLVE_POINTS = 6;
-export function isEvolved(p: { appearances?: number }): boolean {
-  return (p.appearances ?? 0) >= EVOLVE_GAMES;
+export function getEvolutionLevel(p: { rarity?: Rarity | string; evolutionLevel?: number; appearances?: number }): EvolutionLevel {
+  // Unique cards have their own fixed presentation and never evolve.
+  if (p.rarity === 'unique') return 0;
+
+  const explicit = Number(p.evolutionLevel);
+  // Explicit levels are useful for isolated previews/old data without an
+  // appearance counter. Real cards always derive the level from appearances.
+  if (p.appearances === undefined && (explicit === 1 || explicit === 2 || explicit === 3)) return explicit;
+
+  const appearances = Math.max(0, p.appearances ?? 0);
+  if (appearances >= EVOLVE_LEVEL_THRESHOLDS[3]) return 3;
+  if (appearances >= EVOLVE_LEVEL_THRESHOLDS[2]) return 2;
+  if (appearances >= EVOLVE_LEVEL_THRESHOLDS[1]) return 1;
+  return 0;
+}
+export function isEvolved(p: { rarity?: Rarity | string; evolutionLevel?: number; appearances?: number }): boolean {
+  return getEvolutionLevel(p) > 0;
 }
 export function evolvePointsSpent(ep?: Partial<Record<AttrKey, number>>): number {
   return ep ? (Object.values(ep) as number[]).reduce((s, v) => s + (v ?? 0), 0) : 0;
@@ -1342,24 +1365,79 @@ export function evolvePointsSpent(ep?: Partial<Record<AttrKey, number>>): number
 export function chooseEvolveAttribute(attr: AttrKey): Partial<Record<AttrKey, number>> {
   return { [attr]: EVOLVE_POINTS };
 }
-export function applyEvolvePoint(ep: Partial<Record<AttrKey, number>>, attr: AttrKey, delta: number): Partial<Record<AttrKey, number>> {
-  // A evolução agora é uma escolha única: só aceita o pacote completo de 6
-  // pontos, e uma carta que já recebeu pontos não pode escolher outro atributo.
-  if (delta !== EVOLVE_POINTS || evolvePointsSpent(ep) > 0) return ep;
-  return chooseEvolveAttribute(attr);
+export function applyEvolvePoint(
+  ep: Partial<Record<AttrKey, number>>,
+  attr: AttrKey,
+  delta: number,
+  unlockedPoints = EVOLVE_POINTS,
+): Partial<Record<AttrKey, number>> {
+  // Each click spends exactly one newly unlocked package. The total budget is
+  // enforced here so both solo and online flows can safely call the same rule.
+  if (delta !== EVOLVE_POINTS || evolvePointsSpent(ep) + delta > unlockedPoints) return ep;
+  return { ...ep, [attr]: (ep[attr] ?? 0) + delta };
 }
-export function bumpStarterAppearances(team: Team): Team {
+const MAX_APPEARANCE_RECEIPTS = 64;
+
+/** Captures the XI at the moment a match is started, before any later state changes. */
+export function starterPlayerIds(team: Pick<Team, 'players'>): string[] {
+  return team.players.slice(0, 11).map(player => player.id);
+}
+
+/**
+ * Credits one starting appearance to the captured XI.
+ *
+ * `appearanceMatchId` is a durable idempotency key. Older saves can still call
+ * this helper without it and retain the legacy behavior, while all match flows
+ * pass a key so a duplicate finish/retry cannot evolve a card twice.
+ */
+export function bumpStarterAppearances(
+  team: Team,
+  capturedStarterIds: readonly string[] = starterPlayerIds(team),
+  appearanceMatchId?: string,
+): Team {
+  const starterIds = new Set(capturedStarterIds);
+  if (starterIds.size === 0) return team;
+
+  let changed = false;
+  const players = team.players.map(player => {
+    if (!starterIds.has(player.id)) return player;
+
+    const receipts = Array.isArray(player.appearanceMatchIds)
+      ? player.appearanceMatchIds.filter(id => typeof id === 'string' && id.length > 0)
+      : [];
+    if (appearanceMatchId && receipts.includes(appearanceMatchId)) return player;
+
+    changed = true;
+    const next: PlayerCard = {
+      ...player,
+      appearances: (player.appearances ?? 0) + 1,
+      ...(player.prodigio ? { prodigioStarts: (player.prodigioStarts ?? 0) + 1 } : {}),
+    };
+    if (appearanceMatchId) {
+      next.appearanceMatchIds = Array.from(new Set([...receipts, appearanceMatchId])).slice(-MAX_APPEARANCE_RECEIPTS);
+    }
+    return next;
+  });
+
+  return changed ? { ...team, players } : team;
+}
+
+/** Attaches the captured XI to an authoritative result without changing the score. */
+export function stampMatchStartingLineups(result: MatchResult, home: Pick<Team, 'players'>, away: Pick<Team, 'players'>): MatchResult {
   return {
-    ...team,
-    players: team.players.map((p, i) => {
-      if (i >= 11) return p;
-      return {
-        ...p,
-        appearances: (p.appearances ?? 0) + 1,
-        ...(p.prodigio ? { prodigioStarts: (p.prodigioStarts ?? 0) + 1 } : {}),
-      };
-    }),
+    ...result,
+    startingLineups: {
+      home: starterPlayerIds(home),
+      away: starterPlayerIds(away),
+    },
   };
+}
+
+/** Gets the captured starters for one side of a result, with a safe legacy fallback. */
+export function startingIdsForResult(result: MatchResult, teamId: string, fallback?: Pick<Team, 'players'>): string[] {
+  if (result.homeTeamId === teamId && result.startingLineups?.home) return result.startingLineups.home;
+  if (result.awayTeamId === teamId && result.startingLineups?.away) return result.startingLineups.away;
+  return fallback ? starterPlayerIds(fallback) : [];
 }
 
 // Formation counter edge: if your shape "counters" the opponent's (see FORMATIONS[].counters),

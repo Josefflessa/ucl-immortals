@@ -578,6 +578,7 @@ export default function KnockoutTiesTab() {
             <BetSlipModal
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
+              cardsEnabled={state.competitionFormat?.matchSettings?.cardsEnabled !== false}
               onConfirm={(submission: BetSlipSubmission) => {
                 if (online) shopPlaceBetOnline(betSlip.matchKey, submission.homeGoals, submission.awayGoals, submission.stake, betSlip.homeTeamId, betSlip.awayTeamId, submission.market, submission.selections);
                 else dispatch({

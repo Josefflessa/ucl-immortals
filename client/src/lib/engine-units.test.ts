@@ -14,7 +14,7 @@ import {
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
-  isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, EVOLVE_GAMES, EVOLVE_POINTS,
+  getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, EVOLVE_GAMES, EVOLVE_POINTS,
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
   draftSlotIndex, getNeededPositions, DRAFT_RARITY_CHANCES,
@@ -199,18 +199,31 @@ describe('curva de raridade do draft', () => {
 });
 
 describe('⭐ cartas evoluídas', () => {
-  it('isEvolved: 6 jogos evolui, 5 não', () => {
-    expect(EVOLVE_GAMES).toBe(6);
+  it('evolução começa com 4 titularidades', () => {
+    expect(EVOLVE_GAMES).toBe(4);
     expect(EVOLVE_POINTS).toBe(6);
-    expect(isEvolved({ appearances: 5 })).toBe(false);
+    expect(isEvolved({ appearances: 3 })).toBe(false);
+    expect(isEvolved({ appearances: 4 })).toBe(true);
     expect(isEvolved({ appearances: 6 })).toBe(true);
     expect(isEvolved({})).toBe(false);
   });
-  it('escolhe um único atributo e aplica os 6 pontos de uma vez', () => {
+  it('evolution level keeps old cards compatible and reserves levels 2/3', () => {
+    expect(getEvolutionLevel({ rarity: 'bronze' })).toBe(0);
+    expect(getEvolutionLevel({ rarity: 'bronze', appearances: 3 })).toBe(0);
+    expect(getEvolutionLevel({ rarity: 'bronze', appearances: 4 })).toBe(1);
+    expect(getEvolutionLevel({ rarity: 'bronze', appearances: 8 })).toBe(2);
+    expect(getEvolutionLevel({ rarity: 'bronze', appearances: 12 })).toBe(3);
+    expect(getEvolutionLevel({ rarity: 'gold', evolutionLevel: 2 })).toBe(2);
+    expect(getEvolutionLevel({ rarity: 'immortal', evolutionLevel: 3 })).toBe(3);
+    expect(getEvolutionLevel({ rarity: 'unique', evolutionLevel: 3, appearances: 99 })).toBe(0);
+  });
+  it('aplica cada pacote de 6 pontos de uma vez', () => {
     expect(chooseEvolveAttribute('shooting')).toEqual({ shooting: 6 });
     expect(applyEvolvePoint({}, 'shooting', EVOLVE_POINTS)).toEqual({ shooting: 6 });
     expect(applyEvolvePoint({}, 'pace', 1)).toEqual({});
     expect(applyEvolvePoint({ shooting: 6 }, 'pace', EVOLVE_POINTS)).toEqual({ shooting: 6 });
+    expect(applyEvolvePoint({ shooting: 6 }, 'pace', EVOLVE_POINTS, 12)).toEqual({ shooting: 6, pace: 6 });
+    expect(applyEvolvePoint({ shooting: 12 }, 'pace', EVOLVE_POINTS, 12)).toEqual({ shooting: 12 });
     expect(evolvePointsSpent({ shooting: 6 })).toBe(6);
   });
 
@@ -249,6 +262,35 @@ describe('⭐ cartas evoluídas', () => {
     const bumped = bumpStarterAppearances(team);
     expect(bumped.players.slice(0, 11).every(p => p.appearances === 1)).toBe(true);
     expect(bumped.players[11].appearances ?? 0).toBe(0);
+  });
+  it('bumpStarterAppearances usa a escalação capturada, não a ordem atual da equipe', () => {
+    const team = mkTeam('T', Array.from({ length: 13 }, () => mkP()));
+    const captured = team.players.slice(1, 12).map(player => player.id);
+    const bumped = bumpStarterAppearances(team, captured, 'L1:T-B');
+    expect(bumped.players[0].appearances ?? 0).toBe(0);
+    expect(bumped.players.slice(1, 12).every(player => player.appearances === 1)).toBe(true);
+    expect(bumped.players[11].appearanceMatchIds).toEqual(['L1:T-B']);
+  });
+  it('uma partida só concede uma titularidade mesmo se o evento for repetido', () => {
+    const team = mkTeam('T', Array.from({ length: 13 }, () => mkP()));
+    const starters = starterPlayerIds(team);
+    const once = bumpStarterAppearances(team, starters, 'Ktie:1');
+    const duplicate = bumpStarterAppearances(once, starters, 'Ktie:1');
+    const nextMatch = bumpStarterAppearances(duplicate, starters, 'Ktie:2');
+    expect(duplicate.players[0].appearances).toBe(1);
+    expect(duplicate.players[0].appearanceMatchIds).toEqual(['Ktie:1']);
+    expect(nextMatch.players[0].appearances).toBe(2);
+    expect(nextMatch.players[0].appearanceMatchIds).toEqual(['Ktie:1', 'Ktie:2']);
+  });
+  it('o resultado guarda a escalação da partida para o replay e a evolução', () => {
+    const home = mkTeam('H', Array.from({ length: 13 }, () => mkP()));
+    const away = mkTeam('A', Array.from({ length: 13 }, () => mkP()));
+    const result = stampMatchStartingLineups({
+      homeTeamId: 'H', awayTeamId: 'A', homeGoals: 1, awayGoals: 0,
+      events: [], winner: 'H', stats: {} as any,
+    }, home, away);
+    expect(result.startingLineups?.home).toEqual(starterPlayerIds(home));
+    expect(result.startingLineups?.away).toEqual(starterPlayerIds(away));
   });
   it('Prodígio: acumula titularidades e dá +1 a cada 2, sem evoluir reservas', () => {
     const prodigio = mkP({ prodigio: true, prodigioStarts: 0 });
