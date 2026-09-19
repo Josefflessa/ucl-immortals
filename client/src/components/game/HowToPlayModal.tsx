@@ -104,7 +104,7 @@ const ECONOMY_ITEMS = [
   { icon: '🔍', name: 'Caça-talentos', cost: SHOP_COSTS.scout, d: `Oferece até quatro jogadores ${SCOUT_MIN_OVERALL}+ cuja posição principal é a escolhida.` },
   { icon: '💪', name: 'Treino intensivo', cost: trainCost(0), d: `Aumenta um atributo em +${TRAIN_BOOST}; o custo sobe a cada treino no mesmo jogador.` },
   { icon: '🔄', name: 'Reroll de reforço', cost: SHOP_COSTS.reroll, d: 'Gera um token para sortear novas opções no reforço pós-partida; tokens acumulam.' },
-  { icon: '⭐', name: 'Pacote Único', cost: SHOP_COSTS.uniqueCard, d: 'Compra uma carta Única aleatória de overall 99; ela pode ter até duas características.' },
+  { icon: '⭐', name: 'Pacote Único', cost: SHOP_COSTS.uniqueCard, d: 'Mostra quatro Cartas Únicas por rodada; cada abertura sorteia uma delas. Overall 99 e até duas características.' },
   { icon: '🏥', name: 'Fisioterapia', cost: SHOP_COSTS.physio, d: 'Reduz em uma partida o período de lesão de um jogador.' },
 ];
 

@@ -9,7 +9,7 @@ import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, 
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, getEvolutionLevel,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
-  computeCharacteristicBoosts, isEvolved, evolvePointsSpent, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, positionFit, type EffectiveStats,
+  computeCharacteristicBoosts, evolvePointsSpent, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, positionFit, type EffectiveStats,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, type AttrKey } from '../../lib/traits';
 import type { MatchPlan } from '../../lib/gameEngine';
@@ -84,6 +84,7 @@ export default function SquadEditor({
   // escolhido no campo só é trocado depois da confirmação do usuário.
   const [pendingSwap, setPendingSwap] = useState<{ fromIndex: number; toIndex: number } | null>(null);
   const [benchSwapSourceIndex, setBenchSwapSourceIndex] = useState<number | null>(null);
+  const [starterSwapSourceIndex, setStarterSwapSourceIndex] = useState<number | null>(null);
   const [benchDraggingIndex, setBenchDraggingIndex] = useState<number | null>(null);
   const fieldPreviewRef = useRef<HTMLDivElement>(null);
   const benchHoldTimerRef = useRef<number | null>(null);
@@ -193,6 +194,7 @@ export default function SquadEditor({
     const start = benchPointerStartRef.current;
     if (!start) return;
     setBenchSwapSourceIndex(start.index);
+    setStarterSwapSourceIndex(null);
     setSelectedIndex(null);
     // Releasing the long press also produces a click on the reserve card. That
     // click must not reopen its player modal after the shortcut was armed.
@@ -258,6 +260,12 @@ export default function SquadEditor({
     if (fromIndex < 0 || fromIndex >= players.length || toIndex < 0 || toIndex >= players.length || fromIndex === toIndex) return;
     if (!players[fromIndex] || !players[toIndex]) return;
     setPendingSwap({ fromIndex, toIndex });
+  };
+
+  const startStarterSwapSelection = (index: number) => {
+    setStarterSwapSourceIndex(index);
+    setBenchSwapSourceIndex(null);
+    setSelectedIndex(null);
   };
 
   const confirmPlayerSwap = () => {
@@ -357,24 +365,29 @@ export default function SquadEditor({
       />
 
       <p className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-        Clique para editar e ver os buffs. {isDesktopInput ? 'Arraste uma reserva sobre um titular para trocar.' : 'Segure uma reserva para escolher no campo quem ela vai substituir.'}
+        Clique para editar e ver os buffs. {isDesktopInput ? 'Arraste uma reserva sobre um titular para trocar.' : 'Segure uma reserva ou titular para escolher no campo quem será trocado.'}
       </p>
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {formation && (
           <div ref={fieldPreviewRef} className="lg:w-[420px] flex-shrink-0 space-y-2 scroll-mt-6">
-            {benchSwapSourceIndex !== null && players[benchSwapSourceIndex] && (
+            {(benchSwapSourceIndex !== null || starterSwapSourceIndex !== null) && players[benchSwapSourceIndex ?? starterSwapSourceIndex!] && (
               <div
                 role="status"
                 className="flex items-center gap-2 rounded-xl border border-[#C9A84C66] bg-[#17151B] px-3 py-2.5 text-xs"
                 style={{ color: '#F4D56A', fontFamily: 'Rajdhani, sans-serif' }}
               >
                 <span className="min-w-0 flex-1">
-                  Escolha no campo quem vai sair para entrar <b>{players[benchSwapSourceIndex].shortName}</b>.
+                  {benchSwapSourceIndex !== null
+                    ? <>Escolha no campo quem vai sair para entrar <b>{players[benchSwapSourceIndex].shortName}</b>.</>
+                    : <>Escolha no campo quem vai trocar com <b>{players[starterSwapSourceIndex!].shortName}</b>.</>}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setBenchSwapSourceIndex(null)}
+                  onClick={() => {
+                    setBenchSwapSourceIndex(null);
+                    setStarterSwapSourceIndex(null);
+                  }}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#C9A84C66] text-base font-black text-[#F4D56A] transition-colors hover:bg-[#C9A84A22]"
                   aria-label="Cancelar escolha de substituição"
                   title="Cancelar"
@@ -387,6 +400,16 @@ export default function SquadEditor({
               formation={formation}
               players={xi}
               showPlayerCards
+              onPlayerLongPress={startStarterSwapSelection}
+              // Reuse the same compact match indicators on the tactical field:
+              // suspension (red), injury and accumulated yellows.
+              disciplineByPlayer={Object.fromEntries(
+                Object.entries(availability ?? {}).map(([playerId, status]) => [playerId, {
+                  yellow: status.yellows,
+                  red: status.banned > 0,
+                  injury: status.injured > 0,
+                }]),
+              )}
               effectiveStats={effectiveStatsById}
               chemistryScores={chemData.individual}
               showChemLines
@@ -394,6 +417,8 @@ export default function SquadEditor({
               selectedPlayerIndex={selectedIndex}
               positionGuidePlayer={benchSwapSourceIndex !== null
                 ? players[benchSwapSourceIndex] ?? null
+                : starterSwapSourceIndex !== null
+                  ? players[starterSwapSourceIndex] ?? null
                 : benchDraggingIndex !== null
                   ? players[benchDraggingIndex] ?? null
                   : null}
@@ -401,6 +426,11 @@ export default function SquadEditor({
                 if (benchSwapSourceIndex !== null) {
                   requestPlayerSwap(benchSwapSourceIndex, posIndex);
                   setBenchSwapSourceIndex(null);
+                  return;
+                }
+                if (starterSwapSourceIndex !== null) {
+                  requestPlayerSwap(starterSwapSourceIndex, posIndex);
+                  setStarterSwapSourceIndex(null);
                   return;
                 }
                 setSelectedIndex(posIndex);
@@ -447,7 +477,9 @@ export default function SquadEditor({
                       <div
                         key={player.id}
                         className={`relative cursor-pointer ${isDesktopInput ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                        style={{ touchAction: 'none', opacity: 1 }}
+                        // Let a vertical finger movement scroll the page; the
+                        // long press still arms the reserve-to-starter swap.
+                        style={{ touchAction: isDesktopInput ? undefined : 'pan-y', opacity: 1 }}
                         draggable={isDesktopInput}
                         onDragStart={event => handleBenchDragStart(event, 11 + i)}
                         onDragEnd={handleBenchDragEnd}
@@ -653,8 +685,8 @@ export default function SquadEditor({
                           </div>
                           <div className="flex items-center gap-2 min-w-0">
                             <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{selectedPlayer.shortName}</div>
-                            {isEvolved(selectedPlayer) && (
-                              <span className="inline-flex items-center justify-center text-center text-[9px] font-black px-2 py-0.5 rounded leading-none flex-shrink-0" style={{ background: 'linear-gradient(90deg,#0a7a2f,#22C55E)', color: '#04120a', letterSpacing: '0.06em' }}>⭐ EVOLUÍDO</span>
+                            {getEvolutionLevel(selectedPlayer) > 0 && (
+                              <span className="inline-flex items-center justify-center text-center text-[9px] font-black px-2 py-0.5 rounded leading-none flex-shrink-0" style={{ background: 'linear-gradient(90deg,#0a7a2f,#22C55E)', color: '#04120a', letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(selectedPlayer)}</span>
                             )}
                           </div>
                           <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{selectedPlayer.club} · {selectedPlayer.nation}</div>
@@ -760,6 +792,25 @@ export default function SquadEditor({
                   const availablePoints = Math.max(0, unlockedPoints - spent);
                   const apps = selectedPlayer.appearances ?? 0;
                   const nextThreshold = evolutionLevel < 3 ? EVOLVE_LEVEL_THRESHOLDS[evolutionLevel + 1] : null;
+                  const progressTarget = nextThreshold ?? EVOLVE_LEVEL_THRESHOLDS[3];
+                  const progressCurrent = Math.min(apps, progressTarget);
+                  const progressLabel = evolutionLevel < 3 ? `PROGRESSO · NÍVEL ${evolutionLevel} → ${evolutionLevel + 1}` : 'PROGRESSO · NÍVEL 3';
+                  const evolutionProgress = (
+                    <div className="rounded-lg px-3 py-2.5 mb-3" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
+                      <div className="flex items-center justify-between text-[10px] font-black mb-1.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                        <span style={{ color: '#8A8A9A', letterSpacing: '.06em' }}>{progressLabel}</span>
+                        <span style={{ color: '#C9C9D5' }}>{progressCurrent}/{progressTarget}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1A1A2A' }}>
+                        <div className="h-full rounded-full" style={{ width: `${progressTarget ? progressCurrent / progressTarget * 100 : 100}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
+                      </div>
+                      <div className="text-[9px] mt-1.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                        {evolutionLevel < 3
+                          ? `Faltam ${Math.max(0, progressTarget - apps)} titularidade${Math.max(0, progressTarget - apps) === 1 ? '' : 's'} para liberar o nível ${evolutionLevel + 1}.`
+                          : 'Nível máximo alcançado.'}
+                      </div>
+                    </div>
+                  );
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${evolved ? '#22C55E55' : '#1A1A2A'}` }}>
                       <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
@@ -768,6 +819,7 @@ export default function SquadEditor({
                       </div>
                       {evolved ? (
                         <div className="p-3.5">
+                          {evolutionProgress}
                           <div className="text-[10px] mb-2 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                             Cada nível libera <b style={{ color: '#C9C9D5' }}>+{EVOLVE_POINTS}</b>. Você pode colocar todos os pontos no mesmo atributo.
                           </div>
@@ -806,15 +858,9 @@ export default function SquadEditor({
                         </div>
                       ) : (
                         <div className="p-3">
-                          <div className="flex items-center justify-between text-[11px] font-bold mb-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                            <span style={{ color: '#8A8A9A' }}>Titularidades para evoluir</span>
-                            <span style={{ color: '#C9C9D5' }}>{Math.min(apps, EVOLVE_LEVEL_THRESHOLDS[1])}/{EVOLVE_LEVEL_THRESHOLDS[1]}</span>
-                          </div>
-                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1A1A2A' }}>
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, apps / EVOLVE_LEVEL_THRESHOLDS[1] * 100)}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
-                          </div>
-                          <div className="text-[10px] mt-1.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                            Use esta carta como titular por {EVOLVE_LEVEL_THRESHOLDS[1]} jogos para liberar o nível 1 e receber <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS}</b> pontos.
+                          {evolutionProgress}
+                          <div className="text-[10px] leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            Ao liberar cada nível, você recebe mais <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS}</b> pontos para distribuir.
                           </div>
                         </div>
                       )}

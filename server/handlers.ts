@@ -7,7 +7,9 @@ import {
   generateBotTeam,
   generateStarPackOptions,
   generateScoutOptions,
-  generateUniquePackCard,
+  generateUniquePackOffer,
+  drawUniquePackCard,
+  buildUniquePackRoundKey,
   generateRandomLeagueFixtures,
   generateRandomGroupFixtures,
   computeStandings,
@@ -78,6 +80,8 @@ export interface RoomPlayer {
   reinforcementRerolls: number;            // 🔄 tokens to re-roll the reinforcement (persist across rounds)
   pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null; // 🛒 pacote JÁ PAGO na abertura (escolha grátis)
   pendingUniquePack: Player | null; // ⭐ pacote Único já pago, aguardando revelação
+  uniquePackOfferIds?: string[]; // ⭐ quatro cartas visíveis da rodada (privado por jogador)
+  uniquePackOfferRoundKey?: string | null;
   bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação)
   pendingMatchPoints?: number;        // pontos da partida calculados, NÃO creditados até a revelação
 }
@@ -284,12 +288,16 @@ function jsonByteLength(value: unknown): number {
  * patches so those fields never cross the wire to another participant.
  */
 function roomViewForSocket(room: RoomState, socketId: string): RoomState {
+  const viewer = room.players.find(player => player.socketId === socketId);
+  // The offer is private, so initialize it lazily for this viewer when the
+  // first snapshot/update of a new round is sent. This also covers reconnects
+  // and rooms created before the offer fields existed.
+  if (viewer) ensureUniquePackOffer(room, viewer);
   const view = cloneRoomJson(room);
   // These fields are server-only persistence metadata. In particular, command
   // receipts must not reveal another client's retry history.
   delete view.commandReceipts;
   delete view.lastCheckpoint;
-  const viewer = room.players.find(player => player.socketId === socketId);
   const viewerId = viewer?.id;
 
   view.players = view.players.map(player => {
@@ -303,6 +311,8 @@ function roomViewForSocket(room: RoomState, socketId: string): RoomState {
       reinforcementRerolls: 0,
       pendingPack: null,
       pendingUniquePack: null,
+      uniquePackOfferIds: [],
+      uniquePackOfferRoundKey: null,
       bets: [],
       pendingMatchPoints: undefined,
     };
@@ -402,6 +412,52 @@ function isValidClientId(value: unknown): value is string {
 
 function isShopPhase(room: RoomState): boolean {
   return room.phase === 'league' || room.phase === 'knockout';
+}
+
+function uniquePackRoundKeyForRoom(room: RoomState): string | null {
+  if (room.phase === 'league') {
+    return buildUniquePackRoundKey('league', room.leagueRound);
+  }
+  if (room.phase === 'knockout' && room.knockoutBracket) {
+    return buildUniquePackRoundKey(
+      'knockout',
+      room.leagueRound,
+      room.knockoutBracket.currentRound,
+      room.knockoutBracket.currentLeg,
+    );
+  }
+  return null;
+}
+
+/**
+ * Materializes the four-card offer for the player's current round exactly
+ * once. The offer is private to that player, persisted in the room and never
+ * regenerated just because the shop was closed or the socket reconnected.
+ */
+function ensureUniquePackOffer(room: RoomState, player: RoomPlayer): void {
+  if (!player.team || !isShopPhase(room)) return;
+  const roundKey = uniquePackRoundKeyForRoom(room);
+  if (!roundKey) return;
+
+  const ownedIds = player.team.players.map(card => card.id);
+  const excludedIds = player.pendingUniquePack ? [player.pendingUniquePack.id] : [];
+  const storedIds = player.uniquePackOfferIds;
+  const validStoredIds = Array.isArray(storedIds)
+    && storedIds.every(id => UNIQUE_CARDS.some(card => card.id === id));
+  const hasAnyUnexcludedCard = UNIQUE_CARDS.some(card => !new Set([...ownedIds, ...excludedIds]).has(card.id));
+
+  // An empty array is also a valid persisted offer when the catalog is already
+  // complete. Otherwise, an absent/legacy empty value must be initialized.
+  if (
+    player.uniquePackOfferRoundKey === roundKey
+    && validStoredIds
+    && (storedIds!.length > 0 || !hasAnyUnexcludedCard)
+  ) {
+    return;
+  }
+
+  player.uniquePackOfferIds = generateUniquePackOffer(ownedIds, excludedIds);
+  player.uniquePackOfferRoundKey = roundKey;
 }
 
 function isValidId(value: unknown): value is string {
@@ -1051,6 +1107,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
             reinforcementRerolls: 0,
             pendingPack: null,
             pendingUniquePack: null,
+            uniquePackOfferIds: [],
+            uniquePackOfferRoundKey: null,
             bets: []
           }
         ],
@@ -1192,6 +1250,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         reinforcementRerolls: 0,
         pendingPack: null,
         pendingUniquePack: null,
+        uniquePackOfferIds: [],
+        uniquePackOfferRoundKey: null,
         bets: []
       };
 
@@ -1635,6 +1695,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || player.pendingUniquePack || player.pendingPack) return;
       if (room.phase !== 'league' && room.phase !== 'knockout') return;
+      ensureUniquePackOffer(room, player);
       const cost = SHOP_COSTS.uniqueCard;
       if (player.points < cost) {
         socket.emit("action_error", { event: "shop_open_unique_pack", message: `Saldo insuficiente: você tem ${player.points} pontos e precisa de ${cost}.` });
@@ -1643,9 +1704,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
         emitRoomSnapshot(socket, room);
         return;
       }
-      const chosen = generateUniquePackCard(player.team.players.map(p => p.id));
+      const chosen = drawUniquePackCard(
+        player.uniquePackOfferIds ?? [],
+        player.team.players.map(p => p.id),
+      );
       if (!chosen) {
-        socket.emit("action_error", { event: "shop_open_unique_pack", message: "Você já possui todas as Cartas Únicas disponíveis." });
+        socket.emit("action_error", { event: "shop_open_unique_pack", message: "Você já possui todas as Cartas Únicas desta oferta." });
         return;
       }
       player.points -= cost;
@@ -2495,6 +2559,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         p.reinforcementRerolls = 0;
         p.pendingPack = null;
         p.pendingUniquePack = null;
+        p.uniquePackOfferIds = [];
+        p.uniquePackOfferRoundKey = null;
         p.bets = [];
         p.pendingMatchPoints = undefined;
       });

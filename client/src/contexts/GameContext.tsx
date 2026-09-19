@@ -14,7 +14,7 @@ import {
   LeagueFixture, generateRandomLeagueFixtures, computeStandings, rebuildTeamChemistry,
   generateRandomGroupFixtures, computeGroupQualifiedStandings,
   getAllPlayedMatchResults, createKnockoutBracket,
-  generateUniquePackCard,
+  generateUniquePackOffer, drawUniquePackCard, buildUniquePackRoundKey,
   normalizeMatchPlan,
   draftSlotIndex,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
@@ -73,6 +73,8 @@ export interface RoomPlayer {
   freeKickTaker: string | null;
   team: Team | null;
   ready: boolean;
+  uniquePackOfferIds?: string[];
+  uniquePackOfferRoundKey?: string | null;
 }
 
 export interface GameState {
@@ -116,6 +118,10 @@ export interface GameState {
   pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null;
   // ⭐ Pacote Único já pago: carta sorteada, aguardando a animação/revelação.
   pendingUniquePack: Player | null;
+  // ⭐ As quatro cartas visíveis da oferta da rodada. A lista fica estável;
+  // quando uma é adquirida, o card apenas passa a exibir "JÁ POSSUI".
+  uniquePackOfferIds: string[];
+  uniquePackOfferRoundKey: string | null;
   // 🎯 Palpites (apostas de pontos). Escrow já debitado ao apostar; crédito só na revelação.
   bets: Bet[];
   // 🟨🟥🩹 Disciplina & lesões — disponibilidade por jogador (todos os times), carrega entre jogos.
@@ -213,6 +219,7 @@ export type GameAction =
   | { type: 'RESET_EVOLVE_POINTS'; playerId: string }
   | { type: 'SHOP_OPEN_UNIQUE_PACK' } // cobra 750 e sorteia uma Única ainda não possuída
   | { type: 'SHOP_CLAIM_UNIQUE_PACK' } // adiciona a carta revelada ao banco, sem nova cobrança
+  | { type: 'ENSURE_UNIQUE_PACK_OFFER' } // cria a oferta visível da rodada, se necessário
   | { type: 'SHOP_OPEN_PACK'; kind: 'star' | 'scout'; options: Player[] } // COBRA ao abrir; guarda as opções
   | { type: 'SHOP_PICK_PACK'; player: Player } // escolhe 1 do pacote já pago (grátis) → banco
   | { type: 'SHOP_TURBINAR'; playerId: string; variant: ShopVariant }
@@ -285,6 +292,8 @@ const initialState: GameState = {
   reinforcementRerolls: 0,
   pendingPack: null,
   pendingUniquePack: null,
+  uniquePackOfferIds: [],
+  uniquePackOfferRoundKey: null,
   bets: [],
   discipline: {},
 
@@ -307,6 +316,21 @@ const initialState: GameState = {
   onlineMarket: [],
   advanceBlocked: null,
 };
+
+function currentUniquePackRoundKey(state: Pick<GameState, 'phase' | 'leagueRound' | 'knockoutBracket'>): string | null {
+  if (state.phase === 'league') {
+    return buildUniquePackRoundKey('league', state.leagueRound);
+  }
+  if (state.phase === 'knockout' && state.knockoutBracket) {
+    return buildUniquePackRoundKey(
+      'knockout',
+      state.leagueRound,
+      state.knockoutBracket.currentRound,
+      state.knockoutBracket.currentLeg,
+    );
+  }
+  return null;
+}
 
 // ============================================================
 // REDUCER
@@ -598,18 +622,41 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ENSURE_UNIQUE_PACK_OFFER': {
+      if (!state.playerTeam || state.mode === 'online') return state;
+      const roundKey = currentUniquePackRoundKey(state);
+      if (!roundKey || state.uniquePackOfferRoundKey === roundKey) return state;
+      const ownedIds = state.playerTeam.players.map(player => player.id);
+      const pendingIds = state.pendingUniquePack ? [state.pendingUniquePack.id] : [];
+      return {
+        ...state,
+        uniquePackOfferIds: generateUniquePackOffer(ownedIds, pendingIds),
+        uniquePackOfferRoundKey: roundKey,
+      };
+    }
+
     case 'SHOP_OPEN_UNIQUE_PACK': {
       // A cobrança acontece na abertura e o resultado fica pendente até o usuário
-      // concluir a animação. Isso impede fechar/reabrir para sortear outra carta.
+      // concluir a animação. A carta sorteada vem somente das quatro cartas
+      // persistidas na oferta da rodada; fechar/reabrir nunca cria outra oferta.
       if (!state.playerTeam || state.pendingUniquePack || state.pendingPack) return state;
       const cost = SHOP_COSTS.uniqueCard;
       if (state.points < cost) return state;
-      const card = generateUniquePackCard(state.playerTeam.players.map(player => player.id));
+
+      const roundKey = currentUniquePackRoundKey(state);
+      if (!roundKey) return state;
+      const ownedIds = state.playerTeam.players.map(player => player.id);
+      const offerIds = state.uniquePackOfferRoundKey === roundKey
+        ? state.uniquePackOfferIds
+        : generateUniquePackOffer(ownedIds);
+      const card = drawUniquePackCard(offerIds, ownedIds);
       if (!card) return state;
       return {
         ...state,
         points: state.points - cost,
         pendingUniquePack: card,
+        uniquePackOfferIds: offerIds,
+        uniquePackOfferRoundKey: roundKey,
       };
     }
 
@@ -1468,6 +1515,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         reinforcementRerolls: me ? (me.reinforcementRerolls ?? 0) : state.reinforcementRerolls,
         pendingPack: me ? (me.pendingPack ?? null) : state.pendingPack,
         pendingUniquePack: me ? (me.pendingUniquePack ?? null) : state.pendingUniquePack,
+        uniquePackOfferIds: me ? (me.uniquePackOfferIds ?? []) : state.uniquePackOfferIds,
+        uniquePackOfferRoundKey: me ? (me.uniquePackOfferRoundKey ?? null) : state.uniquePackOfferRoundKey,
         bets: me ? (me.bets ?? []) : state.bets,
         discipline: roomState.discipline ?? state.discipline,
         draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),

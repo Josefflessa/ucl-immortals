@@ -6,6 +6,8 @@ import {
   createKnockoutBracket,
   generateGroupFixtures,
   generateBotTeam,
+  generateUniquePackOffer,
+  drawUniquePackCard,
   generateUniquePackCard,
   playActiveKnockoutLeg,
 } from './gameEngine';
@@ -123,5 +125,30 @@ describe('competition format engine helpers', () => {
     expect(lastAvailable?.id).toBe(UNIQUE_CARDS[UNIQUE_CARDS.length - 1].id);
     expect(lastAvailable?.rarity).toBe('unique');
     expect(generateUniquePackCard(UNIQUE_CARDS.map(card => card.id))).toBeNull();
+  });
+
+  it('creates a stable-size offer and draws only from cards not yet owned', () => {
+    const ownedIds = UNIQUE_CARDS.slice(0, 2).map(card => card.id);
+    const offer = generateUniquePackOffer(ownedIds);
+
+    expect(offer).toHaveLength(4);
+    expect(new Set(offer).size).toBe(4);
+    expect(offer.some(id => ownedIds.includes(id))).toBe(false);
+
+    const drawn = drawUniquePackCard(offer, ownedIds);
+    expect(drawn).not.toBeNull();
+    expect(offer).toContain(drawn!.id);
+
+    const remaining = drawUniquePackCard(offer, [...ownedIds, drawn!.id]);
+    expect(remaining).not.toBeNull();
+    expect(remaining!.id).not.toBe(drawn!.id);
+  });
+
+  it('keeps the offer cards available for display even after they are owned', () => {
+    const offer = generateUniquePackOffer([]);
+    const first = offer[0];
+
+    expect(offer).toContain(first);
+    expect(drawUniquePackCard(offer, [first])?.id).not.toBe(first);
   });
 });

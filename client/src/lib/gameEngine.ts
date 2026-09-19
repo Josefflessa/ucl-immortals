@@ -3516,14 +3516,57 @@ export function generateScoutOptions(position: string, ownedIds: string[]): Play
   return shuffleWithRarityWeight(pool).slice(0, 4).map(p => ({ ...p }));
 }
 
-// "Pacote Único": uma carta especial aleatória que o time ainda não possui.
-// O sorteio fica no motor compartilhado para que solo e servidor online sigam a
-// mesma regra, sem confiar em uma carta escolhida pelo cliente.
-export function generateUniquePackCard(ownedIds: string[]): Player | null {
-  const pool = UNIQUE_CARDS.filter(player => !ownedIds.includes(player.id));
+// "Pacote Único": oferta rotativa de quatro cartas especiais.
+// A oferta é criada uma vez por rodada e fica estável até a próxima rodada.
+// O sorteio continua sendo feito pelo motor/servidor, nunca por uma escolha do cliente.
+export const UNIQUE_PACK_OFFER_SIZE = 4;
+
+export function buildUniquePackRoundKey(
+  phase: 'league' | 'knockout',
+  leagueRound: number,
+  knockoutRound?: string | null,
+  knockoutLeg?: number | null,
+): string {
+  if (phase === 'league') return `league:${leagueRound}`;
+  return `knockout:${knockoutRound ?? 'unknown'}:${knockoutLeg ?? 1}`;
+}
+
+/**
+ * Creates the cards shown in the Unique Pack shop for one round.
+ * `excludedIds` is used for a card already paid for but still waiting for its
+ * reveal, so a reconnect/new round cannot expose the same pending purchase twice.
+ */
+export function generateUniquePackOffer(
+  ownedIds: string[],
+  excludedIds: string[] = [],
+  size = UNIQUE_PACK_OFFER_SIZE,
+): string[] {
+  const excluded = new Set([...ownedIds, ...excludedIds]);
+  const pool = UNIQUE_CARDS.filter(card => !excluded.has(card.id)).map(card => card.id);
+
+  // Fisher-Yates keeps each available card equally likely and avoids the
+  // duplicated entries used by rarity-weighted draft shuffles.
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
+  }
+  return pool.slice(0, Math.max(0, size));
+}
+
+/** Draws one card from the persisted round offer, ignoring cards already owned. */
+export function drawUniquePackCard(offerIds: string[], ownedIds: string[]): Player | null {
+  const owned = new Set(ownedIds);
+  const pool = Array.from(new Set(offerIds))
+    .map(id => UNIQUE_CARDS.find(card => card.id === id))
+    .filter((card): card is Player => !!card && !owned.has(card.id));
   if (pool.length === 0) return null;
-  const chosen = pool[Math.floor(Math.random() * pool.length)];
-  return { ...chosen };
+  return { ...pool[Math.floor(Math.random() * pool.length)] };
+}
+
+// Backwards-compatible helper for callers/tests that need one random card from
+// the full unowned catalog instead of a persisted round offer.
+export function generateUniquePackCard(ownedIds: string[]): Player | null {
+  return drawUniquePackCard(generateUniquePackOffer(ownedIds, [], UNIQUE_CARDS.length), ownedIds);
 }
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant

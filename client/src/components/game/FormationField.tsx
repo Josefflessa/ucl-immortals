@@ -52,6 +52,9 @@ interface FormationFieldProps {
   showChemLines?: boolean;
   chemLinks?: ChemLink[];
   onPlayerClick?: (player: Player, posIndex: number) => void;
+  // On touch devices a long press arms the same choose-a-target flow used by
+  // the bench. A normal vertical gesture remains a page scroll.
+  onPlayerLongPress?: (posIndex: number) => void;
   // Optional quick reorder for squad-management fields: drag one starter onto another.
   onPlayerDrop?: (fromIndex: number, toIndex: number) => void;
   compact?: boolean;
@@ -99,16 +102,6 @@ const PLAYER_INITIALS: Record<string, string> = {
   villa: 'DV', torres: 'FT',
 };
 
-interface PointerDragState {
-  index: number;
-  pointerId: number;
-  startX: number;
-  startY: number;
-  x: number;
-  y: number;
-  active: boolean;
-}
-
 export default function FormationField({
   formation,
   players,
@@ -116,6 +109,7 @@ export default function FormationField({
   showChemLines = false,
   chemLinks,
   onPlayerClick,
+  onPlayerLongPress,
   onPlayerDrop,
   compact = false,
   showPlayerCards = false,
@@ -133,14 +127,9 @@ export default function FormationField({
   const [fieldPixelWidth, setFieldPixelWidth] = useState(0);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [pointerDrag, setPointerDrag] = useState<PointerDragState | null>(null);
   const didDragRef = useRef(false);
-  const pointerDragRef = useRef<PointerDragState | null>(null);
-  const pointerPreviewRef = useRef<HTMLDivElement | null>(null);
-  const pointerAnimationFrameRef = useRef<number | null>(null);
-  const pointerVisualPositionRef = useRef<{ x: number; y: number } | null>(null);
-  const pointerFieldRectRef = useRef<DOMRect | null>(null);
-  const pointerDropTargetsRef = useRef<Array<{ index: number; rect: DOMRect }>>([]);
+  const mobileHoldTimerRef = useRef<number | null>(null);
+  const mobileHoldRef = useRef<{ index: number; pointerId: number; startX: number; startY: number; triggered: boolean } | null>(null);
   const dragOverIndexRef = useRef<number | null>(null);
   const [nativeDragEnabled, setNativeDragEnabled] = useState(false);
   const ratingMode = !!ratings;
@@ -294,131 +283,60 @@ export default function FormationField({
     window.setTimeout(() => { didDragRef.current = false; }, 0);
   };
 
-  const cachePointerDropTargets = () => {
-    const slots = fieldRef.current?.querySelectorAll<HTMLElement>('[data-player-slot]');
-    pointerDropTargetsRef.current = slots
-      ? Array.from(slots).flatMap(slot => {
-        const index = Number(slot.dataset.playerSlot);
-        return Number.isInteger(index) && players[index]
-          ? [{ index, rect: slot.getBoundingClientRect() }]
-          : [];
-      })
-      : [];
-  };
-
-  const getPointerDropTarget = (clientX: number, clientY: number, sourceIndex: number) => {
-    for (const { index: targetIndex, rect } of pointerDropTargetsRef.current) {
-      if (targetIndex === sourceIndex) continue;
-      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-        return targetIndex;
-      }
+  const clearMobileHold = () => {
+    if (mobileHoldTimerRef.current !== null) {
+      window.clearTimeout(mobileHoldTimerRef.current);
+      mobileHoldTimerRef.current = null;
     }
-
-    return null;
-  };
-
-  const clearPointerDrag = () => {
-    pointerDragRef.current = null;
-    if (pointerAnimationFrameRef.current !== null) {
-      cancelAnimationFrame(pointerAnimationFrameRef.current);
-      pointerAnimationFrameRef.current = null;
-    }
-    pointerVisualPositionRef.current = null;
-    pointerFieldRectRef.current = null;
-    pointerDropTargetsRef.current = [];
-    dragOverIndexRef.current = null;
-    setPointerDrag(null);
-    setDraggingIndex(null);
-    setDragOverIndex(null);
+    mobileHoldRef.current = null;
   };
 
   const handlePlayerPointerDown = (event: ReactPointerEvent<HTMLDivElement>, index: number) => {
-    // Mouse/trackpad keeps the established native drag interaction. Touch and
-    // pen use this implementation because they do not reliably support HTML5
-    // drag-and-drop.
+    // Desktop keeps native drag-and-drop. On touch/pen, do not capture or
+    // cancel the pointer here: the browser must remain free to scroll.
     if (!canReorderPlayers || event.pointerType === 'mouse' || !players[index] || event.button !== 0) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    pointerFieldRectRef.current = fieldRef.current?.getBoundingClientRect() ?? null;
-    cachePointerDropTargets();
-    pointerDragRef.current = {
-      index,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      x: 0,
-      y: 0,
-      active: false,
-    };
+    clearMobileHold();
+    const hold = { index, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, triggered: false };
+    mobileHoldRef.current = hold;
+    mobileHoldTimerRef.current = window.setTimeout(() => {
+      const current = mobileHoldRef.current;
+      if (!current || current.pointerId !== hold.pointerId || current.index !== index) return;
+      current.triggered = true;
+      // Prevent the synthetic click after the long press from opening the modal.
+      didDragRef.current = true;
+      onPlayerLongPress?.(index);
+    }, 280);
   };
 
   const handlePlayerPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const current = pointerDragRef.current;
-    if (!current || current.pointerId !== event.pointerId || event.pointerType === 'mouse') return;
-    event.preventDefault();
+    const current = mobileHoldRef.current;
+    if (!current || current.pointerId !== event.pointerId || event.pointerType === 'mouse' || current.triggered) return;
 
+    // Any intentional movement before the hold is a scroll/gesture, not a
+    // reorder. Cancelling the timer lets the browser handle vertical panning.
     const distance = Math.hypot(event.clientX - current.startX, event.clientY - current.startY);
-    if (!current.active && distance < 8) return;
-
-    const fieldRect = pointerFieldRectRef.current;
-    if (!fieldRect) return;
-    const next: PointerDragState = {
-      ...current,
-      x: event.clientX - fieldRect.left,
-      y: event.clientY - fieldRect.top,
-      active: true,
-    };
-    pointerDragRef.current = next;
-    // The pointer can generate dozens of events per frame. Keep the moving
-    // preview outside React's render loop; only the first activation and a
-    // changed drop target need component state updates.
-    if (!current.active) {
-      setPointerDrag(next);
-      setDraggingIndex(next.index);
-    } else {
-      pointerVisualPositionRef.current = { x: next.x, y: next.y };
-      if (pointerAnimationFrameRef.current === null) {
-        pointerAnimationFrameRef.current = requestAnimationFrame(() => {
-          pointerAnimationFrameRef.current = null;
-          const position = pointerVisualPositionRef.current;
-          const preview = pointerPreviewRef.current;
-          if (!position || !preview) return;
-          preview.style.left = `${position.x}px`;
-          preview.style.top = `${position.y}px`;
-        });
-      }
-    }
-    const nextTarget = getPointerDropTarget(event.clientX, event.clientY, next.index);
-    if (dragOverIndexRef.current !== nextTarget) {
-      dragOverIndexRef.current = nextTarget;
-      setDragOverIndex(nextTarget);
-    }
-    didDragRef.current = true;
+    if (distance >= 12) clearMobileHold();
   };
 
   const handlePlayerPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const current = pointerDragRef.current;
+    const current = mobileHoldRef.current;
     if (!current || current.pointerId !== event.pointerId || event.pointerType === 'mouse') return;
-    event.preventDefault();
-
-    if (current.active) {
-      const targetIndex = getPointerDropTarget(event.clientX, event.clientY, current.index);
-      if (targetIndex !== null) onPlayerDrop?.(current.index, targetIndex);
+    const wasLongPress = current.triggered;
+    clearMobileHold();
+    if (wasLongPress) {
+      event.preventDefault();
       didDragRef.current = true;
     }
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    clearPointerDrag();
   };
 
   const handlePlayerPointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const current = pointerDragRef.current;
+    const current = mobileHoldRef.current;
     if (!current || current.pointerId !== event.pointerId || event.pointerType === 'mouse') return;
-    if (current.active) didDragRef.current = true;
-    clearPointerDrag();
+    if (current.triggered) didDragRef.current = true;
+    clearMobileHold();
   };
+
+  useEffect(() => () => clearMobileHold(), []);
 
   return (
     <div
@@ -557,10 +475,12 @@ export default function FormationField({
             : positionFitType === 'off'
               ? '#EF4444'
               : null;
-        // Do not colour the source card itself during a starter drag; the
-        // remaining cards are the possible destinations. For a reserve source,
-        // all eleven field cards are destinations.
-        const isPositionGuideTarget = positionGuideColor !== null && index !== draggingIndex;
+        // Do not colour the source card itself during a starter/long-press
+        // swap; the remaining cards are the possible destinations. For a
+        // reserve source, all eleven field cards are destinations.
+        const isPositionGuideTarget = positionGuideColor !== null
+          && index !== draggingIndex
+          && player?.id !== guidedPlayer?.id;
 
         if (showPlayerCards) {
           return (
@@ -570,7 +490,9 @@ export default function FormationField({
               data-player-slot={showPlayerCards ? index : undefined}
               style={{
                 left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: displayedCardWidth, height: displayedCardHeight,
-                touchAction: canReorderPlayers && player ? 'none' : undefined,
+                // Vertical gestures belong to the page. Reordering on touch is
+                // explicitly armed by a long press, just like the bench.
+                touchAction: canReorderPlayers && player ? 'pan-y' : undefined,
                 ...(isPositionGuideTarget ? {
                   borderRadius: 12,
                   boxShadow: `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`,
@@ -607,7 +529,9 @@ export default function FormationField({
                 }
                 if (player) onPlayerClick?.(player, index);
               }}
-              title={canReorderPlayers && player ? 'Arraste sobre outro jogador para trocar' : undefined}
+              title={canReorderPlayers && player
+                ? (nativeDragEnabled ? 'Arraste sobre outro jogador para trocar' : 'Segure para escolher o jogador que será trocado')
+                : undefined}
             >
               <div className="relative" style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center', opacity: draggingIndex === index ? 0.52 : 1 }}>
                 <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
@@ -665,7 +589,7 @@ export default function FormationField({
                     {g > 0 ? `⚽${g > 1 ? g : ''}` : ''}{a > 0 ? `🅰${a > 1 ? a : ''}` : ''}
                   </span>
                 )}
-                {ratingMode && player && disc && (disc.red || disc.injury || disc.yellow > 0) && (
+                {(ratingMode || showPlayerCards) && player && disc && (disc.red || disc.injury || disc.yellow > 0) && (
                   <span
                     className="absolute leading-none"
                     style={{ top: -9, left: -9, fontSize: 11, whiteSpace: 'nowrap', zIndex: 5 }}
@@ -886,35 +810,6 @@ export default function FormationField({
           </motion.div>
         );
       })}
-
-      {/* Touch browsers do not provide a dependable native drag ghost. Render a
-          complete card in the field and move it with the captured pointer so
-          the user sees the same card they picked up, not just its portrait. */}
-      {pointerDrag && (() => {
-        const draggedPlayer = players[pointerDrag.index];
-        if (!draggedPlayer) return null;
-        return (
-          <div
-            ref={pointerPreviewRef}
-            className="absolute z-50 pointer-events-none"
-            aria-hidden="true"
-            style={{
-              left: pointerDrag.x,
-              top: pointerDrag.y,
-              width: displayedCardWidth,
-              height: displayedCardHeight,
-              transform: 'translate(-50%, -50%)',
-              opacity: 0.96,
-              filter: 'drop-shadow(0 10px 16px rgba(0,0,0,.55))',
-              willChange: 'left, top',
-            }}
-          >
-            <div style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center' }}>
-              <PlayerCard player={draggedPlayer} compact lite effectiveStats={effectiveStats[draggedPlayer.id]} />
-            </div>
-          </div>
-        );
-      })()}
 
       {/* In the result view the enlarged cards already identify the formation
           through their positions; keeping this label would compete with the GK card. */}

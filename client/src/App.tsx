@@ -35,38 +35,33 @@ function ModalScrollLock() {
     const body = document.body;
     const previous = {
       htmlOverflow: html.style.overflow,
-      bodyPosition: body.style.position,
-      bodyTop: body.style.top,
-      bodyLeft: body.style.left,
-      bodyRight: body.style.right,
-      bodyWidth: body.style.width,
       bodyOverflow: body.style.overflow,
+      bodyPaddingRight: body.style.paddingRight,
     };
     let locked = false;
-    let scrollY = 0;
+
+    const scrollbarCompensation = () => Math.max(0, window.innerWidth - html.clientWidth);
 
     const setLocked = (next: boolean) => {
       if (next === locked) return;
       locked = next;
       if (next) {
-        scrollY = window.scrollY;
+        // Keep the document in its normal flow. Fixing the body and restoring
+        // it with window.scrollTo caused the whole home screen to repaint/
+        // flash whenever a modal was closed. Compensate for the disappearing
+        // scrollbar instead, so the layout width stays stable.
+        const currentPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+        const scrollbarWidth = scrollbarCompensation();
         html.style.overflow = 'hidden';
-        body.style.position = 'fixed';
-        body.style.top = `-${scrollY}px`;
-        body.style.left = '0';
-        body.style.right = '0';
-        body.style.width = '100%';
         body.style.overflow = 'hidden';
+        body.style.paddingRight = scrollbarWidth > 0
+          ? `${currentPaddingRight + scrollbarWidth}px`
+          : previous.bodyPaddingRight;
         return;
       }
       html.style.overflow = previous.htmlOverflow;
-      body.style.position = previous.bodyPosition;
-      body.style.top = previous.bodyTop;
-      body.style.left = previous.bodyLeft;
-      body.style.right = previous.bodyRight;
-      body.style.width = previous.bodyWidth;
       body.style.overflow = previous.bodyOverflow;
-      window.scrollTo(0, scrollY);
+      body.style.paddingRight = previous.bodyPaddingRight;
     };
 
     const update = () => setLocked(document.querySelector(OPEN_MODAL_SELECTOR) !== null);

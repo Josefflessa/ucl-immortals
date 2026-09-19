@@ -1134,10 +1134,10 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
 
       {/* CONTEÚDO (layout FUT) */}
       <div className="absolute inset-0" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 5 }}>
-        {/* ⭐ selo de Carta Evoluída (discreto, topo-centro) */}
+        {/* ⭐ selo do nível de evolução (discreto, topo-centro) */}
         {evolved && !lite && (
           <div className="absolute" style={{ top: '2.5%', left: '50%', transform: 'translateX(-50%)', padding: '2px 8px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.14em', whiteSpace: 'nowrap', color: '#04120a', background: 'linear-gradient(90deg,#0a7a2f,#22C55E,#0a7a2f)', border: '1px solid rgba(0,0,0,.4)', boxShadow: '0 2px 8px rgba(0,0,0,.5)', fontFamily: 'Rajdhani,sans-serif', zIndex: 6 }}>
-            ⭐ EVOLUÍDA
+            ⭐ NÍVEL {evolutionLevel}
           </div>
         )}
         {/* rail: OVR → posição → bandeira → escudo do clube */}

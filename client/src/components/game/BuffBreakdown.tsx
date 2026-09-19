@@ -300,9 +300,9 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
             </Row>
           )}
 
-          {/* ⭐ CARTA EVOLUÍDA — bônus aplicado aos atributos escolhidos. */}
+          {/* ⭐ EVOLUÇÃO — bônus aplicado aos atributos escolhidos. */}
           {evolve.length > 0 && (
-            <Row icon="⭐" name="CARTA EVOLUÍDA" color="#22C55E">
+              <Row icon="⭐" name="EVOLUÇÃO" color="#22C55E">
               <div className="flex flex-wrap gap-1">{chips(evolve, '#22C55E')}</div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 Bônus de evolução aplicado aos atributos escolhidos — soma direto nos atributos e reflete no geral.
