@@ -12,13 +12,26 @@
 //      "Especialista em Decisões"/"Frio na Final" (+10 each). (gameEngine.simulatePenalties)
 
 import { useState } from 'react';
-import { POS_PT } from '../../lib/gameData';
-import type { EffectiveStats } from '../../lib/gameEngine';
+import { Info } from 'lucide-react';
+import { CAPTAIN_BOOST, captainBestStatFromStarters, type EffectiveStats } from '../../lib/gameEngine';
+import type { Player } from '../../lib/gameData';
+import { buildSofifaUrl } from './PlayerCard';
+import { IconButton } from '../../design-system';
 
 type RoleStat = 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'composure';
 type EffectiveRoleStats = Pick<EffectiveStats, RoleStat>;
 
-interface RoleablePlayer {
+export type GameRole = 'captain' | 'penalty' | 'freeKick';
+
+export interface RoleMetric {
+  primaryLabel: string;
+  primaryValue: number;
+  secondaryLabel?: string;
+  secondaryValue?: number;
+  traitLabel?: string;
+}
+
+export interface RoleablePlayer {
   id: string;
   shortName: string;
   position: string;
@@ -46,28 +59,29 @@ interface RolesSelectorProps {
   onSetCaptain: (playerId: string) => void;
   onSetPenaltyTaker: (playerId: string) => void;
   onSetFreeKickTaker: (playerId: string) => void;
+  onActivateRole: (role: GameRole) => void;
+  activeRole?: GameRole | null;
 }
 
-// Captain leadership — the captain's SINGLE BEST attribute is lifted +CAPTAIN_BOOST for
-// every teammate (mirrors gameEngine.captainBestStat / CAPTAIN_BOOST). So the choice is
-// "which team-wide stat do I want?", not "who is my best card?".
-const CAPTAIN_BOOST = 3;
-const CAP_STATS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'] as const;
 const STAT_LABELS: Record<string, string> = {
   pace: 'Ritmo', shooting: 'Finalização', passing: 'Passe', dribbling: 'Drible', defending: 'Defesa', physical: 'Físico',
 };
-// 🗣️ Capitão Nato: se o jogador tem a característica, o bônus de capitão vem DOBRADO.
-const capBoostOf = (p: RoleablePlayer): number =>
-  CAPTAIN_BOOST * ((p as unknown as Record<string, unknown>).capitaoNato ? 2 : 1);
 const roleStatValue = (p: RoleablePlayer, stat: RoleStat): number => p.effectiveStats?.[stat] ?? p[stat] ?? 0;
-const roleStatDisplay = (p: RoleablePlayer, stat: RoleStat): number | undefined => p.effectiveStats?.[stat] ?? p[stat];
-function captainBestStatOf(p: RoleablePlayer): { stat: string; label: string; value: number } {
-  let best: string = CAP_STATS[0], bestV = roleStatValue(p, CAP_STATS[0]);
-  for (const s of CAP_STATS) {
-    const v = roleStatValue(p, s);
-    if (v > bestV) { bestV = v; best = s; }
-  }
-  return { stat: best, label: STAT_LABELS[best] ?? best, value: bestV };
+const rawRoleStatValue = (p: RoleablePlayer, stat: RoleStat): number => p[stat] ?? 0;
+
+function captainBestStatOf(p: RoleablePlayer): { stat: RoleStat; label: string; value: number; effectiveValue: number } {
+  // The engine deliberately chooses the captain's best BASE attribute. Keep the
+  // suggestion tied to that same rule; otherwise a coach/chemistry bonus could
+  // make the UI suggest Passe while the match engine applies Drible.
+  // RoleablePlayer is an intentional UI projection of Player; the engine helper
+  // only reads the id and the six captain attributes from this value.
+  const stat = (captainBestStatFromStarters([p as unknown as Player], p.id) ?? 'pace') as RoleStat;
+  return {
+    stat,
+    label: STAT_LABELS[stat] ?? stat,
+    value: rawRoleStatValue(p, stat),
+    effectiveValue: roleStatValue(p, stat),
+  };
 }
 
 // Penalty reliability score used only to RANK candidates for the suggestion.
@@ -87,6 +101,44 @@ function freeKickScoreFor(p: RoleablePlayer): number {
 
 const overallForDisplay = (p: RoleablePlayer): number => p.effectiveOverall ?? p.overall;
 
+export function suggestedRoleId(players: RoleablePlayer[], role: GameRole): string | undefined {
+  const ranked = [...players].sort((a, b) => {
+    if (role === 'captain') return captainBestStatOf(b).value - captainBestStatOf(a).value || overallForDisplay(b) - overallForDisplay(a);
+    if (role === 'penalty') return penaltyScoreFor(b) - penaltyScoreFor(a) || overallForDisplay(b) - overallForDisplay(a);
+    return freeKickScoreFor(b) - freeKickScoreFor(a) || overallForDisplay(b) - overallForDisplay(a);
+  });
+  return ranked[0]?.id;
+}
+
+export function roleMetricFor(player: RoleablePlayer, role: GameRole): RoleMetric {
+  if (role === 'captain') {
+    const best = captainBestStatOf(player);
+    return {
+      primaryLabel: best.label.toUpperCase(),
+      primaryValue: Math.round(best.effectiveValue),
+      traitLabel: (player as unknown as Record<string, unknown>).capitaoNato ? 'NATO' : undefined,
+    };
+  }
+
+  if (role === 'penalty') {
+    const trait = player.traits?.find(name => name === 'Especialista em Decisões' || name === 'Frio na Final');
+    return {
+      primaryLabel: 'COMP',
+      primaryValue: Math.round(roleStatValue(player, 'composure')),
+      traitLabel: trait ? 'FRIO' : undefined,
+    };
+  }
+
+  const trait = player.traits?.find(name => name === 'Cobrador de Falta' || name === 'Cobrança de Falta');
+  return {
+    primaryLabel: 'FIN',
+    primaryValue: Math.round(roleStatValue(player, 'shooting')),
+    secondaryLabel: 'COMP',
+    secondaryValue: Math.round(roleStatValue(player, 'composure')),
+    traitLabel: trait ? 'ESPECIALISTA' : undefined,
+  };
+}
+
 export default function RolesSelector({
   players,
   captainId,
@@ -95,184 +147,106 @@ export default function RolesSelector({
   onSetCaptain,
   onSetPenaltyTaker,
   onSetFreeKickTaker,
+  onActivateRole,
+  activeRole = null,
 }: RolesSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  // Suggested picks: best captain = highest bonus (tiebreak overall);
-  // best taker = highest penalty score; best free-kick = highest FK score.
-  const suggestedCaptainId = [...players]
-    .sort((a, b) => captainBestStatOf(b).value - captainBestStatOf(a).value || overallForDisplay(b) - overallForDisplay(a))[0]?.id;
-  const suggestedTakerId = [...players]
-    .sort((a, b) => penaltyScoreFor(b) - penaltyScoreFor(a) || overallForDisplay(b) - overallForDisplay(a))[0]?.id;
-  const suggestedFreeKickId = [...players]
-    .sort((a, b) => freeKickScoreFor(b) - freeKickScoreFor(a) || overallForDisplay(b) - overallForDisplay(a))[0]?.id;
+  const [infoRole, setInfoRole] = useState<GameRole | null>(null);
 
   const captain = players.find(p => p.id === captainId);
   const taker = players.find(p => p.id === penaltyTakerId);
   const fkTaker = players.find(p => p.id === freeKickTakerId);
-  const takerComposure = taker ? roleStatDisplay(taker, 'composure') : undefined;
-  const fkShooting = fkTaker ? roleStatDisplay(fkTaker, 'shooting') : undefined;
-  const fkComposure = fkTaker ? roleStatDisplay(fkTaker, 'composure') : undefined;
+  const roleCards: Array<{ role: GameRole; label: string; icon: string; color: string; player?: RoleablePlayer }> = [
+    { role: 'captain', label: 'CAPITÃO', icon: '🅒', color: '#3B82F6', player: captain },
+    { role: 'penalty', label: 'PÊNALTI', icon: '⚽', color: '#C9A84C', player: taker },
+    { role: 'freeKick', label: 'FALTA', icon: '🎯', color: '#22C55E', player: fkTaker },
+  ];
+
+  const info: Record<GameRole, { title: string; description: string; metric: string }> = {
+    captain: {
+      title: 'CAPITÃO',
+      description: `A maior estatística do capitão vira +${CAPTAIN_BOOST} para todo o time. O jogador com Capitão Nato dobra esse bônus.`,
+      metric: 'Compare o melhor atributo entre Ritmo, Finalização, Passe, Drible, Defesa e Físico.',
+    },
+    penalty: {
+      title: 'PÊNALTI',
+      description: 'É o cobrador prioritário durante o jogo e recebe +5 de Compostura quando cobra.',
+      metric: 'Compare Compostura e características de frieza para encontrar o mais confiável.',
+    },
+    freeKick: {
+      title: 'FALTA',
+      description: 'É o cobrador prioritário das faltas perigosas durante o jogo.',
+      metric: 'Compare Finalização + Compostura; características de cobrança têm prioridade.',
+    },
+  };
 
   return (
     <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-base font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
           FUNÇÕES DE JOGO
         </span>
-        <button
-          type="button"
-          onClick={() => setIsOpen(open => !open)}
-          aria-expanded={isOpen}
-          aria-controls="game-roles-selector-content"
-          className="flex-shrink-0 rounded px-2 py-1 text-[10px] font-black transition-colors"
-          style={{
-            color: isOpen ? '#FFF' : '#C9A84C',
-            background: isOpen ? '#1A1A2A' : '#14142A',
-            border: `1px solid ${isOpen ? '#3A3A4A' : '#C9A84C66'}`,
-            fontFamily: 'Rajdhani, sans-serif',
-          }}
-        >
-          {isOpen ? 'FECHAR ▲' : 'ABRIR ▼'}
-        </button>
       </div>
-      <div className="mb-3 text-[10px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-        CAPITÃO · PÊNALTI · FALTA
-      </div>
-
-      {/* Current selection summary */}
-      <div className="flex flex-wrap gap-2 mb-3 text-[11px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-        <span className="rounded px-2 py-1" style={{ background: '#14142A', color: '#9AA8C8' }}>
-          🅒 Capitão atual: <b style={{ color: '#FFF' }}>{captain ? captain.shortName : '—'}</b>
-          {captain && <span style={{ color: '#3B82F6' }}> (+{capBoostOf(captain)} {captainBestStatOf(captain).label} pra todo o time{(captain as unknown as Record<string, unknown>).capitaoNato ? ' · 🗣️ Capitão Nato' : ''})</span>}
-        </span>
-        <span className="rounded px-2 py-1" style={{ background: '#14142A', color: '#B8A875' }}>
-          ⚽ Pênalti: <b style={{ color: '#FFF' }}>{taker ? taker.shortName : '—'}</b>
-          {takerComposure !== undefined && <span style={{ color: '#C9A84C' }}> (comp. {takerComposure})</span>}
-        </span>
-        <span className="rounded px-2 py-1" style={{ background: '#14142A', color: '#86B89A' }}>
-          🎯 Falta: <b style={{ color: '#FFF' }}>{fkTaker ? fkTaker.shortName : '—'}</b>
-          {fkTaker && (fkShooting !== undefined || fkComposure !== undefined) && (
-            <span style={{ color: '#22C55E' }}> ({[
-              fkShooting !== undefined ? `fin. ${fkShooting}` : null,
-              fkComposure !== undefined ? `comp. ${fkComposure}` : null,
-            ].filter(Boolean).join(' · ')})</span>
-          )}
-        </span>
-      </div>
-
-      {isOpen && (
-        <div id="game-roles-selector-content">
-          {/* What each role does */}
-          <div className="grid sm:grid-cols-3 gap-2 mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-            <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #3B82F633', color: '#9AA8C8' }}>
-              <span className="font-black" style={{ color: '#3B82F6' }}>🅒 Capitão</span> — a <b style={{ color: '#FFF' }}>maior
-              estatística</b> dele vira <b style={{ color: '#FFF' }}>+{CAPTAIN_BOOST}</b> pra <b style={{ color: '#FFF' }}>todo o time</b>.
-              Ex.: capitão com Defesa altíssima → +{CAPTAIN_BOOST} Defesa pra todos.
-              <br /><span style={{ color: '#6A6A7A' }}>Dica: escolha pela estatística que seu time precisa.</span>
-            </div>
-            <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #C9A84C33', color: '#B8A875' }}>
-              <span className="font-black" style={{ color: '#C9A84C' }}>⚽ Pênalti</span> — bate os pênaltis
-              <b style={{ color: '#FFF' }}> durante o jogo</b> e a <b style={{ color: '#FFF' }}>1ª da disputa</b> (+5 compostura).
-              Sucesso depende da compostura e dos traits de frieza.
-              <br /><span style={{ color: '#6A6A7A' }}>Dica: maior compostura.</span>
-            </div>
-            <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: '#0A0A14', border: '1px solid #22C55E33', color: '#86B89A' }}>
-              <span className="font-black" style={{ color: '#22C55E' }}>🎯 Falta</span> — cobra as
-              <b style={{ color: '#FFF' }}> faltas perigosas</b> (cobrança direta) durante o jogo. O sucesso depende da
-              <b style={{ color: '#FFF' }}> finalização + compostura</b>.
-              <br /><span style={{ color: '#6A6A7A' }}>Dica: bom chute e frieza.</span>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            {players.map((p) => {
-          const isCaptain = captainId === p.id;
-          const isTaker = penaltyTakerId === p.id;
-          const isFreeKick = freeKickTakerId === p.id;
-          const isSuggestedCap = !captainId && p.id === suggestedCaptainId;
-          const isSuggestedTaker = !penaltyTakerId && p.id === suggestedTakerId;
-          const isSuggestedFreeKick = !freeKickTakerId && p.id === suggestedFreeKickId;
-              return (
-                <div
-                  key={p.id}
-                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 px-2.5 py-2 rounded-lg sm:flex sm:gap-2"
-                  style={{
-                    background: isTaker || isCaptain || isFreeKick ? '#14142A' : '#0A0A14',
-                    border: `1px solid ${isFreeKick ? '#22C55E55' : isTaker ? '#C9A84C55' : isCaptain ? '#3B82F655' : '#1A1A2A'}`,
-                  }}
-                >
-              <span
-                className="text-[9px] font-black w-9 text-center rounded px-1 flex-shrink-0"
-                style={{ background: '#1c1c2e', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}
+      <div className="grid grid-cols-3 gap-1 sm:gap-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        {roleCards.map(card => {
+          const isActive = activeRole === card.role;
+          return (
+            <div
+              key={card.role}
+              className="group flex min-w-0 items-center overflow-hidden rounded-lg"
+              style={{
+                background: isActive ? `${card.color}18` : '#14142A',
+                border: `1px solid ${isActive ? `${card.color}99` : '#26263A'}`,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => onActivateRole(card.role)}
+                aria-pressed={isActive}
+                className="min-w-0 flex-1 px-1.5 py-2 text-left transition-colors group-hover:bg-white/10 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset sm:px-2.5 sm:py-2.5"
+                style={{ color: card.color }}
+                title={`Escolher ${card.label.toLowerCase()} no campo`}
               >
-                {POS_PT[p.position] ?? p.position}
-              </span>
-              <span className="text-sm font-bold text-white truncate flex-1 min-w-0" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                {p.shortName}
-              </span>
-              <div className="flex items-center justify-end gap-1.5 min-w-0">
-                {roleStatDisplay(p, 'composure') !== undefined && (
-                  <span className="text-[9px] font-bold flex-shrink-0" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }} title="Compostura (cobrança de pênalti)">
-                    🧊 {roleStatDisplay(p, 'composure')}
-                  </span>
-                )}
-                <span className="text-[9px] font-bold text-gray-500 flex-shrink-0" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  GER {overallForDisplay(p)}
+                <span className="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-[10px] font-black uppercase tracking-[0.02em] sm:gap-1 sm:text-[11px] sm:tracking-[0.08em]">
+                  <span aria-hidden="true">{card.icon}</span>
+                  <span>{card.label}</span>
                 </span>
-              </div>
+                <span className="mt-1 flex min-h-7 items-center gap-1.5 truncate text-[12px] font-bold" style={{ color: card.player ? '#FFF' : '#8A8A9A' }}>
+                  {card.player ? (
+                    <>
+                      <img
+                        src={buildSofifaUrl(card.player.id, 120) ?? undefined}
+                        alt=""
+                        className="h-7 w-6 shrink-0 rounded object-cover object-top"
+                      />
+                      <span className="truncate">{card.player.shortName}</span>
+                    </>
+                  ) : 'Escolher'}
+                </span>
+              </button>
+              <IconButton
+                label={`O que significa ${card.label.toLowerCase()}`}
+                onClick={() => setInfoRole(current => current === card.role ? null : card.role)}
+                aria-expanded={infoRole === card.role}
+                title={`O que significa ${card.label.toLowerCase()}`}
+                className="mr-0.5 size-8 shrink-0 rounded-full border-[var(--ui-line-strong)] bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text-soft)] shadow-sm hover:border-[var(--ui-brand)] hover:text-[var(--ui-brand-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)] sm:mr-1 sm:size-10"
+                style={{ color: card.color, borderColor: `${card.color}66` }}
+              >
+                <Info size={19} className="size-4 sm:size-[19px]" aria-hidden="true" />
+              </IconButton>
+            </div>
+          );
+        })}
+      </div>
 
-              <div className="col-span-3 grid grid-cols-3 gap-1.5 sm:contents">
-                <button
-                  onClick={() => onSetCaptain(p.id)}
-                  title={`Capitão → +${capBoostOf(p)} ${captainBestStatOf(p).label} pra todo o time${(p as unknown as Record<string, unknown>).capitaoNato ? ' (🗣️ Capitão Nato: dobrado)' : ''}${isSuggestedCap ? ' (sugerido)' : ''}`}
-                  className="w-full text-[10px] font-black px-2 py-1 rounded transition-all sm:w-auto"
-                  style={{
-                    fontFamily: 'Rajdhani, sans-serif',
-                    background: isCaptain ? '#3B82F6' : 'transparent',
-                    color: isCaptain ? '#FFF' : isSuggestedCap ? '#3B82F6' : '#6A6A7A',
-                    border: `1px solid ${isCaptain ? '#3B82F6' : isSuggestedCap ? '#3B82F699' : '#2A2A3A'}`,
-                  }}
-                >
-                  {isSuggestedCap ? '★ ' : ''}🅒 CAP
-                </button>
-                <button
-                  onClick={() => onSetPenaltyTaker(p.id)}
-                  title={isSuggestedTaker ? 'Sugerido: maior compostura' : 'Definir como cobrador de pênalti'}
-                  className="w-full text-[10px] font-black px-2 py-1 rounded transition-all sm:w-auto"
-                  style={{
-                    fontFamily: 'Rajdhani, sans-serif',
-                    background: isTaker ? '#C9A84C' : 'transparent',
-                    color: isTaker ? '#080810' : isSuggestedTaker ? '#C9A84C' : '#6A6A7A',
-                    border: `1px solid ${isTaker ? '#C9A84C' : isSuggestedTaker ? '#C9A84C99' : '#2A2A3A'}`,
-                  }}
-                >
-                  {isSuggestedTaker ? '★ ' : ''}⚽ PEN
-                </button>
-                <button
-                  onClick={() => onSetFreeKickTaker(p.id)}
-                  title={isSuggestedFreeKick ? 'Sugerido: melhor finalização + compostura' : 'Definir como cobrador de falta'}
-                  className="w-full text-[10px] font-black px-2 py-1 rounded transition-all sm:w-auto"
-                  style={{
-                    fontFamily: 'Rajdhani, sans-serif',
-                    background: isFreeKick ? '#22C55E' : 'transparent',
-                    color: isFreeKick ? '#080810' : isSuggestedFreeKick ? '#22C55E' : '#6A6A7A',
-                    border: `1px solid ${isFreeKick ? '#22C55E' : isSuggestedFreeKick ? '#22C55E99' : '#2A2A3A'}`,
-                  }}
-                >
-                  {isSuggestedFreeKick ? '★ ' : ''}🎯 FAL
-                </button>
-              </div>
-                </div>
-              );
-            })}
+      {infoRole ? (
+        <div className="mt-2 rounded-lg px-3.5 py-3 text-[13px] leading-snug" style={{ background: '#0A0A14', border: `1px solid ${roleCards.find(card => card.role === infoRole)?.color ?? '#C9A84C'}55`, color: '#B8B8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="mb-1 text-sm font-black tracking-widest" style={{ color: roleCards.find(card => card.role === infoRole)?.color ?? '#C9A84C' }}>
+            {info[infoRole].title}
           </div>
-
-          <p className="text-[10px] mt-3" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-            ★ = sugestão automática enquanto a função não estiver definida.
-          </p>
+          <div>{info[infoRole].description}</div>
+          <div className="mt-1.5" style={{ color: '#9999A8' }}>{info[infoRole].metric} Toque no bloco para escolher diretamente no campo.</div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

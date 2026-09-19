@@ -5,7 +5,7 @@
 // so each host wires its own state (drafted players vs the league team) and actions.
 import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
 import { motion } from 'framer-motion';
-import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
+import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, getEvolutionLevel,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
@@ -17,12 +17,13 @@ import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import CoachStadiumPanel from './CoachStadiumPanel';
 import { stadiumFor } from '../../lib/stadium';
 import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE, getCardVariants } from './PlayerCard';
-import RolesSelector from './RolesSelector';
+import RolesSelector, { roleMetricFor, suggestedRoleId, type GameRole, type RoleablePlayer } from './RolesSelector';
 import TacticSelector from './TacticSelector';
 import MatchPlanSelector from './MatchPlanSelector';
 import FormationSelector from './FormationSelector';
 import ChemistryBonusInfo from './ChemistryBonusInfo';
 import BuffBreakdown from './BuffBreakdown';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 
 export interface SquadEditorProps {
   players: Player[];                 // full squad (first 11 = XI, rest = bench)
@@ -86,6 +87,8 @@ export default function SquadEditor({
   const [benchSwapSourceIndex, setBenchSwapSourceIndex] = useState<number | null>(null);
   const [starterSwapSourceIndex, setStarterSwapSourceIndex] = useState<number | null>(null);
   const [benchDraggingIndex, setBenchDraggingIndex] = useState<number | null>(null);
+  const [activeRole, setActiveRole] = useState<GameRole | null>(null);
+  const [fieldSettingsPanel, setFieldSettingsPanel] = useState<'formation' | 'tactic' | null>(null);
   const fieldPreviewRef = useRef<HTMLDivElement>(null);
   const benchHoldTimerRef = useRef<number | null>(null);
   const benchHoldClickGuardRef = useRef(false);
@@ -114,6 +117,7 @@ export default function SquadEditor({
   };
 
   const formation = FORMATIONS.find(f => f.id === formationId);
+  const activeTactic = getTacticById(playStyle);
   const coach = COACHES.find(c => c.id === coachId);
   const xi = players.slice(0, 11);
   const bench = players.slice(11);
@@ -161,6 +165,16 @@ export default function SquadEditor({
     }),
   );
 
+  const rolePlayers: RoleablePlayer[] = xi.map(player => ({
+    ...player,
+    effectiveOverall: effectiveStatsById[player.id]?.overall,
+    effectiveStats: effectiveStatsById[player.id],
+  }));
+  const roleMetrics = activeRole
+    ? Object.fromEntries(rolePlayers.map(player => [player.id, roleMetricFor(player, activeRole)]))
+    : {};
+  const roleSuggestionId = activeRole ? suggestedRoleId(rolePlayers, activeRole) : null;
+
   const getChemPreview = (candidateIdx: number) => {
     if (selectedIndex === null) return { total: chemData.total, diff: 0 };
     const temp = [...players];
@@ -195,6 +209,7 @@ export default function SquadEditor({
     if (!start) return;
     setBenchSwapSourceIndex(start.index);
     setStarterSwapSourceIndex(null);
+    setActiveRole(null);
     setSelectedIndex(null);
     // Releasing the long press also produces a click on the reserve card. That
     // click must not reopen its player modal after the shortcut was armed.
@@ -203,7 +218,7 @@ export default function SquadEditor({
   };
 
   const handleBenchPointerDown = (event: PointerEvent<HTMLDivElement>, index: number) => {
-    if (isDesktopInput) return;
+    if (isDesktopInput || activeRole) return;
     if (event.button !== 0) return;
     clearBenchHoldTimer();
     benchPointerStartRef.current = { index, x: event.clientX, y: event.clientY };
@@ -265,8 +280,27 @@ export default function SquadEditor({
   const startStarterSwapSelection = (index: number) => {
     setStarterSwapSourceIndex(index);
     setBenchSwapSourceIndex(null);
+    setActiveRole(null);
     setSelectedIndex(null);
   };
+
+  const activateRoleSelection = (role: GameRole) => {
+    const nextRole = activeRole === role ? null : role;
+    setActiveRole(nextRole);
+    if (nextRole) {
+      window.requestAnimationFrame(() => {
+        fieldPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+  };
+
+  const activeRoleLabel = activeRole === 'captain'
+    ? 'CAPITÃO'
+    : activeRole === 'penalty'
+      ? 'BATEDOR DE PÊNALTI'
+      : activeRole === 'freeKick'
+        ? 'COBRADOR DE FALTA'
+        : null;
 
   const confirmPlayerSwap = () => {
     if (!pendingSwap) return;
@@ -348,25 +382,21 @@ export default function SquadEditor({
         />
       )}
 
-      <FormationSelector value={formationId} onChange={onSetFormation} />
-      <TacticSelector value={playStyle} onChange={onSetPlayStyle} />
       {onSetMatchPlan ? (
         <MatchPlanSelector value={matchPlan} playStyle={playStyle} onChange={onSetMatchPlan} />
       ) : null}
 
       <RolesSelector
-        players={xi.map(player => ({ ...player, effectiveOverall: effectiveStatsById[player.id]?.overall, effectiveStats: effectiveStatsById[player.id] }))}
+        players={rolePlayers}
         captainId={captain}
         penaltyTakerId={penaltyTaker}
         freeKickTakerId={freeKickTaker}
         onSetCaptain={onSetCaptain}
         onSetPenaltyTaker={onSetPenaltyTaker}
         onSetFreeKickTaker={onSetFreeKickTaker}
+        onActivateRole={activateRoleSelection}
+        activeRole={activeRole}
       />
-
-      <p className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-        Clique para editar e ver os buffs. {isDesktopInput ? 'Arraste uma reserva sobre um titular para trocar.' : 'Segure uma reserva ou titular para escolher no campo quem será trocado.'}
-      </p>
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {formation && (
@@ -374,7 +404,7 @@ export default function SquadEditor({
             {(benchSwapSourceIndex !== null || starterSwapSourceIndex !== null) && players[benchSwapSourceIndex ?? starterSwapSourceIndex!] && (
               <div
                 role="status"
-                className="flex items-center gap-2 rounded-xl border border-[#C9A84C66] bg-[#17151B] px-3 py-2.5 text-xs"
+                className="flex items-center gap-3 rounded-xl border border-[#C9A84C66] bg-[#17151B] px-3.5 py-3 text-sm leading-snug"
                 style={{ color: '#F4D56A', fontFamily: 'Rajdhani, sans-serif' }}
               >
                 <span className="min-w-0 flex-1">
@@ -388,8 +418,39 @@ export default function SquadEditor({
                     setBenchSwapSourceIndex(null);
                     setStarterSwapSourceIndex(null);
                   }}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#C9A84C66] text-base font-black text-[#F4D56A] transition-colors hover:bg-[#C9A84A22]"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#C9A84C66] text-xl font-black text-[#F4D56A] transition-colors hover:bg-[#C9A84A22]"
                   aria-label="Cancelar escolha de substituição"
+                  title="Cancelar"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            {activeRole && (
+              <div
+                role="status"
+                className="mb-2 flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm leading-snug"
+                style={{ color: '#F4D56A', background: '#17151B', borderColor: '#C9A84C66', fontFamily: 'Rajdhani, sans-serif' }}
+              >
+                <span className="min-w-0 flex-1">
+                  <b className="block tracking-widest">ESCOLHA O {activeRoleLabel}</b>
+                  <span className="mt-1 block text-[13px] text-[#D0CBAE]">Toque em um titular no campo para definir a função.</span>
+                  {roleSuggestionId && (() => {
+                    const suggestion = rolePlayers.find(player => player.id === roleSuggestionId);
+                    const photoUrl = suggestion ? buildSofifaUrl(suggestion.id, 120) : null;
+                    return suggestion ? (
+                      <span className="mt-2 flex items-center gap-2 text-[13px] text-[#C9A84C]">
+                        {photoUrl && <img src={photoUrl} alt="" className="h-10 w-8 rounded object-cover object-top" />}
+                        <span>★ Sugestão: <b>{suggestion.shortName}</b></span>
+                      </span>
+                    ) : null;
+                  })()}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveRole(null)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#C9A84C66] text-xl font-black text-[#F4D56A] transition-colors hover:bg-[#C9A84A22]"
+                  aria-label="Cancelar escolha da função"
                   title="Cancelar"
                 >
                   ×
@@ -412,8 +473,33 @@ export default function SquadEditor({
               )}
               effectiveStats={effectiveStatsById}
               chemistryScores={chemData.individual}
-              showChemLines
+              showChemLines={!activeRole}
               chemLinks={chemLinks}
+              roleSelection={activeRole}
+              roleMetrics={roleMetrics}
+              roleSuggestionId={roleSuggestionId}
+              fieldControls={(
+                <div className="flex w-full items-start justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFieldSettingsPanel('formation')}
+                    className="w-fit max-w-[9.75rem] rounded-lg border border-[#C9A84C99] bg-[#080F0AEE] px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[#1A2A1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]"
+                    title="Abrir configurações da formação"
+                  >
+                    <span className="block text-[10px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>FORMAÇÃO</span>
+                    <span className="block max-w-32 truncate text-base font-black text-[#F0D77A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{formation.name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFieldSettingsPanel('tactic')}
+                    className="w-fit max-w-[9.75rem] rounded-lg border border-[#818CF899] bg-[#080F0AEE] px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[#1A2A1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#818CF8]"
+                    title="Abrir configurações da tática"
+                  >
+                    <span className="block text-[10px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TÁTICA</span>
+                    <span className="block max-w-36 truncate text-base font-black text-[#C7D2FE]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{activeTactic.icon} {activeTactic.name}</span>
+                  </button>
+                </div>
+              )}
               selectedPlayerIndex={selectedIndex}
               positionGuidePlayer={benchSwapSourceIndex !== null
                 ? players[benchSwapSourceIndex] ?? null
@@ -423,6 +509,13 @@ export default function SquadEditor({
                   ? players[benchDraggingIndex] ?? null
                   : null}
               onPlayerClick={(_player, posIndex) => {
+                if (activeRole) {
+                  if (activeRole === 'captain') onSetCaptain(_player.id);
+                  if (activeRole === 'penalty') onSetPenaltyTaker(_player.id);
+                  if (activeRole === 'freeKick') onSetFreeKickTaker(_player.id);
+                  setActiveRole(null);
+                  return;
+                }
                 if (benchSwapSourceIndex !== null) {
                   requestPlayerSwap(benchSwapSourceIndex, posIndex);
                   setBenchSwapSourceIndex(null);
@@ -437,15 +530,17 @@ export default function SquadEditor({
               }}
               onPlayerDrop={requestPlayerSwap}
             />
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px]" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
-              <span className="font-bold tracking-wider text-[#6A6A7A]">CONEXÕES:</span>
-              {([['club', 'Mesmo clube'], ['nation', 'Mesma nação'], ['coach', 'Mesmo técnico'], ['partner', 'Dupla histórica']] as const).map(([t, label]) => (
-                <span key={t} className="flex items-center gap-1">
-                  <span style={{ width: 12, height: 2.5, borderRadius: 2, background: CHEM_LINK_COLOR[t], display: 'inline-block' }} />
-                  {label}
-                </span>
-              ))}
-            </div>
+            {!activeRole && (
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px]" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                <span className="font-bold tracking-wider text-[#6A6A7A]">CONEXÕES:</span>
+                {([['club', 'Mesmo clube'], ['nation', 'Mesma nação'], ['coach', 'Mesmo técnico'], ['partner', 'Dupla histórica']] as const).map(([t, label]) => (
+                  <span key={t} className="flex items-center gap-1">
+                    <span style={{ width: 12, height: 2.5, borderRadius: 2, background: CHEM_LINK_COLOR[t], display: 'inline-block' }} />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -491,6 +586,7 @@ export default function SquadEditor({
                       >
                         <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} compact selected={selectedIndex === 11 + i || benchSwapSourceIndex === 11 + i}
                           onClick={() => {
+                            if (activeRole) return;
                             if (benchHoldClickGuardRef.current || benchDragClickGuardRef.current) {
                               benchHoldClickGuardRef.current = false;
                               benchDragClickGuardRef.current = false;
@@ -516,6 +612,32 @@ export default function SquadEditor({
           </div>
         </div>
       </div>
+
+      <Dialog open={fieldSettingsPanel !== null} onOpenChange={open => { if (!open) setFieldSettingsPanel(null); }}>
+        <DialogContent
+          disableAnimation
+          overlayClassName="bg-black/85"
+          closeButtonLabel="Fechar configurações do campo"
+          closeButtonClassName="right-3 top-3 flex size-10 items-center justify-center rounded-xl bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
+          className="!left-0 !top-0 !h-dvh !w-screen !max-h-dvh !max-w-none !translate-x-0 !translate-y-0 content-start gap-3 overflow-y-auto rounded-none border-0 bg-[var(--ui-bg-raised)] p-4 text-[var(--ui-text)] shadow-none sm:!left-1/2 sm:!top-1/2 sm:!h-auto sm:!max-h-[min(92dvh,860px)] sm:!w-full sm:!max-w-3xl sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-lg sm:border sm:border-[var(--ui-line)] sm:p-6 sm:shadow-2xl"
+        >
+          <DialogHeader className="gap-1 pr-12 text-left">
+            <DialogTitle className="font-display text-2xl tracking-wide text-[var(--ui-brand-strong)] sm:text-3xl">
+              {fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : 'TÁTICA DO TIME'}
+            </DialogTitle>
+            <p className="text-sm leading-snug text-[var(--ui-text-muted)]">
+              {fieldSettingsPanel === 'formation'
+                ? 'Escolha o esquema e veja como ele muda o comportamento do time.'
+                : 'Escolha a mentalidade que orienta o comportamento do time na partida.'}
+            </p>
+          </DialogHeader>
+          {fieldSettingsPanel === 'formation' ? (
+            <FormationSelector value={formationId} onChange={onSetFormation} />
+          ) : (
+            <TacticSelector value={playStyle} onChange={onSetPlayStyle} />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {footer}
 

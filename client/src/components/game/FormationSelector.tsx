@@ -28,7 +28,7 @@ function profileTags(id: string): Tag[] {
 }
 
 const Chip = ({ tag }: { tag: Tag }) => (
-  <span className="whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-black"
+  <span className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-black"
     style={{ background: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}44`, fontFamily: 'Rajdhani, sans-serif' }}>
     {tag.label}
   </span>
@@ -42,23 +42,25 @@ export default function FormationSelector({ value, onChange }: Props) {
   const previewFormation = FORMATIONS.find(f => f.id === previewFormationId) ?? null;
 
   return (
-    <div className="ui-panel p-4">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
-          FORMAÇÃO
-        </span>
-        <span className="text-xs font-bold" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>
-          ESQUEMA TÁTICO
-        </span>
+    <div className="space-y-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Formação atual</div>
+            <div className="mt-0.5 font-display text-xl leading-none tracking-wide text-[var(--ui-brand-strong)]">{active.name}</div>
+          </div>
+        </div>
+        <p className="mt-2 text-xs leading-snug text-[var(--ui-text-muted)]">
+          A troca reposiciona os jogadores. As etiquetas resumem o impacto de cada esquema.
+        </p>
       </div>
 
-      <p className="mb-4 text-sm leading-relaxed text-pretty" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
-        A formação organiza o time e inclina três eixos: <b style={{ color: '#FFF' }}>controle</b> cria volume,
-        <b style={{ color: '#FFF' }}> ataque</b> torna as chances mais perigosas e <b style={{ color: '#FFF' }}>defesa</b> reduz o perigo adversário.
-        Trocar também reposiciona seus jogadores.
-      </p>
-
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+      <div>
+        <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
+          <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Escolha a formação</span>
+          <span className="text-[10px] font-bold text-[var(--ui-text-faint)]">ⓘ Ver posições</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {FORMATIONS.map((f) => {
           const isActive = active.id === f.id;
           return (
@@ -67,7 +69,7 @@ export default function FormationSelector({ value, onChange }: Props) {
                 selected={isActive}
                 onClick={() => onChange(f.id)}
                 title={`${f.name}: perfil de controle, ataque e defesa`}
-                className="h-full px-3 py-3 pr-11"
+                className="h-full px-2.5 py-2.5 pr-10"
               >
                 <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: isActive ? '#C9A84C' : '#FFF' }}>
                   {f.name}
@@ -80,15 +82,13 @@ export default function FormationSelector({ value, onChange }: Props) {
             </div>
           );
         })}
+        </div>
       </div>
 
-      {/* Active formation profile */}
-      <div className="ui-panel ui-panel--inset mt-3 px-3 py-3 text-sm">
-        <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-          <span className="text-base font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>{active.name}</span>
-          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>
-            Perfil no jogo
-          </span>
+      <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Impacto no jogo</span>
+          <span className="font-display text-base tracking-wide text-[var(--ui-brand-strong)]">{active.name}</span>
         </div>
         <ImpactMeter profile={formationProfile(active.id)} />
       </div>

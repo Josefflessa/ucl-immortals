@@ -2,7 +2,7 @@
 // Design: Dark Premium Gaming UI — hero with stadium background, gold accents
 
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Gamepad2, Trophy, Plus, LogIn, BookOpen, LibraryBig } from 'lucide-react';
 import HowToPlayModal from '../components/game/HowToPlayModal';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
@@ -34,10 +34,13 @@ export default function MenuPage() {
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
 
   useEffect(() => {
-    if (!state.roomCode && state.phase === 'menu' && menuMode !== 'selection') {
+    // Reset only when the lobby is actually left. Including `menuMode` here
+    // makes every click on SOLO/ONLINE immediately revert to the selection
+    // screen, because both flows start while the app is still in phase `menu`.
+    if (!state.roomCode && state.phase === 'menu') {
       setMenuMode('selection');
     }
-  }, [menuMode, state.phase, state.roomCode]);
+  }, [state.phase, state.roomCode]);
 
   const handlePlaySolo = () => {
     if (!playerName.trim()) return;
@@ -192,22 +195,14 @@ export default function MenuPage() {
       {/* Content */}
       <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 py-8">
         {/* Eyebrow */}
-        <motion.span
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <span
           className="ui-kicker mb-3 text-center tracking-[0.32em] sm:tracking-[0.42em]"
         >
           Ultimate Champions League
-        </motion.span>
+        </span>
 
         {/* Logo (herói) + título */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.85, y: -14 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="flex flex-col items-center"
-        >
+        <div className="flex flex-col items-center">
           <div className="relative flex items-center justify-center">
             <img src={LOGO_URL} alt="UCL Immortals" className="relative w-36 h-36 sm:w-44 sm:h-44 object-contain" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
           </div>
@@ -215,31 +210,22 @@ export default function MenuPage() {
             <span className="block text-[var(--ui-brand-strong)]">UCL</span>
             <span className="block text-[var(--ui-text)]">IMMORTALS</span>
           </h1>
-        </motion.div>
+        </div>
 
         {/* Régua + tagline */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.25, duration: 0.6 }}
-          className="flex flex-col items-center mt-4 mb-7"
-        >
+        <div className="flex flex-col items-center mt-4 mb-7">
           <div className="h-px w-40 bg-[var(--ui-brand)] opacity-70 sm:w-56" />
           <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base">
             Monte um elenco histórico e competitivo. Conquiste o título da <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
           </p>
-        </motion.div>
+        </div>
 
         {/* (troféu removido) */}
 
         {/* Dynamic Mode Forms */}
-        <AnimatePresence mode="wait">
+        <div>
           {menuMode === 'selection' && (
-            <motion.div 
-              key="selection"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+            <div
               className="flex flex-col gap-3 w-full max-w-xs"
             >
               <Button
@@ -287,15 +273,11 @@ export default function MenuPage() {
                   <BookOpen size={16} strokeWidth={2.5} /> COMO JOGAR
                 </span>
               </Button>
-            </motion.div>
+            </div>
           )}
 
           {menuMode === 'solo' && (
-            <motion.div 
-              key="solo"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 15 }}
+            <div
               className="w-full max-w-xs space-y-4"
             >
               <div>
@@ -334,15 +316,11 @@ export default function MenuPage() {
                   Avançar →
                 </Button>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {menuMode === 'online' && (
-            <motion.div 
-              key="online"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 15 }}
+            <div
               className="w-full max-w-xs space-y-4"
             >
               <div>
@@ -405,15 +383,11 @@ export default function MenuPage() {
               >
                 Voltar ao Menu principal
               </Button>
-            </motion.div>
+            </div>
           )}
 
           {menuMode === 'online_join' && (
-            <motion.div 
-              key="online_join"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 15 }}
+            <div
               className="w-full max-w-xs space-y-4"
             >
               <div className="space-y-3">
@@ -451,9 +425,9 @@ export default function MenuPage() {
                   CONECTAR SALA ✓
                 </Button>
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        </div>
 
       </div>
 

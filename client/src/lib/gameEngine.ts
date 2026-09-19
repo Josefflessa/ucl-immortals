@@ -966,7 +966,7 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
@@ -998,11 +998,17 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     }
     for (const id of targets) contribute(id, { type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: 3, perStat: {} });
   }
-  // 🪑 12º Homem — no BANCO (índice ≥11): +1 compostura e +2 visão a todo o XI.
+  // 🪑 12º Homem — no BANCO (índice ≥11): +4 compostura e +4 visão a todo o XI.
   for (let i = 11; i < players.length; i++) {
     const p = players[i];
     if (!p?.decimoHomem) continue;
-    for (const mate of xi) contribute(mate.id, { type: 'decimoHomem', fromId: p.id, fromName: p.shortName, flatAll: 0, perStat: { composure: 1, vision: 2 } });
+    for (const mate of xi) contribute(mate.id, { type: 'decimoHomem', fromId: p.id, fromName: p.shortName, flatAll: 0, perStat: { composure: 4, vision: 4 } });
+  }
+  // 🧩 Colecionador — titular recebe +2 em tudo por cada jogador que estiver na reserva.
+  const reservePlayerCount = players.slice(11).filter((p): p is Player => !!p).length;
+  for (const c of xi) {
+    if (!c.colecionador) continue;
+    contribute(c.id, { type: 'colecionador', fromId: c.id, fromName: c.shortName, flatAll: reservePlayerCount * COLECIONADOR_PER_RESERVE, perStat: {}, self: true });
   }
   // 🛟 Noé — SÓ rende se ele é o ÚNICO titular do XI com característica: +10 em tudo NELE.
   // (o +30 de química vive em calculateChemistry). Dois Noés no XI se cancelam (nenhum é "o único").
@@ -1011,7 +1017,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     const n = carded[0];
     contribute(n.id, { type: 'noe', fromId: n.id, fromName: n.shortName, flatAll: NOE_STAT_BOOST, perStat: {}, self: true });
   }
-  // 🧳 Forasteiro — +5 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
+  // 🧳 Forasteiro — +8 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
   for (const f of xi) {
     if (!f.forasteiro) continue;
     const soloNation = xi.filter(p => p.nation === f.nation).length === 1;
@@ -3203,6 +3209,7 @@ const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
 const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada 2 titularidades
 const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
+const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +2 por jogador na reserva
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
@@ -3220,8 +3227,10 @@ export const PIPOQUEIRO_KO_PENALTY = 5;     // −5 em cada atributo no MATA-MAT
 // (atributos) e calculateChemistry (o +30). O custo é estrutural: abrir mão de toda outra característica.
 export const NOE_STAT_BOOST = 10;
 export const NOE_CHEM_BONUS = 30;
-// 🧳 Forasteiro — o anti-química: +5 em tudo quando é o ÚNICO titular do seu país E do seu clube.
-export const FORASTEIRO_STAT_BOOST = 5;
+// 🧳 Forasteiro — o anti-química: +8 em tudo quando é o ÚNICO titular do seu país E do seu clube.
+export const FORASTEIRO_STAT_BOOST = 8;
+// 🧩 Colecionador — +2 em todos os atributos por jogador que estiver na reserva.
+export const COLECIONADOR_PER_RESERVE = 2;
 // Single boost value: "em alta" adds this to EVERY attribute. The overall rises by the
 // same amount as a CONSEQUENCE — overall is the mean of the attributes, so +N across all
 // eight is +N overall. That's why it's described to the player simply as "+N em cada atributo".
@@ -3306,6 +3315,10 @@ function applyDraftVariant(p: Player): Player {
   if (r < acc) return { ...p, noe: true, traits: rollPlayerTraits(p.position, p.rarity) };
   acc += DRAFT_FORASTEIRO_CHANCE;
   if (r < acc) return { ...p, forasteiro: true, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🧩 Colecionador — bônus individual baseado na quantidade de jogadores na reserva.
+  acc += DRAFT_COLECIONADOR_CHANCE;
+  if (r < acc) return { ...p, colecionador: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // 🗣️ Capitão Nato — flag pura; efeito (dobra o bônus de capitão SE for o capitão) em captainBoostFromStarters.
   acc += DRAFT_CAPITAO_CHANCE;
@@ -3572,7 +3585,7 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente'): Player {
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente'): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
     // inForm/lobo add to every attribute; martir/magnata SUBTRACT from every attribute.
     const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : -MAGNATA_STAT_PENALTY;
@@ -3590,7 +3603,7 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'capitaoNato', 'magnata', 'prodigio', 'resiliente'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'capitaoNato', 'magnata', 'prodigio', 'resiliente'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -3626,7 +3639,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
-  delete p.noe; delete p.forasteiro; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
+  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
   delete p.resiliente; delete p.resilienteDefeats;
   return p;
 }

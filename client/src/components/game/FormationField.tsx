@@ -1,11 +1,12 @@
 // UCL Immortals — FormationField Component
 // Tactical field with player positions and chemistry lines
 
-import { useEffect, useId, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
 import { isPlayerInPosition, positionFit, ChemLink, ChemLinkType } from '../../lib/gameEngine';
 import PlayerCard, { buildSofifaUrl, getCardVariants, type PlayerCardStats } from './PlayerCard';
+import type { GameRole, RoleMetric } from './RolesSelector';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 const FIELD_CARD_WIDTH = 92;
@@ -65,6 +66,13 @@ interface FormationFieldProps {
   // stays on card values; Meu Time supplies it for both starters and the bench.
   effectiveStats?: Record<string, PlayerCardStats>;
   selectedPlayerIndex?: number | null;
+  // Direct role assignment mode: the field becomes a focused picker for one
+  // of the three match functions and surfaces only the useful decision stats.
+  roleSelection?: GameRole | null;
+  roleMetrics?: Record<string, RoleMetric>;
+  roleSuggestionId?: string | null;
+  // Optional controls rendered inside the field, anchored to its top-right corner.
+  fieldControls?: ReactNode;
   // When a player is being moved (starter drag or reserve long-press shortcut),
   // colour every field slot according to that player's position fit.
   positionGuidePlayer?: Player | null;
@@ -115,6 +123,10 @@ export default function FormationField({
   showPlayerCards = false,
   effectiveStats = {},
   selectedPlayerIndex = null,
+  roleSelection = null,
+  roleMetrics = {},
+  roleSuggestionId = null,
+  fieldControls,
   positionGuidePlayer = null,
   ratings,
   goalsByPlayer,
@@ -133,7 +145,7 @@ export default function FormationField({
   const dragOverIndexRef = useRef<number | null>(null);
   const [nativeDragEnabled, setNativeDragEnabled] = useState(false);
   const ratingMode = !!ratings;
-  const canReorderPlayers = showPlayerCards && !!onPlayerDrop;
+  const canReorderPlayers = showPlayerCards && !!onPlayerDrop && !roleSelection;
   const canUseNativeDrag = canReorderPlayers && nativeDragEnabled;
   // A starter gets its guide from the native drag state. A reserve is supplied
   // by SquadEditor after its long press, so the user can release the gesture
@@ -356,6 +368,11 @@ export default function FormationField({
         boxShadow: 'inset 0 0 0 1px rgba(110, 201, 113, 0.12), inset 0 0 42px rgba(0, 0, 0, 0.24), 0 12px 30px rgba(0, 0, 0, 0.2)',
       }}
     >
+      {fieldControls && (
+        <div className="absolute inset-x-2 top-2 z-40" onPointerDown={event => event.stopPropagation()}>
+          {fieldControls}
+        </div>
+      )}
       {/* Field markings — scales with the container via viewBox */}
       <svg
         className="absolute inset-0 w-full h-full"
@@ -461,6 +478,9 @@ export default function FormationField({
         const a = player ? (assistsByPlayer?.[player.id] ?? 0) : 0;
         const disc = player ? disciplineByPlayer?.[player.id] : undefined;
         const sentOff = !!disc?.red;
+        const roleMetric = roleSelection && player ? roleMetrics[player.id] : undefined;
+        const isRoleSuggestion = !!roleSelection && player?.id === roleSuggestionId;
+        const roleAccent = roleSelection === 'captain' ? '#3B82F6' : roleSelection === 'penalty' ? '#C9A84C' : '#22C55E';
         // ⭐ Características do jogador (Em Alta, Lobo, Ídolo, Magnata…) — tingem a borda/glow do token
         // (como no card) e aparecem num chip com o(s) ícone(s) no canto inferior esquerdo.
         const variants = player ? getCardVariants(player) : [];
@@ -496,6 +516,11 @@ export default function FormationField({
                 ...(isPositionGuideTarget ? {
                   borderRadius: 12,
                   boxShadow: `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`,
+                } : roleSelection && player ? {
+                  borderRadius: 12,
+                  boxShadow: isRoleSuggestion
+                    ? `0 0 0 2px ${roleAccent}, 0 0 20px ${roleAccent}CC`
+                    : `0 0 0 1px ${roleAccent}66`,
                 } : {}),
               }}
               transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
@@ -534,6 +559,16 @@ export default function FormationField({
                 : undefined}
             >
               <div className="relative" style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center', opacity: draggingIndex === index ? 0.52 : 1 }}>
+                {roleSelection && player && roleMetric && (
+                  <div
+                    className="absolute left-1/2 top-[-30px] z-30 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1.5 text-[10px] font-black leading-none"
+                    style={{ color: '#FFF', background: '#08080FCC', border: `1px solid ${isRoleSuggestion ? roleAccent : `${roleAccent}66`}`, fontFamily: 'Rajdhani, sans-serif' }}
+                  >
+                    {isRoleSuggestion ? '★ ' : ''}{roleMetric.primaryLabel} {roleMetric.primaryValue}
+                    {roleMetric.secondaryLabel ? ` · ${roleMetric.secondaryLabel} ${roleMetric.secondaryValue}` : ''}
+                    {roleMetric.traitLabel ? ` · ${roleMetric.traitLabel}` : ''}
+                  </div>
+                )}
                 <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
                   {player ? (
                     <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} />

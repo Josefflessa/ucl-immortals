@@ -55,10 +55,11 @@ export interface Player {
   martir?: boolean;     // 🩸 Mártir — −6 em tudo nele; dá +3 em tudo a 2 titulares escolhidos (acumulável)
   martirTargets?: string[]; // ids dos (até 2) titulares que recebem o +3 do Mártir; vazio → 2 maiores overalls
   idolo?: boolean;      // ❤️ Ídolo — +2 em tudo a cada OUTRO titular do mesmo clube (não a ele)
-  decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 compostura e +2 visão a todo o XI
+  decimoHomem?: boolean; // 🪑 12º Homem — no banco, +4 compostura e +4 visão a todo o XI
   pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +4 em tudo na FASE DE LIGA, −5 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
   noe?: boolean;         // 🛟 Noé — só quando é o ÚNICO titular do XI com característica: +10 em tudo NELE + 30 na química geral
-  forasteiro?: boolean;  // 🧳 Forasteiro — +5 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
+  forasteiro?: boolean;  // 🧳 Forasteiro — +8 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
+  colecionador?: boolean; // 🧩 Colecionador — +2 em tudo por jogador que estiver na reserva
   capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão vem DOBRADO
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida de liga por 1,5, mas −5 em tudo nele
   prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada 2 titularidades acumuladas
@@ -467,8 +468,8 @@ const FORMATIONS_BASE: Omit<Formation, 'counteredBy'>[] = [
     positions: [
       { role: 'GK', x: 50, y: 92 },
       { role: 'LB', x: 15, y: 75 },
-      { role: 'CB', x: 35, y: 78 },
-      { role: 'CB', x: 65, y: 78 },
+      { role: 'CB', x: 38, y: 78 },
+      { role: 'CB', x: 62, y: 78 },
       { role: 'RB', x: 85, y: 75 },
       { role: 'CM', x: 25, y: 55 },
       { role: 'CDM', x: 50, y: 60 },
@@ -487,8 +488,8 @@ const FORMATIONS_BASE: Omit<Formation, 'counteredBy'>[] = [
     positions: [
       { role: 'GK', x: 50, y: 92 },
       { role: 'LB', x: 15, y: 75 },
-      { role: 'CB', x: 35, y: 78 },
-      { role: 'CB', x: 65, y: 78 },
+      { role: 'CB', x: 38, y: 78 },
+      { role: 'CB', x: 62, y: 78 },
       { role: 'RB', x: 85, y: 75 },
       { role: 'CDM', x: 35, y: 60 },
       { role: 'CDM', x: 65, y: 60 },
@@ -507,12 +508,12 @@ const FORMATIONS_BASE: Omit<Formation, 'counteredBy'>[] = [
     positions: [
       { role: 'GK', x: 50, y: 92 },
       { role: 'LB', x: 15, y: 75 },
-      { role: 'CB', x: 35, y: 78 },
-      { role: 'CB', x: 65, y: 78 },
+      { role: 'CB', x: 38, y: 78 },
+      { role: 'CB', x: 62, y: 78 },
       { role: 'RB', x: 85, y: 75 },
       { role: 'LM', x: 15, y: 52 },
-      { role: 'CM', x: 35, y: 55 },
-      { role: 'CM', x: 65, y: 55 },
+      { role: 'CM', x: 38, y: 55 },
+      { role: 'CM', x: 62, y: 55 },
       { role: 'RM', x: 85, y: 52 },
       { role: 'ST', x: 35, y: 18 },
       { role: 'ST', x: 65, y: 18 },
@@ -550,8 +551,8 @@ const FORMATIONS_BASE: Omit<Formation, 'counteredBy'>[] = [
       { role: 'CB', x: 50, y: 80 },
       { role: 'CB', x: 75, y: 78 },
       { role: 'LM', x: 12, y: 52 },
-      { role: 'CM', x: 35, y: 55 },
-      { role: 'CM', x: 65, y: 55 },
+      { role: 'CM', x: 38, y: 55 },
+      { role: 'CM', x: 62, y: 55 },
       { role: 'RM', x: 88, y: 52 },
       { role: 'LW', x: 15, y: 22 },
       { role: 'ST', x: 50, y: 12 },
@@ -567,9 +568,9 @@ const FORMATIONS_BASE: Omit<Formation, 'counteredBy'>[] = [
     positions: [
       { role: 'GK', x: 50, y: 92 },
       { role: 'LB', x: 10, y: 72 },
-      { role: 'CB', x: 28, y: 78 },
+      { role: 'CB', x: 30, y: 78 },
       { role: 'CB', x: 50, y: 80 },
-      { role: 'CB', x: 72, y: 78 },
+      { role: 'CB', x: 70, y: 78 },
       { role: 'RB', x: 90, y: 72 },
       { role: 'CM', x: 25, y: 52 },
       { role: 'CDM', x: 50, y: 58 },

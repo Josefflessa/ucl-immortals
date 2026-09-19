@@ -1,7 +1,6 @@
 // UCL Immortals — "Como jogar"
 // Guia in-game organizado por fluxo e alimentado pelas regras atuais do jogo.
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   COACHES,
   DIFFICULTY_LEVELS,
@@ -505,16 +504,13 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
   const currentSection = sections[tab];
 
   return (
-    <AnimatePresence>
+    <>
       {open && (
-        <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        <div
           className="ui-modal-backdrop z-[90] p-2 sm:p-4"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 14 }}
-            transition={{ duration: 0.18 }}
+          <div
             onClick={(event) => event.stopPropagation()}
             className="ui-modal ui-modal--wide flex max-h-[92vh] flex-col"
           >
@@ -545,9 +541,9 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
             </div>
 
             <div className="ui-modal__body flex-1">
-              <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} role="tabpanel">
+              <div role="tabpanel">
                 {currentSection.body}
-              </motion.div>
+              </div>
             </div>
 
             <div className="ui-modal__footer flex-shrink-0 items-center justify-between gap-3">
@@ -571,9 +567,9 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
                 </button>
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }

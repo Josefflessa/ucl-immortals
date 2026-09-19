@@ -10,7 +10,7 @@ import {
   createKnockoutBracket, advanceKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
   PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant,
-  calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST,
+  calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, COLECIONADOR_PER_RESERVE,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
@@ -423,11 +423,11 @@ describe('computeCharacteristicBoosts — team-effect characteristics', () => {
     expect(map['lo']?.flatAll ?? 0).toBe(0);
   });
 
-  it('🪑 12º Homem on the BENCH gives +1 composure & +2 vision to the whole XI', () => {
+  it('🪑 12º Homem on the BENCH gives +4 composure & +4 vision to the whole XI', () => {
     const xi = Array.from({ length: 11 }, (_, i) => mkP({ id: `xi${i}` }));
     const benchHelper = mkP({ id: 'bench', decimoHomem: true });
     const map = computeCharacteristicBoosts([...xi, benchHelper]);
-    expect(map['xi0'].perStat).toEqual({ composure: 1, vision: 2 });
+    expect(map['xi0'].perStat).toEqual({ composure: 4, vision: 4 });
     expect(map['xi0'].flatAll).toBe(0);
     // himself (on the bench) is NOT in the XI, so gets nothing
     expect(map['bench']).toBeUndefined();
@@ -493,10 +493,10 @@ describe('🛟 Noé — só rende como ÚNICO titular com característica (+10 e
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🧳 Forasteiro — +5 como único do país E do clube', () => {
+describe('🧳 Forasteiro — +8 como único do país E do clube', () => {
   const filler = () => mkP({ nation: 'Fillerland', club: 'Filler FC' }); // todos iguais entre si
 
-  it('+5 quando ninguém compartilha nação nem clube', () => {
+  it('+8 quando ninguém compartilha nação nem clube', () => {
     const f = mkP({ id: 'f', forasteiro: true, nation: 'Solônia', club: 'Solo FC' });
     const xi = [f, ...Array.from({ length: 10 }, filler)];
     // fillers compartilham nação/clube entre si, mas não com o Forasteiro
@@ -518,6 +518,30 @@ describe('🧳 Forasteiro — +5 como único do país E do clube', () => {
     const xi = [f, mate, ...Array.from({ length: 9 }, filler)];
     const boosts = computeCharacteristicBoosts(xi);
     expect(boosts['f']?.flatAll ?? 0).toBe(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('🧩 Colecionador — +2 por jogador na reserva', () => {
+  it('usa a quantidade de jogadores presentes na reserva', () => {
+    const collector = mkP({ id: 'collector', colecionador: true, club: 'Clube A' });
+    const xi = [
+      collector,
+      mkP({ club: 'Clube A' }),
+      mkP({ club: 'Clube B' }),
+      mkP({ club: 'Clube C' }),
+      ...Array.from({ length: 7 }, () => mkP({ club: 'Clube C' })),
+    ];
+    const reserves = [mkP({ id: 'reserve1' }), mkP({ id: 'reserve2' }), mkP({ id: 'reserve3' })];
+    const boosts = computeCharacteristicBoosts([...xi, ...reserves]);
+    expect(boosts.collector?.flatAll).toBe(3 * COLECIONADOR_PER_RESERVE);
+  });
+
+  it('não gera bônus quando está no banco', () => {
+    const starters = Array.from({ length: 11 }, (_, i) => mkP({ id: `starter${i}`, club: `Clube ${i}` }));
+    const collector = mkP({ id: 'collector', colecionador: true, club: 'Banco FC' });
+    const boosts = computeCharacteristicBoosts([...starters, collector]);
+    expect(boosts.collector).toBeUndefined();
   });
 });
 
@@ -889,8 +913,8 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.pace - src.pace).toBe(delta);
     expect(v.lobo).toBe(true);
   });
-  it('flag-only variants (idolo / decimoHomem / coringa / resiliente) leave stats untouched', () => {
-    for (const key of ['idolo', 'decimoHomem', 'coringa', 'resiliente'] as const) {
+  it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente) leave stats untouched', () => {
+    for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente'] as const) {
       const v = applyShopVariant(src, key);
       expect((v as Record<string, unknown>)[key]).toBe(true);
       expect(v.overall).toBe(src.overall);

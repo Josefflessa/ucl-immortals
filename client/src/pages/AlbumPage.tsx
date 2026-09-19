@@ -164,17 +164,35 @@ function FilterSelect({
   );
 }
 
-function PlayerDetail({ player, versionCount }: { player: AlbumPlayer; versionCount: number }) {
+function PlayerDetail({
+  player,
+  versionCount,
+  onZoomCard,
+}: {
+  player: AlbumPlayer;
+  versionCount: number;
+  onZoomCard: () => void;
+}) {
   const rarityColor = getRarityColor(player.rarity);
   const originalOverall = player.baseOverall ?? player.overall;
   const secondaryPositions = effectiveSecondaries(player).filter(position => position !== player.position);
 
   return (
     <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start">
-      <div className="flex justify-center md:justify-start">
+      <div className="flex flex-col items-center md:items-start">
         <div className="md:origin-top-left md:scale-[1.2]">
           <PlayerCard player={player} lite />
         </div>
+        <button
+          type="button"
+          onClick={onZoomCard}
+          title="Zoom"
+          aria-label={`Ampliar carta de ${player.shortName}`}
+          className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface-2)] px-3 text-xs font-black text-[var(--ui-text-soft)] transition-colors hover:bg-[var(--ui-surface-3)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
+        >
+          <Search size={15} aria-hidden="true" />
+          ZOOM
+        </button>
       </div>
 
       <div className="min-w-0">
@@ -282,6 +300,7 @@ export default function AlbumPage() {
   const [gridColumns, setGridColumns] = useState<GridColumns>(5);
   const [page, setPage] = useState(1);
   const [selectedPlayer, setSelectedPlayer] = useState<AlbumPlayer | null>(null);
+  const [zoomCard, setZoomCard] = useState(false);
 
   const nations = useMemo(() => uniqueSorted(ALBUM_PLAYERS.map(player => player.nation)), []);
   const clubs = useMemo(() => uniqueSorted(ALBUM_PLAYERS.map(player => player.club)), []);
@@ -560,7 +579,7 @@ export default function AlbumPage() {
         </div>
       </PageContainer>
 
-      <Dialog open={selectedPlayer !== null} onOpenChange={open => { if (!open) setSelectedPlayer(null); }}>
+      <Dialog open={selectedPlayer !== null} onOpenChange={open => { if (!open) { setSelectedPlayer(null); setZoomCard(false); } }}>
         <DialogContent
           disableAnimation
           overlayClassName="bg-black/85"
@@ -568,7 +587,32 @@ export default function AlbumPage() {
           closeButtonClassName="right-3 top-3 flex size-10 items-center justify-center rounded-xl bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
           className="max-h-[min(92dvh,860px)] max-w-5xl overflow-y-auto border-[var(--ui-line)] bg-[var(--ui-bg-raised)] p-4 text-[var(--ui-text)] shadow-2xl sm:max-w-5xl sm:p-6"
         >
-          {selectedPlayer ? <PlayerDetail player={selectedPlayer} versionCount={selectedVersionCount} /> : null}
+          {selectedPlayer ? <PlayerDetail player={selectedPlayer} versionCount={selectedVersionCount} onZoomCard={() => setZoomCard(true)} /> : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={zoomCard && selectedPlayer !== null} onOpenChange={open => { if (!open) setZoomCard(false); }}>
+        <DialogContent
+          disableAnimation
+          showCloseButton={false}
+          overlayClassName="bg-[rgba(3,3,10,0.92)]"
+          className="flex w-auto max-w-[calc(100%-2rem)] items-center justify-center border-0 bg-transparent p-0 shadow-none sm:max-w-none"
+        >
+          {selectedPlayer ? (
+            <>
+              <DialogTitle className="sr-only">Zoom da carta de {selectedPlayer.shortName}</DialogTitle>
+              <button
+                type="button"
+                onClick={() => setZoomCard(false)}
+                title="Fechar zoom"
+                aria-label="Fechar zoom"
+                className="absolute right-0 top-0 z-10 flex size-11 -translate-y-2 translate-x-2 items-center justify-center rounded-full border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-2xl font-black text-[var(--ui-text-soft)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
+              >
+                ×
+              </button>
+              <PlayerCard player={selectedPlayer} scale={1.5} />
+            </>
+          ) : null}
         </DialogContent>
       </Dialog>
     </AppShell>
