@@ -4,7 +4,13 @@
 // always matches the name. Keyed by a stable slug `id`. Crests are lazy-loaded on demand.
 // Do NOT hand-edit ids — bots and saved games reference them.
 
-export interface CrestDef { id: string; name: string; url: string; }
+export interface CrestDef {
+  id: string;
+  name: string;
+  url: string;
+  /** Some legacy crest files include an opaque square around the circular badge. */
+  clipToCircle?: boolean;
+}
 export interface CrestGroup { league: string; crests: CrestDef[]; }
 
 export const CREST_CATALOG: CrestGroup[] = [
@@ -104,7 +110,7 @@ export const CREST_CATALOG: CrestGroup[] = [
   },
   {
     league: "Escócia", crests: [
-      { id: "celtic", name: "Celtic", url: "https://upload.wikimedia.org/wikipedia/en/3/35/Celtic_FC.svg" },
+      { id: "celtic", name: "Celtic", url: "https://upload.wikimedia.org/wikipedia/en/3/35/Celtic_FC.svg", clipToCircle: true },
       { id: "rangers", name: "Rangers", url: "https://upload.wikimedia.org/wikipedia/en/4/43/Rangers_FC.svg" },
     ]
   },

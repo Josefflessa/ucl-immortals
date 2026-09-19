@@ -119,7 +119,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           <Chip icon="📐" label="Formação" value={formation.name} color={accent} />
           <Chip icon={tactic.icon} label={activePlayStyle ? 'Tática atual' : 'Tática inicial'} value={tactic.name} color="#818CF8" />
-          <Chip icon="🔗" label="Química" value={`${chemistry.total}/100`} color="#22C55E" />
+          <Chip icon="🔗" label="Química" value={`${chemistry.total}`} color="#22C55E" />
           <Chip icon="⭐" label="Nota média" value={avgRating ? avgRating.toFixed(1) : '—'} color={avgColor} />
         </div>
 

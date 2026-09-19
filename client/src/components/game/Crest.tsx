@@ -43,7 +43,15 @@ function CrestImpl({ crestId, name, size = 24, className }: CrestProps) {
         draggable={false}
         onError={() => setFailed(true)}
         className={className}
-        style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }}
+        style={{
+          width: size,
+          height: size,
+          objectFit: 'contain',
+          flexShrink: 0,
+          // The Celtic SVG has an opaque white square outside its circular badge.
+          // Clip only that legacy asset so the white canvas cannot leak into the UI.
+          borderRadius: crest.clipToCircle ? '50%' : undefined,
+        }}
       />
     );
   }

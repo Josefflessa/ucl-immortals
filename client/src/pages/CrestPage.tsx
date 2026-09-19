@@ -48,7 +48,8 @@ export default function CrestPage() {
             {selectedDef ? (
               <>
                 <img src={selectedDef.url} alt={selectedDef.name} referrerPolicy="no-referrer" loading="lazy"
-                  className="w-12 h-12 object-contain" />
+                  className="w-12 h-12 object-contain"
+                  style={{ borderRadius: selectedDef.clipToCircle ? '50%' : undefined }} />
                 <span className="text-lg font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: GOLD }}>
                   {selectedDef.name.toUpperCase()}
                 </span>
@@ -124,7 +125,8 @@ export default function CrestPage() {
                   }}
                 >
                   <img src={c.url} alt={c.name} referrerPolicy="no-referrer" loading="lazy" decoding="async"
-                    className="w-12 h-12 object-contain" />
+                    className="w-12 h-12 object-contain"
+                    style={{ borderRadius: c.clipToCircle ? '50%' : undefined }} />
                   <span className="text-[10px] font-semibold text-center leading-tight truncate w-full"
                     style={{ color: isSel ? GOLD : '#C9C9D9', fontFamily: 'Rajdhani, sans-serif' }}>
                     {c.name}

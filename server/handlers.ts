@@ -460,6 +460,25 @@ function ensureUniquePackOffer(room: RoomState, player: RoomPlayer): void {
   player.uniquePackOfferRoundKey = roundKey;
 }
 
+// A disconnected player cannot click the end-of-round reinforcement modal.
+// Give that player one of the server-generated options automatically, keeping
+// the reward meaningful without allowing offline spending in the shop.
+function autoPickOfflineReinforcement(player: RoomPlayer): void {
+  if (player.connected || !player.team || !player.reinforcementOptions?.length) return;
+
+  const available = player.reinforcementOptions.filter(option =>
+    !player.team!.players.some(existing => existing.id === option.id));
+  if (available.length === 0) {
+    player.reinforcementOptions = null;
+    return;
+  }
+
+  const chosen = available[Math.floor(Math.random() * available.length)];
+  const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
+  player.team = { ...player.team, players: [...player.team.players, card] };
+  player.reinforcementOptions = null;
+}
+
 function isValidId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 80;
 }
@@ -2236,8 +2255,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
           const shouldOfferReinforcement = rewards.reinforcement !== 'off'
             && (rewards.reinforcementUntilRound === null || room.leagueRound <= rewards.reinforcementUntilRound)
             && (rewards.reinforcement === 'round' || room.leagueRound === stageRounds);
+          // If a player disconnected after a previous offer was created, settle
+          // that offer before materializing the next round's reward.
+          autoPickOfflineReinforcement(p);
           const ownedIds = p.team.players.map(pl => pl.id);
-          p.reinforcementOptions = shouldOfferReinforcement ? generateDraftOptions([], ownedIds).slice(0, rewards.reinforcementOptions) : null;
+          p.reinforcementOptions = shouldOfferReinforcement
+            ? generateDraftOptions([], ownedIds).slice(0, rewards.reinforcementOptions)
+            : null;
+          autoPickOfflineReinforcement(p);
         });
 
         // 🔥 Resiliente também cresce nas equipes controladas pelo servidor, sempre que
@@ -2426,9 +2451,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
         && (koRewards.reinforcementUntilRound === null || stageNumber <= koRewards.reinforcementUntilRound);
       room.players.forEach(p => {
         if (!p.team) return;
-        p.reinforcementOptions = offerStageReinforcement
-          ? generateDraftOptions([], p.team.players.map(pl => pl.id)).slice(0, koRewards.reinforcementOptions)
-          : p.reinforcementOptions;
+        autoPickOfflineReinforcement(p);
+        if (offerStageReinforcement) {
+          p.reinforcementOptions = generateDraftOptions([], p.team.players.map(pl => pl.id))
+            .slice(0, koRewards.reinforcementOptions);
+        }
+        autoPickOfflineReinforcement(p);
       });
 
       // 🎯 Liquida (sem creditar) os palpites da perna recém-jogada de cada jogador.
@@ -2534,6 +2562,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room || !isHost(room, socket.id)) return;
 
       clearDraftTurnTimer(roomCode);
+      cancelRoomCleanup(roomCode);
+      cancelHostGrace(roomCode);
       room.roomEpoch = Number.isSafeInteger(room.roomEpoch) && room.roomEpoch < Number.MAX_SAFE_INTEGER
         ? room.roomEpoch + 1
         : 1;
@@ -2595,6 +2625,71 @@ export function registerSocketHandlers(io: RealtimeServer) {
       emitRoomUpdate(io, room);
     });
 
+    // Explicitly leaving is different from a transport drop: the player has
+    // made a deliberate decision, so a host transfer must happen immediately.
+    // During an active competition we keep the seat as disconnected, allowing
+    // the same device to reconnect without losing its team or progress. In the
+    // lobby the seat is released normally so another player can join.
+    on("leave_room", ({ roomCode }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const idx = room.players.findIndex(player => player.socketId === socket.id);
+      if (idx === -1) return;
+
+      const player = room.players[idx];
+      const wasHost = player.id === room.hostId;
+      cancelHostGrace(roomCode);
+
+      if (room.phase === 'lobby') {
+        room.players.splice(idx, 1);
+        if (room.players.length > 0) {
+          if (wasHost) {
+            room.hostId = room.players.find(candidate => candidate.connected)?.id ?? room.players[0].id;
+          }
+          recomputeHost(room);
+          emitRoomUpdate(io, room);
+        } else {
+          cancelRoomCleanup(roomCode);
+          clearDraftTurnTimer(roomCode);
+          rooms.delete(roomCode);
+        }
+      } else {
+        player.connected = false;
+        invalidateReady(room, player.id);
+        autoPickOfflineReinforcement(player);
+        if (wasHost) {
+          const replacement = room.players.find(candidate => candidate.connected && candidate.id !== player.id);
+          if (replacement) room.hostId = replacement.id;
+        }
+        emitRoomUpdate(io, room);
+        scheduleRoomCleanupIfEmpty(room);
+      }
+
+      socket.emit('room_left', {
+        roomCode,
+        message: 'Você saiu da sala.',
+        hostTransferred: wasHost && room.players.some(candidate => candidate.id === room.hostId && candidate.id !== player.id),
+      });
+    });
+
+    // Encerrar is destructive and therefore only available to the current host.
+    // Notify everyone before removing the authoritative room so every client
+    // clears its local session instead of trying to reconnect to stale state.
+    on("close_room", ({ roomCode }) => {
+      const room = rooms.get(roomCode);
+      if (!room || !isHost(room, socket.id)) return;
+
+      clearDraftTurnTimer(roomCode);
+      cancelRoomCleanup(roomCode);
+      cancelHostGrace(roomCode);
+      io.to(roomCode).emit('room_closed', {
+        roomCode,
+        message: 'A sala foi encerrada pelo anfitrião.',
+      });
+      rooms.delete(roomCode);
+      console.log(`Room ${roomCode} closed by host`);
+    });
+
     // Disconnect (evento de ciclo de vida — fica no socket.on cru, fora do wrapper)
     socket.on("disconnect", () => {
       console.log(`Socket disconnected: ${socket.id}`);
@@ -2633,6 +2728,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         // if the player already watched the exact current result, a transient
         // reconnect must not make the host wait for a replay that already happened.
         invalidateReady(room, room.players[idx].id);
+        autoPickOfflineReinforcement(room.players[idx]);
         recomputeHost(room);
         bumpRoomRevision(room);
         emitRoomUpdate(io, room);

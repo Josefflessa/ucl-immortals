@@ -219,4 +219,89 @@ describe('game runtime isolation', () => {
       && (message.payload as any)?.reason === 'stale_room_epoch'
     ))).toBe(true);
   });
+
+  it('transfers the host immediately when the current host leaves the lobby', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+
+    runWithGameRuntime(runtime, () => host.receive('leave_room', {
+      roomCode: 'ABCD', commandId: 'leave-lobby-1', roomEpoch: 1,
+    }));
+
+    const room = runtime.rooms.get('ABCD')!;
+    expect(room.hostId).toBe('player_1');
+    expect(room.players.map(player => player.name)).toEqual(['Bruno']);
+    expect(host.sent.some(message => message.event === 'room_left')).toBe(true);
+    const guestUpdate = guest.sent.filter(message => message.event === 'room_updated').at(-1)?.payload as any;
+    expect(guestUpdate.hostId).toBe('player_1');
+  });
+
+  it('transfers the host immediately while preserving an active player seat', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+    runtime.rooms.get('ABCD')!.phase = 'league';
+    const hostPlayer = runtime.rooms.get('ABCD')!.players[0];
+    hostPlayer.team = { id: 'team-a', name: 'Alice FC', players: [] } as any;
+    hostPlayer.reinforcementOptions = [{ id: 'offline-reinforcement', shortName: 'Carta offline' } as any];
+
+    runWithGameRuntime(runtime, () => host.receive('leave_room', {
+      roomCode: 'ABCD', commandId: 'leave-active-1', roomEpoch: 1,
+    }));
+
+    const room = runtime.rooms.get('ABCD')!;
+    expect(room.hostId).toBe('player_1');
+    expect(room.players).toHaveLength(2);
+    expect(room.players[0].connected).toBe(false);
+    expect(room.players[1].connected).toBe(true);
+    expect(room.players[0].team?.players).toHaveLength(1);
+    expect(room.players[0].team?.players[0].id).toBe('offline-reinforcement');
+    expect(room.players[0].reinforcementOptions).toBeNull();
+    expect(host.sent.some(message => message.event === 'room_left')).toBe(true);
+  });
+
+  it('closes the room for every connected client when the host confirms it', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+
+    runWithGameRuntime(runtime, () => host.receive('close_room', {
+      roomCode: 'ABCD', commandId: 'close-1', roomEpoch: 1,
+    }));
+
+    expect(runtime.rooms.has('ABCD')).toBe(false);
+    expect(host.sent.some(message => message.event === 'room_closed')).toBe(true);
+    expect(guest.sent.some(message => message.event === 'room_closed')).toBe(true);
+  });
 });

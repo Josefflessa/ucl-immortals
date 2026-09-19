@@ -513,7 +513,8 @@ export function calculateChemistry(
     }
   }
 
-  // Total chemistry (0-100)
+  // Total chemistry. The base scale starts at 0, but additive bonuses are allowed
+  // to push the total beyond 100; 90+ already represents the top global-bonus tier.
   const baseTotal = Object.values(individual).reduce((sum, v) => sum + v, 0);
   const maxPossible = players.length * 3;
   const trioBonus = trios.reduce((sum, trioId) => {
@@ -532,8 +533,8 @@ export function calculateChemistry(
   const cardedXI = players.slice(0, 11).filter((p): p is Player => !!p && hasVariant(p));
   const noeBonus = (cardedXI.length === 1 && cardedXI[0].noe) ? NOE_CHEM_BONUS : 0;
 
-  const total = Math.max(0, Math.min(100,
-    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus));
+  const total = Math.max(0,
+    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus);
 
   return { individual, total, trios, outOfPosition, secondaryPos };
 }

@@ -4,6 +4,7 @@ import {
   canPlaceStake,
   buildLeagueMatchKey,
   BET_EXACT_MULT,
+  BET_BUILDER_MAX_MULTIPLIER,
   BET_OUTCOME_MULT,
   BET_TOTAL_CARDS_LINES,
   Bet,
@@ -91,6 +92,15 @@ describe('aposta combinada', () => {
       matchKey: 'L1:a-b', stake: 100, market: 'builder',
       selections: [...builderSelections, { type: 'both_score', value: false as const }],
     })).toBeNull();
+  });
+
+  it('respeita o novo teto de 3,5x', () => {
+    const combined = calculateBuilderMultiplier([
+      { type: 'exact_score', homeGoals: 2, awayGoals: 1 },
+      { type: 'total_cards', operator: 'under', line: 0.5 },
+    ]);
+    expect(BET_BUILDER_MAX_MULTIPLIER).toBe(3.5);
+    expect(combined).toBe(3.5);
   });
 
   it('não reduz a cotação ao combinar vitória com mais de 0,5 gols', () => {

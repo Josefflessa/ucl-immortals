@@ -41,7 +41,7 @@ describe('coach preferred-formation chemistry bonus', () => {
     const roles = players.map(p => p.position);
     const off = calculateChemistry(players, c.id, roles, c.preferredFormation === '4-4-2' ? '4-3-3' : '4-4-2');
     const on = calculateChemistry(players, c.id, roles, c.preferredFormation);
-    expect(on.total).toBe(Math.min(100, off.total + PREFERRED_FORMATION_CHEM_BONUS));
+    expect(on.total).toBe(off.total + PREFERRED_FORMATION_CHEM_BONUS);
     // No formation id passed → no bonus (backwards compatible).
     const none = calculateChemistry(players, c.id, roles);
     expect(none.total).toBe(off.total);
@@ -168,8 +168,19 @@ describe('calculateChemistry', () => {
     const starters = PLAYERS.slice(0, 11);
     const chem = calculateChemistry(starters, coach.id, starters.map(p => p.position));
     expect(chem.total).toBeGreaterThanOrEqual(0);
-    expect(chem.total).toBeLessThanOrEqual(100);
     expect(Object.keys(chem.individual).length).toBe(11);
+  });
+
+  it('allows additive chemistry bonuses to push the total above 100', () => {
+    const starters = PLAYERS.slice(0, 11).map((player, index) => ({
+      ...player,
+      id: `chem-${index}`,
+      club: 'Chemistry FC',
+      nation: 'Chemistry Nation',
+      pilar: index < 9,
+    }));
+    const chem = calculateChemistry(starters, coach.id, starters.map(p => p.position));
+    expect(chem.total).toBeGreaterThan(100);
   });
 });
 

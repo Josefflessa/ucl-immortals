@@ -17,6 +17,7 @@ import PlayerCard from '../components/game/PlayerCard';
 import Crest from '../components/game/Crest';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
+import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
 import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus, sortMatchesForOnlineDisplay } from '../lib/onlineReadiness';
@@ -42,15 +43,15 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, disconnectOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline } = useGame();
   const online = state.mode === 'online';
-  const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | 'restart' | 'close' | null>(null);
 
-  const handleLeaveRoom = () => {
-    setConfirmAction('room');
-  };
   const handleLeaveSolo = () => {
     setConfirmAction('solo');
+  };
+  const handleRoomAction = (action: RoomMenuAction) => {
+    setConfirmAction(action === 'leave' ? 'room' : action);
   };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
@@ -480,15 +481,19 @@ export default function LeaguePage() {
                 <span className={`font-display text-xl ${qualifies ? 'text-[var(--ui-success)]' : 'text-[var(--ui-danger)]'}`}>{playerPosition}º</span>
               </div>
             )}
-            <Button
-              type="button"
-              intent="ghost"
-              onClick={online ? handleLeaveRoom : handleLeaveSolo}
-              title={online ? 'Sair da sala' : 'Sair do jogo'}
-              className="border border-[var(--ui-danger)]/30 text-[var(--ui-danger)]"
-            >
-              <LogOut size={13} /> <span className="hidden sm:inline">Sair</span>
-            </Button>
+            {online ? (
+              <RoomOptionsMenu isHost={state.isHost} onAction={handleRoomAction} />
+            ) : (
+              <Button
+                type="button"
+                intent="ghost"
+                onClick={handleLeaveSolo}
+                title="Sair do jogo"
+                className="border border-[var(--ui-danger)]/30 text-[var(--ui-danger)]"
+              >
+                <LogOut size={13} /> <span className="hidden sm:inline">Sair</span>
+              </Button>
+            )}
           </div>
         }
       />
@@ -1805,13 +1810,21 @@ export default function LeaguePage() {
       <ConfirmDialog
         open={confirmAction !== null}
         onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
-        title={confirmAction === 'room' ? 'Sair da sala?' : 'Sair do jogo?'}
+        title={confirmAction === 'room' ? 'Sair da sala?' : confirmAction === 'restart' ? 'Reiniciar competição?' : confirmAction === 'close' ? 'Encerrar sala?' : 'Sair do jogo?'}
         description={confirmAction === 'room'
-          ? 'Você deixará o torneio online. Para voltar, entre novamente com o mesmo código e nome enquanto a sala existir.'
-          : 'Você perderá o progresso desta temporada e voltará para a tela inicial.'}
-        confirmLabel={confirmAction === 'room' ? 'Sair da sala' : 'Sair do jogo'}
+          ? state.isHost
+            ? 'Você sairá da sala e o anfitrião passará imediatamente para outro jogador conectado.'
+            : 'Você deixará o torneio online. Para voltar, entre novamente com o mesmo código e nome enquanto a sala existir.'
+          : confirmAction === 'restart'
+            ? 'A competição será zerada para todos, mantendo os jogadores na sala.'
+            : confirmAction === 'close'
+              ? 'A sala será encerrada para todos e não poderá mais ser reaberta.'
+              : 'Você perderá o progresso desta temporada e voltará para a tela inicial.'}
+        confirmLabel={confirmAction === 'room' ? 'Sair da sala' : confirmAction === 'restart' ? 'Reiniciar' : confirmAction === 'close' ? 'Encerrar sala' : 'Sair do jogo'}
         onConfirm={() => {
-          if (confirmAction === 'room') disconnectOnline();
+          if (confirmAction === 'room') leaveRoomOnline();
+          if (confirmAction === 'restart') restartRoomOnline();
+          if (confirmAction === 'close') closeRoomOnline();
           if (confirmAction === 'solo') dispatch({ type: 'RESET_GAME' });
           setConfirmAction(null);
         }}

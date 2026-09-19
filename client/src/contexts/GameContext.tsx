@@ -133,6 +133,7 @@ export interface GameState {
   roomCode: string | null;
   socketId: string | null;
   onlinePlayers: RoomPlayer[];
+  onlineHostId: string | null;
   isHost: boolean;
   draftOrder: string[];
   draftTurnIndex: number;
@@ -303,6 +304,7 @@ const initialState: GameState = {
   roomCode: null,
   socketId: null,
   onlinePlayers: [],
+  onlineHostId: null,
   isHost: false,
   draftOrder: [],
   draftTurnIndex: 0,
@@ -1494,6 +1496,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         knockoutBracket: roomState.knockoutBracket || null,
         champion: roomState.champion || null,
         onlinePlayers: roomState.players || [],
+        onlineHostId: typeof roomState.hostId === 'string' ? roomState.hostId : null,
         draftOrder: roomState.draftState?.draftOrder || [],
         draftTurnIndex: roomState.draftState?.turnIndex || 0,
         draftHistory: roomState.draftState?.history || [],
@@ -1611,6 +1614,8 @@ interface GameContextType {
   playKnockoutRoundOnline: () => void;
   advanceKnockoutRoundOnline: () => void;
   restartRoomOnline: () => void;
+  leaveRoomOnline: () => void;
+  closeRoomOnline: () => void;
   disconnectOnline: () => void;
   // Each player emits this when they finish watching their match replay. A
   // knockout replay identifies the exact tie/leg so ida remains confirmable
@@ -1739,6 +1744,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
 
     const isCurrentSocket = () => socketRef.current === socketInstance;
+    const endOnlineSession = () => {
+      if (!isCurrentSocket()) return;
+      // Clear the identity before closing the transport. This prevents the
+      // intentional close from being mistaken for a recoverable network drop.
+      onlineRoomRef.current = null;
+      onlineSyncRevisionRef.current = null;
+      authoritativeRoomRevisionRef.current = null;
+      syncRequestPendingRef.current = false;
+      removeStorageItem(STORAGE_KEYS.playerName);
+      removeStorageItem(STORAGE_KEYS.roomCode);
+      socketRef.current = null;
+      socketRoomCodeRef.current = null;
+      socketInstance.disconnect();
+      dispatch({ type: 'DISCONNECT_ONLINE' });
+    };
     const acceptRoomState = (roomState: any): boolean => {
       if (!isCurrentSocket() || !roomState || typeof roomState !== 'object') return false;
       const incomingRevision = Number.isSafeInteger(roomState.stateRevision) && roomState.stateRevision >= 0
@@ -1882,6 +1902,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_ADVANCE_BLOCKED', waiting: waiting || [] });
     });
 
+    socketInstance.on("room_left", ({ message }: { message?: string }) => {
+      if (!isCurrentSocket()) return;
+      toast.success(message || 'Você saiu da sala.');
+      endOnlineSession();
+    });
+
+    socketInstance.on("room_closed", ({ message }: { message?: string }) => {
+      if (!isCurrentSocket()) return;
+      toast.info(message || 'A sala foi encerrada pelo anfitrião.');
+      endOnlineSession();
+    });
+
     socketInstance.on("room_created", ({ roomCode, roomState }) => {
       if (!acceptRoomState(roomState)) return;
       onlineRoomRef.current = roomState;
@@ -1903,7 +1935,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       syncRequestPendingRef.current = false;
       setStorageItem(STORAGE_KEYS.playerName, player.name);
       setStorageItem(STORAGE_KEYS.roomCode, roomCode);
-      dispatch({ type: 'INIT_ONLINE', socketId: socketInstance.id || "", roomCode, isHost: player.id === 'player_0' });
+      dispatch({ type: 'INIT_ONLINE', socketId: socketInstance.id || "", roomCode, isHost: player.id === roomState.hostId });
       dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
     });
 
@@ -2005,6 +2037,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const restartRoomOnline = useCallback(() => {
     emitOnlineAction("restart_room", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
+
+  const leaveRoomOnline = useCallback(() => {
+    emitOnlineAction("leave_room", { roomCode: state.roomCode });
+  }, [emitOnlineAction, state.roomCode]);
+
+  const closeRoomOnline = useCallback(() => {
+    emitOnlineAction("close_room", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
 
   const notifyMatchWatchedOnline = useCallback((type: 'league' | 'knockout', knockout?: { matchId: string; leg?: number }) => {
@@ -2153,7 +2193,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     createRoom, joinRoom, startSetupOnline, submitSetupOnline,
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline, setMatchPlanOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
-    restartRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
+    restartRoomOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, resetEvolvePointsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,

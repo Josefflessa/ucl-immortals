@@ -101,6 +101,15 @@
 }
 
 @layer components {
+  /* Interactive card/field surfaces should never start native text selection
+     during a long-press reorder gesture. The gesture handlers still leave
+     vertical panning enabled, so this only removes the selection feedback. */
+  .ui-gesture-surface {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
   .ui-app {
     min-height: 100dvh;
     color: var(--ui-text);

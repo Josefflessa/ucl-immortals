@@ -479,7 +479,7 @@ describe('🛟 Noé — só rende como ÚNICO titular com característica (+10 e
   });
 
   it('+30 na química geral quando ativo (e nada quando desligado)', () => {
-    // XI com nação/clube DISTINTOS → química base baixa, pra o +30 não estourar o teto (100).
+    // XI com nação/clube DISTINTOS → química base baixa, para validar o bônus do Noé.
     const plainXI = Array.from({ length: 11 }, (_, i) => mkP({ id: `n${i}`, nation: `Nat${i}`, club: `Club${i}` }));
     const noeXI = plainXI.map(p => p.id === 'n0' ? { ...p, noe: true } : p);
     const base = calculateChemistry(plainXI, 'default').total;

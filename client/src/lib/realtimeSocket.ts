@@ -22,7 +22,7 @@ const QUEUEABLE_EVENTS = new Set(['client_capabilities', 'create_room', 'join_ro
 const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'start_setup', 'submit_setup', 'draft_pick', 'draft_veto', 'submit_squad_review',
   'set_match_roles', 'set_match_plan', 'play_round', 'advance_round',
-  'play_knockout_round', 'advance_knockout_round', 'restart_room',
+  'play_knockout_round', 'advance_knockout_round', 'restart_room', 'leave_room', 'close_room',
   'player_match_watched', 'shop_change_coach', 'evolve_coach_prime',
   'shop_open_unique_pack', 'shop_claim_unique_pack', 'shop_open_pack',
   'shop_pick_pack', 'shop_turbinar', 'shop_train', 'shop_remove_variant',

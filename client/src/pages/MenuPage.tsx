@@ -1,14 +1,15 @@
 // UCL Immortals — Menu Page
 // Design: Dark Premium Gaming UI — hero with stadium background, gold accents
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gamepad2, Trophy, Plus, LogIn, LogOut, BookOpen, LibraryBig } from 'lucide-react';
+import { Gamepad2, Trophy, Plus, LogIn, BookOpen, LibraryBig } from 'lucide-react';
 import HowToPlayModal from '../components/game/HowToPlayModal';
+import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
 import { competitionFormatSummary } from '../lib/competition';
-import { AppShell, Button, Input, Panel } from '../design-system';
+import { AppShell, Button, ConfirmDialog, Input, Panel } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
@@ -20,14 +21,23 @@ export default function MenuPage() {
     createRoom,
     joinRoom,
     startSetupOnline,
-    disconnectOnline
+    leaveRoomOnline,
+    closeRoomOnline,
+    restartRoomOnline,
   } = useGame();
 
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
   const [showGuide, setShowGuide] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
+  const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
+
+  useEffect(() => {
+    if (!state.roomCode && state.phase === 'menu' && menuMode !== 'selection') {
+      setMenuMode('selection');
+    }
+  }, [menuMode, state.phase, state.roomCode]);
 
   const handlePlaySolo = () => {
     if (!playerName.trim()) return;
@@ -48,9 +58,8 @@ export default function MenuPage() {
     joinRoom(roomCodeInput.trim().toUpperCase(), playerName.trim());
   };
 
-  const handleLeaveLobby = () => {
-    disconnectOnline();
-    setMenuMode('selection');
+  const handleRoomAction = (action: RoomMenuAction) => {
+    setRoomAction(action);
   };
 
   // If already in lobby, render Lobby view
@@ -73,13 +82,16 @@ export default function MenuPage() {
             className="ui-panel w-full p-5"
           >
             {/* Room Code Header */}
-            <div className="text-center pb-4 border-b" style={{ borderColor: '#1A1A2A' }}>
-              <span className="text-xs font-bold text-gray-500 tracking-widest block uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                CÓDIGO DA SALA
-              </span>
-              <span className="text-4xl font-black text-yellow-500 tracking-wider block mt-1" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                {state.roomCode}
-              </span>
+            <div className="flex items-center gap-3 pb-4 border-b" style={{ borderColor: '#1A1A2A' }}>
+              <div className="min-w-0 flex-1 text-center">
+                <span className="text-xs font-bold text-gray-500 tracking-widest block uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  CÓDIGO DA SALA
+                </span>
+                <span className="text-4xl font-black text-yellow-500 tracking-wider block mt-1" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                  {state.roomCode}
+                </span>
+              </div>
+              <RoomOptionsMenu isHost={state.isHost} onAction={handleRoomAction} />
             </div>
 
             {/* Players List */}
@@ -88,7 +100,7 @@ export default function MenuPage() {
                 JOGADORES CONECTADOS ({state.onlinePlayers.length})
               </span>
               <div className="space-y-2">
-                {state.onlinePlayers.map((p, idx) => (
+                {state.onlinePlayers.map(p => (
                   <div 
                     key={p.id} 
                     className="flex items-center justify-between p-2.5 rounded-lg border" 
@@ -100,7 +112,7 @@ export default function MenuPage() {
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                       <span className="text-[10px] text-green-500 font-bold uppercase tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                        {idx === 0 ? 'ANFITRIÃO' : 'PRONTO'}
+                        {p.id === state.onlineHostId ? 'ANFITRIÃO' : 'PRONTO'}
                       </span>
                     </div>
                   </div>
@@ -146,14 +158,29 @@ export default function MenuPage() {
             )}
           </motion.div>
 
-          <Button
-            type="button"
-            intent="danger"
-            onClick={handleLeaveLobby}
-            className="mt-4 min-h-9 px-3 text-xs"
-          >
-            <LogOut size={14} /> SAIR DA SALA
-          </Button>
+          <ConfirmDialog
+            open={roomAction !== null}
+            onOpenChange={(open) => { if (!open) setRoomAction(null); }}
+            title={roomAction === 'restart' ? 'Reiniciar competição?' : roomAction === 'close' ? 'Encerrar sala?' : 'Sair da sala?'}
+            description={roomAction === 'restart'
+              ? 'A competição será zerada para todos, mantendo os jogadores na sala.'
+              : roomAction === 'close'
+                ? 'A sala será encerrada para todos e não poderá mais ser reaberta.'
+                : state.isHost
+                  ? 'Você sairá da sala e o anfitrião passará imediatamente para outro jogador conectado.'
+                  : 'Você sairá da sala. Para voltar, entre novamente com o mesmo código e nome enquanto ela existir.'}
+            confirmLabel={roomAction === 'restart' ? 'Reiniciar' : roomAction === 'close' ? 'Encerrar sala' : 'Sair da sala'}
+            onConfirm={() => {
+              const action = roomAction;
+              setRoomAction(null);
+              if (action === 'restart') restartRoomOnline();
+              if (action === 'close') closeRoomOnline();
+              if (action === 'leave') {
+                leaveRoomOnline();
+                setMenuMode('selection');
+              }
+            }}
+          />
         </div>
       </AppShell>
     );

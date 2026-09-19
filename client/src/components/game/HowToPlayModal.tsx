@@ -255,7 +255,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
       icon: '⚗️', label: 'Química',
       body: (
         <div className="space-y-4">
-          <Card accent="#3B82F644"><H>COMO ELA É CALCULADA</H><P>A química mede o entrosamento do XI. Cada titular recebe química individual de <b style={{ color: '#FFF' }}>0 a 3</b>, que pode multiplicar seus atributos em até 10%. A química total do time vai de 0 a 100 e aplica um bônus global aos titulares.</P></Card>
+          <Card accent="#3B82F644"><H>COMO ELA É CALCULADA</H><P>A química mede o entrosamento do XI. Cada titular recebe química individual de <b style={{ color: '#FFF' }}>0 a 3</b>, que pode multiplicar seus atributos em até 10%. A química total começa em 0, pode ultrapassar 100 com bônus extras e aplica um bônus global aos titulares.</P></Card>
 
           <Card>
             <H>VÍNCULOS ENTRE JOGADORES</H>

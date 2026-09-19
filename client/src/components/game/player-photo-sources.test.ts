@@ -42,6 +42,8 @@ describe('fontes de foto dos jogadores', () => {
     ['gattuso_unico', 'gattuso'],
     ['nesta_unico', 'nesta'],
     ['delpiero_unico', 'delpiero'],
+    ['dani_alves_unico', 'dani_alves'],
+    ['roberto_carlos_unico', 'roberto_carlos'],
   ])('usa o render WebP da carta única %s', (playerId, filename) => {
     expect(UNIQUE_STYLE[playerId].render).toBe(`/players/unico/${filename}.webp`);
     expect(buildPlayerPhotoSources(playerId)).toEqual([`/players/unico/${filename}.webp`]);

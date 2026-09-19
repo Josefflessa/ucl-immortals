@@ -296,7 +296,7 @@ export default function SquadEditor({
           <span className="text-2xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: chemColor }}>{chemData.total}</span>
         </div>
         <div className="h-2 rounded-full" style={{ background: '#1A1A2A' }}>
-          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${chemData.total}%`, background: chemColor }} />
+          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, chemData.total)}%`, background: chemColor }} />
         </div>
         {coach && formation?.id === coach.preferredFormation && (
           <div className="mt-2 w-full flex items-start gap-1.5 px-2 py-1.5 rounded-md text-[11px] leading-snug"
@@ -370,7 +370,7 @@ export default function SquadEditor({
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {formation && (
-          <div ref={fieldPreviewRef} className="lg:w-[420px] flex-shrink-0 space-y-2 scroll-mt-6">
+          <div ref={fieldPreviewRef} className="ui-gesture-surface lg:w-[420px] flex-shrink-0 space-y-2 scroll-mt-6">
             {(benchSwapSourceIndex !== null || starterSwapSourceIndex !== null) && players[benchSwapSourceIndex ?? starterSwapSourceIndex!] && (
               <div
                 role="status"
@@ -464,7 +464,7 @@ export default function SquadEditor({
             })}
           </div>
 
-          <div className="mt-5 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
+          <div className="ui-gesture-surface mt-5 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
             <div className="text-xs font-black tracking-widest mb-2 flex items-center gap-2" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
               🪑 BANCO / RESERVAS {bench.length > 0 && <span style={{ color: '#6A6A7A' }}>({bench.length})</span>}
             </div>

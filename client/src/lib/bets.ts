@@ -27,7 +27,7 @@ export const BET_BUILDER_CORRELATION_DISCOUNT = {
 // acréscimo mínimo é uma regra de balanceamento do jogo, não uma odd de casa
 // real: mantém a leitura intuitiva de que um mercado adicional aumenta o prêmio.
 export const BET_BUILDER_MIN_ADDITIONAL_MULTIPLIER = 0.2;
-export const BET_BUILDER_MAX_MULTIPLIER = 2.75;
+export const BET_BUILDER_MAX_MULTIPLIER = 3.5;
 export const BET_TOTAL_GOALS_LINES = [0.5, 1.5, 2.5, 3.5, 4.5] as const;
 export type BetTotalGoalsLine = typeof BET_TOTAL_GOALS_LINES[number];
 const BET_TOTAL_GOALS_MULTIPLIERS: Record<'over' | 'under', Record<BetTotalGoalsLine, number>> = {

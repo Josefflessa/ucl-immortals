@@ -238,6 +238,10 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 84, shooting: 44, passing: 82, dribbling: 68, defending: 99, physical: 94, vision: 82, composure: 98, traits: ['Interceptador', 'Posicionamento'], historicalCoaches: ['ancelotti'], historicalPartners: ['maldini', 'pirlo', 'gattuso_unico'] },
   { id: 'delpiero_unico', basePlayerId: 'delpiero', historicalPlayerId: 'delpiero', shortName: 'Del Piero', fullName: 'Alessandro Del Piero', position: 'ST', secondaryPositions: ['CAM'], nation: 'Itália', club: 'Juventus', season: 'Única', rarity: 'unique', overall: 99,
     pace: 91, shooting: 98, passing: 93, dribbling: 97, defending: 40, physical: 78, vision: 97, composure: 99, traits: ['Finalizador', 'Cobrador de Falta'], historicalPartners: ['buffon'] },
+  { id: 'dani_alves_unico', basePlayerId: 'alves', shortName: 'Dani Alves', fullName: 'Daniel Alves da Silva', position: 'RB', secondaryPositions: ['RWB', 'RM'], nation: 'Brasil', club: 'Barcelona', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 96, shooting: 78, passing: 96, dribbling: 94, defending: 93, physical: 88, vision: 95, composure: 97, traits: ['Cruzador', 'Visão de Jogo'], historicalCoaches: ['guardiola'], historicalPartners: ['messi', 'xavi', 'iniesta'] },
+  { id: 'roberto_carlos_unico', basePlayerId: 'roberto_carlos', historicalPlayerId: 'roberto_carlos', shortName: 'Roberto Carlos', fullName: 'Roberto Carlos da Silva', position: 'LB', secondaryPositions: ['LWB'], nation: 'Brasil', club: 'Real Madrid', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 99, shooting: 96, passing: 94, dribbling: 93, defending: 94, physical: 92, vision: 90, composure: 97, traits: ['Cruzador', 'Cobrador de Falta', 'Força Bruta'], historicalCoaches: ['ancelotti'], historicalPartners: ['ronaldo_nazario', 'ramos', 'figo'] },
 ];
 
 export function getPositionGroup(position: string): PositionGroup {

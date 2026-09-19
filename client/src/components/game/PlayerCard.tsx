@@ -859,6 +859,8 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   gattuso_unico: { texture: '/cards/gattuso_unico.webp', render: '/players/unico/gattuso.webp', font: '#EEF2FF', ring: '#B7C6FF', photoX: 22, photoY: 12, photoW: 75 },
   nesta_unico: { texture: '/cards/nesta_unico.webp', render: '/players/unico/nesta.webp', font: '#FFF1D6', ring: '#5EDBD0', photoX: 9, photoY: -5, photoW: 116 },
   delpiero_unico: { texture: '/cards/delpiero_unico.webp', render: '/players/unico/delpiero.webp', font: '#F5D27A', ring: '#C9A24C', photoX: 6, photoY: 8, photoW: 102 },
+  dani_alves_unico: { texture: '/cards/dani_alves_unico.webp', render: '/players/unico/dani_alves.webp', font: '#F5E8C8', ring: '#D7A93D', photoX: 7, photoY: 12, photoW: 101 },
+  roberto_carlos_unico: { texture: '/cards/roberto_carlos_unico.webp', render: '/players/unico/roberto_carlos.webp', font: '#FFF6E2', ring: '#D5AE4A', photoX: 14, photoY: 14, photoW: 112 },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
