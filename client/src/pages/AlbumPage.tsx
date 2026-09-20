@@ -6,14 +6,13 @@ import {
   getRarityColor,
   effectiveSecondaries,
   POS_PT,
-  PLAYERS,
   POSITION_GROUPS,
-  UNIQUE_CARDS,
   type Player,
   type Rarity,
 } from '../lib/gameData';
 import { positionFit } from '../lib/gameEngine';
-import { canonicalClubName, clubIdForName } from '../lib/crests';
+import { canonicalClubName } from '../lib/crests';
+import { getPlayerCatalogPath, PLAYER_CATALOG, type CatalogPlayer } from '../lib/playerCatalog';
 import {
   AppShell,
   Button,
@@ -30,7 +29,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { cn } from '../lib/utils';
 
-type AlbumPlayer = Player & { isUnique: boolean };
+type AlbumPlayer = CatalogPlayer;
 type SortMode = 'name' | 'overall' | 'rarity';
 type GridColumns = 3 | 4 | 5;
 
@@ -73,14 +72,9 @@ const ATTRIBUTE_LABELS: Array<[keyof Pick<Player, 'pace' | 'shooting' | 'passing
   ['composure', 'Compostura'],
 ];
 
-const ALBUM_PLAYERS: AlbumPlayer[] = Array.from(
-  new Map(
-    [...PLAYERS, ...UNIQUE_CARDS].map(player => [
-      player.id,
-      { ...player, isUnique: player.rarity === 'unique' },
-    ]),
-  ).values(),
-);
+// O álbum consome a mesma hierarquia usada pelos dados. A lista plana continua
+// existindo dentro do catálogo para paginação e para não alterar o motor do jogo.
+const ALBUM_PLAYERS: AlbumPlayer[] = PLAYER_CATALOG.players;
 
 const ALBUM_NAME_BY_ID = new Map<string, string>();
 ALBUM_PLAYERS.forEach(player => {
@@ -177,6 +171,7 @@ function PlayerDetail({
   const rarityColor = getRarityColor(player.rarity);
   const originalOverall = player.baseOverall ?? player.overall;
   const secondaryPositions = effectiveSecondaries(player).filter(position => position !== player.position);
+  const catalogPath = getPlayerCatalogPath(player);
 
   return (
     <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start">
@@ -206,7 +201,7 @@ function PlayerDetail({
               {RARITY_LABELS[player.rarity]}
             </span>
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">
-              {canonicalClubName(player.club)}
+              {catalogPath.club.name} · {catalogPath.league.name}
             </span>
           </div>
           <DialogTitle className="mt-3 font-display text-4xl font-normal tracking-wide text-[var(--ui-text)]">
@@ -228,7 +223,7 @@ function PlayerDetail({
             <div className="mt-1 font-display text-3xl leading-none text-[var(--ui-text)]">{getPositionLabel(player.position)}</div>
           </div>
           <div className="ui-panel ui-panel--inset p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">País</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Nacionalidade</div>
             <div className="mt-1 truncate text-sm font-bold text-[var(--ui-text)]">{player.nation}</div>
           </div>
           <div className="ui-panel ui-panel--inset p-3">
@@ -240,7 +235,7 @@ function PlayerDetail({
         <div className="mt-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--ui-text-faint)]">Atributos</h3>
-            <span className="text-xs text-[var(--ui-text-muted)]">{canonicalClubName(player.club)} · {player.nation}</span>
+            <span className="text-xs text-[var(--ui-text-muted)]">{catalogPath.country.name} · {catalogPath.league.name}</span>
           </div>
           <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
             {ATTRIBUTE_LABELS.map(([key, label]) => {
@@ -261,6 +256,12 @@ function PlayerDetail({
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Clube e liga</div>
+            <p className="mt-1 text-sm text-[var(--ui-text)]">
+              <strong>{catalogPath.club.name}</strong> · {catalogPath.league.name}
+            </p>
+          </div>
           <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
             <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Posições</div>
             <p className="mt-1 text-sm text-[var(--ui-text)]">
@@ -296,6 +297,8 @@ export default function AlbumPage() {
   const [positionFilter, setPositionFilter] = useState('ALL');
   const [rarityFilter, setRarityFilter] = useState<'ALL' | Rarity>('ALL');
   const [nationFilter, setNationFilter] = useState('ALL');
+  const [clubCountryFilter, setClubCountryFilter] = useState('ALL');
+  const [leagueFilter, setLeagueFilter] = useState('ALL');
   const [clubFilter, setClubFilter] = useState('ALL');
   const [sortMode, setSortMode] = useState<SortMode>('name');
   const [gridColumns, setGridColumns] = useState<GridColumns>(5);
@@ -304,16 +307,19 @@ export default function AlbumPage() {
   const [zoomCard, setZoomCard] = useState(false);
 
   const nations = useMemo(() => uniqueSorted(ALBUM_PLAYERS.map(player => player.nation)), []);
+  const clubCountries = PLAYER_CATALOG.countries;
+  const allClubs = PLAYER_CATALOG.clubs;
+  const leagues = useMemo(
+    () => PLAYER_CATALOG.leagues.filter(league => clubCountryFilter === 'ALL' || league.countryId === clubCountryFilter),
+    [clubCountryFilter],
+  );
   const clubs = useMemo(() => {
-    const byId = new Map<string, string>();
-    ALBUM_PLAYERS.forEach(player => {
-      const id = clubIdForName(player.club);
-      if (!byId.has(id)) byId.set(id, canonicalClubName(player.club));
-    });
-    return Array.from(byId.entries())
-      .map(([id, label]) => ({ id, label }))
+    return allClubs
+      .filter(club => clubCountryFilter === 'ALL' || club.countryId === clubCountryFilter)
+      .filter(club => leagueFilter === 'ALL' || club.leagueId === leagueFilter)
+      .map(club => ({ id: club.id, label: club.name }))
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
-  }, []);
+  }, [allClubs, clubCountryFilter, leagueFilter]);
   const versionCounts = useMemo(() => {
     const counts = new Map<string, number>();
     ALBUM_PLAYERS.forEach(player => counts.set(playerIdentity(player), (counts.get(playerIdentity(player)) ?? 0) + 1));
@@ -323,12 +329,22 @@ export default function AlbumPage() {
   const filteredPlayers = useMemo(() => {
     const normalizedSearch = normalize(search);
     const filtered = ALBUM_PLAYERS.filter(player => {
-      const matchesSearch = !normalizedSearch || [player.shortName, player.fullName, player.club, canonicalClubName(player.club), player.nation].some(value => normalize(value).includes(normalizedSearch));
+      const path = getPlayerCatalogPath(player);
+      const matchesSearch = !normalizedSearch || [
+        player.shortName,
+        player.fullName,
+        path.club.name,
+        path.league.name,
+        path.country.name,
+        player.nation,
+      ].some(value => normalize(value).includes(normalizedSearch));
       const matchesPosition = positionFilter === 'ALL' || positionFit(player, positionFilter) !== 'off';
       const matchesRarity = rarityFilter === 'ALL' || player.rarity === rarityFilter;
       const matchesNation = nationFilter === 'ALL' || player.nation === nationFilter;
-      const matchesClub = clubFilter === 'ALL' || clubIdForName(player.club) === clubFilter;
-      return matchesSearch && matchesPosition && matchesRarity && matchesNation && matchesClub;
+      const matchesClubCountry = clubCountryFilter === 'ALL' || path.country.id === clubCountryFilter;
+      const matchesLeague = leagueFilter === 'ALL' || path.league.id === leagueFilter;
+      const matchesClub = clubFilter === 'ALL' || path.club.id === clubFilter;
+      return matchesSearch && matchesPosition && matchesRarity && matchesNation && matchesClubCountry && matchesLeague && matchesClub;
     });
 
     return filtered.sort((a, b) => {
@@ -342,7 +358,7 @@ export default function AlbumPage() {
       if (sortMode === 'rarity') return RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity] || b.overall - a.overall || a.shortName.localeCompare(b.shortName, 'pt-BR');
       return a.shortName.localeCompare(b.shortName, 'pt-BR') || canonicalClubName(a.club).localeCompare(canonicalClubName(b.club), 'pt-BR') || b.overall - a.overall;
     });
-  }, [clubFilter, nationFilter, positionFilter, rarityFilter, search, sortMode]);
+  }, [clubCountryFilter, clubFilter, leagueFilter, nationFilter, positionFilter, rarityFilter, search, sortMode]);
 
   const pageSize = gridColumns * 4;
   const totalPages = Math.max(1, Math.ceil(filteredPlayers.length / pageSize));
@@ -358,12 +374,23 @@ export default function AlbumPage() {
   const viewportGutter = viewportWidth >= 1024 ? 64 : viewportWidth >= 640 ? 48 : 32;
   const availableGridWidth = Math.max(280, Math.min(viewportWidth, 1280) - viewportGutter);
   const albumCardScale = Math.min(1, Math.max(0.42, (availableGridWidth - (visibleColumns - 1) * 12) / (visibleColumns * 208)));
-  const hasFilters = Boolean(search || positionFilter !== 'ALL' || rarityFilter !== 'ALL' || nationFilter !== 'ALL' || clubFilter !== 'ALL');
+  const hasFilters = Boolean(search || positionFilter !== 'ALL' || rarityFilter !== 'ALL' || nationFilter !== 'ALL' || clubCountryFilter !== 'ALL' || leagueFilter !== 'ALL' || clubFilter !== 'ALL');
 
   const handleSearchChange = (value: string) => { setSearch(value); setPage(1); };
   const handlePositionChange = (value: string) => { setPositionFilter(value); setPage(1); };
   const handleRarityChange = (value: string) => { setRarityFilter(value as 'ALL' | Rarity); setPage(1); };
   const handleNationChange = (value: string) => { setNationFilter(value); setPage(1); };
+  const handleClubCountryChange = (value: string) => {
+    setClubCountryFilter(value);
+    setLeagueFilter('ALL');
+    setClubFilter('ALL');
+    setPage(1);
+  };
+  const handleLeagueChange = (value: string) => {
+    setLeagueFilter(value);
+    setClubFilter('ALL');
+    setPage(1);
+  };
   const handleClubChange = (value: string) => { setClubFilter(value); setPage(1); };
   const handleSortChange = (value: string) => { setSortMode(value as SortMode); setPage(1); };
   const handleGridChange = (columns: GridColumns) => { setGridColumns(columns); setPage(1); };
@@ -373,6 +400,8 @@ export default function AlbumPage() {
     setPositionFilter('ALL');
     setRarityFilter('ALL');
     setNationFilter('ALL');
+    setClubCountryFilter('ALL');
+    setLeagueFilter('ALL');
     setClubFilter('ALL');
     setPage(1);
   };
@@ -437,8 +466,8 @@ export default function AlbumPage() {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Metric label="Cartas" value={ALBUM_PLAYERS.length} detail="versões disponíveis" tone="brand" />
           <Metric label="Jogadores" value={versionCounts.size} detail="identidades no catálogo" />
-          <Metric label="Clubes" value={clubs.length} detail="representados" />
-          <Metric label="Países" value={nations.length} detail="representados" />
+          <Metric label="Clubes" value={allClubs.length} detail="representados" />
+          <Metric label="Países dos clubes" value={clubCountries.length} detail="na hierarquia" />
         </div>
 
         <Panel density="compact" className="mt-5">
@@ -455,7 +484,7 @@ export default function AlbumPage() {
               ) : null}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1.5fr)_repeat(4,minmax(130px,1fr))]">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_repeat(6,minmax(120px,1fr))]">
               <label htmlFor="album-search" className="min-w-0">
                 <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Buscar</span>
                 <div className="relative">
@@ -480,12 +509,22 @@ export default function AlbumPage() {
                 {(Object.keys(RARITY_LABELS) as Rarity[]).reverse().map(rarity => <option key={rarity} value={rarity}>{RARITY_LABELS[rarity]}</option>)}
               </FilterSelect>
 
-              <FilterSelect id="album-nation" label="País" value={nationFilter} onChange={handleNationChange}>
-                <option value="ALL">Todos os países</option>
+              <FilterSelect id="album-nation" label="Nacionalidade" value={nationFilter} onChange={handleNationChange}>
+                <option value="ALL">Todas as nacionalidades</option>
                 {nations.map(nation => <option key={nation} value={nation}>{nation}</option>)}
               </FilterSelect>
 
-              <FilterSelect id="album-club" label="Clube / versão" value={clubFilter} onChange={handleClubChange}>
+              <FilterSelect id="album-club-country" label="País do clube" value={clubCountryFilter} onChange={handleClubCountryChange}>
+                <option value="ALL">Todos os países</option>
+                {clubCountries.map(country => <option key={country.id} value={country.id}>{country.name}</option>)}
+              </FilterSelect>
+
+              <FilterSelect id="album-league" label="Liga" value={leagueFilter} onChange={handleLeagueChange}>
+                <option value="ALL">Todas as ligas</option>
+                {leagues.map(league => <option key={league.id} value={league.id}>{league.name}</option>)}
+              </FilterSelect>
+
+              <FilterSelect id="album-club" label="Clube" value={clubFilter} onChange={handleClubChange}>
                 <option value="ALL">Todos os clubes</option>
                 {clubs.map(club => <option key={club.id} value={club.id}>{club.label}</option>)}
               </FilterSelect>

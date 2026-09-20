@@ -6,6 +6,8 @@ import { BRAZILIAN_NOTABLE_ADDITIONS } from './brazilianNotableAdditions';
 import { MAJOR_LEAGUE_ADDITIONS } from './majorLeaguePlayers';
 import { MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE } from './majorLeagueCatalogExpansion';
 import { NEXT_GENERATION_PLAYERS } from './next-generationPlayers';
+import { SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS } from './sortitoutsiMajorLeagueExpansion';
+import { SORTITOUTSI_1000_ADDITIONS } from './sortitoutsiThousandExpansion';
 import { clubIdForName } from './crests';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
@@ -671,6 +673,8 @@ export const PLAYERS: Player[] = [
   ...MAJOR_LEAGUE_ADDITIONS,
   ...MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE,
   ...NEXT_GENERATION_PLAYERS,
+  ...SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS,
+  ...SORTITOUTSI_1000_ADDITIONS,
   // ===== IMMORTALS =====
   {
     id: 'messi',
@@ -5399,6 +5403,28 @@ export const PLAYERS: Player[] = [
     nation: 'Itália', club: 'Villarreal', season: '2010/11', rarity: 'silver', overall: 82,
     pace: 86, shooting: 89, passing: 78, dribbling: 87, defending: 20, physical: 55,
     composure: 84, vision: 82,
+    traits: [],
+  },
+  {
+    id: 'diego_costa',
+    historicalPlayerId: 'diego_costa_atleticomadrid',
+    shortName: 'Diego Costa',
+    fullName: 'Diego da Silva Costa',
+    position: 'ST',
+    secondaryPositions: [],
+    nation: 'Espanha',
+    club: 'Atlético de Madrid',
+    season: '2013/14',
+    rarity: 'gold',
+    overall: 88,
+    pace: 87,
+    shooting: 92,
+    passing: 65,
+    dribbling: 80,
+    defending: 32,
+    physical: 91,
+    composure: 88,
+    vision: 64,
     traits: [],
   },
   {

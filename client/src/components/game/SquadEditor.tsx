@@ -647,13 +647,13 @@ export default function SquadEditor({
         {selectedIndex !== null && selectedPlayer && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }}>
             <div
-              className="relative bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
+              className="relative min-h-0 bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
             >
               {/* Fundo: textura da carta do jogador (a Única usa a sua própria), com véu leve p/ legibilidade */}
               <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity, getEvolutionLevel(selectedPlayer))})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
               <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, background: 'linear-gradient(180deg,rgba(9,9,16,.52),rgba(9,9,16,.6))' }} />
 
-              <div className="relative z-10 flex items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
+              <div className="relative z-10 flex flex-shrink-0 items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
                 <div>
                   <h3 className="text-xl font-black text-white tracking-widest uppercase" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>GERENCIAR POSIÇÃO</h3>
                   <p className="text-xs text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
@@ -673,7 +673,7 @@ export default function SquadEditor({
                 const a = availability?.[selectedPlayer.id];
                 if (!a || (a.banned === 0 && a.injured === 0 && a.yellows === 0)) return null;
                 return (
-                  <div className="relative z-10 flex flex-col items-stretch gap-3 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
+                  <div className="relative z-10 flex flex-shrink-0 flex-col items-stretch gap-3 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
                     <div className="min-w-0 text-xs font-bold leading-tight" style={{ fontFamily: 'Rajdhani, sans-serif', color: a.banned ? '#FCA5A5' : a.injured ? '#FCD34D' : '#EAB308' }}>
                       {a.banned > 0 ? `🟥 Suspenso — fora de ${a.banned} jogo(s)` : a.injured > 0 ? `🩹 Lesionado — fora de ${a.injured} jogo(s)` : `🟨 ${a.yellows} amarelo(s) acumulado(s)`}
                     </div>
@@ -736,7 +736,7 @@ export default function SquadEditor({
                 );
               })()}
 
-              <div className="relative z-10 flex-1 overflow-y-auto p-6 space-y-5">
+              <div className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6 space-y-5">
                 {(() => {
                   const isStarter = selectedIndex < 11;
                   const posIdx = isStarter ? selectedIndex : -1;
@@ -806,10 +806,10 @@ export default function SquadEditor({
                               <span className="whitespace-nowrap text-[9px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −5%</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="min-w-0">
                             <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{selectedPlayer.shortName}</div>
                             {getEvolutionLevel(selectedPlayer) > 0 && (
-                              <span className="inline-flex items-center justify-center text-center text-[9px] font-black px-2 py-0.5 rounded leading-none flex-shrink-0" style={{ background: 'linear-gradient(90deg,#0a7a2f,#22C55E)', color: '#04120a', letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(selectedPlayer)}</span>
+                              <span className="mt-1 inline-flex max-w-full items-center justify-center text-center text-[9px] font-black px-2 py-0.5 rounded leading-none" style={{ background: 'linear-gradient(90deg,#0a7a2f,#22C55E)', color: '#04120a', letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(selectedPlayer)}</span>
                             )}
                           </div>
                           <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{canonicalClubName(selectedPlayer.club)} · {selectedPlayer.nation}</div>

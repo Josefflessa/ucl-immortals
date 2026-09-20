@@ -413,8 +413,38 @@ export class GameRoom {
       } catch (error) {
         this.restoreTransactionSnapshot(snapshot);
         this.server.rollback();
-        webSocket.close(1011, 'Não foi possível confirmar a ação');
-        throw error;
+        // A gameplay failure must not become a transport failure. The
+        // transaction has already been restored, so report the rejected
+        // command on the existing socket and let the player retry manually.
+        // Closing here made the client reconnect and replay the same command,
+        // which could turn one transient persistence/handler error into an
+        // infinite "connection lost" loop.
+        const socket = this.server.get(webSocket);
+        const payload = incoming.payload;
+        const failedCommandId = payload && typeof payload === 'object' && !Array.isArray(payload)
+          ? (payload as { commandId?: unknown }).commandId
+          : undefined;
+        const room = this.runtime.rooms.get(this.roomCode);
+        if (socket) {
+          if (typeof failedCommandId === 'string' && failedCommandId.length > 0) {
+            this.server.sendNow(socket, 'command_ack', {
+              commandId: failedCommandId,
+              event: incoming.event,
+              status: 'rejected',
+              reason: 'server_error',
+              stateRevision: room?.stateRevision,
+            });
+          }
+          this.server.sendNow(socket, 'action_error', {
+            event: incoming.event,
+            message: 'Não foi possível confirmar essa ação. O estado da sala foi preservado; tente novamente.',
+          });
+        }
+        console.error('Falha ao processar ação realtime; transação revertida:', {
+          roomCode: this.roomCode,
+          event: incoming.event,
+          error,
+        });
       }
     });
   }

@@ -43,15 +43,20 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, transferHostOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline } = useGame();
   const online = state.mode === 'online';
   const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | 'restart' | 'close' | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
 
   const handleLeaveSolo = () => {
     setConfirmAction('solo');
   };
   const handleRoomAction = (action: RoomMenuAction) => {
     setConfirmAction(action === 'leave' ? 'room' : action);
+  };
+  const handleTransferHost = (playerId: string) => {
+    const target = state.onlinePlayers.find(player => player.id === playerId);
+    if (target) setTransferTarget({ id: target.id, name: target.name });
   };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
@@ -482,7 +487,14 @@ export default function LeaguePage() {
               </div>
             )}
             {online ? (
-              <RoomOptionsMenu isHost={state.isHost} onAction={handleRoomAction} />
+              <RoomOptionsMenu
+                isHost={state.isHost}
+                onAction={handleRoomAction}
+                roomCode={state.roomCode}
+                players={state.onlinePlayers}
+                hostId={state.onlineHostId}
+                onTransferHost={handleTransferHost}
+              />
             ) : (
               <Button
                 type="button"
@@ -541,34 +553,20 @@ export default function LeaguePage() {
               border: `1px solid ${qualifies ? '#22C55E44' : '#EF444444'}`,
             }}
           >
-            <div className="flex items-center gap-4">
-              <div className="text-3xl font-black" style={{
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 text-3xl font-black" style={{
                 fontFamily: 'Bebas Neue, sans-serif',
                 color: qualifies ? '#22C55E' : '#EF4444',
               }}>
                 {playerPosition}º
               </div>
-              <div>
-                <div className="text-lg font-black flex items-center gap-2" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
-                  <Crest crestId={playerTeam?.crestId} name={playerTeam?.name} size={26} />
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <Crest crestId={playerTeam?.crestId} name={playerTeam?.name} size={34} />
+                <div className="min-w-0 truncate text-lg font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}>
                   {playerTeam?.name}
                 </div>
-                <div className="text-xs" style={{
-                  color: (isLeagueOnly || groupQualified || directQual) ? '#22C55E' : playoffQual ? '#3B82F6' : '#EF4444',
-                  fontFamily: 'Rajdhani, sans-serif',
-                }}>
-                  {isLeagueOnly
-                    ? '✓ Competição decidida pela tabela'
-                    : isGroupStage
-                      ? groupQualified ? `✓ Classificado pelo grupo ${playerGroupLabel ?? ''}` : '✗ Eliminado — fora da zona de classificação do grupo'
-                    : directQual
-                    ? `✓ Classificação direta às Oitavas (Top ${directTeams})`
-                    : playoffQual
-                      ? `✓ Zona de Playoff (${directTeams + 1}º a ${qualifiedTeams}º)`
-                      : `✗ Eliminado (fora do Top ${qualifiedTeams})`}
-                </div>
               </div>
-              <div className="ml-auto grid grid-cols-4 gap-2 sm:gap-4 text-center">
+              <div className="ml-auto grid flex-shrink-0 grid-cols-4 gap-2 text-center sm:gap-4">
                 {[
                   { label: 'PTS', value: playerStanding.points },
                   { label: 'V', value: playerStanding.won },
@@ -585,6 +583,20 @@ export default function LeaguePage() {
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="mt-3 border-t border-white/[.05] pt-2 text-center text-xs" style={{
+              color: (isLeagueOnly || groupQualified || directQual) ? '#22C55E' : playoffQual ? '#3B82F6' : '#EF4444',
+              fontFamily: 'Rajdhani, sans-serif',
+            }}>
+              {isLeagueOnly
+                ? '✓ Competição decidida pela tabela'
+                : isGroupStage
+                  ? groupQualified ? `✓ Classificado pelo grupo ${playerGroupLabel ?? ''}` : '✗ Eliminado — fora da zona de classificação do grupo'
+                : directQual
+                ? `✓ Classificação direta às Oitavas (Top ${directTeams})`
+                : playoffQual
+                  ? `✓ Zona de Playoff (${directTeams + 1}º a ${qualifiedTeams}º)`
+                  : `✗ Eliminado (fora do Top ${qualifiedTeams})`}
             </div>
           </div>
         )}
@@ -1827,6 +1839,19 @@ export default function LeaguePage() {
           if (confirmAction === 'close') closeRoomOnline();
           if (confirmAction === 'solo') dispatch({ type: 'RESET_GAME' });
           setConfirmAction(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={transferTarget !== null}
+        onOpenChange={(open) => { if (!open) setTransferTarget(null); }}
+        title="Transferir anfitrião?"
+        description={`A partir de agora, ${transferTarget?.name ?? 'esse jogador'} controlará o início, reinício e encerramento da sala.`}
+        confirmLabel="Transferir host"
+        intent="primary"
+        onConfirm={() => {
+          if (transferTarget) transferHostOnline(transferTarget.id);
+          setTransferTarget(null);
         }}
       />
     </AppShell>

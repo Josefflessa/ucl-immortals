@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PLAYERS } from './gameData';
+import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from './playerPhotoCatalog';
 import {
   MAJOR_LEAGUE_CATALOG_EXPANSION,
   MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE,
@@ -38,11 +39,10 @@ describe('major league catalog expansion', () => {
 
   it('includes every active card in the live player pool with a local portrait', () => {
     const livePlayerIds = new Set(PLAYERS.map(player => player.id));
-    const portraitDirectory = resolve(process.cwd(), 'client/public/players/regular');
-
     for (const player of MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE) {
       expect(livePlayerIds.has(player.id)).toBe(true);
-      expect(existsSync(resolve(portraitDirectory, `${player.id}.webp`))).toBe(true);
+      const portraitDirectory = resolve(process.cwd(), 'client/public', getPlayerPhotoDirectory(player.id).replace(/^\//, ''));
+      expect(existsSync(resolve(portraitDirectory, getPlayerPhotoFilename(player.id)!))).toBe(true);
     }
   });
 });

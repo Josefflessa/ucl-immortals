@@ -281,6 +281,33 @@ describe('game runtime isolation', () => {
     expect(host.sent.some(message => message.event === 'room_left')).toBe(true);
   });
 
+  it('allows the current host to transfer authority to a connected player', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+
+    runWithGameRuntime(runtime, () => host.receive('transfer_host', {
+      roomCode: 'ABCD', targetPlayerId: 'player_1', commandId: 'transfer-1', roomEpoch: 1,
+    }));
+
+    const room = runtime.rooms.get('ABCD')!;
+    expect(room.hostId).toBe('player_1');
+    expect(room.players.find(player => player.id === 'player_1')?.connected).toBe(true);
+    expect(host.sent.some(message => message.event === 'command_ack' && (message.payload as any)?.status === 'applied')).toBe(true);
+    const guestUpdate = guest.sent.filter(message => message.event === 'room_updated').at(-1)?.payload as any;
+    expect(guestUpdate.hostId).toBe('player_1');
+  });
+
   it('closes the room for every connected client when the host confirms it', () => {
     const runtime = createGameRuntime({ roomCode: 'ABCD' });
     const server = new FakeServer();

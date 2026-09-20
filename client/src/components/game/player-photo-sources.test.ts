@@ -3,29 +3,33 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildPlayerPhotoSources, UNIQUE_STYLE } from './PlayerCard';
 import { PLAYERS } from '../../lib/gameData';
+import { getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
 
 describe('fontes de foto dos jogadores', () => {
   it.each(['raphinha', 'rafinha', 'varane', 'yashin', 'haaland_borussia'])('prioriza o portrait local de %s', playerId => {
-    expect(buildPlayerPhotoSources(playerId)[0]).toBe(`/players/regular/${playerId}.webp`);
+    expect(buildPlayerPhotoSources(playerId)[0]).toMatch(new RegExp(`${LOCAL_PLAYER_PHOTO_ROOT}/.+/${getPlayerPhotoFilename(playerId)}$`));
   });
 
   it('usa a foto do City como alias da carta-base do Haaland', () => {
-    expect(buildPlayerPhotoSources('haaland')).toContain('/players/regular/haaland_city.webp');
+    expect(buildPlayerPhotoSources('haaland')).toEqual(expect.arrayContaining([
+      expect.stringMatching(new RegExp(`${LOCAL_PLAYER_PHOTO_ROOT}/.+/${getPlayerPhotoFilename('haaland')}$`)),
+    ]));
   });
 
   it.each([
-    ['coutinho', 'Aston Villa', 'coutinho_astonvilla'],
-    ['coutinho_bayern', 'Bayern Munich', 'coutinho_bayern'],
-    ['coutinho_barcelona', 'Barcelona', 'coutinho_barcelona'],
-    ['coutinho_liverpool', 'Liverpool', 'coutinho_liverpool'],
-    ['dimaria_benfica', 'Benfica', 'dimaria_benfica'],
-    ['mane', 'Liverpool', 'mane'],
-    ['mane_bayern', 'Bayern Munich', 'mane_bayern'],
-  ])('associa a versão %s ao clube e retrato corretos', (playerId, club, filename) => {
+    ['coutinho', 'Aston Villa'],
+    ['coutinho_bayern', 'Bayern Munich'],
+    ['coutinho_barcelona', 'Barcelona'],
+    ['coutinho_liverpool', 'Liverpool'],
+    ['dimaria_benfica', 'Benfica'],
+    ['diego_costa', 'Atlético de Madrid'],
+    ['mane', 'Liverpool'],
+    ['mane_bayern', 'Bayern Munich'],
+  ])('associa a versão %s ao clube e retrato corretos', (playerId, club) => {
     const player = PLAYERS.find(candidate => candidate.id === playerId);
     expect(player?.club).toBe(club);
-    expect(buildPlayerPhotoSources(playerId)[0]).toBe(`/players/regular/${filename}.webp`);
-    expect(existsSync(resolve(process.cwd(), 'client/public/players/regular', `${filename}.webp`))).toBe(true);
+    expect(buildPlayerPhotoSources(playerId)[0]).toMatch(new RegExp(`${LOCAL_PLAYER_PHOTO_ROOT}/.+/${getPlayerPhotoFilename(playerId)}$`));
+    expect(existsSync(resolve(process.cwd(), 'client/public', buildPlayerPhotoSources(playerId)[0].replace(/^\//, '')))).toBe(true);
   });
 
   it('aceita um novo arquivo local pelo próprio ID mesmo sem mapa externo', () => {
@@ -33,24 +37,24 @@ describe('fontes de foto dos jogadores', () => {
   });
 
   it.each([
-    ['lewandowski', 'lewandowski_bayern'],
-    ['lewandowski_barcelona', 'lewandowski_barcelona'],
-    ['bellingham', 'bellingham_realmadrid'],
-    ['bellingham_dortmund', 'bellingham_borussia'],
-    ['ronaldinho_atleticomineiro', 'ronaldinho_atleticomineiro'],
-    ['ramos', 'ramos_realmadrid'],
-    ['ramos_sevilla', 'ramos_sevilla'],
-    ['ramos_psg', 'ramos_psg'],
-    ['dimaria', 'dimaria_realmadrid'],
-    ['dimaria_psg', 'dimaria_psg'],
-    ['dimaria_benfica', 'dimaria_benfica'],
-    ['coutinho_bayern', 'coutinho_bayern'],
-    ['coutinho_barcelona', 'coutinho_barcelona'],
-    ['coutinho_liverpool', 'coutinho_liverpool'],
-    ['mane_bayern', 'mane_bayern'],
-    ['falcao_atleticomadrid', 'falcao_atleticomadrid'],
-  ])('prioriza o retrato local correto para %s', (playerId, filename) => {
-    expect(buildPlayerPhotoSources(playerId)[0]).toBe(`/players/regular/${filename}.webp`);
+    ['lewandowski'],
+    ['lewandowski_barcelona'],
+    ['bellingham'],
+    ['bellingham_dortmund'],
+    ['ronaldinho_atleticomineiro'],
+    ['ramos'],
+    ['ramos_sevilla'],
+    ['ramos_psg'],
+    ['dimaria'],
+    ['dimaria_psg'],
+    ['dimaria_benfica'],
+    ['coutinho_bayern'],
+    ['coutinho_barcelona'],
+    ['coutinho_liverpool'],
+    ['mane_bayern'],
+    ['falcao_atleticomadrid'],
+  ])('prioriza o retrato local correto para %s', (playerId) => {
+    expect(buildPlayerPhotoSources(playerId)[0]).toMatch(new RegExp(`${LOCAL_PLAYER_PHOTO_ROOT}/.+/${getPlayerPhotoFilename(playerId)}$`));
   });
 
   it.each([

@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PLAYERS } from './gameData';
 import { NEXT_GENERATION_PLAYERS } from './next-generationPlayers';
+import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from './playerPhotoCatalog';
 
 describe('next generation player catalog', () => {
   it('contains the complete audited batch with unique IDs', () => {
@@ -15,10 +16,9 @@ describe('next generation player catalog', () => {
   });
 
   it('has a local WebP portrait for every new player', () => {
-    const portraitDirectory = resolve(process.cwd(), 'client/public/players/regular');
-
     for (const player of NEXT_GENERATION_PLAYERS) {
-      expect(existsSync(resolve(portraitDirectory, `${player.id}.webp`))).toBe(true);
+      const portraitDirectory = resolve(process.cwd(), 'client/public', getPlayerPhotoDirectory(player.id).replace(/^\//, ''));
+      expect(existsSync(resolve(portraitDirectory, getPlayerPhotoFilename(player.id)!))).toBe(true);
     }
   });
 });

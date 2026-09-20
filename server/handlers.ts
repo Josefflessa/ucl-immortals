@@ -2625,6 +2625,25 @@ export function registerSocketHandlers(io: RealtimeServer) {
       emitRoomUpdate(io, room);
     });
 
+    // The current host may explicitly hand the role to another connected
+    // player. This is separate from disconnect/leave failover so an active
+    // competition keeps its progress and only the authority changes.
+    on("transfer_host", ({ roomCode, targetPlayerId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || !isHost(room, socket.id) || !isValidId(targetPlayerId)) return;
+
+      const target = room.players.find(player => (
+        player.id === targetPlayerId
+        && player.id !== room.hostId
+        && player.connected !== false
+        && !!player.socketId
+      ));
+      if (!target) return;
+
+      room.hostId = target.id;
+      emitRoomUpdate(io, room);
+    });
+
     // Explicitly leaving is different from a transport drop: the player has
     // made a deliberate decision, so a host transfer must happen immediately.
     // During an active competition we keep the seat as disconnected, allowing

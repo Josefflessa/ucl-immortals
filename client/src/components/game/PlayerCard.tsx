@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
 import { getEvolutionLevel, PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost } from '../../lib/gameEngine';
 import { canonicalClubName, crestIdForClub } from '../../lib/crests';
+import { getPlayerPhotoDirectory, getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 import Crest from './Crest';
 
@@ -500,6 +501,8 @@ const NATION_CODES: Record<string, string> = {
   'Paraguai': 'py',
   'Peru': 'pe',
   'Venezuela': 've',
+  'Uzbequistão': 'uz',
+  'Serra Leoa': 'sl',
   // A seleção soviética deixou de existir; a bandeira russa é a referência
   // visual disponível para representar seus jogadores históricos.
   'União Soviética': 'ru',
@@ -526,12 +529,9 @@ export function getBasePlayerId(playerId: string): string {
   return playerId.split('_')[0];
 }
 
-export const LOCAL_PLAYER_PHOTO_ROOT = '/players/regular';
-
-// Portraits added from FIFA Index use the player's readable key as filename.
-// Keep this explicit because a few game keys intentionally differ from the
-// filename (e.g. `abedipele` -> `abedi_pele`). The older regular package is
-// still supported through its numeric ID fallback below.
+// Legacy filename aliases remain as a compatibility fallback for old saves or
+// assets copied manually. Active portraits use the canonical `name_club.webp`
+// filename generated from the player catalog below.
 const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   abedipele: 'abedi_pele',
   alves: 'dani_alves_barcelona',
@@ -667,10 +667,12 @@ function buildLocalPlayerUrls(playerId: string): string[] {
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
   const namedPlayerPhoto = LOCAL_NAMED_PLAYER_PHOTOS[playerId] ?? LOCAL_NAMED_PLAYER_PHOTOS[baseId];
+  const catalogPlayerPhoto = getPlayerPhotoFilename(playerId) ?? getPlayerPhotoFilename(baseId);
   const localNames = Array.from(new Set(
     [
-      // Prefer an explicit mapped filename when a version uses one (e.g. `yamal`
-      // -> `yamal_barcelona`), then try the exact ID and base ID filenames.
+      // Prefer the canonical player/club filename, then retain legacy aliases
+      // and ids as fallbacks for compatibility.
+      catalogPlayerPhoto,
       namedPlayerPhoto,
       playerId,
       baseId,
@@ -680,18 +682,22 @@ function buildLocalPlayerUrls(playerId: string): string[] {
   if (!m && localNames.length === 0) return [];
 
   // Try readable local filenames before numeric legacy assets and SoFIFA.
-  const localUrls = localNames.flatMap(localName => [
-    `${LOCAL_PLAYER_PHOTO_ROOT}/${localName}.webp`,
-    `${LOCAL_PLAYER_PHOTO_ROOT}/${localName}.png`,
-  ]);
+  const localDirectory = getPlayerPhotoDirectory(playerId);
+  const localUrls = localNames.flatMap(localName => {
+    const localStem = localName.replace(/\.(?:webp|png)$/i, '');
+    return [
+      `${localDirectory}/${localStem}.webp`,
+      `${localDirectory}/${localStem}.png`,
+    ];
+  });
 
   // Numeric assets remain a transition fallback for any asset that has not yet
   // been renamed or for IDs shared by more than one game record.
   return [
     ...localUrls,
     ...(m ? [
-      `${LOCAL_PLAYER_PHOTO_ROOT}/${m.id}.webp`,
-      `${LOCAL_PLAYER_PHOTO_ROOT}/${m.id}.png`,
+      `${localDirectory}/${m.id}.webp`,
+      `${localDirectory}/${m.id}.png`,
     ] : []),
   ];
 }

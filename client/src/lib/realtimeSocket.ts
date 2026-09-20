@@ -140,12 +140,29 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
       socket.onerror = () => {
         // The close event is the single source of reconnect/disconnect state.
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         const wasConnected = !!this._id;
         this._id = undefined;
-        // The server may have committed the command while its ACK was in
-        // flight. Replaying the same ID is safe and closes that ambiguity.
-        this.requeueInFlightCommands();
+        // A normal network close is ambiguous: the server may have committed
+        // the command while its ACK was in flight, so replaying the same ID
+        // is safe. Codes 1011/1009, however, are explicit server/application
+        // failures; replaying those commands can repeatedly trigger the same
+        // failure and create an endless reconnect loop.
+        const serverRejectedCommand = event.code === 1011 || event.code === 1009;
+        if (serverRejectedCommand) {
+          this.abandonRetryableCommands();
+          if (wasConnected) {
+            this.dispatch('action_error', {
+              message: event.code === 1009
+                ? 'A ação excedeu o tamanho permitido e não foi enviada.'
+                : 'O servidor não conseguiu confirmar a ação. Ela não foi aplicada; tente novamente.',
+            });
+          }
+        } else {
+          // The server may have committed the command while its ACK was in
+          // flight. Replaying the same ID is safe and closes that ambiguity.
+          this.requeueInFlightCommands();
+        }
         if (wasConnected) this.dispatch('disconnect', 'transport close');
         if (!this.manuallyClosed) this.scheduleReconnect();
       };
@@ -209,6 +226,15 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
     const commands = Array.from(this.inFlightCommands.values());
     this.inFlightCommands.clear();
     commands.forEach(command => this.queue(command.event, command.message));
+  }
+
+  private abandonRetryableCommands(): void {
+    this.inFlightCommands.clear();
+    for (let index = this.pendingMessages.length - 1; index >= 0; index -= 1) {
+      if (RETRYABLE_GAMEPLAY_EVENTS.has(this.pendingMessages[index].event)) {
+        this.pendingMessages.splice(index, 1);
+      }
+    }
   }
 
   private scheduleReconnect(): void {

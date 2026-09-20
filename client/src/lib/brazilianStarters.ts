@@ -1581,7 +1581,7 @@ const BRAZILIAN_STARTERS_BASE: Player[] = [
   },
   {
     "id": "brasileirao_14219093",
-    "shortName": "Santiago Ramos Mingo",
+    "shortName": "Ramos Mingo",
     "fullName": "Santiago Ramos Mingo",
     "position": "CB",
     "secondaryPositions": [],

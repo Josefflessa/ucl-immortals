@@ -1614,6 +1614,7 @@ interface GameContextType {
   playKnockoutRoundOnline: () => void;
   advanceKnockoutRoundOnline: () => void;
   restartRoomOnline: () => void;
+  transferHostOnline: (targetPlayerId: string) => void;
   leaveRoomOnline: () => void;
   closeRoomOnline: () => void;
   disconnectOnline: () => void;
@@ -2039,6 +2040,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("restart_room", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
 
+  const transferHostOnline = useCallback((targetPlayerId: string) => {
+    emitOnlineAction("transfer_host", { roomCode: state.roomCode, targetPlayerId });
+  }, [emitOnlineAction, state.roomCode]);
+
   const leaveRoomOnline = useCallback(() => {
     emitOnlineAction("leave_room", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
@@ -2193,7 +2198,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     createRoom, joinRoom, startSetupOnline, submitSetupOnline,
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline, setMatchPlanOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
-    restartRoomOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
+    restartRoomOnline, transferHostOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, resetEvolvePointsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,

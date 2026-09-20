@@ -24,6 +24,7 @@ export default function MenuPage() {
     leaveRoomOnline,
     closeRoomOnline,
     restartRoomOnline,
+    transferHostOnline,
   } = useGame();
 
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
@@ -31,6 +32,7 @@ export default function MenuPage() {
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
 
   useEffect(() => {
@@ -65,6 +67,11 @@ export default function MenuPage() {
     setRoomAction(action);
   };
 
+  const handleTransferHost = (playerId: string) => {
+    const target = state.onlinePlayers.find(player => player.id === playerId);
+    if (target) setTransferTarget({ id: target.id, name: target.name });
+  };
+
   // If already in lobby, render Lobby view
   if (state.roomCode && state.phase === 'lobby') {
     return (
@@ -94,7 +101,14 @@ export default function MenuPage() {
                   {state.roomCode}
                 </span>
               </div>
-              <RoomOptionsMenu isHost={state.isHost} onAction={handleRoomAction} />
+              <RoomOptionsMenu
+                isHost={state.isHost}
+                onAction={handleRoomAction}
+                roomCode={state.roomCode}
+                players={state.onlinePlayers}
+                hostId={state.onlineHostId}
+                onTransferHost={handleTransferHost}
+              />
             </div>
 
             {/* Players List */}
@@ -182,6 +196,19 @@ export default function MenuPage() {
                 leaveRoomOnline();
                 setMenuMode('selection');
               }
+            }}
+          />
+
+          <ConfirmDialog
+            open={transferTarget !== null}
+            onOpenChange={(open) => { if (!open) setTransferTarget(null); }}
+            title="Transferir anfitrião?"
+            description={`A partir de agora, ${transferTarget?.name ?? 'esse jogador'} controlará o início, reinício e encerramento da sala.`}
+            confirmLabel="Transferir host"
+            intent="primary"
+            onConfirm={() => {
+              if (transferTarget) transferHostOnline(transferTarget.id);
+              setTransferTarget(null);
             }}
           />
         </div>
