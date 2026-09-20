@@ -19,7 +19,7 @@ import {
   AttrKey, getTraitAttributeBonus, getGoalkeeperTraitBonus,
   getPenaltyComposureBonus, rollPlayerTraits,
 } from './traits';
-import { BOT_CREST_MAP } from './crests';
+import { BOT_CREST_MAP, sameClub } from './crests';
 import { Stadium, stadiumFor } from './stadium';
 import {
   yellowChance, injuryChanceFromFoul, randomInjuryChance, tacticAggression, formationAggression,
@@ -482,7 +482,7 @@ export function calculateChemistry(
       if (other.id === player.id) continue;
 
       // Same club
-      if (player.club === other.club) score += 2;
+      if (sameClub(player.club, other.club)) score += 2;
       // Same nation
       else if (player.nation === other.nation) score += 1;
       // Same historical coach
@@ -551,7 +551,7 @@ export function getChemistryLinks(players: (Player | undefined)[], coachId: stri
     for (let j = i + 1; j < players.length; j++) {
       const b = players[j]; if (!b) continue;
       let type: ChemLinkType | null = null;
-      if (a.club === b.club) type = 'club';
+      if (sameClub(a.club, b.club)) type = 'club';
       else if (a.nation === b.nation) type = 'nation';
       else if (a.historicalCoaches?.includes(coachId) && b.historicalCoaches?.includes(coachId)) type = 'coach';
       else if (areHistoricalPartners(a, b)) type = 'partner';
@@ -985,7 +985,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
   // inspira os companheiros de clube, não a si mesmo).
   for (const idol of xi) {
     if (!idol.idolo) continue;
-    for (const mate of xi) if (mate.id !== idol.id && mate.club === idol.club) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: 2, perStat: {} });
+    for (const mate of xi) if (mate.id !== idol.id && sameClub(mate.club, idol.club)) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: 2, perStat: {} });
   }
   // 🩸 Mártir — +3 em tudo aos 2 titulares escolhidos (ou 2 maiores overalls além dele). Acumulável.
   for (const m of xi) {
@@ -1021,7 +1021,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
   for (const f of xi) {
     if (!f.forasteiro) continue;
     const soloNation = xi.filter(p => p.nation === f.nation).length === 1;
-    const soloClub = xi.filter(p => p.club === f.club).length === 1;
+    const soloClub = xi.filter(p => sameClub(p.club, f.club)).length === 1;
     if (soloNation && soloClub) {
       contribute(f.id, { type: 'forasteiro', fromId: f.id, fromName: f.shortName, flatAll: FORASTEIRO_STAT_BOOST, perStat: {}, self: true });
     }
@@ -1274,7 +1274,7 @@ export function getEffectiveAttribute(
     base += st.homeAttrBonus;
     if (st.prime && st.themedAttrs && (st.themedAttrs as string[]).includes(attribute as string)) {
       const themedForClubNation =
-        (!!st.themedClub && player.club === st.themedClub) ||
+        (!!st.themedClub && sameClub(player.club, st.themedClub)) ||
         (!!st.themedNation && player.nation === st.themedNation);
       base += themedForClubNation ? PRIME_THEMED_CLUB_BONUS : PRIME_THEMED_BONUS;
     }
@@ -3744,7 +3744,7 @@ export function difficultyProfile(strength: number) {
 // mesma nação ×1) aos já escolhidos — é o que faz o bot montar um XI entrosado nos níveis altos.
 function pickChemAware(cands: Player[], selected: Player[], chemBias: number): Player {
   if (chemBias <= 0 || selected.length === 0) return cands[Math.floor(Math.random() * cands.length)];
-  const conn = (p: Player) => selected.reduce((n, s) => n + (s.club === p.club ? 2 : 0) + (s.nation === p.nation ? 1 : 0), 0);
+  const conn = (p: Player) => selected.reduce((n, s) => n + (sameClub(s.club, p.club) ? 2 : 0) + (s.nation === p.nation ? 1 : 0), 0);
   const weights = cands.map(p => 1 + chemBias * conn(p) * 1.5);
   const total = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * total;
@@ -3771,7 +3771,11 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   const selected: Player[] = [];
   const taken = (p: Player) => selected.some(s => s.id === p.id);
   const inBand = (p: Player) => p.overall >= lo && p.overall <= hi;
-  const fits = (p: Player, role: string) => p.position === role || (p.secondaryPositions?.includes(role) ?? false);
+  // Never use a goalkeeper in an outfield slot, even when a legacy card has
+  // an accidental secondary position that would otherwise make it eligible.
+  const fits = (p: Player, role: string) => role === 'GK'
+    ? p.position === 'GK'
+    : p.position !== 'GK' && (p.position === role || (p.secondaryPositions?.includes(role) ?? false));
   const randOf = (arr: Player[]) => arr[Math.floor(Math.random() * arr.length)];
 
   // Fill formation positions (11 titulares) — dentro da faixa, por posição, PONDERADO POR QUÍMICA.

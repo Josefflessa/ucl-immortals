@@ -24,6 +24,7 @@ import FormationSelector from './FormationSelector';
 import ChemistryBonusInfo from './ChemistryBonusInfo';
 import BuffBreakdown from './BuffBreakdown';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { canonicalClubName } from '../../lib/crests';
 
 export interface SquadEditorProps {
   players: Player[];                 // full squad (first 11 = XI, rest = bench)
@@ -811,7 +812,7 @@ export default function SquadEditor({
                               <span className="inline-flex items-center justify-center text-center text-[9px] font-black px-2 py-0.5 rounded leading-none flex-shrink-0" style={{ background: 'linear-gradient(90deg,#0a7a2f,#22C55E)', color: '#04120a', letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(selectedPlayer)}</span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{selectedPlayer.club} · {selectedPlayer.nation}</div>
+                          <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{canonicalClubName(selectedPlayer.club)} · {selectedPlayer.nation}</div>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{eff.overall}</div>

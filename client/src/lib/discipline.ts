@@ -299,7 +299,9 @@ export function resolveAvailableLineup(team: Team, m: DisciplineMap): { team: Te
   const players: PlayerCard[] = team.players.map(p => ({ ...p }));
   const forced: { outId: string; inId: string }[] = [];
   const avail = (p: PlayerCard) => isAvailable(m, team.id, p.id);
-  const fits = (p: PlayerCard, pos: string) => p.position === pos || (p.secondaryPositions?.includes(pos) ?? false);
+  const fits = (p: PlayerCard, pos: string) => pos === 'GK'
+    ? p.position === 'GK'
+    : p.position !== 'GK' && (p.position === pos || (p.secondaryPositions?.includes(pos) ?? false));
 
   for (let i = 0; i < 11 && i < players.length; i++) {
     const starter = players[i];
@@ -309,7 +311,7 @@ export function resolveAvailableLineup(team: Team, m: DisciplineMap): { team: Te
     let pick: PlayerCard | undefined = wantGK
       ? bench.filter(p => p.position === 'GK').sort((a, b) => b.overall - a.overall)[0]
       : (bench.filter(p => fits(p, starter.position)).sort((a, b) => b.overall - a.overall)[0]
-         ?? bench.slice().sort((a, b) => b.overall - a.overall)[0]);
+         ?? bench.filter(p => p.position !== 'GK').sort((a, b) => b.overall - a.overall)[0]);
     if (!pick && wantGK) {
       // sem GK reserva → melhor jogador de linha disponível vai pro gol (OOP)
       pick = bench.slice().sort((a, b) => b.overall - a.overall)[0];

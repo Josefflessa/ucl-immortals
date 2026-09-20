@@ -65,6 +65,8 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "torino", name: "Torino", url: "https://upload.wikimedia.org/wikipedia/en/2/2e/Torino_FC_Logo.svg" },
       { id: "napoli", name: "Napoli", url: "https://upload.wikimedia.org/wikipedia/commons/2/2d/SSC_Neapel.svg" },
       { id: "bologna", name: "Bologna", url: "https://upload.wikimedia.org/wikipedia/commons/5/5b/Bologna_F.C._1909_logo.svg" },
+      { id: "lecce", name: "Lecce", url: "https://commons.wikimedia.org/wiki/Special:FilePath/US%20Lecce%20Stemma.svg" },
+      { id: "pisa", name: "Pisa", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Logo%20Pisa%20Sporting%20Club.svg" },
     ]
   },
   {
@@ -79,6 +81,7 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "schalke", name: "Schalke", url: "https://upload.wikimedia.org/wikipedia/commons/6/6d/FC_Schalke_04_Logo.svg" },
       { id: "werder-bremen", name: "Werder Bremen", url: "https://upload.wikimedia.org/wikipedia/commons/b/be/SV-Werder-Bremen-Logo.svg" },
       { id: "eintracht-frankfurt", name: "Eintracht Frankfurt", url: "https://upload.wikimedia.org/wikipedia/en/7/7e/Eintracht_Frankfurt_crest.svg" },
+      { id: "koln", name: "Köln", url: "https://commons.wikimedia.org/wiki/Special:FilePath/1.%20FC%20Koeln%20Logo%202014%E2%80%93.svg" },
     ]
   },
   {
@@ -91,6 +94,7 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "lens", name: "Lens", url: "https://upload.wikimedia.org/wikipedia/en/c/cc/RC_Lens_logo.svg" },
       { id: "lyon", name: "Lyon", url: "https://upload.wikimedia.org/wikipedia/en/1/1c/Olympique_Lyonnais_logo.svg" },
       { id: "monaco", name: "Monaco", url: "https://upload.wikimedia.org/wikipedia/en/c/cf/LogoASMonacoFC2021.svg" },
+      { id: "strasbourg", name: "Strasbourg", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Logo%20racing%20stras.png" },
     ]
   },
   {
@@ -164,6 +168,7 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "vasco", name: "Vasco", url: "https://upload.wikimedia.org/wikipedia/en/a/a5/Club_de_Regatas_Vasco_da_Gama_logo_%282021%29.svg" },
       { id: "corinthians", name: "Corinthians", url: "https://upload.wikimedia.org/wikipedia/en/5/5a/Sport_Club_Corinthians_Paulista_crest.svg" },
       { id: "fluminense", name: "Fluminense", url: "https://upload.wikimedia.org/wikipedia/commons/1/12/Fluminense_Football_Club.svg" },
+      { id: "coritiba", name: "Coritiba", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Coritiba%20Foot%20Ball%20Club%20logo.svg" },
       { id: "ceara", name: "Ceará", url: "https://upload.wikimedia.org/wikipedia/commons/3/38/Cear%C3%A1_Sporting_Club_logo.svg" },
       { id: "fortaleza", name: "Fortaleza", url: "https://upload.wikimedia.org/wikipedia/commons/3/3d/Fortaleza_Esporte_Clube_logo.svg" },
       { id: "cruzeiro", name: "Cruzeiro", url: "/crests/cruzeiro.svg" },
@@ -225,7 +230,7 @@ export const CRESTS_BY_ID: Record<string, CrestDef> = Object.fromEntries(
 
 export const ALL_CRESTS: CrestDef[] = CREST_CATALOG.flatMap(g => g.crests);
 
-const normalizeClubName = (value: string): string => value
+export const normalizeClubName = (value: string): string => value
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
   .toLowerCase()
@@ -269,12 +274,33 @@ const CREST_ID_BY_NORMALIZED_NAME = new Map(
   ]),
 );
 
+/**
+ * Stable identity for a club, independent of the display label used by a card
+ * or by an online/bot team. Chemistry and filters must use this value instead
+ * of comparing the human-readable `club` string directly.
+ */
+export function clubIdForName(club: string | undefined | null): string {
+  if (!club) return '';
+  const normalized = normalizeClubName(club);
+  return CLUB_CREST_ALIASES[normalized] ?? CREST_ID_BY_NORMALIZED_NAME.get(normalized) ?? normalized;
+}
+
+/** Returns the catalogue's preferred display label for a club when available. */
+export function canonicalClubName(club: string | undefined | null): string {
+  if (!club) return '';
+  const id = clubIdForName(club);
+  return CRESTS_BY_ID[id]?.name ?? club;
+}
+
+export function sameClub(a: string | undefined | null, b: string | undefined | null): boolean {
+  return !!a && !!b && clubIdForName(a) === clubIdForName(b);
+}
+
 /** Resolves a player/team display name to the canonical crest id. */
 export function crestIdForClub(club: string | undefined | null): string | null {
   if (!club) return null;
-  const normalized = normalizeClubName(club);
-  const id = CLUB_CREST_ALIASES[normalized] ?? CREST_ID_BY_NORMALIZED_NAME.get(normalized);
-  return id && CRESTS_BY_ID[id] ? id : null;
+  const id = clubIdForName(club);
+  return CRESTS_BY_ID[id] ? id : null;
 }
 
 export function getCrest(id: string | undefined | null): CrestDef | null {

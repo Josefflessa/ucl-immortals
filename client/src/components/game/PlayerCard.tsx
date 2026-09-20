@@ -2,7 +2,7 @@ import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
 import { getEvolutionLevel, PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost } from '../../lib/gameEngine';
-import { crestIdForClub } from '../../lib/crests';
+import { canonicalClubName, crestIdForClub } from '../../lib/crests';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 import Crest from './Crest';
 
@@ -650,6 +650,14 @@ const LOCAL_NAMED_PLAYER_PHOTOS: Record<string, string> = {
   dimaria: 'dimaria_realmadrid',
   dimaria_realmadrid: 'dimaria_realmadrid',
   dimaria_psg: 'dimaria_psg',
+  dimaria_benfica: 'dimaria_benfica',
+  coutinho: 'coutinho_astonvilla',
+  coutinho_astonvilla: 'coutinho_astonvilla',
+  coutinho_bayern: 'coutinho_bayern',
+  coutinho_barcelona: 'coutinho_barcelona',
+  coutinho_liverpool: 'coutinho_liverpool',
+  mane: 'mane',
+  mane_bayern: 'mane_bayern',
   dembele: 'dembele_barcelona',
   dembele_barcelona: 'dembele_barcelona',
   dembele_psg: 'dembele_psg',
@@ -1073,7 +1081,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
             {/* bandeira (país) + escudo (clube) — ajudam a ler a química no MEU TIME */}
             <div className="flex items-center justify-center gap-1 mb-0.5">
               {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
-              <Crest crestId={clubCrestId} name={player.club} size={12} className="drop-shadow-[0_1px_1px_rgba(0,0,0,.7)]" />
+              <Crest crestId={clubCrestId} name={canonicalClubName(player.club)} size={12} className="drop-shadow-[0_1px_1px_rgba(0,0,0,.7)]" />
             </div>
             <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
               {player.shortName.toUpperCase()}
@@ -1150,7 +1158,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           <span style={{ fontFamily: 'Rajdhani,sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
           <div style={{ width: 30, height: 1, background: 'rgba(247,238,202,.55)', margin: '3px 0' }} />
           {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
-          <Crest crestId={clubCrestId} name={player.club} size={22} />
+          <Crest crestId={clubCrestId} name={canonicalClubName(player.club)} size={22} />
         </div>
         {/* foto (cartas normais; as Únicas usam o render grande atrás do conteúdo) */}
         {!uniq && (

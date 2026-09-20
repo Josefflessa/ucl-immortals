@@ -24,7 +24,7 @@ import { betCapPrefix } from './bets';
 import { stadiumFor } from './stadium';
 import { PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
-import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, crestIdForClub, getCrest } from './crests';
+import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, canonicalClubName, clubIdForName, crestIdForClub, getCrest } from './crests';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -361,6 +361,14 @@ describe('getChemistryLinks — link typing & priority', () => {
     const a = mkP({ id: 'a', club: 'X', nation: 'BR', nomade: true });
     const b = mkP({ id: 'b', club: 'Y', nation: 'AR' });
     expect(getChemistryLinks([a, b], COACHES[0].id)[0]?.type).toBe('nation');
+  });
+  it('uses one canonical club identity for alternate display labels', () => {
+    expect(clubIdForName('Atlético de Madrid')).toBe(clubIdForName('Atlético Madrid'));
+    expect(canonicalClubName('Atlético de Madrid')).toBe('Atlético Madrid');
+
+    const first = mkP({ id: 'first', club: 'Atlético de Madrid', nation: 'BR' });
+    const second = mkP({ id: 'second', club: 'Atlético Madrid', nation: 'AR' });
+    expect(getChemistryLinks([first, second], COACHES[0].id)[0]?.type).toBe('club');
   });
 });
 
@@ -870,6 +878,11 @@ describe('crest catalogue integrity', () => {
   it('resolves a crest for every club represented in the player catalogue', () => {
     const clubs = [...new Set([...PLAYERS, ...UNIQUE_CARDS].map(player => player.club))];
     expect(clubs.filter(club => !crestIdForClub(club))).toEqual([]);
+  });
+  it('stamps every exported card with the same canonical club id used by the crest catalogue', () => {
+    for (const player of [...PLAYERS, ...UNIQUE_CARDS]) {
+      expect(player.clubId).toBe(clubIdForName(player.club));
+    }
   });
   it('keeps the Rogério Ceni Unique card connected to the São Paulo crest', () => {
     const ceni = UNIQUE_CARDS.find(player => player.id === 'rogerio_ceni_unico');

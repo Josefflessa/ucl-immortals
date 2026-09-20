@@ -5,6 +5,8 @@ import { BRAZILIAN_STARTERS } from './brazilianStarters';
 import { BRAZILIAN_NOTABLE_ADDITIONS } from './brazilianNotableAdditions';
 import { MAJOR_LEAGUE_ADDITIONS } from './majorLeaguePlayers';
 import { MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE } from './majorLeagueCatalogExpansion';
+import { NEXT_GENERATION_PLAYERS } from './next-generationPlayers';
+import { clubIdForName } from './crests';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
@@ -26,7 +28,10 @@ export interface Player {
   position: string;
   secondaryPositions?: string[];
   nation: string;
+  // Human-readable label kept for cards/UI. Use clubId for chemistry, filters
+  // and any logic that compares clubs.
   club: string;
+  clubId?: string;
   season: string;
   rarity: Rarity;
   overall: number;
@@ -180,6 +185,10 @@ function normalizeRegularPlayerRarity<T extends { overall: number }>(player: T):
   return { ...player, rarity: rarityForBaseOverall(player.overall) };
 }
 
+function withCanonicalClub(player: Player): Player {
+  return { ...player, clubId: clubIdForName(player.club) };
+}
+
 // `CF` was the former internal code for Segundo Atacante. It is no longer a
 // playable position, but old rooms/sessions can still contain it. Normalize it
 // to the existing CA/ST role at the rules boundary instead of exposing SA again.
@@ -194,7 +203,7 @@ export function canonicalPosition(position: string): string {
 // Posição/nação/clube normalmente acompanham a carta-base para a química funcionar
 // normalmente; versões de épocas diferentes podem ter clube próprio.
 // ════════════════════════════════════════════════════════════════════════════
-export const UNIQUE_CARDS: Player[] = [
+export const UNIQUE_CARDS: Player[] = ([
   { id: 'kaka_unico', basePlayerId: 'kaka', historicalPlayerId: 'kaka_milan', shortName: 'Kaká', fullName: 'Ricardo Izecson dos Santos Leite', position: 'CAM', secondaryPositions: ['CM', 'ST'], nation: 'Brasil', club: 'Milan', season: 'Única', rarity: 'unique', overall: 99,
     pace: 92, shooting: 93, passing: 94, dribbling: 95, defending: 60, physical: 82, vision: 96, composure: 95, traits: [], historicalCoaches: ['ancelotti'], historicalPartners: ['pirlo', 'maldini', 'seedorf'] },
   { id: 'henry_unico', basePlayerId: 'henry', shortName: 'Henry', fullName: 'Thierry Daniel Henry', position: 'ST', secondaryPositions: ['LW'], nation: 'França', club: 'Arsenal', season: 'Única', rarity: 'unique', overall: 99,
@@ -243,7 +252,7 @@ export const UNIQUE_CARDS: Player[] = [
     pace: 96, shooting: 78, passing: 96, dribbling: 94, defending: 93, physical: 88, vision: 95, composure: 97, traits: ['Cruzador', 'Visão de Jogo'], historicalCoaches: ['guardiola'], historicalPartners: ['messi', 'xavi', 'iniesta'] },
   { id: 'roberto_carlos_unico', basePlayerId: 'roberto_carlos', historicalPlayerId: 'roberto_carlos', shortName: 'Roberto Carlos', fullName: 'Roberto Carlos da Silva', position: 'LB', secondaryPositions: ['LWB'], nation: 'Brasil', club: 'Real Madrid', season: 'Única', rarity: 'unique', overall: 99,
     pace: 99, shooting: 96, passing: 94, dribbling: 93, defending: 94, physical: 92, vision: 90, composure: 97, traits: ['Cruzador', 'Cobrador de Falta', 'Força Bruta'], historicalCoaches: ['ancelotti'], historicalPartners: ['ronaldo_nazario', 'ramos', 'figo'] },
-];
+] as Player[]).map(withCanonicalClub);
 
 export function getPositionGroup(position: string): PositionGroup {
   const canonical = canonicalPosition(position);
@@ -661,6 +670,7 @@ export const PLAYERS: Player[] = [
   ...BRAZILIAN_NOTABLE_ADDITIONS,
   ...MAJOR_LEAGUE_ADDITIONS,
   ...MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE,
+  ...NEXT_GENERATION_PLAYERS,
   // ===== IMMORTALS =====
   {
     id: 'messi',
@@ -3459,6 +3469,23 @@ export const PLAYERS: Player[] = [
     historicalPartners: ['neymar_psg', 'mbappe', 'cavani', 'verratti'],
   },
   {
+    id: 'dimaria_benfica',
+    basePlayerId: 'dimaria',
+    historicalPlayerId: 'dimaria_benfica',
+    shortName: 'Di María',
+    fullName: 'Ángel Fabián Di María Hernández',
+    position: 'RW',
+    secondaryPositions: ['RM', 'CAM', 'LW'],
+    nation: 'Argentina',
+    club: 'Benfica',
+    season: '2023/24',
+    rarity: 'gold',
+    overall: 84,
+    pace: 76, shooting: 80, passing: 88, dribbling: 90, defending: 41, physical: 61,
+    composure: 89, vision: 89,
+    traits: [],
+  },
+  {
     id: 'son',
     shortName: 'Son',
     fullName: 'Son Heung-min',
@@ -4145,12 +4172,82 @@ export const PLAYERS: Player[] = [
     historicalCoaches: ['klopp'], historicalPartners: ['salah', 'firmino'],
   },
   {
-    id: 'coutinho', shortName: 'Coutinho', fullName: 'Philippe Coutinho', position: 'CAM', secondaryPositions: ['LW', 'CM'],
-    nation: 'Brasil', club: 'Liverpool', season: '2017/18', rarity: 'gold', overall: 84,
+    id: 'mane_bayern',
+    basePlayerId: 'mane',
+    historicalPlayerId: 'mane_bayern',
+    shortName: 'Mané',
+    fullName: 'Sadio Mané',
+    position: 'LW',
+    secondaryPositions: ['ST', 'RW'],
+    nation: 'Senegal',
+    club: 'Bayern Munich',
+    season: '2022/23',
+    rarity: 'gold',
+    overall: 87,
+    pace: 82, shooting: 85, passing: 84, dribbling: 88, defending: 42, physical: 78,
+    composure: 84, vision: 84,
+    traits: [],
+  },
+  {
+    id: 'coutinho', historicalPlayerId: 'coutinho_astonvilla', shortName: 'Coutinho', fullName: 'Philippe Coutinho', position: 'CAM', secondaryPositions: ['LW', 'CM'],
+    nation: 'Brasil', club: 'Aston Villa', season: '2022/23', rarity: 'gold', overall: 84,
     pace: 79, shooting: 82, passing: 82, dribbling: 87, defending: 44, physical: 64,
     composure: 83, vision: 84,
     traits: [],
-    historicalCoaches: ['klopp'], historicalPartners: ['firmino'],
+  },
+  {
+    id: 'coutinho_bayern',
+    basePlayerId: 'coutinho',
+    historicalPlayerId: 'coutinho_bayern',
+    shortName: 'Coutinho',
+    fullName: 'Philippe Coutinho',
+    position: 'CAM',
+    secondaryPositions: ['LW', 'CM'],
+    nation: 'Brasil',
+    club: 'Bayern Munich',
+    season: '2019/20',
+    rarity: 'gold',
+    overall: 86,
+    pace: 82, shooting: 82, passing: 87, dribbling: 89, defending: 43, physical: 65,
+    composure: 85, vision: 88,
+    traits: [],
+  },
+  {
+    id: 'coutinho_barcelona',
+    basePlayerId: 'coutinho',
+    historicalPlayerId: 'coutinho_barcelona',
+    shortName: 'Coutinho',
+    fullName: 'Philippe Coutinho',
+    position: 'CAM',
+    secondaryPositions: ['LW', 'CM'],
+    nation: 'Brasil',
+    club: 'Barcelona',
+    season: '2017/18',
+    rarity: 'gold',
+    overall: 87,
+    pace: 83, shooting: 82, passing: 85, dribbling: 89, defending: 44, physical: 64,
+    composure: 85, vision: 87,
+    traits: [],
+    historicalPartners: ['messi', 'suarez', 'dembele'],
+  },
+  {
+    id: 'coutinho_liverpool',
+    basePlayerId: 'coutinho',
+    historicalPlayerId: 'coutinho_liverpool',
+    shortName: 'Coutinho',
+    fullName: 'Philippe Coutinho',
+    position: 'CAM',
+    secondaryPositions: ['LW', 'CM'],
+    nation: 'Brasil',
+    club: 'Liverpool',
+    season: '2017/18',
+    rarity: 'gold',
+    overall: 86,
+    pace: 83, shooting: 78, passing: 83, dribbling: 88, defending: 44, physical: 64,
+    composure: 79, vision: 87,
+    traits: [],
+    historicalCoaches: ['klopp'],
+    historicalPartners: ['firmino'],
   },
   {
     id: 'firmino', shortName: 'Firmino', fullName: 'Roberto Firmino', position: 'ST', secondaryPositions: ['CAM'],
@@ -5320,4 +5417,4 @@ export const PLAYERS: Player[] = [
     composure: 91, vision: 70,
     traits: [],
   },
-].map(normalizeRegularPlayerRarity);
+].map(normalizeRegularPlayerRarity).map(withCanonicalClub);
