@@ -5,6 +5,7 @@ import { useGame } from '../contexts/GameContext';
 import { FORMATIONS, COACHES } from '../lib/gameData';
 import { formationProfile } from '../lib/gameEngine';
 import FormationField from '../components/game/FormationField';
+import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import ImpactMeter from '../components/game/ImpactMeter';
 import { AppShell, Button, ChoiceCard, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 
@@ -40,15 +41,7 @@ export default function FormationPage() {
 
   const selectedFormation = FORMATIONS.find(f => f.id === state.selectedFormationId);
   if (state.mode === 'online' && isReady) {
-    return (
-      <AppShell className="flex flex-col items-center justify-center px-6 text-center">
-        <div className="mb-4 text-4xl text-[var(--ui-brand-strong)]">◌</div>
-        <div className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-[var(--ui-brand)] border-t-transparent" />
-        <div className="max-w-xs text-lg font-bold leading-snug text-[var(--ui-text)] sm:max-w-md">
-          Aguardando os demais jogadores definirem a tática…
-        </div>
-      </AppShell>
-    );
+    return <OnlineWaitingScreen message="Os demais jogadores estão definindo a tática…" />;
   }
 
   return (

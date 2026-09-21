@@ -461,6 +461,12 @@
 
   .ui-btn--loading { cursor: wait; }
 
+  @keyframes waiting-progress {
+    0% { transform: translateX(-100%); }
+    50% { transform: translateX(100%); }
+    100% { transform: translateX(220%); }
+  }
+
   .ui-btn--primary {
     color: var(--ui-brand-ink);
     background: var(--ui-brand-strong);

@@ -15,7 +15,7 @@ export interface CrestGroup { league: string; crests: CrestDef[]; }
 
 export const CREST_CATALOG: CrestGroup[] = [
   {
-    league: "Premier League 🏴", crests: [
+    league: "Premier League 🇬🇧", crests: [
       { id: "arsenal", name: "Arsenal", url: "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg" },
       { id: "chelsea", name: "Chelsea", url: "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg" },
       { id: "liverpool", name: "Liverpool", url: "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg" },

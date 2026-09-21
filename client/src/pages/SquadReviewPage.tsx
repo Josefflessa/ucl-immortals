@@ -5,6 +5,7 @@
 import { useGame } from '../contexts/GameContext';
 import { Player } from '../lib/gameData';
 import SquadEditor from '../components/game/SquadEditor';
+import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import { AppShell, Button, PageContainer, TopBar } from '../design-system';
 
 export default function SquadReviewPage() {
@@ -23,15 +24,7 @@ export default function SquadReviewPage() {
   };
 
   if (online && isReady) {
-    return (
-      <AppShell className="flex flex-col items-center justify-center px-6 text-center">
-        <div className="mb-4 text-4xl text-[var(--ui-brand-strong)]">◌</div>
-        <div className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-[var(--ui-brand)] border-t-transparent" />
-        <div className="max-w-xs text-lg font-bold leading-snug text-[var(--ui-text)] sm:max-w-md">
-          Aguardando os demais jogadores confirmarem a escalação…
-        </div>
-      </AppShell>
-    );
+    return <OnlineWaitingScreen message="Os demais jogadores estão confirmando a escalação…" />;
   }
 
   return (
