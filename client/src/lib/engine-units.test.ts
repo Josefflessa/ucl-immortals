@@ -978,4 +978,14 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(afterTwoStarts - base).toBe(1);
     expect(afterFourStarts - base).toBe(2);
   });
+  it('⚽/🎯 Goleador e Garçom começam com o histórico já feito na competição', () => {
+    const scorer = applyShopVariant(src, 'goleador', { goals: 7 });
+    const creator = applyShopVariant(src, 'garcom', { assists: 8 });
+    expect(scorer.goleadorGoals).toBe(7);
+    expect(creator.garcomAssists).toBe(8);
+    expect(scorer.goleadorMatchIds).toEqual([]);
+    expect(creator.garcomMatchIds).toEqual([]);
+    expect(goleadorStatBoost(scorer.goleadorGoals)).toBe(2);
+    expect(garcomStatBoost(creator.garcomAssists)).toBe(2);
+  });
 });

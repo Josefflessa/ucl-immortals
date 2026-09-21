@@ -20,6 +20,7 @@ import {
   playActiveKnockoutLeg,
   advanceKnockoutBracket,
   getActiveKnockoutMatches,
+  getAllPlayedMatchResults, getPlayerSeasonStats,
   normalizeMatchPlan,
   validateMatchPlan,
   rebuildTeamChemistry,
@@ -1821,9 +1822,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const target = player.team.players.find(p => p.id === playerId);
       if (!target || player.points < cost) return;
       if (!canAddVariant(target)) return; // 1 por carta (Únicas: até 2)
+      // A característica usa o histórico da competição inteira, inclusive
+      // partidas disputadas antes da compra no meio da temporada.
+      const competitionStats = getPlayerSeasonStats(
+        target.id,
+        player.team.id,
+        getAllPlayedMatchResults(room.leagueResults, room.knockoutBracket),
+      );
       player.points -= cost;
       player.team.players = player.team.players.map(p =>
-        p.id === playerId ? ({ ...applyShopVariant(p, variant), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
+        p.id === playerId ? ({ ...applyShopVariant(p, variant, competitionStats), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
       player.team = rebuildTeamChemistry(player.team);
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });

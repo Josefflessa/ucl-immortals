@@ -3716,7 +3716,11 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom'): Player {
+export function applyShopVariant(
+  player: Player,
+  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom',
+  competitionStats: { goals?: number; assists?: number } = {},
+): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
     // inForm/lobo add to every attribute; martir/magnata SUBTRACT from every attribute.
     const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : -MAGNATA_STAT_PENALTY;
@@ -3729,8 +3733,8 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
   }
   if (variant === 'prodigio') return { ...player, prodigio: true, prodigioStarts: 0 };
   if (variant === 'resiliente') return { ...player, resiliente: true, resilienteDefeats: player.resilienteDefeats ?? 0 };
-  if (variant === 'goleador') return { ...player, goleador: true, goleadorGoals: 0, goleadorMatchIds: [] };
-  if (variant === 'garcom') return { ...player, garcom: true, garcomAssists: 0, garcomMatchIds: [] };
+  if (variant === 'goleador') return { ...player, goleador: true, goleadorGoals: Math.max(0, competitionStats.goals ?? 0), goleadorMatchIds: [] };
+  if (variant === 'garcom') return { ...player, garcom: true, garcomAssists: Math.max(0, competitionStats.assists ?? 0), garcomMatchIds: [] };
   return { ...player, [variant]: true };
 }
 

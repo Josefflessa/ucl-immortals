@@ -13,7 +13,7 @@ import {
   generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
   LeagueFixture, generateRandomLeagueFixtures, computeStandings, rebuildTeamChemistry,
   generateRandomGroupFixtures, computeGroupQualifiedStandings,
-  getAllPlayedMatchResults, createKnockoutBracket,
+  getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket,
   generateUniquePackOffer, drawUniquePackCard, buildUniquePackRoundKey,
   normalizeMatchPlan,
   draftSlotIndex,
@@ -704,8 +704,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!target || state.points < cost) return state;
       // Uma característica por carta (Únicas: até duas) — recusa se já atingiu o limite.
       if (!canAddVariant(target)) return state;
+      // A característica acompanha o desempenho da competição inteira. Se for
+      // aplicada no meio da temporada, começa com os gols/assistências já
+      // registrados, não com zero.
+      const competitionStats = getPlayerSeasonStats(
+        target.id,
+        state.playerTeam.id,
+        getAllPlayedMatchResults(state.leagueResults, state.knockoutBracket),
+      );
       const newPlayers = state.playerTeam.players.map(p =>
-        p.id === action.playerId ? ({ ...applyShopVariant(p, action.variant) } as PlayerCard) : p);
+        p.id === action.playerId ? ({ ...applyShopVariant(p, action.variant, competitionStats) } as PlayerCard) : p);
       return {
         ...state,
         points: state.points - cost,
