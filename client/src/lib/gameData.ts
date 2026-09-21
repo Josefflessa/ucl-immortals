@@ -73,6 +73,12 @@ export interface Player {
   prodigioStarts?: number; // 📈 titularidades acumuladas desde que a característica foi recebida
   resiliente?: boolean;  // 🔥 Resiliente — cresce após cada derrota do time em que estiver no XI
   resilienteDefeats?: number; // 🔥 derrotas do time contabilizadas enquanto foi titular
+  goleador?: boolean;    // ⚽ Goleador — +1 em tudo a cada 3 gols marcados
+  goleadorGoals?: number; // ⚽ gols acumulados desde que recebeu a característica
+  goleadorMatchIds?: string[]; // ⚽ partidas já contabilizadas (idempotência online/reconexão)
+  garcom?: boolean;      // 🎯 Garçom — +1 em tudo a cada 3 assistências dadas
+  garcomAssists?: number; // 🎯 assistências acumuladas desde que recebeu a característica
+  garcomMatchIds?: string[]; // 🎯 partidas já contabilizadas (idempotência online/reconexão)
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).

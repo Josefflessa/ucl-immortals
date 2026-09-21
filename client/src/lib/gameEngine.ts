@@ -414,6 +414,49 @@ export function applyDefeatGrowthForResults(team: Team, results: MatchResult[]):
   return results.reduce((current, result) => applyDefeatGrowth(current, result), team);
 }
 
+/**
+ * Credits the match's authoritative goals/assists to the cards that carry
+ * Goleador/Garçom. The receipt arrays make the operation idempotent when an
+ * online finish is retried after a reconnect or a double click.
+ */
+export function applyMatchStatGrowth(team: Team, result: MatchResult, matchId = `${result.homeTeamId}:${result.awayTeamId}`): Team {
+  if (result.homeTeamId !== team.id && result.awayTeamId !== team.id) return team;
+  if (!result.playerStats) return team;
+
+  let changed = false;
+  const players = team.players.map(player => {
+    const instanceKey = statKey(team.id, player.id);
+    const stat = result.playerStats?.[instanceKey]
+      ?? (player.statId?.startsWith(`${team.id}::`) ? result.playerStats?.[player.statId] : undefined);
+    if (!stat) return player;
+
+    const next: PlayerCard = { ...player };
+    if (player.goleador) {
+      const receipts = Array.isArray(player.goleadorMatchIds) ? player.goleadorMatchIds : [];
+      if (!receipts.includes(matchId)) {
+        next.goleadorGoals = (player.goleadorGoals ?? 0) + Math.max(0, stat.goals ?? 0);
+        next.goleadorMatchIds = Array.from(new Set([...receipts, matchId])).slice(-64);
+        changed = true;
+      }
+    }
+    if (player.garcom) {
+      const receipts = Array.isArray(player.garcomMatchIds) ? player.garcomMatchIds : [];
+      if (!receipts.includes(matchId)) {
+        next.garcomAssists = (player.garcomAssists ?? 0) + Math.max(0, stat.assists ?? 0);
+        next.garcomMatchIds = Array.from(new Set([...receipts, matchId])).slice(-64);
+        changed = true;
+      }
+    }
+    return next;
+  });
+
+  return changed ? { ...team, players } : team;
+}
+
+export function applyMatchStatGrowthForResults(team: Team, results: MatchResult[]): Team {
+  return results.reduce((current, result) => applyMatchStatGrowth(current, result), team);
+}
+
 export interface StandingsEntry {
   teamId: string;
   teamName: string;
@@ -597,6 +640,8 @@ export interface StatBreakdown {
   evolve: number;     // ⭐ Carta Evoluída — bônus do atributo escolhido
   prodigio: number;   // 📈 Prodígio — +1 a cada 2 titularidades desde que a carta recebeu a característica
   resiliente: number; // 🔥 Resiliente — +2 em tudo por derrota do time
+  goleador: number;   // ⚽ Goleador — +1 em tudo a cada 3 gols marcados
+  garcom: number;     // 🎯 Garçom — +1 em tudo a cada 3 assistências dadas
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
@@ -876,6 +921,10 @@ export function getPlayerEffectiveStats(
   const resilienteBonus = (_attr: AttrKey): number => player.resiliente
     ? (player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST
     : 0;
+  // ⚽ Goleador / 🎯 Garçom: permanent all-attribute bonuses earned from the
+  // authoritative cumulative match stats.
+  const goleadorBonus = (_attr: AttrKey): number => player.goleador ? goleadorStatBoost(player.goleadorGoals) : 0;
+  const garcomBonus = (_attr: AttrKey): number => player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing THIS player (Mártir/Ídolo/12º Homem).
   const charB = context?.charBoosts?.[player.id];
@@ -886,7 +935,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -922,6 +971,8 @@ export function getPlayerEffectiveStats(
     evolve: evolveBonus(attr),
     prodigio: prodigioBonus(attr),
     resiliente: resilienteBonus(attr),
+    goleador: goleadorBonus(attr),
+    garcom: garcomBonus(attr),
     char: charBonus(attr),
   });
 
@@ -1279,6 +1330,11 @@ export function getEffectiveAttribute(
 
   // 🔥 Resiliente: +2 em todos os atributos por derrota do time como titular.
   base += player.resiliente ? (player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST : 0;
+
+  // ⚽ Goleador / 🎯 Garçom: +1 em todos os atributos a cada 3 gols/assistências
+  // acumulados enquanto a carta carrega a característica.
+  base += player.goleador ? goleadorStatBoost(player.goleadorGoals) : 0;
+  base += player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
   const cb = context?.charBoosts?.[player.id];
@@ -3263,6 +3319,8 @@ const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
 const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada 2 titularidades
 const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
 const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +2 por jogador na reserva
+const DRAFT_GOLEADOR_CHANCE = 0.03; // ⚽ Goleador — cresce a cada 3 gols marcados
+const DRAFT_GARCOM_CHANCE = 0.03; // 🎯 Garçom — cresce a cada 3 assistências dadas
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
@@ -3293,10 +3351,22 @@ export const LOBO_CHEM_PENALTY = 12; // …paid for with this much TEAM chemistr
 export const PILAR_CHEM_BONUS = 12;  // Pilar: lifts the team's total chemistry by this much.
 export const RESILIENTE_DEFEAT_BOOST = 2;
 export const PRODIGIO_STARTS_PER_BOOST = 2;
+export const GOLEADOR_GOALS_PER_BOOST = 3;
+export const GARCOM_ASSISTS_PER_BOOST = 3;
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */
 export function prodigioStatBoost(starts: number | undefined): number {
   return Math.floor(Math.max(0, starts ?? 0) / PRODIGIO_STARTS_PER_BOOST);
+}
+
+/** Returns the permanent all-attribute bonus earned by Goleador so far. */
+export function goleadorStatBoost(goals: number | undefined): number {
+  return Math.floor(Math.max(0, goals ?? 0) / GOLEADOR_GOALS_PER_BOOST);
+}
+
+/** Returns the permanent all-attribute bonus earned by Garçom so far. */
+export function garcomStatBoost(assists: number | undefined): number {
+  return Math.floor(Math.max(0, assists ?? 0) / GARCOM_ASSISTS_PER_BOOST);
 }
 
 // Aplica o +N/−N das características assadas no BASE (Em Alta/Lobo/Mártir/Magnata). SEM teto de 99:
@@ -3397,6 +3467,14 @@ function applyDraftVariant(p: Player): Player {
   // 🔥 Resiliente — starts at zero and grows only when its team loses a match.
   acc += DRAFT_RESILIENTE_CHANCE;
   if (r < acc) return { ...p, resiliente: true, resilienteDefeats: 0, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // ⚽ Goleador — starts at zero and grows from the authoritative match stats.
+  acc += DRAFT_GOLEADOR_CHANCE;
+  if (r < acc) return { ...p, goleador: true, goleadorGoals: 0, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🎯 Garçom — starts at zero and grows from the authoritative match stats.
+  acc += DRAFT_GARCOM_CHANCE;
+  if (r < acc) return { ...p, garcom: true, garcomAssists: 0, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -3638,7 +3716,7 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
-export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente'): Player {
+export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom'): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
     // inForm/lobo add to every attribute; martir/magnata SUBTRACT from every attribute.
     const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : -MAGNATA_STAT_PENALTY;
@@ -3651,12 +3729,14 @@ export function applyShopVariant(player: Player, variant: 'inForm' | 'lobo' | 'c
   }
   if (variant === 'prodigio') return { ...player, prodigio: true, prodigioStarts: 0 };
   if (variant === 'resiliente') return { ...player, resiliente: true, resilienteDefeats: player.resilienteDefeats ?? 0 };
+  if (variant === 'goleador') return { ...player, goleador: true, goleadorGoals: 0, goleadorMatchIds: [] };
+  if (variant === 'garcom') return { ...player, garcom: true, garcomAssists: 0, garcomMatchIds: [] };
   return { ...player, [variant]: true };
 }
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'capitaoNato', 'magnata', 'prodigio', 'resiliente'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -3693,7 +3773,8 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
   delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
-  delete p.resiliente; delete p.resilienteDefeats;
+  delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
+  delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds;
   return p;
 }
 
@@ -3720,6 +3801,8 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
   if (variant === 'martir') delete p.martirTargets;
   if (variant === 'prodigio') delete p.prodigioStarts;
   if (variant === 'resiliente') delete p.resilienteDefeats;
+  if (variant === 'goleador') { delete p.goleadorGoals; delete p.goleadorMatchIds; }
+  if (variant === 'garcom') { delete p.garcomAssists; delete p.garcomMatchIds; }
   return p;
 }
 

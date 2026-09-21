@@ -24,7 +24,7 @@ import {
   validateMatchPlan,
   rebuildTeamChemistry,
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
-  bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups,
+  bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
   getEvolutionLevel, isEvolved, applyEvolvePoint, EVOLVE_POINTS, applyDefeatGrowth,
   draftSlotIndex,
   VariantFlag,
@@ -2228,7 +2228,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
           if (fixture?.result) {
             // ⭐ +1 jogo pros 11 titulares deste jogador (progresso pra Carta Evoluída).
             p.team = bumpStarterAppearances(
-              applyDefeatGrowth(p.team, fixture.result),
+              applyMatchStatGrowth(
+                applyDefeatGrowth(p.team, fixture.result),
+                fixture.result,
+                buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
+              ),
               startingIdsForResult(fixture.result, p.team.id, p.team),
               buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
             );
@@ -2269,7 +2273,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
         // a carta esteve no XI. A derrota de cada rodada é processada uma única vez aqui.
         room.botTeams = room.botTeams.map(team => {
           const fixture = roundFx.find(f => f.homeTeamId === team.id || f.awayTeamId === team.id);
-          return fixture?.result ? applyDefeatGrowth(team, fixture.result) : team;
+          if (!fixture?.result) return team;
+          return applyMatchStatGrowth(
+            applyDefeatGrowth(team, fixture.result),
+            fixture.result,
+            buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
+          );
         });
       }
 
@@ -2411,15 +2420,19 @@ export function registerSocketHandlers(io: RealtimeServer) {
           const result = resultFor(p.team.id);
           if (!result) return;
           const tie = active.find((candidate: any) => candidate.homeTeamId === p.team!.id || candidate.awayTeamId === p.team!.id);
+          const matchKey = tie ? buildKnockoutMatchKey(tie.id, legPlayed) : undefined;
           p.team = bumpStarterAppearances(
-            applyDefeatGrowth(p.team, result),
+            applyMatchStatGrowth(applyDefeatGrowth(p.team, result), result, matchKey),
             startingIdsForResult(result, p.team.id, p.team),
-            tie ? buildKnockoutMatchKey(tie.id, legPlayed) : undefined,
+            matchKey,
           );
         });
         room.botTeams = room.botTeams.map(team => {
           const result = resultFor(team.id);
-          return result ? applyDefeatGrowth(team, result) : team;
+          if (!result) return team;
+          const tie = active.find((candidate: any) => candidate.homeTeamId === team.id || candidate.awayTeamId === team.id);
+          const matchKey = tie ? buildKnockoutMatchKey(tie.id, legPlayed) : undefined;
+          return applyMatchStatGrowth(applyDefeatGrowth(team, result), result, matchKey);
         });
       }
 

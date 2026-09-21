@@ -9,13 +9,13 @@ import {
   matchRoleForPlayer, STANDARD_TABLE_POINTS,
   createKnockoutBracket, advanceKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
-  PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant,
+  PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant, applyMatchStatGrowth,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, COLECIONADOR_PER_RESERVE,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
   getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, EVOLVE_GAMES, EVOLVE_POINTS,
-  PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost,
+  PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost, GOLEADOR_GOALS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, goleadorStatBoost, garcomStatBoost,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
   draftSlotIndex, getNeededPositions, DRAFT_RARITY_CHANCES,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture, type MatchEvent,
@@ -305,6 +305,32 @@ describe('⭐ cartas evoluídas', () => {
     expect(prodigioStatBoost(1)).toBe(0);
     expect(prodigioStatBoost(2)).toBe(1);
     expect(prodigioStatBoost(5)).toBe(2);
+  });
+  it('Goleador e Garçom acumulam estatísticas oficiais sem duplicar após repetir o resultado', () => {
+    const scorer = mkP({ goleador: true, goleadorGoals: 0 });
+    const creator = mkP({ garcom: true, garcomAssists: 0 });
+    const home = mkTeam('T', [scorer, creator, ...Array.from({ length: 10 }, () => mkP())]);
+    const match = {
+      ...result('T', 'A', 2, 0),
+      playerStats: {
+        [`T::${scorer.id}`]: { playerId: scorer.id, playerName: scorer.shortName, teamId: 'T', rating: 8, goals: 3, assists: 0, shots: 3, tackles: 0, saves: 0, fouls: 0, yellowCards: 0, redCards: 0, keyPasses: 0, interceptions: 0, shotsOnTarget: 3 },
+        [`T::${creator.id}`]: { playerId: creator.id, playerName: creator.shortName, teamId: 'T', rating: 8, goals: 0, assists: 3, shots: 0, tackles: 0, saves: 0, fouls: 0, yellowCards: 0, redCards: 0, keyPasses: 3, interceptions: 0, shotsOnTarget: 0 },
+      },
+    };
+    const once = applyMatchStatGrowth(home, match, 'L1:T-A');
+    const duplicate = applyMatchStatGrowth(once, match, 'L1:T-A');
+    expect(once.players[0].goleadorGoals).toBe(3);
+    expect(once.players[1].garcomAssists).toBe(3);
+    expect(duplicate.players[0].goleadorGoals).toBe(3);
+    expect(duplicate.players[1].garcomAssists).toBe(3);
+    expect(goleadorStatBoost(3)).toBe(1);
+    expect(garcomStatBoost(3)).toBe(1);
+    expect(GOLEADOR_GOALS_PER_BOOST).toBe(3);
+    expect(GARCOM_ASSISTS_PER_BOOST).toBe(3);
+    const noChem = { passing: 0, pace: 0, special: 0 };
+    const boostedShooting = getEffectiveAttribute(once.players[0], 'shooting', COACHES[0], '', noChem, 'balanced', {});
+    const baseShooting = getEffectiveAttribute(card(mkP()), 'shooting', COACHES[0], '', noChem, 'balanced', {});
+    expect(boostedShooting - baseShooting).toBe(1);
   });
 });
 

@@ -1,7 +1,7 @@
 import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
-import { getEvolutionLevel, PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost } from '../../lib/gameEngine';
+import { getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, PRODIGIO_STARTS_PER_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { canonicalClubName, crestIdForClub } from '../../lib/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -947,8 +947,10 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
   prodigio: { color: '#FDE047', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
   resiliente: { color: '#FB7185', icon: '🔥', label: 'RESILIENTE', treatment: 'pulse' },
+  goleador: { color: '#F97316', icon: '⚽', label: 'GOLEADOR', treatment: 'pulse' },
+  garcom: { color: '#38BDF8', icon: '🎯', label: 'GARÇOM', treatment: 'ring' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'capitaoNato', 'magnata', 'prodigio', 'resiliente'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -984,6 +986,14 @@ function variantDesc(player: Player): string {
   if (player.resiliente) {
     const defeats = player.resilienteDefeats ?? 0;
     return `RESILIENTE: +${defeats * 2} em cada atributo após ${defeats} derrota${defeats === 1 ? '' : 's'} do time como titular`;
+  }
+  if (player.goleador) {
+    const goals = player.goleadorGoals ?? 0;
+    return `GOLEADOR: +${goleadorStatBoost(goals)} em cada atributo · +1 a cada ${GOLEADOR_GOALS_PER_BOOST} gols (${goals} acumulado${goals === 1 ? '' : 's'})`;
+  }
+  if (player.garcom) {
+    const assists = player.garcomAssists ?? 0;
+    return `GARÇOM: +${garcomStatBoost(assists)} em cada atributo · +1 a cada ${GARCOM_ASSISTS_PER_BOOST} assistências (${assists} acumulada${assists === 1 ? '' : 's'})`;
   }
   return '';
 }
