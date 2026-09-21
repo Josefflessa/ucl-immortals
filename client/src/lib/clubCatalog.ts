@@ -25,7 +25,7 @@ interface CompetitionMetadata {
 }
 
 const GROUP_METADATA: Record<string, CompetitionMetadata> = {
-  'Premier League 🏴': { countryId: 'england', countryName: 'Inglaterra', leagueId: 'premier-league', leagueName: 'Premier League' },
+  'Premier League 🇬🇧': { countryId: 'england', countryName: 'Inglaterra', leagueId: 'premier-league', leagueName: 'Premier League' },
   'La Liga 🇪🇸': { countryId: 'spain', countryName: 'Espanha', leagueId: 'la-liga', leagueName: 'La Liga' },
   'Serie A 🇮🇹': { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-a', leagueName: 'Serie A' },
   'Bundesliga 🇩🇪': { countryId: 'germany', countryName: 'Alemanha', leagueId: 'bundesliga', leagueName: 'Bundesliga' },
