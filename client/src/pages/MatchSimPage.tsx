@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shirt, Eye, Play, Pause, SkipForward } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import {
-  Team, MatchResult, MatchEvent,
+  Team, MatchResult, MatchEvent, MatchStatsDelta,
   getEffectiveAttribute, getChemistryBonus,
   PlayerCard as EnginePlayerCard, PlayerMatchStat,
   getPenaltyOrder, activeGoalkeeperForTeam, matchRoleForPlayer, setStatIds, statKey, penaltyGoalChance, goalkeeperShotStoppingRating,
@@ -888,6 +888,12 @@ export default function MatchSimPage() {
       homeShotsOnTarget: 0, awayShotsOnTarget: 0, homeFouls: 0, awayFouls: 0,
       homeSaves: 0, awaySaves: 0, homeCorners: 0, awayCorners: 0,
     };
+    const applyStatDelta = (delta?: MatchStatsDelta) => {
+      if (!delta) return;
+      for (const [key, value] of Object.entries(delta) as [keyof typeof panel, number][]) {
+        if (typeof value === 'number') panel[key] += value;
+      }
+    };
 
     const homeId = replayResult.homeTeamId;
     for (const e of events) {
@@ -895,7 +901,15 @@ export default function MatchSimPage() {
       const ak = aKey(e, e.playerId);
       const asK = aKey(e, e.assisterId);
       const ok = oKey(e, e.opponentId);
-      if (e.type === 'goal') {
+      if (e.type === 'stat') {
+        // These are authoritative box-score changes that intentionally have no
+        // player-facing shot/save narration.
+        applyStatDelta(e.statDelta);
+      } else if (e.type === 'corner') {
+        // Corner events carry the attacking team, unlike save events whose teamId
+        // is the defending goalkeeper's team.
+        if (isHome) panel.homeCorners++; else panel.awayCorners++;
+      } else if (e.type === 'goal') {
         if (ak && ps[ak]) { ps[ak].goals++; ps[ak].rating += 1.4; }
         if (asK && ps[asK]) { ps[asK].assists++; ps[asK].rating += 0.8; }
         if (ok && ps[ok]) ps[ok].rating -= 0.4;
@@ -906,7 +920,14 @@ export default function MatchSimPage() {
         // the shot belongs to the attacking (other) team
         if (isHome) { panel.homeSaves++; panel.awayShots++; panel.awayShotsOnTarget++; }
         else { panel.awaySaves++; panel.homeShots++; panel.homeShotsOnTarget++; }
-        if (e.description?.includes('Escanteio')) { if (isHome) panel.awayCorners++; else panel.homeCorners++; }
+        // Legacy results encoded corners only in the prose. New results have a
+        // dedicated corner event; keep this fallback without double-counting them.
+        const legacyCorner = e.description?.includes('Escanteio') && !events.some(corner =>
+          corner.type === 'corner'
+          && corner.minute === e.minute
+          && corner.teamId === otherOf(e.teamId)
+        );
+        if (legacyCorner) { if (isHome) panel.awayCorners++; else panel.homeCorners++; }
       } else if (e.type === 'miss') {
         if (ak && ps[ak]) { ps[ak].shots++; ps[ak].rating -= 0.15; }
         if (isHome) panel.homeShots++; else panel.awayShots++;
@@ -956,7 +977,9 @@ export default function MatchSimPage() {
     return playerMatchStats[playerId];
   };
 
-  const latestEvent = events[events.length - 1];
+  // Internal stat events keep the live panel exact but should never replace the
+  // human-readable broadcast headline.
+  const latestEvent = [...events].reverse().find(event => event.type !== 'stat');
 
   // Helper to format events icons
   const getEventIcon = (type: MatchEvent['type']) => {
@@ -964,6 +987,8 @@ export default function MatchSimPage() {
       case 'goal': return '⚽';
       case 'duel': return '🤺';
       case 'save': return '🧤';
+      case 'corner': return '🚩';
+      case 'stat': return '📊';
       case 'sub': return '🔄';
       case 'penalty': return '🎯';
       case 'tactic': return '';

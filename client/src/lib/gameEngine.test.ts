@@ -215,6 +215,62 @@ describe('simulateMatch', () => {
     expect(r.winner).toBeNull();
     expect(r.penaltyWinner).toBeUndefined();
   });
+
+  it('keeps hidden box-score increments on the replay event timeline', () => {
+    for (let i = 0; i < 24; i++) {
+      const home = generateBotTeam(`Casa-${i}`, 0.8);
+      const away = generateBotTeam(`Fora-${i}`, 0.8);
+      const result = simulateMatch(home, away);
+      const derived = {
+        homeShots: 0, awayShots: 0,
+        homeShotsOnTarget: 0, awayShotsOnTarget: 0,
+        homeFouls: 0, awayFouls: 0,
+        homeSaves: 0, awaySaves: 0,
+        homeCorners: 0, awayCorners: 0,
+      };
+      const otherTeam = (teamId: string) => teamId === result.homeTeamId ? result.awayTeamId : result.homeTeamId;
+
+      for (const event of result.events) {
+        if (event.type === 'stat' && event.statDelta) {
+          for (const [key, value] of Object.entries(event.statDelta) as [keyof typeof derived, number][]) {
+            derived[key] += value;
+          }
+        } else if (event.type === 'corner') {
+          if (event.teamId === result.homeTeamId) derived.homeCorners++;
+          else derived.awayCorners++;
+        } else if (event.type === 'goal') {
+          if (event.teamId === result.homeTeamId) { derived.homeShots++; derived.homeShotsOnTarget++; }
+          else { derived.awayShots++; derived.awayShotsOnTarget++; }
+        } else if (event.type === 'save') {
+          const attackTeamId = otherTeam(event.teamId);
+          if (attackTeamId === result.homeTeamId) {
+            derived.homeShots++; derived.homeShotsOnTarget++; derived.awaySaves++;
+          } else {
+            derived.awayShots++; derived.awayShotsOnTarget++; derived.homeSaves++;
+          }
+        } else if (event.type === 'miss') {
+          if (event.teamId === result.homeTeamId) derived.homeShots++;
+          else derived.awayShots++;
+        } else if (event.type === 'foul') {
+          if (event.teamId === result.homeTeamId) derived.homeFouls++;
+          else derived.awayFouls++;
+        }
+      }
+
+      expect(derived).toEqual({
+        homeShots: result.stats.homeShots,
+        awayShots: result.stats.awayShots,
+        homeShotsOnTarget: result.stats.homeShotsOnTarget,
+        awayShotsOnTarget: result.stats.awayShotsOnTarget,
+        homeFouls: result.stats.homeFouls,
+        awayFouls: result.stats.awayFouls,
+        homeSaves: result.stats.homeSaves,
+        awaySaves: result.stats.awaySaves,
+        homeCorners: result.stats.homeCorners,
+        awayCorners: result.stats.awayCorners,
+      });
+    }
+  });
 });
 
 describe('generateDraftOptions', () => {

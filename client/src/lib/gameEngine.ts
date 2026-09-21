@@ -271,16 +271,34 @@ export function activeGoalkeeperForTeam(
 
 export interface MatchEvent {
   minute: number;
-  type: 'goal' | 'save' | 'miss' | 'duel' | 'sub' | 'penalty' | 'foul' | 'momentum' | 'tactic' | 'yellow' | 'red' | 'injury';
+  type: 'goal' | 'save' | 'miss' | 'duel' | 'sub' | 'penalty' | 'foul' | 'momentum' | 'tactic' | 'yellow' | 'red' | 'injury' | 'corner' | 'stat';
   description: string;
   teamId: string;
   playerId?: string;
   opponentId?: string;
   assisterId?: string;
+  /** A corner is represented explicitly so the live replay never has to parse prose. */
+  isCorner?: boolean;
+  /** Team-stat changes that do not have a player-facing narrative event. */
+  statDelta?: MatchStatsDelta;
   isSpecial?: boolean;
   triggerId?: string;
   tacticAction?: MatchTriggerAction;
   secondYellow?: boolean; // 🟨🟨 vermelho por 2º amarelo (o amarelo daquele jogo NÃO conta no acúmulo da temporada)
+}
+
+/** Incremental match statistics attached to the authoritative event timeline. */
+export interface MatchStatsDelta {
+  homeShots?: number;
+  awayShots?: number;
+  homeShotsOnTarget?: number;
+  awayShotsOnTarget?: number;
+  homeFouls?: number;
+  awayFouls?: number;
+  homeSaves?: number;
+  awaySaves?: number;
+  homeCorners?: number;
+  awayCorners?: number;
 }
 
 // 🟨🟥🩹 Cartões/lesão de UM jogador NESTE jogo, keyed por INSTÂNCIA (time + jogador).
@@ -1928,6 +1946,16 @@ export function runMatchSimulation(
   const activeGoalkeeper = (team: Team): { player: PlayerCard; emergency: boolean } =>
     activeGoalkeeperForTeam(team, sentOff);
 
+  // Some flavour attempts affect the box score without producing a player-facing
+  // shot/save event. Keep those changes on the same authoritative timeline that
+  // the client replays, instead of making the UI discover them only at full time.
+  const pushStatEvent = (min: number, team: Team, statDelta: MatchStatsDelta, description: string) => {
+    events.push({ minute: min, type: 'stat', teamId: team.id, description, statDelta });
+  };
+  const pushCornerEvent = (min: number, team: Team) => {
+    events.push({ minute: min, type: 'corner', teamId: team.id, description: `🚩 Escanteio para ${team.name}.` });
+  };
+
   const activePlayStyleFor = (team: Team) => team.id === home.id ? homePlayStyle : awayPlayStyle;
   const triggerConditionDescription = (trigger: MatchTrigger): string => {
     switch (trigger.condition) {
@@ -2227,15 +2255,33 @@ export function runMatchSimulation(
     }
     // An extra attempt by the side on top this minute (off-target / corner / saved — never a goal).
     if (Math.random() < FLAVOR_SHOT_RATE * matchTempo) {
-      if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
+      const extraShotDelta: MatchStatsDelta = {
+        homeShots: homeAttacks ? 1 : 0,
+        awayShots: homeAttacks ? 0 : 1,
+      };
       const o = Math.random();
       if (o < 0.34) {
         // on target but saved by the keeper
-        if (homeAttacks) { matchStats.homeShotsOnTarget++; matchStats.awaySaves++; }
-        else { matchStats.awayShotsOnTarget++; matchStats.homeSaves++; }
+        if (homeAttacks) {
+          matchStats.homeShots++;
+          matchStats.homeShotsOnTarget++;
+          matchStats.awaySaves++;
+          extraShotDelta.homeShotsOnTarget = 1;
+          extraShotDelta.awaySaves = 1;
+        } else {
+          matchStats.awayShots++;
+          matchStats.awayShotsOnTarget++;
+          matchStats.homeSaves++;
+          extraShotDelta.awayShotsOnTarget = 1;
+          extraShotDelta.homeSaves = 1;
+        }
+        pushStatEvent(minute, attackTeam, extraShotDelta, '📊 Finalização adicional defendida.');
       } else if (o < 0.62) {
         // blocked/deflected out for a corner
-        if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++;
+        if (homeAttacks) { matchStats.homeShots++; matchStats.homeCorners++; }
+        else { matchStats.awayShots++; matchStats.awayCorners++; }
+        pushCornerEvent(minute, attackTeam);
+        pushStatEvent(minute, attackTeam, extraShotDelta, '📊 Finalização adicional desviada.');
 
         // A fraction of corners produce a header chance (set-piece goal). Conversion
         // is moderate, scaled by the aerial target's shooting + physical. The cooldown is
@@ -2286,6 +2332,10 @@ export function runMatchSimulation(
         }
       }
       // else: off target — no further stat
+      else {
+        if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
+        pushStatEvent(minute, attackTeam, extraShotDelta, '📊 Finalização adicional para fora.');
+      }
     }
 
     if (isKeyEventMinute && dangerCount < MAX_DANGER) {
@@ -2487,12 +2537,15 @@ export function runMatchSimulation(
               if (creatorS && playerStats[creatorS.statId!]) { playerStats[creatorS.statId!].keyPasses++; playerStats[creatorS.statId!].rating += 0.25; }
 
               const isCorner = Math.random() < 0.4;
-              if (isCorner) { if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++; }
+              if (isCorner) {
+                if (homeAttacks) matchStats.homeCorners++; else matchStats.awayCorners++;
+                pushCornerEvent(minute, attackTeam);
+              }
 
               events.push({
                 minute, type: 'save',
                 description: saveDesc(approach, gk.shortName, attacker.shortName, isCorner),
-                teamId: defendTeam.id, playerId: gk.id, opponentId: attacker.id,
+                teamId: defendTeam.id, playerId: gk.id, opponentId: attacker.id, isCorner,
               });
               lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
             }
