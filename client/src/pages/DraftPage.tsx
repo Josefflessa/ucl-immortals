@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useGame } from '../contexts/GameContext';
-import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
+import PlayerCard from '../components/game/PlayerCard';
+import PlayerPortrait from '../components/game/PlayerPortrait';
 import FormationField from '../components/game/FormationField';
 import { Ban } from 'lucide-react';
 import { FORMATIONS, COACHES, Player, POS_PT } from '../lib/gameData';
@@ -335,9 +336,15 @@ export default function DraftPage() {
               {/* Player photo (older picks may lack playerId → fallback to a ball glyph) */}
               <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d]" style={{ border: '1px solid #2A2A3A' }}>
                 {(() => {
-                  const photo = pick.playerId ? buildSofifaUrl(pick.playerId, 120) : null;
-                  return photo
-                    ? <img src={photo} alt={pick.playerName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} referrerPolicy="no-referrer" />
+                  return pick.playerId
+                    ? <PlayerPortrait
+                        playerId={pick.playerId}
+                        alt={pick.playerName}
+                        lowRes
+                        className="w-full h-full object-cover"
+                        style={{ objectPosition: 'center top', scale: '1.2' }}
+                        fallback={<span className="text-sm">⚽</span>}
+                      />
                     : <span className="text-sm">⚽</span>;
                 })()}
               </div>

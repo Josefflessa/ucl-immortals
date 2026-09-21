@@ -3,7 +3,7 @@
 // handling, so a missing SoFIFA asset (404) showed a broken image. This walks the
 // same multi-version fallback chain as the card and lands on a placeholder.
 
-import { useState } from 'react';
+import PlayerPortrait from './PlayerPortrait';
 import { buildPlayerPhotoSources } from './PlayerCard';
 import { getRarityColor } from '../../lib/gameData';
 
@@ -27,15 +27,7 @@ export default function PlayerAvatar({
   const urls = buildPlayerPhotoSources(playerId, true);
   const isUnique = urls[0]?.startsWith('/players/unico/') ?? false;
 
-  const [idx, setIdx] = useState(0);
-  const [failed, setFailed] = useState(false);
-  const url = urls[idx] ?? null;
   const color = rarity ? getRarityColor(rarity as Parameters<typeof getRarityColor>[0]) : '#2A2A3A';
-
-  const handleError = () => {
-    if (idx < urls.length - 1) setIdx(i => i + 1);
-    else setFailed(true);
-  };
 
   return (
     <div
@@ -43,21 +35,17 @@ export default function PlayerAvatar({
       className={`overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d] ${rounded}`}
       style={{ width: size, height: size, border: ring ? `1.5px solid ${color}` : undefined }}
     >
-      {url && !failed ? (
-        <img
-          src={url}
-          alt=""
-          loading={isUnique ? 'eager' : 'lazy'}
-          decoding="async"
-          referrerPolicy="no-referrer"
-          draggable={false}
-          onError={handleError}
-          className="w-full h-full object-cover"
-          style={{ objectPosition: 'center top', scale: '1.2' }}
-        />
-      ) : (
-        fallback ?? <span className="text-sm font-bold" style={{ color }}>⚽</span>
-      )}
+      <PlayerPortrait
+        playerId={playerId}
+        alt=""
+        lowRes
+        loading={isUnique ? 'eager' : 'lazy'}
+        className="w-full h-full object-cover"
+        style={{ objectPosition: 'center top', scale: '1.2' }}
+        fallback={
+          fallback ?? <span className="text-sm font-bold" style={{ color }}>⚽</span>
+        }
+      />
     </div>
   );
 }

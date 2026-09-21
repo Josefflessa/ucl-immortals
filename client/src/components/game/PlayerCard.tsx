@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
 import { getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, PRODIGIO_STARTS_PER_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
@@ -884,6 +884,14 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
 
   const [urlIdx, setUrlIdx] = useState(0);
   const [failed, setFailed] = useState(false);
+
+  // Cards in a reused grid slot can receive a different player without being
+  // remounted. Reset the fallback chain so one player's failed URL never
+  // affects the next player's portrait.
+  useEffect(() => {
+    setUrlIdx(0);
+    setFailed(false);
+  }, [playerId, lowRes]);
 
   const url = urls[urlIdx] ?? null;
 

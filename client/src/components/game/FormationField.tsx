@@ -5,7 +5,8 @@ import { useEffect, useId, useRef, useState, type DragEvent, type PointerEvent a
 import { motion } from 'framer-motion';
 import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
 import { isPlayerInPosition, positionFit, ChemLink, ChemLinkType } from '../../lib/gameEngine';
-import PlayerCard, { buildSofifaUrl, getCardVariants, type PlayerCardStats } from './PlayerCard';
+import PlayerCard, { getCardVariants, type PlayerCardStats } from './PlayerCard';
+import PlayerPortrait from './PlayerPortrait';
 import type { GameRole, RoleMetric } from './RolesSelector';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
@@ -466,7 +467,6 @@ export default function FormationField({
         const chemScore = player ? (chemistryScores[player.id] ?? 0) : 0;
         const rarityColor = player ? getRarityColor(player.rarity) : '#555';
         const initials = player ? (PLAYER_INITIALS[player.id] || player.shortName.slice(0, 2).toUpperCase()) : isVacatedSlot ? '—' : '?';
-        const photoUrl = player ? buildSofifaUrl(player.id, 120) : null;
         const tokenSize = compact ? 34 : 48;
         // Match (rating) mode: a more compact token with the rating/goals OVERLAID on the photo
         // (not stacked below), so cards never overlap their neighbours on tight formations.
@@ -688,17 +688,16 @@ export default function FormationField({
                   color: isSelected ? '#FFF' : (player ? rarityColor : isVacatedSlot ? '#9CA3AF' : '#555'),
                 }}
               >
-                {player && photoUrl ? (
-                  <img
-                    src={photoUrl}
+                {player ? (
+                  <PlayerPortrait
+                    playerId={player.id}
                     alt={player.shortName}
-                    referrerPolicy="no-referrer"
+                    lowRes
                     className="w-full h-full object-cover rounded-full"
                     style={{ objectPosition: 'center top', scale: '1.25', transform: 'translateY(1px)' }}
+                    fallback={initials}
                   />
-                ) : (
-                  initials
-                )}
+                ) : initials}
               </div>
 
               {isEmergencyGoalkeeperSlot && player && (

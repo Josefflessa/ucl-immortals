@@ -20,7 +20,9 @@ import {
   Approach,
 } from '../lib/matchNarrative';
 import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
-import PlayerCard, { buildSofifaUrl } from '../components/game/PlayerCard';
+import PlayerCard from '../components/game/PlayerCard';
+import { preloadPlayerPhotos } from '../components/game/PlayerPortrait';
+import PlayerPortrait from '../components/game/PlayerPortrait';
 import MatchFieldView from '../components/game/MatchFieldView';
 import Crest from '../components/game/Crest';
 import { AppShell, Button } from '../design-system';
@@ -85,6 +87,13 @@ export default function MatchSimPage() {
   // 1. Stateful teams to track substitutions, cards
   const [homeTeam, setHomeTeam] = useState<Team>(() => ({ ...initialHome }));
   const [awayTeam, setAwayTeam] = useState<Team>(() => ({ ...initialAway }));
+
+  const matchPortraitIds = useMemo(
+    () => [...initialHome.players.slice(0, 11), ...initialAway.players.slice(0, 11)].map(player => player.id),
+    [initialHome, initialAway],
+  );
+
+  useEffect(() => preloadPlayerPhotos(matchPortraitIds, true), [matchPortraitIds]);
 
   // 2. Real-time simulation state variables
   const [minute, setMinute] = useState(0);
@@ -199,7 +208,6 @@ export default function MatchSimPage() {
   const renderSquadRow = (p: EnginePlayerCard, rating: number, goals = 0, assists = 0) => {
     const rColor = rating >= 8.5 ? '#d4af37' : rating >= 7.5 ? '#22c55e' : rating <= 5.3 ? '#ef4444' : '#ffffff';
     const ringColor = getRarityColor(p.rarity);
-    const photoUrl = buildSofifaUrl(p.id, 120);
     // 🟨🟥🩹 Disciplina/lesão deste jogador NESTE jogo, POR INSTÂNCIA (time+jogador via statId)
     // pra não pintar cartão fantasma da cópia do mesmo id no outro time. (renderSquadRow hoje
     // não é usada, mas fica alinhada ao helper caso volte a ser.)
@@ -216,9 +224,14 @@ export default function MatchSimPage() {
             className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
             style={{ background: '#10101d', border: `1.5px solid ${ringColor}` }}
           >
-            {photoUrl
-              ? <img src={photoUrl} alt={p.shortName} referrerPolicy="no-referrer" className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.25' }} />
-              : <span className="text-[10px] font-black" style={{ color: ringColor, fontFamily: 'Rajdhani, sans-serif' }}>{posLabel(p.position)}</span>}
+            <PlayerPortrait
+              playerId={p.id}
+              alt={p.shortName}
+              lowRes
+              className="w-full h-full object-cover"
+              style={{ objectPosition: 'center top', scale: '1.25' }}
+              fallback={<span className="text-[10px] font-black" style={{ color: ringColor, fontFamily: 'Rajdhani, sans-serif' }}>{posLabel(p.position)}</span>}
+            />
           </div>
           <span className="text-[10px] font-black w-6 text-center rounded px-1 flex-shrink-0" style={{ background: '#171725', color: '#c9a84c', fontFamily: 'Rajdhani, sans-serif' }}>
             {posLabel(p.position)}
