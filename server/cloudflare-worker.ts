@@ -53,6 +53,12 @@ interface CompressedStoredGameRoom {
   payload: ArrayBuffer;
 }
 
+interface ChunkedStoredGameRoomManifest {
+  encoding: 'gzip-json-chunked-v1';
+  chunkCount: number;
+  payloadBytes: number;
+}
+
 interface SocketAttachment {
   socketId: string;
   /** Durable Object identity, retained even before a player joins the game. */
@@ -75,15 +81,67 @@ const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const RESERVATION_TTL_MS = 10 * 60 * 1000;
 const CLAIM_TTL_MS = 2 * 60 * 1000;
 const MAX_PERSISTED_COMMAND_RECEIPTS = 256;
+const GAME_STORAGE_KEY = 'game';
+const GAME_MANIFEST_STORAGE_KEY = 'game:manifest';
+const GAME_CHUNK_STORAGE_PREFIX = 'game:chunk:';
+// Stay below both the current SQLite value ceiling and legacy KV-backed rooms.
+// A round with a large replay history therefore becomes several durable values
+// instead of one increasingly fragile blob.
+const PERSISTED_GAME_CHUNK_BYTES = 96 * 1024;
 
 function isByteBuffer(value: unknown): value is ArrayBuffer | Uint8Array {
   return value instanceof ArrayBuffer || value instanceof Uint8Array;
+}
+
+function asArrayBuffer(value: unknown): ArrayBuffer | null {
+  if (value instanceof ArrayBuffer) return value;
+  if (value instanceof Uint8Array) return value.slice().buffer;
+  return null;
 }
 
 function isCompressedStoredGameRoom(value: unknown): value is CompressedStoredGameRoom {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Partial<CompressedStoredGameRoom>;
   return candidate.encoding === 'gzip-json-v1' && isByteBuffer(candidate.payload);
+}
+
+function isChunkedStoredGameRoomManifest(value: unknown): value is ChunkedStoredGameRoomManifest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<ChunkedStoredGameRoomManifest>;
+  const chunkCount = candidate.chunkCount;
+  const payloadBytes = candidate.payloadBytes;
+  return candidate.encoding === 'gzip-json-chunked-v1'
+    && typeof chunkCount === 'number'
+    && Number.isSafeInteger(chunkCount)
+    && chunkCount > 0
+    && chunkCount <= 100_000
+    && typeof payloadBytes === 'number'
+    && Number.isSafeInteger(payloadBytes)
+    && payloadBytes > 0
+    && payloadBytes <= chunkCount * PERSISTED_GAME_CHUNK_BYTES;
+}
+
+function gameChunkKey(index: number): string {
+  return `${GAME_CHUNK_STORAGE_PREFIX}${index}`;
+}
+
+function splitGamePayload(payload: ArrayBuffer): ArrayBuffer[] {
+  const chunks: ArrayBuffer[] = [];
+  for (let offset = 0; offset < payload.byteLength; offset += PERSISTED_GAME_CHUNK_BYTES) {
+    chunks.push(payload.slice(offset, Math.min(payload.byteLength, offset + PERSISTED_GAME_CHUNK_BYTES)));
+  }
+  return chunks;
+}
+
+function joinGamePayload(chunks: ArrayBuffer[], payloadBytes: number): ArrayBuffer {
+  const payload = new Uint8Array(payloadBytes);
+  let offset = 0;
+  chunks.forEach(chunk => {
+    payload.set(new Uint8Array(chunk), offset);
+    offset += chunk.byteLength;
+  });
+  if (offset !== payloadBytes) throw new Error('Snapshot persistido incompleto.');
+  return payload.buffer;
 }
 
 /** Compress the durable record without changing the gameplay schema. */
@@ -603,11 +661,27 @@ export class GameRoom {
 
   private async ensureInitializedFromStorage(): Promise<void> {
     if (this.initialized) return;
-    const [storedRecord, legacyTimers] = await Promise.all([
-      this.state.storage.get<StoredGameRoom | CompressedStoredGameRoom>('game'),
+    const [storedRecord, storedManifest, legacyTimers] = await Promise.all([
+      this.state.storage.get<StoredGameRoom | CompressedStoredGameRoom>(GAME_STORAGE_KEY),
+      this.state.storage.get<ChunkedStoredGameRoomManifest>(GAME_MANIFEST_STORAGE_KEY),
       this.state.storage.get<Array<[GameTimerKind, number]>>('timers'),
     ]);
-    const stored = storedRecord ? await decodeStoredGameRoom(storedRecord) : null;
+    let durableGameRecord: unknown = storedRecord;
+    if (isChunkedStoredGameRoomManifest(storedManifest)) {
+      const storedChunks = await Promise.all(
+        Array.from({ length: storedManifest.chunkCount }, (_, index) =>
+          this.state.storage.get<ArrayBuffer>(gameChunkKey(index))),
+      );
+      const chunks = storedChunks.map(asArrayBuffer);
+      if (chunks.some(chunk => chunk === null)) {
+        throw new Error('Snapshot persistido incompleto; recuperação destrutiva recusada.');
+      }
+      durableGameRecord = {
+        encoding: 'gzip-json-v1',
+        payload: joinGamePayload(chunks as ArrayBuffer[], storedManifest.payloadBytes),
+      } satisfies CompressedStoredGameRoom;
+    }
+    const stored = durableGameRecord ? await decodeStoredGameRoom(durableGameRecord) : null;
     if (stored) {
       // An alarm can wake a hibernated object without a WebSocket attachment.
       // The durable state itself is therefore the source of truth for its room
@@ -688,7 +762,38 @@ export class GameRoom {
         savedAt: Date.now(),
         timers: Array.from(this.scheduledTimers.entries()),
       };
-      await this.state.storage.put('game', await encodeStoredGameRoom(storedRoom));
+      const compressed = await encodeStoredGameRoom(storedRoom);
+      const chunks = splitGamePayload(compressed.payload);
+      const previousManifest = await this.state.storage.get<ChunkedStoredGameRoomManifest>(GAME_MANIFEST_STORAGE_KEY);
+
+      if (chunks.length === 1) {
+        // Keep small rooms in one value for the cheapest load path.
+        await this.state.storage.put(GAME_STORAGE_KEY, compressed);
+        await this.state.storage.delete(GAME_MANIFEST_STORAGE_KEY);
+      } else {
+        // Write chunks before publishing the manifest. If a write fails, the
+        // old manifest remains the recovery point and the room is not exposed
+        // half-written on the next Durable Object wake-up.
+        await Promise.all(chunks.map((chunk, index) =>
+          this.state.storage.put(gameChunkKey(index), chunk),
+        ));
+        await this.state.storage.put(GAME_MANIFEST_STORAGE_KEY, {
+          encoding: 'gzip-json-chunked-v1',
+          chunkCount: chunks.length,
+          payloadBytes: compressed.payload.byteLength,
+        } satisfies ChunkedStoredGameRoomManifest);
+        await this.state.storage.delete(GAME_STORAGE_KEY);
+      }
+
+      // Remove chunks left behind when a room shrinks or switches back to a
+      // single value. The manifest/value above is already the new recovery
+      // point, so these deletes are only bounded cleanup.
+      const oldChunkCount = isChunkedStoredGameRoomManifest(previousManifest)
+        ? previousManifest.chunkCount
+        : 0;
+      for (let index = chunks.length; index < oldChunkCount; index += 1) {
+        await this.state.storage.delete(gameChunkKey(index));
+      }
       this.wasPersisted = true;
       this.lastPersistedRevision = revision;
       if (confirmReservation) await this.directoryRequest('/confirm', this.reservationToken);
