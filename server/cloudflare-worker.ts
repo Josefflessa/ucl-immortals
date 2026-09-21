@@ -41,6 +41,18 @@ interface StoredGameRoom {
   timers?: Array<[GameTimerKind, number]>;
 }
 
+/**
+ * Match rooms contain the complete bot catalog, starting lineups and replay
+ * data. Keeping that JSON as one uncompressed Durable Object value makes it
+ * grow quickly as rounds are played. SQLite-backed objects allow a larger
+ * value than the legacy KV backend, but the room should not depend on that
+ * ceiling. The envelope also leaves old uncompressed records readable.
+ */
+interface CompressedStoredGameRoom {
+  encoding: 'gzip-json-v1';
+  payload: ArrayBuffer;
+}
+
 interface SocketAttachment {
   socketId: string;
   /** Durable Object identity, retained even before a player joins the game. */
@@ -63,6 +75,39 @@ const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const RESERVATION_TTL_MS = 10 * 60 * 1000;
 const CLAIM_TTL_MS = 2 * 60 * 1000;
 const MAX_PERSISTED_COMMAND_RECEIPTS = 256;
+
+function isByteBuffer(value: unknown): value is ArrayBuffer | Uint8Array {
+  return value instanceof ArrayBuffer || value instanceof Uint8Array;
+}
+
+function isCompressedStoredGameRoom(value: unknown): value is CompressedStoredGameRoom {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<CompressedStoredGameRoom>;
+  return candidate.encoding === 'gzip-json-v1' && isByteBuffer(candidate.payload);
+}
+
+/** Compress the durable record without changing the gameplay schema. */
+async function encodeStoredGameRoom(value: StoredGameRoom): Promise<CompressedStoredGameRoom> {
+  const json = JSON.stringify(value);
+  const source = new Blob([json]).stream();
+  const compressed = source.pipeThrough(new CompressionStream('gzip'));
+  return {
+    encoding: 'gzip-json-v1',
+    payload: await new Response(compressed).arrayBuffer(),
+  };
+}
+
+/** Read both the current compressed format and records from older deployments. */
+async function decodeStoredGameRoom(value: unknown): Promise<StoredGameRoom | null> {
+  if (isCompressedStoredGameRoom(value)) {
+    const source = new Blob([value.payload]).stream();
+    const decompressed = source.pipeThrough(new DecompressionStream('gzip'));
+    const json = await new Response(decompressed).text();
+    return JSON.parse(json) as StoredGameRoom;
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as StoredGameRoom;
+}
 
 function isPersistedRoom(value: unknown): value is RoomState {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -558,10 +603,11 @@ export class GameRoom {
 
   private async ensureInitializedFromStorage(): Promise<void> {
     if (this.initialized) return;
-    const [stored, legacyTimers] = await Promise.all([
-      this.state.storage.get<StoredGameRoom>('game'),
+    const [storedRecord, legacyTimers] = await Promise.all([
+      this.state.storage.get<StoredGameRoom | CompressedStoredGameRoom>('game'),
       this.state.storage.get<Array<[GameTimerKind, number]>>('timers'),
     ]);
+    const stored = storedRecord ? await decodeStoredGameRoom(storedRecord) : null;
     if (stored) {
       // An alarm can wake a hibernated object without a WebSocket attachment.
       // The durable state itself is therefore the source of truth for its room
@@ -642,7 +688,7 @@ export class GameRoom {
         savedAt: Date.now(),
         timers: Array.from(this.scheduledTimers.entries()),
       };
-      await this.state.storage.put('game', storedRoom);
+      await this.state.storage.put('game', await encodeStoredGameRoom(storedRoom));
       this.wasPersisted = true;
       this.lastPersistedRevision = revision;
       if (confirmReservation) await this.directoryRequest('/confirm', this.reservationToken);
