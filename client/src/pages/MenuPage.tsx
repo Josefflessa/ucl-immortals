@@ -458,6 +458,15 @@ export default function MenuPage() {
 
       </div>
 
+      <footer className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4 sm:bottom-5">
+        <span
+          className="text-[10px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
+          style={{ fontFamily: 'Rajdhani, sans-serif' }}
+        >
+          by J.Lessa
+        </span>
+      </footer>
+
       <HowToPlayModal open={showGuide} onClose={() => setShowGuide(false)} />
     </AppShell>
   );

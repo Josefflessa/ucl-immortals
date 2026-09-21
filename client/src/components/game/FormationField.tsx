@@ -72,8 +72,6 @@ interface FormationFieldProps {
   roleSelection?: GameRole | null;
   roleMetrics?: Record<string, RoleMetric>;
   roleSuggestionId?: string | null;
-  // Optional controls rendered inside the field, anchored to its top-right corner.
-  fieldControls?: ReactNode;
   // When a player is being moved (starter drag or reserve long-press shortcut),
   // colour every field slot according to that player's position fit.
   positionGuidePlayer?: Player | null;
@@ -127,7 +125,6 @@ export default function FormationField({
   roleSelection = null,
   roleMetrics = {},
   roleSuggestionId = null,
-  fieldControls,
   positionGuidePlayer = null,
   ratings,
   goalsByPlayer,
@@ -352,28 +349,23 @@ export default function FormationField({
   useEffect(() => () => clearMobileHold(), []);
 
   return (
-    <div
-      ref={fieldRef}
-      className="relative rounded-xl overflow-hidden mx-auto"
-      onDrop={handleFieldDrop}
-      style={{
-        width: '100%',
-        maxWidth: maxW,
-        aspectRatio: `${fieldWidth} / ${fieldHeight}`,
-        background: [
-          'radial-gradient(ellipse at 50% 44%, rgba(35, 126, 57, 0.22) 0%, rgba(9, 49, 19, 0) 64%)',
-          'repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0.025) 7%, rgba(0,0,0,0.02) 7%, rgba(0,0,0,0.02) 14%)',
-          'linear-gradient(180deg, #08250E 0%, #0B3516 48%, #08270F 100%)',
-        ].join(','),
-        border: '1px solid #2E7D43',
-        boxShadow: 'inset 0 0 0 1px rgba(110, 201, 113, 0.12), inset 0 0 42px rgba(0, 0, 0, 0.24), 0 12px 30px rgba(0, 0, 0, 0.2)',
-      }}
-    >
-      {fieldControls && (
-        <div className="absolute inset-x-2 top-2 z-40" onPointerDown={event => event.stopPropagation()}>
-          {fieldControls}
-        </div>
-      )}
+    <div className="mx-auto w-full" style={{ maxWidth: maxW }}>
+      <div
+        ref={fieldRef}
+        className="relative rounded-xl overflow-hidden"
+        onDrop={handleFieldDrop}
+        style={{
+          width: '100%',
+          aspectRatio: `${fieldWidth} / ${fieldHeight}`,
+          background: [
+            'radial-gradient(ellipse at 50% 44%, rgba(35, 126, 57, 0.22) 0%, rgba(9, 49, 19, 0) 64%)',
+            'repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0.025) 7%, rgba(0,0,0,0.02) 7%, rgba(0,0,0,0.02) 14%)',
+            'linear-gradient(180deg, #08250E 0%, #0B3516 48%, #08270F 100%)',
+          ].join(','),
+          border: '1px solid #2E7D43',
+          boxShadow: 'inset 0 0 0 1px rgba(110, 201, 113, 0.12), inset 0 0 42px rgba(0, 0, 0, 0.24), 0 12px 30px rgba(0, 0, 0, 0.2)',
+        }}
+      >
       {/* Field markings — scales with the container via viewBox */}
       <svg
         className="absolute inset-0 w-full h-full"
@@ -855,6 +847,7 @@ export default function FormationField({
           {formation.name}
         </div>
       )}
+      </div>
     </div>
   );
 }

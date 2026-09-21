@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Coach, Formation } from '../../lib/gameData';
 import { Stadium, DEFAULT_STADIUM, stadiumFor } from '../../lib/stadium';
 import { PRIME_COST, PRIME_WINS_REQUIRED } from '../../lib/shop';
@@ -156,9 +157,9 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
       <div style={{ height: 1, background: '#1A1A2A' }} />
       <StadiumCard stadium={stadium} bare />
 
-      {showModal && (
-        <div className="ui-modal-backdrop z-50" onClick={() => setShowModal(false)}>
-          <div className="ui-modal max-w-md flex max-h-[90vh] flex-col" onClick={e => e.stopPropagation()}>
+      {showModal && createPortal(
+        <div className="ui-modal-backdrop z-[100]" onClick={() => setShowModal(false)}>
+          <div className="ui-modal max-w-md flex max-h-[calc(100dvh-2rem)] flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="ui-modal__header flex-shrink-0 justify-start">
               <span className="text-xl">⭐</span>
@@ -169,7 +170,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             </div>
 
             {/* Corpo rolável */}
-            <div className="ui-modal__body ui-stack">
+            <div className="ui-modal__body ui-stack min-h-0 flex-1">
               {/* Transição do técnico */}
               <TransitionRow
                 label="TÉCNICO"
@@ -230,7 +231,8 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

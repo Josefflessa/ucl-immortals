@@ -89,7 +89,7 @@ export default function SquadEditor({
   const [starterSwapSourceIndex, setStarterSwapSourceIndex] = useState<number | null>(null);
   const [benchDraggingIndex, setBenchDraggingIndex] = useState<number | null>(null);
   const [activeRole, setActiveRole] = useState<GameRole | null>(null);
-  const [fieldSettingsPanel, setFieldSettingsPanel] = useState<'formation' | 'tactic' | null>(null);
+  const [fieldSettingsPanel, setFieldSettingsPanel] = useState<'formation' | 'tactic' | 'coach' | null>(null);
   const fieldPreviewRef = useRef<HTMLDivElement>(null);
   const benchHoldTimerRef = useRef<number | null>(null);
   const benchHoldClickGuardRef = useRef(false);
@@ -116,10 +116,21 @@ export default function SquadEditor({
     if (a.yellows > 0) return { txt: `🟨×${a.yellows}`, color: '#EAB308' };
     return null;
   };
+  const disciplineChips = (playerId: string) => {
+    const a = availability?.[playerId];
+    if (!a) return [];
+    return [
+      ...(a.yellows > 0 ? [{ key: 'yellow', label: `🟨 ${a.yellows}`, title: `${a.yellows} cartão${a.yellows === 1 ? '' : 'ões'} amarelo${a.yellows === 1 ? '' : 's'}`, color: '#EAB308' }] : []),
+      ...(a.banned > 0 ? [{ key: 'banned', label: `🟥 ${a.banned}J`, title: `Suspenso por ${a.banned} jogo${a.banned === 1 ? '' : 's'}`, color: '#EF4444' }] : []),
+      ...(a.injured > 0 ? [{ key: 'injured', label: `🩹 ${a.injured}J`, title: `Lesionado por ${a.injured} jogo${a.injured === 1 ? '' : 's'}`, color: '#F59E0B' }] : []),
+    ];
+  };
 
   const formation = FORMATIONS.find(f => f.id === formationId);
   const activeTactic = getTacticById(playStyle);
   const coach = COACHES.find(c => c.id === coachId);
+  const coachStadium = stadiumFor(coachId, !!coachPrime);
+  const coachDisplayPhoto = coachPrime && coachStadium.coachPhotoUrl ? coachStadium.coachPhotoUrl : coach?.photoUrl;
   const xi = players.slice(0, 11);
   const bench = players.slice(11);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
@@ -370,19 +381,6 @@ export default function SquadEditor({
         <ChemistryBonusInfo total={chemData.total} />
       </div>
 
-      {/* ── Comando do Time: técnico + estádio (+ evolução Prime no MEU TIME) ── */}
-      {showCoachCard && coach && (
-        <CoachStadiumPanel
-          coach={coach}
-          formation={formation}
-          coachPrime={!!coachPrime}
-          stadium={stadiumFor(coachId, !!coachPrime)}
-          wins={wins}
-          points={points}
-          onEvolve={onEvolvePrime}
-        />
-      )}
-
       {onSetMatchPlan ? (
         <MatchPlanSelector value={matchPlan} playStyle={playStyle} onChange={onSetMatchPlan} />
       ) : null}
@@ -398,6 +396,60 @@ export default function SquadEditor({
         onActivateRole={activateRoleSelection}
         activeRole={activeRole}
       />
+
+      {/* Controles rápidos do campo: formação e tática em cima, técnico abaixo,
+          todos fora da área jogável para nunca cobrir as cartas. */}
+      <div className="mt-3 w-full space-y-2" onPointerDown={event => event.stopPropagation()}>
+        <div className="grid w-full grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setFieldSettingsPanel('formation')}
+            className="flex min-h-[60px] min-w-0 flex-col justify-center rounded-lg border border-[#C9A84C99] bg-[#080F0AEE] px-2 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[#1A2A1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]"
+            title="Abrir configurações da formação"
+          >
+            <span className="block truncate text-[10px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>FORMAÇÃO</span>
+            <span className="block truncate text-base font-black leading-none text-[#F0D77A] sm:text-[17px]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{formation?.name ?? formationId}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFieldSettingsPanel('tactic')}
+            className="flex min-h-[60px] min-w-0 flex-col justify-center rounded-lg border border-[#818CF899] bg-[#080F0AEE] px-2 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[#1A2A1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#818CF8]"
+            title="Abrir configurações da tática"
+          >
+            <span className="block truncate text-[10px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TÁTICA</span>
+            <span className="block truncate text-base font-black leading-none text-[#C7D2FE] sm:text-[17px]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{activeTactic.icon} {activeTactic.name}</span>
+          </button>
+        </div>
+        {coach && showCoachCard && (
+          <div className="flex w-full">
+            <button
+              type="button"
+              onClick={() => setFieldSettingsPanel('coach')}
+              className="group flex min-h-[76px] w-full min-w-0 items-center gap-2 rounded-lg border border-[#C9A84C99] bg-[#080F0AF2] px-2 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:border-[#F0D77A] hover:bg-[#122016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]"
+              title="Abrir informações do técnico e estádio"
+            >
+              <span className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border border-[#C9A84C99] bg-[#15151F] sm:h-16 sm:w-16">
+                {coachDisplayPhoto ? (
+                  <img
+                    src={coachDisplayPhoto}
+                    alt=""
+                    aria-hidden="true"
+                    className="h-full w-full object-cover object-top transition-transform duration-200 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-sm">🎓</span>
+                )}
+                {coachPrime && <span className="absolute bottom-0 right-0 rounded-tl-md bg-[#E8C84A] px-0.5 text-[7px] font-black leading-3 text-[#17120A]">★</span>}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[11px] font-black tracking-[0.12em] text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TÉCNICO{coachPrime ? ' · PRIME' : ''}</span>
+                <span className="block truncate text-[17px] font-black leading-none text-[#F0D77A] sm:text-lg" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{coach.name}</span>
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {formation && (
@@ -479,28 +531,6 @@ export default function SquadEditor({
               roleSelection={activeRole}
               roleMetrics={roleMetrics}
               roleSuggestionId={roleSuggestionId}
-              fieldControls={(
-                <div className="flex w-full items-start justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFieldSettingsPanel('formation')}
-                    className="w-fit max-w-[9.75rem] rounded-lg border border-[#C9A84C99] bg-[#080F0AEE] px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[#1A2A1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]"
-                    title="Abrir configurações da formação"
-                  >
-                    <span className="block text-[10px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>FORMAÇÃO</span>
-                    <span className="block max-w-32 truncate text-base font-black text-[#F0D77A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{formation.name}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFieldSettingsPanel('tactic')}
-                    className="w-fit max-w-[9.75rem] rounded-lg border border-[#818CF899] bg-[#080F0AEE] px-2.5 py-1.5 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[#1A2A1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#818CF8]"
-                    title="Abrir configurações da tática"
-                  >
-                    <span className="block text-[10px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TÁTICA</span>
-                    <span className="block max-w-36 truncate text-base font-black text-[#C7D2FE]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{activeTactic.icon} {activeTactic.name}</span>
-                  </button>
-                </div>
-              )}
               selectedPlayerIndex={selectedIndex}
               positionGuidePlayer={benchSwapSourceIndex !== null
                 ? players[benchSwapSourceIndex] ?? null
@@ -624,19 +654,31 @@ export default function SquadEditor({
         >
           <DialogHeader className="gap-1 pr-12 text-left">
             <DialogTitle className="font-display text-2xl tracking-wide text-[var(--ui-brand-strong)] sm:text-3xl">
-              {fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : 'TÁTICA DO TIME'}
+              {fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : fieldSettingsPanel === 'tactic' ? 'TÁTICA DO TIME' : 'TÉCNICO & ESTÁDIO'}
             </DialogTitle>
             <p className="text-sm leading-snug text-[var(--ui-text-muted)]">
               {fieldSettingsPanel === 'formation'
                 ? 'Escolha o esquema e veja como ele muda o comportamento do time.'
-                : 'Escolha a mentalidade que orienta o comportamento do time na partida.'}
+                : fieldSettingsPanel === 'tactic'
+                  ? 'Escolha a mentalidade que orienta o comportamento do time na partida.'
+                  : 'Confira o técnico, o estádio e os efeitos ativos do seu time.'}
             </p>
           </DialogHeader>
           {fieldSettingsPanel === 'formation' ? (
             <FormationSelector value={formationId} onChange={onSetFormation} />
-          ) : (
+          ) : fieldSettingsPanel === 'tactic' ? (
             <TacticSelector value={playStyle} onChange={onSetPlayStyle} />
-          )}
+          ) : coach ? (
+            <CoachStadiumPanel
+              coach={coach}
+              formation={formation}
+              coachPrime={!!coachPrime}
+              stadium={coachStadium}
+              wins={wins}
+              points={points}
+              onEvolve={onEvolvePrime}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
 
@@ -668,47 +710,19 @@ export default function SquadEditor({
                 </div>
               </div>
 
-              {/* 🟨🟥🩹 Disciplina + disponibilidade: resumo completo e independente por status. */}
+              {/* 🟨🟥🩹 Faixa compacta de disponibilidade — só aparece quando o jogador tem alguma pendência. */}
               {(() => {
-                const a = availability?.[selectedPlayer.id] ?? { yellows: 0, banned: 0, injured: 0 };
-                const hasActiveStatus = a.yellows > 0 || a.banned > 0 || a.injured > 0;
+                const a = availability?.[selectedPlayer.id];
+                if (!a || (a.banned === 0 && a.injured === 0 && a.yellows === 0)) return null;
                 return (
-                  <div className="relative z-10 flex flex-shrink-0 flex-col gap-3 border-b px-5 py-3 sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <div className="text-[10px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#D8D8E4' }}>DISCIPLINA E DISPONIBILIDADE</div>
-                        <div className="mt-0.5 text-[10px]" style={{ fontFamily: 'Rajdhani, sans-serif', color: hasActiveStatus ? '#B7AFAF' : '#7F8794' }}>
-                          {hasActiveStatus ? 'Situação atual do jogador' : 'Nenhuma pendência ativa'}
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-black tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', color: hasActiveStatus ? '#FCD34D' : '#4ADE80' }}>
-                        {hasActiveStatus ? 'ATENÇÃO' : 'REGULAR'}
-                      </span>
+                  <div className="relative z-10 flex flex-shrink-0 flex-col items-stretch gap-3 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
+                    <div className="min-w-0 text-xs font-bold leading-tight" style={{ fontFamily: 'Rajdhani, sans-serif', color: a.banned > 0 ? '#FCA5A5' : a.injured > 0 ? '#FCD34D' : '#EAB308' }}>
+                      {a.banned > 0 ? `🟥 Suspenso — fora de ${a.banned} jogo(s)` : a.injured > 0 ? `🩹 Lesionado — fora de ${a.injured} jogo(s)` : `🟨 ${a.yellows} amarelo(s) acumulado(s)`}
                     </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                      {[
-                        { icon: '🟨', label: 'AMARELOS', value: a.yellows > 0 ? `${a.yellows} acumulado(s)` : 'Nenhum', color: '#EAB308', active: a.yellows > 0 },
-                        { icon: '🟥', label: 'SUSPENSÃO', value: a.banned > 0 ? `${a.banned} jogo(s) fora` : 'Nenhuma', color: '#EF4444', active: a.banned > 0 },
-                        { icon: '🩹', label: 'LESÃO', value: a.injured > 0 ? `${a.injured} jogo(s) fora` : 'Nenhuma', color: '#F59E0B', active: a.injured > 0 },
-                      ].map(status => (
-                        <div key={status.label} className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: status.active ? `${status.color}66` : '#252535', background: status.active ? `${status.color}12` : '#0D0D18' }}>
-                          <span className="text-base leading-none" aria-hidden="true">{status.icon}</span>
-                          <span className="min-w-0">
-                            <span className="block text-[9px] font-black tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', color: status.active ? status.color : '#777789' }}>{status.label}</span>
-                            <span className="block truncate text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: status.active ? '#F4F4FA' : '#777789' }}>{status.value}</span>
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    {a.banned > 0 && (
-                      <div className="text-[10px] leading-tight" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#9A9292' }}>
-                        A suspensão pode vir de cartão vermelho ou do acúmulo de amarelos; o estado atual registra a punição, não a origem.
-                      </div>
-                    )}
                     {a.injured > 0 && onHealInjury && (
                       <button disabled={!canAffordPhysio} onClick={() => setConfirmPhysioFor(selectedPlayer.id)}
                         type="button"
-                        className="flex w-full flex-shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[11px] font-black tracking-wider whitespace-nowrap disabled:opacity-40 transition-transform active:scale-95"
+                        className="flex w-full flex-shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[11px] font-black tracking-wider whitespace-nowrap disabled:opacity-40 transition-transform active:scale-95 sm:w-auto"
                         style={{ fontFamily: 'Rajdhani, sans-serif', background: '#0E7490', color: '#ECFEFF', border: '1px solid #22D3EE55' }}
                         title={canAffordPhysio ? undefined : `Faltam créditos (custa ${physioCost})`}>
                         <span className="flex min-w-0 items-center gap-2">
@@ -1044,6 +1058,7 @@ export default function SquadEditor({
                       const isUnique = !!UNIQUE_STYLE[candidate.id];
                       const photoUrl = UNIQUE_STYLE[candidate.id]?.render ?? buildSofifaUrl(candidate.id, 120);
                       const variants = getCardVariants(candidate);
+                      const candidateDisciplineChips = disciplineChips(candidate.id);
                       const { fit, role, occupant } = swapFit(candidate, idx);
                       const nativeFit = fit === 'native';
                       const secFit = fit === 'secondary';
@@ -1076,6 +1091,15 @@ export default function SquadEditor({
                               ))}
                               <span className="text-[9px] font-bold text-gray-500 ml-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GER {candidate.overall}</span>
                             </div>
+                            {candidateDisciplineChips.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {candidateDisciplineChips.map(status => (
+                                  <span key={status.key} title={status.title} className="inline-flex items-center rounded px-1.5 py-0.5 text-[8px] font-black leading-none" style={{ background: `${status.color}18`, border: `1px solid ${status.color}66`, color: status.color, fontFamily: 'Rajdhani, sans-serif' }}>
+                                    {status.label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             {/* selo de encaixe na vaga (quem ocupa o slot após a troca) */}
                             {role && (
                               <div className="mt-1">
