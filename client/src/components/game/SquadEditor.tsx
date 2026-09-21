@@ -668,19 +668,47 @@ export default function SquadEditor({
                 </div>
               </div>
 
-              {/* 🟨🟥🩹 Disponibilidade + Fisioterapia */}
+              {/* 🟨🟥🩹 Disciplina + disponibilidade: resumo completo e independente por status. */}
               {(() => {
-                const a = availability?.[selectedPlayer.id];
-                if (!a || (a.banned === 0 && a.injured === 0 && a.yellows === 0)) return null;
+                const a = availability?.[selectedPlayer.id] ?? { yellows: 0, banned: 0, injured: 0 };
+                const hasActiveStatus = a.yellows > 0 || a.banned > 0 || a.injured > 0;
                 return (
-                  <div className="relative z-10 flex flex-shrink-0 flex-col items-stretch gap-3 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
-                    <div className="min-w-0 text-xs font-bold leading-tight" style={{ fontFamily: 'Rajdhani, sans-serif', color: a.banned ? '#FCA5A5' : a.injured ? '#FCD34D' : '#EAB308' }}>
-                      {a.banned > 0 ? `🟥 Suspenso — fora de ${a.banned} jogo(s)` : a.injured > 0 ? `🩹 Lesionado — fora de ${a.injured} jogo(s)` : `🟨 ${a.yellows} amarelo(s) acumulado(s)`}
+                  <div className="relative z-10 flex flex-shrink-0 flex-col gap-3 border-b px-5 py-3 sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-[10px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#D8D8E4' }}>DISCIPLINA E DISPONIBILIDADE</div>
+                        <div className="mt-0.5 text-[10px]" style={{ fontFamily: 'Rajdhani, sans-serif', color: hasActiveStatus ? '#B7AFAF' : '#7F8794' }}>
+                          {hasActiveStatus ? 'Situação atual do jogador' : 'Nenhuma pendência ativa'}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', color: hasActiveStatus ? '#FCD34D' : '#4ADE80' }}>
+                        {hasActiveStatus ? 'ATENÇÃO' : 'REGULAR'}
+                      </span>
                     </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {[
+                        { icon: '🟨', label: 'AMARELOS', value: a.yellows > 0 ? `${a.yellows} acumulado(s)` : 'Nenhum', color: '#EAB308', active: a.yellows > 0 },
+                        { icon: '🟥', label: 'SUSPENSÃO', value: a.banned > 0 ? `${a.banned} jogo(s) fora` : 'Nenhuma', color: '#EF4444', active: a.banned > 0 },
+                        { icon: '🩹', label: 'LESÃO', value: a.injured > 0 ? `${a.injured} jogo(s) fora` : 'Nenhuma', color: '#F59E0B', active: a.injured > 0 },
+                      ].map(status => (
+                        <div key={status.label} className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: status.active ? `${status.color}66` : '#252535', background: status.active ? `${status.color}12` : '#0D0D18' }}>
+                          <span className="text-base leading-none" aria-hidden="true">{status.icon}</span>
+                          <span className="min-w-0">
+                            <span className="block text-[9px] font-black tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', color: status.active ? status.color : '#777789' }}>{status.label}</span>
+                            <span className="block truncate text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: status.active ? '#F4F4FA' : '#777789' }}>{status.value}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {a.banned > 0 && (
+                      <div className="text-[10px] leading-tight" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#9A9292' }}>
+                        A suspensão pode vir de cartão vermelho ou do acúmulo de amarelos; o estado atual registra a punição, não a origem.
+                      </div>
+                    )}
                     {a.injured > 0 && onHealInjury && (
                       <button disabled={!canAffordPhysio} onClick={() => setConfirmPhysioFor(selectedPlayer.id)}
                         type="button"
-                        className="flex w-full flex-shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[11px] font-black tracking-wider whitespace-nowrap disabled:opacity-40 transition-transform active:scale-95 sm:w-auto"
+                        className="flex w-full flex-shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[11px] font-black tracking-wider whitespace-nowrap disabled:opacity-40 transition-transform active:scale-95"
                         style={{ fontFamily: 'Rajdhani, sans-serif', background: '#0E7490', color: '#ECFEFF', border: '1px solid #22D3EE55' }}
                         title={canAffordPhysio ? undefined : `Faltam créditos (custa ${physioCost})`}>
                         <span className="flex min-w-0 items-center gap-2">
