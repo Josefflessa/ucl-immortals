@@ -641,7 +641,7 @@ export interface StatBreakdown {
   prodigio: number;   // 📈 Prodígio — +1 a cada 2 titularidades desde que a carta recebeu a característica
   resiliente: number; // 🔥 Resiliente — +2 em tudo por derrota do time
   goleador: number;   // ⚽ Goleador — +1 em tudo a cada 3 gols marcados
-  garcom: number;     // 🎯 Garçom — +1 em tudo a cada 3 assistências dadas
+  garcom: number;     // 🎯 Garçom — +1 em tudo a cada 2 assistências dadas
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
@@ -1331,7 +1331,7 @@ export function getEffectiveAttribute(
   // 🔥 Resiliente: +2 em todos os atributos por derrota do time como titular.
   base += player.resiliente ? (player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST : 0;
 
-  // ⚽ Goleador / 🎯 Garçom: +1 em todos os atributos a cada 3 gols/assistências
+  // ⚽ Goleador / 🎯 Garçom: +1 em todos os atributos a cada 3 gols / 2 assistências
   // acumulados enquanto a carta carrega a característica.
   base += player.goleador ? goleadorStatBoost(player.goleadorGoals) : 0;
   base += player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
@@ -3320,7 +3320,7 @@ const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada 2 titula
 const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
 const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +2 por jogador na reserva
 const DRAFT_GOLEADOR_CHANCE = 0.03; // ⚽ Goleador — cresce a cada 3 gols marcados
-const DRAFT_GARCOM_CHANCE = 0.03; // 🎯 Garçom — cresce a cada 3 assistências dadas
+const DRAFT_GARCOM_CHANCE = 0.03; // 🎯 Garçom — cresce a cada 2 assistências dadas
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
@@ -3352,7 +3352,7 @@ export const PILAR_CHEM_BONUS = 12;  // Pilar: lifts the team's total chemistry 
 export const RESILIENTE_DEFEAT_BOOST = 2;
 export const PRODIGIO_STARTS_PER_BOOST = 2;
 export const GOLEADOR_GOALS_PER_BOOST = 3;
-export const GARCOM_ASSISTS_PER_BOOST = 3;
+export const GARCOM_ASSISTS_PER_BOOST = 2;
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */
 export function prodigioStatBoost(starts: number | undefined): number {

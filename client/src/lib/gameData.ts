@@ -76,7 +76,7 @@ export interface Player {
   goleador?: boolean;    // ⚽ Goleador — +1 em tudo a cada 3 gols marcados
   goleadorGoals?: number; // ⚽ gols acumulados desde que recebeu a característica
   goleadorMatchIds?: string[]; // ⚽ partidas já contabilizadas (idempotência online/reconexão)
-  garcom?: boolean;      // 🎯 Garçom — +1 em tudo a cada 3 assistências dadas
+  garcom?: boolean;      // 🎯 Garçom — +1 em tudo a cada 2 assistências dadas
   garcomAssists?: number; // 🎯 assistências acumuladas desde que recebeu a característica
   garcomMatchIds?: string[]; // 🎯 partidas já contabilizadas (idempotência online/reconexão)
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)

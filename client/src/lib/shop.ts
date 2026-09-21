@@ -129,5 +129,5 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'prodigio', icon: '📈', label: 'Prodígio', color: '#FDE047', desc: '+1 em todos os atributos a cada 2 partidas iniciadas como titular desde que recebeu a característica.' },
   { key: 'resiliente', icon: '🔥', label: 'Resiliente', color: '#FB7185', desc: '+2 em todos os atributos a cada derrota do time em que for titular. Acumula.' },
   { key: 'goleador', icon: '⚽', label: 'Goleador', color: '#F97316', desc: '+1 em todos os atributos a cada 3 gols marcados. Acumula.' },
-  { key: 'garcom', icon: '🎯', label: 'Garçom', color: '#38BDF8', desc: '+1 em todos os atributos a cada 3 assistências dadas. Acumula.' },
+  { key: 'garcom', icon: '🎯', label: 'Garçom', color: '#38BDF8', desc: '+1 em todos os atributos a cada 2 assistências dadas. Acumula.' },
 ];

@@ -326,7 +326,7 @@ describe('⭐ cartas evoluídas', () => {
     expect(goleadorStatBoost(3)).toBe(1);
     expect(garcomStatBoost(3)).toBe(1);
     expect(GOLEADOR_GOALS_PER_BOOST).toBe(3);
-    expect(GARCOM_ASSISTS_PER_BOOST).toBe(3);
+    expect(GARCOM_ASSISTS_PER_BOOST).toBe(2);
     const noChem = { passing: 0, pace: 0, special: 0 };
     const boostedShooting = getEffectiveAttribute(once.players[0], 'shooting', COACHES[0], '', noChem, 'balanced', {});
     const baseShooting = getEffectiveAttribute(card(mkP()), 'shooting', COACHES[0], '', noChem, 'balanced', {});
@@ -986,6 +986,6 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(scorer.goleadorMatchIds).toEqual([]);
     expect(creator.garcomMatchIds).toEqual([]);
     expect(goleadorStatBoost(scorer.goleadorGoals)).toBe(2);
-    expect(garcomStatBoost(creator.garcomAssists)).toBe(2);
+    expect(garcomStatBoost(creator.garcomAssists)).toBe(4);
   });
 });
