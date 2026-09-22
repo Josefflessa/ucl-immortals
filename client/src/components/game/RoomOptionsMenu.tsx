@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRightLeft, Check, Copy, LogOut, MoreVertical, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Check, Copy, LogOut, MoreVertical, RotateCcw, Trash2, UserX } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Button } from '../../design-system';
 
@@ -9,6 +9,7 @@ export interface RoomMenuPlayer {
   id: string;
   name: string;
   connected?: boolean;
+  kicked?: boolean;
 }
 
 interface RoomOptionsMenuProps {
@@ -18,17 +19,20 @@ interface RoomOptionsMenuProps {
   players?: RoomMenuPlayer[];
   hostId?: string | null;
   onTransferHost?: (playerId: string) => void;
+  onRemovePlayer?: (playerId: string) => void;
 }
 
 /** Small, shared room menu used by both the lobby and the competition header. */
-export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = [], hostId, onTransferHost }: RoomOptionsMenuProps) {
+export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = [], hostId, onTransferHost, onRemovePlayer }: RoomOptionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [showHostPicker, setShowHostPicker] = useState(false);
+  const [showRemovePicker, setShowRemovePicker] = useState(false);
   const [copied, setCopied] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const availableHostTargets = players.filter(player => player.id !== hostId && player.connected !== false);
+  const availableHostTargets = players.filter(player => player.id !== hostId && player.connected !== false && !player.kicked);
+  const availableRemovalTargets = players.filter(player => player.id !== hostId && !player.kicked);
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +55,7 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
       const trigger = rootRef.current?.getBoundingClientRect();
       if (!trigger) return;
       const menuWidth = 256;
-      const estimatedHeight = showHostPicker ? 420 : 280;
+      const estimatedHeight = showHostPicker || showRemovePicker ? 480 : 280;
       const left = Math.min(
         Math.max(8, trigger.right - menuWidth),
         Math.max(8, window.innerWidth - menuWidth - 8),
@@ -70,11 +74,12 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
       window.removeEventListener('resize', updateMenuPosition);
       window.removeEventListener('scroll', updateMenuPosition, true);
     };
-  }, [open, showHostPicker]);
+  }, [open, showHostPicker, showRemovePicker]);
 
   useEffect(() => {
     if (!open) {
       setShowHostPicker(false);
+      setShowRemovePicker(false);
       setCopied(false);
     }
   }, [open]);
@@ -88,6 +93,12 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
     setOpen(false);
     setShowHostPicker(false);
     onTransferHost?.(playerId);
+  };
+
+  const chooseRemove = (playerId: string) => {
+    setOpen(false);
+    setShowRemovePicker(false);
+    onRemovePlayer?.(playerId);
   };
 
   const copyRoomCode = async () => {
@@ -151,7 +162,10 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                     role="menuitem"
                     aria-expanded={showHostPicker}
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-bold tracking-wide text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-2)]"
-                    onClick={() => setShowHostPicker(value => !value)}
+                    onClick={() => {
+                      setShowHostPicker(value => !value);
+                      setShowRemovePicker(false);
+                    }}
                   >
                     <ArrowRightLeft size={15} className="text-[var(--ui-brand-strong)]" />
                     TRANSFERIR HOST
@@ -172,6 +186,44 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                         </button>
                       )) : (
                         <div className="px-2 py-2 text-[10px] text-[var(--ui-text-faint)]">Nenhum outro jogador conectado.</div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              {onRemovePlayer && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-expanded={showRemovePicker}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-bold tracking-wide text-[var(--ui-danger)] transition hover:bg-[var(--ui-danger-soft)]"
+                    onClick={() => {
+                      setShowRemovePicker(value => !value);
+                      setShowHostPicker(false);
+                    }}
+                  >
+                    <UserX size={15} />
+                    REMOVER JOGADOR
+                  </button>
+                  {showRemovePicker && (
+                    <div className="mb-1 rounded-lg border border-[var(--ui-danger)]/25 bg-[var(--ui-surface-inset)] p-1">
+                      <div className="px-2 py-1 text-[9px] font-black tracking-widest text-[var(--ui-text-faint)]">ESCOLHA O JOGADOR</div>
+                      {availableRemovalTargets.length > 0 ? availableRemovalTargets.map(player => (
+                        <button
+                          key={player.id}
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-[var(--ui-text-soft)] transition hover:bg-[var(--ui-danger-soft)] hover:text-[var(--ui-text)]"
+                          onClick={() => chooseRemove(player.id)}
+                        >
+                          <span className="min-w-0 truncate">{player.name}</span>
+                          <span className={`ml-2 shrink-0 text-[9px] font-black uppercase tracking-wide ${player.connected === false ? 'text-[var(--ui-text-faint)]' : 'text-[var(--ui-success)]'}`}>
+                            {player.connected === false ? 'OFFLINE' : 'ONLINE'}
+                          </span>
+                        </button>
+                      )) : (
+                        <div className="px-2 py-2 text-[10px] text-[var(--ui-text-faint)]">Nenhum outro jogador na sala.</div>
                       )}
                     </div>
                   )}

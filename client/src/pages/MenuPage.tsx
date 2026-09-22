@@ -25,6 +25,7 @@ export default function MenuPage() {
     closeRoomOnline,
     restartRoomOnline,
     transferHostOnline,
+    removePlayerOnline,
   } = useGame();
 
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
@@ -33,6 +34,7 @@ export default function MenuPage() {
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
 
   useEffect(() => {
@@ -72,6 +74,11 @@ export default function MenuPage() {
     if (target) setTransferTarget({ id: target.id, name: target.name });
   };
 
+  const handleRemovePlayer = (playerId: string) => {
+    const target = state.onlinePlayers.find(player => player.id === playerId && player.id !== state.onlineHostId);
+    if (target) setRemoveTarget({ id: target.id, name: target.name });
+  };
+
   // If already in lobby, render Lobby view
   if (state.roomCode && state.phase === 'lobby') {
     return (
@@ -108,6 +115,7 @@ export default function MenuPage() {
                 players={state.onlinePlayers}
                 hostId={state.onlineHostId}
                 onTransferHost={handleTransferHost}
+                onRemovePlayer={handleRemovePlayer}
               />
             </div>
 
@@ -209,6 +217,19 @@ export default function MenuPage() {
             onConfirm={() => {
               if (transferTarget) transferHostOnline(transferTarget.id);
               setTransferTarget(null);
+            }}
+          />
+
+          <ConfirmDialog
+            open={removeTarget !== null}
+            onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}
+            title="Remover jogador?"
+            description={`${removeTarget?.name ?? 'Esse jogador'} será removido imediatamente da sala e não poderá reconectar usando este dispositivo.`}
+            confirmLabel="Remover jogador"
+            intent="danger"
+            onConfirm={() => {
+              if (removeTarget) removePlayerOnline(removeTarget.id);
+              setRemoveTarget(null);
             }}
           />
         </div>

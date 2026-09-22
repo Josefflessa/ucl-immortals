@@ -13,8 +13,15 @@ export interface RealtimeClientSocket {
   disconnect(): void;
 }
 
-const MAX_QUEUED_MESSAGES = 16;
+// Six-player rooms can generate a short burst of actions during a mobile
+// reconnect. Keep it bounded, but leave enough room for a full replay window
+// without dropping normal gameplay clicks immediately.
+const MAX_QUEUED_MESSAGES = 32;
 const RECONNECT_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000, 8_000];
+const HEARTBEAT_INTERVAL_MS = 20_000;
+const HEARTBEAT_TIMEOUT_MS = 50_000;
+const MAX_FLUSH_PER_TICK = 4;
+const FLUSH_INTERVAL_MS = 25;
 // Gameplay commands are queued only when the caller provides a commandId. The
 // server persists that ID and makes retries idempotent, so a response lost during
 // a brief disconnect cannot duplicate a purchase or a phase transition.
@@ -28,7 +35,7 @@ const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'shop_pick_pack', 'shop_turbinar', 'shop_train', 'shop_remove_variant',
   'place_bet', 'cancel_bet', 'heal_injury', 'emergency_replace_player',
   'market_sell', 'market_list', 'market_cancel', 'market_buy',
-  'player_ready', 'player_unready', 'swap_player_team', 'set_martir_targets',
+  'player_ready', 'player_unready', 'swap_player_team', 'set_martir_targets', 'remove_player',
   'set_evolve_point', 'reset_evolve_points', 'shop_buy_reroll',
   'reroll_reinforcement', 'pick_reinforcement', 'dismiss_reinforcement',
 ]);
@@ -64,6 +71,9 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
   private readonly inFlightCommands = new Map<string, { event: string; message: string }>();
   private reconnectAttempt = 0;
   private reconnectTimer: number | null = null;
+  private flushTimer: number | null = null;
+  private heartbeatTimer: number | null = null;
+  private lastPongAt = 0;
   private manuallyClosed = false;
   private _id: string | undefined;
 
@@ -126,6 +136,11 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    if (this.flushTimer !== null) {
+      window.clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    this.stopHeartbeat();
     this.socket?.close(1000, 'client disconnect');
     this.socket = null;
     this._id = undefined;
@@ -143,6 +158,11 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
       socket.onclose = (event) => {
         const wasConnected = !!this._id;
         this._id = undefined;
+        this.stopHeartbeat();
+        if (this.flushTimer !== null) {
+          window.clearTimeout(this.flushTimer);
+          this.flushTimer = null;
+        }
         // A normal network close is ambiguous: the server may have committed
         // the command while its ACK was in flight, so replaying the same ID
         // is safe. Codes 1011/1009, however, are explicit server/application
@@ -163,7 +183,10 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
           // flight. Replaying the same ID is safe and closes that ambiguity.
           this.requeueInFlightCommands();
         }
-        if (wasConnected) this.dispatch('disconnect', 'transport close');
+        if (wasConnected) this.dispatch('disconnect', {
+          reason: event.reason || 'transport close',
+          code: event.code,
+        });
         if (!this.manuallyClosed) this.scheduleReconnect();
       };
     } catch {
@@ -181,17 +204,29 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
         && typeof (message as { socketId?: unknown }).socketId === 'string') {
         this._id = (message as { socketId: string }).socketId;
         this.reconnectAttempt = 0;
+        this.lastPongAt = Date.now();
         // Let GameContext re-identify this socket (join_room) before replaying
         // actions queued while offline. Otherwise a queued action could reach
         // the room just before the server associates the new socket to its
         // player and be discarded as unauthorized/no-op.
         this.dispatch('connect');
+        this.startHeartbeat();
         this.flush();
         return;
       }
 
       const event = parseRealtimeMessage(raw);
       if (event) {
+        if (event.event === 'client_pong') {
+          this.lastPongAt = Date.now();
+          const payload = event.payload as { sentAt?: unknown } | undefined;
+          const sentAt = typeof payload?.sentAt === 'number' ? payload.sentAt : null;
+          if (sentAt !== null && Number.isFinite(sentAt)) {
+            const rttMs = Math.max(0, Date.now() - sentAt);
+            this.dispatch('realtime_latency', { rttMs });
+          }
+          return;
+        }
         if (event.event === 'command_ack') {
           const payload = event.payload as { commandId?: unknown } | undefined;
           if (typeof payload?.commandId === 'string') this.inFlightCommands.delete(payload.commandId);
@@ -204,7 +239,13 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
   }
 
   private flush(): void {
-    while (this.pendingMessages.length > 0 && this.socket?.readyState === WebSocket.OPEN) {
+    if (this.flushTimer !== null) this.flushTimer = null;
+    let sent = 0;
+    while (
+      sent < MAX_FLUSH_PER_TICK
+      && this.pendingMessages.length > 0
+      && this.socket?.readyState === WebSocket.OPEN
+    ) {
       const pending = this.pendingMessages.shift()!;
       try {
         this.socket.send(pending.message);
@@ -213,11 +254,15 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
           const commandId = commandIdFromPayload(parsed.payload);
           if (commandId) this.inFlightCommands.set(commandId, pending);
         }
+        sent += 1;
       } catch {
         // Put the exact command back. Its commandId makes a later retry safe.
         this.pendingMessages.unshift(pending);
         break;
       }
+    }
+    if (this.pendingMessages.length > 0 && this.socket?.readyState === WebSocket.OPEN) {
+      this.flushTimer = window.setTimeout(() => this.flush(), FLUSH_INTERVAL_MS);
     }
   }
 
@@ -225,7 +270,14 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
     if (this.inFlightCommands.size === 0) return;
     const commands = Array.from(this.inFlightCommands.values());
     this.inFlightCommands.clear();
-    commands.forEach(command => this.queue(command.event, command.message));
+    const queued = this.pendingMessages.splice(0);
+    this.pendingMessages.push(...commands, ...queued);
+    while (this.pendingMessages.length > MAX_QUEUED_MESSAGES) {
+      const dropped = this.pendingMessages.pop();
+      if (dropped && RETRYABLE_GAMEPLAY_EVENTS.has(dropped.event)) {
+        this.dispatch('action_dropped', { event: dropped.event, reason: 'queue_full' });
+      }
+    }
   }
 
   private abandonRetryableCommands(): void {
@@ -241,10 +293,41 @@ export class DurableRealtimeSocket implements RealtimeClientSocket {
     if (this.reconnectTimer !== null || this.manuallyClosed) return;
     const delay = RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
     this.reconnectAttempt += 1;
+    // A room's clients often lose mobile connectivity together. Jitter keeps
+    // every browser from reconnecting and replaying its queue in one burst.
+    const jitter = Math.random() * Math.min(750, Math.max(50, delay * 0.25));
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
       this.open();
-    }, delay);
+    }, delay + jitter);
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = window.setInterval(() => {
+      const socket = this.socket;
+      if (!socket || socket.readyState !== WebSocket.OPEN || !this._id) return;
+      if (Date.now() - this.lastPongAt > HEARTBEAT_TIMEOUT_MS) {
+        socket.close(4000, 'heartbeat timeout');
+        return;
+      }
+      try {
+        socket.send(encodeRealtimeMessage({
+          type: 'event',
+          event: 'client_ping',
+          payload: { sentAt: Date.now() },
+        }));
+      } catch {
+        socket.close(4000, 'heartbeat send failed');
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer !== null) {
+      window.clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private dispatch(event: string, payload?: unknown): void {

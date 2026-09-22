@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Coach, Formation } from '../../lib/gameData';
 import { Stadium, DEFAULT_STADIUM, stadiumFor } from '../../lib/stadium';
 import { PRIME_COST, PRIME_WINS_REQUIRED } from '../../lib/shop';
 import CoachCard from './CoachCard';
 import StadiumCard from './StadiumCard';
 import { Button } from '../../design-system';
+import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 
 const ATTR_PT: Record<string, string> = { pace: 'Ritmo', shooting: 'Finalização', passing: 'Passe', dribbling: 'Drible', defending: 'Defesa', physical: 'Físico', vision: 'Visão', composure: 'Compostura' };
 
@@ -157,14 +157,18 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
       <div style={{ height: 1, background: '#1A1A2A' }} />
       <StadiumCard stadium={stadium} bare />
 
-      {showModal && createPortal(
-        <div className="ui-modal-backdrop z-[100]" style={{ touchAction: 'auto' }} onClick={() => setShowModal(false)}>
-          <div className="ui-modal max-w-md flex max-h-[calc(100dvh-2rem)] flex-col" onClick={e => e.stopPropagation()}>
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent
+          showCloseButton={false}
+          disableAnimation
+          overlayClassName="z-[100] bg-[rgba(4,7,14,0.9)]"
+          className="ui-modal z-[101] flex max-h-[calc(100dvh-2rem)] max-w-md flex-col gap-0 overflow-hidden p-0"
+        >
             {/* Header */}
             <div className="ui-modal__header flex-shrink-0 justify-start">
               <span className="text-xl">⭐</span>
               <div className="min-w-0">
-                <div className="ui-modal__title">Evolução Prime</div>
+                <DialogTitle className="ui-modal__title">Evolução Prime</DialogTitle>
                 <div className="truncate text-xs text-[var(--ui-text-muted)]">{coach.name} · {primeStadium.name}</div>
               </div>
             </div>
@@ -230,10 +234,8 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
                 Confirmar (−{PRIME_COST} pts)
               </Button>
             </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

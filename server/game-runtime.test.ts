@@ -33,6 +33,12 @@ class FakeServer implements RealtimeServer {
     members.add(socketId);
     this.sockets.adapter.rooms.set(roomCode, members);
   }
+
+  leave(socketId: string, roomCode: string): void {
+    const members = this.sockets.adapter.rooms.get(roomCode);
+    members?.delete(socketId);
+    if (members?.size === 0) this.sockets.adapter.rooms.delete(roomCode);
+  }
 }
 
 class FakeSocket implements RealtimeSocket {
@@ -51,6 +57,10 @@ class FakeSocket implements RealtimeSocket {
 
   join(roomCode: string): void {
     this.server.join(this.id, roomCode);
+  }
+
+  leave(roomCode: string): void {
+    this.server.leave(this.id, roomCode);
   }
 
   receive(event: string, payload?: unknown): void {
@@ -306,6 +316,83 @@ describe('game runtime isolation', () => {
     expect(host.sent.some(message => message.event === 'command_ack' && (message.payload as any)?.status === 'applied')).toBe(true);
     const guestUpdate = guest.sent.filter(message => message.event === 'room_updated').at(-1)?.payload as any;
     expect(guestUpdate.hostId).toBe('player_1');
+  });
+
+  it('lets only the host remove a player and blocks that client from rejoining', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+
+    // A non-host cannot remove the host.
+    runWithGameRuntime(runtime, () => guest.receive('remove_player', {
+      roomCode: 'ABCD', targetPlayerId: 'player_0', commandId: 'guest-remove-1', roomEpoch: 1,
+    }));
+    expect(runtime.rooms.get('ABCD')?.players).toHaveLength(2);
+    expect(host.sent.some(message => message.event === 'room_kicked')).toBe(false);
+
+    // The host removes Bruno from the lobby. The socket is also removed from
+    // the transport room, so it cannot keep receiving lobby broadcasts.
+    runWithGameRuntime(runtime, () => host.receive('remove_player', {
+      roomCode: 'ABCD', targetPlayerId: 'player_1', commandId: 'host-remove-1', roomEpoch: 1,
+    }));
+    const room = runtime.rooms.get('ABCD')!;
+    expect(room.players.map(player => player.name)).toEqual(['Alice']);
+    expect(room.kickedClientIds).toEqual(['bruno']);
+    expect(server.sockets.adapter.rooms.get('ABCD')).toEqual(new Set(['socket-host']));
+    expect(guest.sent.some(message => message.event === 'room_kicked')).toBe(true);
+
+    // A reconnect with the same persistent client identity is rejected.
+    const reconnectingGuest = new FakeSocket('socket-guest-reconnect', server);
+    runWithGameRuntime(runtime, () => {
+      server.connect(reconnectingGuest);
+      reconnectingGuest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+    expect(reconnectingGuest.sent.some(message => (
+      message.event === 'error_message'
+      && String(message.payload ?? '').includes('removido')
+    ))).toBe(true);
+    expect(room.players).toHaveLength(1);
+  });
+
+  it('preserves an active seat when the host removes a player during a competition', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+    const room = runtime.rooms.get('ABCD')!;
+    room.phase = 'league';
+    room.players[1].team = { id: 'team-bruno', name: 'Bruno FC', players: [] } as any;
+
+    runWithGameRuntime(runtime, () => host.receive('remove_player', {
+      roomCode: 'ABCD', targetPlayerId: 'player_1', commandId: 'host-remove-active-1', roomEpoch: 1,
+    }));
+
+    expect(room.players).toHaveLength(2);
+    expect(room.players[1].kicked).toBe(true);
+    expect(room.players[1].connected).toBe(false);
+    expect(room.players[1].socketId).toBe('');
+    expect(room.players[1].team?.id).toBe('team-bruno');
+    expect(server.sockets.adapter.rooms.get('ABCD')).toEqual(new Set(['socket-host']));
+    expect(guest.sent.some(message => message.event === 'room_kicked')).toBe(true);
   });
 
   it('closes the room for every connected client when the host confirms it', () => {

@@ -9,6 +9,8 @@ import {
   type GameTimerKind,
   type GameTimerScheduler,
   type RoomState,
+  type RuntimeMutation,
+  roomMutationDigest,
 } from './handlers.js';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime.js';
 import { cloneRoomJson } from '../shared/room-sync.js';
@@ -39,6 +41,12 @@ interface StoredGameRoom {
   savedRevision?: number;
   savedAt?: number;
   timers?: Array<[GameTimerKind, number]>;
+}
+
+interface DurableCheckpoint {
+  room: StoredGameRoom | null;
+  confirmReservation: boolean;
+  reservationToken?: string;
 }
 
 /**
@@ -88,6 +96,18 @@ const GAME_CHUNK_STORAGE_PREFIX = 'game:chunk:';
 // A round with a large replay history therefore becomes several durable values
 // instead of one increasingly fragile blob.
 const PERSISTED_GAME_CHUNK_BYTES = 96 * 1024;
+const SLOW_REALTIME_OPERATION_MS = 250;
+const SLOW_REALTIME_PERSIST_MS = 150;
+const SLOW_REALTIME_QUEUE_WAIT_MS = 250;
+
+function sameTimerEntries(
+  left: Array<[GameTimerKind, number]>,
+  right: Array<[GameTimerKind, number]>,
+): boolean {
+  if (left.length !== right.length) return false;
+  const rightByKind = new Map(right);
+  return left.every(([kind, at]) => rightByKind.get(kind) === at);
+}
 
 function isByteBuffer(value: unknown): value is ArrayBuffer | Uint8Array {
   return value instanceof ArrayBuffer || value instanceof Uint8Array;
@@ -294,6 +314,12 @@ class DurableSocket implements RealtimeSocket {
     this.saveAttachment();
   }
 
+  leave(roomCode: string): void {
+    this.server.leave(this.id, roomCode);
+    if (this.joinedRoomCode === roomCode) this.joinedRoomCode = undefined;
+    this.saveAttachment();
+  }
+
   dispatch(event: string, payload?: unknown): void {
     this.handlers.get(event)?.forEach((handler) => handler(payload));
   }
@@ -445,7 +471,10 @@ export class GameRoom {
       if (roomCode === this.roomCode) this.scheduledTimers.delete(kind);
     },
   };
-  private readonly runtime: GameRuntime = createGameRuntime({ scheduler: this.scheduler });
+  private readonly runtime: GameRuntime = createGameRuntime({
+    scheduler: this.scheduler,
+    externalTransactions: true,
+  });
   private readonly server = new DurableRealtimeServer();
   private serial: Promise<unknown> = Promise.resolve();
   private roomCode = '';
@@ -453,6 +482,9 @@ export class GameRoom {
   private wasPersisted = false;
   private lastPersistedRevision = 0;
   private reservationToken: string | undefined;
+  private serialQueueDepth = 0;
+  private checkpointPending: DurableCheckpoint | null = null;
+  private checkpointRunner: Promise<void> | null = null;
 
   constructor(
     private readonly state: DurableObjectState,
@@ -478,6 +510,7 @@ export class GameRoom {
 
   webSocketMessage(webSocket: WebSocket, message: string | ArrayBuffer): Promise<void> {
     return this.serially(async () => {
+      const operationStartedAt = performance.now();
       await this.ensureInitializedFromSocket(webSocket);
       if (typeof message !== 'string' || new TextEncoder().encode(message).byteLength > MAX_REALTIME_MESSAGE_BYTES) {
         webSocket.close(1009, 'Mensagem inválida');
@@ -485,6 +518,39 @@ export class GameRoom {
       }
       const incoming = parseRealtimeMessage(message);
       if (!incoming) return;
+
+      const socket = this.server.get(webSocket);
+      // Browser WebSockets do not expose TCP ping/pong. A tiny control frame
+      // lets the client detect a half-open mobile connection without entering
+      // the gameplay transaction or touching durable storage.
+      if (incoming.event === 'client_ping') {
+        if (socket) {
+          this.server.sendNow(socket, 'client_pong', {
+            sentAt: incoming.payload && typeof incoming.payload === 'object' && !Array.isArray(incoming.payload)
+              ? (incoming.payload as { sentAt?: unknown }).sentAt
+              : undefined,
+            serverTime: Date.now(),
+          });
+        }
+        return;
+      }
+
+      // Capability negotiation and explicit resync only update ephemeral
+      // socket/session state. They are deliberately kept outside the full
+      // transaction + persistence path.
+      if (incoming.event === 'client_capabilities' || incoming.event === 'sync_room') {
+        runWithGameRuntime(this.runtime, () => {
+          socket?.dispatch(incoming.event, incoming.payload);
+          if (incoming.event === 'client_capabilities'
+            && incoming.payload !== null
+            && typeof incoming.payload === 'object'
+            && (incoming.payload as { roomUpdates?: unknown }).roomUpdates === 1) {
+            socket?.markSupportsPatches();
+          }
+        });
+        return;
+      }
+
       if (incoming.event === 'create_room' && !this.runtime.rooms.has(this.roomCode)) {
         const payload = incoming.payload;
         const reservationToken = payload && typeof payload === 'object' && !Array.isArray(payload)
@@ -499,21 +565,51 @@ export class GameRoom {
         this.reservationToken = reservationToken;
       }
       const snapshot = this.takeTransactionSnapshot();
+      this.runtime.lastMutation = null;
+      this.runtime.transactionRoomBefore = snapshot.room;
       this.server.beginTransaction();
+      let checkpointCaptureMs = 0;
+      let committed = false;
       try {
         runWithGameRuntime(this.runtime, () => {
-          const socket = this.server.get(webSocket);
           socket?.dispatch(incoming.event, incoming.payload);
-          if (incoming.event === 'client_capabilities'
-            && incoming.payload !== null
-            && typeof incoming.payload === 'object'
-            && (incoming.payload as { roomUpdates?: unknown }).roomUpdates === 1) {
-            socket?.markSupportsPatches();
-          }
         });
-        await this.persistWithRetry(incoming.event === 'create_room');
+        // The handler callback mutates this runtime field synchronously. Keep
+        // the explicit type here so TypeScript does not narrow the property to
+        // the value assigned immediately before the callback.
+        const mutation = this.runtime.lastMutation as RuntimeMutation | null;
+        const timersChanged = !sameTimerEntries(
+          snapshot.timers,
+          Array.from(this.scheduledTimers.entries()),
+        );
+        const durableStateChanged = mutation?.changed === true
+          || this.runtime.marketSeq !== snapshot.marketSeq
+          || timersChanged
+          || (mutation === null && this.hasDurableChanges(snapshot));
+
+        let checkpoint: DurableCheckpoint | null = null;
+        // Rejected/no-op gameplay commands still receive their terminal ACK,
+        // but do not pay for a checkpoint. For a real mutation we capture an
+        // immutable recovery point, commit the network response immediately,
+        // and let the serialized checkpoint writer handle compression/storage
+        // outside the action's critical path.
+        if (durableStateChanged) {
+          const captureStartedAt = performance.now();
+          checkpoint = this.captureCheckpoint(incoming.event === 'create_room');
+          checkpointCaptureMs = performance.now() - captureStartedAt;
+        }
         this.server.commit();
+        committed = true;
+        if (checkpoint) this.enqueueCheckpoint(checkpoint);
       } catch (error) {
+        if (committed) {
+          console.error('A ação foi transmitida, mas o checkpoint não pôde ser agendado:', {
+            roomCode: this.roomCode,
+            event: incoming.event,
+            error,
+          });
+          return;
+        }
         this.restoreTransactionSnapshot(snapshot);
         this.server.rollback();
         // A gameplay failure must not become a transport failure. The
@@ -548,6 +644,20 @@ export class GameRoom {
           event: incoming.event,
           error,
         });
+      } finally {
+        this.runtime.transactionRoomBefore = null;
+        const operationMs = performance.now() - operationStartedAt;
+        if (operationMs >= SLOW_REALTIME_OPERATION_MS || checkpointCaptureMs >= SLOW_REALTIME_PERSIST_MS) {
+          console.warn('[realtime] operação lenta', {
+            roomCode: this.roomCode,
+            event: incoming.event,
+            operationMs: Math.round(operationMs),
+            checkpointCaptureMs: Math.round(checkpointCaptureMs),
+            stateRevision: this.runtime.rooms.get(this.roomCode)?.stateRevision ?? null,
+            connectedSockets: this.state.getWebSockets().length,
+            queueDepth: this.serialQueueDepth,
+          });
+        }
       }
     });
   }
@@ -559,7 +669,7 @@ export class GameRoom {
       this.server.beginTransaction();
       try {
         runWithGameRuntime(this.runtime, () => this.server.detach(webSocket));
-        await this.persistWithRetry(false);
+        if (this.hasDurableChanges(snapshot)) await this.persistCurrentWithRetry(false);
         this.server.commit();
       } catch (error) {
         this.restoreTransactionSnapshot(snapshot);
@@ -587,7 +697,7 @@ export class GameRoom {
           this.scheduledTimers.delete(kind);
           runGameTimer(this.server, this.runtime, kind, this.roomCode);
         }
-        await this.persistWithRetry(false);
+        await this.persistCurrentWithRetry(false);
         this.server.commit();
       } catch (error) {
         this.restoreTransactionSnapshot(snapshot);
@@ -598,9 +708,36 @@ export class GameRoom {
   }
 
   private serially<T>(work: () => Promise<T>): Promise<T> {
-    const result = this.serial.then(work, work);
+    this.serialQueueDepth += 1;
+    const queuedAt = performance.now();
+    const run = async () => {
+      const queueWaitMs = performance.now() - queuedAt;
+      if (queueWaitMs >= SLOW_REALTIME_QUEUE_WAIT_MS) {
+        console.warn('[realtime] fila serial da sala aguardou', {
+          roomCode: this.roomCode || null,
+          queueWaitMs: Math.round(queueWaitMs),
+          queueDepth: this.serialQueueDepth,
+        });
+      }
+      try {
+        return await work();
+      } finally {
+        this.serialQueueDepth = Math.max(0, this.serialQueueDepth - 1);
+      }
+    };
+    const result = this.serial.then(run, run);
     this.serial = result.then(() => undefined, () => undefined);
     return result;
+  }
+
+  private hasDurableChanges(snapshot: DurableTransactionSnapshot): boolean {
+    const room = this.runtime.rooms.get(this.roomCode);
+    const roomChanged = snapshot.room && room
+      ? roomMutationDigest(snapshot.room) !== roomMutationDigest(room)
+      : snapshot.roomPresent !== !!room;
+    return roomChanged
+      || this.runtime.marketSeq !== snapshot.marketSeq
+      || !sameTimerEntries(snapshot.timers, Array.from(this.scheduledTimers.entries()));
   }
 
   private takeTransactionSnapshot(): DurableTransactionSnapshot {
@@ -745,23 +882,91 @@ export class GameRoom {
     this.initialized = true;
   }
 
-  private async persist(confirmReservation: boolean): Promise<void> {
+  private captureCheckpoint(confirmReservation: boolean): DurableCheckpoint {
     const room = this.runtime.rooms.get(this.roomCode);
-    if (room) {
-      const revision = Number.isSafeInteger(room.stateRevision) && room.stateRevision >= 0
-        ? room.stateRevision
-        : 0;
+    return {
+      room: room
+        ? {
+          schemaVersion: 2,
+          room: cloneRoomJson(room),
+          marketSeq: this.runtime.marketSeq,
+          savedRevision: Number.isSafeInteger(room.stateRevision) && room.stateRevision >= 0
+            ? room.stateRevision
+            : 0,
+          savedAt: Date.now(),
+          timers: Array.from(this.scheduledTimers.entries()),
+        }
+        : null,
+      confirmReservation,
+      reservationToken: this.reservationToken,
+    };
+  }
+
+  private enqueueCheckpoint(checkpoint: DurableCheckpoint): Promise<void> {
+    const previous = this.checkpointPending;
+    if (previous && checkpoint.room) {
+      // If a create-room checkpoint is superseded before it reaches storage,
+      // the newer snapshot still has to confirm that original reservation.
+      checkpoint.confirmReservation ||= previous.confirmReservation;
+      checkpoint.reservationToken ||= previous.reservationToken;
+    }
+    this.checkpointPending = checkpoint;
+    if (this.checkpointRunner) return this.checkpointRunner;
+    const runner = this.flushCheckpoints();
+    this.checkpointRunner = runner;
+    this.state.waitUntil(runner);
+    return runner;
+  }
+
+  private async flushCheckpoints(): Promise<void> {
+    while (this.checkpointPending) {
+      const checkpoint = this.checkpointPending;
+      this.checkpointPending = null;
+      const startedAt = performance.now();
+      try {
+        await this.persistCheckpointWithRetry(checkpoint);
+        const durationMs = performance.now() - startedAt;
+        if (durationMs >= SLOW_REALTIME_PERSIST_MS) {
+          console.warn('[realtime] checkpoint lento', {
+            roomCode: this.roomCode,
+            revision: checkpoint.room?.savedRevision ?? null,
+            durationMs: Math.round(durationMs),
+          });
+        }
+      } catch (error) {
+        // The authoritative in-memory room has already been broadcast. A
+        // checkpoint is recovery insurance, not a reason to reject a valid
+        // gameplay action. Give a transient storage failure one extra cycle
+        // before leaving the last durable checkpoint in place.
+        console.error('Falha no checkpoint assíncrono da sala:', {
+          roomCode: this.roomCode,
+          revision: checkpoint.room?.savedRevision ?? null,
+          error,
+        });
+        if (!this.checkpointPending) {
+          await new Promise(resolve => setTimeout(resolve, 250));
+          try {
+            await this.persistCheckpointWithRetry(checkpoint);
+          } catch (retryError) {
+            console.error('Checkpoint continua indisponível; a sala seguirá em memória até a próxima tentativa:', {
+              roomCode: this.roomCode,
+              revision: checkpoint.room?.savedRevision ?? null,
+              error: retryError,
+            });
+          }
+        }
+      }
+    }
+    this.checkpointRunner = null;
+  }
+
+  private async persistCheckpoint(checkpoint: DurableCheckpoint): Promise<void> {
+    const storedRoom = checkpoint.room;
+    if (storedRoom) {
+      const revision = storedRoom.savedRevision ?? 0;
       if (revision < this.lastPersistedRevision) {
         throw new Error('Tentativa de persistir uma versão antiga da sala foi bloqueada.');
       }
-      const storedRoom: StoredGameRoom = {
-        schemaVersion: 2,
-        room: cloneRoomJson(room),
-        marketSeq: this.runtime.marketSeq,
-        savedRevision: revision,
-        savedAt: Date.now(),
-        timers: Array.from(this.scheduledTimers.entries()),
-      };
       const compressed = await encodeStoredGameRoom(storedRoom);
       const chunks = splitGamePayload(compressed.payload);
       const previousManifest = await this.state.storage.get<ChunkedStoredGameRoomManifest>(GAME_MANIFEST_STORAGE_KEY);
@@ -796,32 +1001,43 @@ export class GameRoom {
       }
       this.wasPersisted = true;
       this.lastPersistedRevision = revision;
-      if (confirmReservation) await this.directoryRequest('/confirm', this.reservationToken);
+      if (checkpoint.confirmReservation) await this.directoryRequest('/confirm', checkpoint.reservationToken);
     } else if (this.wasPersisted) {
-      await this.state.storage.delete('game');
-      await this.directoryRequest('/release', this.reservationToken);
+      const previousManifest = await this.state.storage.get<ChunkedStoredGameRoomManifest>(GAME_MANIFEST_STORAGE_KEY);
+      await this.state.storage.delete(GAME_STORAGE_KEY);
+      await this.state.storage.delete(GAME_MANIFEST_STORAGE_KEY);
+      if (isChunkedStoredGameRoomManifest(previousManifest)) {
+        await Promise.all(Array.from({ length: previousManifest.chunkCount }, (_, index) =>
+          this.state.storage.delete(gameChunkKey(index)),
+        ));
+      }
+      await this.directoryRequest('/release', checkpoint.reservationToken);
       this.wasPersisted = false;
+      this.lastPersistedRevision = 0;
     }
 
-    if (room) {
+    if (storedRoom) {
       // `timers` is embedded in the same durable record as the room. Keep the
       // legacy key untouched for older deployments; new loads prefer the
       // embedded value, avoiding a room/timer split-brain after a crash.
-      const nextAlarm = Math.min(...Array.from(this.scheduledTimers.values()));
+      const nextAlarm = Math.min(...(storedRoom.timers ?? []).map(([, at]) => at));
       if (Number.isFinite(nextAlarm)) await this.state.storage.setAlarm(nextAlarm);
       else await this.state.storage.deleteAlarm();
     } else {
-      this.scheduledTimers.clear();
       await this.state.storage.delete('timers');
       await this.state.storage.deleteAlarm();
     }
   }
 
-  private async persistWithRetry(confirmReservation: boolean): Promise<void> {
+  private async persistCurrentWithRetry(confirmReservation: boolean): Promise<void> {
+    await this.enqueueCheckpoint(this.captureCheckpoint(confirmReservation));
+  }
+
+  private async persistCheckpointWithRetry(checkpoint: DurableCheckpoint): Promise<void> {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        await this.persist(confirmReservation);
+        await this.persistCheckpoint(checkpoint);
         return;
       } catch (error) {
         lastError = error;

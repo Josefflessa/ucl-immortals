@@ -43,10 +43,11 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, transferHostOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, transferHostOnline, removePlayerOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline } = useGame();
   const online = state.mode === 'online';
   const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | 'restart' | 'close' | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
 
   const handleLeaveSolo = () => {
     setConfirmAction('solo');
@@ -57,6 +58,10 @@ export default function LeaguePage() {
   const handleTransferHost = (playerId: string) => {
     const target = state.onlinePlayers.find(player => player.id === playerId);
     if (target) setTransferTarget({ id: target.id, name: target.name });
+  };
+  const handleRemovePlayer = (playerId: string) => {
+    const target = state.onlinePlayers.find(player => player.id === playerId && player.id !== state.onlineHostId && !player.kicked);
+    if (target) setRemoveTarget({ id: target.id, name: target.name });
   };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
@@ -494,6 +499,7 @@ export default function LeaguePage() {
                 players={state.onlinePlayers}
                 hostId={state.onlineHostId}
                 onTransferHost={handleTransferHost}
+                onRemovePlayer={handleRemovePlayer}
               />
             ) : (
               <Button
@@ -1852,6 +1858,19 @@ export default function LeaguePage() {
         onConfirm={() => {
           if (transferTarget) transferHostOnline(transferTarget.id);
           setTransferTarget(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}
+        title="Remover jogador?"
+        description={`${removeTarget?.name ?? 'Esse jogador'} será removido imediatamente da sala e não poderá reconectar usando este dispositivo.`}
+        confirmLabel="Remover jogador"
+        intent="danger"
+        onConfirm={() => {
+          if (removeTarget) removePlayerOnline(removeTarget.id);
+          setRemoveTarget(null);
         }}
       />
     </AppShell>

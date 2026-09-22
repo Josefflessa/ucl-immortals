@@ -13,6 +13,8 @@ export interface RealtimeSocket {
   on(event: string, handler: RealtimeEventHandler): unknown;
   emit(event: string, payload?: unknown): unknown;
   join(roomCode: string): unknown;
+  /** Remove this socket from a room without closing the transport. */
+  leave?(roomCode: string): unknown;
 }
 
 export interface RealtimeEmitter {

@@ -60,6 +60,7 @@ export type GamePhase =
 export interface RoomPlayer {
   socketId: string;
   connected?: boolean; // sincronizado do servidor; ausente em estados locais antigos
+  kicked?: boolean; // removido pelo anfitrião; não pode reconectar nesta sala
   id: string; // e.g. "player_0"
   name: string;
   crestId?: string | null; // selected club crest
@@ -1658,6 +1659,7 @@ interface GameContextType {
   advanceKnockoutRoundOnline: () => void;
   restartRoomOnline: () => void;
   transferHostOnline: (targetPlayerId: string) => void;
+  removePlayerOnline: (targetPlayerId: string) => void;
   leaveRoomOnline: () => void;
   closeRoomOnline: () => void;
   disconnectOnline: () => void;
@@ -1851,16 +1853,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     // Conexão perdida no meio de uma sessão: mostra um aviso persistente enquanto o
     // socket.io tenta reconectar (o `connect` acima re-entra na sala e limpa o aviso).
     // Ignora saídas intencionais (o próprio jogador saiu) e quando não há sala ativa.
-    socketInstance.on("disconnect", (reason: string) => {
+    socketInstance.on("disconnect", (payload?: string | { reason?: string; code?: number }) => {
       if (!isCurrentSocket()) return;
       onlineRoomRef.current = null;
       onlineSyncRevisionRef.current = null;
       authoritativeRoomRevisionRef.current = null;
       syncRequestPendingRef.current = false;
       const inRoom = getStorageItem(STORAGE_KEYS.roomCode);
+      const reason = typeof payload === 'string' ? payload : payload?.reason;
       if (inRoom && reason !== "io client disconnect" && reconnectToastId === undefined) {
         reconnectToastId = toast.loading("Conexão perdida — reconectando…");
       }
+    });
+
+    socketInstance.on("realtime_latency", ({ rttMs }: { rttMs?: unknown }) => {
+      if (!isCurrentSocket() || typeof rttMs !== 'number' || !Number.isFinite(rttMs)) return;
+      // Keep this diagnostic quiet during normal play; it becomes useful when
+      // a player reports delay and gives us a client-side signal to compare
+      // with the Durable Object's slow-operation logs.
+      if (rttMs >= 1_500) console.warn(`Latência realtime elevada: ${Math.round(rttMs)}ms`);
     });
 
     // Uma ação estourou no servidor (o wrapper de handlers avisou). Em vez de a tela
@@ -1955,6 +1966,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on("room_closed", ({ message }: { message?: string }) => {
       if (!isCurrentSocket()) return;
       toast.info(message || 'A sala foi encerrada pelo anfitrião.');
+      endOnlineSession();
+    });
+
+    socketInstance.on("room_kicked", ({ message }: { message?: string }) => {
+      if (!isCurrentSocket()) return;
+      toast.error(message || 'Você foi removido da sala pelo anfitrião.');
       endOnlineSession();
     });
 
@@ -2085,6 +2102,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const transferHostOnline = useCallback((targetPlayerId: string) => {
     emitOnlineAction("transfer_host", { roomCode: state.roomCode, targetPlayerId });
+  }, [emitOnlineAction, state.roomCode]);
+
+  const removePlayerOnline = useCallback((targetPlayerId: string) => {
+    emitOnlineAction("remove_player", { roomCode: state.roomCode, targetPlayerId });
   }, [emitOnlineAction, state.roomCode]);
 
   const leaveRoomOnline = useCallback(() => {
@@ -2241,7 +2262,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     createRoom, joinRoom, startSetupOnline, submitSetupOnline,
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline, setMatchPlanOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
-    restartRoomOnline, transferHostOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
+    restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, resetEvolvePointsOnline, shopBuyRerollOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline,

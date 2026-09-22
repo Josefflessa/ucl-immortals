@@ -43,7 +43,7 @@ function HighlightPortrait({ player, color }: { player: Player; color: string })
 }
 
 export default function ReportPage() {
-  const { state, dispatch } = useGame();
+  const { state, dispatch, leaveRoomOnline } = useGame();
   const { report, playerTeam, champion, leagueResults, knockoutBracket } = state;
   const { localTeamId, allTeams: allTeamsForStats } = useTeams();
 
@@ -70,6 +70,16 @@ export default function ReportPage() {
   const losses = playerResults.filter((r: any) => r.winner !== null && r.winner !== localTeamId).length;
   const totalGoals = playerResults.reduce((s: number, r: any) => s + (r.homeTeamId === localTeamId ? r.homeGoals : r.awayGoals), 0);
   const goalsAgainst = playerResults.reduce((s: number, r: any) => s + (r.homeTeamId === localTeamId ? r.awayGoals : r.homeGoals), 0);
+
+  const handlePlayAgain = () => {
+    // The report can also be reached from an online room. Resetting only the
+    // local reducer leaves the socket subscribed to the finished room, whose
+    // next authoritative update would immediately restore the old competition.
+    if (state.mode === 'online' && state.roomCode) {
+      leaveRoomOnline();
+    }
+    dispatch({ type: 'RESET_GAME' });
+  };
 
   // ── Top performers across the whole season ────────────────────────────────
   const topScorer = useMemo(() => {
@@ -537,7 +547,7 @@ export default function ReportPage() {
             type="button"
             intent="primary"
             size="large"
-            onClick={() => dispatch({ type: 'RESET_GAME' })}
+            onClick={handlePlayAgain}
             className="mt-2 w-full"
           >
             🔄 JOGAR NOVAMENTE

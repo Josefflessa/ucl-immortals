@@ -59,6 +59,7 @@ import type { CompetitionFormat } from "../client/src/lib/competition.js";
 export interface RoomPlayer {
   socketId: string;
   clientId?: string; // identidade persistente do cliente (reconexão robusta, mesmo entre refreshes)
+  kicked?: boolean; // removido pelo host; o assento ativo não pode voltar por reconexão
   id: string;
   name: string;
   crestId?: string | null; // selected club crest (see client/src/lib/crests)
@@ -109,6 +110,8 @@ export interface RoomState {
     savedAt: number;
     reason: string;
   };
+  /** Persistent identities barred by the host from rejoining this room. */
+  kickedClientIds?: string[];
   phase: 'lobby' | 'setup' | 'draft' | 'squad_review' | 'league' | 'knockout' | 'report';
   difficulty: string;
   competitionFormat: CompetitionFormat;
@@ -155,6 +158,13 @@ interface RoomSyncSession {
   supportsPatches: boolean;
 }
 
+export interface RuntimeMutation {
+  event: string;
+  roomCode: string | null;
+  changed: boolean;
+  stateRevision: number | null;
+}
+
 // Sync state is kept per socket instead of per room because some actions are
 // intentionally private (bets, shop offers and balances). This also lets a
 // reconnected client receive a clean snapshot without forcing every other
@@ -177,9 +187,15 @@ export interface GameRuntime {
   hostGraceTimers: Map<string, ReturnType<typeof setTimeout>>;
   draftTurnTimers: Map<string, ReturnType<typeof setTimeout>>;
   scheduler?: GameTimerScheduler;
+  /** Durable Object owns the outer rollback; avoid a second room clone here. */
+  externalTransactions?: boolean;
+  /** Room snapshot supplied by the outer transaction for change detection. */
+  transactionRoomBefore: RoomState | null;
+  /** Result of the last wrapped socket handler, consumed by Durable Objects. */
+  lastMutation: RuntimeMutation | null;
 }
 
-export function createGameRuntime(options: Pick<GameRuntime, 'roomCode' | 'scheduler'> = {}): GameRuntime {
+export function createGameRuntime(options: Pick<GameRuntime, 'roomCode' | 'scheduler' | 'externalTransactions'> = {}): GameRuntime {
   return {
     roomCode: options.roomCode,
     scheduler: options.scheduler,
@@ -189,6 +205,9 @@ export function createGameRuntime(options: Pick<GameRuntime, 'roomCode' | 'sched
     cleanupTimers: new Map<string, ReturnType<typeof setTimeout>>(),
     hostGraceTimers: new Map<string, ReturnType<typeof setTimeout>>(),
     draftTurnTimers: new Map<string, ReturnType<typeof setTimeout>>(),
+    externalTransactions: options.externalTransactions === true,
+    transactionRoomBefore: null,
+    lastMutation: null,
   };
 }
 
@@ -299,6 +318,7 @@ function roomViewForSocket(room: RoomState, socketId: string): RoomState {
   // receipts must not reveal another client's retry history.
   delete view.commandReceipts;
   delete view.lastCheckpoint;
+  delete view.kickedClientIds;
   const viewerId = viewer?.id;
 
   view.players = view.players.map(player => {
@@ -513,14 +533,13 @@ function roomEpochFromPayload(payload: unknown): number | null {
   return Number.isSafeInteger(value) && (value as number) > 0 ? value as number : null;
 }
 
-function roomMutationDigest(room: RoomState): string {
-  const snapshot = cloneRoomJson(room);
-  // Bookkeeping must not turn an otherwise rejected/no-op action into a
-  // gameplay mutation.
-  snapshot.stateRevision = 0;
-  delete snapshot.commandReceipts;
-  delete snapshot.lastCheckpoint;
-  return JSON.stringify(snapshot);
+export function roomMutationDigest(room: RoomState): string {
+  // The digest is only used for equality, never sent or persisted. A replacer
+  // avoids allocating a second full room clone in the Durable Object runtime.
+  return JSON.stringify(room, (key, value) => {
+    if (key === 'stateRevision' || key === 'commandReceipts' || key === 'lastCheckpoint') return undefined;
+    return value;
+  });
 }
 
 function rememberCommand(room: RoomState, event: string, commandId: string): void {
@@ -971,12 +990,32 @@ export function registerSocketHandlers(io: RealtimeServer) {
           return;
         }
 
+        // These events only negotiate the wire format or request a fresh
+        // authoritative snapshot. They must never pay the price of cloning,
+        // diffing, and persisting the complete room state.
+        const readOnlyEvent = event === 'client_capabilities' || event === 'sync_room';
+        if (readOnlyEvent) {
+          try {
+            handler(payload);
+          } catch (err) {
+            console.error(`Erro no handler de sincronização "${event}" (socket ${socket.id}):`, err);
+            socket.emit("action_error", { event, message: "Não foi possível sincronizar a sala. Tente novamente." });
+          }
+          return;
+        }
+
         const roomCode = roomCodeFromPayload(payload);
         const previousRoom = roomCode ? rooms.get(roomCode) : undefined;
         // Handlers mutate the authoritative room in place. Keep a transaction-sized
         // backup so an unexpected exception cannot persist a half-applied purchase,
         // bracket transition or readiness update.
-        const previousRoomSnapshot = previousRoom ? cloneRoomJson(previousRoom) : undefined;
+        const managedByOuterTransaction = activeRuntime.externalTransactions === true;
+        const previousRoomSnapshot = managedByOuterTransaction
+          ? undefined
+          : previousRoom ? cloneRoomJson(previousRoom) : undefined;
+        const previousRoomForDigest = managedByOuterTransaction
+          ? activeRuntime.transactionRoomBefore ?? null
+          : previousRoomSnapshot;
         const previousMarketSeq = marketSeq;
         const commandId = commandIdFromPayload(payload);
         const expectedRoomEpoch = roomEpochFromPayload(payload);
@@ -1015,9 +1054,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
           handler(payload);
 
           const nextRoom = roomCode ? rooms.get(roomCode) : undefined;
-          const changed = previousRoomSnapshot && nextRoom
-            ? roomMutationDigest(previousRoomSnapshot) !== roomMutationDigest(nextRoom)
-            : !previousRoomSnapshot && !!nextRoom;
+          const changed = previousRoomForDigest && nextRoom
+            ? roomMutationDigest(previousRoomForDigest) !== roomMutationDigest(nextRoom)
+            : !!previousRoomForDigest !== !!nextRoom;
+          activeRuntime.lastMutation = {
+            event,
+            roomCode,
+            changed,
+            stateRevision: nextRoom?.stateRevision ?? null,
+          };
           if (nextRoom && changed) {
             if (commandId) rememberCommand(nextRoom, event, commandId);
             // This marker is intentionally private. Durable Objects persist the
@@ -1044,6 +1089,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
             });
           }
         } catch (err) {
+          // The Cloudflare Durable Object owns the outer transaction and will
+          // restore its snapshot. Re-throw so it can also roll back pending
+          // outbound frames atomically.
+          if (managedByOuterTransaction) throw err;
           if (roomCode) {
             if (previousRoomSnapshot) rooms.set(roomCode, previousRoomSnapshot);
             else if (!previousRoom) rooms.delete(roomCode);
@@ -1114,6 +1163,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         stateRevision: 1,
         roomEpoch: 1,
         commandReceipts: [],
+        kickedClientIds: [],
         phase: 'lobby',
         difficulty: requestedDifficulty,
         competitionFormat: normalizeCompetitionFormat(requestedFormat),
@@ -1202,11 +1252,20 @@ export function registerSocketHandlers(io: RealtimeServer) {
         return;
       }
 
+      if (clientId && room.kickedClientIds?.includes(clientId)) {
+        socket.emit("error_message", "Você foi removido desta sala pelo anfitrião.");
+        return;
+      }
+
       // RECONEXÃO ROBUSTA por clientId: é COMPROVADAMENTE a mesma pessoa (identidade persistente),
       // então reassume o assento mesmo se ainda constar "conectado" (corrida de refresh) — sem falso
       // "nome já usado". Só o dono do clientId reassume aquele assento.
       const byClient = clientId ? room.players.find(p => p.clientId === clientId) : undefined;
       if (byClient) {
+        if (byClient.kicked) {
+          socket.emit("error_message", "Você foi removido desta sala pelo anfitrião.");
+          return;
+        }
         byClient.socketId = socket.id;
         byClient.connected = true;
         cancelRoomCleanup(code);
@@ -1223,6 +1282,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       // Check if player name already exists (Reconnect Scenario)
       const existingPlayer = room.players.find(p => p.name.toLowerCase() === normalizedPlayerName.toLowerCase());
       if (existingPlayer) {
+        if (existingPlayer.kicked) {
+          socket.emit("error_message", "Você foi removido desta sala pelo anfitrião.");
+          return;
+        }
         // Only treat a name match as a RECONNECT if that player is actually offline. If they're
         // still connected, this is a different person with a clashing name — reject it, otherwise
         // they'd hijack the original player's seat (steal their socket/team).
@@ -2682,6 +2745,47 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
       room.hostId = target.id;
       emitRoomUpdate(io, room);
+    });
+
+    // The host may remove another player without changing the competition
+    // authority. In the lobby the seat is released; during a competition the
+    // seat/team remains authoritative so the tournament does not reshuffle,
+    // but the player is marked as kicked and cannot reconnect.
+    on("remove_player", ({ roomCode, targetPlayerId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || !isHost(room, socket.id) || !isValidId(targetPlayerId)) return;
+
+      const targetIndex = room.players.findIndex(player => (
+        player.id === targetPlayerId && player.id !== room.hostId && !player.kicked
+      ));
+      if (targetIndex < 0) return;
+
+      const target = room.players[targetIndex];
+      const targetSocket = target.socketId ? io.sockets.sockets.get(target.socketId) : undefined;
+      const kickedClientIds = room.kickedClientIds ?? [];
+      if (target.clientId && !kickedClientIds.includes(target.clientId)) {
+        room.kickedClientIds = [...kickedClientIds, target.clientId].slice(-64);
+      }
+
+      targetSocket?.emit('room_kicked', {
+        roomCode,
+        message: 'Você foi removido da sala pelo anfitrião.',
+      });
+      targetSocket?.leave?.(roomCode);
+
+      if (room.phase === 'lobby') {
+        room.players.splice(targetIndex, 1);
+        recomputeHost(room);
+      } else {
+        target.kicked = true;
+        target.connected = false;
+        target.socketId = '';
+        invalidateReady(room, target.id);
+        autoPickOfflineReinforcement(target);
+      }
+
+      emitRoomUpdate(io, room);
+      console.log(`Player ${target.name} removido pelo anfitrião da sala ${room.code}`);
     });
 
     // Explicitly leaving is different from a transport drop: the player has
