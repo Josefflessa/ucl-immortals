@@ -66,7 +66,8 @@ export interface Player {
   pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +4 em tudo na FASE DE LIGA, −5 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
   noe?: boolean;         // 🛟 Noé — só quando é o ÚNICO titular do XI com característica: +10 em tudo NELE + 30 na química geral
   forasteiro?: boolean;  // 🧳 Forasteiro — +8 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
-  colecionador?: boolean; // 🧩 Colecionador — +2 em tudo por jogador que estiver na reserva
+  colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva
+  estribado?: boolean;    // 🛡️ Estribado — +1 em tudo a cada 100 créditos disponíveis
   capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão vem DOBRADO
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida de liga por 1,5, mas −5 em tudo nele
   prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada 2 titularidades acumuladas

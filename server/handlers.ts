@@ -316,6 +316,9 @@ function roomViewForSocket(room: RoomState, socketId: string): RoomState {
       uniquePackOfferRoundKey: null,
       bets: [],
       pendingMatchPoints: undefined,
+      // Shop balance is private; the public opponent team still carries the
+      // lineup, but never the credits used by Estribado.
+      team: player.team ? { ...player.team, credits: undefined } : null,
     };
   });
 
@@ -393,6 +396,17 @@ const MAX_CLIENT_ID_LENGTH = 80;
 const MAX_COMMAND_ID_LENGTH = 120;
 const MAX_COMMAND_RECEIPTS = 256;
 const MAX_EVENTS_PER_SECOND = 120;
+
+// The balance lives on RoomPlayer, while the match engine receives a Team.
+// Keep the runtime copy synchronized immediately before simulations and after
+// reveal credits so Estribado always reads the authoritative balance.
+function syncTeamCredits(player: RoomPlayer): void {
+  if (player.team) player.team = { ...player.team, credits: Math.max(0, player.points) };
+}
+
+function syncAllTeamCredits(room: RoomState): void {
+  room.players.forEach(syncTeamCredits);
+}
 
 function normalizePlayerName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -698,6 +712,7 @@ function creditLeagueRoundIfAllWatched(room: RoomState): void {
       }
       return b;
     });
+    syncTeamCredits(p);
   });
 }
 
@@ -714,6 +729,7 @@ function creditKnockoutLegIfAllWatched(room: RoomState): void {
       }
       return b;
     });
+    syncTeamCredits(p);
   });
 }
 
@@ -1474,6 +1490,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
             freeKickTaker: p.freeKickTaker ?? undefined,
             totalChemistry: chemData.total,
             isBot: false,
+            credits: p.points,
             crestId: p.crestId ?? undefined
           };
         });
@@ -2184,6 +2201,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       pruneReadyPlayers(room, participantIds);
       if (!participantIds.every(id => room.readyPlayers.includes(id))) return; // ainda faltam prontos
 
+      syncAllTeamCredits(room);
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
 
@@ -2372,6 +2390,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       pruneReadyPlayers(room, participantIds);
       if (!participantIds.every(id => room.readyPlayers.includes(id))) return;
 
+      syncAllTeamCredits(room);
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
       const resolvedTeams = new Map<string, Team>();

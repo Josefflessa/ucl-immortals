@@ -951,6 +951,7 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   noe: { color: '#22D3EE', icon: '🛟', label: 'NOÉ', treatment: 'ring' },
   forasteiro: { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
   colecionador: { color: '#C084FC', icon: '🧩', label: 'COLECIONADOR', treatment: 'ring' },
+  estribado: { color: '#FACC15', icon: '🛡️', label: 'ESTRIBADO', treatment: 'ring' },
   capitaoNato: { color: '#F97316', icon: '🗣️', label: 'CAPITÃO NATO', treatment: 'ring' },
   magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
   prodigio: { color: '#FDE047', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
@@ -958,7 +959,7 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   goleador: { color: '#F97316', icon: '⚽', label: 'GOLEADOR', treatment: 'pulse' },
   garcom: { color: '#38BDF8', icon: '🎯', label: 'GARÇOM', treatment: 'ring' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -984,7 +985,8 @@ function variantDesc(player: Player): string {
   if (player.pipoqueiro) return 'PIPOQUEIRO: +4 em cada atributo na FASE DE LIGA, mas −5 no MATA-MATA';
   if (player.noe) return 'NOÉ: +10 em cada atributo NELE e +30 na química geral — só enquanto for o ÚNICO titular com característica';
   if (player.forasteiro) return 'FORASTEIRO: +8 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
-  if (player.colecionador) return 'COLECIONADOR: +2 em cada atributo por jogador que estiver na reserva';
+  if (player.colecionador) return 'COLECIONADOR: +1 em cada atributo por jogador que estiver na reserva';
+  if (player.estribado) return 'ESTRIBADO: +1 em cada atributo a cada 100 créditos disponíveis';
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
   if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida de liga por 1,5 (mas −5 em cada atributo nele)';
   if (player.prodigio) {

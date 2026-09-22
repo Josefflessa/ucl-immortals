@@ -146,7 +146,7 @@ export default function SquadEditor({
 
   const teamOverall = xi.length === 11
     ? Math.round(xi.reduce((sum, p, idx) => {
-      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, role: formationRoles[idx] ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false });
+      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, role: formationRoles[idx] ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false, credits: points });
       return sum + eff.overall;
     }, 0) / 11)
     : null;
@@ -171,6 +171,7 @@ export default function SquadEditor({
           isKnockout,
           role: isStarter ? (formationRoles[index] ?? player.position) : player.position,
           isSecondary: isStarter ? (chemData.secondaryPos[player.id] ?? false) : false,
+          credits: points,
         },
       );
       return [player.id, effective];
@@ -783,7 +784,7 @@ export default function SquadEditor({
                   const isStarter = selectedIndex < 11;
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
-                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, role: formationRole, isSecondary: selectedIsSecondary });
+                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, role: formationRole, isSecondary: selectedIsSecondary, credits: points });
                   const originalOverall = selectedPlayer.baseOverall ?? selectedPlayer.overall;
                   // Card-level variants (Em Alta/Lobo/Mártir/Magnata) are already baked into
                   // selectedPlayer.*. For this breakdown, compare the final effective result
@@ -910,7 +911,7 @@ export default function SquadEditor({
                         </div>
                       )}
 
-                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} charBoost={charBoosts[selectedPlayer.id]} isStarter={isStarter} formationRole={isStarter ? formationRole : undefined} />
+                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} charBoost={charBoosts[selectedPlayer.id]} isStarter={isStarter} formationRole={isStarter ? formationRole : undefined} credits={points} />
                     </div>
                   );
                 })()}

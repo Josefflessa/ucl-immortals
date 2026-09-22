@@ -158,7 +158,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
       <StadiumCard stadium={stadium} bare />
 
       {showModal && createPortal(
-        <div className="ui-modal-backdrop z-[100]" onClick={() => setShowModal(false)}>
+        <div className="ui-modal-backdrop z-[100]" style={{ touchAction: 'auto' }} onClick={() => setShowModal(false)}>
           <div className="ui-modal max-w-md flex max-h-[calc(100dvh-2rem)] flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="ui-modal__header flex-shrink-0 justify-start">
@@ -170,7 +170,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             </div>
 
             {/* Corpo rolável */}
-            <div className="ui-modal__body ui-stack min-h-0 flex-1">
+            <div className="ui-modal__body ui-stack min-h-0 flex-1 overscroll-contain">
               {/* Transição do técnico */}
               <TransitionRow
                 label="TÉCNICO"
@@ -224,9 +224,9 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             </div>
 
             {/* Ações (fixas no rodapé) */}
-            <div className="ui-modal__footer flex-shrink-0">
-              <Button intent="ghost" className="flex-1" onClick={() => setShowModal(false)}>Cancelar</Button>
-              <Button intent="primary" className="flex-1" disabled={!canEvolve} onClick={() => { onEvolve?.(); setShowModal(false); }}>
+            <div className="ui-modal__footer relative z-10 flex-shrink-0">
+              <Button type="button" intent="ghost" className="flex-1" onClick={() => setShowModal(false)}>Cancelar</Button>
+              <Button type="button" intent="primary" className="flex-1" disabled={!canEvolve} onClick={() => { onEvolve?.(); setShowModal(false); }}>
                 Confirmar (−{PRIME_COST} pts)
               </Button>
             </div>

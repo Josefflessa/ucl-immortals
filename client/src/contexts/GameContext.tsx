@@ -887,6 +887,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         freeKickTaker: state.freeKickTaker ?? undefined,
         totalChemistry: chemData.total,
         isBot: false,
+        credits: state.points,
         crestId: state.selectedCrestId ?? undefined,
       };
 
@@ -969,7 +970,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SIMULATE_LEAGUE': {
       if (!state.playerTeam) return state;
       // Deprecated, but keep as fallback to instantly simulate remaining rounds
-      const allTeams = [state.playerTeam, ...state.botTeams];
+      const allTeams = [{ ...state.playerTeam, credits: state.points }, ...state.botTeams];
       const newlySimulatedResults: Array<{ fixture: LeagueFixture; result: MatchResult }> = [];
       const updatedFixtures = state.leagueFixtures.map(f => {
         if (f.played) return f;
@@ -1032,6 +1033,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       if (!homeTeam || !awayTeam) return state;
 
+      // Estribado uses the owner's current shop balance. Hydrate the local team
+      // immediately before a match so spending/earning credits cannot leave a
+      // stale balance inside the match snapshot.
+      const hydrateCredits = (team: Team): Team =>
+        team.id === state.playerTeam?.id ? { ...team, credits: state.points } : team;
+      homeTeam = hydrateCredits(homeTeam);
+      awayTeam = hydrateCredits(awayTeam);
+
       // 🟨🟥🩹 Resolve as escalações contra a disciplina (suspensos/lesionados fora; reserva promovido).
       const rHome = resolveAvailableLineup(homeTeam, state.discipline).team;
       const rAway = resolveAvailableLineup(awayTeam, state.discipline).team;
@@ -1072,7 +1081,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
 
       if (!state.playerTeam) return state;
-      const allTeams = [state.playerTeam, ...state.botTeams];
+      const allTeams = [{ ...state.playerTeam, credits: state.points }, ...state.botTeams];
       const playerFixture = state.leagueFixtures.find(f =>
         f.round === state.leagueRound
         && (f.homeTeamId === state.playerTeam!.id || f.awayTeamId === state.playerTeam!.id)
@@ -1172,6 +1181,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
         );
       });
+      const nextPoints = state.points + earnedPoints + betWinnings;
 
       return {
         ...state,
@@ -1183,19 +1193,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatchTeams: null,
         currentMatchResult: null,
         reinforcementOptions,
-        points: state.points + earnedPoints + betWinnings,
+        points: nextPoints,
         lastMatchPoints: rewards.pointsEnabled ? (magMult > 1 ? { ...matchPoints, total: earnedPoints } : matchPoints) : null,
         bets: settledBets,
         discipline: disc.next,
         // ⭐ +1 jogo pros 11 titulares do jogador (progresso pra Carta Evoluída).
-        playerTeam: updatedPlayerTeam,
+        playerTeam: { ...updatedPlayerTeam, credits: nextPoints },
         botTeams: updatedBotTeams,
       };
     }
 
     case 'SIMULATE_BOT_MATCHES': {
       if (!state.playerTeam) return state;
-      const allTeams = [state.playerTeam, ...state.botTeams];
+      const allTeams = [{ ...state.playerTeam, credits: state.points }, ...state.botTeams];
       const newlySimulatedResults: MatchResult[] = [];
       const allFixtures = state.leagueFixtures.map(f => {
         if (f.round === state.leagueRound && !f.played) {

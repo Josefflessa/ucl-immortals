@@ -603,11 +603,11 @@ export default function MatchSimPage() {
     const defendCoach = COACHES.find(c => c.id === defendTeam.coachId)!;
     // Same model as the engine/auto shootout: EFFECTIVE composure (+ traits + designated bonus)
     // vs the keeper's EFFECTIVE shot-stopping.
-    const composure = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', getChemistryBonus(attackTeam.totalChemistry), attackTeam.playStyle ?? 'balanced')
+    const composure = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', getChemistryBonus(attackTeam.totalChemistry), attackTeam.playStyle ?? 'balanced', { credits: attackTeam.credits })
       + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
     const gkReflexes = goalkeeperShotStoppingRating(
       gk,
-      getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', getChemistryBonus(defendTeam.totalChemistry), defendTeam.playStyle ?? 'balanced', { role: 'GK' }),
+      getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', getChemistryBonus(defendTeam.totalChemistry), defendTeam.playStyle ?? 'balanced', { role: 'GK', credits: defendTeam.credits }),
       gk.traits,
     );
     const isGoal = Math.random() < penaltyGoalChance(composure, gkReflexes);

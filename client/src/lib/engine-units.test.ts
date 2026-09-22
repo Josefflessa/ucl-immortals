@@ -16,6 +16,7 @@ import {
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
   getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, EVOLVE_GAMES, EVOLVE_POINTS,
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost, GOLEADOR_GOALS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, goleadorStatBoost, garcomStatBoost,
+  ESTRIBADO_CREDITS_PER_BOOST, ESTRIBADO_STAT_BOOST, estribadoStatBoost,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
   draftSlotIndex, getNeededPositions, DRAFT_RARITY_CHANCES,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture, type MatchEvent,
@@ -556,7 +557,7 @@ describe('🧳 Forasteiro — +8 como único do país E do clube', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🧩 Colecionador — +2 por jogador na reserva', () => {
+describe('🧩 Colecionador — +1 por jogador na reserva', () => {
   it('usa a quantidade de jogadores presentes na reserva', () => {
     const collector = mkP({ id: 'collector', colecionador: true, club: 'Clube A' });
     const xi = [
@@ -952,8 +953,8 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.pace - src.pace).toBe(delta);
     expect(v.lobo).toBe(true);
   });
-  it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente) leave stats untouched', () => {
-    for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente'] as const) {
+  it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente / estribado) leave stats untouched', () => {
+    for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente', 'estribado'] as const) {
       const v = applyShopVariant(src, key);
       expect((v as Record<string, unknown>)[key]).toBe(true);
       expect(v.overall).toBe(src.overall);
@@ -987,5 +988,26 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(creator.garcomMatchIds).toEqual([]);
     expect(goleadorStatBoost(scorer.goleadorGoals)).toBe(2);
     expect(garcomStatBoost(creator.garcomAssists)).toBe(4);
+  });
+  it('🛡️ Estribado calcula +1 em tudo por cada 100 créditos atuais', () => {
+    const v = applyShopVariant(src, 'estribado');
+    const noChem = { passing: 0, pace: 0, special: 0 };
+
+    expect(v.estribado).toBe(true);
+    expect(ESTRIBADO_CREDITS_PER_BOOST).toBe(100);
+    expect(ESTRIBADO_STAT_BOOST).toBe(1);
+    expect(estribadoStatBoost(99)).toBe(0);
+    expect(estribadoStatBoost(100)).toBe(1);
+    expect(estribadoStatBoost(299)).toBe(2);
+    expect(estribadoStatBoost(300)).toBe(3);
+
+    const base = getEffectiveAttribute(card(src), 'pace', COACHES[0], 'Criação', noChem, 'balanced', { credits: 0 });
+    const boosted = getEffectiveAttribute(card(v), 'pace', COACHES[0], 'Criação', noChem, 'balanced', { credits: 250 });
+    expect(boosted - base).toBe(2);
+
+    const plainStats = getPlayerEffectiveStats(src, 0, false, '', 0, '__neutral__', { credits: 0 });
+    const boostedStats = getPlayerEffectiveStats(v, 0, false, '', 0, '__neutral__', { credits: 250 });
+    expect(boostedStats.breakdown.pace.estribado).toBe(2);
+    expect(boostedStats.overall - plainStats.overall).toBe(2);
   });
 });

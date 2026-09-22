@@ -212,6 +212,8 @@ export interface Team {
   totalChemistry: number;
   isBot: boolean;
   botStrength?: number;
+  /** Shop-credit balance used by balance-sensitive card characteristics. */
+  credits?: number;
   crestId?: string; // selected club crest (see lib/crests.ts); undefined → initials badge
 }
 
@@ -642,6 +644,7 @@ export interface StatBreakdown {
   resiliente: number; // 🔥 Resiliente — +2 em tudo por derrota do time
   goleador: number;   // ⚽ Goleador — +1 em tudo a cada 3 gols marcados
   garcom: number;     // 🎯 Garçom — +1 em tudo a cada 2 assistências dadas
+  estribado: number;  // 🛡️ Estribado — +1 em tudo a cada 100 créditos disponíveis
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
@@ -872,6 +875,8 @@ export function getPlayerEffectiveStats(
     captainBoost?: { stat: string; amount: number };
     // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
     charBoosts?: CharBoostMap;
+    // 🛡️ Estribado reads the owner's current shop-credit balance at runtime.
+    credits?: number;
     // 🔁 jogando numa posição SECUNDÁRIA (−5%). Mantém a química (só o OOP zera).
     isSecondary?: boolean;
   }
@@ -925,6 +930,7 @@ export function getPlayerEffectiveStats(
   // authoritative cumulative match stats.
   const goleadorBonus = (_attr: AttrKey): number => player.goleador ? goleadorStatBoost(player.goleadorGoals) : 0;
   const garcomBonus = (_attr: AttrKey): number => player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
+  const estribadoBonus = (_attr: AttrKey): number => player.estribado ? estribadoStatBoost(context?.credits) : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing THIS player (Mártir/Ídolo/12º Homem).
   const charB = context?.charBoosts?.[player.id];
@@ -935,7 +941,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + estribadoBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -973,6 +979,7 @@ export function getPlayerEffectiveStats(
     resiliente: resilienteBonus(attr),
     goleador: goleadorBonus(attr),
     garcom: garcomBonus(attr),
+    estribado: estribadoBonus(attr),
     char: charBonus(attr),
   });
 
@@ -1073,7 +1080,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     if (!p?.decimoHomem) continue;
     for (const mate of xi) contribute(mate.id, { type: 'decimoHomem', fromId: p.id, fromName: p.shortName, flatAll: 0, perStat: { composure: 4, vision: 4 } });
   }
-  // 🧩 Colecionador — titular recebe +2 em tudo por cada jogador que estiver na reserva.
+  // 🧩 Colecionador — titular recebe +1 em tudo por cada jogador que estiver na reserva.
   const reservePlayerCount = players.slice(11).filter((p): p is Player => !!p).length;
   for (const c of xi) {
     if (!c.colecionador) continue;
@@ -1148,6 +1155,7 @@ export function getTeamEffectiveStats(
         role: options.roleOverrides?.[player.id]
           ?? (isStarter ? (formationRoles[index] ?? player.position) : player.position),
         isSecondary: isStarter ? (chemistry.secondaryPos[player.id] ?? false) : false,
+        credits: team.credits,
       },
     );
     return [player.id, effective];
@@ -1177,6 +1185,7 @@ export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): 
       captainBoost,
       charBoosts,
       role: formationRoleForPlayer(team, p),
+      credits: team.credits,
     });
   return pool.reduce((s, p) => s + eff(p as PlayerCard, 'passing') * 0.65 + eff(p as PlayerCard, 'vision') * 0.35, 0) / pool.length;
 }
@@ -1279,6 +1288,8 @@ export function getEffectiveAttribute(
     captainBoost?: { stat: string; amount: number };
     // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
     charBoosts?: CharBoostMap;
+    // 🛡️ Estribado reads the owner's current shop-credit balance at runtime.
+    credits?: number;
     // 🏟️ Estádio Prime do mandante (só setado pro time da casa) — buff temático nos 2 atributos.
     homeStadium?: Stadium;
   }
@@ -1335,6 +1346,7 @@ export function getEffectiveAttribute(
   // acumulados enquanto a carta carrega a característica.
   base += player.goleador ? goleadorStatBoost(player.goleadorGoals) : 0;
   base += player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
+  base += player.estribado ? estribadoStatBoost(context?.credits) : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
   const cb = context?.charBoosts?.[player.id];
@@ -2142,8 +2154,8 @@ export function runMatchSimulation(
 
     const homeIsLosing = homeGoals < awayGoals;
     const awayIsLosing = awayGoals < homeGoals;
-    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, homeStadium: neutralFinal ? undefined : stadiumFor(home.coachId, !!home.coachPrime) };
-    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts };
+    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, credits: home.credits, homeStadium: neutralFinal ? undefined : stadiumFor(home.coachId, !!home.coachPrime) };
+    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts, credits: away.credits };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
     const playerContext = (team: Team, player: PlayerCard, ctx: typeof attackCtx) => ({
@@ -3085,6 +3097,7 @@ export function calculateTeamStrength(
       captainBoost,
       charBoosts,
       role,
+      credits: team.credits,
     }) - debuff;
     // GKs are evaluated on shot-stopping attributes (defending + physical), not the outfield
     // blend that low shooting/dribbling would distort. Outfielders use the six core stats PLUS
@@ -3180,15 +3193,17 @@ type PenCtx = {
   coach: Coach;
   chem: { passing: number; pace: number; special: number };
   playStyle: string;
+  credits?: number;
   role?: string;
   emergencyGoalkeeper?: boolean;
 };
 function penaltyKickGoal(taker: PlayerCard, takerCtx: PenCtx, gk: PlayerCard, gkCtx: PenCtx, designatedTakerId: string): boolean {
-  const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle)
+  const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle, { credits: takerCtx.credits })
     + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
   const gkRef = goalkeeperShotStoppingRating(
     gk,
     getEffectiveAttribute(gk, 'defending', gkCtx.coach, 'Defesa', gkCtx.chem, gkCtx.playStyle, {
+      credits: gkCtx.credits,
       role: gkCtx.role ?? 'GK',
     }),
     gk.traits,
@@ -3221,8 +3236,8 @@ export function simulatePenalties(
   const homeTakerId = getPenaltyTaker(home, undefined, _playerStats).id;
   const awayTakerId = getPenaltyTaker(away, undefined, _playerStats).id;
   // Per-team context so each kick uses EFFECTIVE composure/defending (coach, chemistry, traits…).
-  const homeCtx: PenCtx = { coach: COACHES.find(c => c.id === home.coachId)!, chem: getChemistryBonus(home.totalChemistry), playStyle: homePlayStyle };
-  const awayCtx: PenCtx = { coach: COACHES.find(c => c.id === away.coachId)!, chem: getChemistryBonus(away.totalChemistry), playStyle: awayPlayStyle };
+  const homeCtx: PenCtx = { coach: COACHES.find(c => c.id === home.coachId)!, chem: getChemistryBonus(home.totalChemistry), playStyle: homePlayStyle, credits: home.credits };
+  const awayCtx: PenCtx = { coach: COACHES.find(c => c.id === away.coachId)!, chem: getChemistryBonus(away.totalChemistry), playStyle: awayPlayStyle, credits: away.credits };
   const homeGKCtx: PenCtx = { ...homeCtx, role: 'GK', emergencyGoalkeeper: homeGKInfo.emergency };
   const awayGKCtx: PenCtx = { ...awayCtx, role: 'GK', emergencyGoalkeeper: awayGKInfo.emergency };
 
@@ -3318,9 +3333,10 @@ const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
 const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada 2 titularidades
 const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
-const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +2 por jogador na reserva
+const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +1 por jogador na reserva
 const DRAFT_GOLEADOR_CHANCE = 0.03; // ⚽ Goleador — cresce a cada 3 gols marcados
 const DRAFT_GARCOM_CHANCE = 0.03; // 🎯 Garçom — cresce a cada 2 assistências dadas
+const DRAFT_ESTRIBADO_CHANCE = 0.03; // 🛡️ Estribado — +1 por cada 100 créditos disponíveis
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
@@ -3340,8 +3356,14 @@ export const NOE_STAT_BOOST = 10;
 export const NOE_CHEM_BONUS = 30;
 // 🧳 Forasteiro — o anti-química: +8 em tudo quando é o ÚNICO titular do seu país E do seu clube.
 export const FORASTEIRO_STAT_BOOST = 8;
-// 🧩 Colecionador — +2 em todos os atributos por jogador que estiver na reserva.
-export const COLECIONADOR_PER_RESERVE = 2;
+// 🧩 Colecionador — +1 em todos os atributos por jogador que estiver na reserva.
+export const COLECIONADOR_PER_RESERVE = 1;
+// 🛡️ Estribado — +1 em todos os atributos a cada 100 créditos disponíveis.
+export const ESTRIBADO_CREDITS_PER_BOOST = 100;
+export const ESTRIBADO_STAT_BOOST = 1;
+export function estribadoStatBoost(credits?: number): number {
+  return Math.floor(Math.max(0, credits ?? 0) / ESTRIBADO_CREDITS_PER_BOOST) * ESTRIBADO_STAT_BOOST;
+}
 // Single boost value: "em alta" adds this to EVERY attribute. The overall rises by the
 // same amount as a CONSEQUENCE — overall is the mean of the attributes, so +N across all
 // eight is +N overall. That's why it's described to the player simply as "+N em cada atributo".
@@ -3475,6 +3497,10 @@ function applyDraftVariant(p: Player): Player {
   // 🎯 Garçom — starts at zero and grows from the authoritative match stats.
   acc += DRAFT_GARCOM_CHANCE;
   if (r < acc) return { ...p, garcom: true, garcomAssists: 0, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🛡️ Estribado — runtime bonus based on the owner's current credit balance.
+  acc += DRAFT_ESTRIBADO_CHANCE;
+  if (r < acc) return { ...p, estribado: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -3718,7 +3744,7 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(
   player: Player,
-  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom',
+  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom',
   competitionStats: { goals?: number; assists?: number } = {},
 ): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
@@ -3740,7 +3766,7 @@ export function applyShopVariant(
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -3776,7 +3802,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
-  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
+  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
   delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds;
   return p;

@@ -4,7 +4,7 @@
 // team-wide chemistry, the coach, the player's traits (named, with what each grants)
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
-import { EffectiveStats, ChemLinkType, CharBoost, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, prodigioStatBoost } from '../../lib/gameEngine';
+import { EffectiveStats, ChemLinkType, CharBoost, ESTRIBADO_CREDITS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, prodigioStatBoost } from '../../lib/gameEngine';
 import { Player } from '../../lib/gameData';
 import { getCardVariant } from './PlayerCard';
 
@@ -63,7 +63,7 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   colecionador: { icon: '🧩', label: 'COLECIONADOR', color: '#C084FC' },
 };
 
-export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter, formationRole }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean; formationRole?: string }) {
+export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter, formationRole, credits }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean; formationRole?: string; credits?: number }) {
   // 🪑 12º Homem só rende NO BANCO — se estiver jogando, fica sem efeito. Sinaliza esse estado
   // (é a única característica cujo efeito liga/desliga de um jeito contraintuitivo).
   const decimoInactive = !!player?.decimoHomem && isStarter === true;
@@ -82,6 +82,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const resiliente = collect(eff, b => b.resiliente);
   const goleador = collect(eff, b => b.goleador);
   const garcom = collect(eff, b => b.garcom);
+  const estribado = collect(eff, b => b.estribado);
   const position = collect(eff, b => b.position);
   const char = collect(eff, b => b.char);
   const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
@@ -99,6 +100,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const goleadorBoost = goleadorStatBoost(goleadorGoals);
   const garcomAssists = player?.garcomAssists ?? 0;
   const garcomBoost = garcomStatBoost(garcomAssists);
+  const currentCredits = Math.max(0, credits ?? 0);
+  const estribadoBoost = estribadoStatBoost(currentCredits);
   const isOutfieldInGoal = !!player && isOutfieldGoalkeeper(player, formationRole);
   const goalkeeperDefDelta = eff.breakdown.defending.goalkeeper;
   const goalkeeperDefBefore = eff.defending - goalkeeperDefDelta;
@@ -109,7 +112,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || prodigio.length > 0 || resiliente.length > 0 || goleador.length > 0 || garcom.length > 0 || position.length > 0 || char.length > 0 || !!variant || isOutfieldInGoal;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || prodigio.length > 0 || resiliente.length > 0 || goleador.length > 0 || garcom.length > 0 || estribado.length > 0 || position.length > 0 || char.length > 0 || !!variant || isOutfieldInGoal;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -157,6 +160,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.resiliente && <Chip text={`+${(player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST} EM CADA ATRIBUTO (${player.resilienteDefeats ?? 0} DERROTA${(player.resilienteDefeats ?? 0) === 1 ? '' : 'S'} COMO TITULAR)`} color="#FB7185" />}
                 {player.goleador && <Chip text={`+${goleadorBoost} EM CADA ATRIBUTO (${goleadorGoals} GOL${goleadorGoals === 1 ? '' : 'S'} · 1 A CADA ${GOLEADOR_GOALS_PER_BOOST})`} color="#F97316" />}
                 {player.garcom && <Chip text={`+${garcomBoost} EM CADA ATRIBUTO (${garcomAssists} ASSISTÊNCIA${garcomAssists === 1 ? '' : 'S'} · 1 A CADA ${GARCOM_ASSISTS_PER_BOOST})`} color="#38BDF8" />}
+                {player.estribado && <Chip text={`+${estribadoBoost} EM CADA ATRIBUTO (${currentCredits} CRÉDITOS · 1 A CADA ${ESTRIBADO_CREDITS_PER_BOOST})`} color="#FACC15" />}
                 {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
                 {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
                 {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
@@ -173,13 +177,14 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                               : player.pipoqueiro ? '+4 em tudo na FASE DE LIGA, mas −5 em tudo no MATA-MATA. Craque de campeonato que some no jogo grande.'
                                 : player.noe ? 'Só rende enquanto for o ÚNICO titular com característica: +10 em tudo nele e +30 na química geral (põe o time inteiro na arca). Qualquer outro especial no XI desliga.'
                                   : player.forasteiro ? 'Quando é o ÚNICO do seu país E do seu clube no XI, ganha +8 em tudo — transforma a química baixa em vantagem.'
-                                    : player.colecionador ? 'Ganha +2 em tudo por cada jogador que estiver na reserva.'
+                                    : player.colecionador ? 'Ganha +1 em tudo por cada jogador que estiver na reserva.'
                                     : player.capitaoNato ? 'Se for o CAPITÃO do time, o bônus de capitão (a melhor stat dele, dada a todos) vem DOBRADO.'
                                         : player.magnata ? 'Como titular, multiplica os créditos da partida de liga por 1,5 — em troca de −5 em cada atributo nele.'
                                           : player.prodigio ? `+1 em todos os atributos a cada ${PRODIGIO_STARTS_PER_BOOST} partidas iniciadas como titular (${prodigioStarts} titularidade${prodigioStarts === 1 ? '' : 's'}; bônus atual +${prodigioBoost}).`
                                             : player.resiliente ? `A cada derrota do time em que for titular, ganha +${RESILIENTE_DEFEAT_BOOST} em todos os atributos. Já acumulou ${player.resilienteDefeats ?? 0} derrota${(player.resilienteDefeats ?? 0) === 1 ? '' : 's'} como titular.`
                                               : player.goleador ? `A cada ${GOLEADOR_GOALS_PER_BOOST} gols marcados, ganha +1 em todos os atributos. Já marcou ${goleadorGoals} gol${goleadorGoals === 1 ? '' : 's'} e o bônus atual é +${goleadorBoost}.`
                                                 : player.garcom ? `A cada ${GARCOM_ASSISTS_PER_BOOST} assistências dadas, ganha +1 em todos os atributos. Já deu ${garcomAssists} assistência${garcomAssists === 1 ? '' : 's'} e o bônus atual é +${garcomBoost}.`
+                                                  : player.estribado ? `A cada ${ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis, ganha +1 em todos os atributos. Saldo atual: ${currentCredits} créditos; bônus atual +${estribadoBoost}.`
                                         : 'Já no valor base — por isso não aparece como delta acima.'}
               </div>
             </Row>
@@ -359,6 +364,15 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
             </Row>
           )}
 
+          {estribado.length > 0 && (
+            <Row icon="🛡️" name="ESTRIBADO" color="#FACC15">
+              <div className="flex flex-wrap gap-1">{chips(estribado, '#FACC15')}</div>
+              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                +1 em todos os atributos a cada {ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis. Saldo considerado: {currentCredits}.
+              </div>
+            </Row>
+          )}
+
           {/* 🔁 POSIÇÃO — penalidade por jogar fora da nativa (química fica intacta). */}
           {position.length > 0 && (
             <Row icon="🔁" name={positionLabel} color={positionColor}>
@@ -387,7 +401,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                       : src.type === 'idolo' ? `${src.fromName} (Ídolo) do mesmo clube: +2 em cada atributo.`
                         : src.type === 'noe' ? 'Noé ATIVO: é o único titular com característica → +10 em tudo (e +30 na química geral do time).'
                           : src.type === 'forasteiro' ? 'Forasteiro ATIVO: único do seu país e clube no XI → +8 em tudo.'
-                            : src.type === 'colecionador' ? `${src.fromName} (Colecionador): +2 por jogador na reserva → +${src.flatAll} em tudo.`
+                            : src.type === 'colecionador' ? `${src.fromName} (Colecionador): +1 por jogador na reserva → +${src.flatAll} em tudo.`
                               : `${src.fromName} (12º Homem) no banco: +4 compostura e +4 visão.`}
                   </div>
                 </Row>
