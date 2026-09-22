@@ -651,9 +651,9 @@ export default function SquadEditor({
           overlayClassName="bg-black/85"
           closeButtonLabel="Fechar configurações do campo"
           closeButtonClassName="right-3 top-3 flex size-10 items-center justify-center rounded-xl bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
-          className="!left-0 !top-0 !h-dvh !w-screen !max-h-dvh !max-w-none !translate-x-0 !translate-y-0 content-start gap-3 overflow-y-auto rounded-none border-0 bg-[var(--ui-bg-raised)] p-4 text-[var(--ui-text)] shadow-none sm:!left-1/2 sm:!top-1/2 sm:!h-auto sm:!max-h-[min(92dvh,860px)] sm:!w-full sm:!max-w-3xl sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-lg sm:border sm:border-[var(--ui-line)] sm:p-6 sm:shadow-2xl"
+          className="!left-0 !top-0 !h-dvh !w-screen !max-h-dvh !max-w-none !translate-x-0 !translate-y-0 flex min-h-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-[var(--ui-bg-raised)] p-4 text-[var(--ui-text)] shadow-none sm:!left-1/2 sm:!top-1/2 sm:!h-auto sm:!max-h-[min(92dvh,860px)] sm:!w-full sm:!max-w-3xl sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-lg sm:border sm:border-[var(--ui-line)] sm:p-6 sm:shadow-2xl"
         >
-          <DialogHeader className="gap-1 pr-12 text-left">
+          <DialogHeader className="shrink-0 gap-1 pr-12 pb-4 text-left">
             <DialogTitle className="font-display text-2xl tracking-wide text-[var(--ui-brand-strong)] sm:text-3xl">
               {fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : fieldSettingsPanel === 'tactic' ? 'TÁTICA DO TIME' : 'TÉCNICO & ESTÁDIO'}
             </DialogTitle>
@@ -665,21 +665,23 @@ export default function SquadEditor({
                   : 'Confira o técnico, o estádio e os efeitos ativos do seu time.'}
             </p>
           </DialogHeader>
-          {fieldSettingsPanel === 'formation' ? (
-            <FormationSelector value={formationId} onChange={onSetFormation} />
-          ) : fieldSettingsPanel === 'tactic' ? (
-            <TacticSelector value={playStyle} onChange={onSetPlayStyle} />
-          ) : coach ? (
-            <CoachStadiumPanel
-              coach={coach}
-              formation={formation}
-              coachPrime={!!coachPrime}
-              stadium={coachStadium}
-              wins={wins}
-              points={points}
-              onEvolve={onEvolvePrime}
-            />
-          ) : null}
+          <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 touch-pan-y">
+            {fieldSettingsPanel === 'formation' ? (
+              <FormationSelector value={formationId} onChange={onSetFormation} />
+            ) : fieldSettingsPanel === 'tactic' ? (
+              <TacticSelector value={playStyle} onChange={onSetPlayStyle} />
+            ) : coach ? (
+              <CoachStadiumPanel
+                coach={coach}
+                formation={formation}
+                coachPrime={!!coachPrime}
+                stadium={coachStadium}
+                wins={wins}
+                points={points}
+                onEvolve={onEvolvePrime}
+              />
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
 

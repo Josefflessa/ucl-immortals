@@ -31,7 +31,7 @@ function Req({ ok, label }: { ok: boolean; label: string }) {
 // Uma linha de transição "antes → depois" com fotos.
 function TransitionRow({ label, before, beforeCaption, after, afterCaption }: { label: string; before: React.ReactNode; beforeCaption: string; after: React.ReactNode; afterCaption: string }) {
   return (
-    <div>
+    <div className="min-w-0 shrink-0">
       <div className="text-[10px] font-black tracking-widest mb-1.5" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{label}</div>
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0 text-center">
@@ -51,7 +51,7 @@ function TransitionRow({ label, before, beforeCaption, after, afterCaption }: { 
 // Uma linha de mudança "de → para".
 function ChangeRow({ icon, label, from, to, last }: { icon: string; label: string; from: string; to: string; last?: boolean }) {
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2" style={{ borderBottom: last ? 'none' : '1px solid #14141F' }}>
+    <div className="flex min-w-0 shrink-0 items-center gap-2.5 px-3 py-2" style={{ borderBottom: last ? 'none' : '1px solid #14141F' }}>
       <span className="text-sm flex-shrink-0">{icon}</span>
       <div className="min-w-0 flex-1">
         <div className="text-[9px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{label}</div>
@@ -162,8 +162,8 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
           showCloseButton={false}
           disableAnimation
           overlayClassName="z-[100] bg-[rgba(4,7,14,0.9)]"
-          className="ui-modal z-[101] flex max-h-[calc(100dvh-2rem)] max-w-md flex-col gap-0 overflow-hidden p-0"
-          style={{ height: 'min(720px, calc(100dvh - 2rem))' }}
+          className="ui-modal z-[101] flex min-h-0 max-h-[calc(100dvh-1rem)] max-w-md flex-col gap-0 overflow-hidden p-0"
+          style={{ height: 'min(720px, calc(100dvh - 1rem))', maxHeight: 'calc(100dvh - 1rem)' }}
         >
             {/* Header */}
             <div className="ui-modal__header flex-shrink-0 justify-start">
@@ -175,7 +175,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             </div>
 
             {/* Corpo rolável */}
-            <div className="ui-modal__body ui-stack min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y">
+            <div className="ui-modal__body ui-stack min-h-0 min-w-0 flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y">
               {/* Transição do técnico */}
               <TransitionRow
                 label="TÉCNICO"
@@ -203,7 +203,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
               />
 
               {/* Mudanças detalhadas */}
-              <div className="ui-panel ui-panel--inset overflow-hidden">
+              <div className="ui-panel ui-panel--inset min-w-0 shrink-0 overflow-hidden">
                 <div className="ui-panel__header py-2 text-[var(--ui-brand-strong)]">O que muda</div>
                 <ChangeRow icon="🏟️" label="Estádio" from="Padrão" to={primeStadium.name} />
                 <ChangeRow icon="🏠" label="Vantagem em casa" from={`+${DEFAULT_STADIUM.homeAttrBonus} em tudo`} to={`+${primeStadium.homeAttrBonus} em tudo`} />
