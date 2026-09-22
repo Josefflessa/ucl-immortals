@@ -16,6 +16,7 @@ import {
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
   getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, EVOLVE_GAMES, EVOLVE_POINTS,
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost, GOLEADOR_GOALS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, goleadorStatBoost, garcomStatBoost,
+  ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, arroganteStatBoost, arroganteTeamPenalty,
   ESTRIBADO_CREDITS_PER_BOOST, ESTRIBADO_STAT_BOOST, estribadoStatBoost,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
   draftSlotIndex, getNeededPositions, DRAFT_RARITY_CHANCES,
@@ -332,6 +333,35 @@ describe('⭐ cartas evoluídas', () => {
     const boostedShooting = getEffectiveAttribute(once.players[0], 'shooting', COACHES[0], '', noChem, 'balanced', {});
     const baseShooting = getEffectiveAttribute(card(mkP()), 'shooting', COACHES[0], '', noChem, 'balanced', {});
     expect(boostedShooting - baseShooting).toBe(1);
+  });
+  it('Arrogante cresce por gol e penaliza somente os outros titulares, sem duplicar', () => {
+    const arrogant = mkP({ arrogante: true, arroganteGoals: 0 });
+    const teammate = mkP();
+    const home = mkTeam('T', [arrogant, teammate, ...Array.from({ length: 9 }, () => mkP())]);
+    const match = {
+      ...result('T', 'A', 2, 0),
+      playerStats: {
+        [`T::${arrogant.id}`]: { playerId: arrogant.id, playerName: arrogant.shortName, teamId: 'T', rating: 8, goals: 2, assists: 0, shots: 2, tackles: 0, saves: 0, fouls: 0, yellowCards: 0, redCards: 0, keyPasses: 0, interceptions: 0, shotsOnTarget: 2 },
+      },
+    };
+    const once = applyMatchStatGrowth(home, match, 'L1:T-A');
+    const duplicate = applyMatchStatGrowth(once, match, 'L1:T-A');
+    expect(once.players[0].arroganteGoals).toBe(2);
+    expect(duplicate.players[0].arroganteGoals).toBe(2);
+    expect(ARROGANTE_STAT_BOOST_PER_GOAL).toBe(2);
+    expect(ARROGANTE_GOALS_PER_PENALTY).toBe(2);
+    expect(arroganteStatBoost(2)).toBe(4);
+    expect(arroganteTeamPenalty(1)).toBe(0);
+    expect(arroganteTeamPenalty(2)).toBe(1);
+    expect(arroganteTeamPenalty(4)).toBe(2);
+
+    const boosts = computeCharacteristicBoosts(once.players);
+    expect(boosts[arrogant.id]).toBeUndefined();
+    expect(boosts[teammate.id]?.flatAll).toBe(-1);
+    const arrogantEffective = getPlayerEffectiveStats(once.players[0], 0, false, COACHES[0].id, 0, 'balanced', { charBoosts: boosts });
+    const teammateEffective = getPlayerEffectiveStats(once.players[1], 0, false, COACHES[0].id, 0, 'balanced', { charBoosts: boosts });
+    expect(arrogantEffective.breakdown.pace.arrogante).toBe(4);
+    expect(teammateEffective.breakdown.pace.char).toBe(-1);
   });
 });
 
@@ -953,8 +983,8 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.pace - src.pace).toBe(delta);
     expect(v.lobo).toBe(true);
   });
-  it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente / estribado) leave stats untouched', () => {
-    for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente', 'estribado'] as const) {
+  it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente / estribado / arrogante) leave stats untouched', () => {
+    for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente', 'estribado', 'arrogante'] as const) {
       const v = applyShopVariant(src, key);
       expect((v as Record<string, unknown>)[key]).toBe(true);
       expect(v.overall).toBe(src.overall);
@@ -988,6 +1018,14 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(creator.garcomMatchIds).toEqual([]);
     expect(goleadorStatBoost(scorer.goleadorGoals)).toBe(2);
     expect(garcomStatBoost(creator.garcomAssists)).toBe(4);
+  });
+  it('👑 Arrogante começa com os gols já feitos na competição', () => {
+    const arrogant = applyShopVariant(src, 'arrogante', { goals: 3 });
+    expect(arrogant.arrogante).toBe(true);
+    expect(arrogant.arroganteGoals).toBe(3);
+    expect(arrogant.arroganteMatchIds).toEqual([]);
+    expect(arroganteStatBoost(arrogant.arroganteGoals)).toBe(6);
+    expect(arroganteTeamPenalty(arrogant.arroganteGoals)).toBe(1);
   });
   it('🛡️ Estribado calcula +1 em tudo por cada 100 créditos atuais', () => {
     const v = applyShopVariant(src, 'estribado');

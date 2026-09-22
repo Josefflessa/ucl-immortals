@@ -1513,17 +1513,12 @@ export default function MatchSimPage() {
       </div>
 
       {/* ── 4. SQUAD MODAL ── */}
-      <AnimatePresence>
-        {squadModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }}>
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 14 }}
-              transition={{ duration: 0.18 }}
-              className="bg-[#0b0b14] border rounded-2xl p-4 sm:p-5 max-w-lg w-full max-h-[90vh] flex flex-col"
-              style={{ borderColor: squadModal === 'mine' ? '#c9a84c55' : '#6366f155' }}
-            >
+      {squadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }}>
+          <div
+            className="bg-[#0b0b14] border rounded-2xl p-4 sm:p-5 max-w-lg w-full max-h-[90vh] flex flex-col"
+            style={{ borderColor: squadModal === 'mine' ? '#c9a84c55' : '#6366f155' }}
+          >
               <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <div>
                   <h3 className="text-xl font-black tracking-widest uppercase" style={{
@@ -1574,14 +1569,14 @@ export default function MatchSimPage() {
                       isKnockout={isKnockout}
                       isFinal={isFinal}
                       isLosing={t.id === homeTeam.id ? homeScore < awayScore : awayScore < homeScore}
+                      disableEntryAnimation
                     />
                   );
                 })()}
               </div>
-            </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
       {/* ── 5. PENALTY SHOOTOUT OVERLAY ── */}
       <AnimatePresence>

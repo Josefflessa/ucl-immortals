@@ -38,6 +38,12 @@ function ModalScrollLock() {
       bodyOverflow: body.style.overflow,
       bodyPaddingRight: body.style.paddingRight,
     };
+    // Modern browsers can reserve the scrollbar gutter even while overflow is
+    // locked. When that is available, changing modal state no longer changes
+    // the page width, so the shop grid does not need a forced repaint.
+    const hasStableScrollbarGutter = typeof CSS !== 'undefined'
+      && typeof CSS.supports === 'function'
+      && CSS.supports('scrollbar-gutter: stable');
     let locked = false;
 
     const scrollbarCompensation = () => Math.max(0, window.innerWidth - html.clientWidth);
@@ -48,15 +54,19 @@ function ModalScrollLock() {
       if (next) {
         // Keep the document in its normal flow. Fixing the body and restoring
         // it with window.scrollTo caused the whole home screen to repaint/
-        // flash whenever a modal was closed. Compensate for the disappearing
-        // scrollbar instead, so the layout width stays stable.
-        const currentPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
-        const scrollbarWidth = scrollbarCompensation();
+        // flash whenever a modal was closed. Keep a stable gutter when the
+        // browser supports it; older browsers use the measured fallback.
         html.style.overflow = 'hidden';
         body.style.overflow = 'hidden';
-        body.style.paddingRight = scrollbarWidth > 0
-          ? `${currentPaddingRight + scrollbarWidth}px`
-          : previous.bodyPaddingRight;
+        if (hasStableScrollbarGutter) {
+          body.style.paddingRight = previous.bodyPaddingRight;
+        } else {
+          const currentPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+          const scrollbarWidth = scrollbarCompensation();
+          body.style.paddingRight = scrollbarWidth > 0
+            ? `${currentPaddingRight + scrollbarWidth}px`
+            : previous.bodyPaddingRight;
+        }
         return;
       }
       html.style.overflow = previous.htmlOverflow;

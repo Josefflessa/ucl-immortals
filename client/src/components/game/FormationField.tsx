@@ -82,6 +82,8 @@ interface FormationFieldProps {
   assistsByPlayer?: Record<string, number>;
   // 🟨🟥🩹 Disciplina/lesão por jogador (durante a partida). Expulso é escurecido + 🟥; lesionado 🩹.
   disciplineByPlayer?: Record<string, { yellow: number; red: boolean; injury: boolean }>;
+  // Match squad modal: render the field immediately instead of animating each slot.
+  disableEntryAnimation?: boolean;
   // When the starting goalkeeper is sent off, the match engine keeps the XI order
   // for identity but moves a line player into the goal. The field mirrors that
   // state: the emergency keeper occupies the GK slot and his old slot is empty.
@@ -131,6 +133,7 @@ export default function FormationField({
   assistsByPlayer,
   disciplineByPlayer,
   emergencyGoalkeeper,
+  disableEntryAnimation = false,
 }: FormationFieldProps) {
   const fieldRef = useRef<HTMLDivElement>(null);
   const fieldId = useId().replace(/:/g, '');
@@ -516,9 +519,9 @@ export default function FormationField({
                 } : {}),
               }}
               transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: index * 0.04, duration: 0.2 }}
+              initial={disableEntryAnimation ? false : { opacity: 0, scale: 0.92 }}
+              animate={disableEntryAnimation ? undefined : { opacity: 1, scale: 1 }}
+              transition={disableEntryAnimation ? undefined : { delay: index * 0.04, duration: 0.2 }}
               draggable={canUseNativeDrag && !!player}
               // Use the native capture handlers because Framer Motion reserves
               // onDragStart/onDragEnd for its own pointer-drag API.
@@ -652,9 +655,9 @@ export default function FormationField({
             style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: photoSize }}
             // Centre the token on its (%) point, then layer framer's scale on top.
             transformTemplate={(_, generated) => `translate(-50%, calc(-50% - ${compact ? 8 : 10}px)) ${generated}`}
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: index * 0.04, duration: 0.2 }}
+            initial={disableEntryAnimation ? false : { opacity: 0, scale: 0.5 }}
+            animate={disableEntryAnimation ? undefined : { opacity: 1, scale: 1 }}
+            transition={disableEntryAnimation ? undefined : { delay: index * 0.04, duration: 0.2 }}
             onClick={() => player && onPlayerClick?.(player, index)}
           >
             {/* Player circle (relative so the rating / goal badges can overlay it in match mode) */}

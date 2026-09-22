@@ -1,7 +1,7 @@
 import { useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
-import { getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, PRODIGIO_STARTS_PER_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
+import { arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, PRODIGIO_STARTS_PER_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { canonicalClubName, crestIdForClub } from '../../lib/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -936,7 +936,7 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
 // special card is unmistakable: ⚡ Em alta (verde) · 🐺 Lobo (roxo) · 🃏 Coringa (vermelho)
 // · 🌍 Nômade (azul) · 🧱 Pilar (branco).
 // `treatment` drives a DISTINCT visual family: the 5 original variants share the rotating conic
-// ring; the 3 team-effect ones (Mártir/Ídolo/12º Homem) get their own looks (pulse / halo / calm).
+// ring; the team-effect ones (Mártir/Ídolo/12º Homem/Arrogante) get their own looks.
 type VariantTreatment = 'ring' | 'pulse' | 'halo' | 'calm';
 const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string; treatment: VariantTreatment }> = {
   inForm: { color: '#39FF14', icon: '⚡', label: 'EM ALTA', treatment: 'ring' },
@@ -951,15 +951,16 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   noe: { color: '#22D3EE', icon: '🛟', label: 'NOÉ', treatment: 'ring' },
   forasteiro: { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
   colecionador: { color: '#C084FC', icon: '🧩', label: 'COLECIONADOR', treatment: 'ring' },
-  estribado: { color: '#FACC15', icon: '🛡️', label: 'ESTRIBADO', treatment: 'ring' },
+  estribado: { color: '#FACC15', icon: '💰', label: 'ESTRIBADO', treatment: 'ring' },
   capitaoNato: { color: '#F97316', icon: '🗣️', label: 'CAPITÃO NATO', treatment: 'ring' },
   magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
   prodigio: { color: '#FDE047', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
   resiliente: { color: '#FB7185', icon: '🔥', label: 'RESILIENTE', treatment: 'pulse' },
   goleador: { color: '#F97316', icon: '⚽', label: 'GOLEADOR', treatment: 'pulse' },
   garcom: { color: '#38BDF8', icon: '🎯', label: 'GARÇOM', treatment: 'ring' },
+  arrogante: { color: '#E879F9', icon: '👑', label: 'ARROGANTE', treatment: 'pulse' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -1004,6 +1005,10 @@ function variantDesc(player: Player): string {
   if (player.garcom) {
     const assists = player.garcomAssists ?? 0;
     return `GARÇOM: +${garcomStatBoost(assists)} em cada atributo · +1 a cada ${GARCOM_ASSISTS_PER_BOOST} assistências (${assists} acumulada${assists === 1 ? '' : 's'})`;
+  }
+  if (player.arrogante) {
+    const goals = player.arroganteGoals ?? 0;
+    return `ARROGANTE: +${arroganteStatBoost(goals)} em cada atributo · −${arroganteTeamPenalty(goals)} nos outros titulares a cada ${ARROGANTE_GOALS_PER_PENALTY} gols (${goals} acumulado${goals === 1 ? '' : 's'})`;
   }
   return '';
 }

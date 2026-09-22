@@ -207,6 +207,8 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Keep the layout width stable while a modal locks page scrolling. */
+  scrollbar-gutter: stable;
   /* 📱 Impede o "pull-to-refresh" (arrastar pra baixo recarrega sem querer) e o
      efeito de elástico no mobile — sem atrapalhar a rolagem normal da página. */
   overscroll-behavior-y: none;

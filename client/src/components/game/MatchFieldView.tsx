@@ -18,6 +18,7 @@ interface MatchFieldViewProps {
   isKnockout?: boolean;
   isFinal?: boolean;
   isLosing?: boolean;
+  disableEntryAnimation?: boolean;
 }
 
 function Chip({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
@@ -35,7 +36,7 @@ function Chip({ icon, label, value, color }: { icon: string; label: string; valu
   );
 }
 
-export default function MatchFieldView({ team, activePlayStyle, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent, isKnockout, isFinal, isLosing }: MatchFieldViewProps) {
+export default function MatchFieldView({ team, activePlayStyle, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent, isKnockout, isFinal, isLosing, disableEntryAnimation = false }: MatchFieldViewProps) {
   const formation = FORMATIONS.find(f => f.id === team.formationId) ?? FORMATIONS[0];
   const coach = COACHES.find(c => c.id === team.coachId);
   const tactic = getTacticById(activePlayStyle ?? team.playStyle);
@@ -155,6 +156,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
         goalsByPlayer={goalsByPlayer}
         assistsByPlayer={assistsByPlayer}
         disciplineByPlayer={disciplineByPlayer}
+        disableEntryAnimation={disableEntryAnimation}
         emergencyGoalkeeper={emergencyGoalkeeper}
         effectiveStats={effectiveStats}
       />

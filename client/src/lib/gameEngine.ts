@@ -449,6 +449,14 @@ export function applyMatchStatGrowth(team: Team, result: MatchResult, matchId = 
         changed = true;
       }
     }
+    if (player.arrogante) {
+      const receipts = Array.isArray(player.arroganteMatchIds) ? player.arroganteMatchIds : [];
+      if (!receipts.includes(matchId)) {
+        next.arroganteGoals = (player.arroganteGoals ?? 0) + Math.max(0, stat.goals ?? 0);
+        next.arroganteMatchIds = Array.from(new Set([...receipts, matchId])).slice(-64);
+        changed = true;
+      }
+    }
     return next;
   });
 
@@ -644,7 +652,8 @@ export interface StatBreakdown {
   resiliente: number; // 🔥 Resiliente — +2 em tudo por derrota do time
   goleador: number;   // ⚽ Goleador — +1 em tudo a cada 3 gols marcados
   garcom: number;     // 🎯 Garçom — +1 em tudo a cada 2 assistências dadas
-  estribado: number;  // 🛡️ Estribado — +1 em tudo a cada 100 créditos disponíveis
+  arrogante: number;  // 👑 Arrogante — +2 em tudo por gol; −1 nos outros titulares a cada 2 gols
+  estribado: number;  // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
   char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
 }
 
@@ -875,7 +884,7 @@ export function getPlayerEffectiveStats(
     captainBoost?: { stat: string; amount: number };
     // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
     charBoosts?: CharBoostMap;
-    // 🛡️ Estribado reads the owner's current shop-credit balance at runtime.
+    // 💰 Estribado reads the owner's current shop-credit balance at runtime.
     credits?: number;
     // 🔁 jogando numa posição SECUNDÁRIA (−5%). Mantém a química (só o OOP zera).
     isSecondary?: boolean;
@@ -930,6 +939,7 @@ export function getPlayerEffectiveStats(
   // authoritative cumulative match stats.
   const goleadorBonus = (_attr: AttrKey): number => player.goleador ? goleadorStatBoost(player.goleadorGoals) : 0;
   const garcomBonus = (_attr: AttrKey): number => player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
+  const arroganteBonus = (_attr: AttrKey): number => player.arrogante ? arroganteStatBoost(player.arroganteGoals) : 0;
   const estribadoBonus = (_attr: AttrKey): number => player.estribado ? estribadoStatBoost(context?.credits) : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing THIS player (Mártir/Ídolo/12º Homem).
@@ -941,7 +951,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + estribadoBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -979,6 +989,7 @@ export function getPlayerEffectiveStats(
     resiliente: resilienteBonus(attr),
     goleador: goleadorBonus(attr),
     garcom: garcomBonus(attr),
+    arrogante: arroganteBonus(attr),
     estribado: estribadoBonus(attr),
     char: charBonus(attr),
   });
@@ -1042,7 +1053,7 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'arrogante'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
@@ -1085,6 +1096,18 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
   for (const c of xi) {
     if (!c.colecionador) continue;
     contribute(c.id, { type: 'colecionador', fromId: c.id, fromName: c.shortName, flatAll: reservePlayerCount * COLECIONADOR_PER_RESERVE, perStat: {}, self: true });
+  }
+  // 👑 Arrogante — brilha individualmente, mas a cada 2 gols cobra −1 em tudo
+  // dos OUTROS titulares. O próprio arrogante nunca recebe essa penalidade.
+  for (const a of xi) {
+    if (!a.arrogante) continue;
+    const penalty = arroganteTeamPenalty(a.arroganteGoals);
+    if (penalty === 0) continue;
+    for (const mate of xi) {
+      if (mate.id !== a.id) {
+        contribute(mate.id, { type: 'arrogante', fromId: a.id, fromName: a.shortName, flatAll: -penalty, perStat: {} });
+      }
+    }
   }
   // 🛟 Noé — SÓ rende se ele é o ÚNICO titular do XI com característica: +10 em tudo NELE.
   // (o +30 de química vive em calculateChemistry). Dois Noés no XI se cancelam (nenhum é "o único").
@@ -1288,7 +1311,7 @@ export function getEffectiveAttribute(
     captainBoost?: { stat: string; amount: number };
     // 🩸❤️🪑 per-player boosts from team-effect characteristics (keyed by player id).
     charBoosts?: CharBoostMap;
-    // 🛡️ Estribado reads the owner's current shop-credit balance at runtime.
+    // 💰 Estribado reads the owner's current shop-credit balance at runtime.
     credits?: number;
     // 🏟️ Estádio Prime do mandante (só setado pro time da casa) — buff temático nos 2 atributos.
     homeStadium?: Stadium;
@@ -1342,10 +1365,11 @@ export function getEffectiveAttribute(
   // 🔥 Resiliente: +2 em todos os atributos por derrota do time como titular.
   base += player.resiliente ? (player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST : 0;
 
-  // ⚽ Goleador / 🎯 Garçom: +1 em todos os atributos a cada 3 gols / 2 assistências
+  // ⚽ Goleador / 🎯 Garçom / 👑 Arrogante: cumulative match-stat bonuses.
   // acumulados enquanto a carta carrega a característica.
   base += player.goleador ? goleadorStatBoost(player.goleadorGoals) : 0;
   base += player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
+  base += player.arrogante ? arroganteStatBoost(player.arroganteGoals) : 0;
   base += player.estribado ? estribadoStatBoost(context?.credits) : 0;
 
   // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
@@ -3336,7 +3360,8 @@ const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada d
 const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +1 por jogador na reserva
 const DRAFT_GOLEADOR_CHANCE = 0.03; // ⚽ Goleador — cresce a cada 3 gols marcados
 const DRAFT_GARCOM_CHANCE = 0.03; // 🎯 Garçom — cresce a cada 2 assistências dadas
-const DRAFT_ESTRIBADO_CHANCE = 0.03; // 🛡️ Estribado — +1 por cada 100 créditos disponíveis
+const DRAFT_ARROGANTE_CHANCE = 0.03; // 👑 Arrogante — +2 por gol; −1 aos outros a cada 2 gols
+const DRAFT_ESTRIBADO_CHANCE = 0.03; // 💰 Estribado — +1 por cada 100 créditos disponíveis
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
@@ -3358,7 +3383,7 @@ export const NOE_CHEM_BONUS = 30;
 export const FORASTEIRO_STAT_BOOST = 8;
 // 🧩 Colecionador — +1 em todos os atributos por jogador que estiver na reserva.
 export const COLECIONADOR_PER_RESERVE = 1;
-// 🛡️ Estribado — +1 em todos os atributos a cada 100 créditos disponíveis.
+// 💰 Estribado — +1 em todos os atributos a cada 100 créditos disponíveis.
 export const ESTRIBADO_CREDITS_PER_BOOST = 100;
 export const ESTRIBADO_STAT_BOOST = 1;
 export function estribadoStatBoost(credits?: number): number {
@@ -3375,6 +3400,9 @@ export const RESILIENTE_DEFEAT_BOOST = 2;
 export const PRODIGIO_STARTS_PER_BOOST = 2;
 export const GOLEADOR_GOALS_PER_BOOST = 3;
 export const GARCOM_ASSISTS_PER_BOOST = 2;
+export const ARROGANTE_GOALS_PER_PENALTY = 2;
+export const ARROGANTE_STAT_BOOST_PER_GOAL = 2;
+export const ARROGANTE_TEAM_PENALTY = 1;
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */
 export function prodigioStatBoost(starts: number | undefined): number {
@@ -3389,6 +3417,16 @@ export function goleadorStatBoost(goals: number | undefined): number {
 /** Returns the permanent all-attribute bonus earned by Garçom so far. */
 export function garcomStatBoost(assists: number | undefined): number {
   return Math.floor(Math.max(0, assists ?? 0) / GARCOM_ASSISTS_PER_BOOST);
+}
+
+/** Returns Arrogante's personal all-attribute boost: +2 for every goal. */
+export function arroganteStatBoost(goals: number | undefined): number {
+  return Math.max(0, goals ?? 0) * ARROGANTE_STAT_BOOST_PER_GOAL;
+}
+
+/** Returns the all-attribute penalty Arrogante applies to every other starter. */
+export function arroganteTeamPenalty(goals: number | undefined): number {
+  return Math.floor(Math.max(0, goals ?? 0) / ARROGANTE_GOALS_PER_PENALTY) * ARROGANTE_TEAM_PENALTY;
 }
 
 // Aplica o +N/−N das características assadas no BASE (Em Alta/Lobo/Mártir/Magnata). SEM teto de 99:
@@ -3498,7 +3536,12 @@ function applyDraftVariant(p: Player): Player {
   acc += DRAFT_GARCOM_CHANCE;
   if (r < acc) return { ...p, garcom: true, garcomAssists: 0, traits: rollPlayerTraits(p.position, p.rarity) };
 
-  // 🛡️ Estribado — runtime bonus based on the owner's current credit balance.
+  // 👑 Arrogante — começa sem gols acumulados; a vaidade cresce com os gols,
+  // mas o peso da personalidade recai sobre os outros titulares.
+  acc += DRAFT_ARROGANTE_CHANCE;
+  if (r < acc) return { ...p, arrogante: true, arroganteGoals: 0, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 💰 Estribado — runtime bonus based on the owner's current credit balance.
   acc += DRAFT_ESTRIBADO_CHANCE;
   if (r < acc) return { ...p, estribado: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
@@ -3744,7 +3787,7 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(
   player: Player,
-  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom',
+  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante',
   competitionStats: { goals?: number; assists?: number } = {},
 ): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
@@ -3761,12 +3804,13 @@ export function applyShopVariant(
   if (variant === 'resiliente') return { ...player, resiliente: true, resilienteDefeats: player.resilienteDefeats ?? 0 };
   if (variant === 'goleador') return { ...player, goleador: true, goleadorGoals: Math.max(0, competitionStats.goals ?? 0), goleadorMatchIds: [] };
   if (variant === 'garcom') return { ...player, garcom: true, garcomAssists: Math.max(0, competitionStats.assists ?? 0), garcomMatchIds: [] };
+  if (variant === 'arrogante') return { ...player, arrogante: true, arroganteGoals: Math.max(0, competitionStats.goals ?? 0), arroganteMatchIds: [] };
   return { ...player, [variant]: true };
 }
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -3804,7 +3848,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
   delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
-  delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds;
+  delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds; delete p.arrogante; delete p.arroganteGoals; delete p.arroganteMatchIds;
   return p;
 }
 
@@ -3833,6 +3877,7 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
   if (variant === 'resiliente') delete p.resilienteDefeats;
   if (variant === 'goleador') { delete p.goleadorGoals; delete p.goleadorMatchIds; }
   if (variant === 'garcom') { delete p.garcomAssists; delete p.garcomMatchIds; }
+  if (variant === 'arrogante') { delete p.arroganteGoals; delete p.arroganteMatchIds; }
   return p;
 }
 

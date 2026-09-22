@@ -67,7 +67,7 @@ export interface Player {
   noe?: boolean;         // 🛟 Noé — só quando é o ÚNICO titular do XI com característica: +10 em tudo NELE + 30 na química geral
   forasteiro?: boolean;  // 🧳 Forasteiro — +8 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
   colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva
-  estribado?: boolean;    // 🛡️ Estribado — +1 em tudo a cada 100 créditos disponíveis
+  estribado?: boolean;    // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
   capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão vem DOBRADO
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida de liga por 1,5, mas −5 em tudo nele
   prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada 2 titularidades acumuladas
@@ -80,6 +80,9 @@ export interface Player {
   garcom?: boolean;      // 🎯 Garçom — +1 em tudo a cada 2 assistências dadas
   garcomAssists?: number; // 🎯 assistências acumuladas desde que recebeu a característica
   garcomMatchIds?: string[]; // 🎯 partidas já contabilizadas (idempotência online/reconexão)
+  arrogante?: boolean;   // 👑 Arrogante — +2 em tudo por gol; −1 nos outros titulares a cada 2 gols
+  arroganteGoals?: number; // 👑 gols acumulados desde que recebeu a característica
+  arroganteMatchIds?: string[]; // 👑 partidas já contabilizadas (idempotência online/reconexão)
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).
