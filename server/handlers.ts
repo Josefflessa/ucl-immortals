@@ -193,6 +193,12 @@ export interface GameRuntime {
   transactionRoomBefore: RoomState | null;
   /** Result of the last wrapped socket handler, consumed by Durable Objects. */
   lastMutation: RuntimeMutation | null;
+  /**
+   * Set by an authoritative handler when it emits a room update. This is a
+   * cheap fast path for change detection: the JSON digest remains as a safe
+   * fallback for handlers that mutate state without broadcasting.
+   */
+  mutationObserved: boolean;
 }
 
 export function createGameRuntime(options: Pick<GameRuntime, 'roomCode' | 'scheduler' | 'externalTransactions'> = {}): GameRuntime {
@@ -208,6 +214,7 @@ export function createGameRuntime(options: Pick<GameRuntime, 'roomCode' | 'sched
     externalTransactions: options.externalTransactions === true,
     transactionRoomBefore: null,
     lastMutation: null,
+    mutationObserved: false,
   };
 }
 
@@ -277,6 +284,11 @@ function emitInitialRoom(
   payload: Record<string, unknown>,
   room: RoomState,
 ): void {
+  // Joining/rejoining is an authoritative transaction. Materialize a missing
+  // private offer here so the first room payload and the next purchase use the
+  // same persisted offer, including for rooms created before this field existed.
+  const viewer = room.players.find(player => player.socketId === socket.id);
+  if (viewer) ensureUniquePackOffer(room, viewer);
   const { roomState, syncRevision } = rememberInitialRoomSnapshot(socket, room);
   const ownPlayer = (roomState as RoomState).players.find(player => player.socketId === socket.id);
   socket.emit(event, { ...payload, player: ownPlayer ?? payload.player, roomState, syncRevision });
@@ -309,10 +321,6 @@ function jsonByteLength(value: unknown): number {
  */
 function roomViewForSocket(room: RoomState, socketId: string): RoomState {
   const viewer = room.players.find(player => player.socketId === socketId);
-  // The offer is private, so initialize it lazily for this viewer when the
-  // first snapshot/update of a new round is sent. This also covers reconnects
-  // and rooms created before the offer fields existed.
-  if (viewer) ensureUniquePackOffer(room, viewer);
   const view = cloneRoomJson(room);
   // These fields are server-only persistence metadata. In particular, command
   // receipts must not reveal another client's retry history.
@@ -359,6 +367,13 @@ function roomViewForSocket(room: RoomState, socketId: string): RoomState {
 }
 
 function emitRoomUpdate(io: RealtimeServer, room: RoomState, options: RoomUpdateOptions = {}): void {
+  // Offers are authoritative room data, not presentation state. Materialize
+  // them before building any private view so a reconnect/snapshot cannot create
+  // a random offer that is only present in memory and then disagree with the
+  // next purchase attempt.
+  room.players.forEach(player => ensureUniquePackOffer(room, player));
+  activeRuntime.mutationObserved = true;
+
   const roomSocketIds = options.onlySocketId
     ? [options.onlySocketId]
     : Array.from(io.sockets.adapter.rooms.get(room.code) ?? []);
@@ -1020,6 +1035,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         const commandId = commandIdFromPayload(payload);
         const expectedRoomEpoch = roomEpochFromPayload(payload);
         try {
+          activeRuntime.mutationObserved = false;
           if (previousRoom && expectedRoomEpoch !== null && expectedRoomEpoch !== previousRoom.roomEpoch) {
             // A queued command from a previous restart must never act on the
             // new match that happens to reuse the same four-letter room code.
@@ -1054,9 +1070,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
           handler(payload);
 
           const nextRoom = roomCode ? rooms.get(roomCode) : undefined;
-          const changed = previousRoomForDigest && nextRoom
-            ? roomMutationDigest(previousRoomForDigest) !== roomMutationDigest(nextRoom)
-            : !!previousRoomForDigest !== !!nextRoom;
+          const changed = activeRuntime.mutationObserved
+            || (previousRoomForDigest && nextRoom
+              ? roomMutationDigest(previousRoomForDigest) !== roomMutationDigest(nextRoom)
+              : !!previousRoomForDigest !== !!nextRoom);
           activeRuntime.lastMutation = {
             event,
             roomCode,

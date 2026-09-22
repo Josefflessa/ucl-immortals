@@ -41,6 +41,8 @@ interface StoredGameRoom {
   savedRevision?: number;
   savedAt?: number;
   timers?: Array<[GameTimerKind, number]>;
+  /** Token retained so a hibernated room can release its directory entry safely. */
+  reservationToken?: string;
 }
 
 interface DurableCheckpoint {
@@ -81,7 +83,11 @@ interface DurableTransactionSnapshot {
   roomPresent: boolean;
   room: RoomState | null;
   marketSeq: number;
-  syncSessions: Array<[string, { snapshot: unknown | null; revision: number; supportsPatches: boolean }]>;
+  // Private sync snapshots are intentionally not cloned here. A room update
+  // is buffered until commit; if a handler fails, invalidating these baselines
+  // is enough to force the next update to be a fresh snapshot. This avoids
+  // cloning one full private room view per connected player on every action.
+  syncSessions: Array<[string, { supportsPatches: boolean }]>;
   timers: Array<[GameTimerKind, number]>;
 }
 
@@ -99,6 +105,10 @@ const PERSISTED_GAME_CHUNK_BYTES = 96 * 1024;
 const SLOW_REALTIME_OPERATION_MS = 250;
 const SLOW_REALTIME_PERSIST_MS = 150;
 const SLOW_REALTIME_QUEUE_WAIT_MS = 250;
+// A room is deliberately serialized. Refuse only an already pathological
+// backlog instead of allowing a buggy/reconnecting client to turn every later
+// action into seconds of queue delay. Normal browsers queue at most 32 frames.
+const MAX_SERIAL_QUEUE_DEPTH = 128;
 
 function sameTimerEntries(
   left: Array<[GameTimerKind, number]>,
@@ -264,7 +274,7 @@ export class RoomDirectory {
       return new Response(null, { status: 204 });
     }
     if (url.pathname === '/release') {
-      if (reservation && reservation.token !== token && reservation.state !== 'active') {
+      if (reservation && reservation.token !== token) {
         return new Response('Reservation unavailable', { status: 409 });
       }
       await this.state.storage.delete(key);
@@ -343,6 +353,15 @@ class DurableSocket implements RealtimeSocket {
     if (this.supportsPatches) this.dispatch('client_capabilities', { roomUpdates: 1 });
   }
 
+  restoreJoinedRoom(roomCode: string | undefined): void {
+    this.joinedRoomCode = roomCode;
+    this.saveAttachment();
+  }
+
+  getJoinedRoomCode(): string | undefined {
+    return this.joinedRoomCode;
+  }
+
   private saveAttachment(): void {
     this.webSocket.serializeAttachment({
       socketId: this.id,
@@ -358,6 +377,8 @@ class DurableRealtimeServer implements RealtimeServer {
   private readonly connectionHandlers: Array<(socket: RealtimeSocket) => void> = [];
   private readonly byWebSocket = new Map<WebSocket, DurableSocket>();
   private pendingMessages: Array<{ socket: DurableSocket; event: string; payload?: unknown }> | null = null;
+  private transactionRooms: Map<string, Set<string>> | null = null;
+  private transactionSocketRooms: Map<string, string | undefined> | null = null;
   readonly sockets = {
     adapter: { rooms: new Map<string, Set<string>>() },
     sockets: new Map<string, RealtimeSocket>(),
@@ -368,8 +389,16 @@ class DurableRealtimeServer implements RealtimeServer {
   }
 
   beginTransaction(): void {
-    if (this.pendingMessages) throw new Error('Já existe uma transação de mensagens ativa.');
+    if (this.pendingMessages || this.transactionRooms) throw new Error('Já existe uma transação de mensagens ativa.');
     this.pendingMessages = [];
+    this.transactionRooms = new Map(
+      Array.from(this.sockets.adapter.rooms.entries(), ([roomCode, socketIds]) => [roomCode, new Set(socketIds)]),
+    );
+    this.transactionSocketRooms = new Map(
+      Array.from(this.sockets.sockets.values())
+        .filter((socket): socket is DurableSocket => socket instanceof DurableSocket)
+        .map(socket => [socket.id, socket.getJoinedRoomCode()]),
+    );
   }
 
   send(socket: DurableSocket, event: string, payload?: unknown): void {
@@ -391,11 +420,29 @@ class DurableRealtimeServer implements RealtimeServer {
   commit(): void {
     const messages = this.pendingMessages;
     this.pendingMessages = null;
+    this.transactionRooms = null;
+    this.transactionSocketRooms = null;
     messages?.forEach(message => this.sendNow(message.socket, message.event, message.payload));
   }
 
   rollback(): void {
     this.pendingMessages = null;
+    if (this.transactionRooms) {
+      const liveSocketIds = new Set(this.sockets.sockets.keys());
+      this.sockets.adapter.rooms.clear();
+      this.transactionRooms.forEach((socketIds, roomCode) => {
+        const restoredSocketIds = new Set(Array.from(socketIds).filter(socketId => liveSocketIds.has(socketId)));
+        if (restoredSocketIds.size > 0) this.sockets.adapter.rooms.set(roomCode, restoredSocketIds);
+      });
+    }
+    if (this.transactionSocketRooms) {
+      this.transactionSocketRooms.forEach((roomCode, socketId) => {
+        const socket = this.sockets.sockets.get(socketId);
+        if (socket instanceof DurableSocket) socket.restoreJoinedRoom(roomCode);
+      });
+    }
+    this.transactionRooms = null;
+    this.transactionSocketRooms = null;
   }
 
   to(roomCode: string) {
@@ -509,20 +556,41 @@ export class GameRoom {
   }
 
   webSocketMessage(webSocket: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    // Heartbeats are transport control, not gameplay. Handle them before the
+    // room's serial queue so a slow simulation or a burst of actions cannot
+    // make a healthy mobile socket look dead to the client.
+    if (typeof message !== 'string' || new TextEncoder().encode(message).byteLength > MAX_REALTIME_MESSAGE_BYTES) {
+      webSocket.close(1009, 'Mensagem inválida');
+      return Promise.resolve();
+    }
+    const incoming = parseRealtimeMessage(message);
+    if (!incoming) return Promise.resolve();
+    const immediateSocket = this.initialized ? this.server.get(webSocket) : undefined;
+    if (incoming.event === 'client_ping' && immediateSocket) {
+      this.server.sendNow(immediateSocket, 'client_pong', {
+        sentAt: incoming.payload && typeof incoming.payload === 'object' && !Array.isArray(incoming.payload)
+          ? (incoming.payload as { sentAt?: unknown }).sentAt
+          : undefined,
+        serverTime: Date.now(),
+      });
+      return Promise.resolve();
+    }
+
+    if (this.serialQueueDepth >= MAX_SERIAL_QUEUE_DEPTH
+      && incoming.event !== 'client_capabilities'
+      && incoming.event !== 'sync_room') {
+      this.rejectOverloadedMessage(webSocket, incoming.event, incoming.payload);
+      return Promise.resolve();
+    }
+
     return this.serially(async () => {
       const operationStartedAt = performance.now();
       await this.ensureInitializedFromSocket(webSocket);
-      if (typeof message !== 'string' || new TextEncoder().encode(message).byteLength > MAX_REALTIME_MESSAGE_BYTES) {
-        webSocket.close(1009, 'Mensagem inválida');
-        return;
-      }
-      const incoming = parseRealtimeMessage(message);
-      if (!incoming) return;
 
       const socket = this.server.get(webSocket);
-      // Browser WebSockets do not expose TCP ping/pong. A tiny control frame
-      // lets the client detect a half-open mobile connection without entering
-      // the gameplay transaction or touching durable storage.
+      // The first message after Durable Object hibernation may have arrived
+      // before the socket adapter was restored. Keep that first heartbeat in
+      // the initialized path; subsequent heartbeats use the fast path above.
       if (incoming.event === 'client_ping') {
         if (socket) {
           this.server.sendNow(socket, 'client_pong', {
@@ -730,6 +798,26 @@ export class GameRoom {
     return result;
   }
 
+  private rejectOverloadedMessage(webSocket: WebSocket, event: string, payload: unknown): void {
+    const socket = this.server.get(webSocket);
+    if (!socket) return;
+    const commandId = payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? (payload as { commandId?: unknown }).commandId
+      : undefined;
+    if (typeof commandId === 'string' && commandId.length > 0 && commandId.length <= 120) {
+      this.server.sendNow(socket, 'command_ack', {
+        commandId,
+        event,
+        status: 'rejected',
+        reason: 'server_busy',
+      });
+    }
+    this.server.sendNow(socket, 'action_error', {
+      event,
+      message: 'A sala está processando muitas ações. Aguarde um instante e tente novamente.',
+    });
+  }
+
   private hasDurableChanges(snapshot: DurableTransactionSnapshot): boolean {
     const room = this.runtime.rooms.get(this.roomCode);
     const roomChanged = snapshot.room && room
@@ -749,8 +837,6 @@ export class GameRoom {
       syncSessions: Array.from(this.runtime.roomSyncSessions.entries()).map(([socketId, session]) => [
         socketId,
         {
-          snapshot: session.snapshot == null ? null : cloneRoomJson(session.snapshot),
-          revision: session.revision,
           supportsPatches: session.supportsPatches,
         },
       ]),
@@ -766,8 +852,11 @@ export class GameRoom {
     this.runtime.roomSyncSessions.clear();
     snapshot.syncSessions.forEach(([socketId, session]) => {
       this.runtime.roomSyncSessions.set(socketId, {
-        snapshot: session.snapshot == null ? null : cloneRoomJson(session.snapshot),
-        revision: session.revision,
+        // No outbound frame escaped a rolled-back transaction because the
+        // transport buffer was discarded. Drop the old baseline so the next
+        // update cannot calculate a patch against a state the client never saw.
+        snapshot: null,
+        revision: 0,
         supportsPatches: session.supportsPatches,
       });
     });
@@ -856,6 +945,9 @@ export class GameRoom {
         : [];
       this.runtime.rooms.set(this.roomCode, stored.room);
       this.runtime.marketSeq = stored.marketSeq;
+      this.reservationToken = typeof stored.reservationToken === 'string'
+        ? stored.reservationToken
+        : undefined;
       this.wasPersisted = true;
       this.lastPersistedRevision = stored.room.stateRevision;
     } else {
@@ -895,6 +987,7 @@ export class GameRoom {
             : 0,
           savedAt: Date.now(),
           timers: Array.from(this.scheduledTimers.entries()),
+          reservationToken: this.reservationToken,
         }
         : null,
       confirmReservation,
