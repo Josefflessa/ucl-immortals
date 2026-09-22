@@ -163,6 +163,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
           disableAnimation
           overlayClassName="z-[100] bg-[rgba(4,7,14,0.9)]"
           className="ui-modal z-[101] flex max-h-[calc(100dvh-2rem)] max-w-md flex-col gap-0 overflow-hidden p-0"
+          style={{ height: 'min(720px, calc(100dvh - 2rem))' }}
         >
             {/* Header */}
             <div className="ui-modal__header flex-shrink-0 justify-start">
@@ -174,7 +175,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             </div>
 
             {/* Corpo rolável */}
-            <div className="ui-modal__body ui-stack min-h-0 flex-1 overscroll-contain">
+            <div className="ui-modal__body ui-stack min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y">
               {/* Transição do técnico */}
               <TransitionRow
                 label="TÉCNICO"

@@ -274,7 +274,7 @@ export default function MenuPage() {
         <div>
           {menuMode === 'selection' && (
             <div
-              className="flex flex-col gap-3 w-full max-w-xs"
+              className="mb-5 flex w-full max-w-xs flex-col gap-3 sm:mb-8"
             >
               <Button
                 type="button"
@@ -479,7 +479,7 @@ export default function MenuPage() {
 
       </div>
 
-      <footer className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4 sm:bottom-5">
+      <footer className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center px-4 sm:bottom-3">
         <span
           className="text-[10px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
           style={{ fontFamily: 'Rajdhani, sans-serif' }}

@@ -34,6 +34,32 @@ const Chip = ({ tag }: { tag: Tag }) => (
   </span>
 );
 
+function MatchupPills({ ids, tone }: { ids: string[]; tone: 'positive' | 'negative' }) {
+  if (ids.length === 0) {
+    return <span className="text-xs font-bold text-[var(--ui-text-faint)]">Nenhuma formação específica</span>;
+  }
+
+  const positive = tone === 'positive';
+  return (
+    <div className="flex flex-wrap gap-1.5" aria-label={positive ? 'Formações que esta supera' : 'Formações que superam esta'}>
+      {ids.map(id => (
+        <span
+          key={id}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black tracking-wide"
+          style={{
+            color: positive ? '#D8F8DF' : '#FFE0D0',
+            background: positive ? '#22C55E18' : '#F9731618',
+            border: `1px solid ${positive ? '#22C55E55' : '#F9731655'}`,
+          }}
+        >
+          <span aria-hidden="true" style={{ color: positive ? '#5EDB82' : '#FB9A62' }}>{positive ? '↑' : '↓'}</span>
+          {id}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 interface Props { value: string | undefined; onChange: (id: string) => void; }
 
 export default function FormationSelector({ value, onChange }: Props) {
@@ -91,6 +117,19 @@ export default function FormationSelector({ value, onChange }: Props) {
           <span className="font-display text-base tracking-wide text-[var(--ui-brand-strong)]">{active.name}</span>
         </div>
         <ImpactMeter profile={formationProfile(active.id)} />
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-lg border border-[#22C55E44] bg-[#22C55E0D] px-2.5 py-2">
+            <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[#5EDB82]">Vantagem contra</div>
+            <div className="mt-1"><MatchupPills ids={active.counters} tone="positive" /></div>
+          </div>
+          <div className="rounded-lg border border-[#F9731644] bg-[#F973160D] px-2.5 py-2">
+            <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[#FB9A62]">Desvantagem contra</div>
+            <div className="mt-1"><MatchupPills ids={active.counteredBy} tone="negative" /></div>
+          </div>
+        </div>
+        <p className="mt-2 text-[10px] leading-snug text-[var(--ui-text-faint)]">
+          A vantagem é aplicada durante a partida quando o adversário usa uma formação listada acima.
+        </p>
       </div>
 
       <FormationPreviewModal
