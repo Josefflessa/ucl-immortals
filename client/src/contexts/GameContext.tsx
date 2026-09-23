@@ -537,7 +537,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_PLAYER_TEAM_MARTIR_TARGETS': {
       if (!state.playerTeam) return state;
-      // Which 2 XI teammates a Mártir sacrifices for (the +3 recipients).
+      // Which 2 XI teammates a Mártir sacrifices for (the +5 recipients).
       const players = state.playerTeam.players.map(p =>
         p.id === action.playerId ? { ...p, martirTargets: action.targetIds } : p);
       return { ...state, playerTeam: { ...state.playerTeam, players } };

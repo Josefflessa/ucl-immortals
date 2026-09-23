@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, getEvolutionLevel,
-  PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, captainBoostFromStarters,
+  PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, captainBoostFromStarters,
   computeCharacteristicBoosts, evolvePointsSpent, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, positionFit, type EffectiveStats,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, type AttrKey } from '../../lib/traits';
@@ -918,7 +918,7 @@ export default function SquadEditor({
                   );
                 })()}
 
-                {/* 🩸 Mártir — pick the 2 XI teammates who get +3 (in-league only; post-draft uses auto). */}
+                {/* 🩸 Mártir — pick the 2 XI teammates who get +5 (in-league only; post-draft uses auto). */}
                 {selectedPlayer.martir && onSetMartirTargets && selectedIndex < 11 && (() => {
                   const others = players.slice(0, 11).filter(p => p.id !== selectedPlayer.id);
                   const current = (selectedPlayer.martirTargets ?? []).filter(id => others.some(o => o.id === id));
@@ -931,7 +931,7 @@ export default function SquadEditor({
                     <div className="rounded-xl p-3" style={{ background: '#1a0808', border: '1px solid #B91C1C55' }}>
                       <div className="text-[11px] font-black tracking-widest" style={{ color: '#F87171', fontFamily: 'Rajdhani, sans-serif' }}>🩸 SACRIFÍCIO DO MÁRTIR</div>
                       <p className="text-[11px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                        Escolha até <b style={{ color: '#fff' }}>2 titulares</b> que recebem <b style={{ color: '#F87171' }}>+3 em todos os atributos</b>.
+                        Escolha até <b style={{ color: '#fff' }}>2 titulares</b> que recebem <b style={{ color: '#F87171' }}>+{MARTIR_TARGET_BOOST} em todos os atributos</b>.
                         {current.length < 2 && <> Sem escolher, vai automático pros 2 de maior overall.</>}
                       </p>
                       <div className="flex flex-wrap gap-1.5 mt-2">

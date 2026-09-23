@@ -14,6 +14,7 @@ import { Button, Panel, PanelBody } from '../../design-system';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'train' | 'reroll' | 'unique';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
+const VARIANTS_PER_PAGE = 10;
 // A grade do pacote Único é a parte mais pesada da loja: cada card tem textura,
 // render próprio e moldura. Aqueça apenas as quatro cartas da oferta atual,
 // nunca o catálogo inteiro.
@@ -35,6 +36,33 @@ function warmUniqueCardAssets(cards: Player[] = []) {
   });
 }
 
+function VariantPagination({ page, pageCount, onPageChange }: { page: number; pageCount: number; onPageChange: (next: number) => void }) {
+  if (pageCount <= 1) return null;
+  return (
+    <div className="mt-3 flex items-center justify-between gap-2 rounded-lg px-2 py-2" style={{ background: '#0B0B15', border: '1px solid #1B1B2B' }}>
+      <button
+        type="button"
+        onClick={() => onPageChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        className="rounded-md px-2.5 py-1.5 text-[10px] font-black tracking-wider disabled:opacity-30"
+        style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'Rajdhani, sans-serif' }}>
+        ← ANTERIOR
+      </button>
+      <span className="text-[10px] font-black tracking-widest text-center" style={{ color: '#A9A9BA', fontFamily: 'Rajdhani, sans-serif' }}>
+        PÁGINA {page + 1}/{pageCount}
+      </span>
+      <button
+        type="button"
+        onClick={() => onPageChange(Math.min(pageCount - 1, page + 1))}
+        disabled={page === pageCount - 1}
+        className="rounded-md px-2.5 py-1.5 text-[10px] font-black tracking-wider disabled:opacity-30"
+        style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'Rajdhani, sans-serif' }}>
+        PRÓXIMA →
+      </button>
+    </div>
+  );
+}
+
 export default function ShopTab() {
   const { state, dispatch, shopChangeCoachOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopTrainOnline, shopBuyRerollOnline } = useGame();
   const team = state.playerTeam;
@@ -44,6 +72,8 @@ export default function ShopTab() {
   const pendingUniquePack = state.pendingUniquePack; // ⭐ carta sorteada e reservada até a revelação
   const [active, setActive] = useState<ItemId | null>(null);
   const [selPlayerId, setSelPlayerId] = useState<string | null>(null);
+  const [variantPage, setVariantPage] = useState(0);
+  const [turbinarView, setTurbinarView] = useState<'catalog' | 'apply'>('catalog');
   // 🛒 Confirmação de compra (premium) — reutilizada por todas as compras significativas da loja.
   const [confirmCfg, setConfirmCfg] = useState<null | { title: string; message: string; onConfirm: () => void }>(null);
   const askConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmCfg({ title, message, onConfirm });
@@ -55,6 +85,12 @@ export default function ShopTab() {
       dispatch({ type: 'ENSURE_UNIQUE_PACK_OFFER' });
     }
   }, [active, online, pendingUniquePack, state.leagueRound, state.knockoutBracket, dispatch]);
+
+  // A troca de jogador/modal sempre começa pela primeira página. Isso evita
+  // manter uma página alta que não exista para a nova lista de características.
+  useEffect(() => {
+    setVariantPage(0);
+  }, [active, selPlayerId]);
 
   if (!team) return null;
 
@@ -82,18 +118,34 @@ export default function ShopTab() {
       .filter((card): card is Player => !!card)
     : [];
 
-  const close = () => { setActive(null); setSelPlayerId(null); };
+  const close = () => { setActive(null); setSelPlayerId(null); setVariantPage(0); setTurbinarView('catalog'); };
 
   const ITEMS: { id: ItemId; icon: string; name: string; cost: number | 'dyn'; color: string; desc: string }[] = [
     { id: 'unique', icon: '⭐', name: 'PACOTE ÚNICO', cost: SHOP_COSTS.uniqueCard, color: '#F0E6C0', desc: '4 cartas mudam a cada rodada. Cada abertura sorteia uma delas; a carta entra no banco após a revelação.' },
     { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: SHOP_COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
-    { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Aplica uma carta especial (Em Alta, Lobo, Coringa…) a um jogador. Só em quem NÃO tem característica.' },
+    { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Consulte todas as características e aplique uma delas a um jogador.' },
     { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: SHOP_COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
     { id: 'star', icon: '🌟', name: 'PACOTE DO CRAQUE', cost: SHOP_COSTS.starPack, color: '#F59E0B', desc: 'Paga ao abrir e escolhe 1 de 3 jogadores (overall 88+). Entra no banco.' },
     { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: `Paga ao abrir e escolhe 1 de até 4 jogadores ${SCOUT_MIN_OVERALL}+ da posição principal escolhida.` },
     { id: 'train', icon: '💪', name: 'TREINO INTENSIVO', cost: 'dyn', color: '#34D399', desc: `+${TRAIN_BOOST} permanente num atributo (sem teto). Custo sobe a cada treino no mesmo jogador.` },
     { id: 'reroll', icon: '🔄', name: 'REROLL DE REFORÇO', cost: SHOP_COSTS.reroll, color: '#F472B6', desc: `Re-sorteia as opções do reforço pós-partida. Acumula entre rodadas. Você tem: ${state.reinforcementRerolls}.` },
   ];
+
+  const availableVariants = selPlayer
+    ? TURBINAR_VARIANTS.filter(v => !(selPlayer as unknown as Record<string, unknown>)[v.key])
+    : [];
+  const variantPageCount = Math.max(1, Math.ceil(availableVariants.length / VARIANTS_PER_PAGE));
+  const safeVariantPage = Math.min(variantPage, variantPageCount - 1);
+  const visibleVariants = availableVariants.slice(
+    safeVariantPage * VARIANTS_PER_PAGE,
+    (safeVariantPage + 1) * VARIANTS_PER_PAGE,
+  );
+  const catalogPageCount = Math.ceil(TURBINAR_VARIANTS.length / VARIANTS_PER_PAGE);
+  const safeCatalogPage = Math.min(variantPage, catalogPageCount - 1);
+  const visibleCatalogVariants = TURBINAR_VARIANTS.slice(
+    safeCatalogPage * VARIANTS_PER_PAGE,
+    (safeCatalogPage + 1) * VARIANTS_PER_PAGE,
+  );
 
   const openItem = (id: ItemId) => {
     if (id === 'reroll') { if (points >= SHOP_COSTS.reroll) buyReroll(); return; } // compra direta, sem modal
@@ -120,6 +172,7 @@ export default function ShopTab() {
       return;
     }
     setSelPlayerId(null);
+    if (id === 'turbinar') setTurbinarView('apply');
     setActive(id);
   };
 
@@ -149,28 +202,44 @@ export default function ShopTab() {
           const cost = item.cost === 'dyn' ? trainCost(0) : item.cost;
           const affordable = points >= cost;
           // Cartas Únicas: sempre dá pra ABRIR (ver as cartas) mesmo sem dinheiro — a cobrança é ao comprar.
-          const canOpen = affordable || item.id === 'unique';
-          return (
-            <button
-              key={item.id}
-              onClick={() => canOpen && openItem(item.id)}
-              onPointerDown={() => item.id === 'unique' && warmUniqueCardAssets(uniquePackCards)}
-              disabled={!canOpen}
-              className="ui-choice p-4 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ borderColor: (affordable || item.id === 'unique') ? item.color + '88' : undefined }}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-2xl">{item.icon}</span>
-                <span className="text-sm font-black px-2 py-0.5 rounded" style={{ fontFamily: 'Bebas Neue, sans-serif', background: `${item.color}22`, color: item.color }}>
-                  💰 {item.cost === 'dyn' ? `${cost}+` : cost}
-                </span>
-              </div>
-              <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{item.name}</div>
-              <div className="text-[11px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{item.desc}</div>
-              {!affordable && item.id !== 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes</div>}
-              {!affordable && item.id === 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#F0E6C0', fontFamily: 'Rajdhani, sans-serif' }}>👀 Ver as cartas</div>}
-            </button>
-          );
+           const canOpen = affordable || item.id === 'unique';
+           return (
+             <div
+               key={item.id}
+               className="ui-choice relative p-4"
+                style={{ borderColor: (affordable || item.id === 'unique') ? item.color + '88' : undefined }}
+             >
+               <button
+                 type="button"
+                 onClick={() => canOpen && openItem(item.id)}
+                 onPointerDown={() => item.id === 'unique' && warmUniqueCardAssets(uniquePackCards)}
+                 disabled={!canOpen}
+                 className="w-full pb-8 text-left disabled:cursor-not-allowed disabled:opacity-50"
+               >
+                 <div className="flex items-center justify-between mb-1">
+                   <span className="text-2xl">{item.icon}</span>
+                   <span className="text-sm font-black px-2 py-0.5 rounded" style={{ fontFamily: 'Bebas Neue, sans-serif', background: `${item.color}22`, color: item.color }}>
+                     💰 {item.cost === 'dyn' ? `${cost}+` : cost}
+                   </span>
+                 </div>
+                 <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{item.name}</div>
+                 <div className="text-[11px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{item.desc}</div>
+                 {!affordable && item.id !== 'unique' && item.id !== 'turbinar' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes</div>}
+                 {!affordable && item.id === 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#F0E6C0', fontFamily: 'Rajdhani, sans-serif' }}>👀 Ver as cartas</div>}
+               </button>
+               {item.id === 'turbinar' && (
+                 <button
+                   type="button"
+                   aria-label="Ver características especiais"
+                   onClick={() => { setSelPlayerId(null); setVariantPage(0); setTurbinarView('catalog'); setActive('turbinar'); }}
+                   className="absolute bottom-3 right-3 flex h-7 items-center justify-center rounded-full px-2.5 text-[10px] font-black tracking-wider transition-transform hover:scale-105 active:scale-95"
+                   style={{ color: '#E8C84A', background: '#E8C84A18', border: '1px solid #E8C84A66' }}
+                 >
+                   ⓘ LISTA
+                 </button>
+               )}
+             </div>
+           );
         })}
       </div>
 
@@ -331,10 +400,32 @@ export default function ShopTab() {
                   </div>
                 )}
 
-                {/* TURBINAR CARTA — pick player then variant */}
-                {active === 'turbinar' && (
+                {/* TURBINAR CARTA — catálogo informativo, sem exigir saldo ou jogador */}
+                {active === 'turbinar' && turbinarView === 'catalog' && (
+                  <div>
+                    <div className="space-y-2">
+                      {visibleCatalogVariants.map(v => {
+                        const color = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
+                        return (
+                          <div key={v.key} className="w-full min-h-[86px] rounded-xl p-4 flex items-center gap-4" style={{ background: '#07070f', border: `1px solid ${color}44` }}>
+                            <span className="text-3xl flex-shrink-0">{v.icon}</span>
+                            <div className="min-w-0">
+                              <div className="text-lg font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color }}>{v.label}</div>
+                              <div className="text-xs leading-relaxed" style={{ color: '#B1B1C0', fontFamily: 'Rajdhani, sans-serif' }}>{v.desc}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <VariantPagination page={safeCatalogPage} pageCount={catalogPageCount} onPageChange={setVariantPage} />
+                  </div>
+                )}
+
+                {/* TURBINAR CARTA — escolha do jogador e aplicação */}
+                {active === 'turbinar' && turbinarView === 'apply' && (
                   !selPlayer ? (
                     <div>
+                      <button type="button" onClick={() => { setTurbinarView('catalog'); setVariantPage(0); }} className="mb-3 text-xs font-bold" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>ⓘ ver características especiais</button>
                       <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o jogador que vai receber a carta especial:</p>
                       <div className="space-y-3">
                         {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
@@ -342,7 +433,7 @@ export default function ShopTab() {
                             <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
                             <div className="flex flex-wrap gap-2">
                               {g.list.map(p => (
-                                <button key={p.id} onClick={() => canAddVariant(p) && setSelPlayerId(p.id)} disabled={!canAddVariant(p)}
+                                <button key={p.id} onClick={() => { if (canAddVariant(p)) { setSelPlayerId(p.id); setVariantPage(0); } }} disabled={!canAddVariant(p)}
                                   className="disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-[1.05]"
                                   title={!canAddVariant(p) ? 'Já atingiu o máximo de características' : (variantCount(p) === 1 ? '⭐ Única: pode receber a 2ª característica' : '')}>
                                   <PlayerCard player={p} compact lite />
@@ -362,21 +453,22 @@ export default function ShopTab() {
                           : <>Carta especial para <b style={{ color: '#C9A84C' }}>{selPlayer.shortName}</b> (−{SHOP_COSTS.turbinar} créditos):</>}
                       </p>
                       <div className="space-y-2">
-                        {TURBINAR_VARIANTS.filter(v => !(selPlayer as unknown as Record<string, unknown>)[v.key]).map(v => {
+                        {visibleVariants.map(v => {
                           const color = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
                           return (
                             <button key={v.key} onClick={() => askConfirm('Turbinar Carta', `Aplicar ${v.label} em ${selPlayer.shortName} por 💰 ${SHOP_COSTS.turbinar}?`, () => { buyTurbinar(selPlayer.id, v.key as ShopVariant); close(); })}
-                              className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all active:scale-[0.99]"
+                              className="w-full text-left rounded-xl p-4 flex items-center gap-4 transition-all active:scale-[0.99]"
                               style={{ background: '#07070f', border: `1px solid ${color}44` }}>
-                              <span className="text-2xl">{v.icon}</span>
+                              <span className="text-3xl flex-shrink-0">{v.icon}</span>
                               <div>
-                                <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color }}>{v.label}</div>
-                                <div className="text-[11px] leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{v.desc}</div>
+                                <div className="text-lg font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color }}>{v.label}</div>
+                                <div className="text-xs leading-relaxed" style={{ color: '#B1B1C0', fontFamily: 'Rajdhani, sans-serif' }}>{v.desc}</div>
                               </div>
                             </button>
                           );
                         })}
                       </div>
+                      <VariantPagination page={safeVariantPage} pageCount={variantPageCount} onPageChange={setVariantPage} />
                       <button onClick={() => setSelPlayerId(null)} className="mt-3 text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>← trocar jogador</button>
                     </div>
                   )

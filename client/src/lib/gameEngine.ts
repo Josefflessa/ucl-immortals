@@ -600,12 +600,17 @@ export function calculateChemistry(
   // 🧱 Pilar lifts the team's chemistry · 🐺 Lobo Solitário drains it (per such player in the XI).
   const pilarBonus = players.filter(p => p.pilar).length * PILAR_CHEM_BONUS;
   const loboPenalty = players.filter(p => p.lobo).length * LOBO_CHEM_PENALTY;
-  // 🛟 Noé — +30 na química geral, SÓ quando ele é o único titular com característica (põe o time na arca).
+  // 🛟 Noé — +50 na química geral, SÓ quando ele é o único titular com característica (põe o time na arca).
   const cardedXI = players.slice(0, 11).filter((p): p is Player => !!p && hasVariant(p));
   const noeBonus = (cardedXI.length === 1 && cardedXI[0].noe) ? NOE_CHEM_BONUS : 0;
+  // 🤝 Todos por um — só ativa com os 11 titulares marcados; quando fecha o XI,
+  // a união vira um bônus forte de química geral.
+  const todosPorUmBonus = players.length === 11 && players.every(player => player.todosPorUm)
+    ? TODOS_POR_UM_CHEM_BONUS
+    : 0;
 
   const total = Math.max(0,
-    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus);
+    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus + todosPorUmBonus);
 
   return { individual, total, trios, outOfPosition, secondaryPos };
 }
@@ -654,7 +659,7 @@ export interface StatBreakdown {
   garcom: number;     // 🎯 Garçom — +1 em tudo a cada 2 assistências dadas
   arrogante: number;  // 👑 Arrogante — +2 em tudo por gol; −1 nos outros titulares a cada 2 gols
   estribado: number;  // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
-  char: number;       // 🩸❤️🪑 team-effect characteristics (Mártir/Ídolo/12º Homem) buffing THIS player
+  char: number;       // 🩸❤️🪑🤝 team-effect characteristics buffing THIS player
 }
 
 export interface EffectiveStats {
@@ -942,7 +947,7 @@ export function getPlayerEffectiveStats(
   const arroganteBonus = (_attr: AttrKey): number => player.arrogante ? arroganteStatBoost(player.arroganteGoals) : 0;
   const estribadoBonus = (_attr: AttrKey): number => player.estribado ? estribadoStatBoost(context?.credits) : 0;
 
-  // 🩸❤️🪑 Team-effect characteristics buffing THIS player (Mártir/Ídolo/12º Homem).
+  // 🩸❤️🪑🤝 Team-effect characteristics buffing THIS player.
   const charB = context?.charBoosts?.[player.id];
   const charBonus = (attr: AttrKey): number => charB ? (charB.flatAll + (charB.perStat[attr] ?? 0)) : 0;
 
@@ -1048,12 +1053,12 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
   return { passing: 0, pace: 0, special: 0 };
 }
 
-// ── Team-effect characteristics (Mártir 🩸 / Ídolo ❤️ / 12º Homem 🪑) ──────────────
+// ── Team-effect characteristics (Mártir 🩸 / Ídolo ❤️ / 12º Homem 🪑 / Todos por um 🤝) ──
 // These buff OTHER players. computeCharacteristicBoosts returns, per XI player id, the extra
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'arrogante'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
@@ -1074,7 +1079,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     if (!idol.idolo) continue;
     for (const mate of xi) if (mate.id !== idol.id && sameClub(mate.club, idol.club)) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: 2, perStat: {} });
   }
-  // 🩸 Mártir — +3 em tudo aos 2 titulares escolhidos (ou 2 maiores overalls além dele). Acumulável.
+  // 🩸 Mártir — +5 em tudo aos 2 titulares escolhidos (ou 2 maiores overalls além dele). Acumulável.
   for (const m of xi) {
     if (!m.martir) continue;
     let targets = (m.martirTargets ?? []).filter(id => id !== m.id && xi.some(p => p.id === id)).slice(0, 2);
@@ -1083,19 +1088,33 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
         .sort((a, b) => b.overall - a.overall).map(p => p.id);
       targets = [...targets, ...fill].slice(0, 2);
     }
-    for (const id of targets) contribute(id, { type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: 3, perStat: {} });
+    for (const id of targets) contribute(id, { type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: MARTIR_TARGET_BOOST, perStat: {} });
   }
-  // 🪑 12º Homem — no BANCO (índice ≥11): +4 compostura e +4 visão a todo o XI.
+  // 🪑 12º Homem — no BANCO (índice ≥11): +1 em todos os atributos a todo o XI.
   for (let i = 11; i < players.length; i++) {
     const p = players[i];
     if (!p?.decimoHomem) continue;
-    for (const mate of xi) contribute(mate.id, { type: 'decimoHomem', fromId: p.id, fromName: p.shortName, flatAll: 0, perStat: { composure: 4, vision: 4 } });
+    for (const mate of xi) contribute(mate.id, { type: 'decimoHomem', fromId: p.id, fromName: p.shortName, flatAll: DECIMO_HOMEM_STAT_BOOST, perStat: {} });
   }
   // 🧩 Colecionador — titular recebe +1 em tudo por cada jogador que estiver na reserva.
   const reservePlayerCount = players.slice(11).filter((p): p is Player => !!p).length;
   for (const c of xi) {
     if (!c.colecionador) continue;
     contribute(c.id, { type: 'colecionador', fromId: c.id, fromName: c.shortName, flatAll: reservePlayerCount * COLECIONADOR_PER_RESERVE, perStat: {}, self: true });
+  }
+  // 🤝 Todos por um — a característica só existe de verdade quando o XI inteiro
+  // a carrega. Cada titular recebe a mesma fonte para o breakdown explicar o +15.
+  if (xi.length === 11 && xi.every(player => player.todosPorUm)) {
+    for (const mate of xi) {
+      contribute(mate.id, {
+        type: 'todosPorUm',
+        fromId: 'todos-por-um',
+        fromName: 'Todos por um',
+        flatAll: TODOS_POR_UM_STAT_BOOST,
+        perStat: {},
+        self: true,
+      });
+    }
   }
   // 👑 Arrogante — brilha individualmente, mas a cada 2 gols cobra −1 em tudo
   // dos OUTROS titulares. O próprio arrogante nunca recebe essa penalidade.
@@ -1109,8 +1128,8 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
       }
     }
   }
-  // 🛟 Noé — SÓ rende se ele é o ÚNICO titular do XI com característica: +10 em tudo NELE.
-  // (o +30 de química vive em calculateChemistry). Dois Noés no XI se cancelam (nenhum é "o único").
+  // 🛟 Noé — SÓ rende se ele é o ÚNICO titular do XI com característica: +20 em tudo NELE.
+  // (o +50 de química vive em calculateChemistry). Dois Noés no XI se cancelam (nenhum é "o único").
   const carded = xi.filter(hasVariant);
   if (carded.length === 1 && carded[0].noe) {
     const n = carded[0];
@@ -1372,7 +1391,7 @@ export function getEffectiveAttribute(
   base += player.arrogante ? arroganteStatBoost(player.arroganteGoals) : 0;
   base += player.estribado ? estribadoStatBoost(context?.credits) : 0;
 
-  // 🩸❤️🪑 Team-effect characteristics buffing this player (Mártir/Ídolo/12º Homem).
+  // 🩸❤️🪑🤝 Team-effect characteristics buffing this player.
   const cb = context?.charBoosts?.[player.id];
   if (cb) base += cb.flatAll + (cb.perStat[attribute as AttrKey] ?? 0);
 
@@ -1913,7 +1932,7 @@ export function runMatchSimulation(
   // Captain leadership — computed once per side (the best stat is fixed for the match).
   const homeCaptainBoost = captainBoostForTeam(home) ?? undefined;
   const awayCaptainBoost = captainBoostForTeam(away) ?? undefined;
-  // 🩸❤️🪑 Team-effect characteristics — computed once per side (constant across the match).
+  // 🩸❤️🪑🤝 Team-effect characteristics — computed once per side (constant across the match).
   const homeCharBoosts = computeCharacteristicBoosts(home.players);
   const awayCharBoosts = computeCharacteristicBoosts(away.players);
 
@@ -3362,7 +3381,10 @@ const DRAFT_GOLEADOR_CHANCE = 0.03; // ⚽ Goleador — cresce a cada 3 gols mar
 const DRAFT_GARCOM_CHANCE = 0.03; // 🎯 Garçom — cresce a cada 2 assistências dadas
 const DRAFT_ARROGANTE_CHANCE = 0.03; // 👑 Arrogante — +2 por gol; −1 aos outros a cada 2 gols
 const DRAFT_ESTRIBADO_CHANCE = 0.03; // 💰 Estribado — +1 por cada 100 créditos disponíveis
+const DRAFT_TODOS_POR_UM_CHANCE = 0.03; // 🤝 Todos por um — só ativa quando fecha o XI
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
+export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
+export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
 const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
 export const MAGNATA_POINT_MULT = 1.5;
@@ -3372,13 +3394,13 @@ export function magnataPointMultiplier(starters: (Player | undefined)[]): number
 }
 // 🍿 Pipoqueiro — o anti-Pilar: brilha na fase de liga, "pipoca" (some) no mata-mata. Aplicado em
 // RUNTIME (depende de context.isKnockout), por isso NÃO é assado no stat base como o Em Alta/Lobo.
-export const PIPOQUEIRO_LEAGUE_BOOST = 4;   // +4 em cada atributo na FASE DE LIGA
-export const PIPOQUEIRO_KO_PENALTY = 5;     // −5 em cada atributo no MATA-MATA
-// 🛟 Noé — só rende quando é o ÚNICO titular do XI com característica: +10 em tudo NELE e +30 na
+export const PIPOQUEIRO_LEAGUE_BOOST = 7;   // +7 em cada atributo na FASE DE LIGA
+export const PIPOQUEIRO_KO_PENALTY = 7;     // −7 em cada atributo no MATA-MATA
+// 🛟 Noé — só rende quando é o ÚNICO titular do XI com característica: +20 em tudo NELE e +50 na
 // química geral do time (ele "põe todo mundo na arca"). Condição/efeitos em computeCharacteristicBoosts
-// (atributos) e calculateChemistry (o +30). O custo é estrutural: abrir mão de toda outra característica.
-export const NOE_STAT_BOOST = 10;
-export const NOE_CHEM_BONUS = 30;
+// (atributos) e calculateChemistry (o +50). O custo é estrutural: abrir mão de toda outra característica.
+export const NOE_STAT_BOOST = 20;
+export const NOE_CHEM_BONUS = 50;
 // 🧳 Forasteiro — o anti-química: +8 em tudo quando é o ÚNICO titular do seu país E do seu clube.
 export const FORASTEIRO_STAT_BOOST = 8;
 // 🧩 Colecionador — +1 em todos os atributos por jogador que estiver na reserva.
@@ -3392,8 +3414,8 @@ export function estribadoStatBoost(credits?: number): number {
 // Single boost value: "em alta" adds this to EVERY attribute. The overall rises by the
 // same amount as a CONSEQUENCE — overall is the mean of the attributes, so +N across all
 // eight is +N overall. That's why it's described to the player simply as "+N em cada atributo".
-const INFORM_STAT_BOOST = 3;
-const LOBO_STAT_BOOST = 6;           // Lobo Solitário: a BIGGER personal boost (double the in-form)…
+export const INFORM_STAT_BOOST = 4;
+export const LOBO_STAT_BOOST = 7;     // Lobo Solitário: a BIGGER personal boost than Em Alta…
 export const LOBO_CHEM_PENALTY = 12; // …paid for with this much TEAM chemistry per lone wolf.
 export const PILAR_CHEM_BONUS = 12;  // Pilar: lifts the team's total chemistry by this much.
 export const RESILIENTE_DEFEAT_BOOST = 2;
@@ -3403,6 +3425,8 @@ export const GARCOM_ASSISTS_PER_BOOST = 2;
 export const ARROGANTE_GOALS_PER_PENALTY = 2;
 export const ARROGANTE_STAT_BOOST_PER_GOAL = 2;
 export const ARROGANTE_TEAM_PENALTY = 1;
+export const TODOS_POR_UM_STAT_BOOST = 15;
+export const TODOS_POR_UM_CHEM_BONUS = 50;
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */
 export function prodigioStatBoost(starts: number | undefined): number {
@@ -3473,7 +3497,7 @@ function applyDraftVariant(p: Player): Player {
   acc += DRAFT_PILAR_CHANCE;
   if (r < acc) return { ...p, pilar: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
-  // 🩸 Mártir: sacrifica-se (−6 em tudo) pra dar +3 em tudo a 2 titulares (efeito em computeCharacteristicBoosts).
+  // 🩸 Mártir: sacrifica-se (−6 em tudo) pra dar +5 em tudo a 2 titulares (efeito em computeCharacteristicBoosts).
   acc += DRAFT_MARTIR_CHANCE;
   if (r < acc) {
     const b = MARTIR_STAT_PENALTY;
@@ -3544,6 +3568,10 @@ function applyDraftVariant(p: Player): Player {
   // 💰 Estribado — runtime bonus based on the owner's current credit balance.
   acc += DRAFT_ESTRIBADO_CHANCE;
   if (r < acc) return { ...p, estribado: true, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🤝 Todos por um — flag pura; o bônus só liga quando os 11 titulares a possuem.
+  acc += DRAFT_TODOS_POR_UM_CHANCE;
+  if (r < acc) return { ...p, todosPorUm: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -3787,7 +3815,7 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(
   player: Player,
-  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante',
+  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante',
   competitionStats: { goals?: number; assists?: number } = {},
 ): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
@@ -3810,7 +3838,7 @@ export function applyShopVariant(
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -3846,7 +3874,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
-  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
+  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.todosPorUm; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
   delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds; delete p.arrogante; delete p.arroganteGoals; delete p.arroganteMatchIds;
   return p;
@@ -4006,7 +4034,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   }
 
   // 🎖️ Características: nos níveis altos, alguns titulares ganham uma variante SEMPRE-BOA
-  // (Em Alta +3 em tudo, ou Pilar +química) — antes de calcular a química e o banco.
+  // (Em Alta +4 em tudo, ou Pilar +química) — antes de calcular a química e o banco.
   if (prof.variantChance > 0) {
     for (let i = 0; i < Math.min(11, selected.length); i++) {
       if (Math.random() < prof.variantChance) {

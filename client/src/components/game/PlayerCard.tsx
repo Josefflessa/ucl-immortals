@@ -1,7 +1,7 @@
 import { useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, POS_PT } from '../../lib/gameData';
-import { arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, PRODIGIO_STARTS_PER_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
+import { arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { canonicalClubName, crestIdForClub } from '../../lib/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -952,6 +952,7 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   forasteiro: { color: '#A3E635', icon: '🧳', label: 'FORASTEIRO', treatment: 'ring' },
   colecionador: { color: '#C084FC', icon: '🧩', label: 'COLECIONADOR', treatment: 'ring' },
   estribado: { color: '#FACC15', icon: '💰', label: 'ESTRIBADO', treatment: 'ring' },
+  todosPorUm: { color: '#4ADE80', icon: '🤝', label: 'TODOS POR UM', treatment: 'halo' },
   capitaoNato: { color: '#F97316', icon: '🗣️', label: 'CAPITÃO NATO', treatment: 'ring' },
   magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
   prodigio: { color: '#FDE047', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
@@ -960,7 +961,7 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   garcom: { color: '#38BDF8', icon: '🎯', label: 'GARÇOM', treatment: 'ring' },
   arrogante: { color: '#E879F9', icon: '👑', label: 'ARROGANTE', treatment: 'pulse' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -975,19 +976,20 @@ export function getCardVariants(player: Player): CardVariant[] {
 
 // Short effect description for the card badge tooltip.
 function variantDesc(player: Player): string {
-  if (player.inForm) return `Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 3} em cada atributo; o GER da carta já inclui este bônus`;
-  if (player.lobo) return `LOBO SOLITÁRIO: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : 6} em cada atributo; o GER da carta já inclui este bônus, mas −12 na QUÍMICA GERAL do time`;
+  if (player.inForm) return `Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : INFORM_STAT_BOOST} em cada atributo; o GER da carta já inclui este bônus`;
+  if (player.lobo) return `LOBO SOLITÁRIO: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : LOBO_STAT_BOOST} em cada atributo; o GER da carta já inclui este bônus, mas −12 na QUÍMICA GERAL do time`;
   if (player.coringa) return 'CORINGA: joga em qualquer posição sem penalidade de posição ou química; no gol, jogador de linha tem aptidão reduzida';
   if (player.nomade) return 'NÔMADE: conta como qualquer nação na química';
   if (player.pilar) return 'PILAR: +12 na QUÍMICA GERAL do time';
-  if (player.martir) return 'MÁRTIR: −6 em cada atributo nele, mas dá +3 em tudo a 2 titulares';
+  if (player.martir) return `MÁRTIR: −6 em cada atributo nele, mas dá +${MARTIR_TARGET_BOOST} em tudo a 2 titulares`;
   if (player.idolo) return 'ÍDOLO: +2 em cada atributo aos OUTROS titulares do mesmo clube (não a ele)';
-  if (player.decimoHomem) return '12º HOMEM: no banco, dá +4 compostura e +4 visão a todo o time';
-  if (player.pipoqueiro) return 'PIPOQUEIRO: +4 em cada atributo na FASE DE LIGA, mas −5 no MATA-MATA';
-  if (player.noe) return 'NOÉ: +10 em cada atributo NELE e +30 na química geral — só enquanto for o ÚNICO titular com característica';
+  if (player.decimoHomem) return `12º HOMEM: no banco, dá +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time`;
+  if (player.pipoqueiro) return `PIPOQUEIRO: +${PIPOQUEIRO_LEAGUE_BOOST} em cada atributo na FASE DE LIGA, mas −${PIPOQUEIRO_KO_PENALTY} no MATA-MATA`;
+  if (player.noe) return `NOÉ: +${NOE_STAT_BOOST} em cada atributo NELE e +${NOE_CHEM_BONUS} na química geral — só enquanto for o ÚNICO titular com característica`;
   if (player.forasteiro) return 'FORASTEIRO: +8 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   if (player.colecionador) return 'COLECIONADOR: +1 em cada atributo por jogador que estiver na reserva';
   if (player.estribado) return 'ESTRIBADO: +1 em cada atributo a cada 100 créditos disponíveis';
+  if (player.todosPorUm) return `TODOS POR UM: se os 11 titulares tiverem a característica, +${TODOS_POR_UM_STAT_BOOST} em cada atributo e +${TODOS_POR_UM_CHEM_BONUS} na química geral`;
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
   if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida de liga por 1,5 (mas −5 em cada atributo nele)';
   if (player.prodigio) {

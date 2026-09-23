@@ -11,6 +11,7 @@ import {
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
   PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant, applyMatchStatGrowth,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, COLECIONADOR_PER_RESERVE,
+  MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
   PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
@@ -18,6 +19,7 @@ import {
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost, GOLEADOR_GOALS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, goleadorStatBoost, garcomStatBoost,
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, arroganteStatBoost, arroganteTeamPenalty,
   ESTRIBADO_CREDITS_PER_BOOST, ESTRIBADO_STAT_BOOST, estribadoStatBoost,
+  TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
   draftSlotIndex, getNeededPositions, DRAFT_RARITY_CHANCES,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture, type MatchEvent,
@@ -466,14 +468,14 @@ describe('computeCharacteristicBoosts — team-effect characteristics', () => {
     expect(magnataPointMultiplier([...eleven, mag])).toBe(1); // magnata no BANCO (índice 11) → não conta
   });
 
-  it('🩸 Mártir gives +3 to its two chosen starters, and stacks', () => {
+  it('🩸 Mártir gives +5 to its two chosen starters, and stacks', () => {
     const m1 = mkP({ id: 'm1', martir: true, martirTargets: ['t1', 't2'] });
     const m2 = mkP({ id: 'm2', martir: true, martirTargets: ['t1', 'x'] });
     const t1 = mkP({ id: 't1' }); const t2 = mkP({ id: 't2' }); const x = mkP({ id: 'x' });
     const rest = Array.from({ length: 6 }, () => mkP());
     const map = computeCharacteristicBoosts([m1, m2, t1, t2, x, ...rest]);
-    expect(map['t1'].flatAll).toBe(6);   // boosted by BOTH mártires
-    expect(map['t2'].flatAll).toBe(3);
+    expect(map['t1'].flatAll).toBe(MARTIR_TARGET_BOOST * 2);   // boosted by BOTH mártires
+    expect(map['t2'].flatAll).toBe(MARTIR_TARGET_BOOST);
     expect(map['t1'].sources).toHaveLength(2);
   });
 
@@ -483,17 +485,17 @@ describe('computeCharacteristicBoosts — team-effect characteristics', () => {
     const lo = mkP({ id: 'lo', overall: 60 });
     const rest = Array.from({ length: 7 }, () => mkP({ overall: 50 }));
     const map = computeCharacteristicBoosts([m, hi1, hi2, lo, ...rest]);
-    expect(map['hi1'].flatAll).toBe(3);
-    expect(map['hi2'].flatAll).toBe(3);
+    expect(map['hi1'].flatAll).toBe(MARTIR_TARGET_BOOST);
+    expect(map['hi2'].flatAll).toBe(MARTIR_TARGET_BOOST);
     expect(map['lo']?.flatAll ?? 0).toBe(0);
   });
 
-  it('🪑 12º Homem on the BENCH gives +4 composure & +4 vision to the whole XI', () => {
+  it('🪑 12º Homem on the BENCH gives +1 to every attribute of the whole XI', () => {
     const xi = Array.from({ length: 11 }, (_, i) => mkP({ id: `xi${i}` }));
     const benchHelper = mkP({ id: 'bench', decimoHomem: true });
     const map = computeCharacteristicBoosts([...xi, benchHelper]);
-    expect(map['xi0'].perStat).toEqual({ composure: 4, vision: 4 });
-    expect(map['xi0'].flatAll).toBe(0);
+    expect(map['xi0'].perStat).toEqual({});
+    expect(map['xi0'].flatAll).toBe(DECIMO_HOMEM_STAT_BOOST);
     // himself (on the bench) is NOT in the XI, so gets nothing
     expect(map['bench']).toBeUndefined();
   });
@@ -507,7 +509,7 @@ describe('computeCharacteristicBoosts — team-effect characteristics', () => {
 });
 
 describe('char boosts flow through getEffectiveAttribute (engine = the buff)', () => {
-  it('a Mártir target reads +3 on every attribute', () => {
+  it('a Mártir target reads +5 on every attribute', () => {
     const m = mkP({ id: 'm', martir: true, martirTargets: ['t'] });
     const t = mkP({ id: 't' });
     const rest = Array.from({ length: 9 }, () => mkP());
@@ -515,15 +517,15 @@ describe('char boosts flow through getEffectiveAttribute (engine = the buff)', (
     const charBoosts = computeCharacteristicBoosts(xi);
     const noChem = getChemistryBonus(0);
     const eff = (ctx?: object) => getEffectiveAttribute(card(t), 'pace', COACHES[0], '', noChem, '__neutral__', ctx);
-    expect(eff({ charBoosts }) - eff({})).toBe(3);
+    expect(eff({ charBoosts }) - eff({})).toBe(MARTIR_TARGET_BOOST);
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🛟 Noé — só rende como ÚNICO titular com característica (+10 e +30 química)', () => {
+describe('🛟 Noé — só rende como ÚNICO titular com característica (+20 e +50 química)', () => {
   const xiOf = (extra: Player[]) => [...extra, ...Array.from({ length: 11 - extra.length }, () => mkP())];
 
-  it('+10 em tudo quando é o único carimbado do XI', () => {
+  it('+20 em tudo quando é o único carimbado do XI', () => {
     const noe = mkP({ id: 'noe', noe: true });
     const boosts = computeCharacteristicBoosts(xiOf([noe]));
     expect(boosts['noe']?.flatAll).toBe(NOE_STAT_BOOST);
@@ -543,14 +545,14 @@ describe('🛟 Noé — só rende como ÚNICO titular com característica (+10 e
     expect(boosts['b']?.flatAll ?? 0).toBe(0);
   });
 
-  it('+30 na química geral quando ativo (e nada quando desligado)', () => {
+  it('+50 na química geral quando ativo (e nada quando desligado)', () => {
     // XI com nação/clube DISTINTOS → química base baixa, para validar o bônus do Noé.
     const plainXI = Array.from({ length: 11 }, (_, i) => mkP({ id: `n${i}`, nation: `Nat${i}`, club: `Club${i}` }));
     const noeXI = plainXI.map(p => p.id === 'n0' ? { ...p, noe: true } : p);
     const base = calculateChemistry(plainXI, 'default').total;
     const withNoe = calculateChemistry(noeXI, 'default').total;
     expect(withNoe - base).toBe(NOE_CHEM_BONUS);
-    // com outro carimbado no XI, o +30 não vale
+    // com outro carimbado no XI, o +50 não vale
     const noeXIblocked = noeXI.map(p => p.id === 'n1' ? { ...p, pilar: true } : p);
     const blocked = calculateChemistry(noeXIblocked, 'default').total;
     expect(blocked - base).toBeLessThan(NOE_CHEM_BONUS);
@@ -587,6 +589,29 @@ describe('🧳 Forasteiro — +8 como único do país E do clube', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+describe('🤝 Todos por um — só ativa quando os 11 titulares têm a característica', () => {
+  it('fica inativo com um titular sem a característica e ativa o bônus completo com o XI fechado', () => {
+    const plainXI = Array.from({ length: 11 }, (_, i) => mkP({ id: `plain${i}`, nation: `Nation${i}`, club: `Club${i}` }));
+    const completeXI = plainXI.map(player => ({ ...player, todosPorUm: true }));
+    const incompleteXI = completeXI.map((player, index) => index === 10 ? { ...player, todosPorUm: false } : player);
+
+    const inactive = computeCharacteristicBoosts(incompleteXI);
+    expect(inactive['plain0']?.flatAll ?? 0).toBe(0);
+    expect(calculateChemistry(incompleteXI, 'default').total).toBe(calculateChemistry(plainXI, 'default').total);
+
+    const active = computeCharacteristicBoosts(completeXI);
+    expect(active['plain0']?.flatAll).toBe(TODOS_POR_UM_STAT_BOOST);
+    expect(active['plain10']?.sources[0]).toMatchObject({ type: 'todosPorUm', self: true });
+    expect(calculateChemistry(completeXI, 'default').total - calculateChemistry(plainXI, 'default').total).toBe(TODOS_POR_UM_CHEM_BONUS);
+
+    const base = getPlayerEffectiveStats(plainXI[0], 0, false, '', 0, '__neutral__');
+    const boosted = getPlayerEffectiveStats(completeXI[0], 0, false, '', 0, '__neutral__', { charBoosts: active });
+    expect(boosted.breakdown.pace.char).toBe(TODOS_POR_UM_STAT_BOOST);
+    expect(boosted.overall - base.overall).toBe(TODOS_POR_UM_STAT_BOOST);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 describe('🧩 Colecionador — +1 por jogador na reserva', () => {
   it('usa a quantidade de jogadores presentes na reserva', () => {
     const collector = mkP({ id: 'collector', colecionador: true, club: 'Clube A' });
@@ -611,7 +636,7 @@ describe('🧩 Colecionador — +1 por jogador na reserva', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🍿 Pipoqueiro — +4 na liga, −5 no mata-mata (o anti-Pilar)', () => {
+describe('🍿 Pipoqueiro — +6 na liga, −6 no mata-mata (o anti-Pilar)', () => {
   const noChem = getChemistryBonus(0);
   const eff = (p: Player, ctx?: object) =>
     getEffectiveAttribute(card(p), 'pace', COACHES[0], '', noChem, '__neutral__', ctx);
@@ -654,6 +679,7 @@ describe('🧹 Remover característica (hasVariant / stripVariant)', () => {
   it('reverte o boost assado do Em Alta e limpa a flag', () => {
     const boosted = applyShopVariant(mkP({ id: 'a', pace: 70, overall: 80 }), 'inForm');
     expect(boosted.pace).toBeGreaterThan(70);
+    expect(boosted.pace - 70).toBe(INFORM_STAT_BOOST);
     const clean = stripVariant(boosted);
     expect(clean.inForm).toBeFalsy();
     expect(clean.baseOverall).toBeUndefined();
@@ -980,11 +1006,12 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     const v = applyShopVariant(src, 'lobo');
     const delta = v.overall - src.overall;
     expect(delta).toBeGreaterThan(0);
-    expect(v.pace - src.pace).toBe(delta);
+    expect(v.pace - src.pace).toBe(LOBO_STAT_BOOST);
+    expect(delta).toBe(LOBO_STAT_BOOST);
     expect(v.lobo).toBe(true);
   });
-  it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente / estribado / arrogante) leave stats untouched', () => {
-    for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente', 'estribado', 'arrogante'] as const) {
+  it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente / estribado / todosPorUm / arrogante) leave stats untouched', () => {
+    for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente', 'estribado', 'todosPorUm', 'arrogante'] as const) {
       const v = applyShopVariant(src, key);
       expect((v as Record<string, unknown>)[key]).toBe(true);
       expect(v.overall).toBe(src.overall);
