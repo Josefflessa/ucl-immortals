@@ -719,7 +719,7 @@ function buildSofifaUrls(m: { id: number; ver: number }, lowRes: boolean): strin
   return urls;
 }
 
-export function buildPlayerPhotoSources(playerId: string, lowRes = false): string[] {
+export function buildPlayerPhotoSources(playerId: string, lowRes = false, explicitPhotoUrl?: string): string[] {
   // ⭐ Cartas Únicas têm render PRÓPRIO — nunca cair na foto da carta-base (ex.: kaka_unico ≠ kaka).
   const u = UNIQUE_STYLE[playerId];
   if (u) return [u.render];
@@ -732,6 +732,7 @@ export function buildPlayerPhotoSources(playerId: string, lowRes = false): strin
   // The exact player ID is always tried, so adding `players/regular/<id>.webp`
   // is enough even when the ID has not been added to a mapping yet.
   return [
+    ...(explicitPhotoUrl ? [explicitPhotoUrl] : []),
     ...buildLocalPlayerUrls(playerId),
     ...(m ? buildSofifaUrls(m, lowRes) : []),
   ];
@@ -879,8 +880,8 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
 // Fallback chain: local → latest_ver_360 → ver23_360 → ver22_360 → latest_ver_120 → placeholder
-function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: string; fullName: string; size: number; lowRes?: boolean }) {
-  const urls = buildPlayerPhotoSources(playerId, lowRes);
+function PlayerPhoto({ playerId, fullName, size, lowRes = false, photoUrl }: { playerId: string; fullName: string; size: number; lowRes?: boolean; photoUrl?: string }) {
+  const urls = buildPlayerPhotoSources(playerId, lowRes, photoUrl);
 
   const [urlIdx, setUrlIdx] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -891,7 +892,7 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false }: { playerId: s
   useEffect(() => {
     setUrlIdx(0);
     setFailed(false);
-  }, [playerId, lowRes]);
+  }, [playerId, lowRes, photoUrl]);
 
   const url = urls[urlIdx] ?? null;
 
@@ -1036,7 +1037,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   const displayOverall = displayStats.overall;
   // A foto pode existir apenas no pacote local (sem entrada SoFIFA), como no Raphinha.
   // Use a mesma cadeia de fontes do PlayerPhoto para não esconder portraits locais.
-  const hasPhoto = !!uniq || buildPlayerPhotoSources(player.id).length > 0;
+  const hasPhoto = !!uniq || buildPlayerPhotoSources(player.id, false, player.photoUrl).length > 0;
 
   // ─── COMPACT CARD (escudo leve) ──────────────────────────────────────────
   // Caminho enxuto: 1 camada de textura achatada, sem anel metálico/scrim/border-SVG/glow pesados
@@ -1103,7 +1104,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           {/* Foto (cartas normais; as Únicas usam o render posicionado acima) */}
           <div className="flex-1 flex items-end justify-center overflow-hidden" style={{ minHeight: 0, marginLeft: compactPhotoMargin, marginRight: compactPhotoMargin }}>
             {!uniq && (hasPhoto ? (
-              <PlayerPhoto playerId={player.id} fullName={player.fullName} size={50} lowRes />
+              <PlayerPhoto playerId={player.id} fullName={player.fullName} size={50} lowRes photoUrl={player.photoUrl} />
             ) : (
               <span style={{ fontSize: 22, opacity: 0.2 }}>⚽</span>
             ))}
@@ -1196,7 +1197,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {/* foto (cartas normais; as Únicas usam o render grande atrás do conteúdo) */}
         {!uniq && (
           <div className="absolute flex items-end justify-center" style={{ right: '6%', top: '5%', width: '66%', height: '49%' }}>
-            {hasPhoto ? <PlayerPhoto playerId={player.id} fullName={player.fullName} size={150} lowRes={lite} /> : <span style={{ fontSize: 40, opacity: .2 }}>⚽</span>}
+            {hasPhoto ? <PlayerPhoto playerId={player.id} fullName={player.fullName} size={150} lowRes={lite} photoUrl={player.photoUrl} /> : <span style={{ fontSize: 40, opacity: .2 }}>⚽</span>}
           </div>
         )}
         {/* chip de raridade (mesmo estilo de hoje, sem emoji) */}

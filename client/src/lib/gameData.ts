@@ -3,6 +3,7 @@
 
 import { BRAZILIAN_STARTERS } from './brazilianStarters';
 import { BRAZILIAN_NOTABLE_ADDITIONS } from './brazilianNotableAdditions';
+import { SORTITOUTSI_BRAZILIAN_LEAGUE_ADDITIONS } from './sortitoutsiBrazilianLeagueExpansion';
 import { MAJOR_LEAGUE_ADDITIONS } from './majorLeaguePlayers';
 import { MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE } from './majorLeagueCatalogExpansion';
 import { NEXT_GENERATION_PLAYERS } from './next-generationPlayers';
@@ -27,6 +28,7 @@ export interface Player {
   historicalPlayerId?: string;
   shortName: string;
   fullName: string;
+  photoUrl?: string;
   position: string;
   secondaryPositions?: string[];
   nation: string;
@@ -681,6 +683,7 @@ export const HISTORICAL_TRIOS: HistoricalTrio[] = [
 export const PLAYERS: Player[] = [
   ...BRAZILIAN_STARTERS,
   ...BRAZILIAN_NOTABLE_ADDITIONS,
+  ...SORTITOUTSI_BRAZILIAN_LEAGUE_ADDITIONS,
   ...MAJOR_LEAGUE_ADDITIONS,
   ...MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE,
   ...NEXT_GENERATION_PLAYERS,

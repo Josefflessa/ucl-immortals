@@ -14,6 +14,7 @@ import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
 import BracketTab from '../components/game/BracketTab';
 import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerCard from '../components/game/PlayerCard';
+import { preloadPlayerPhotos } from '../components/game/PlayerPortrait';
 import Crest from '../components/game/Crest';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
@@ -48,6 +49,15 @@ export default function LeaguePage() {
   const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | 'restart' | 'close' | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
+
+  // Warm the compact portraits before the reinforcement modal is painted. The
+  // modal has only a handful of cards, but waiting for lazy image loading here
+  // makes the offer feel like a single, immediate interaction on mobile.
+  const reinforcementPhotoKey = state.reinforcementOptions?.map(option => option.id).join('|') ?? '';
+  useEffect(() => {
+    if (!reinforcementPhotoKey) return;
+    return preloadPlayerPhotos(reinforcementPhotoKey.split('|'), true);
+  }, [reinforcementPhotoKey]);
 
   const handleLeaveSolo = () => {
     setConfirmAction('solo');

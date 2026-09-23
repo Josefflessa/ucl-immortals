@@ -273,7 +273,7 @@ function getRoomSyncSession(socket: RealtimeSocket): RoomSyncSession {
 
 function rememberInitialRoomSnapshot(socket: RealtimeSocket, room: RoomState): { roomState: RoomState; syncRevision: number } {
   const session = getRoomSyncSession(socket);
-  session.snapshot = roomViewForSocket(room, socket.id);
+  session.snapshot = roomViewForSocket(room, socket.id, session.supportsPatches);
   session.revision = 0;
   return { roomState: session.snapshot as RoomState, syncRevision: session.revision };
 }
@@ -319,9 +319,19 @@ function jsonByteLength(value: unknown): number {
  * pending packs and bets are private. Build a per-socket view before calculating
  * patches so those fields never cross the wire to another participant.
  */
-function roomViewForSocket(room: RoomState, socketId: string): RoomState {
+function roomViewForSocket(room: RoomState, socketId: string, compactHistory = false): RoomState {
   const viewer = room.players.find(player => player.socketId === socketId);
   const view = cloneRoomJson(room);
+  // Every league fixture already owns its authoritative result. Keeping a
+  // second full copy in leagueResults made the room and every sync/diff grow
+  // twice as fast. New clients derive leagueResults from the fixtures; legacy
+  // clients still receive the derived array for compatibility.
+  const fixtureResults = view.leagueFixtures
+    .filter(fixture => fixture.played && !!fixture.result)
+    .map(fixture => fixture.result!);
+  view.leagueResults = compactHistory
+    ? []
+    : fixtureResults.length > 0 ? fixtureResults : view.leagueResults;
   // These fields are server-only persistence metadata. In particular, command
   // receipts must not reveal another client's retry history.
   delete view.commandReceipts;
@@ -382,10 +392,10 @@ function emitRoomUpdate(io: RealtimeServer, room: RoomState, options: RoomUpdate
     const target = io.sockets.sockets.get(socketId);
     if (!target) continue;
 
-    const nextSnapshot = roomViewForSocket(room, socketId);
+    const session = getRoomSyncSession(target);
+    const nextSnapshot = roomViewForSocket(room, socketId, session.supportsPatches);
     const nextSnapshotBytes = jsonByteLength(nextSnapshot);
 
-    const session = getRoomSyncSession(target);
     if (!session.supportsPatches) {
       target.emit('room_updated', nextSnapshot);
       session.snapshot = nextSnapshot;
@@ -555,6 +565,18 @@ export function roomMutationDigest(room: RoomState): string {
     if (key === 'stateRevision' || key === 'commandReceipts' || key === 'lastCheckpoint') return undefined;
     return value;
   });
+}
+
+/**
+ * League fixtures are the canonical owner of a played match result. Older
+ * rooms also persisted a duplicate leagueResults array, so keep a fallback
+ * while they are being migrated but never create that duplicate again.
+ */
+function authoritativeLeagueResults(room: RoomState): MatchResult[] {
+  const fixtureResults = room.leagueFixtures
+    .filter(fixture => fixture.played && !!fixture.result)
+    .map(fixture => fixture.result!);
+  return fixtureResults.length > 0 ? fixtureResults : room.leagueResults;
 }
 
 function rememberCommand(room: RoomState, event: string, commandId: string): void {
@@ -1924,7 +1946,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const competitionStats = getPlayerSeasonStats(
         target.id,
         player.team.id,
-        getAllPlayedMatchResults(room.leagueResults, room.knockoutBracket),
+        getAllPlayedMatchResults(authoritativeLeagueResults(room), room.knockoutBracket),
       );
       player.points -= cost;
       player.team.players = player.team.players.map(p =>
@@ -2306,7 +2328,6 @@ export function registerSocketHandlers(io: RealtimeServer) {
             room.competitionFormat.matchSettings,
           );
           const authoritativeResult = stampMatchStartingLineups(result, resolvedHome, resolvedAway);
-          room.leagueResults.push(authoritativeResult);
           simulatedAny = true;
           return { ...f, played: true, result: authoritativeResult };
         }
@@ -2314,6 +2335,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       });
 
       if (simulatedAny) {
+        // The result is already stored on its fixture. Clearing this legacy
+        // duplicate keeps long competitions from carrying two full copies of
+        // every event timeline and player-stat map.
+        room.leagueResults = [];
         // 🟨🟥🩹 Aplica a disciplina da rodada (todos os times que jogaram).
         const roundFx = room.leagueFixtures.filter(f => f.round === room.leagueRound && f.result);
         const roundTeamIds = Array.from(new Set(roundFx.flatMap(f => [f.homeTeamId, f.awayTeamId])));

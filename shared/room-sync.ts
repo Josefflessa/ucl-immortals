@@ -114,7 +114,13 @@ function getParent(root: unknown, path: RoomPatchPath): { parent: Record<string,
 }
 
 export function applyRoomPatch<T>(source: T, operations: readonly RoomPatchOperation[]): T {
-  let root = cloneRoomJson(source) as unknown;
+  // Patches are intentionally small, but room state contains the complete
+  // competition history. Cloning the whole room for every tiny update made
+  // the browser spend more time in JSON serialization as rounds accumulated.
+  // Copy only the containers along each changed path; untouched subtrees keep
+  // their references and remain immutable because every ancestor we modify is
+  // copied first.
+  let root = source as unknown;
 
   for (const operation of operations) {
     if (!operation || !Array.isArray(operation.path)) throw new Error('Invalid room patch operation');
@@ -124,6 +130,7 @@ export function applyRoomPatch<T>(source: T, operations: readonly RoomPatchOpera
       continue;
     }
 
+    root = cloneContainersAlongPath(root, operation.path);
     const { parent, key } = getParent(root, operation.path);
     if (operation.op === 'set') {
       if (Array.isArray(parent)) parent[key as number] = cloneRoomJson(operation.value);
@@ -137,4 +144,44 @@ export function applyRoomPatch<T>(source: T, operations: readonly RoomPatchOpera
   }
 
   return root as T;
+}
+
+function cloneContainer(value: Record<string, unknown> | unknown[]): Record<string, unknown> | unknown[] {
+  return Array.isArray(value) ? value.slice() : { ...value };
+}
+
+/** Copy only the ancestors that a patch is about to traverse or modify. */
+function cloneContainersAlongPath(root: unknown, path: RoomPatchPath): unknown {
+  if (!isContainer(root)) throw new Error('Invalid room patch root');
+
+  const clonedRoot = cloneContainer(root);
+  let originalCurrent: Record<string, unknown> | unknown[] = root;
+  let clonedCurrent: Record<string, unknown> | unknown[] = clonedRoot;
+
+  for (const segment of path.slice(0, -1)) {
+    if (!isSafePathSegment(segment)) throw new Error('Invalid room patch path');
+
+    let child: unknown;
+    if (Array.isArray(originalCurrent)) {
+      if (typeof segment !== 'number' || !Number.isInteger(segment)
+        || segment < 0 || segment >= originalCurrent.length) {
+        throw new Error('Invalid room patch array path');
+      }
+      child = originalCurrent[segment];
+    } else {
+      if (typeof segment !== 'string' || !Object.prototype.hasOwnProperty.call(originalCurrent, segment)) {
+        throw new Error('Invalid room patch object path');
+      }
+      child = originalCurrent[segment];
+    }
+
+    if (!isContainer(child)) throw new Error('Invalid room patch container path');
+    const clonedChild = cloneContainer(child);
+    if (Array.isArray(clonedCurrent)) clonedCurrent[segment as number] = clonedChild;
+    else clonedCurrent[segment as string] = clonedChild;
+    originalCurrent = child;
+    clonedCurrent = clonedChild;
+  }
+
+  return clonedRoot;
 }

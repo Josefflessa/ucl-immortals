@@ -943,6 +943,14 @@ export class GameRoom {
             && Number.isSafeInteger(receipt.stateRevision))
           .slice(-MAX_PERSISTED_COMMAND_RECEIPTS)
         : [];
+      // Each played league result is already owned by its fixture. Older
+      // deployments also persisted the same full result array separately;
+      // discard that duplicate in memory so every later clone, diff and
+      // checkpoint is smaller without changing what clients can display.
+      if (stored.room.leagueResults.length > 0
+        && stored.room.leagueFixtures.some(fixture => fixture.played && !!fixture.result)) {
+        stored.room.leagueResults = [];
+      }
       this.runtime.rooms.set(this.roomCode, stored.room);
       this.runtime.marketSeq = stored.marketSeq;
       this.reservationToken = typeof stored.reservationToken === 'string'

@@ -36,7 +36,7 @@ function likelySameClubIdentity(left: typeof PLAYERS[number], right: typeof PLAY
   return fullNameMatch || normalizeName(left.shortName) === normalizeName(right.shortName);
 }
 
-describe('lote de fechamento dos 1.000 jogadores', () => {
+describe('lote de fechamento do catálogo de jogadores', () => {
   it('adiciona exatamente 75 ids inéditos e sem repetir identidade no mesmo clube', () => {
     const ids = SORTITOUTSI_1000_ADDITIONS.map(player => player.id);
     expect(ids).toHaveLength(75);
@@ -50,8 +50,8 @@ describe('lote de fechamento dos 1.000 jogadores', () => {
     }
   });
 
-  it('fecha o catálogo em 1.000 e mantém cada carta ligada a clube e retrato locais', () => {
-    expect(PLAYERS).toHaveLength(1000);
+  it('fecha o catálogo em 1.124 e mantém cada carta antiga ligada a clube e retrato locais', () => {
+    expect(PLAYERS).toHaveLength(1124);
 
     for (const player of SORTITOUTSI_1000_ADDITIONS) {
       const catalogPlayer = PLAYERS.find(candidate => candidate.id === player.id);

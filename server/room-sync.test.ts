@@ -23,6 +23,28 @@ describe('room sync patches', () => {
     });
   });
 
+  it('preserves untouched subtrees while applying a small patch', () => {
+    const previous = {
+      phase: 'league',
+      players: [{ id: 'p1', points: 40 }],
+      history: [{ round: 1, result: { home: 2, away: 1 } }],
+    };
+    const next = applyRoomPatch(previous, [{
+      op: 'set', path: ['players', 0, 'points'], value: 55,
+    }]);
+
+    expect(next).not.toBe(previous);
+    expect(next.players).not.toBe(previous.players);
+    expect(next.players[0]).not.toBe(previous.players[0]);
+    expect(next.history).toBe(previous.history);
+    expect(next).toEqual({
+      phase: 'league',
+      players: [{ id: 'p1', points: 55 }],
+      history: [{ round: 1, result: { home: 2, away: 1 } }],
+    });
+    expect(previous.players[0].points).toBe(40);
+  });
+
   it('replaces arrays when their length changes', () => {
     const previous = { ids: ['a', 'b'] };
     const next = { ids: ['a', 'b', 'c'] };

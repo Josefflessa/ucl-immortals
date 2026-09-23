@@ -335,6 +335,27 @@ function currentUniquePackRoundKey(state: Pick<GameState, 'phase' | 'leagueRound
   return null;
 }
 
+/**
+ * The server keeps league results on their fixtures so the live room does not
+ * carry two copies of every replay timeline. Legacy snapshots may still send
+ * the old array, so prefer it when present and otherwise derive it lazily.
+ * Reuse the previous derived array when the fixture reference did not change
+ * (for example, a ready/shop patch), avoiding another full-history scan.
+ */
+function onlineLeagueResults(
+  roomState: any,
+  previousFixtures: LeagueFixture[],
+  previousResults: MatchResult[],
+): MatchResult[] {
+  const supplied = Array.isArray(roomState.leagueResults) ? roomState.leagueResults : [];
+  if (supplied.length > 0) return supplied;
+  const fixtures = Array.isArray(roomState.leagueFixtures) ? roomState.leagueFixtures : [];
+  if (fixtures === previousFixtures) return previousResults;
+  return fixtures
+    .filter((fixture: LeagueFixture) => fixture.played && !!fixture.result)
+    .map((fixture: LeagueFixture) => fixture.result!);
+}
+
 // ============================================================
 // REDUCER
 // ============================================================
@@ -1524,6 +1545,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // (This caused the coach reverting to Guardiola and post-draft picks "jumping".)
       // We only sync picks from the server when ENTERING the screen (phase changes).
       const keepLocalPicks = ['coach', 'formation', 'squad_review'].includes(targetPhase) && state.phase === targetPhase;
+      const roomFixtures = Array.isArray(roomState.leagueFixtures) ? roomState.leagueFixtures : [];
+      const roomLeagueResults = onlineLeagueResults(roomState, state.leagueFixtures, state.leagueResults);
 
       return {
         ...state,
@@ -1533,9 +1556,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         difficulty: roomState.difficulty,
         competitionFormat: normalizeCompetitionFormat(roomState.competitionFormat),
         botTeams: roomState.botTeams || [],
-        leagueFixtures: roomState.leagueFixtures || [],
+        leagueFixtures: roomFixtures,
         leagueStandings: roomState.leagueStandings || [],
-        leagueResults: roomState.leagueResults || [],
+        leagueResults: roomLeagueResults,
         leagueRound: roomState.leagueRound || 1,
         knockoutBracket: roomState.knockoutBracket || null,
         champion: roomState.champion || null,
@@ -1591,7 +1614,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               const allTeamsList = [...allHumanTeams, ...(roomState.botTeams || [])];
               const championTeam = allTeamsList.find((t: any) => t.id === roomState.champion);
               // Aggregate every played match (league + knockout) for accurate stats.
-              const allResults = getAllPlayedMatchResults(roomState.leagueResults || [], roomState.knockoutBracket || null);
+              const allResults = getAllPlayedMatchResults(roomLeagueResults, roomState.knockoutBracket || null);
               return myTeam
                 ? generateImmortalReport(myTeam, allResults, championTeam?.name ?? 'Campeão')
                 : state.report;
@@ -2194,11 +2217,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("set_martir_targets", { roomCode: state.roomCode, playerId, targetIds });
   }, [emitOnlineAction, state.roomCode]);
   const setEvolvePointOnline = useCallback((playerId: string, attr: AttrKey, delta: number) => {
+    // Render the allocation immediately. The server remains authoritative: its
+    // next room update replaces this optimistic value, and a rejected command
+    // already triggers a fresh authoritative sync in the socket listener.
+    if (!socketRef.current || !state.roomCode) return;
+    dispatch({ type: 'SET_EVOLVE_POINT', playerId, attr, delta });
     emitOnlineAction("set_evolve_point", { roomCode: state.roomCode, playerId, attr, delta });
-  }, [emitOnlineAction, state.roomCode]);
+  }, [dispatch, emitOnlineAction, state.roomCode]);
   const resetEvolvePointsOnline = useCallback((playerId: string) => {
+    if (!socketRef.current || !state.roomCode) return;
+    dispatch({ type: 'RESET_EVOLVE_POINTS', playerId });
     emitOnlineAction("reset_evolve_points", { roomCode: state.roomCode, playerId });
-  }, [emitOnlineAction, state.roomCode]);
+  }, [dispatch, emitOnlineAction, state.roomCode]);
   const shopBuyRerollOnline = useCallback(() => {
     emitOnlineAction("shop_buy_reroll", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
@@ -2206,11 +2236,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("reroll_reinforcement", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
   const pickReinforcementOnline = useCallback((player: Player) => {
+    // Close the offer immediately after a valid local selection. The server
+    // remains authoritative and a rejected command already requests a fresh
+    // room snapshot, so stale/offline clicks cannot permanently alter the team.
+    if (!socketRef.current || !state.roomCode) return;
+    dispatch({ type: 'PICK_REINFORCEMENT', player });
     emitOnlineAction("pick_reinforcement", { roomCode: state.roomCode, player });
-  }, [emitOnlineAction, state.roomCode]);
+  }, [dispatch, emitOnlineAction, state.roomCode]);
   const dismissReinforcementOnline = useCallback(() => {
+    if (!socketRef.current || !state.roomCode) return;
+    dispatch({ type: 'DISMISS_REINFORCEMENT' });
     emitOnlineAction("dismiss_reinforcement", { roomCode: state.roomCode });
-  }, [emitOnlineAction, state.roomCode]);
+  }, [dispatch, emitOnlineAction, state.roomCode]);
 
   const disconnectOnline = useCallback(() => {
     if (socketRef.current) {

@@ -3,7 +3,7 @@
 // elenco" screen AND the in-league "MEU TIME" tab. Both used to be near-duplicates; now any
 // change here shows up in both. It's purely presentational: data + callbacks come from props,
 // so each host wires its own state (drafted players vs the league team) and actions.
-import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from 'react';
 import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
 import {
@@ -131,29 +131,32 @@ export default function SquadEditor({
   const coach = COACHES.find(c => c.id === coachId);
   const coachStadium = stadiumFor(coachId, !!coachPrime);
   const coachDisplayPhoto = coachPrime && coachStadium.coachPhotoUrl ? coachStadium.coachPhotoUrl : coach?.photoUrl;
-  const xi = players.slice(0, 11);
-  const bench = players.slice(11);
-  const formationRoles = formation?.positions.map(p => p.role) ?? [];
-  const chemData = calculateChemistry(xi, coachId, formationRoles, formationId);
-  const chemLinks = getChemistryLinks(xi, coachId);
-  const captainBoost = captainBoostFromStarters(xi, captain ?? undefined) ?? undefined;
-  const charBoosts = computeCharacteristicBoosts(players); // 🩸❤️🪑 team-effect characteristics
+  // These calculations are shared by the field, player cards and detail modal.
+  // Keep them stable while the user only changes the selected card; this avoids
+  // recalculating the whole squad just to open/close or browse the modal.
+  const xi = useMemo(() => players.slice(0, 11), [players]);
+  const bench = useMemo(() => players.slice(11), [players]);
+  const formationRoles = useMemo(() => formation?.positions.map(p => p.role) ?? [], [formation]);
+  const chemData = useMemo(() => calculateChemistry(xi, coachId, formationRoles, formationId), [xi, coachId, formationRoles, formationId]);
+  const chemLinks = useMemo(() => getChemistryLinks(xi, coachId), [xi, coachId]);
+  const captainBoost = useMemo(() => captainBoostFromStarters(xi, captain ?? undefined) ?? undefined, [xi, captain]);
+  const charBoosts = useMemo(() => computeCharacteristicBoosts(players), [players]); // 🩸❤️🪑 team-effect characteristics
 
   // A química usa o verde como identidade visual fixa nesta síntese do elenco;
   // o valor continua indicando o nível real, sem mudar o cálculo.
   const chemColor = '#22C55E';
-  const activeTrios = chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean);
+  const activeTrios = useMemo(() => chemData.trios.map(id => HISTORICAL_TRIOS.find(t => t.id === id)).filter(Boolean), [chemData.trios]);
 
-  const teamOverall = xi.length === 11
+  const teamOverall = useMemo(() => xi.length === 11
     ? Math.round(xi.reduce((sum, p, idx) => {
       const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, role: formationRoles[idx] ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false, credits: points });
       return sum + eff.overall;
     }, 0) / 11)
-    : null;
+    : null, [xi, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, formationRoles, points]);
 
   // Meu Time is the only card context that renders effective values. Draft, shop and
   // reinforcement pickers omit this map and therefore keep the card's own values.
-  const effectiveStatsById: Record<string, EffectiveStats> = Object.fromEntries(
+  const effectiveStatsById: Record<string, EffectiveStats> = useMemo(() => Object.fromEntries(
     players.map((player, index) => {
       const isStarter = index < 11;
       const effective = getPlayerEffectiveStats(
@@ -176,16 +179,16 @@ export default function SquadEditor({
       );
       return [player.id, effective];
     }),
-  );
+  ), [players, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, formationRoles, points]);
 
-  const rolePlayers: RoleablePlayer[] = xi.map(player => ({
+  const rolePlayers: RoleablePlayer[] = useMemo(() => xi.map(player => ({
     ...player,
     effectiveOverall: effectiveStatsById[player.id]?.overall,
     effectiveStats: effectiveStatsById[player.id],
-  }));
-  const roleMetrics = activeRole
+  })), [xi, effectiveStatsById]);
+  const roleMetrics = useMemo(() => activeRole
     ? Object.fromEntries(rolePlayers.map(player => [player.id, roleMetricFor(player, activeRole)]))
-    : {};
+    : {}, [activeRole, rolePlayers]);
   const roleSuggestionId = activeRole ? suggestedRoleId(rolePlayers, activeRole) : null;
 
   const getChemPreview = (candidateIdx: number) => {
