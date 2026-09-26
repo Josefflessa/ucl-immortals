@@ -86,6 +86,15 @@ const entries: Entry[] = [
   ['Gabriel Veron', 'CAM', 'Palmeiras', 19360962], ['Raphael Veiga', 'CAM', 'Palmeiras', 19233491],
   ['Miguel Borja', 'ST', 'Palmeiras', 76033093], ['Lucas Lima', 'CAM', 'Palmeiras', 19187884],
   ['Patrick de Paula', 'CDM', 'Palmeiras', 19335628],
+  ['Weverton', 'GK', 'Palmeiras', 19034819], ['Dudu', 'CAM', 'Palmeiras', 19058671],
+  ['Rony', 'CAM', 'Palmeiras', 19249790],
+  ['Danilo', 'CDM', 'Palmeiras', 19371902], ['Marcos Rocha', 'RB', 'Palmeiras', 19014340],
+  ['Zé Rafael', 'CAM', 'Palmeiras', 19171250],
+  ['Jorge', 'LB', 'Palmeiras', 19226738], ['Mayke', 'RB', 'Palmeiras', 19152912],
+  ['Jaílson', 'CB', 'Palmeiras', 19256906], ['Gabriel Menino', 'CDM', 'Palmeiras', 19333767],
+  ['Deyverson', 'ST', 'Palmeiras', 55062112], ['Eduard Atuesta', 'CDM', 'Palmeiras', 76047499],
+  ['Marcelo Lomba', 'GK', 'Palmeiras', 315180], ['Breno Lopes', 'CAM', 'Palmeiras', 19271622],
+  ['Rafael Navarro', 'ST', 'Palmeiras', 19381900],
   // Corinthians
   ['Renato Augusto', 'CDM', 'Corinthians', 320569], ['Gil', 'CB', 'Corinthians', 19053424],
   ['Jô', 'ST', 'Corinthians', 8826161], ['Gabriel Pereira', 'CAM', 'Corinthians', 19408820],
@@ -127,12 +136,14 @@ const FOREIGN_NATIONS: Record<string, string> = {
   'Víctor Cuesta': 'Argentina', 'Carlos Palacios': 'Chile', 'Gatito Fernández': 'Paraguai',
   'Mateo Ponte': 'Uruguai', 'Cristian Olivera': 'Uruguai', 'Yeison Guzmán': 'Colômbia',
   'Emiliano Rigoni': 'Argentina', 'Éder': 'Itália',
+  'Eduard Atuesta': 'Colômbia',
 };
 
 const ELITE_NAMES = new Set([
   'Germán Cano', 'Geromel', 'Luan', 'Marcelo Grohe', 'Diego Souza', 'Raphael Veiga',
   'Miguel Borja', 'Renato Augusto', 'Jô', 'Mauro Zárate', 'Eduardo Vargas', 'Ignacio Fernández',
   'Carlos Sánchez', 'Gustavo Scarpa', 'Marcos Leonardo', 'Miranda',
+  'Weverton', 'Gustavo Gómez', 'Dudu',
 ]);
 
 const YOUNG_NAMES = new Set([
