@@ -303,6 +303,13 @@ export default function MatchSimPage() {
     }
 
     if (dangerState.stage === 2) {
+      // The goalAlert-clearing timeouts below are scheduled from INSIDE this
+      // callback (they don't exist yet when the effect first runs), so they
+      // can't be captured by a `const timer = setTimeout(...)` at the top —
+      // collect them here so they still get cleared if the component
+      // unmounts (or dangerState changes again) before they fire; otherwise
+      // they'd call setGoalAlert on a stale/unmounted render.
+      const nestedTimers: ReturnType<typeof setTimeout>[] = [];
       const timer = setTimeout(() => {
         // Replay mode: apply the buffered goal events from pendingReplayGoals
         if (isReplay && pendingReplayGoals.current) {
@@ -311,7 +318,7 @@ export default function MatchSimPage() {
           setAwayScore(s => s + rg.awayGoalDelta);
           setEvents(prev => [...prev, ...rg.goalEvents]);
           setGoalAlert(rg.goalAlert);
-          setTimeout(() => setGoalAlert(null), 2500);
+          nestedTimers.push(setTimeout(() => setGoalAlert(null), 2500));
           setMomentum(m => {
             const next = Math.min(100, Math.max(0, m + rg.momentumShift));
             setMomentumHistory(h => [...h, next]);
@@ -333,7 +340,7 @@ export default function MatchSimPage() {
           // Trigger Goal alert
           if (result.goalAlert) {
             setGoalAlert(result.goalAlert);
-            setTimeout(() => setGoalAlert(null), 3000);
+            nestedTimers.push(setTimeout(() => setGoalAlert(null), 3000));
           }
 
           // Apply pre-simulated player stats
@@ -368,7 +375,10 @@ export default function MatchSimPage() {
         }
       }, 1500);
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        nestedTimers.forEach(clearTimeout);
+      };
     }
 
     if (dangerState.stage === 3) {

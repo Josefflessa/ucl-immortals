@@ -225,7 +225,23 @@ function vitePluginSocketIO(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy(), vitePluginSocketIO()];
+// vitePluginManusRuntime injects its dev-tooling runtime script (and CSS)
+// straight into index.html unconditionally — unlike its sibling
+// vitePluginManusDebugCollector just below, it has no production guard of
+// its own. Nothing in the game reads window.__MANUS_HOST_DEV__ or otherwise
+// depends on it (grep confirms zero references outside this file), so it
+// was shipping ~300KB of unused runtime in every production build. Matching
+// the same NODE_ENV check the debug collector already uses.
+const isProductionBuild = process.env.NODE_ENV === "production";
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  ...(isProductionBuild ? [] : [vitePluginManusRuntime()]),
+  vitePluginManusDebugCollector(),
+  vitePluginStorageProxy(),
+  vitePluginSocketIO(),
+];
 
 export default defineConfig({
   plugins,
