@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rollInjurySeverity, yellowChance, injuryChanceFromFoul, randomInjuryChance } from './discipline';
+import { rollInjurySeverity, yellowChance, injuryChanceFromFoul, randomInjuryChance, FRAGIL_INJURY_MULTIPLIER } from './discipline';
 import { generateBotTeam } from './gameEngine';
 
 import { applyMatchDiscipline, resetYellowsForKnockout, healInjury, availKey, applyMedicalReturnBoost } from './discipline';
@@ -199,5 +199,9 @@ describe('lesão', () => {
   it('falta dura tem chance positiva, maior p/ frágil', () => {
     expect(injuryChanceFromFoul(50)).toBeGreaterThan(injuryChanceFromFoul(90));
     expect(injuryChanceFromFoul(90)).toBeGreaterThan(0);
+  });
+  it('Frágil multiplica o risco aleatório e o risco de falta', () => {
+    expect(randomInjuryChance(70, true)).toBe(randomInjuryChance(70) * FRAGIL_INJURY_MULTIPLIER);
+    expect(injuryChanceFromFoul(70, true)).toBe(injuryChanceFromFoul(70) * FRAGIL_INJURY_MULTIPLIER);
   });
 });

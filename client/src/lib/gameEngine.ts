@@ -2214,7 +2214,7 @@ export function runMatchSimulation(
       for (const [team, side] of [[home, 'h'], [away, 'a']] as [Team, string][]) {
         for (const p of team.players.slice(0, 11)) {
           if (hasMatchInjury(team, p) || isSentOff(team, p)) continue;
-          if (Math.random() < randomInjuryChance(p.physical ?? 70) / span) { applyInjury(p, team, minute); break; }
+          if (Math.random() < randomInjuryChance(p.physical ?? 70, Boolean(p.fragil)) / span) { applyInjury(p, team, minute); break; }
         }
         void side;
       }
@@ -2330,7 +2330,7 @@ export function runMatchSimulation(
         }
       }
       // 🩹 Lesão do FALTADO (lado atacante) — falta dura machuca mais, ponderada pelo físico.
-      if (settings.injuriesEnabled && fouled && Math.random() < injuryChanceFromFoul(fouled.physical ?? 70) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
+      if (settings.injuriesEnabled && fouled && Math.random() < injuryChanceFromFoul(fouled.physical ?? 70, Boolean(fouled.fragil)) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
         applyInjury(fouled, attackTeam, minute);
       }
 
@@ -3451,6 +3451,7 @@ const DRAFT_NOE_CHANCE = 0.02;        // 🛟 Noé — raro (é MUITO forte)
 const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
 const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
+const DRAFT_FRAGIL_CHANCE = 0.03;   // 🥂 Frágil — +7 em tudo, mas se machuca com muito mais frequência
 const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada 2 titularidades
 const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
 const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +1 por jogador na reserva
@@ -3463,6 +3464,7 @@ const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele
 export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
 const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
+export const FRAGIL_STAT_BOOST = 7;  // 🥂 Frágil: +7 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida por isto (não empilha: 1+ magnatas → 1 só).
 export const MAGNATA_POINT_MULT = 1.5;
 // Créditos da partida ×MAGNATA_POINT_MULT se QUALQUER titular (0-10) for Magnata; senão ×1 (não empilha).
@@ -3617,6 +3619,19 @@ function applyDraftVariant(p: Player): Player {
       overall: clampStat(p.overall - b), pace: clampStat(p.pace - b), shooting: clampStat(p.shooting - b),
       passing: clampStat(p.passing - b), dribbling: clampStat(p.dribbling - b), defending: clampStat(p.defending - b),
       physical: clampStat(p.physical - b), vision: clampStat(p.vision - b), composure: clampStat(p.composure - b),
+      traits: rollPlayerTraits(p.position, p.rarity),
+    };
+  }
+
+  // 🥂 Frágil — ganha +7 em tudo, mas fica muito mais sujeito a lesões durante as partidas.
+  acc += DRAFT_FRAGIL_CHANCE;
+  if (r < acc) {
+    const b = FRAGIL_STAT_BOOST;
+    return {
+      ...p, fragil: true, baseOverall: p.overall,
+      overall: clampStat(p.overall + b), pace: clampStat(p.pace + b), shooting: clampStat(p.shooting + b),
+      passing: clampStat(p.passing + b), dribbling: clampStat(p.dribbling + b), defending: clampStat(p.defending + b),
+      physical: clampStat(p.physical + b), vision: clampStat(p.vision + b), composure: clampStat(p.composure + b),
       traits: rollPlayerTraits(p.position, p.rarity),
     };
   }
@@ -3898,12 +3913,12 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(
   player: Player,
-  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante',
+  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante',
   competitionStats: { goals?: number; assists?: number } = {},
 ): Player {
-  if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata') {
-    // inForm/lobo add to every attribute; martir/magnata SUBTRACT from every attribute.
-    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : -MAGNATA_STAT_PENALTY;
+  if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata' || variant === 'fragil') {
+    // inForm/lobo/fragil add to every attribute; martir/magnata SUBTRACT from every attribute.
+    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : variant === 'fragil' ? FRAGIL_STAT_BOOST : -MAGNATA_STAT_PENALTY;
     return {
       ...player, [variant]: true, baseOverall: player.baseOverall ?? player.overall,
       overall: clampStat(player.overall + b), pace: clampStat(player.pace + b), shooting: clampStat(player.shooting + b),
@@ -3921,7 +3936,7 @@ export function applyShopVariant(
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -3942,8 +3957,8 @@ export function canAddVariant(p: Player): boolean {
 // Mártir subtracts) via the stored baseOverall, then clears every variant flag.
 export function stripVariant<T extends Player>(player: T): T {
   const p: T = { ...player };
-  if (p.baseOverall !== undefined && (p.inForm || p.lobo || p.martir || p.magnata)) {
-    const delta = p.overall - p.baseOverall; // +N for Em Alta/Lobo, −N for Mártir/Magnata
+  if (p.baseOverall !== undefined && (p.inForm || p.lobo || p.martir || p.magnata || p.fragil)) {
+    const delta = p.overall - p.baseOverall; // +N for Em Alta/Lobo/Frágil, −N for Mártir/Magnata
     p.pace = clampStat(p.pace - delta);
     p.shooting = clampStat(p.shooting - delta);
     p.passing = clampStat(p.passing - delta);
@@ -3957,7 +3972,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
-  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.todosPorUm; delete p.capitaoNato; delete p.magnata; delete p.prodigio; delete p.prodigioStarts;
+  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.todosPorUm; delete p.capitaoNato; delete p.magnata; delete p.fragil; delete p.prodigio; delete p.prodigioStarts;
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
   delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds; delete p.arrogante; delete p.arroganteGoals; delete p.arroganteMatchIds;
   return p;
@@ -3967,7 +3982,7 @@ export function stripVariant<T extends Player>(player: T): T {
 // preservando a outra. Reverte o efeito de stat da variante baked que sai (Em Alta/Lobo somaram,
 // Mártir subtraiu) e só descarta o baseOverall se não sobrar nenhuma outra variante baked.
 const BAKED_DELTA: Partial<Record<VariantFlag, number>> = {
-  inForm: INFORM_STAT_BOOST, lobo: LOBO_STAT_BOOST, martir: -MARTIR_STAT_PENALTY,
+  inForm: INFORM_STAT_BOOST, lobo: LOBO_STAT_BOOST, martir: -MARTIR_STAT_PENALTY, fragil: FRAGIL_STAT_BOOST,
 };
 export function stripSpecificVariant<T extends Player>(player: T, variant: VariantFlag): T {
   const p: T = { ...player };
@@ -3979,7 +3994,7 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
     p.vision = clampStat(p.vision - d); p.composure = clampStat(p.composure - d);
     p.overall = clampStat(p.overall - d);
     // baseOverall só faz sentido enquanto AINDA houver alguma variante baked ativa
-    const otherBaked = (['inForm', 'lobo', 'martir'] as const).some(k => k !== variant && p[k]);
+    const otherBaked = (['inForm', 'lobo', 'martir', 'fragil'] as const).some(k => k !== variant && p[k]);
     if (!otherBaked) delete p.baseOverall;
   }
   delete (p as unknown as Record<string, unknown>)[variant];

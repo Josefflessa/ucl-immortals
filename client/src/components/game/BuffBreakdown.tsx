@@ -4,7 +4,7 @@
 // team-wide chemistry, the coach, the player's traits (named, with what each grants)
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
-import { EffectiveStats, ChemLinkType, CharBoost, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, prodigioStatBoost } from '../../lib/gameEngine';
+import { EffectiveStats, ChemLinkType, CharBoost, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, prodigioStatBoost } from '../../lib/gameEngine';
 import { getTacticById, Player } from '../../lib/gameData';
 import { getCardVariant } from './PlayerCard';
 
@@ -145,7 +145,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                       : `${variant.label} (CARTA ESPECIAL)`}
               color={(decimoInactive || noeInactive || forasteiroInactive || todosPorUmInactive) ? '#6A6A7A' : variantColor}>
               <div className="flex flex-wrap gap-1">
-                {variantBoost > 0 && <Chip text={`+${variantBoost} EM CADA ATRIBUTO`} color={variantColor} />}
+                {variantBoost > 0 && !player.fragil && <Chip text={`+${variantBoost} EM CADA ATRIBUTO`} color={variantColor} />}
                 {player.martir && <Chip text="−6 EM CADA ATRIBUTO" color="#EF4444" />}
                 {player.martir && <Chip text={`+${MARTIR_TARGET_BOOST} EM TUDO A 2 TITULARES`} color="#22C55E" />}
                 {player.idolo && <Chip text="+2 EM TUDO AOS OUTROS DO MESMO CLUBE (NÃO A ELE)" color="#22C55E" />}
@@ -162,6 +162,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.capitaoNato && <Chip text="🗣️ BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)" color="#F97316" />}
                 {player.magnata && <Chip text="🤑 CRÉDITOS DA PARTIDA ×1,5 (TITULAR)" color="#16A34A" />}
                 {player.magnata && <Chip text="−7 EM TUDO" color="#EF4444" />}
+                {player.fragil && <Chip text={`+${FRAGIL_STAT_BOOST} EM TUDO`} color="#F59E0B" />}
+                {player.fragil && <Chip text="RISCO DE LESÃO MUITO MAIOR" color="#EF4444" />}
                 {player.prodigio && <Chip text={`+${prodigioBoost} EM CADA ATRIBUTO (${prodigioStarts} TITULARIDADE${prodigioStarts === 1 ? '' : 'S'} · 1 A CADA ${PRODIGIO_STARTS_PER_BOOST})`} color="#FDE047" />}
                 {player.resiliente && <Chip text={`+${(player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST} EM CADA ATRIBUTO (${player.resilienteDefeats ?? 0} DERROTA${(player.resilienteDefeats ?? 0) === 1 ? '' : 'S'} COMO TITULAR)`} color="#FB7185" />}
                 {player.goleador && <Chip text={`+${goleadorBoost} EM CADA ATRIBUTO (${goleadorGoals} GOL${goleadorGoals === 1 ? '' : 'S'} · 1 A CADA ${GOLEADOR_GOALS_PER_BOOST})`} color="#F97316" />}
@@ -189,7 +191,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                                     : player.colecionador ? 'Ganha +1 em tudo por cada jogador que estiver na reserva.'
                                     : player.capitaoNato ? 'Se for o CAPITÃO do time, o bônus de capitão (a melhor stat dele, dada a todos) vem DOBRADO.'
                                         : player.magnata ? 'Como titular, multiplica os créditos da partida por 1,5 na liga e no mata-mata — em troca de −7 em cada atributo nele.'
-                                          : player.prodigio ? `+1 em todos os atributos a cada ${PRODIGIO_STARTS_PER_BOOST} partidas iniciadas como titular (${prodigioStarts} titularidade${prodigioStarts === 1 ? '' : 's'}; bônus atual +${prodigioBoost}).`
+                                          : player.fragil ? `Ganha +${FRAGIL_STAT_BOOST} em todos os atributos, mas aumenta drasticamente a chance de se machucar.`
+                                            : player.prodigio ? `+1 em todos os atributos a cada ${PRODIGIO_STARTS_PER_BOOST} partidas iniciadas como titular (${prodigioStarts} titularidade${prodigioStarts === 1 ? '' : 's'}; bônus atual +${prodigioBoost}).`
                                             : player.resiliente ? `A cada derrota do time em que for titular, ganha +${RESILIENTE_DEFEAT_BOOST} em todos os atributos. Já acumulou ${player.resilienteDefeats ?? 0} derrota${(player.resilienteDefeats ?? 0) === 1 ? '' : 's'} como titular.`
                                                 : player.goleador ? `A cada ${GOLEADOR_GOALS_PER_BOOST} gols marcados, ganha +1 em todos os atributos. Já marcou ${goleadorGoals} gol${goleadorGoals === 1 ? '' : 's'} e o bônus atual é +${goleadorBoost}.`
                                                   : player.garcom ? `A cada ${GARCOM_ASSISTS_PER_BOOST} assistências dadas, ganha +1 em todos os atributos. Já deu ${garcomAssists} assistência${garcomAssists === 1 ? '' : 's'} e o bônus atual é +${garcomBoost}.`

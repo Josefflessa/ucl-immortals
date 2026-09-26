@@ -185,6 +185,9 @@ export function formationAggression(formationId: string): number {
 }
 export const INJURY_FOUL_PROB = 0.00528;   // prob. de lesionar o faltado numa falta dura → ~0.08 lesão/jogo (raras)
 export const INJURY_RANDOM_BASE = 0.00085; // base de lesão aleatória por titular por jogo (× frag. física)
+// 🩹 Frágil — risco alto de lesão. O multiplicador é aplicado tanto às lesões aleatórias
+// quanto às causadas por falta; a descrição da característica não expõe esse número.
+export const FRAGIL_INJURY_MULTIPLIER = 75;
 
 // ── Helpers de probabilidade (usados pelo motor; puros/testáveis) ──
 
@@ -205,13 +208,15 @@ export function yellowChance(position: string, composure: number, aggression: nu
 }
 
 // Chance de lesionar o FALTADO numa falta dura — sempre positiva, maior p/ jogador de físico baixo.
-export function injuryChanceFromFoul(fouledPhysical: number): number {
-  return INJURY_FOUL_PROB * Math.max(0.5, (110 - fouledPhysical) / 60);
+export function injuryChanceFromFoul(fouledPhysical: number, fragile = false): number {
+  const base = INJURY_FOUL_PROB * Math.max(0.5, (110 - fouledPhysical) / 60);
+  return base * (fragile ? FRAGIL_INJURY_MULTIPLIER : 1);
 }
 
 // Chance de lesão ALEATÓRIA (não-falta) por titular por jogo — quanto menor o físico, mais frágil.
-export function randomInjuryChance(physical: number): number {
-  return INJURY_RANDOM_BASE * Math.max(0.4, (110 - physical) / 55);
+export function randomInjuryChance(physical: number, fragile = false): number {
+  const base = INJURY_RANDOM_BASE * Math.max(0.4, (110 - physical) / 55);
+  return base * (fragile ? FRAGIL_INJURY_MULTIPLIER : 1);
 }
 
 // ── Camada de TEMPORADA (pura, testável) ──

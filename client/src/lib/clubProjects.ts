@@ -8,9 +8,9 @@ export const CLUB_PROJECT_LEVELS = 5;
 
 export const CLUB_PROJECT_UPGRADE_COSTS = {
   2: 150,
-  3: 250,
-  4: 350,
-  5: 450,
+  3: 200,
+  4: 250,
+  5: 300,
 } as const;
 
 export const CLUB_PROJECT_ORDER = [
@@ -232,13 +232,13 @@ export const CLUB_PROJECT_DEFINITIONS: readonly ClubProjectDefinition[] = [
     color: '#FB7185',
     description: 'Aumenta os créditos recebidos conforme o mando da partida.',
     foundation: 'Nível 1: recompensa da partida calculada pelas regras normais.',
-    nextStep: 'Nível 2: +10% em casa e +5% fora sobre os créditos da partida.',
+    nextStep: 'Nível 2: +15% em casa e +10% fora sobre os créditos da partida.',
     levelEffects: [
       'Recompensa da partida calculada pelas regras normais.',
-      '+10% em casa e +5% fora sobre os créditos-base da partida.',
-      '+20% em casa e +10% fora sobre os créditos-base da partida.',
-      '+30% em casa e +15% fora sobre os créditos-base da partida.',
-      '+40% em casa e +20% fora sobre os créditos-base da partida.',
+      '+15% em casa e +10% fora sobre os créditos-base da partida.',
+      '+25% em casa e +15% fora sobre os créditos-base da partida.',
+      '+35% em casa e +20% fora sobre os créditos-base da partida.',
+      '+45% em casa e +25% fora sobre os créditos-base da partida.',
     ],
   },
 ] as const;
@@ -253,7 +253,9 @@ export function stadiumHomeBonus(level: number): number {
 /** Extra credit percentage supplied by the Supporters project. Neutral matches get no bonus. */
 export function supportersBonusPercent(level: number, venue: SupportersVenue): number {
   if (venue === 'neutral') return 0;
-  return (validLevel(level) - 1) * (venue === 'home' ? 10 : 5);
+  const safeLevel = validLevel(level);
+  if (safeLevel < 2) return 0;
+  return (venue === 'home' ? 15 : 10) + (safeLevel - 2) * (venue === 'home' ? 10 : 5);
 }
 
 export interface ClubRewardBreakdown {

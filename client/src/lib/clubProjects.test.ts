@@ -47,7 +47,9 @@ describe('estrutura dos Projetos do Clube', () => {
   it('expõe os custos somente para evoluções válidas', () => {
     expect(projectUpgradeCost(1)).toBeNull();
     expect(projectUpgradeCost(2)).toBe(150);
-    expect(projectUpgradeCost(5)).toBe(450);
+    expect(projectUpgradeCost(3)).toBe(200);
+    expect(projectUpgradeCost(4)).toBe(250);
+    expect(projectUpgradeCost(5)).toBe(300);
     expect(projectUpgradeCost(6)).toBeNull();
   });
 
@@ -138,24 +140,24 @@ describe('estrutura dos Projetos do Clube', () => {
   it('calcula a progressão numérica do Estádio e percentual da Torcida', () => {
     expect([1, 2, 3, 4, 5].map(stadiumHomeBonus)).toEqual([3, 5, 7, 9, 11]);
     expect(supportersBonusPercent(1, 'home')).toBe(0);
-    expect(supportersBonusPercent(2, 'home')).toBe(10);
-    expect(supportersBonusPercent(5, 'home')).toBe(40);
-    expect(supportersBonusPercent(2, 'away')).toBe(5);
-    expect(supportersBonusPercent(5, 'away')).toBe(20);
+    expect(supportersBonusPercent(2, 'home')).toBe(15);
+    expect(supportersBonusPercent(5, 'home')).toBe(45);
+    expect(supportersBonusPercent(2, 'away')).toBe(10);
+    expect(supportersBonusPercent(5, 'away')).toBe(25);
     expect(supportersBonusPercent(5, 'neutral')).toBe(0);
   });
 
   it('calcula Torcida e Magnata sobre a mesma base, sem multiplicação em cascata', () => {
     expect(calculateClubReward(100, 3, 'home', true)).toEqual({
       base: 100,
-      supportersBonus: 20,
-      supportersPercent: 20,
+      supportersBonus: 25,
+      supportersPercent: 25,
       supportersVenue: 'home',
       magnataBonus: 50,
       magnataPercent: 50,
-      total: 170,
+      total: 175,
     });
-    expect(calculateClubReward(100, 5, 'away', false).total).toBe(120);
+    expect(calculateClubReward(100, 5, 'away', false).total).toBe(125);
   });
 
   it('migra o projeto combinado antigo para Estádio e Torcida', () => {
