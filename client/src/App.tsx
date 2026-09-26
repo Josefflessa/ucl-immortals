@@ -1,27 +1,22 @@
-import { lazy, Suspense, useEffect } from "react";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { GameProvider, useGame } from "./contexts/GameContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import InstallPrompt from "./components/InstallPrompt";
-// MenuPage stays eager: it's the very first screen, so there's no split to
-// gain and lazy-loading it would only add a loading flash on first paint.
 import MenuPage from "./pages/MenuPage";
-// Every other phase is its own chunk, fetched only when the player actually
-// reaches it — this is what keeps the initial bundle from shipping the whole
-// game (draft, league, live match, report...) up front.
-const AlbumPage = lazy(() => import("./pages/AlbumPage"));
-const SetupPage = lazy(() => import("./pages/SetupPage"));
-const TournamentFormatPage = lazy(() => import("./pages/TournamentFormatPage"));
-const CrestPage = lazy(() => import("./pages/CrestPage"));
-const CoachPage = lazy(() => import("./pages/CoachPage"));
-const FormationPage = lazy(() => import("./pages/FormationPage"));
-const DraftPage = lazy(() => import("./pages/DraftPage"));
-const SquadReviewPage = lazy(() => import("./pages/SquadReviewPage"));
-const LeaguePage = lazy(() => import("./pages/LeaguePage"));
-const ReportPage = lazy(() => import("./pages/ReportPage"));
-const MatchSimPage = lazy(() => import("./pages/MatchSimPage"));
+import AlbumPage from "./pages/AlbumPage";
+import SetupPage from "./pages/SetupPage";
+import TournamentFormatPage from "./pages/TournamentFormatPage";
+import CrestPage from "./pages/CrestPage";
+import CoachPage from "./pages/CoachPage";
+import FormationPage from "./pages/FormationPage";
+import DraftPage from "./pages/DraftPage";
+import SquadReviewPage from "./pages/SquadReviewPage";
+import LeaguePage from "./pages/LeaguePage";
+import ReportPage from "./pages/ReportPage";
+import MatchSimPage from "./pages/MatchSimPage";
 // Pré-carrega a moldura + texturas das cartas uma vez (cacheia; evita "flash" na primeira carta).
 ['card-frame', 'bg-bronze', 'bg-prata', 'bg-ouro', 'bg-lendario', 'bg-imortal'].forEach((n) => {
   const img = new Image();
@@ -123,13 +118,6 @@ function GameRouter() {
   }
 }
 
-// Shown for the brief moment a lazy phase chunk is still downloading. Same
-// background as the app shell so a slow connection sees a blank pause, not a
-// white flash, between phases.
-function RouteFallback() {
-  return <div style={{ minHeight: '100dvh', background: 'var(--ui-bg)' }} />;
-}
-
 function App() {
   return (
     <ErrorBoundary>
@@ -138,9 +126,7 @@ function App() {
           <Toaster />
           <GameProvider>
             <ModalScrollLock />
-            <Suspense fallback={<RouteFallback />}>
-              <GameRouter />
-            </Suspense>
+            <GameRouter />
             <InstallPrompt />
           </GameProvider>
         </TooltipProvider>
