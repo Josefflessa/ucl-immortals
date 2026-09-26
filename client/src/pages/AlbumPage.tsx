@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, Search, SlidersHorizontal, Users, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import PlayerCard from '../components/game/PlayerCard';
 import {
@@ -19,6 +19,7 @@ import {
   ChoiceCard,
   EmptyState,
   GameModal,
+  IconButton,
   Input,
   Metric,
   PageContainer,
@@ -447,11 +448,9 @@ export default function AlbumPage() {
                 <Users size={16} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
                 <span>Catálogo atualizado com as versões do jogo</span>
               </div>
-              <Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="shrink-0 px-3 text-xs sm:px-4">
-                <ArrowLeft size={15} aria-hidden="true" />
-                <span className="hidden sm:inline">VOLTAR AO MENU</span>
-                <span className="sm:hidden">VOLTAR</span>
-              </Button>
+              <IconButton label="Voltar ao menu" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="shrink-0">
+                <X size={20} strokeWidth={2} aria-hidden="true" />
+              </IconButton>
             </div>
           }
         />
