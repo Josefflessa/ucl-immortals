@@ -74,6 +74,14 @@ const entries: Entry[] = [
   ['Gabriel Pirani', 'CM', 'Santos', 19409770],
   // São Paulo
   ['Diego Souza', 'CAM', 'São Paulo', 8830373], ['Petros', 'CDM', 'São Paulo', 19140048],
+  ['Miranda', 'CB', 'São Paulo', 8832812],
+  ['Tiago Volpi', 'GK', 'São Paulo', 19054347], ['Emiliano Rigoni', 'CAM', 'São Paulo', 14046838],
+  ['Éder', 'CAM', 'São Paulo', 2105181],
+  ['Rafinha', 'RB', 'São Paulo', 8833533], ['Nikão', 'CAM', 'São Paulo', 19047094],
+  ['Igor Gomes', 'CAM', 'São Paulo', 19290872],
+  ['Alisson', 'CAM', 'São Paulo', 19189685], ['Patrick', 'CDM', 'São Paulo', 19194171],
+  ['Reinaldo', 'LB', 'São Paulo', 19162646], ['Welington', 'LB', 'São Paulo', 19363237],
+  ['Pablo Maia', 'CDM', 'São Paulo', 19375656],
   // Palmeiras
   ['Gabriel Veron', 'CAM', 'Palmeiras', 19360962], ['Raphael Veiga', 'CAM', 'Palmeiras', 19233491],
   ['Miguel Borja', 'ST', 'Palmeiras', 76033093], ['Lucas Lima', 'CAM', 'Palmeiras', 19187884],
@@ -118,12 +126,13 @@ const FOREIGN_NATIONS: Record<string, string> = {
   'Carlos Sánchez': 'Uruguai', 'Miguel Borja': 'Colômbia', 'Fabián Balbuena': 'Paraguai',
   'Víctor Cuesta': 'Argentina', 'Carlos Palacios': 'Chile', 'Gatito Fernández': 'Paraguai',
   'Mateo Ponte': 'Uruguai', 'Cristian Olivera': 'Uruguai', 'Yeison Guzmán': 'Colômbia',
+  'Emiliano Rigoni': 'Argentina', 'Éder': 'Itália',
 };
 
 const ELITE_NAMES = new Set([
   'Germán Cano', 'Geromel', 'Luan', 'Marcelo Grohe', 'Diego Souza', 'Raphael Veiga',
   'Miguel Borja', 'Renato Augusto', 'Jô', 'Mauro Zárate', 'Eduardo Vargas', 'Ignacio Fernández',
-  'Carlos Sánchez', 'Gustavo Scarpa', 'Marcos Leonardo',
+  'Carlos Sánchez', 'Gustavo Scarpa', 'Marcos Leonardo', 'Miranda',
 ]);
 
 const YOUNG_NAMES = new Set([

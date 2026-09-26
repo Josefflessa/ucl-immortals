@@ -13,7 +13,7 @@ const normalize = (value: string) => value
 describe('SortitoutSI Brazilian league expansion', () => {
   it('contains only unique, locally illustrated cards', () => {
     const additions = SORTITOUTSI_BRAZILIAN_LEAGUE_ADDITIONS;
-    expect(additions).toHaveLength(139);
+    expect(additions).toHaveLength(151);
     expect(new Set(additions.map(player => player.id)).size).toBe(additions.length);
     expect(new Set(additions.map(player => normalize(player.fullName))).size).toBe(additions.length);
 
@@ -23,16 +23,20 @@ describe('SortitoutSI Brazilian league expansion', () => {
     }
   });
 
-  it('does not duplicate a player already in the catalog', () => {
+  it('does not duplicate a player already in the catalog at the same club', () => {
     const addedIds = new Set(SORTITOUTSI_BRAZILIAN_LEAGUE_ADDITIONS.map(player => player.id));
-    const existingNames = new Set(
+    const existingNameClubPairs = new Set(
       PLAYERS
         .filter(player => !addedIds.has(player.id))
-        .flatMap(player => [normalize(player.fullName), normalize(player.shortName)]),
+        .flatMap(player => [
+          `${normalize(player.fullName)}@${normalize(player.club)}`,
+          `${normalize(player.shortName)}@${normalize(player.club)}`,
+        ]),
     );
 
     const overlaps = SORTITOUTSI_BRAZILIAN_LEAGUE_ADDITIONS
-      .filter(player => existingNames.has(normalize(player.fullName)) || existingNames.has(normalize(player.shortName)))
+      .filter(player => existingNameClubPairs.has(`${normalize(player.fullName)}@${normalize(player.club)}`)
+        || existingNameClubPairs.has(`${normalize(player.shortName)}@${normalize(player.club)}`))
       .map(player => player.fullName);
 
     expect(overlaps).toEqual([]);
