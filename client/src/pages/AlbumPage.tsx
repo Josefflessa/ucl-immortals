@@ -18,6 +18,7 @@ import {
   Button,
   ChoiceCard,
   EmptyState,
+  GameModal,
   Input,
   Metric,
   PageContainer,
@@ -26,7 +27,6 @@ import {
   SectionHeader,
   TopBar,
 } from '../design-system';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { cn } from '../lib/utils';
 
 type AlbumPlayer = CatalogPlayer;
@@ -192,25 +192,17 @@ function PlayerDetail({
       </div>
 
       <div className="min-w-0">
-        <DialogHeader className="text-left">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em]"
-              style={{ color: rarityColor, borderColor: `${rarityColor}66`, backgroundColor: `${rarityColor}14` }}
-            >
-              {RARITY_LABELS[player.rarity]}
-            </span>
-            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">
-              {catalogPath.club.name} · {catalogPath.league.name}
-            </span>
-          </div>
-          <DialogTitle className="mt-3 font-display text-4xl font-normal tracking-wide text-[var(--ui-text)]">
-            {player.shortName}
-          </DialogTitle>
-          <DialogDescription className="text-pretty text-[var(--ui-text-muted)]">
-            {player.fullName}
-          </DialogDescription>
-        </DialogHeader>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className="rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em]"
+            style={{ color: rarityColor, borderColor: `${rarityColor}66`, backgroundColor: `${rarityColor}14` }}
+          >
+            {RARITY_LABELS[player.rarity]}
+          </span>
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">
+            {catalogPath.club.name} · {catalogPath.league.name}
+          </span>
+        </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="ui-panel ui-panel--inset p-3">
@@ -628,42 +620,28 @@ export default function AlbumPage() {
         </div>
       </PageContainer>
 
-      <Dialog open={selectedPlayer !== null} onOpenChange={open => { if (!open) { setSelectedPlayer(null); setZoomCard(false); } }}>
-        <DialogContent
-          disableAnimation
-          overlayClassName="bg-black/85"
-          closeButtonLabel="Fechar ficha do jogador"
-          closeButtonClassName="right-3 top-3 flex size-10 items-center justify-center rounded-xl bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
-          className="max-h-[min(92dvh,860px)] max-w-5xl overflow-y-auto border-[var(--ui-line)] bg-[var(--ui-bg-raised)] p-4 text-[var(--ui-text)] shadow-2xl sm:max-w-5xl sm:p-6"
-        >
-          {selectedPlayer ? <PlayerDetail player={selectedPlayer} versionCount={selectedVersionCount} onZoomCard={() => setZoomCard(true)} /> : null}
-        </DialogContent>
-      </Dialog>
+      <GameModal
+        open={selectedPlayer !== null}
+        onOpenChange={open => { if (!open) { setSelectedPlayer(null); setZoomCard(false); } }}
+        size="wide"
+        title={selectedPlayer ? <span className="font-display text-4xl font-normal tracking-wide text-[var(--ui-text)]">{selectedPlayer.shortName}</span> : null}
+        subtitle={selectedPlayer ? selectedPlayer.fullName : null}
+        closeLabel="Fechar ficha do jogador"
+      >
+        {selectedPlayer ? <PlayerDetail player={selectedPlayer} versionCount={selectedVersionCount} onZoomCard={() => setZoomCard(true)} /> : null}
+      </GameModal>
 
-      <Dialog open={zoomCard && selectedPlayer !== null} onOpenChange={open => { if (!open) setZoomCard(false); }}>
-        <DialogContent
-          disableAnimation
-          showCloseButton={false}
-          overlayClassName="bg-[rgba(3,3,10,0.92)]"
-          className="flex w-auto max-w-[calc(100%-2rem)] items-center justify-center border-0 bg-transparent p-0 shadow-none sm:max-w-none"
-        >
-          {selectedPlayer ? (
-            <>
-              <DialogTitle className="sr-only">Zoom da carta de {selectedPlayer.shortName}</DialogTitle>
-              <button
-                type="button"
-                onClick={() => setZoomCard(false)}
-                title="Fechar zoom"
-                aria-label="Fechar zoom"
-                className="absolute right-0 top-0 z-10 flex size-11 -translate-y-2 translate-x-2 items-center justify-center rounded-full border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-2xl font-black text-[var(--ui-text-soft)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
-              >
-                ×
-              </button>
-              <PlayerCard player={selectedPlayer} scale={1.5} />
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <GameModal
+        open={zoomCard && selectedPlayer !== null}
+        onOpenChange={open => { if (!open) setZoomCard(false); }}
+        size="default"
+        stacked
+        title={selectedPlayer ? <span className="sr-only">Zoom da carta de {selectedPlayer.shortName}</span> : null}
+        closeLabel="Fechar zoom"
+        bodyClassName="flex items-center justify-center"
+      >
+        {selectedPlayer ? <PlayerCard player={selectedPlayer} scale={1.5} /> : null}
+      </GameModal>
     </AppShell>
   );
 }

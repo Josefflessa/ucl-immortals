@@ -1,5 +1,5 @@
 import type { MatchPoints } from '../../lib/shop';
-import { Button } from '../../design-system';
+import { Button, GameModal } from '../../design-system';
 
 interface MatchCreditsModalProps {
   points: MatchPoints;
@@ -15,11 +15,13 @@ export default function MatchCreditsModal({ points, onClose }: MatchCreditsModal
       : 'neutro';
 
   return (
-    <div className="ui-modal-backdrop z-[60] p-4" onClick={onClose}>
-      <div
-        className="ui-modal max-w-sm overflow-hidden border-[var(--ui-success)]"
-        onClick={event => event.stopPropagation()}
-      >
+    <GameModal
+      open
+      onOpenChange={next => { if (!next) onClose(); }}
+      title="💰 Créditos da partida"
+      className="max-w-sm overflow-hidden border-[var(--ui-success)]"
+      footer={<Button intent="success" className="w-full rounded-none border-0" onClick={onClose}>CONTINUAR</Button>}
+    >
         <div className="px-6 pt-6 pb-4">
           <div
             className="text-center text-[11px] font-black tracking-widest"
@@ -66,11 +68,6 @@ export default function MatchCreditsModal({ points, onClose }: MatchCreditsModal
             Use os créditos na aba 🛒 LOJA
           </div>
         </div>
-
-        <Button intent="success" className="w-full rounded-none border-0" onClick={onClose}>
-          CONTINUAR
-        </Button>
-      </div>
-    </div>
+    </GameModal>
   );
 }

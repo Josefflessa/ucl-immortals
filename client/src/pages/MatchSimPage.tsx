@@ -25,7 +25,7 @@ import { preloadPlayerPhotos } from '../components/game/PlayerPortrait';
 import PlayerPortrait from '../components/game/PlayerPortrait';
 import MatchFieldView from '../components/game/MatchFieldView';
 import Crest from '../components/game/Crest';
-import { AppShell, Button } from '../design-system';
+import { AppShell, Button, GameModal } from '../design-system';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
@@ -1515,32 +1515,25 @@ export default function MatchSimPage() {
 
       {/* ── 4. SQUAD MODAL ── */}
       {squadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }}>
-          <div
-            className="bg-[#0b0b14] border rounded-2xl p-4 sm:p-5 max-w-lg w-full max-h-[90vh] flex flex-col"
-            style={{ borderColor: squadModal === 'mine' ? '#c9a84c55' : '#6366f155' }}
-          >
-              <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                <div>
-                  <h3 className="text-xl font-black tracking-widest uppercase" style={{
-                    fontFamily: 'Bebas Neue, sans-serif',
-                    color: squadModal === 'mine' ? '#C9A84C' : '#818CF8',
-                  }}>
-                    {squadModal === 'mine' ? 'MEU TIME' : 'ADVERSÁRIO'}
-                  </h3>
-                  <p className="text-sm font-bold text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    {(squadModal === 'mine' ? myTeam : oppTeam).name}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSquadModal(null)}
-                  className="text-gray-400 hover:text-white text-2xl font-black"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+        <GameModal
+          open
+          onOpenChange={next => { if (!next) setSquadModal(null); }}
+          className={squadModal === 'mine' ? 'max-w-lg !bg-[#0b0b14] !border-[#c9a84c55] !rounded-2xl' : 'max-w-lg !bg-[#0b0b14] !border-[#6366f155] !rounded-2xl'}
+          bodyClassName="min-h-0 flex-1 overflow-y-auto pr-1"
+          title={
+            <h3 className="text-xl font-black tracking-widest uppercase" style={{
+              fontFamily: 'Bebas Neue, sans-serif',
+              color: squadModal === 'mine' ? '#C9A84C' : '#818CF8',
+            }}>
+              {squadModal === 'mine' ? 'MEU TIME' : 'ADVERSÁRIO'}
+            </h3>
+          }
+          subtitle={
+            <span className="text-sm font-bold text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              {(squadModal === 'mine' ? myTeam : oppTeam).name}
+            </span>
+          }
+        >
                 {(() => {
                   const t = squadModal === 'mine' ? myTeam : oppTeam;
                   const ratings: Record<string, number> = {};
@@ -1574,24 +1567,18 @@ export default function MatchSimPage() {
                     />
                   );
                 })()}
-              </div>
-          </div>
-        </div>
+        </GameModal>
       )}
 
       {/* ── 5. PENALTY SHOOTOUT OVERLAY ── */}
-      <AnimatePresence>
-        {penaltyMode && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(4,4,10,0.97)' }}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
-              className="w-full max-w-xl rounded-3xl overflow-hidden"
-              style={{ background: 'linear-gradient(165deg,#12121f 0%,#0a0a14 100%)', border: '1px solid rgba(255,215,0,0.28)', boxShadow: '0 0 60px rgba(255,215,0,0.12)' }}
-            >
+      {penaltyMode && (
+        <GameModal
+          open
+          onOpenChange={() => {}}
+          dismissible={false}
+          bodyClassName="!p-0"
+          className="!w-full !max-w-xl !rounded-3xl !overflow-hidden !border !border-[rgba(255,215,0,0.28)] ![background:linear-gradient(165deg,#12121f_0%,#0a0a14_100%)] ![box-shadow:0_0_60px_rgba(255,215,0,0.12)]"
+        >
               {/* Header */}
               <div className="px-6 py-4 text-center" style={{ background: 'linear-gradient(135deg,#1c1636,#0f0f1e)', borderBottom: '1px solid rgba(255,215,0,0.18)' }}>
                 <div className="inline-flex items-center gap-2 mb-1.5">
@@ -1690,10 +1677,8 @@ export default function MatchSimPage() {
                   </Button>
                 )}
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </GameModal>
+      )}
 
       {/* ── 6. FOOTER CONTROL CENTER ── */}
       <div className="ui-topbar py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-row flex-wrap items-center justify-center sm:justify-between gap-2 sm:gap-4 z-10 flex-shrink-0">

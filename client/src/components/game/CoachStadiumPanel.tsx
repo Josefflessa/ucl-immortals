@@ -4,8 +4,7 @@ import { stadiumDisplayFor, stadiumFor } from '../../lib/stadium';
 import { PRIME_COST, PRIME_WINS_REQUIRED } from '../../lib/shop';
 import { coachPrimeDefinition } from '../../lib/coachPrime';
 import CoachCard from './CoachCard';
-import { Button } from '../../design-system';
-import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
+import { Button, GameModal } from '../../design-system';
 
 
 interface Props {
@@ -136,24 +135,32 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
         </div>
       )}
 
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent
-          disableAnimation
-          overlayClassName="z-[100] bg-[rgba(4,7,14,0.9)]"
-          closeButtonLabel="Fechar evolução Prime"
-          closeButtonClassName="right-3 top-3 flex size-9 items-center justify-center rounded-lg bg-[#171727] p-0 text-[#D8D8E5] opacity-100 hover:bg-[#24243A] [&_svg]:size-4"
-          className="ui-modal z-[101] flex h-[min(700px,calc(100dvh-1rem))] min-h-0 max-h-[calc(100dvh-1rem)] max-w-lg flex-col gap-0 overflow-hidden p-0"
-        >
-            <div className="ui-modal__header flex-shrink-0 items-center justify-start gap-3 border-b border-[#24243A] px-5 py-4 pr-14">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#C9A84C66] bg-[#C9A84C18] text-xl" aria-hidden="true">⭐</span>
-              <div className="min-w-0">
-                <div className="text-[10px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
-                <DialogTitle className="mt-0.5 text-2xl leading-none tracking-wide text-[#E8C84A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>EVOLUÇÃO PRIME</DialogTitle>
-                <div className="mt-1 truncate text-xs font-bold text-[var(--ui-text-muted)]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
-              </div>
+      <GameModal
+        open={showModal}
+        onOpenChange={setShowModal}
+        size="default"
+        stacked={false}
+        closeLabel="Fechar evolução Prime"
+        bodyClassName="ui-stack"
+        title={(
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#C9A84C66] bg-[#C9A84C18] text-xl" aria-hidden="true">⭐</span>
+            <div className="min-w-0">
+              <div className="text-[10px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
+              <div className="mt-0.5 text-2xl leading-none tracking-wide text-[#E8C84A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>EVOLUÇÃO PRIME</div>
+              <div className="mt-1 truncate text-xs font-bold text-[var(--ui-text-muted)]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
             </div>
-
-            <div className="ui-modal__body ui-stack min-h-0 min-w-0 flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-contain p-4 sm:p-5">
+          </div>
+        )}
+        footer={(
+          <>
+            <Button type="button" intent="ghost" className="flex-1" onClick={() => setShowModal(false)}>CANCELAR</Button>
+            <Button type="button" intent="primary" className="flex-[1.35]" disabled={!canEvolve} onClick={() => { onEvolve?.(); setShowModal(false); }}>
+              EVOLUIR · {PRIME_COST} CRÉDITOS
+            </Button>
+          </>
+        )}
+      >
               <TransitionRow
                 before={
                   <img src={coach.photoUrl} alt={coach.name} referrerPolicy="no-referrer" className="mx-auto h-28 w-28 rounded-xl object-cover sm:h-32 sm:w-32"
@@ -191,16 +198,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
                 <ProgressRequirement label="Vitórias na campanha" current={wins} target={PRIME_WINS_REQUIRED} />
                 <ProgressRequirement label="Créditos disponíveis" current={points} target={PRIME_COST} />
               </section>
-            </div>
-
-            <div className="ui-modal__footer relative z-10 flex-shrink-0 gap-2 border-t border-[#24243A] px-4 py-3 sm:px-5">
-              <Button type="button" intent="ghost" className="flex-1" onClick={() => setShowModal(false)}>CANCELAR</Button>
-              <Button type="button" intent="primary" className="flex-[1.35]" disabled={!canEvolve} onClick={() => { onEvolve?.(); setShowModal(false); }}>
-                EVOLUIR · {PRIME_COST} CRÉDITOS
-              </Button>
-            </div>
-        </DialogContent>
-      </Dialog>
+      </GameModal>
     </div>
   );
 }

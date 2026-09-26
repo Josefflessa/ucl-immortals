@@ -1,7 +1,6 @@
 import { Info } from 'lucide-react';
 import type { Formation } from '../../lib/gameData';
-import { IconButton } from '../../design-system';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { GameModal, IconButton } from '../../design-system';
 import FormationField from './FormationField';
 
 interface FormationInfoButtonProps {
@@ -30,28 +29,18 @@ interface FormationPreviewModalProps {
 
 export default function FormationPreviewModal({ formation, open, onOpenChange }: FormationPreviewModalProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        disableAnimation
-        overlayClassName="bg-black/85"
-        closeButtonLabel="Fechar visualização da formação"
-        closeButtonClassName="right-3 top-3 flex size-10 items-center justify-center rounded-xl bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
-        className="max-h-[min(92dvh,860px)] max-w-2xl overflow-y-auto border-[var(--ui-line)] bg-[var(--ui-bg-raised)] p-4 text-[var(--ui-text)] shadow-2xl sm:p-6"
-      >
-        {formation ? (
-          <>
-            <DialogHeader className="pr-10 text-left">
-              <DialogTitle className="font-display text-2xl tracking-wide text-[var(--ui-brand-strong)] sm:text-3xl">
-                {formation.name}
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="mx-auto w-full max-w-[420px]">
-              <FormationField formation={formation} players={[]} showPlayerCards />
-            </div>
-          </>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    <GameModal
+      open={open}
+      onOpenChange={onOpenChange}
+      size="wide"
+      closeLabel="Fechar visualização da formação"
+      title={formation ? formation.name : undefined}
+    >
+      {formation ? (
+        <div className="mx-auto w-full max-w-[420px]">
+          <FormationField formation={formation} players={[]} showPlayerCards />
+        </div>
+      ) : null}
+    </GameModal>
   );
 }

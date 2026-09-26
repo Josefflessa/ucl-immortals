@@ -157,6 +157,9 @@ export interface GameModalProps {
   headerExtra?: ReactNode;
   /** .ui-modal__footer content — action buttons. */
   footer?: ReactNode;
+  /** Content pinned between the header and the scrollable body — e.g. a row
+   * of section tabs that should stay visible while the body scrolls. */
+  stickyTop?: ReactNode;
   size?: 'default' | 'wide';
   /** A modal opened on top of another already-open modal (e.g. a purchase
    * confirmation over the shop's item modal). Only set this where that is
@@ -182,7 +185,7 @@ export interface GameModalProps {
  * consistent close button (40px, top-right, always labeled).
  */
 export function GameModal({
-  open, onOpenChange, title, subtitle, headerExtra, footer,
+  open, onOpenChange, title, subtitle, headerExtra, footer, stickyTop,
   size = 'default', stacked = false, dismissible = true, closeLabel = 'Fechar',
   bodyClassName, className, children,
 }: GameModalProps) {
@@ -219,6 +222,7 @@ export function GameModal({
                 </div>
               </div>
             )}
+            {stickyTop ? <div className="flex-shrink-0">{stickyTop}</div> : null}
             <div className={cn('ui-modal__body min-h-0 flex-1', bodyClassName)}>
               {children}
             </div>

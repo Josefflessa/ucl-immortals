@@ -15,6 +15,7 @@ import { buildKnockoutMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet,
 import { bettingStakeCapBonus, projectLevel } from '../../lib/clubProjects';
 import { unavailableStarters } from '../../lib/discipline';
 import { getOnlineKnockoutParticipantIds, getReadinessStatus, isOnlineHumanMatch, sortMatchesForOnlineDisplay } from '../../lib/onlineReadiness';
+import { GameModal } from '../../design-system';
 
 export default function KnockoutTiesTab() {
   const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
@@ -609,26 +610,26 @@ export default function KnockoutTiesTab() {
         })()}
 
       {/* 🚫 Aviso: tentou jogar a perna com titular indisponível (solo) */}
-      <AnimatePresence>
-        {lineupWarning && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(6,6,14,0.92)' }} onClick={() => setLineupWarning(null)}>
-            <motion.div initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
-              className="w-full max-w-sm rounded-2xl overflow-hidden text-center" style={{ background: '#0B0B14', border: '1px solid #EF444455' }}>
-              <div className="px-6 pt-6 pb-2">
-                <div className="text-4xl mb-2">🚫</div>
-                <div className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</div>
-                <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
-                  Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.join(', ')}</b>.<br />
-                  Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar.
-                </p>
-              </div>
-              <button onClick={() => setLineupWarning(null)} className="w-full py-3.5 mt-3 font-black tracking-widest text-sm"
-                style={{ fontFamily: 'Rajdhani, sans-serif', background: '#EF444418', color: '#FCA5A5', borderTop: '1px solid #EF444433' }}>ENTENDI</button>
-            </motion.div>
-          </motion.div>
+      <GameModal
+        open={!!lineupWarning}
+        onOpenChange={open => { if (!open) setLineupWarning(null); }}
+        size="default"
+        title={<span style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</span>}
+        footer={(
+          <button onClick={() => setLineupWarning(null)} className="w-full py-3.5 font-black tracking-widest text-sm"
+            style={{ fontFamily: 'Rajdhani, sans-serif', background: '#EF444418', color: '#FCA5A5', border: 'none' }}>ENTENDI</button>
         )}
-      </AnimatePresence>
+      >
+        {lineupWarning && (
+          <div className="text-center">
+            <div className="text-4xl mb-2">🚫</div>
+            <p className="text-[13px] leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
+              Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.join(', ')}</b>.<br />
+              Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar.
+            </p>
+          </div>
+        )}
+      </GameModal>
     </>
   );
 }

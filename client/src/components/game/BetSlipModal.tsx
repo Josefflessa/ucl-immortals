@@ -15,7 +15,7 @@ import {
   calculateBuilderMultiplier,
   normalizeBuilderSelections,
 } from '../../lib/bets';
-import { Button } from '../../design-system';
+import { Button, GameModal } from '../../design-system';
 
 function Stepper({ label, value, set, max }: { label: string; value: number; set: (n: number) => void; max: number }) {
   return (
@@ -157,19 +157,15 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
   };
 
   return (
-    <div className="ui-modal-backdrop" onClick={onClose}>
-      <div onClick={event => event.stopPropagation()} className="ui-modal ui-modal--wide max-w-2xl flex max-h-[92dvh] flex-col">
-        <div className="ui-modal__header">
-          <div className="min-w-0">
-            <h2 className="ui-modal__title">🎯 Bilhete de aposta</h2>
-            <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
-              Marque uma ou mais condições no mesmo bilhete. Todas as condições marcadas precisam acontecer.
-            </p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Fechar" className="ui-icon-btn">✕</button>
-        </div>
-
-        <div className="ui-modal__body ui-stack min-h-0 flex-1">
+    <GameModal
+      open
+      onOpenChange={next => { if (!next) onClose(); }}
+      size="wide"
+      title="🎯 Bilhete de aposta"
+      subtitle="Marque uma ou mais condições no mesmo bilhete. Todas as condições marcadas precisam acontecer."
+      className="max-w-2xl max-h-[92dvh]"
+      bodyClassName="ui-stack"
+    >
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 border-b border-[var(--ui-border)] pb-3 text-center text-[10px] font-bold tracking-widest leading-tight text-[var(--ui-text-faint)]">
             <div className="min-w-0">
               <span className="block">MANDANTE</span>
@@ -323,8 +319,6 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
               <button type="button" onClick={onCancelBet} aria-label="Cancelar aposta" className="ui-icon-btn h-[52px] min-h-[52px] text-[var(--ui-danger)]">🗑</button>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+    </GameModal>
   );
 }

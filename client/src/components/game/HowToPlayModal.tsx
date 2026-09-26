@@ -22,6 +22,7 @@ import {
   DEFAULT_POINTS_CONFIG,
   DEFAULT_MATCH_SETTINGS,
 } from '../../lib/competition';
+import { GameModal } from '../../design-system';
 
 const GOLD = '#C9A84C';
 
@@ -500,72 +501,59 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
   const currentSection = sections[tab];
 
   return (
-    <>
-      {open && (
-        <div
-          className="ui-modal-backdrop z-[90] p-2 sm:p-4"
-          onClick={onClose}
-        >
-          <div
-            onClick={(event) => event.stopPropagation()}
-            className="ui-modal ui-modal--wide flex max-h-[92vh] flex-col"
-          >
-            <div className="ui-modal__header flex-shrink-0">
-              <div>
-                <h2 className="ui-modal__title">Como jogar</h2>
-                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Guia completo e atualizado do UCL Immortals</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-[var(--ui-border)] px-2 py-1 text-[10px] font-black text-[var(--ui-text-muted)]">{tab + 1}/{sections.length}</span>
-                <button onClick={onClose} aria-label="Fechar" className="ui-icon-btn">✕</button>
-              </div>
-            </div>
-
-            <div className="ui-guide-tabs flex-shrink-0" role="tablist" aria-label="Seções do guia">
-              {sections.map((section, index) => (
-                <button
-                  key={section.label}
-                  onClick={() => goToTab(index)}
-                  className="ui-tab"
-                  data-active={tab === index}
-                  role="tab"
-                  aria-selected={tab === index}
-                >
-                  {section.icon} {section.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="ui-modal__body flex-1">
-              <div role="tabpanel">
-                {currentSection.body}
-              </div>
-            </div>
-
-            <div className="ui-modal__footer flex-shrink-0 items-center justify-between gap-3">
-              <span className="text-[11px] text-[var(--ui-text-muted)]">{currentSection.icon} {currentSection.label}</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={tab === 0}
-                  onClick={() => goToTab(tab - 1)}
-                  className="rounded-lg border border-[var(--ui-border)] px-3 py-2 text-[11px] font-black text-[var(--ui-text-soft)] transition hover:border-[var(--ui-accent)] disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  ← Anterior
-                </button>
-                <button
-                  type="button"
-                  disabled={tab === sections.length - 1}
-                  onClick={() => goToTab(tab + 1)}
-                  className="rounded-lg border border-[var(--ui-accent)] bg-[var(--ui-accent-soft)] px-3 py-2 text-[11px] font-black text-[var(--ui-text)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  Próximo →
-                </button>
-              </div>
-            </div>
+    <GameModal
+      open={open}
+      onOpenChange={next => { if (!next) onClose(); }}
+      size="wide"
+      title="Como jogar"
+      subtitle="Guia completo e atualizado do UCL Immortals"
+      headerExtra={
+        <span className="rounded-full border border-[var(--ui-border)] px-2 py-1 text-[10px] font-black text-[var(--ui-text-muted)]">{tab + 1}/{sections.length}</span>
+      }
+      className="max-h-[92vh]"
+      stickyTop={
+        <div className="ui-guide-tabs" role="tablist" aria-label="Seções do guia">
+          {sections.map((section, index) => (
+            <button
+              key={section.label}
+              onClick={() => goToTab(index)}
+              className="ui-tab"
+              data-active={tab === index}
+              role="tab"
+              aria-selected={tab === index}
+            >
+              {section.icon} {section.label}
+            </button>
+          ))}
+        </div>
+      }
+      footer={
+        <div className="flex w-full items-center justify-between gap-3">
+          <span className="text-[11px] text-[var(--ui-text-muted)]">{currentSection.icon} {currentSection.label}</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={tab === 0}
+              onClick={() => goToTab(tab - 1)}
+              className="rounded-lg border border-[var(--ui-border)] px-3 py-2 text-[11px] font-black text-[var(--ui-text-soft)] transition hover:border-[var(--ui-accent)] disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              ← Anterior
+            </button>
+            <button
+              type="button"
+              disabled={tab === sections.length - 1}
+              onClick={() => goToTab(tab + 1)}
+              className="rounded-lg border border-[var(--ui-accent)] bg-[var(--ui-accent-soft)] px-3 py-2 text-[11px] font-black text-[var(--ui-text)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              Próximo →
+            </button>
           </div>
         </div>
-      )}
-    </>
+      }
+    >
+      <div role="tabpanel">
+        {currentSection.body}
+      </div>
+    </GameModal>
   );
 }

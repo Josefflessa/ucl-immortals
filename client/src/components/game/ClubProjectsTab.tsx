@@ -4,7 +4,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import { ConfirmDialog } from '../../design-system';
+import { ConfirmDialog, GameModal } from '../../design-system';
 import PlayerCard from './PlayerCard';
 import { TRAIN_ATTRS } from '../../lib/shop';
 import type { TrainAttr } from '../../lib/shop';
@@ -216,23 +216,15 @@ export default function ClubProjectsTab() {
         })}
       </div>
 
-      {trainingOpen && state.playerTeam && (
-        <div className="ui-modal-backdrop z-50 p-3 sm:p-4" onClick={() => setTrainingOpen(false)}>
-          <div
-            className="ui-modal ui-modal--wide flex max-h-[90vh] w-full flex-col overflow-hidden"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="ui-modal__header flex shrink-0 items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h3 className="ui-modal__title leading-tight">💪 CENTRO DE TREINAMENTO</h3>
-                <p className="mt-1 text-xs leading-snug text-[var(--ui-text-soft)]">
-                  Evolua permanentemente um atributo do jogador. O treino é aplicado na hora e usa os créditos da campanha.
-                </p>
-              </div>
-              <button type="button" className="ui-modal__close" onClick={() => setTrainingOpen(false)} aria-label="Fechar treinamento">×</button>
-            </div>
-
-            <div className="ui-modal__body min-h-0 flex-1 overflow-y-auto">
+      {state.playerTeam && (
+        <GameModal
+          open={trainingOpen}
+          onOpenChange={open => setTrainingOpen(open)}
+          size="wide"
+          title="💪 CENTRO DE TREINAMENTO"
+          subtitle="Evolua permanentemente um atributo do jogador. O treino é aplicado na hora e usa os créditos da campanha."
+          closeLabel="Fechar treinamento"
+        >
               {!trainingPlayer ? (
                 <div className="space-y-4">
                   <div className="rounded-xl border border-[#FBBF2444] bg-[#FBBF240D] p-3 text-xs leading-relaxed text-[#D6D0BE]">
@@ -299,42 +291,38 @@ export default function ClubProjectsTab() {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
+        </GameModal>
       )}
 
       {detailsProject && (
-        <div className="ui-modal-backdrop z-50 p-3 sm:p-4" onClick={() => setDetailsProjectId(null)}>
-          <div
-            className="ui-modal flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="ui-modal__header flex shrink-0 items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-3">
-                <span
-                  className="flex size-11 shrink-0 items-center justify-center rounded-xl text-2xl"
-                  style={{ background: detailsProject.color + '18', border: '1px solid ' + detailsProject.color + '55' }}
-                  aria-hidden="true"
-                >
-                  {detailsProject.icon}
-                </span>
-                <div className="min-w-0">
-                  <div className="text-xs font-black tracking-widest text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    PROGRESSÃO COMPLETA
-                  </div>
-                  <h3 className="ui-modal__title mt-1 text-xl leading-tight sm:text-2xl" style={{ color: detailsProject.color }}>
-                    {detailsProject.title}
-                  </h3>
-                  <p className="mt-1 text-sm text-[var(--ui-text-soft)]">
-                    Nível atual: <b className="text-white">{projects.levels[detailsProject.id]}/{CLUB_PROJECT_LEVELS}</b>
-                  </p>
+        <GameModal
+          open={!!detailsProjectId}
+          onOpenChange={open => { if (!open) setDetailsProjectId(null); }}
+          size="default"
+          closeLabel="Fechar níveis"
+          title={(
+            <div className="flex min-w-0 items-start gap-3">
+              <span
+                className="flex size-11 shrink-0 items-center justify-center rounded-xl text-2xl"
+                style={{ background: detailsProject.color + '18', border: '1px solid ' + detailsProject.color + '55' }}
+                aria-hidden="true"
+              >
+                {detailsProject.icon}
+              </span>
+              <div className="min-w-0">
+                <div className="text-xs font-black tracking-widest text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  PROGRESSÃO COMPLETA
                 </div>
+                <div className="mt-1 text-xl leading-tight sm:text-2xl font-black" style={{ color: detailsProject.color, fontFamily: 'Bebas Neue, sans-serif' }}>
+                  {detailsProject.title}
+                </div>
+                <p className="mt-1 text-sm text-[var(--ui-text-soft)]">
+                  Nível atual: <b className="text-white">{projects.levels[detailsProject.id]}/{CLUB_PROJECT_LEVELS}</b>
+                </p>
               </div>
-              <button type="button" className="ui-modal__close" onClick={() => setDetailsProjectId(null)} aria-label="Fechar níveis">×</button>
             </div>
-
-            <div className="ui-modal__body min-h-0 flex-1 overflow-y-auto">
+          )}
+        >
               <div
                 className="rounded-xl border p-3 text-sm leading-relaxed sm:p-4"
                 style={{ borderColor: detailsProject.color + '55', background: detailsProject.color + '0D', color: '#D6D6E0', fontFamily: 'Rajdhani, sans-serif' }}
@@ -386,9 +374,7 @@ export default function ClubProjectsTab() {
                   );
                 })}
               </div>
-            </div>
-          </div>
-        </div>
+        </GameModal>
       )}
 
       {selectedProject && selectedLevel !== null && selectedNextLevel !== null && selectedCost !== null && selectedNextEffect && (

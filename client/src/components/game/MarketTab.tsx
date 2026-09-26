@@ -2,12 +2,11 @@
 //  • VENDER   — vende reservas PRA BANCA por valor fixo (sellValue). Solo e online.
 //  • ANUNCIAR — anuncia reservas pros outros jogadores da sala (P2P, escrow). Só online.
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { useGame } from '../../contexts/GameContext';
 import { sellValue } from '../../lib/shop';
 import { marketMinPrice } from '../../lib/market';
 import PlayerCard from './PlayerCard';
-import { Button } from '../../design-system';
+import { Button, GameModal } from '../../design-system';
 
 export default function MarketTab() {
   const { state, dispatch, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline } = useGame();
@@ -148,43 +147,57 @@ export default function MarketTab() {
       )}
 
       {/* Modal: confirmar VENDA pra banca */}
-      {confirmPlayer && (
-        <div className="ui-modal-backdrop z-[60]" onClick={() => setConfirmId(null)}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.94, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="ui-modal max-w-sm border-[var(--ui-danger)] p-5 text-center"
-            onClick={e => e.stopPropagation()}
-          >
+      <GameModal
+        open={!!confirmPlayer}
+        onOpenChange={open => { if (!open) setConfirmId(null); }}
+        size="default"
+        title={<span className="text-[var(--ui-danger)]">Vender jogador</span>}
+        footer={confirmPlayer ? (
+          <div className="flex gap-2">
+            <Button intent="ghost" className="flex-1" onClick={() => setConfirmId(null)}>
+              CANCELAR
+            </Button>
+            <Button intent="danger" className="flex-1"
+              onClick={() => { doSell(confirmPlayer.id); setConfirmId(null); }}
+            >
+              VENDER
+            </Button>
+          </div>
+        ) : null}
+      >
+        {confirmPlayer && (
+          <div className="text-center">
             <div className="text-3xl mb-1">🏪</div>
-            <h3 className="ui-modal__title mb-2 text-[var(--ui-danger)]">Vender jogador</h3>
             <p className="mb-1 text-sm text-[var(--ui-text-soft)]">
               Vender <b className="text-[var(--ui-text)]">{confirmPlayer.shortName}</b> pra banca por <b className="text-[var(--ui-brand-strong)]">💰 {sellValue(confirmPlayer.rarity)}</b>?
             </p>
-            <p className="mb-4 text-xs text-[var(--ui-text-muted)]">Essa ação é permanente.</p>
-            <div className="flex gap-2">
-              <Button intent="ghost" className="flex-1" onClick={() => setConfirmId(null)}>
-                CANCELAR
-              </Button>
-              <Button intent="danger" className="flex-1"
-                onClick={() => { doSell(confirmPlayer.id); setConfirmId(null); }}
-              >
-                VENDER
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+            <p className="text-xs text-[var(--ui-text-muted)]">Essa ação é permanente.</p>
+          </div>
+        )}
+      </GameModal>
 
       {/* Modal: definir preço do ANÚNCIO (P2P) */}
-      {listPlayer && (
-        <div className="ui-modal-backdrop z-[60]" onClick={() => setListFor(null)}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.94, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="ui-modal max-w-sm border-[#0e7490] p-5 text-center"
-            onClick={e => e.stopPropagation()}
-          >
+      <GameModal
+        open={!!listPlayer}
+        onOpenChange={open => { if (!open) setListFor(null); }}
+        size="default"
+        title={<span className="text-[#78c4d8]">Anunciar jogador</span>}
+        footer={listPlayer ? (
+          <div className="flex gap-2">
+            <Button intent="ghost" className="flex-1" onClick={() => setListFor(null)}>
+              CANCELAR
+            </Button>
+            <Button intent="info" className="flex-1"
+              onClick={() => { marketListOnline(listPlayer.id, Math.max(marketMinPrice(listPlayer), Math.floor(priceInput || 0))); setListFor(null); }}
+            >
+              ANUNCIAR
+            </Button>
+          </div>
+        ) : null}
+      >
+        {listPlayer && (
+          <div className="text-center">
             <div className="text-3xl mb-1">🤝</div>
-            <h3 className="ui-modal__title mb-2 text-[#78c4d8]">Anunciar jogador</h3>
             <p className="mb-3 text-sm text-[var(--ui-text-soft)]">
               Anunciar <b className="text-[var(--ui-text)]">{listPlayer.shortName}</b> pros outros. Mínimo: <b className="text-[var(--ui-brand-strong)]">💰 {marketMinPrice(listPlayer)}</b>.
             </p>
@@ -193,21 +206,11 @@ export default function MarketTab() {
               min={marketMinPrice(listPlayer)}
               value={priceInput}
               onChange={e => setPriceInput(Number(e.target.value))}
-              className="ui-input mb-4 text-center font-bold"
+              className="ui-input text-center font-bold"
             />
-            <div className="flex gap-2">
-              <Button intent="ghost" className="flex-1" onClick={() => setListFor(null)}>
-                CANCELAR
-              </Button>
-              <Button intent="info" className="flex-1"
-                onClick={() => { marketListOnline(listPlayer.id, Math.max(marketMinPrice(listPlayer), Math.floor(priceInput || 0))); setListFor(null); }}
-              >
-                ANUNCIAR
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+          </div>
+        )}
+      </GameModal>
     </div>
   );
 }

@@ -10,7 +10,7 @@ import type { VariantFlag } from '../../lib/gameEngine';
 import { SHOP_COSTS, TURBINAR_VARIANTS, ShopVariant } from '../../lib/shop';
 import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
 import UniquePackOpening from './UniquePackOpening';
-import { Button } from '../../design-system';
+import { Button, GameModal } from '../../design-system';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'unique';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
@@ -245,21 +245,17 @@ export default function ShopTab() {
       {/* ── Modals ── */}
       <>
         {active && !pendingUniquePack && (
-          <div
-            className="ui-modal-backdrop z-50 p-3 sm:p-4" onClick={close}>
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="ui-modal ui-modal--wide flex max-h-[90vh] flex-col">
-
-              {/* Modal header */}
-              <div className="ui-modal__header flex-shrink-0">
-                <h3 className="ui-modal__title">
-                  {ITEMS.find(i => i.id === active)?.icon} {ITEMS.find(i => i.id === active)?.name}
-                </h3>
-                <button onClick={close} aria-label="Fechar" className="ui-icon-btn">✕</button>
-              </div>
-
-              <div className="ui-modal__body flex-1">
+          <GameModal
+            open
+            onOpenChange={next => { if (!next) close(); }}
+            size="wide"
+            className="flex max-h-[90vh] flex-col"
+            title={
+              <>
+                {ITEMS.find(i => i.id === active)?.icon} {ITEMS.find(i => i.id === active)?.name}
+              </>
+            }
+          >
                 {/* ⭐ PACOTE ÚNICO — quatro cartas da rodada + abertura/revelação aleatória */}
                 {active === 'unique' && (
                   pendingUniquePack ? (
@@ -506,20 +502,20 @@ export default function ShopTab() {
                   );
                 })()}
 
-              </div>
-            </div>
-          </div>
+          </GameModal>
         )}
       </>
 
       {/* 🛒 Confirmação de compra (premium) — acima do modal do item */}
       <>
         {confirmCfg && (
-          <div className="ui-modal-backdrop z-[70]" onClick={() => setConfirmCfg(null)}>
-            <div
-              className="ui-modal max-w-sm border-[var(--ui-brand)] p-5 text-center"
-              onClick={e => e.stopPropagation()}
-            >
+          <GameModal
+            open
+            onOpenChange={next => { if (!next) setConfirmCfg(null); }}
+            stacked
+            className="max-w-sm border-[var(--ui-brand)]"
+            bodyClassName="text-center"
+          >
               <div className="text-3xl mb-1">🛒</div>
               <h3 className="ui-modal__title mb-2">{confirmCfg.title}</h3>
               <p className="mb-2 text-sm text-[var(--ui-text-soft)]">{confirmCfg.message}</p>
@@ -534,8 +530,7 @@ export default function ShopTab() {
                   CONFIRMAR
                 </Button>
               </div>
-            </div>
-          </div>
+          </GameModal>
         )}
       </>
     </div>

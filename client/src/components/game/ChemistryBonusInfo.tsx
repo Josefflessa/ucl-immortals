@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Info } from 'lucide-react';
 import { getChemistryBonus } from '../../lib/gameEngine';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { GameModal } from '../../design-system';
 
 // Bonus is applied as chemBonus.{passing,pace} * 2 in both the engine and the
 // effective-stats preview, so the real stat points are double the raw tier value.
@@ -63,50 +63,40 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
         </div>
       )}
 
-      <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent
-          disableAnimation
-          overlayClassName="bg-black/85"
-          closeButtonLabel="Fechar bônus de química"
-          closeButtonClassName="right-3 top-3 flex size-9 items-center justify-center rounded-lg bg-[#171727] p-0 text-[#D8D8E5] opacity-100 hover:bg-[#24243A] [&_svg]:size-4"
-          className="max-h-[min(88dvh,620px)] max-w-md overflow-y-auto border-[#30304A] bg-[#0F0F1A] p-4 text-[#F3F3FA] shadow-2xl sm:p-5"
-        >
-          <DialogHeader className="pr-10 text-left">
-            <DialogTitle className="text-xl font-black tracking-wider text-[#E8C84A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-              BÔNUS DE QUÍMICA
-            </DialogTitle>
-            <div className="text-sm leading-relaxed text-[#A7A7B8]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-              Efeitos aplicados aos 11 titulares durante a partida.
-            </div>
-          </DialogHeader>
-
-          <div className="mt-2 space-y-2">
-            {TIERS.map(t => {
-              const isActive = activeTier?.min === t.min;
-              return (
-                <div
-                  key={t.min}
-                  className="rounded-lg border px-3 py-2.5"
-                  style={{
-                    color: isActive ? '#E8C84A' : '#8A8A9A',
-                    borderColor: isActive ? '#C9A84C88' : '#202034',
-                    background: isActive ? '#C9A84C12' : '#0A0A14',
-                    fontFamily: 'Rajdhani, sans-serif',
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-black">{t.label} de química</div>
-                    {isActive && <span className="text-[10px] font-black uppercase tracking-wider">ATIVA</span>}
-                  </div>
-                  <div className="mt-0.5 text-xs leading-relaxed" style={{ color: isActive ? '#D8C47A' : '#6A6A7A' }}>
-                    +{t.pas} Passe{t.rit > 0 ? ` · +${t.rit} Ritmo` : ''}{t.special > 0 ? ` · +${t.special} em todos ✨` : ''}
-                  </div>
+      <GameModal
+        open={showDetails}
+        onOpenChange={setShowDetails}
+        size="default"
+        closeLabel="Fechar bônus de química"
+        title={<span className="text-xl font-black tracking-wider text-[#E8C84A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>BÔNUS DE QUÍMICA</span>}
+        subtitle="Efeitos aplicados aos 11 titulares durante a partida."
+      >
+        <div className="space-y-2">
+          {TIERS.map(t => {
+            const isActive = activeTier?.min === t.min;
+            return (
+              <div
+                key={t.min}
+                className="rounded-lg border px-3 py-2.5"
+                style={{
+                  color: isActive ? '#E8C84A' : '#8A8A9A',
+                  borderColor: isActive ? '#C9A84C88' : '#202034',
+                  background: isActive ? '#C9A84C12' : '#0A0A14',
+                  fontFamily: 'Rajdhani, sans-serif',
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-black">{t.label} de química</div>
+                  {isActive && <span className="text-[10px] font-black uppercase tracking-wider">ATIVA</span>}
                 </div>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
+                <div className="mt-0.5 text-xs leading-relaxed" style={{ color: isActive ? '#D8C47A' : '#6A6A7A' }}>
+                  +{t.pas} Passe{t.rit > 0 ? ` · +${t.rit} Ritmo` : ''}{t.special > 0 ? ` · +${t.special} em todos ✨` : ''}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </GameModal>
     </div>
   );
 }

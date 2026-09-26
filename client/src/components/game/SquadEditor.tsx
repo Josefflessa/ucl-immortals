@@ -24,8 +24,8 @@ import MatchPlanSelector from './MatchPlanSelector';
 import FormationSelector from './FormationSelector';
 import ChemistryBonusInfo from './ChemistryBonusInfo';
 import BuffBreakdown from './BuffBreakdown';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { canonicalClubName } from '../../lib/crests';
+import { GameModal } from '../../design-system';
 
 export interface SquadEditorProps {
   players: Player[];                 // full squad (first 11 = XI, rest = bench)
@@ -661,74 +661,67 @@ export default function SquadEditor({
         </div>
       </div>
 
-      <Dialog open={fieldSettingsPanel !== null} onOpenChange={open => { if (!open) setFieldSettingsPanel(null); }}>
-        <DialogContent
-          disableAnimation
-          overlayClassName="bg-black/85"
-          closeButtonLabel="Fechar configurações do campo"
-          closeButtonClassName="right-3 top-3 flex size-10 items-center justify-center rounded-xl bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text)] opacity-100 shadow-md hover:bg-[var(--ui-surface-3)] [&_svg]:size-5"
-          className="!left-0 !top-0 !h-dvh !w-screen !max-h-dvh !max-w-none !translate-x-0 !translate-y-0 flex min-h-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-[var(--ui-bg-raised)] p-4 text-[var(--ui-text)] shadow-none sm:!left-1/2 sm:!top-1/2 sm:!h-auto sm:!max-h-[min(92dvh,860px)] sm:!w-full sm:!max-w-3xl sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-lg sm:border sm:border-[var(--ui-line)] sm:p-6 sm:shadow-2xl"
-        >
-          <DialogHeader className="shrink-0 gap-1 pr-12 pb-4 text-left">
-            <DialogTitle className="font-display text-2xl tracking-wide text-[var(--ui-brand-strong)] sm:text-3xl">
-              {fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : fieldSettingsPanel === 'tactic' ? 'TÁTICA DO TIME' : 'TÉCNICO'}
-            </DialogTitle>
-            <p className="text-sm leading-snug text-[var(--ui-text-muted)]">
-              {fieldSettingsPanel === 'formation'
-                ? 'Escolha o esquema e veja como ele muda o comportamento do time.'
-                : fieldSettingsPanel === 'tactic'
-                  ? 'Escolha a mentalidade que orienta o comportamento do time na partida.'
-                  : 'Confira o técnico e os efeitos ativos do seu time.'}
-            </p>
-          </DialogHeader>
-          <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 touch-pan-y">
-            {fieldSettingsPanel === 'formation' ? (
-              <FormationSelector value={formationId} onChange={onSetFormation} analysisLevel={analysisLevel} />
-            ) : fieldSettingsPanel === 'tactic' ? (
-              <TacticSelector value={playStyle} onChange={onSetPlayStyle} analysisLevel={analysisLevel} />
-            ) : coach ? (
-              <CoachStadiumPanel
-                coach={coach}
-                formation={formation}
-                coachPrime={!!coachPrime}
-                stadiumProjectLevel={stadiumProjectLevel}
-                wins={wins}
-                points={points}
-                onEvolve={onEvolvePrime}
-              />
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <GameModal
+        open={fieldSettingsPanel !== null}
+        onOpenChange={open => { if (!open) setFieldSettingsPanel(null); }}
+        size="wide"
+        title={fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : fieldSettingsPanel === 'tactic' ? 'TÁTICA DO TIME' : 'TÉCNICO'}
+        subtitle={
+          fieldSettingsPanel === 'formation'
+            ? 'Escolha o esquema e veja como ele muda o comportamento do time.'
+            : fieldSettingsPanel === 'tactic'
+              ? 'Escolha a mentalidade que orienta o comportamento do time na partida.'
+              : 'Confira o técnico e os efeitos ativos do seu time.'
+        }
+        closeLabel="Fechar configurações do campo"
+        className="!h-dvh !w-screen !max-h-dvh !max-w-none rounded-none border-0 sm:!h-auto sm:!max-h-[min(92dvh,860px)] sm:!w-full sm:!max-w-3xl sm:rounded-[var(--ui-radius-xl)] sm:border"
+        bodyClassName="overflow-x-hidden"
+      >
+        {fieldSettingsPanel === 'formation' ? (
+          <FormationSelector value={formationId} onChange={onSetFormation} analysisLevel={analysisLevel} />
+        ) : fieldSettingsPanel === 'tactic' ? (
+          <TacticSelector value={playStyle} onChange={onSetPlayStyle} analysisLevel={analysisLevel} />
+        ) : coach ? (
+          <CoachStadiumPanel
+            coach={coach}
+            formation={formation}
+            coachPrime={!!coachPrime}
+            stadiumProjectLevel={stadiumProjectLevel}
+            wins={wins}
+            points={points}
+            onEvolve={onEvolvePrime}
+          />
+        ) : null}
+      </GameModal>
 
       {footer}
 
       {/* Premium Player Modal */}
       <>
         {selectedIndex !== null && selectedPlayer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }}>
-            <div
-              className="relative min-h-0 bg-[#0b0b14] border border-[#1d1d2f] rounded-2xl max-w-2xl w-full flex flex-col max-h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
-            >
-              {/* Fundo: textura da carta do jogador (a Única usa a sua própria), com véu leve p/ legibilidade */}
-              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity, getEvolutionLevel(selectedPlayer))})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
-              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, background: 'linear-gradient(180deg,rgba(9,9,16,.52),rgba(9,9,16,.6))' }} />
+          <GameModal
+            open
+            onOpenChange={open => { if (!open) setSelectedIndex(null); }}
+            size="wide"
+            title="GERENCIAR POSIÇÃO"
+            subtitle={<>Trocar posição de <span className="font-extrabold text-[#C9A84C]">{selectedPlayer.shortName}</span></>}
+            headerExtra={
+              <button onClick={() => setZoomCard(true)} title="Ver card em tela cheia" aria-label="Ver card ampliado"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-lg transition-colors hover:bg-white/10 focus:outline-none"
+                style={{ border: '1px solid #2E2E42', color: '#C9C9D5' }}>🔍</button>
+            }
+            footer={
+              <button onClick={() => setSelectedIndex(null)}
+                className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg text-sm font-black text-gray-300 hover:text-white hover:bg-white/5 transition-colors focus:outline-none whitespace-nowrap"
+                style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2E2E42' }}>Cancelar</button>
+            }
+            bodyClassName="relative"
+          >
+            {/* Fundo: textura da carta do jogador (a Única usa a sua própria), com véu leve p/ legibilidade */}
+            <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity, getEvolutionLevel(selectedPlayer))})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
+            <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, background: 'linear-gradient(180deg,rgba(9,9,16,.52),rgba(9,9,16,.6))' }} />
 
-              <div className="relative z-10 flex flex-shrink-0 items-center justify-between border-b px-6 pt-5 pb-4" style={{ borderColor: '#1d1d2f' }}>
-                <div>
-                  <h3 className="text-xl font-black text-white tracking-widest uppercase" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>GERENCIAR POSIÇÃO</h3>
-                  <p className="text-xs text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    Trocar posição de <span className="font-extrabold text-[#C9A84C]">{selectedPlayer.shortName}</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <button onClick={() => setZoomCard(true)} title="Ver card em tela cheia"
-                    className="w-9 h-9 rounded-lg flex items-center justify-center text-lg transition-colors hover:bg-white/10 focus:outline-none"
-                    style={{ border: '1px solid #2E2E42', color: '#C9C9D5' }}>🔍</button>
-                  <button onClick={() => setSelectedIndex(null)} className="w-9 h-9 rounded-lg flex items-center justify-center text-2xl font-black text-gray-400 hover:text-white hover:bg-white/10 focus:outline-none">✕</button>
-                </div>
-              </div>
-
+            <div className="relative z-10 space-y-5">
               {/* 🟨🟥🩹 Faixa compacta de disponibilidade — só aparece quando o jogador tem alguma pendência. */}
               {(() => {
                 const a = availability?.[selectedPlayer.id];
@@ -761,43 +754,7 @@ export default function SquadEditor({
                 );
               })()}
 
-              {/* 🏥 Confirmação da fisioterapia — evita comprar num clique só. */}
-              {confirmPhysioFor && (() => {
-                const pp = players.find(p => p.id === confirmPhysioFor);
-                if (!pp) return null;
-                const inj = availability?.[confirmPhysioFor]?.injured ?? 0;
-                return (
-                  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.82)' }} onClick={() => setConfirmPhysioFor(null)}>
-                    <div
-                      className="w-full max-w-sm rounded-2xl p-5 text-center" style={{ background: '#0b0b14', border: '1px solid #0E7490' }}
-                      onClick={e => e.stopPropagation()}
-                    >
-                      <div className="text-3xl mb-1">🏥</div>
-                      <h3 className="text-lg font-black tracking-widest uppercase mb-1" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#67E8F9' }}>Fisioterapia</h3>
-                      <p className="text-[13px] mb-1" style={{ color: '#C8D0D4', fontFamily: 'Rajdhani, sans-serif' }}>
-                        Reduzir <b style={{ color: '#FFF' }}>1 jogo</b> de lesão de <b style={{ color: '#FFF' }}>{pp.shortName}</b>?
-                      </p>
-                      <p className="text-[12px] mb-4" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
-                        Fica <b style={{ color: '#FCD34D' }}>{Math.max(0, inj - 1)} jogo(s)</b> de fora · {physioFree ? <b style={{ color: '#67E8F9' }}>1 uso gratuito disponível</b> : <>custa <b style={{ color: '#67E8F9' }}>{physioCost} créditos</b></>}
-                      </p>
-                      <div className="flex gap-2">
-                        <button onClick={() => setConfirmPhysioFor(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#17171f', color: '#9A9AA5' }}>
-                          CANCELAR
-                        </button>
-                        <button
-                          disabled={!canAffordPhysio}
-                          onClick={() => { onHealInjury?.(confirmPhysioFor); setConfirmPhysioFor(null); }}
-                          className="flex-1 py-2.5 rounded-xl font-black tracking-widest disabled:opacity-40 transition-transform active:scale-95"
-                          style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg,#0E7490,#22D3EE)', color: '#062028' }}>
-                          CONFIRMAR
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6 space-y-5">
+              <div className="space-y-5">
                 {(() => {
                   const isStarter = selectedIndex < 11;
                   const posIdx = isStarter ? selectedIndex : -1;
@@ -1172,74 +1129,78 @@ export default function SquadEditor({
                   })()}
                 </div>
               </div>
-
-              <div className="flex justify-end px-6 py-4 border-t flex-shrink-0" style={{ borderColor: '#1d1d2f' }}>
-                <button onClick={() => setSelectedIndex(null)}
-                  className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg text-sm font-black text-gray-300 hover:text-white hover:bg-white/5 transition-colors focus:outline-none whitespace-nowrap"
-                  style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2E2E42' }}>Cancelar</button>
-              </div>
             </div>
+          </GameModal>
+        )}
 
-            {/* 🔍 Card do jogador em tela cheia (só pra ver de perto) */}
-            {zoomCard && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(3,3,10,0.92)' }} onClick={() => setZoomCard(false)}>
-                <button onClick={() => setZoomCard(false)} title="Fechar"
-                  className="absolute top-4 right-4 w-11 h-11 rounded-full flex items-center justify-center text-2xl font-black text-gray-300 hover:text-white focus:outline-none"
-                  style={{ background: '#12121c', border: '1px solid #2E2E42' }}>✕</button>
-                <div onClick={e => e.stopPropagation()}>
-                  <PlayerCard player={selectedPlayer} effectiveStats={effectiveStatsById[selectedPlayer.id]} scale={1.5} />
+        {/* 🏥 Confirmação da fisioterapia — evita comprar num clique só. */}
+        {confirmPhysioFor && (() => {
+          const pp = players.find(p => p.id === confirmPhysioFor);
+          if (!pp) return null;
+          const inj = availability?.[confirmPhysioFor]?.injured ?? 0;
+          return (
+            <GameModal
+              open
+              onOpenChange={open => { if (!open) setConfirmPhysioFor(null); }}
+              stacked
+              title="Fisioterapia"
+              footer={
+                <div className="flex w-full gap-2">
+                  <button onClick={() => setConfirmPhysioFor(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#17171f', color: '#9A9AA5' }}>
+                    CANCELAR
+                  </button>
+                  <button
+                    disabled={!canAffordPhysio}
+                    onClick={() => { onHealInjury?.(confirmPhysioFor); setConfirmPhysioFor(null); }}
+                    className="flex-1 py-2.5 rounded-xl font-black tracking-widest disabled:opacity-40 transition-transform active:scale-95"
+                    style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg,#0E7490,#22D3EE)', color: '#062028' }}>
+                    CONFIRMAR
+                  </button>
                 </div>
+              }
+            >
+              <div className="text-center">
+                <div className="text-3xl mb-1">🏥</div>
+                <p className="text-[13px] mb-1" style={{ color: '#C8D0D4', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Reduzir <b style={{ color: '#FFF' }}>1 jogo</b> de lesão de <b style={{ color: '#FFF' }}>{pp.shortName}</b>?
+                </p>
+                <p className="text-[12px]" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Fica <b style={{ color: '#FCD34D' }}>{Math.max(0, inj - 1)} jogo(s)</b> de fora · {physioFree ? <b style={{ color: '#67E8F9' }}>1 uso gratuito disponível</b> : <>custa <b style={{ color: '#67E8F9' }}>{physioCost} créditos</b></>}
+                </p>
               </div>
-            )}
-          </div>
+            </GameModal>
+          );
+        })()}
+
+        {/* 🔍 Card do jogador em tela cheia (só pra ver de perto) */}
+        {zoomCard && selectedPlayer && (
+          <GameModal
+            open
+            onOpenChange={open => { if (!open) setZoomCard(false); }}
+            stacked
+            title={<span className="sr-only">Visualização ampliada do card</span>}
+            closeLabel="Fechar"
+            bodyClassName="flex items-center justify-center"
+          >
+            <PlayerCard player={selectedPlayer} effectiveStats={effectiveStatsById[selectedPlayer.id]} scale={1.5} />
+          </GameModal>
         )}
       </>
 
       {/* Confirmação da troca rápida — soltar um card nunca altera o elenco sozinho. */}
       {pendingSwap && pendingFromPlayer && pendingToPlayer && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
-          onClick={() => setPendingSwap(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="quick-swap-title"
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#C9A84C66] bg-[#0B0B14] shadow-[0_0_40px_rgba(0,0,0,.55)]"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="border-b border-[#242436] bg-[#11111D] px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#C9A84C55] bg-[#C9A84C18] text-xl text-[#E8C84A]" aria-hidden="true">↔</div>
-                <div className="min-w-0">
-                  <h3 id="quick-swap-title" className="text-lg font-black tracking-widest text-[#E8C84A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                    {pendingIsStarterSwap ? 'CONFIRMAR TROCA DE POSIÇÃO' : 'CONFIRMAR ENTRADA NO TIME'}
-                  </h3>
-                  <p className="mt-0.5 text-xs text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    Confira o movimento antes de aplicar ao elenco.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2 px-5 py-4" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-              <div className="rounded-xl border border-[#22C55E44] bg-[#22C55E0D] px-3 py-2.5">
-                <div className="text-[10px] font-black tracking-widest text-[#4ADE80]">{pendingIsStarterSwap ? 'VAI PARA A POSIÇÃO' : 'ENTRA EM CAMPO'}</div>
-                <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">
-                  <span className="truncate">{pendingFromPlayer.shortName}</span>
-                  <span className="shrink-0 text-xs text-[#86EFAC]">→ {POS_PT[pendingTargetRole ?? ''] ?? pendingTargetRole ?? 'TITULAR'}</span>
-                </div>
-              </div>
-              <div className="rounded-xl border border-[#F59E0B44] bg-[#F59E0B0D] px-3 py-2.5">
-                <div className="text-[10px] font-black tracking-widest text-[#FBBF24]">{pendingIsStarterSwap ? 'TROCA DE POSIÇÃO' : 'SAI DA VAGA'}</div>
-                <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">
-                  <span className="truncate">{pendingToPlayer.shortName}</span>
-                  <span className="shrink-0 text-xs text-[#FCD34D]">→ {pendingIsStarterSwap ? (POS_PT[pendingSourceRole ?? ''] ?? pendingSourceRole ?? 'TITULAR') : 'BANCO'}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2 border-t border-[#242436] px-5 py-4">
+        <GameModal
+          open
+          onOpenChange={open => { if (!open) setPendingSwap(null); }}
+          title={
+            <span className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#C9A84C55] bg-[#C9A84C18] text-xl text-[#E8C84A]" aria-hidden="true">↔</span>
+              <span>{pendingIsStarterSwap ? 'CONFIRMAR TROCA DE POSIÇÃO' : 'CONFIRMAR ENTRADA NO TIME'}</span>
+            </span>
+          }
+          subtitle="Confira o movimento antes de aplicar ao elenco."
+          footer={
+            <div className="flex w-full gap-2">
               <button type="button" onClick={() => setPendingSwap(null)} className="flex-1 rounded-xl border border-[#2E2E42] bg-[#17171F] py-2.5 text-xs font-black tracking-widest text-[#A9A9B8] transition-colors hover:bg-[#222230] hover:text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 CANCELAR
               </button>
@@ -1247,8 +1208,25 @@ export default function SquadEditor({
                 CONFIRMAR
               </button>
             </div>
+          }
+        >
+          <div className="space-y-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="rounded-xl border border-[#22C55E44] bg-[#22C55E0D] px-3 py-2.5">
+              <div className="text-[10px] font-black tracking-widest text-[#4ADE80]">{pendingIsStarterSwap ? 'VAI PARA A POSIÇÃO' : 'ENTRA EM CAMPO'}</div>
+              <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">
+                <span className="truncate">{pendingFromPlayer.shortName}</span>
+                <span className="shrink-0 text-xs text-[#86EFAC]">→ {POS_PT[pendingTargetRole ?? ''] ?? pendingTargetRole ?? 'TITULAR'}</span>
+              </div>
+            </div>
+            <div className="rounded-xl border border-[#F59E0B44] bg-[#F59E0B0D] px-3 py-2.5">
+              <div className="text-[10px] font-black tracking-widest text-[#FBBF24]">{pendingIsStarterSwap ? 'TROCA DE POSIÇÃO' : 'SAI DA VAGA'}</div>
+              <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">
+                <span className="truncate">{pendingToPlayer.shortName}</span>
+                <span className="shrink-0 text-xs text-[#FCD34D]">→ {pendingIsStarterSwap ? (POS_PT[pendingSourceRole ?? ''] ?? pendingSourceRole ?? 'TITULAR') : 'BANCO'}</span>
+              </div>
+            </div>
           </div>
-        </div>
+        </GameModal>
       )}
 
     </motion.div>

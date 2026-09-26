@@ -2,7 +2,6 @@
 // Show standings, round-by-round fixtures, and results
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
@@ -28,7 +27,7 @@ import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getRead
 import type { MatchResult, Team } from '../lib/gameEngine';
 import type { Player } from '../lib/gameData';
 import { POS_PT } from '../lib/gameData';
-import { AppShell, Button, ConfirmDialog, PageContainer, StatusBanner, Tab, TabList, Tabs, TopBar } from '../design-system';
+import { AppShell, Button, ConfirmDialog, GameModal, PageContainer, StatusBanner, Tab, TabList, Tabs, TopBar } from '../design-system';
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 // Anti-spoiler placeholder: shown instead of position/standings/stats/bracket while other
@@ -1615,31 +1614,38 @@ export default function LeaguePage() {
 
       {/* ── Contratação emergencial: vaga titular sem cobertura no banco ── */}
       {emergencySelection && emergencySelection.options.length > 0 && (
-          <div
-            className="ui-modal-backdrop z-50 p-3 sm:p-4"
-            onClick={() => setEmergencySelection(null)}
-          >
-            <div
-              onClick={e => e.stopPropagation()}
-              className="ui-modal ui-modal--wide flex max-h-[95vh] flex-col"
-            >
-              <div className="ui-modal__header flex-shrink-0 justify-start px-5 sm:px-6">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#F59E0B22', border: '1px solid #F59E0B55' }}>
-                    <AlertTriangle size={20} style={{ color: '#FBBF24' }} />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FBBF24' }}>
-                      CONTRATAÇÃO EMERGENCIAL
-                    </h3>
-                    <p className="text-[11px] sm:text-xs mt-1" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                      <b style={{ color: '#FFF' }}>{emergencySelection.starterName}</b> está indisponível e não há reserva para <b style={{ color: '#FBBF24' }}>{POS_PT[emergencySelection.position] ?? emergencySelection.position}</b>.
-                    </p>
-                  </div>
-                </div>
+        <GameModal
+          open
+          onOpenChange={next => { if (!next) setEmergencySelection(null); }}
+          size="wide"
+          className="flex max-h-[95vh] flex-col"
+          title={
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#F59E0B22', border: '1px solid #F59E0B55' }}>
+                <AlertTriangle size={20} style={{ color: '#FBBF24' }} />
               </div>
-
-              <div className="ui-panel ui-panel--inset mx-4 mt-4 flex-shrink-0 border-[#F59E0B]/35 bg-[#F59E0B]/[0.07] px-4 py-3 sm:mx-6">
+              <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FBBF24' }}>
+                CONTRATAÇÃO EMERGENCIAL
+              </h3>
+            </div>
+          }
+          subtitle={
+            <>
+              <b style={{ color: '#FFF' }}>{emergencySelection.starterName}</b> está indisponível e não há reserva para <b style={{ color: '#FBBF24' }}>{POS_PT[emergencySelection.position] ?? emergencySelection.position}</b>.
+            </>
+          }
+          footer={
+            <div className="flex w-full items-center justify-between">
+              <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                A rodada continua bloqueada até ajustar o XI.
+              </span>
+              <Button intent="ghost" className="ml-auto" onClick={() => setEmergencySelection(null)}>
+                VOLTAR
+              </Button>
+            </div>
+          }
+        >
+              <div className="ui-panel ui-panel--inset flex-shrink-0 border-[#F59E0B]/35 bg-[#F59E0B]/[0.07] px-4 py-3">
                 <div className="text-[11px] font-black tracking-widest" style={{ color: '#FBBF24', fontFamily: 'Rajdhani, sans-serif' }}>
                   ESCOLHA GRATUITA · PRATA OU BRONZE
                 </div>
@@ -1648,7 +1654,7 @@ export default function LeaguePage() {
                 </div>
               </div>
 
-              <div className="px-3 sm:px-6 py-5 flex-1 min-h-0 flex items-center justify-center">
+              <div className="py-5 flex-1 min-h-0 flex items-center justify-center">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 justify-items-center">
                   {emergencySelection.options.map(option => (
                     <button
@@ -1662,17 +1668,7 @@ export default function LeaguePage() {
                   ))}
                 </div>
               </div>
-
-              <div className="ui-modal__footer flex-shrink-0 justify-between px-5 sm:px-6">
-                <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                  A rodada continua bloqueada até ajustar o XI.
-                </span>
-                <Button intent="ghost" className="ml-auto" onClick={() => setEmergencySelection(null)}>
-                  VOLTAR
-                </Button>
-              </div>
-            </div>
-          </div>
+        </GameModal>
         )}
 
       {/* ── End-of-round reinforcement pick ── */}
@@ -1681,53 +1677,36 @@ export default function LeaguePage() {
           <MatchCreditsModal points={state.lastMatchPoints} onClose={closeCreditsModal} />
         )}
         {state.reinforcementOptions && state.reinforcementOptions.length > 0 && !showCreditsModal && (
-          <div
-            className="ui-modal-backdrop z-50 p-3 sm:p-4"
-          >
-            <div
-              className="ui-modal ui-modal--wide flex max-h-[95vh] flex-col"
-            >
-              {/* Header */}
-              <div className="ui-modal__header flex-shrink-0 justify-start px-5 sm:px-6">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#C9A84C22', border: '1px solid #C9A84C55' }}>
-                    <UserPlus size={20} style={{ color: '#E8C84A' }} />
+          <GameModal
+            open
+            onOpenChange={() => {}}
+            dismissible={false}
+            size="wide"
+            className="flex max-h-[95vh] flex-col"
+            bodyClassName="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6"
+            title={
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#C9A84C22', border: '1px solid #C9A84C55' }}>
+                  <UserPlus size={20} style={{ color: '#E8C84A' }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="mb-1 text-[10px] font-black tracking-[0.16em]" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
+                    CENTRO DE RECRUTAMENTO · NÍVEL {recruitmentLevel}
                   </div>
-                  <div className="min-w-0">
-                    <div className="mb-1 text-[10px] font-black tracking-[0.16em]" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
-                      CENTRO DE RECRUTAMENTO · NÍVEL {recruitmentLevel}
-                    </div>
-                    <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>
-                      RECRUTAMENTO DA {recruitmentEventLabel}
-                    </h3>
-                    <p className="text-[11px] sm:text-xs mt-1" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                      O Centro encontrou <b style={{ color: '#FFF' }}>{recruitmentTotalOptions} jogadores</b>. Escolha <b style={{ color: '#FFF' }}>{recruitmentSelectionsRemaining} para contratar</b> e adicionar ao seu <b style={{ color: '#818CF8' }}>banco de reservas</b>.
-                      {recruitmentOffer?.minimumOverall ? <> Todas as opções têm <b style={{ color: '#F0D77A' }}>overall {recruitmentOffer.minimumOverall}+</b>.</> : null}
-                    </p>
-                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>
+                    RECRUTAMENTO DA {recruitmentEventLabel}
+                  </h3>
                 </div>
               </div>
-
-              {/* Options — bigger full cards (light, no animations) */}
-              {/* Opções: grade que cabe SEM rolagem (3 col no celular, 6 no PC) */}
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6">
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 justify-items-center">
-                  {state.reinforcementOptions.map(option => (
-                    <button
-                      key={option.id}
-                      onClick={() => online ? pickReinforcementOnline(option) : dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
-                      className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none"
-                      title={`Contratar ${option.shortName} (${recruitmentSelectionsRemaining} escolha${recruitmentSelectionsRemaining === 1 ? '' : 's'} restante${recruitmentSelectionsRemaining === 1 ? '' : 's'})`}
-                      aria-label={`Contratar ${option.shortName}`}
-                    >
-                      <PlayerCard player={option} compact lite />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="ui-modal__footer flex-shrink-0 justify-between px-5 sm:px-6">
+            }
+            subtitle={
+              <>
+                O Centro encontrou <b style={{ color: '#FFF' }}>{recruitmentTotalOptions} jogadores</b>. Escolha <b style={{ color: '#FFF' }}>{recruitmentSelectionsRemaining} para contratar</b> e adicionar ao seu <b style={{ color: '#818CF8' }}>banco de reservas</b>.
+                {recruitmentOffer?.minimumOverall ? <> Todas as opções têm <b style={{ color: '#F0D77A' }}>overall {recruitmentOffer.minimumOverall}+</b>.</> : null}
+              </>
+            }
+            footer={
+              <div className="flex w-full items-center justify-between">
                 <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                   👆 Toque em um card para contratar · {recruitmentSelectionsRemaining} escolha{recruitmentSelectionsRemaining === 1 ? '' : 's'} restante{recruitmentSelectionsRemaining === 1 ? '' : 's'}
                 </span>
@@ -1746,8 +1725,24 @@ export default function LeaguePage() {
                   </Button>
                 </div>
               </div>
-            </div>
-          </div>
+            }
+          >
+                {/* Options — bigger full cards (light, no animations) */}
+                {/* Opções: grade que cabe SEM rolagem (3 col no celular, 6 no PC) */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 justify-items-center">
+                  {state.reinforcementOptions.map(option => (
+                    <button
+                      key={option.id}
+                      onClick={() => online ? pickReinforcementOnline(option) : dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
+                      className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none"
+                      title={`Contratar ${option.shortName} (${recruitmentSelectionsRemaining} escolha${recruitmentSelectionsRemaining === 1 ? '' : 's'} restante${recruitmentSelectionsRemaining === 1 ? '' : 's'})`}
+                      aria-label={`Contratar ${option.shortName}`}
+                    >
+                      <PlayerCard player={option} compact lite />
+                    </button>
+                  ))}
+                </div>
+          </GameModal>
         )}
       </>
 
@@ -1801,27 +1796,25 @@ export default function LeaguePage() {
         })()}
 
       {/* 🚫 Aviso: tentou jogar com titular indisponível (solo) */}
-      <AnimatePresence>
       {lineupWarning && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="ui-modal-backdrop z-50 p-4" onClick={() => setLineupWarning(null)}>
-            <motion.div initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
-              className="ui-modal max-w-sm overflow-hidden border-[var(--ui-danger)] text-center">
-              <div className="px-6 pt-6 pb-2">
-                <div className="text-4xl mb-2">🚫</div>
-                <div className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</div>
-                <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
-                  Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.join(', ')}</b>.<br />
-                  Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar a rodada.
-                </p>
-              </div>
-              <Button intent="danger" className="mt-3 w-full rounded-none border-0" onClick={() => setLineupWarning(null)}>
-                ENTENDI
-              </Button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <GameModal
+          open
+          onOpenChange={next => { if (!next) setLineupWarning(null); }}
+          className="max-w-sm overflow-hidden border-[var(--ui-danger)] text-center"
+          footer={
+            <Button intent="danger" className="w-full rounded-none border-0" onClick={() => setLineupWarning(null)}>
+              ENTENDI
+            </Button>
+          }
+        >
+              <div className="text-4xl mb-2">🚫</div>
+              <div className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</div>
+              <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
+                Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.join(', ')}</b>.<br />
+                Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar a rodada.
+              </p>
+        </GameModal>
+      )}
 
       <ConfirmDialog
         open={confirmAction !== null}

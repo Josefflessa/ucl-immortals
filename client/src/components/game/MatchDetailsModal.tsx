@@ -3,13 +3,12 @@
 // de cada time (formação + jogadores) com a NOTA FINAL real de cada um (do result.playerStats).
 // Reutilizável na rodada da liga, no MEUS JOGOS e no mata-mata (substitui a antiga narração).
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { MatchResult, MatchEvent, Team } from '../../lib/gameEngine';
 import MatchFieldView from './MatchFieldView';
 import Crest from './Crest';
 import { stadiumDisplayFor } from '../../lib/stadium';
 import { projectLevel } from '../../lib/clubProjects';
-import { IconButton } from '../../design-system';
+import { GameModal } from '../../design-system';
 
 interface Props {
   result: MatchResult;
@@ -73,41 +72,37 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
     : undefined;
 
   return (
-    <div className="ui-modal-backdrop z-[60] p-3 sm:p-4"
-      onClick={onClose}>
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} onClick={e => e.stopPropagation()}
-        className="ui-modal ui-modal--wide flex max-h-[92vh] flex-col">
-
-        {/* Placar: barra superior com contexto + fechar, e três colunas estáveis abaixo. */}
-        <div className="ui-modal__header flex-shrink-0 flex-col items-stretch gap-2 px-4 pb-4 pt-2 sm:px-5">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs font-black uppercase" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>
-              Detalhes da partida
-            </span>
-            <IconButton label="Fechar detalhes da partida" onClick={onClose} className="shrink-0 text-xl leading-none">×</IconButton>
+    <GameModal
+      open
+      onOpenChange={next => { if (!next) onClose(); }}
+      size="wide"
+      stacked={false}
+      title="Detalhes da partida"
+      className="max-h-[92vh]"
+    >
+          {/* Placar: três colunas estáveis com escudos e placar, primeiro conteúdo do corpo. */}
+          <div className="mb-4 flex-shrink-0">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 sm:gap-4">
+              <div className="flex min-w-0 items-center justify-end gap-2">
+                <span className="min-w-0 truncate text-right text-sm font-bold" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>{homeName}</span>
+                <Crest crestId={homeTeam?.crestId} name={homeName} size={30} />
+              </div>
+              <div className="font-display whitespace-nowrap px-1 text-4xl tabular-nums text-[var(--ui-brand-strong)]">
+                {result.homeGoals} <span style={{ opacity: .45 }}>-</span> {result.awayGoals}
+              </div>
+              <div className="flex min-w-0 items-center justify-start gap-2">
+                <Crest crestId={awayTeam?.crestId} name={awayName} size={30} />
+                <span className="min-w-0 truncate text-sm font-bold" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>{awayName}</span>
+              </div>
+            </div>
+            {result.penaltyWinner && ((result.homePenalties ?? 0) + (result.awayPenalties ?? 0)) > 0 && (
+              <div className="mt-1 text-center text-xs font-bold" style={{ color: '#EAB308', fontFamily: 'Rajdhani, sans-serif' }}>
+                Pênaltis: {result.homePenalties} - {result.awayPenalties}
+              </div>
+            )}
+            {subtitle && <div className="mt-1 text-center text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{subtitle}</div>}
           </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 sm:gap-4">
-            <div className="flex min-w-0 items-center justify-end gap-2">
-              <span className="min-w-0 truncate text-right text-sm font-bold" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>{homeName}</span>
-              <Crest crestId={homeTeam?.crestId} name={homeName} size={30} />
-            </div>
-            <div className="font-display whitespace-nowrap px-1 text-4xl tabular-nums text-[var(--ui-brand-strong)]">
-              {result.homeGoals} <span style={{ opacity: .45 }}>-</span> {result.awayGoals}
-            </div>
-            <div className="flex min-w-0 items-center justify-start gap-2">
-              <Crest crestId={awayTeam?.crestId} name={awayName} size={30} />
-              <span className="min-w-0 truncate text-sm font-bold" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>{awayName}</span>
-            </div>
-          </div>
-          {result.penaltyWinner && ((result.homePenalties ?? 0) + (result.awayPenalties ?? 0)) > 0 && (
-            <div className="mt-1 text-center text-xs font-bold" style={{ color: '#EAB308', fontFamily: 'Rajdhani, sans-serif' }}>
-              Pênaltis: {result.homePenalties} - {result.awayPenalties}
-            </div>
-          )}
-          {subtitle && <div className="mt-1 text-center text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{subtitle}</div>}
-        </div>
 
-        <div className="ui-modal__body flex-1">
           {/* Gols + Cartões/lesões — SEMPRE no mesmo bloco, com UMA linha entre eles só quando os
               dois existem (layout consistente entre partidas). */}
           {(() => {
@@ -201,8 +196,6 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           ) : (
             <div className="ui-empty">Escalação indisponível.</div>
           )}
-        </div>
-      </motion.div>
-    </div>
+    </GameModal>
   );
 }
