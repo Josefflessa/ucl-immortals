@@ -418,4 +418,77 @@ describe('game runtime isolation', () => {
     expect(host.sent.some(message => message.event === 'room_closed')).toBe(true);
     expect(guest.sent.some(message => message.event === 'room_closed')).toBe(true);
   });
+
+  it('trims a bygone round\'s events/playerStats from the synced view, but keeps the current round full and answers request_match_result with the untrimmed data', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+
+    const room = runtime.rooms.get('ABCD')!;
+    room.phase = 'league';
+    room.leagueRound = 2; // round 1 already behind us; round 2 is the current one
+    const fullResult = {
+      homeTeamId: 'team-a', awayTeamId: 'team-b', homeGoals: 2, awayGoals: 1,
+      events: [{ type: 'goal', teamId: 'team-a', playerId: 'p1', minute: 10 }],
+      winner: 'team-a',
+      stats: { homePos: 55, awayPos: 45, homeShots: 10, awayShots: 4, homeShotsOnTarget: 5, awayShotsOnTarget: 2, homeFouls: 3, awayFouls: 5, homeSaves: 1, awaySaves: 4, homeCorners: 6, awayCorners: 2 },
+      playerStats: { p1: { playerId: 'p1', playerName: 'Jogador 1', teamId: 'team-a', rating: 8.2, goals: 1, assists: 0 } },
+    } as any;
+    room.leagueFixtures = [
+      { round: 1, homeTeamId: 'team-a', awayTeamId: 'team-b', played: true, result: fullResult },
+      { round: 2, homeTeamId: 'team-a', awayTeamId: 'team-b', played: false },
+    ] as any;
+
+    runWithGameRuntime(runtime, () => host.receive('sync_room', { roomCode: 'ABCD' }));
+    const snapshot = host.sent.filter(message => message.event === 'room_snapshot').at(-1)?.payload as any;
+    const [round1View, round2View] = snapshot.roomState.leagueFixtures;
+
+    expect(round1View.result.resultTrimmed).toBe(true);
+    expect(round1View.result.events).toEqual([]);
+    expect(round1View.result.playerStats).toEqual({});
+    // Untouched fields a standings/score summary still needs stay intact.
+    expect(round1View.result.homeGoals).toBe(2);
+    expect(round1View.result.awayGoals).toBe(1);
+    expect(round1View.result.winner).toBe('team-a');
+    expect(round2View.played).toBe(false);
+
+    host.sent.length = 0;
+    runWithGameRuntime(runtime, () => host.receive('request_match_result', {
+      roomCode: 'ABCD', round: 1, homeTeamId: 'team-a', awayTeamId: 'team-b',
+    }));
+    const full = host.sent.find(message => message.event === 'match_result_full')?.payload as any;
+    expect(full.result.resultTrimmed).toBeUndefined();
+    expect(full.result.events).toHaveLength(1);
+    expect(full.result.playerStats.p1.rating).toBe(8.2);
+  });
+
+  it('ignores request_match_result from a socket that is not a player in that room', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const outsider = new FakeSocket('socket-outsider', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => server.connect(outsider));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    const room = runtime.rooms.get('ABCD')!;
+    room.phase = 'league';
+    room.leagueRound = 2;
+    room.leagueFixtures = [
+      { round: 1, homeTeamId: 'team-a', awayTeamId: 'team-b', played: true, result: { homeTeamId: 'team-a', awayTeamId: 'team-b', homeGoals: 1, awayGoals: 0, events: [], winner: 'team-a', stats: {} } },
+    ] as any;
+
+    runWithGameRuntime(runtime, () => outsider.receive('request_match_result', {
+      roomCode: 'ABCD', round: 1, homeTeamId: 'team-a', awayTeamId: 'team-b',
+    }));
+
+    expect(outsider.sent.some(message => message.event === 'match_result_full')).toBe(false);
+  });
 });

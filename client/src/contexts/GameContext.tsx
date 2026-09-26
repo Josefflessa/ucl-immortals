@@ -384,7 +384,10 @@ function onlineLeagueResults(
   if (fixtures === previousFixtures) return previousResults;
   return fixtures
     .filter((fixture: LeagueFixture) => fixture.played && !!fixture.result)
-    .map((fixture: LeagueFixture) => fixture.result!);
+    // `round` rides along so a "Ver Detalhes" click on a trimmed (bygone
+    // round) result — e.g. from "Meus jogos" — knows which fixture to
+    // re-request in full; MatchResult itself has no round field.
+    .map((fixture: LeagueFixture) => ({ ...fixture.result!, round: fixture.round }));
 }
 
 function createRecruitmentOffer(
@@ -1968,6 +1971,7 @@ interface GameContextType {
   rerollReinforcementOnline: () => void;
   pickReinforcementOnline: (player: Player) => void;
   dismissReinforcementOnline: () => void;
+  requestMatchResultOnline: (round: number, homeTeamId: string, awayTeamId: string) => Promise<MatchResult | null>;
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -1998,6 +2002,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const authoritativeRoomRevisionRef = useRef<number | null>(null);
   const syncRequestPendingRef = useRef(false);
   const commandSequenceRef = useRef(0);
+  // Pending "Ver Detalhes" fetches for a trimmed (bygone-round) online result,
+  // keyed by buildLeagueMatchKey so a response resolves the matching request.
+  const matchResultRequestsRef = useRef(new Map<string, { resolve: (result: MatchResult | null) => void; timeout: ReturnType<typeof setTimeout> }>());
+  const clearPendingMatchResultRequests = useCallback(() => {
+    matchResultRequestsRef.current.forEach(({ resolve, timeout }) => {
+      clearTimeout(timeout);
+      resolve(null);
+    });
+    matchResultRequestsRef.current.clear();
+  }, []);
 
   // Every gameplay action gets an opaque command ID. The Durable Object stores
   // a bounded receipt for it, so a reconnect can safely retry the exact action
@@ -2072,6 +2086,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       onlineSyncRevisionRef.current = null;
       authoritativeRoomRevisionRef.current = null;
       syncRequestPendingRef.current = false;
+      clearPendingMatchResultRequests();
       removeStorageItem(STORAGE_KEYS.playerName);
       removeStorageItem(STORAGE_KEYS.roomCode);
       socketRef.current = null;
@@ -2158,6 +2173,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on("action_dropped", () => {
       if (!isCurrentSocket()) return;
       toast.error("Conexão instável: a ação não foi enviada. Aguarde a reconexão e tente novamente.");
+    });
+
+    // Response to "request_match_result" — the full (untrimmed) result of one
+    // bygone-round league fixture, fetched on demand for "Ver Detalhes".
+    socketInstance.on("match_result_full", ({ round, homeTeamId, awayTeamId, result }: { round?: unknown; homeTeamId?: unknown; awayTeamId?: unknown; result?: MatchResult }) => {
+      if (!isCurrentSocket() || typeof round !== 'number' || typeof homeTeamId !== 'string' || typeof awayTeamId !== 'string') return;
+      const key = buildLeagueMatchKey(round, homeTeamId, awayTeamId);
+      const pending = matchResultRequestsRef.current.get(key);
+      if (!pending) return;
+      matchResultRequestsRef.current.delete(key);
+      clearTimeout(pending.timeout);
+      pending.resolve(result ?? null);
     });
 
     // A rejected command is terminal (it was not applied), but the browser may
@@ -2503,6 +2530,30 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("dismiss_reinforcement", { roomCode: state.roomCode });
   }, [dispatch, emitOnlineAction, state.roomCode]);
 
+  // Fetches the full (untrimmed) result of one bygone-round league fixture —
+  // "Ver Detalhes" calls this when the locally-held result is trimmed. Not a
+  // mutation, so it bypasses emitOnlineAction's commandId/idempotency
+  // machinery and just resolves once "match_result_full" answers (or after
+  // 8s, so a dropped response never leaves the modal waiting forever).
+  const requestMatchResultOnline = useCallback((round: number, homeTeamId: string, awayTeamId: string): Promise<MatchResult | null> => {
+    if (!socketRef.current || !state.roomCode) return Promise.resolve(null);
+    const key = buildLeagueMatchKey(round, homeTeamId, awayTeamId);
+    const existing = matchResultRequestsRef.current.get(key);
+    if (existing) {
+      clearTimeout(existing.timeout);
+      matchResultRequestsRef.current.delete(key);
+      existing.resolve(null);
+    }
+    return new Promise(resolve => {
+      const timeout = setTimeout(() => {
+        matchResultRequestsRef.current.delete(key);
+        resolve(null);
+      }, 8000);
+      matchResultRequestsRef.current.set(key, { resolve, timeout });
+      socketRef.current!.emit("request_match_result", { roomCode: state.roomCode, round, homeTeamId, awayTeamId });
+    });
+  }, [state.roomCode]);
+
   const disconnectOnline = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -2510,10 +2561,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
     socketRoomCodeRef.current = null;
     authoritativeRoomRevisionRef.current = null;
+    clearPendingMatchResultRequests();
     removeStorageItem(STORAGE_KEYS.playerName);
     removeStorageItem(STORAGE_KEYS.roomCode);
     dispatch({ type: 'DISCONNECT_ONLINE' });
-  }, []);
+  }, [clearPendingMatchResultRequests]);
 
   const getTeamById = useCallback((id: string) => {
     if (state.mode === 'online') {
@@ -2556,7 +2608,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
-    pickReinforcementOnline, dismissReinforcementOnline,
+    pickReinforcementOnline, dismissReinforcementOnline, requestMatchResultOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state, dispatch]);
 

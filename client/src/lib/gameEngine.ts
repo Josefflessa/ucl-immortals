@@ -380,6 +380,21 @@ export interface MatchResult {
     awayCorners: number;
   };
   playerStats?: Record<string, PlayerMatchStat>;
+  /**
+   * Online rooms only: true when `events`/`playerStats` were stripped from
+   * this result before it was synced (a bygone round's full detail is kept
+   * server-side, just not re-sent on every unrelated room update). Callers
+   * that need the full detail — "Ver Detalhes" — must fetch it on demand
+   * instead of reading it directly off this object. Never set in solo mode.
+   */
+  resultTrimmed?: boolean;
+  /**
+   * League fixtures only: the round this was played in. Not set by the
+   * simulator itself — attached where a league result needs to identify its
+   * own fixture later (re-fetching a trimmed online result). Absent for
+   * knockout results, which are never trimmed.
+   */
+  round?: number;
 }
 
 /** True when a team lost the match, including a knockout loss on penalties. */

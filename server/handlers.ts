@@ -335,6 +335,22 @@ function jsonByteLength(value: unknown): number {
 }
 
 /**
+ * `events`/`playerStats` are the bulky part of a MatchResult — dozens of
+ * events and a stat record per player, on every fixture ever played in the
+ * competition. Once a round is behind us nobody needs that detail pushed to
+ * them again on every unrelated action (a ready toggle, a bet, a shop trade):
+ * they only need it if they open "Ver Detalhes" for that specific match,
+ * which fetches the full result on demand (see "request_match_result").
+ * `playerStats: {}` (not `undefined`) keeps existing UI that gates the
+ * "Detalhes" button on `result.playerStats` truthy working unchanged — the
+ * button still shows, it just fetches before opening.
+ */
+function trimMatchResultForSync(result: MatchResult): MatchResult {
+  if (result.resultTrimmed) return result;
+  return { ...result, events: [], playerStats: {}, resultTrimmed: true };
+}
+
+/**
  * The room object is authoritative, but not every field is public information.
  * In particular, a player's clientId is a reconnection credential and balances,
  * pending packs and bets are private. Build a per-socket view before calculating
@@ -353,6 +369,17 @@ function roomViewForSocket(room: RoomState, socketId: string, compactHistory = f
   view.leagueResults = compactHistory
     ? []
     : fixtureResults.length > 0 ? fixtureResults : view.leagueResults;
+  // A bygone round's fixtures never change again — trim their heavy fields so
+  // a long competition doesn't keep re-shipping every past match's full
+  // event log and player stats on every unrelated room update. The current
+  // round stays untrimmed: MatchSimPage plays it back from these very events
+  // right after `play_round` runs. "Ver Detalhes" for a trimmed match fetches
+  // the full result on demand ("request_match_result").
+  view.leagueFixtures = view.leagueFixtures.map(fixture =>
+    fixture.round < view.leagueRound && fixture.played && fixture.result
+      ? { ...fixture, result: trimMatchResultForSync(fixture.result) }
+      : fixture
+  );
   // These fields are server-only persistence metadata. In particular, command
   // receipts must not reveal another client's retry history.
   delete view.commandReceipts;
@@ -1225,6 +1252,20 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const room = rooms.get(roomCode);
       if (!room || !room.players.some(player => player.socketId === socket.id)) return;
       emitRoomSnapshot(socket, room);
+    });
+
+    // Read-only: fetch the full (untrimmed) result of one already-played
+    // league fixture for "Ver Detalhes". The live-synced room only carries
+    // the current round's fixtures untrimmed (see roomViewForSocket) — this
+    // is how a bygone round's full events/playerStats reach the client
+    // without being re-pushed to everyone on every unrelated action.
+    on("request_match_result", ({ roomCode, round, homeTeamId, awayTeamId }: { roomCode?: unknown; round?: unknown; homeTeamId?: unknown; awayTeamId?: unknown }) => {
+      if (!isValidId(roomCode) || typeof round !== 'number' || typeof homeTeamId !== 'string' || typeof awayTeamId !== 'string') return;
+      const room = rooms.get(roomCode);
+      if (!room || !room.players.some(player => player.socketId === socket.id)) return;
+      const fixture = room.leagueFixtures.find(f => f.round === round && f.homeTeamId === homeTeamId && f.awayTeamId === awayTeamId);
+      if (!fixture?.played || !fixture.result) return;
+      socket.emit("match_result_full", { round, homeTeamId, awayTeamId, result: fixture.result });
     });
 
     // Create Room

@@ -2,6 +2,7 @@
 // Show standings, round-by-round fixtures, and results
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
@@ -46,7 +47,7 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, transferHostOnline, removePlayerOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, transferHostOnline, removePlayerOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline, requestMatchResultOnline } = useGame();
   const online = state.mode === 'online';
   const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | 'restart' | 'close' | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
@@ -134,6 +135,9 @@ export default function LeaguePage() {
     isKnockout: boolean;
     isFinal: boolean;
   } | null>(null);
+  // True only while "Ver Detalhes" is fetching a trimmed online result's full
+  // data — solo mode and the current round never trigger it.
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   // MEUS JOGOS combines league and knockout results. Infer the phase from the
   // stored bracket so an old knockout result keeps its knockout-only effects.
@@ -157,7 +161,24 @@ export default function LeaguePage() {
     return undefined;
   };
 
-  const openMatchDetails = (result: MatchResult, context?: { isKnockout?: boolean; isFinal?: boolean }) => {
+  const openMatchDetails = async (result: MatchResult, context?: { isKnockout?: boolean; isFinal?: boolean }) => {
+    // Online only: a bygone round's result arrives with events/playerStats
+    // stripped (see roomViewForSocket) to keep the live sync light. Fetch the
+    // full result before opening — solo mode and the current round never hit
+    // this branch, since they're never trimmed.
+    if (result.resultTrimmed && state.mode === 'online' && typeof result.round === 'number') {
+      if (detailsLoading) return; // already fetching another "Ver Detalhes"
+      setDetailsLoading(true);
+      const loadingToast = toast.loading('Carregando detalhes da partida…');
+      const full = await requestMatchResultOnline(result.round, result.homeTeamId, result.awayTeamId);
+      toast.dismiss(loadingToast);
+      setDetailsLoading(false);
+      if (!full) {
+        toast.error('Não foi possível carregar os detalhes dessa partida agora. Tenta de novo.');
+        return;
+      }
+      result = full;
+    }
     const inferredRound = knockoutRoundForResult(result);
     const knockout = context?.isKnockout ?? !!inferredRound;
     setDetailsMatch({
@@ -810,7 +831,7 @@ export default function LeaguePage() {
                           {fixture.result.homeGoals} - {fixture.result.awayGoals}
                         </span>
                         {fixture.result.playerStats && (
-                          <button onClick={() => openMatchDetails(fixture.result!, { isKnockout: false, isFinal: false })}
+                          <button onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
                             className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                             style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                             🔍 Detalhes
@@ -1524,7 +1545,7 @@ export default function LeaguePage() {
                                     {fixture.result.homeGoals} - {fixture.result.awayGoals}
                                   </span>
                                   {fixture.result.playerStats && (
-                                    <button onClick={() => openMatchDetails(fixture.result!, { isKnockout: false, isFinal: false })}
+                                    <button onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
                                       className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                                       style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                                       🔍 Detalhes
