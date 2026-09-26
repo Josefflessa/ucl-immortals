@@ -95,6 +95,14 @@ const entries: Entry[] = [
   // Botafogo
   ['Nathan Fernandes', 'CAM', 'Botafogo', 2000086446], ['Matheus Nascimento', 'ST', 'Botafogo', 19404650],
   ['Gatito Fernández', 'GK', 'Botafogo', 79000983], ['Mateo Ponte', 'RB', 'Botafogo', 2000076467],
+  ['Chay', 'LW', 'Botafogo', 23136061], ['Barreto', 'CDM', 'Botafogo', 19216900],
+  ['Klaus', 'CB', 'Botafogo', 19269921], ['Diego Loureiro', 'GK', 'Botafogo', 19270484],
+  ['Daniel Borges', 'RB', 'Botafogo', 19171782], ['Jonathan Silva', 'LB', 'Botafogo', 19350832],
+  ['Diego Gonçalves', 'CAM', 'Botafogo', 55069803], ['Philipe Sampaio', 'CB', 'Botafogo', 19219729],
+  ['Douglas Borges', 'GK', 'Botafogo', 19088878], ['Breno', 'RB', 'Botafogo', 19382052],
+  ['Joel Carli', 'CB', 'Botafogo', 14003598], ['Rodrigo Pimpão', 'ST', 'Botafogo', 19061502],
+  ['Rodrigo Lindoso', 'CDM', 'Botafogo', 19054614], ['Leo Valencia', 'CAM', 'Botafogo', 75015318],
+  ['Luís Ricardo', 'RB', 'Botafogo', 320979],
   // Bahia
   ['Rodrigo Nestor', 'CAM', 'Bahia', 19306946], ['Kanu', 'CB', 'Bahia', 19307359],
   ['Ruan Pablo', 'CAM', 'Bahia', 2000382044], ['Cristian Olivera', 'CAM', 'Bahia', 78097898],

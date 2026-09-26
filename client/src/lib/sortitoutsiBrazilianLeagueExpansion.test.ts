@@ -13,7 +13,7 @@ const normalize = (value: string) => value
 describe('SortitoutSI Brazilian league expansion', () => {
   it('contains only unique, locally illustrated cards', () => {
     const additions = SORTITOUTSI_BRAZILIAN_LEAGUE_ADDITIONS;
-    expect(additions).toHaveLength(124);
+    expect(additions).toHaveLength(139);
     expect(new Set(additions.map(player => player.id)).size).toBe(additions.length);
     expect(new Set(additions.map(player => normalize(player.fullName))).size).toBe(additions.length);
 
