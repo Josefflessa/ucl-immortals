@@ -7,7 +7,8 @@ import {
   BetMarket,
   BET_BUILDER_MAX_SELECTIONS,
   BET_BUILDER_MIN_SELECTIONS,
-  BET_EXACT_MULT,
+  BetPayoutRules,
+  DEFAULT_BET_PAYOUT_RULES,
   BET_MAX_GOALS,
   BET_TOTAL_CARDS_LINES,
   BET_TOTAL_GOALS_LINES,
@@ -73,17 +74,19 @@ function Choice({ label, active, onClick, disabled = false }: { label: string; a
   );
 }
 
-export default function BetSlipModal({ homeName, awayName, existing, remainingCap, points, cardsEnabled, onConfirm, onCancelBet, onClose }: {
+export default function BetSlipModal({ homeName, awayName, existing, remainingCap, points, cardsEnabled, payoutRules, onConfirm, onCancelBet, onClose }: {
   homeName: string;
   awayName: string;
   existing?: Bet;
   remainingCap: number;
   points: number;
   cardsEnabled: boolean;
+  payoutRules?: BetPayoutRules;
   onConfirm: (submission: BetSlipSubmission) => void;
   onCancelBet?: () => void;
   onClose: () => void;
 }) {
+  const effectivePayoutRules = payoutRules ?? existing?.payoutRules ?? DEFAULT_BET_PAYOUT_RULES;
   const initialSelections = existing?.market === 'builder'
     ? (normalizeBuilderSelections(existing.selections) ?? [])
     : existing
@@ -99,7 +102,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
   const exactOnly = selections.length === 1 && !!exactSelection;
   const totalGoalsSelection = selections.find((selection): selection is Extract<BetBuilderSelection, { type: 'total_goals' }> => selection.type === 'total_goals');
   const totalCardsSelection = selections.find((selection): selection is Extract<BetBuilderSelection, { type: 'total_cards' }> => selection.type === 'total_cards');
-  const builderMultiplier = calculateBuilderMultiplier(selections);
+  const builderMultiplier = calculateBuilderMultiplier(selections, effectivePayoutRules.builderMaxMultiplier, effectivePayoutRules);
   const stakeOk = stake > 0 && stake <= maxStake && selections.length >= BET_BUILDER_MIN_SELECTIONS && builderMultiplier != null;
   const canAddMarket = (type: BetBuilderSelection['type']) => selections.some(selection => selection.type === type) || selections.length < BET_BUILDER_MAX_SELECTIONS;
 
@@ -296,7 +299,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                 : builderMultiplier == null
                   ? 'Remova uma das condições incompatíveis para calcular o retorno.'
                 : exactOnly
-                  ? <>Retorno: {Math.round(stake * BET_EXACT_MULT)} se o placar for exato</>
+                  ? <>Retorno: {Math.round(stake * (effectivePayoutRules.exactMultiplier + (effectivePayoutRules.finalMultiplierBonus ?? 0)))} se o placar for exato</>
                   : builderMultiplier != null
                     ? <>Retorno do bilhete: {Math.round(stake * builderMultiplier)}</>
                     : `Você pode marcar até ${BET_BUILDER_MAX_SELECTIONS} condições.`}

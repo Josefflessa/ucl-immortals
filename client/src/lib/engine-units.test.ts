@@ -14,7 +14,6 @@ import {
   MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
-  PRIME_HOME_ATTR_BONUS, PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS,
   getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, EVOLVE_GAMES, EVOLVE_POINTS,
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost, GOLEADOR_GOALS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, goleadorStatBoost, garcomStatBoost,
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, arroganteStatBoost, arroganteTeamPenalty,
@@ -367,38 +366,32 @@ describe('⭐ cartas evoluídas', () => {
   });
 });
 
-describe('🏟️ vantagem de casa carimbada por atributo (getEffectiveAttribute + homeStadium)', () => {
-  const coach = COACHES.find(c => c.id === 'guardiola')!; // Etihad → passe+visão, City
-  const etihad = stadiumFor('guardiola', true);
-  const def = stadiumFor('guardiola', false); // DEFAULT_STADIUM (+4)
+describe('🏟️ vantagem de casa vem apenas do projeto Estádio', () => {
+  const coach = COACHES.find(c => c.id === 'guardiola')!;
+  const primeVisual = stadiumFor('guardiola', true);
+  const standard = stadiumFor('guardiola', false);
   const noChem = { passing: 0, pace: 0, special: 0 };
   const eff = (p: Player, attr: keyof Player, ctx: any) =>
     getEffectiveAttribute(card(p), attr, coach, 'Criação', noChem, 'balanced', ctx);
 
-  it('estádio padrão: +3 em QUALQUER atributo (todos os titulares do mandante)', () => {
+  it('o estádio padrão dá +3 em qualquer atributo do mandante', () => {
     const p = mkP({ club: 'Barcelona', passing: 70, defending: 70 });
-    expect(eff(p, 'passing', { homeStadium: def }) - eff(p, 'passing', {})).toBe(3);
-    expect(eff(p, 'defending', { homeStadium: def }) - eff(p, 'defending', {})).toBe(3);
+    expect(eff(p, 'passing', { homeStadium: standard }) - eff(p, 'passing', {})).toBe(3);
+    expect(eff(p, 'defending', { homeStadium: standard }) - eff(p, 'defending', {})).toBe(3);
   });
-  it('Prime: +7 uniforme em atributo fora do tema', () => {
-    const city = mkP({ club: 'Manchester City', defending: 70 });
-    expect(eff(city, 'defending', { homeStadium: etihad }) - eff(city, 'defending', {})).toBe(PRIME_HOME_ATTR_BONUS);
+  it('um estádio Prime legado não injeta bônus próprio nem temático', () => {
+    const city = mkP({ club: 'Manchester City', passing: 70, vision: 70, defending: 70 });
+    expect(eff(city, 'defending', { homeStadium: primeVisual }) - eff(city, 'defending', {})).toBe(3);
+    expect(eff(city, 'passing', { homeStadium: primeVisual }) - eff(city, 'passing', {})).toBe(3);
+    expect(eff(city, 'vision', { homeStadium: primeVisual }) - eff(city, 'vision', {})).toBe(3);
   });
-  it('Prime: +7 uniforme + +6 temático pros jogadores do clube, nos 2 atributos do tema', () => {
-    const city = mkP({ club: 'Manchester City', passing: 70, vision: 70 });
-    expect(eff(city, 'passing', { homeStadium: etihad }) - eff(city, 'passing', {})).toBe(PRIME_HOME_ATTR_BONUS + PRIME_THEMED_CLUB_BONUS);
-    expect(eff(city, 'vision', { homeStadium: etihad }) - eff(city, 'vision', {})).toBe(PRIME_HOME_ATTR_BONUS + PRIME_THEMED_CLUB_BONUS);
+  it('o nível do projeto define o bônus de mando em +3, +5, +7, +9 e +11', () => {
+    const p = mkP({ passing: 70 });
+    expect([1, 2, 3, 4, 5].map(level => eff(p, 'passing', { homeStadium: standard, stadiumProjectLevel: level }) - eff(p, 'passing', {}))).toEqual([3, 5, 7, 9, 11]);
   });
-  it('Prime: +7 uniforme + +3 temático pros demais, nos 2 atributos do tema', () => {
-    const other = mkP({ club: 'Barcelona', passing: 70 });
-    expect(eff(other, 'passing', { homeStadium: etihad }) - eff(other, 'passing', {})).toBe(PRIME_HOME_ATTR_BONUS + PRIME_THEMED_BONUS);
-  });
-  it('visitante (sem homeStadium) não recebe nada', () => {
-    const city = mkP({ club: 'Manchester City', passing: 70 });
-    expect(eff(city, 'passing', {}) - eff(city, 'passing', {})).toBe(0);
-  });
-  it('PRIME_HOME_ATTR_BONUS = 6', () => {
-    expect(PRIME_HOME_ATTR_BONUS).toBe(6);
+  it('visitante sem estádio de casa não recebe o bônus', () => {
+    const p = mkP({ passing: 70 });
+    expect(eff(p, 'passing', {}) - eff(p, 'passing', {})).toBe(0);
   });
 });
 
@@ -1009,6 +1002,13 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.pace - src.pace).toBe(LOBO_STAT_BOOST);
     expect(delta).toBe(LOBO_STAT_BOOST);
     expect(v.lobo).toBe(true);
+  });
+  it('🤑 Magnata subtracts 7 from every attribute and records baseOverall', () => {
+    const v = applyShopVariant(src, 'magnata');
+    expect(v.magnata).toBe(true);
+    expect(v.overall).toBe(src.overall - 7);
+    expect(v.pace).toBe(src.pace - 7);
+    expect(v.baseOverall).toBe(src.overall);
   });
   it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente / estribado / todosPorUm / arrogante) leave stats untouched', () => {
     for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente', 'estribado', 'todosPorUm', 'arrogante'] as const) {

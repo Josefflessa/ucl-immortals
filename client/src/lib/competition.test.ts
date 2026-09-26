@@ -48,7 +48,7 @@ describe('competition format validation', () => {
 
     format.rewards.reinforcementOptions = 6;
     format.rewards.reinforcementUntilRound = format.leagueRounds + 1;
-    expect(validateCompetitionFormat(format)).toContain('janela de reforços');
+    expect(validateCompetitionFormat(format)).toContain('janela de recrutamento');
 
     const incomplete = { ...format, rewards: undefined };
     expect(validateCompetitionFormat(incomplete)).toBe('Defina as recompensas da competição.');

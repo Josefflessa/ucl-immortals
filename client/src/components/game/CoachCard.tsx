@@ -5,19 +5,22 @@ interface CoachCardProps {
   coach: Coach;
   formation?: Formation;
   isPrime?: boolean;       // Fase 2 (Técnico Prime): selo PRIME + foto/moldura quando evoluído
-  primePhotoUrl?: string;  // foto Prime do técnico (do estádio temático)
+  primePhotoUrl?: string;  // foto Prime do técnico
   bare?: boolean;          // sem container externo — pra compor no painel único
+  showHeader?: boolean;    // permite que o modal pai seja o único título da seção
 }
 
 // Card do técnico — extraído do inline da SquadEditor pra ser reusado (MEU TIME + fim de campanha).
-export default function CoachCard({ coach, formation, isPrime = false, primePhotoUrl, bare = false }: CoachCardProps) {
+export default function CoachCard({ coach, formation, isPrime = false, primePhotoUrl, bare = false, showHeader = true }: CoachCardProps) {
   const photo = isPrime && primePhotoUrl ? primePhotoUrl : coach.photoUrl;
   return (
     <div className={bare ? '' : 'rounded-xl overflow-hidden'} style={bare ? undefined : { background: '#0F0F1A', border: `1px solid ${isPrime ? '#C9A84C55' : '#1A1A2A'}` }}>
-      <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
-        <span className="text-[10px] font-black tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>🎓 TÉCNICO</span>
-        <span className="text-[9px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>COMANDO DO TIME</span>
-      </div>
+      {showHeader && (
+        <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
+          <span className="text-[10px] font-black tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>🎓 TÉCNICO</span>
+          <span className="text-[9px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>COMANDO DO TIME</span>
+        </div>
+      )}
       <div className="p-4 flex gap-3.5">
         {photo && (
           <div className="relative w-[100px] h-[100px] flex-shrink-0">

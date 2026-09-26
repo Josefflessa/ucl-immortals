@@ -30,13 +30,13 @@ const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'start_setup', 'submit_setup', 'draft_pick', 'draft_veto', 'submit_squad_review',
   'set_match_roles', 'set_match_plan', 'play_round', 'advance_round',
   'play_knockout_round', 'advance_knockout_round', 'restart_room', 'leave_room', 'close_room',
-  'player_match_watched', 'shop_change_coach', 'evolve_coach_prime',
+  'player_match_watched', 'shop_change_coach', 'upgrade_club_project', 'evolve_coach_prime',
   'shop_open_unique_pack', 'shop_claim_unique_pack', 'shop_open_pack',
   'shop_pick_pack', 'shop_turbinar', 'shop_train', 'shop_remove_variant',
   'place_bet', 'cancel_bet', 'heal_injury', 'emergency_replace_player',
   'market_sell', 'market_list', 'market_cancel', 'market_buy',
   'player_ready', 'player_unready', 'swap_player_team', 'set_martir_targets', 'remove_player',
-  'set_evolve_point', 'reset_evolve_points', 'shop_buy_reroll',
+  'set_evolve_point', 'reset_evolve_points',
   'reroll_reinforcement', 'pick_reinforcement', 'dismiss_reinforcement',
 ]);
 

@@ -11,6 +11,8 @@ export type DisciplineMap = Record<string, PlayerAvailability>; // key = `${team
 // Item de resumo para os avisos ("Fulano suspenso 1j / Ciclano lesão 2j").
 export interface DisciplineEntry { teamId: string; playerId: string; playerName: string; games: number; kind: 'ban' | 'injury' }
 
+const MEDICAL_BOOST_ATTRIBUTES = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'] as const;
+
 export const availKey = (teamId: string, playerId: string) => `${teamId}:${playerId}`;
 export const isAvailable = (m: DisciplineMap, teamId: string, playerId: string): boolean => {
   const a = m[availKey(teamId, playerId)];
@@ -100,13 +102,36 @@ export function applyEmergencyReplacement(
   return repairRoles(rebuildTeamChemistry({ ...team, players }));
 }
 
+/** Applies the permanent all-attribute bonus granted when a player returns from injury. */
+export function applyMedicalReturnBoost(team: Team, playerId: string, amount: number): Team {
+  if (!Number.isFinite(amount) || amount <= 0) return team;
+  if (!team.players.some(player => player.id === playerId)) return team;
+
+  const players = team.players.map(player => {
+    if (player.id !== playerId) return player;
+    const boosted = { ...player } as PlayerCard & { medicalReturnBoost?: number };
+    for (const attribute of MEDICAL_BOOST_ATTRIBUTES) {
+      boosted[attribute] = (boosted[attribute] ?? 0) + amount;
+    }
+    boosted.overall = (boosted.overall ?? 0) + amount;
+    // Baked card variants use baseOverall as their rollback anchor. Move that
+    // anchor with the permanent medical growth so removing a variant never
+    // erases a bonus earned from recovering from an injury.
+    if (boosted.baseOverall !== undefined) boosted.baseOverall += amount;
+    boosted.medicalReturnBoost = (boosted.medicalReturnBoost ?? 0) + amount;
+    return boosted;
+  });
+
+  return repairRoles(rebuildTeamChemistry({ ...team, players }));
+}
+
 // ── Constantes de balanço (re-tunáveis) ──
 export const YELLOW_ACCUM_THRESHOLD = 3;   // 3 amarelos acumulados = 1 jogo suspenso
 export const INJURY_DEBUFF = 12;           // −N em cada atributo do lesionado (resto do jogo)
 export const RED_PENALTY = 15;             // força a menos por jogar com 10 (jogar com um a menos DÓI)
 export const RED_GK_PENALTY = 24;          // goleiro expulso → jogador de linha no gol (bem pior)
 export const INJURY_SEVERITY_WEIGHTS: [1 | 2 | 3, number][] = [[1, 0.6], [2, 0.3], [3, 0.1]];
-export const PHYSIO_COST = 250;            // 🏥 Fisioterapia: −1 jogo de lesão
+export const PHYSIO_COST = 150;            // 🏥 Fisioterapia: −1 jogo de lesão
 
 // Multiplicador de risco de cartão por posição (goleiro ~0; atacante baixo; zaga/volante alto).
 export const CARD_POS_MULT: Record<string, number> = {
@@ -195,23 +220,30 @@ interface MatchLike { homeTeamId: string; awayTeamId: string; events: MatchEvent
 
 // Aplica a disciplina de UMA rodada/perna. ORDEM: 1) decrementa quem estava fora nos times que
 // jogaram (cumpriu 1 jogo); 2) aplica as consequências deste jogo (então 🟥 hoje = fora do PRÓXIMO).
-// `injurySeverityRng` é injetável nos testes (default Math.random).
+// `injurySeverityRng` é injetável nos testes (default Math.random). Quando
+// `injuryDurationForTeam` retorna 1–3, a duração é determinística e esse RNG
+// não participa da duração da lesão. O valor 0 mantém o modo legado aleatório
+// para chamadas genéricas fora de uma competição com Departamento Médico.
 export function applyMatchDiscipline(
   prev: DisciplineMap,
   playedTeamIds: string[],
   results: MatchLike[],
   nameOf: (teamId: string, playerId: string) => string,
   injurySeverityRng: () => number = Math.random,
-): { next: DisciplineMap; newSuspensions: DisciplineEntry[]; newInjuries: DisciplineEntry[] } {
+  injuryDurationForTeam: (teamId: string) => number = () => 0,
+): { next: DisciplineMap; newSuspensions: DisciplineEntry[]; newInjuries: DisciplineEntry[]; recoveredInjuries: DisciplineEntry[] } {
   const next: DisciplineMap = {};
   for (const k in prev) next[k] = { ...prev[k] };
 
   // 1) DECREMENTA quem estava fora nos times que jogaram.
+  const recoveryCandidates = new Set<string>();
   for (const teamId of playedTeamIds) {
     for (const k in next) {
       if (!k.startsWith(teamId + ':')) continue;
+      const wasInjured = next[k].injured > 0;
       if (next[k].banned > 0) next[k].banned--;
       if (next[k].injured > 0) next[k].injured--;
+      if (wasInjured) recoveryCandidates.add(k);
     }
   }
 
@@ -255,13 +287,23 @@ export function applyMatchDiscipline(
         const a = bump(e.teamId, e.playerId); a.banned = Math.max(a.banned, 1);
         newSuspensions.push({ teamId: e.teamId, playerId: e.playerId, playerName: nameOf(e.teamId, e.playerId), games: 1, kind: 'ban' });
       } else if (e.type === 'injury') {
-        const sev = rollInjurySeverity(injurySeverityRng);
-        const a = bump(e.teamId, e.playerId); a.injured = Math.max(a.injured, sev);
+        const configuredDuration = Math.floor(injuryDurationForTeam(e.teamId));
+        const sev = configuredDuration >= 1 && configuredDuration <= 3
+          ? configuredDuration as 1 | 2 | 3
+          : rollInjurySeverity(injurySeverityRng);
+        const a = bump(e.teamId, e.playerId); a.injured = sev;
         newInjuries.push({ teamId: e.teamId, playerId: e.playerId, playerName: nameOf(e.teamId, e.playerId), games: sev, kind: 'injury' });
       }
     }
   }
-  return { next, newSuspensions, newInjuries };
+  const recoveredInjuries: DisciplineEntry[] = [];
+  recoveryCandidates.forEach(key => {
+    const [teamId, playerId] = key.split(':');
+    if (prev[key]?.injured > 0 && next[key]?.injured === 0) {
+      recoveredInjuries.push({ teamId, playerId, playerName: nameOf(teamId, playerId), games: 0, kind: 'injury' });
+    }
+  });
+  return { next, newSuspensions, newInjuries, recoveredInjuries };
 }
 
 // Zera os amarelos acumulados (ao entrar no mata-mata); preserva suspensões/lesões em curso.

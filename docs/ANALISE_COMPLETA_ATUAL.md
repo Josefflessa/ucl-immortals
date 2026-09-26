@@ -342,7 +342,7 @@ As variantes são o principal sistema de decisões de progressão:
 - `noe`: +10 no próprio jogador em condição específica de carta única/atributo.
 - `forasteiro`: +5 se o jogador for o único titular de sua nação e clube.
 - `capitaoNato`: dobra o bônus de capitão quando designado capitão.
-- `magnata`: multiplica por 1,5 os pontos de partida de liga quando titular, mas -5 em todos os atributos próprios.
+- `magnata`: multiplica por 1,5 os créditos da partida, na liga e no mata-mata, quando titular, mas -7 em todos os atributos próprios; não acumula com outro Magnata.
 
 Cartas normais podem ter no máximo uma variante. Cartas únicas podem ter até duas. A loja permite turbinar por 300, remover por 150 e, em carta única, remover uma variante específica.
 
@@ -391,11 +391,11 @@ O mapa de disciplina usa a chave `teamId:playerId` e guarda amarelos, partidas d
 - Acúmulo de 3 amarelos gera suspensão.
 - Vermelho gera suspensão.
 - Segundo amarelo é tratado como vermelho com contexto próprio.
-- Lesões duram de 1 a 3 partidas, com pesos probabilísticos.
+- A duração de uma nova lesão é fixa pelo nível do Departamento Médico: 3 partidas no nível 1, 2 no nível 2 e 1 a partir do nível 3.
 - Lesão aplica debuff de -12 nos atributos durante a partida.
 - Vermelho aplica penalidade de força; para goleiro, a penalidade é maior.
 - Amarelos são zerados ao entrar no mata-mata, preservando suspensões/lesões.
-- Fisioterapia custa 250 e reduz uma partida de lesão.
+- Fisioterapia concede 1 uso gratuito por competição no nível 1, custa 100 a partir do nível 2 e 50 a partir do nível 3; novas lesões duram exatamente 3 partidas no nível 1, 2 no nível 2 e 1 a partir do nível 3. Os níveis 4 e 5 dão, respectivamente, +5 e +10 acumuláveis em todos os atributos a cada retorno de lesão.
 
 Se um titular está indisponível, `resolveAvailableLineup` promove o melhor reserva compatível; se necessário, usa alguém fora de posição. O capitão e cobradores são reescolhidos se deixarem de estar nos 11.
 
@@ -435,7 +435,7 @@ Custos principais:
 - reroll de reforço: 120;
 - remover variante: 150;
 - carta única: 750;
-- fisioterapia: 250;
+- fisioterapia: 150;
 - Prime: 500, exigindo 4 vitórias e 500 pontos.
 
 Treino dá +3 em um atributo. O primeiro custa 100 e cada treino anterior aumenta o custo em 50. Evolução de jogador libera 8 pontos depois de 6 aparições como titular; os pontos não têm cap por atributo no código atual.

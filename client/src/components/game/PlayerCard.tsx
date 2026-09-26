@@ -992,7 +992,7 @@ function variantDesc(player: Player): string {
   if (player.estribado) return 'ESTRIBADO: +1 em cada atributo a cada 100 créditos disponíveis';
   if (player.todosPorUm) return `TODOS POR UM: se os 11 titulares tiverem a característica, +${TODOS_POR_UM_STAT_BOOST} em cada atributo e +${TODOS_POR_UM_CHEM_BONUS} na química geral`;
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
-  if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida de liga por 1,5 (mas −5 em cada atributo nele)';
+  if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida por 1,5 na liga e no mata-mata (mas −7 em cada atributo nele)';
   if (player.prodigio) {
     const starts = player.prodigioStarts ?? 0;
     return `PRODÍGIO: +${prodigioStatBoost(starts)} em cada atributo · +1 a cada ${PRODIGIO_STARTS_PER_BOOST} titularidades (${starts} acumuladas)`;

@@ -162,8 +162,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.forasteiro && forasteiroInactive && <Chip text={isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — COMPARTILHA PAÍS OU CLUBE'} color="#EF4444" />}
                 {player.colecionador && charBoost?.sources.find(s => s.type === 'colecionador') && <Chip text={`+${charBoost.sources.find(s => s.type === 'colecionador')?.flatAll ?? 0} EM TUDO`} color="#C084FC" />}
                 {player.capitaoNato && <Chip text="🗣️ BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)" color="#F97316" />}
-                {player.magnata && <Chip text="🤑 CRÉDITOS DA LIGA ×1,5 (TITULAR)" color="#16A34A" />}
-                {player.magnata && <Chip text="−5 EM TUDO" color="#EF4444" />}
+                {player.magnata && <Chip text="🤑 CRÉDITOS DA PARTIDA ×1,5 (TITULAR)" color="#16A34A" />}
+                {player.magnata && <Chip text="−7 EM TUDO" color="#EF4444" />}
                 {player.prodigio && <Chip text={`+${prodigioBoost} EM CADA ATRIBUTO (${prodigioStarts} TITULARIDADE${prodigioStarts === 1 ? '' : 'S'} · 1 A CADA ${PRODIGIO_STARTS_PER_BOOST})`} color="#FDE047" />}
                 {player.resiliente && <Chip text={`+${(player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST} EM CADA ATRIBUTO (${player.resilienteDefeats ?? 0} DERROTA${(player.resilienteDefeats ?? 0) === 1 ? '' : 'S'} COMO TITULAR)`} color="#FB7185" />}
                 {player.goleador && <Chip text={`+${goleadorBoost} EM CADA ATRIBUTO (${goleadorGoals} GOL${goleadorGoals === 1 ? '' : 'S'} · 1 A CADA ${GOLEADOR_GOALS_PER_BOOST})`} color="#F97316" />}
@@ -190,7 +190,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                                   : player.forasteiro ? 'Quando é o ÚNICO do seu país E do seu clube no XI, ganha +8 em tudo — transforma a química baixa em vantagem.'
                                     : player.colecionador ? 'Ganha +1 em tudo por cada jogador que estiver na reserva.'
                                     : player.capitaoNato ? 'Se for o CAPITÃO do time, o bônus de capitão (a melhor stat dele, dada a todos) vem DOBRADO.'
-                                        : player.magnata ? 'Como titular, multiplica os créditos da partida de liga por 1,5 — em troca de −5 em cada atributo nele.'
+                                        : player.magnata ? 'Como titular, multiplica os créditos da partida por 1,5 na liga e no mata-mata — em troca de −7 em cada atributo nele.'
                                           : player.prodigio ? `+1 em todos os atributos a cada ${PRODIGIO_STARTS_PER_BOOST} partidas iniciadas como titular (${prodigioStarts} titularidade${prodigioStarts === 1 ? '' : 's'}; bônus atual +${prodigioBoost}).`
                                             : player.resiliente ? `A cada derrota do time em que for titular, ganha +${RESILIENTE_DEFEAT_BOOST} em todos os atributos. Já acumulou ${player.resilienteDefeats ?? 0} derrota${(player.resilienteDefeats ?? 0) === 1 ? '' : 's'} como titular.`
                                                 : player.goleador ? `A cada ${GOLEADOR_GOALS_PER_BOOST} gols marcados, ganha +1 em todos os atributos. Já marcou ${goleadorGoals} gol${goleadorGoals === 1 ? '' : 's'} e o bônus atual é +${goleadorBoost}.`

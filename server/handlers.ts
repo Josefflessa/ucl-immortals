@@ -40,13 +40,31 @@ import {
 
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
-import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, trainCost, TRAIN_BOOST, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
-import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, createBet, settleBet, BET_ROUND_CAP } from "../client/src/lib/bets.js";
+import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
+import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, createBet, settleBet, bettingPayoutRulesForLevel, BET_ROUND_CAP } from "../client/src/lib/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
-import { DisciplineMap, applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
+import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
 import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
+import {
+  createInitialClubProjects,
+  createRecruitmentOfferMeta,
+  getRecruitmentOfferConfig,
+  medicalInjuryDuration,
+  medicalPhysioCost,
+  medicalReturnBoost,
+  medicalFreeTreatmentsPerCompetition,
+  bettingLossRefundPercent,
+  bettingStakeCapBonus,
+  trainingBoostForProject,
+  trainingCostForProject,
+  projectLevel,
+  calculateClubReward,
+  projectUpgradeCost,
+  purchaseClubProjectUpgrade,
+} from "../client/src/lib/clubProjects.js";
+import type { RecruitmentEventKind, RecruitmentOfferMeta } from "../client/src/lib/clubProjects.js";
 import { DRAFT_TURN_SECONDS } from "../shared/const.js";
 import {
   DEFAULT_COMPETITION_FORMAT,
@@ -64,7 +82,7 @@ export interface RoomPlayer {
   name: string;
   crestId?: string | null; // selected club crest (see client/src/lib/crests)
   coachId: string;
-  coachPrime: boolean; // Fase 2: técnico evoluído pro Prime → estádio temático
+    coachPrime: boolean; // Técnico Prime: assinatura especial do treinador
   formationId: string;
   playStyle: string;
   matchPlan: MatchPlan;
@@ -77,14 +95,17 @@ export interface RoomPlayer {
   ready: boolean;
   connected: boolean;
   points: number; // shop currency, earned per league match
-  lastMatchPoints: MatchPoints | null;    // last round's points breakdown (shown once)
-  reinforcementOptions: Player[] | null;   // end-of-round free pick (1 of 6 → bench)
-  reinforcementRerolls: number;            // 🔄 tokens to re-roll the reinforcement (persist across rounds)
+  lastMatchPoints: MatchPoints | null;    // latest reward breakdown (shown in the shared credits modal)
+  reinforcementOptions: Player[] | null;   // current Recruitment Centre offer
+  reinforcementOffer?: RecruitmentOfferMeta | null;
+  reinforcementEventCount: number;
+  medicalFreeTreatmentsUsed: number;
   pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null; // 🛒 pacote JÁ PAGO na abertura (escolha grátis)
   pendingUniquePack: Player | null; // ⭐ pacote Único já pago, aguardando revelação
   uniquePackOfferIds?: string[]; // ⭐ quatro cartas visíveis da rodada (privado por jogador)
   uniquePackOfferRoundKey?: string | null;
   bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação)
+  betProtectionUsedKeys: string[];    // uma devolução por rodada/perna
   pendingMatchPoints?: number;        // pontos da partida calculados, NÃO creditados até a revelação
 }
 
@@ -347,12 +368,15 @@ function roomViewForSocket(room: RoomState, socketId: string, compactHistory = f
       points: 0,
       lastMatchPoints: null,
       reinforcementOptions: null,
-      reinforcementRerolls: 0,
+      reinforcementOffer: null,
+      reinforcementEventCount: 0,
+      medicalFreeTreatmentsUsed: 0,
       pendingPack: null,
       pendingUniquePack: null,
       uniquePackOfferIds: [],
       uniquePackOfferRoundKey: null,
       bets: [],
+      betProtectionUsedKeys: [],
       pendingMatchPoints: undefined,
       // Shop balance is private; the public opponent team still carries the
       // lineup, but never the credits used by Estribado.
@@ -520,9 +544,47 @@ function ensureUniquePackOffer(room: RoomState, player: RoomPlayer): void {
   player.uniquePackOfferRoundKey = roundKey;
 }
 
-// A disconnected player cannot click the end-of-round reinforcement modal.
-// Give that player one of the server-generated options automatically, keeping
-// the reward meaningful without allowing offline spending in the shop.
+function createRecruitmentOffer(
+  team: Team,
+  baseOptions: number,
+  eventKind: RecruitmentEventKind,
+  eventNumber: number,
+): { options: Player[]; offer: RecruitmentOfferMeta } {
+  const level = projectLevel(team.clubProjects, 'recruitment');
+  const config = getRecruitmentOfferConfig(baseOptions, level, eventNumber);
+  const ownedIds = team.players.map(player => player.id);
+  const options = generateDraftOptions([], ownedIds, config.optionCount, config.minimumOverall);
+  const selectionLimit = Math.min(config.selectionLimit, Math.max(1, options.length));
+
+  return {
+    options,
+    offer: createRecruitmentOfferMeta(
+      eventKind,
+      eventNumber,
+      level,
+      baseOptions,
+      selectionLimit,
+      config.freeRerolls,
+      config.minimumOverall,
+    ),
+  };
+}
+
+function medicalInjuryDurationForTeam(team: Team): number {
+  return medicalInjuryDuration(projectLevel(team.clubProjects, 'medical'));
+}
+
+function applyMedicalRecoveries(team: Team, recoveredInjuries: { teamId: string; playerId: string }[]): Team {
+  const boost = medicalReturnBoost(projectLevel(team.clubProjects, 'medical'));
+  if (boost <= 0) return team;
+  return recoveredInjuries
+    .filter(recovery => recovery.teamId === team.id)
+    .reduce((current, recovery) => applyMedicalReturnBoost(current, recovery.playerId, boost), team);
+}
+
+// A disconnected player cannot click the Recruitment Centre modal. Fulfil all
+// remaining selections automatically, keeping the reward meaningful without
+// allowing offline spending in the shop.
 function autoPickOfflineReinforcement(player: RoomPlayer): void {
   if (player.connected || !player.team || !player.reinforcementOptions?.length) return;
 
@@ -530,13 +592,19 @@ function autoPickOfflineReinforcement(player: RoomPlayer): void {
     !player.team!.players.some(existing => existing.id === option.id));
   if (available.length === 0) {
     player.reinforcementOptions = null;
+    player.reinforcementOffer = null;
     return;
   }
 
-  const chosen = available[Math.floor(Math.random() * available.length)];
-  const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
-  player.team = { ...player.team, players: [...player.team.players, card] };
+  const remainingSelections = Math.max(1, (player.reinforcementOffer?.selectionLimit ?? 1)
+    - (player.reinforcementOffer?.selectionsMade ?? 0));
+  const chosen = available
+    .sort(() => Math.random() - 0.5)
+    .slice(0, remainingSelections)
+    .map(option => ({ ...option, chemistryScore: 0, isOOP: false } as PlayerCard));
+  player.team = { ...player.team, players: [...player.team.players, ...chosen] };
   player.reinforcementOptions = null;
+  player.reinforcementOffer = null;
 }
 
 function isValidId(value: unknown): value is string {
@@ -763,7 +831,7 @@ function creditLeagueRoundIfAllWatched(room: RoomState): void {
     if (p.pendingMatchPoints != null) { p.points += p.pendingMatchPoints; p.pendingMatchPoints = undefined; }
     p.bets = p.bets.map(b => {
       if (b.settled && !b.revealed && b.matchKey.startsWith(betPrefix)) {
-        p.points += b.payout ?? 0;
+        p.points += (b.payout ?? 0) + (b.protectionRefund ?? 0);
         return { ...b, revealed: true };
       }
       return b;
@@ -780,7 +848,7 @@ function creditKnockoutLegIfAllWatched(room: RoomState): void {
     if (p.pendingMatchPoints != null) { p.points += p.pendingMatchPoints; p.pendingMatchPoints = undefined; }
     p.bets = p.bets.map(b => {
       if (b.settled && !b.revealed && b.matchKey.startsWith('K')) {
-        p.points += b.payout ?? 0;
+        p.points += (b.payout ?? 0) + (b.protectionRefund ?? 0);
         return { ...b, revealed: true };
       }
       return b;
@@ -1229,12 +1297,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
             points: 0,
             lastMatchPoints: null,
             reinforcementOptions: null,
-            reinforcementRerolls: 0,
+            reinforcementOffer: null,
+            reinforcementEventCount: 0,
+            medicalFreeTreatmentsUsed: 0,
             pendingPack: null,
             pendingUniquePack: null,
             uniquePackOfferIds: [],
             uniquePackOfferRoundKey: null,
-            bets: []
+            bets: [],
+            betProtectionUsedKeys: []
           }
         ],
         botTeams: [],
@@ -1385,12 +1456,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
         points: 0,
         lastMatchPoints: null,
         reinforcementOptions: null,
-        reinforcementRerolls: 0,
+        reinforcementOffer: null,
+        reinforcementEventCount: 0,
+        medicalFreeTreatmentsUsed: 0,
         pendingPack: null,
         pendingUniquePack: null,
         uniquePackOfferIds: [],
         uniquePackOfferRoundKey: null,
-        bets: []
+        bets: [],
+        betProtectionUsedKeys: []
       };
 
       room.players.push(newPlayer);
@@ -1593,6 +1667,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
             totalChemistry: chemData.total,
             isBot: false,
             credits: p.points,
+            clubProjects: p.team?.clubProjects ?? createInitialClubProjects(),
             crestId: p.crestId ?? undefined
           };
         });
@@ -1791,6 +1866,35 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // Server is authoritative: it validates the cost, mutates the player's team and
     // re-broadcasts. The local client then sees the change + new balance via room_updated.
     // ============================================================
+    on("upgrade_club_project", ({ roomCode, projectId }: { roomCode: string; projectId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room || !isShopPhase(room)) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || !['recruitment', 'analysis', 'betting', 'medical', 'training', 'stadium', 'supporters'].includes(projectId)) return;
+      if (projectId === 'medical' && room.competitionFormat.matchSettings?.injuriesEnabled === false) return;
+
+      const project = projectId as 'recruitment' | 'analysis' | 'betting' | 'medical' | 'training' | 'stadium' | 'supporters';
+      const upgrade = purchaseClubProjectUpgrade(player.team.clubProjects, project, player.points);
+      if (!upgrade) {
+        const currentLevel = projectLevel(player.team.clubProjects, project);
+        const cost = projectUpgradeCost(currentLevel + 1);
+        if (!cost) return;
+        socket.emit("action_error", { event: "upgrade_club_project", message: `Saldo insuficiente: você tem ${player.points} créditos e precisa de ${cost}.` });
+        emitRoomSnapshot(socket, room);
+        return;
+      }
+
+      player.points = upgrade.remainingCredits;
+      player.team = {
+        ...player.team,
+        credits: player.points,
+        clubProjects: upgrade.projects,
+      };
+      invalidateReady(room, player.id);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      emitReadyState(io, room);
+    });
+
     on("shop_change_coach", ({ roomCode, coachId }: { roomCode: string; coachId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
@@ -2030,7 +2134,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (existing?.settled) return;
       const escrowDelta = stake - (existing?.stake ?? 0);
       if (escrowDelta > player.points) return;
-      const betCap = room.competitionFormat.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
+      const bettingLevel = projectLevel(player.team?.clubProjects, 'betting');
+      const betCap = BET_ROUND_CAP + bettingStakeCapBonus(bettingLevel);
       if (!canPlaceStake(player.bets, prefix, matchKey, stake, betCap)) return;
       // A disciplina da competição é a fonte de verdade para os mercados de
       // cartões. Revalidar no servidor impede que um cliente alterado crie uma
@@ -2049,6 +2154,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         stake,
         market,
         selections,
+        payoutRules: bettingPayoutRulesForLevel(bettingLevel),
       });
       if (!bet) return;
       player.bets = existing ? player.bets.map(b => b.matchKey === matchKey ? bet : b) : [...player.bets, bet];
@@ -2068,16 +2174,36 @@ export function registerSocketHandlers(io: RealtimeServer) {
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
-    // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador do time do autor (paga PHYSIO_COST).
+    // 🏥 Fisioterapia — 1 uso gratuito por competição no nível 1 do Médico;
+    // usos seguintes respeitam o preço do nível atual.
     on("heal_injury", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
+      if (room.competitionFormat.matchSettings?.injuriesEnabled === false) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !isValidId(playerId) || player.points < SHOP_COSTS.physio) return;
+      if (!player || !player.team || !isValidId(playerId)) return;
+      if (!player.team.players.some(teamPlayer => teamPlayer.id === playerId)) return;
       const key = `${player.team.id}:${playerId}`;
       if (!room.discipline[key] || room.discipline[key].injured <= 0) return;
-      player.points -= SHOP_COSTS.physio;
+      const freeLimit = medicalFreeTreatmentsPerCompetition(projectLevel(player.team.clubProjects, 'medical'));
+      const freeTreatmentsUsed = player.medicalFreeTreatmentsUsed ?? 0;
+      const freeAvailable = freeTreatmentsUsed < freeLimit;
+      const cost = freeAvailable
+        ? 0
+        : medicalPhysioCost(projectLevel(player.team.clubProjects, 'medical'));
+      if (player.points < cost) return;
+      player.points -= cost;
+      if (freeAvailable) player.medicalFreeTreatmentsUsed = freeTreatmentsUsed + 1;
+      const previousInjury = room.discipline[key].injured;
       room.discipline = healInjury(room.discipline, player.team.id, playerId);
+      if (previousInjury > 0 && room.discipline[key]?.injured === 0) {
+        player.team = applyMedicalReturnBoost(
+          player.team,
+          playerId,
+          medicalReturnBoost(projectLevel(player.team.clubProjects, 'medical')),
+        );
+      }
+      player.team = { ...player.team, credits: player.points };
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
@@ -2092,30 +2218,22 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr)) return;
       const target = player.team.players.find(p => p.id === playerId);
       if (!target) return;
-      const cost = trainCost(target.trainCount ?? 0);
+      const trainingLevel = projectLevel(player.team.clubProjects, 'training');
+      const firstTrainingForPlayer = (target.trainCount ?? 0) === 0;
+      const cost = trainingCostForProject(trainingLevel, target.trainCount ?? 0);
+      const boost = trainingBoostForProject(trainingLevel, firstTrainingForPlayer);
       if (player.points < cost) return;
       player.points -= cost;
       player.team.players = player.team.players.map(p => {
         if (p.id !== playerId) return p;
         const boosts = { ...(p.trainBoosts ?? {}) };
-        boosts[attr] = (boosts[attr] ?? 0) + TRAIN_BOOST;
+        boosts[attr] = (boosts[attr] ?? 0) + boost;
         return { ...p, trainBoosts: boosts, trainCount: (p.trainCount ?? 0) + 1 };
       });
+      player.team.credits = player.points;
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
-    });
-
-    // 🔄 Buy a reinforcement re-roll token (unlimited; persists across rounds).
-    on("shop_buy_reroll", ({ roomCode }: { roomCode: string }) => {
-      const room = rooms.get(roomCode);
-      if (!room) return;
-      if (!isShopPhase(room)) return;
-      const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || player.points < SHOP_COSTS.reroll) return;
-      player.points -= SHOP_COSTS.reroll;
-      player.reinforcementRerolls += 1;
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
     // 🏪 Mercado — VENDER uma reserva PRA BANCA por valor fixo (igual o solo). Só pontos + banco mudam.
@@ -2189,20 +2307,28 @@ export function registerSocketHandlers(io: RealtimeServer) {
       emitRoomUpdate(io, room);
     });
 
-    // 🔄 Spend a token to re-roll THIS player's reinforcement options.
+    // 🔄 Level 4 Recruitment Centre: one free re-roll for the current offer.
     on("reroll_reinforcement", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || player.reinforcementRerolls <= 0 || !player.reinforcementOptions) return;
-      player.reinforcementRerolls -= 1;
+      const offer = player?.reinforcementOffer;
+      const rerollsRemaining = (offer?.freeRerolls ?? 0) - (offer?.rerollsUsed ?? 0);
+      if (!player || !player.team || rerollsRemaining <= 0 || !player.reinforcementOptions?.length) return;
       const ownedIds = player.team.players.map(p => p.id);
-      player.reinforcementOptions = generateDraftOptions([], ownedIds).slice(0, room.competitionFormat.rewards.reinforcementOptions);
+      player.reinforcementOptions = generateDraftOptions(
+        [],
+        ownedIds,
+        player.reinforcementOptions.length,
+        offer?.minimumOverall ?? 0,
+      );
+      player.reinforcementOffer = { ...offer!, rerollsUsed: (offer?.rerollsUsed ?? 0) + 1 };
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
-    // End-of-round reinforcement (free pick, same as solo): 1 of 6 → bench.
+    // Recruitment Centre offer: the client submits only an id; the server
+    // validates the canonical card and keeps multi-selection atomic.
     on("pick_reinforcement", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
@@ -2220,7 +2346,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
       player.team.players = [...player.team.players, card];
       invalidateReady(room, player.id);
-      player.reinforcementOptions = null;
+      const offer = player.reinforcementOffer;
+      const selectionsMade = (offer?.selectionsMade ?? 0) + 1;
+      const selectionLimit = Math.max(1, offer?.selectionLimit ?? 1);
+      if (selectionsMade >= selectionLimit) {
+        player.reinforcementOptions = null;
+        player.reinforcementOffer = null;
+      } else {
+        player.reinforcementOptions = player.reinforcementOptions!.filter(option => option.id !== canonical.id);
+        player.reinforcementOffer = offer ? { ...offer, selectionsMade } : null;
+      }
       emitRoomUpdate(io, room, { onlySocketId: socket.id }); // only this player's own bench changed
     });
 
@@ -2230,6 +2365,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
       player.reinforcementOptions = null;
+      player.reinforcementOffer = null;
       emitRoomUpdate(io, room, { onlySocketId: socket.id }); // only this player's own state changed
     });
 
@@ -2343,7 +2479,18 @@ export function registerSocketHandlers(io: RealtimeServer) {
         const roundFx = room.leagueFixtures.filter(f => f.round === room.leagueRound && f.result);
         const roundTeamIds = Array.from(new Set(roundFx.flatMap(f => [f.homeTeamId, f.awayTeamId])));
         const nameOf = (teamId: string, playerId: string) => allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
-        room.discipline = applyMatchDiscipline(room.discipline, roundTeamIds, roundFx.map(f => f.result!), nameOf).next;
+        const disciplineResult = applyMatchDiscipline(
+          room.discipline,
+          roundTeamIds,
+          roundFx.map(f => f.result!),
+          nameOf,
+          Math.random,
+          teamId => {
+            const team = allTeams.find(candidate => candidate.id === teamId);
+            return team ? medicalInjuryDurationForTeam(team) : 3;
+          },
+        );
+        room.discipline = disciplineResult.next;
 
         room.leagueStandings = computeStandings(allTeams, room.leagueFixtures.filter(f => f.played));
         // Reset watch confirmations so the new round requires fresh confirmation
@@ -2369,21 +2516,46 @@ export function registerSocketHandlers(io: RealtimeServer) {
             );
             const rewards = room.competitionFormat.rewards;
             const mp = computeMatchPointsWithConfig(fixture.result, p.team.id, rewards.points);
-            // 🤑 Magnata — titular multiplica os pontos da partida de liga (não empilha).
+            const rewardVenue = fixture.result.homeTeamId === p.team.id ? 'home' : 'away';
+            // 🏟️📣 Torcida and 🤑 Magnata are independent bonuses calculated from the base reward.
             const magMult = magnataPointMultiplier(p.team.players);
-            const earned = rewards.pointsEnabled ? Math.round(mp.total * magMult) : 0;
+            const reward = calculateClubReward(
+              mp.total,
+              projectLevel(p.team.clubProjects, 'supporters'),
+              rewardVenue,
+              magMult > 1,
+            );
+            const earned = rewards.pointsEnabled ? reward.total : 0;
+            const decoratedMatchPoints = rewards.pointsEnabled
+              ? {
+                  ...mp,
+                  matchKey: buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
+                  total: reward.total,
+                  baseTotal: reward.base,
+                  supportersBonus: reward.supportersBonus,
+                  supportersPercent: reward.supportersPercent,
+                  supportersVenue: reward.supportersVenue,
+                  magnataBonus: reward.magnataBonus,
+                  magnataPercent: reward.magnataPercent,
+                }
+              : null;
             // FIX anti-spoiler: NÃO credita agora; guarda como pendente até a revelação.
             p.pendingMatchPoints = rewards.pointsEnabled ? earned : undefined;
-            p.lastMatchPoints = rewards.pointsEnabled ? (magMult > 1 ? { ...mp, total: earned } : mp) : null; // resumo do PRÓPRIO jogo (não é spoiler)
+            p.lastMatchPoints = decoratedMatchPoints; // resumo do PRÓPRIO jogo (não é spoiler)
           }
+          p.team = applyMedicalRecoveries(p.team, disciplineResult.recoveredInjuries);
           // 🎯 Liquida (sem creditar) os palpites da rodada deste jogador.
           const betPrefix = `L${room.leagueRound}:`;
+          const protectionPercent = bettingLossRefundPercent(projectLevel(p.team.clubProjects, 'betting'));
           p.bets = p.bets.map(b => {
             if (b.revealed || b.settled || !b.matchKey.startsWith(betPrefix)) return b;
             const bfx = room.leagueFixtures.find(f => buildLeagueMatchKey(f.round, f.homeTeamId, f.awayTeamId) === b.matchKey);
             if (!bfx?.result) return b;
             const r = settleBet(b, bfx.result);
-            return { ...b, settled: true, won: r.won, tier: r.tier, payout: r.payout };
+            const protectionRefund = !r.won && protectionPercent > 0
+              ? Math.round(b.stake * protectionPercent / 100)
+              : 0;
+            return { ...b, settled: true, won: r.won, tier: r.tier, payout: r.payout, protectionRefund };
           });
           const rewards = room.competitionFormat.rewards;
           const stageRounds = room.competitionFormat.id === 'groups_knockout' ? room.competitionFormat.groupRounds : room.competitionFormat.leagueRounds;
@@ -2393,10 +2565,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
           // If a player disconnected after a previous offer was created, settle
           // that offer before materializing the next round's reward.
           autoPickOfflineReinforcement(p);
-          const ownedIds = p.team.players.map(pl => pl.id);
-          p.reinforcementOptions = shouldOfferReinforcement
-            ? generateDraftOptions([], ownedIds).slice(0, rewards.reinforcementOptions)
+          const eventNumber = shouldOfferReinforcement
+            ? (p.reinforcementEventCount ?? 0) + 1
+            : (p.reinforcementEventCount ?? 0);
+          const recruitmentOffer = shouldOfferReinforcement
+            ? createRecruitmentOffer(p.team, rewards.reinforcementOptions, 'round', eventNumber)
             : null;
+          p.reinforcementEventCount = eventNumber;
+          p.reinforcementOptions = recruitmentOffer?.options ?? null;
+          p.reinforcementOffer = recruitmentOffer?.offer ?? null;
           autoPickOfflineReinforcement(p);
         });
 
@@ -2404,12 +2581,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
         // a carta esteve no XI. A derrota de cada rodada é processada uma única vez aqui.
         room.botTeams = room.botTeams.map(team => {
           const fixture = roundFx.find(f => f.homeTeamId === team.id || f.awayTeamId === team.id);
-          if (!fixture?.result) return team;
-          return applyMatchStatGrowth(
-            applyDefeatGrowth(team, fixture.result),
-            fixture.result,
-            buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
-          );
+          const updated = fixture?.result
+            ? applyMatchStatGrowth(
+                applyDefeatGrowth(team, fixture.result),
+                fixture.result,
+                buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
+              )
+            : team;
+          return applyMedicalRecoveries(updated, disciplineResult.recoveredInjuries);
         });
       }
 
@@ -2542,7 +2721,18 @@ export function registerSocketHandlers(io: RealtimeServer) {
         }).filter((result): result is MatchResult => Boolean(result));
         const koTeamIds = Array.from(new Set(active.flatMap((t: any) => [t.homeTeamId, t.awayTeamId]))) as string[];
         const nameOf = (teamId: string, playerId: string) => allTeams.find(t => t.id === teamId)?.players.find(p => p.id === playerId)?.shortName ?? '?';
-        room.discipline = applyMatchDiscipline(room.discipline, koTeamIds, legResults, nameOf).next;
+        const disciplineResult = applyMatchDiscipline(
+          room.discipline,
+          koTeamIds,
+          legResults,
+          nameOf,
+          Math.random,
+          teamId => {
+            const team = allTeams.find(candidate => candidate.id === teamId);
+            return team ? medicalInjuryDurationForTeam(team) : 3;
+          },
+        );
+        room.discipline = disciplineResult.next;
         // ⭐ +1 jogo pros 11 titulares de cada humano que disputou esta perna (Carta Evoluída).
         const playedIds = new Set(koTeamIds);
         const resultFor = (teamId: string) => legResults.find((result: MatchResult) =>
@@ -2558,13 +2748,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
             startingIdsForResult(result, p.team.id, p.team),
             matchKey,
           );
+          p.team = applyMedicalRecoveries(p.team, disciplineResult.recoveredInjuries);
         });
         room.botTeams = room.botTeams.map(team => {
           const result = resultFor(team.id);
-          if (!result) return team;
           const tie = active.find((candidate: any) => candidate.homeTeamId === team.id || candidate.awayTeamId === team.id);
           const matchKey = tie ? buildKnockoutMatchKey(tie.id, legPlayed) : undefined;
-          return applyMatchStatGrowth(applyDefeatGrowth(team, result), result, matchKey);
+          const updated = result
+            ? applyMatchStatGrowth(applyDefeatGrowth(team, result), result, matchKey)
+            : team;
+          return applyMedicalRecoveries(updated, disciplineResult.recoveredInjuries);
         });
       }
 
@@ -2578,9 +2771,30 @@ export function registerSocketHandlers(io: RealtimeServer) {
           const tie = ties.find((t: any) => t.homeTeamId === p.team!.id || t.awayTeamId === p.team!.id);
           if (!tie) return;
           const legRes = legPlayed === 1 ? tie.leg1 : tie.leg2;
-          if (legRes) p.pendingMatchPoints = room.competitionFormat.rewards.pointsEnabled
-            ? computeMatchPointsWithConfig(legRes, p.team.id, room.competitionFormat.rewards.points).total
-            : undefined;
+          if (legRes) {
+            const mp = computeMatchPointsWithConfig(legRes, p.team.id, room.competitionFormat.rewards.points);
+            const rewardVenue = legRes.homeTeamId === p.team.id ? 'home' : 'away';
+            const reward = calculateClubReward(
+              mp.total,
+              projectLevel(p.team.clubProjects, 'supporters'),
+              rewardVenue,
+              magnataPointMultiplier(p.team.players) > 1,
+            );
+            p.pendingMatchPoints = room.competitionFormat.rewards.pointsEnabled ? reward.total : undefined;
+            p.lastMatchPoints = room.competitionFormat.rewards.pointsEnabled
+              ? {
+                  ...mp,
+                  matchKey: buildKnockoutMatchKey(tie.id, legPlayed),
+                  total: reward.total,
+                  baseTotal: reward.base,
+                  supportersBonus: reward.supportersBonus,
+                  supportersPercent: reward.supportersPercent,
+                  supportersVenue: reward.supportersVenue,
+                  magnataBonus: reward.magnataBonus,
+                  magnataPercent: reward.magnataPercent,
+                }
+              : null;
+          }
         });
       }
 
@@ -2597,15 +2811,21 @@ export function registerSocketHandlers(io: RealtimeServer) {
       room.players.forEach(p => {
         if (!p.team) return;
         autoPickOfflineReinforcement(p);
-        if (offerStageReinforcement) {
-          p.reinforcementOptions = generateDraftOptions([], p.team.players.map(pl => pl.id))
-            .slice(0, koRewards.reinforcementOptions);
-        }
+        const eventNumber = offerStageReinforcement
+          ? (p.reinforcementEventCount ?? 0) + 1
+          : (p.reinforcementEventCount ?? 0);
+        const recruitmentOffer = offerStageReinforcement
+          ? createRecruitmentOffer(p.team, koRewards.reinforcementOptions, 'stage', eventNumber)
+          : null;
+        p.reinforcementEventCount = eventNumber;
+        p.reinforcementOptions = recruitmentOffer?.options ?? p.reinforcementOptions;
+        p.reinforcementOffer = recruitmentOffer?.offer ?? p.reinforcementOffer;
         autoPickOfflineReinforcement(p);
       });
 
       // 🎯 Liquida (sem creditar) os palpites da perna recém-jogada de cada jogador.
       room.players.forEach(p => {
+        const protectionPercent = bettingLossRefundPercent(projectLevel(p.team?.clubProjects, 'betting'));
         p.bets = p.bets.map(b => {
           if (b.revealed || b.settled || !b.matchKey.startsWith('K')) return b;
           const [id, legStr] = b.matchKey.slice(1).split(':');
@@ -2614,7 +2834,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
           const legRes = tie ? (legPlayed === 2 ? tie.leg2 : (tie.leg1 ?? tie.result)) : undefined;
           if (!legRes) return b;
           const r = settleBet(b, legRes);
-          return { ...b, settled: true, won: r.won, tier: r.tier, payout: r.payout };
+          const protectionRefund = !r.won && protectionPercent > 0
+            ? Math.round(b.stake * protectionPercent / 100)
+            : 0;
+          return { ...b, settled: true, won: r.won, tier: r.tier, payout: r.payout, protectionRefund };
         });
       });
 
@@ -2731,12 +2954,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
         p.points = 0;
         p.lastMatchPoints = null;
         p.reinforcementOptions = null;
-        p.reinforcementRerolls = 0;
+        p.reinforcementOffer = null;
+        p.reinforcementEventCount = 0;
+        p.medicalFreeTreatmentsUsed = 0;
         p.pendingPack = null;
         p.pendingUniquePack = null;
         p.uniquePackOfferIds = [];
         p.uniquePackOfferRoundKey = null;
         p.bets = [];
+        p.betProtectionUsedKeys = [];
         p.pendingMatchPoints = undefined;
       });
       room.botTeams = [];

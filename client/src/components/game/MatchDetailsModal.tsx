@@ -7,7 +7,8 @@ import { motion } from 'framer-motion';
 import { MatchResult, MatchEvent, Team } from '../../lib/gameEngine';
 import MatchFieldView from './MatchFieldView';
 import Crest from './Crest';
-import { stadiumFor } from '../../lib/stadium';
+import { stadiumDisplayFor } from '../../lib/stadium';
+import { projectLevel } from '../../lib/clubProjects';
 import { IconButton } from '../../design-system';
 
 interface Props {
@@ -157,7 +158,7 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
 
           {/* Estádio — onde o jogo aconteceu (casa do mandante) */}
           {homeTeam && (() => {
-            const st = stadiumFor(homeTeam.coachId, !!homeTeam.coachPrime);
+            const st = stadiumDisplayFor(homeTeam.coachId, !!homeTeam.coachPrime, projectLevel(homeTeam.clubProjects, 'stadium'));
             return (
               <div className="flex items-center gap-3 mb-3 rounded-lg px-3 py-2" style={{ background: '#0F0F1A', border: `1px solid ${st.prime ? '#E8C84A44' : '#1A1A2A'}` }}>
                 <div className="w-[66px] h-[66px] rounded-lg overflow-hidden flex-shrink-0" style={{ border: `2px solid ${st.prime ? '#E8C84A66' : '#C9A84C55'}`, background: 'linear-gradient(135deg,#12203a,#0A0A12)' }}>

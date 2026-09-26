@@ -72,11 +72,12 @@ export interface Player {
   estribado?: boolean;    // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
   todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +15 em tudo e +50 de química geral
   capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão vem DOBRADO
-  magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida de liga por 1,5, mas −5 em tudo nele
+  magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida por 1,5, mas −7 em tudo nele
   prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada 2 titularidades acumuladas
   prodigioStarts?: number; // 📈 titularidades acumuladas desde que a característica foi recebida
   resiliente?: boolean;  // 🔥 Resiliente — cresce após cada derrota do time em que estiver no XI
   resilienteDefeats?: number; // 🔥 derrotas do time contabilizadas enquanto foi titular
+  medicalReturnBoost?: number; // 🏥 bônus permanente acumulado por retornos de lesão
   goleador?: boolean;    // ⚽ Goleador — +1 em tudo a cada 3 gols marcados
   goleadorGoals?: number; // ⚽ gols acumulados desde que recebeu a característica
   goleadorMatchIds?: string[]; // ⚽ partidas já contabilizadas (idempotência online/reconexão)
@@ -412,7 +413,7 @@ export const COACHES: Coach[] = [
     description: 'O Special One. Mestre da organização tática e de vencer jogos difíceis.',
     effect: '+8 Defesa e +5 Físico na marcação. O goleiro ganha +5 em Defesa.',
     specialAbilityName: 'Fortaleza',
-    specialAbility: 'No mata-mata, todos os defensores ganham +10 em Defesa.',
+    specialAbility: 'No mata-mata, todos os defensores ganham +6 em Defesa.',
     preferredFormation: '4-2-3-1',
     bonuses: [
       { phase: 'Defesa', attribute: 'defending', value: 8 },

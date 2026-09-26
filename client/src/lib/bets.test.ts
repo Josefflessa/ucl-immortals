@@ -7,8 +7,10 @@ import {
   BET_BUILDER_MAX_MULTIPLIER,
   BET_OUTCOME_MULT,
   BET_TOTAL_CARDS_LINES,
+  bettingPayoutRulesForLevel,
   Bet,
   createBet,
+  revealEligibleKoBets,
   roundStakeUsed,
   settleBet,
 } from './bets';
@@ -60,6 +62,21 @@ describe('settleBet', () => {
   });
   it('arredonda o payout de stake ímpar', () => {
     expect(settleBet(bet({ stake: 33 }), { homeGoals: 2, awayGoals: 1 }).payout).toBe(Math.round(33 * BET_EXACT_MULT));
+  });
+  it('aplica os retornos maiores somente no nível 5', () => {
+    const rules = bettingPayoutRulesForLevel(5);
+    expect(rules).toEqual({ outcomeMultiplier: 1.5, exactMultiplier: 2.5, builderMaxMultiplier: 3.5, finalMultiplierBonus: 0.25 });
+    expect(settleBet({ ...bet(), payoutRules: rules }, { homeGoals: 2, awayGoals: 1 }).payout).toBe(275);
+    expect(settleBet({ ...bet({ homeGoals: 1, awayGoals: 0 }), payoutRules: rules }, { homeGoals: 2, awayGoals: 0 }).payout).toBe(175);
+  });
+  it('aplica o mesmo bônus final aos mercados específicos e à combinada', () => {
+    const rules = bettingPayoutRulesForLevel(5);
+    const builder = createBet({
+      matchKey: 'L1:a-b', stake: 100, market: 'builder', payoutRules: rules,
+      selections: [{ type: 'total_goals', operator: 'over' as const, line: 1.5 as const }],
+    });
+    expect(builder?.multiplier).toBe(1.6);
+    expect(settleBet(builder!, { homeGoals: 2, awayGoals: 0 }).payout).toBe(160);
   });
 });
 
@@ -215,5 +232,20 @@ describe('aposta combinada', () => {
       selections: [{ type: 'total_cards', operator: 'over' as const, line: 0.5 as const }],
     });
     expect(settleBet(cardBet!, { homeGoals: 1, awayGoals: 0 })).toEqual({ won: false, tier: 'miss', payout: 0 });
+  });
+});
+
+describe('proteção da Central de Palpites', () => {
+  it('devolve a porcentagem configurada em cada aposta perdida', () => {
+    const losingBet = bet({ matchKey: 'Ktie:1', homeTeamId: 'home', awayTeamId: 'away', homeGoals: 2, awayGoals: 0 });
+    const losingBet2 = bet({ matchKey: 'Kother:1', homeTeamId: 'other-home', awayTeamId: 'other-away', homeGoals: 2, awayGoals: 0 });
+    const ties = [
+      { id: 'tie', homeTeamId: 'home', awayTeamId: 'away', leg1: { homeGoals: 0, awayGoals: 1 } },
+      { id: 'other', homeTeamId: 'other-home', awayTeamId: 'other-away', leg1: { homeGoals: 0, awayGoals: 1 } },
+    ];
+    const result = revealEligibleKoBets([losingBet, losingBet2], ties, 'spectator', [], 25, ['Ktie:1']);
+    expect(result.winnings).toBe(50);
+    expect(result.bets[0].protectionRefund).toBe(25);
+    expect(result.bets[1].protectionRefund).toBe(25);
   });
 });

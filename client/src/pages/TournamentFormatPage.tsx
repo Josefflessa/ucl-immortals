@@ -19,13 +19,11 @@ import { useGame } from '../contexts/GameContext';
 import {
   COMPETITION_FORMAT_PRESETS,
   MAX_BOT_TEAMS,
-  MAX_BET_ROUND_CAP,
   MAX_COMPETITION_TEAMS,
   MAX_ONLINE_PLAYERS,
   MAX_POINTS_PER_RULE,
   MAX_REINFORCEMENT_OPTIONS,
   MIN_COMPETITION_TEAMS,
-  MIN_BET_ROUND_CAP,
   MIN_QUALIFIED_TEAMS,
   MIN_REINFORCEMENT_OPTIONS,
   createCompetitionFormat,
@@ -392,15 +390,15 @@ export default function TournamentFormatPage() {
               </ConfigSection>
             )}
 
-            <ConfigSection index={hasKnockout ? '03' : '02'} eyebrow="REGRAS DA COMPETIÇÃO" title="Recompensas e créditos" description="Defina o ritmo dos reforços gratuitos e os créditos ganhos por desempenho. Essas regras valem só para este torneio." icon={<CircleDollarSign size={17} />}>
+            <ConfigSection index={hasKnockout ? '03' : '02'} eyebrow="REGRAS DA COMPETIÇÃO" title="Recrutamento e créditos" description="Defina o ritmo das ofertas de recrutamento e os créditos ganhos por desempenho. Essas regras valem só para este torneio." icon={<CircleDollarSign size={17} />}>
               <div>
-                <div className="flex items-center gap-2 text-sm font-bold text-white"><ShieldCheck size={16} className="text-[#C9A84C]" /> Reforços gratuitos</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">A escolha aparece para o jogador quando o evento configurado é concluído.</p>
+                <div className="flex items-center gap-2 text-sm font-bold text-white"><ShieldCheck size={16} className="text-[#C9A84C]" /> Recrutamento gratuito</div>
+                <p className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">A oferta aparece para o jogador quando o evento configurado é concluído.</p>
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {([
-                    ['off', 'Sem reforço automático', 'A evolução vem apenas da loja.'],
-                    ['round', hasLeague ? 'Durante a fase de liga' : isGroups ? 'Durante a fase de grupos' : 'Após cada fase', hasLeague ? 'Uma escolha ao fechar cada rodada da liga.' : isGroups ? 'Uma escolha ao fechar cada rodada do grupo.' : 'Uma escolha ao fechar cada fase.'],
-                    ...(hasKnockout ? [['stage', 'Após cada fase eliminatória', 'Uma escolha ao concluir cada bloco eliminatório.'] as const] : []),
+                    ['off', 'Sem recrutamento automático', 'A evolução vem apenas da loja.'],
+                    ['round', hasLeague ? 'Durante a fase de liga' : isGroups ? 'Durante a fase de grupos' : 'Após cada fase', hasLeague ? 'Uma oferta ao fechar cada rodada da liga.' : isGroups ? 'Uma oferta ao fechar cada rodada do grupo.' : 'Uma oferta ao fechar cada fase.'],
+                    ...(hasKnockout ? [['stage', 'Após cada fase eliminatória', 'Uma oferta ao concluir cada bloco eliminatório.'] as const] : []),
                   ] as const).filter(([mode]) => mode !== 'round' || hasLeague || isGroups).map(([mode, title, description]) => (
                     <ChoiceCard key={mode} selected={format.rewards.reinforcement === mode} onClick={() => selectReinforcementMode(mode)} className="rounded-xl border px-3 py-3 text-left transition-colors" style={{ borderColor: format.rewards.reinforcement === mode ? '#C9A84C' : '#242436', background: format.rewards.reinforcement === mode ? '#C9A84C12' : '#0F0F1A' }}>
                       <div className="flex items-center justify-between gap-2"><div className="text-xs font-bold text-white">{title}</div>{format.rewards.reinforcement === mode && <CheckCircle2 size={14} className="text-[#C9A84C]" />}</div>
@@ -411,19 +409,19 @@ export default function TournamentFormatPage() {
                 {hasLeague || isGroups ? (
                   <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-3 py-2.5 text-[10px] leading-relaxed text-[var(--ui-text-faint)]">
                     <Info size={14} className="mt-0.5 shrink-0 text-[#C9A84C]" />
-                    <span><strong className="text-white">Como funciona:</strong> liga e grupos são organizados por rodadas; o mata-mata, por fases eliminatórias. Na liga/grupos, “disponível até a rodada” define a última rodada que pode gerar reforço.</span>
+                    <span><strong className="text-white">Como funciona:</strong> liga e grupos são organizados por rodadas; o mata-mata, por fases eliminatórias. Na liga/grupos, “disponível até a rodada” define a última rodada que pode gerar recrutamento.</span>
                   </div>
                 ) : null}
                 {isReinforcementEnabled && (
                   <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] p-4 sm:grid-cols-2">
                     {format.rewards.reinforcement === 'round' ? (
-                      <NumberField
-                        label="Reforços disponíveis até a rodada"
+                    <NumberField
+                        label="Recrutamento disponível até a rodada"
                         value={format.rewards.reinforcementUntilRound ?? 1}
                         min={1}
                         max={reinforcementLimit}
                         onChange={value => setRewardNumber('reinforcementUntilRound', value)}
-                        helper={`A escolha aparece ao fechar cada rodada até a ${reinforcementLimit}ª, conforme o limite definido.`}
+                        helper={`A oferta aparece ao fechar cada rodada até a ${reinforcementLimit}ª, conforme o limite definido.`}
                       />
                     ) : (
                       <label className="block">
@@ -431,10 +429,10 @@ export default function TournamentFormatPage() {
                         <select value={selectedStageValue} onChange={event => setRewardNumber('reinforcementUntilRound', event.target.value)} className={inputClass}>
                           {stageOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
-                        <span className="mt-1 block text-[10px] leading-relaxed text-[var(--ui-text-faint)]">O limite inclui a fase selecionada: o reforço aparece depois que ela termina. A final nunca oferece reforço.</span>
+                        <span className="mt-1 block text-[10px] leading-relaxed text-[var(--ui-text-faint)]">O limite inclui a fase selecionada: a oferta aparece depois que ela termina. A final nunca oferece recrutamento.</span>
                       </label>
                     )}
-                    <NumberField label="Opções por reforço" value={format.rewards.reinforcementOptions} min={MIN_REINFORCEMENT_OPTIONS} max={MAX_REINFORCEMENT_OPTIONS} onChange={value => setRewardNumber('reinforcementOptions', value)} helper="Quantidade de jogadores exibidos na escolha gratuita." />
+                    <NumberField label="Opções por recrutamento" value={format.rewards.reinforcementOptions} min={MIN_REINFORCEMENT_OPTIONS} max={MAX_REINFORCEMENT_OPTIONS} onChange={value => setRewardNumber('reinforcementOptions', value)} helper="Quantidade de jogadores exibidos na oferta gratuita." />
                   </div>
                 )}
               </div>
@@ -456,7 +454,7 @@ export default function TournamentFormatPage() {
               </div>
             </ConfigSection>
 
-            <ConfigSection index={hasKnockout ? '04' : '03'} eyebrow="REGRAS DA PARTIDA" title="Como cada partida acontece?" description="Personalize os eventos disciplinares e o limite de palpites deste torneio." icon={<Settings2 size={17} />}>
+            <ConfigSection index={hasKnockout ? '04' : '03'} eyebrow="REGRAS DA PARTIDA" title="Como cada partida acontece?" description="Personalize os eventos disciplinares desta competição." icon={<Settings2 size={17} />}>
               <div className="flex flex-col gap-3">
                 <ToggleRow
                   title="Lesões"
@@ -472,16 +470,6 @@ export default function TournamentFormatPage() {
                 />
               </div>
 
-              <div className="mt-6 border-t border-[var(--ui-line-subtle)] pt-5">
-                <NumberField
-                  label="Limite de apostas por rodada"
-                  value={format.matchSettings.betRoundCap}
-                  min={MIN_BET_ROUND_CAP}
-                  max={MAX_BET_ROUND_CAP}
-                  onChange={value => setMatchSetting('betRoundCap', Number(value))}
-                  helper={format.matchSettings.betRoundCap === 0 ? '0 desativa os palpites neste torneio.' : 'Liga/grupos: total compartilhado pela rodada. Mata-mata: limite independente por partida.'}
-                />
-              </div>
             </ConfigSection>
           </motion.div>
           )}
@@ -494,7 +482,7 @@ export default function TournamentFormatPage() {
                 <div className="mt-3 text-xs leading-relaxed text-[var(--ui-text-muted)]">{competitionRewardSummary(format)}</div>
                 <div className="mt-3 border-t border-[var(--ui-line-subtle)] pt-3 text-[10px] leading-relaxed text-[var(--ui-text-faint)]">
                   <span className="font-bold text-[var(--ui-text-muted)]">PARTIDA:</span>{' '}
-                  {format.matchSettings.injuriesEnabled ? 'lesões' : 'sem lesões'} · {format.matchSettings.cardsEnabled ? 'cartões' : 'sem cartões'} · apostas até {format.matchSettings.betRoundCap}
+                  {format.matchSettings.injuriesEnabled ? 'lesões' : 'sem lesões'} · {format.matchSettings.cardsEnabled ? 'cartões' : 'sem cartões'} · banca de apostas fixa
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 p-4 sm:p-5">

@@ -14,15 +14,13 @@ import {
   PRIME_COST,
   PRIME_WINS_REQUIRED,
   SHOP_COSTS,
-  trainCost,
-  TRAIN_BOOST,
   TURBINAR_VARIANTS,
 } from '../../lib/shop';
 import { SCOUT_MIN_OVERALL } from '../../lib/gameEngine';
 import {
   COMPETITION_FORMAT_PRESETS,
   DEFAULT_POINTS_CONFIG,
-  MAX_BET_ROUND_CAP,
+  DEFAULT_MATCH_SETTINGS,
 } from '../../lib/competition';
 
 const GOLD = '#C9A84C';
@@ -101,10 +99,8 @@ const ECONOMY_ITEMS = [
   { icon: '🧹', name: 'Remover característica', cost: SHOP_COSTS.removeVariant, d: 'Remove a característica atual para liberar uma nova aplicação de Turbinar.' },
   { icon: '🌟', name: 'Pacote do Craque', cost: SHOP_COSTS.starPack, d: 'Oferece três opções de jogadores de overall 88 ou mais.' },
   { icon: '🔍', name: 'Caça-talentos', cost: SHOP_COSTS.scout, d: `Oferece até quatro jogadores ${SCOUT_MIN_OVERALL}+ cuja posição principal é a escolhida.` },
-  { icon: '💪', name: 'Treino intensivo', cost: trainCost(0), d: `Aumenta um atributo em +${TRAIN_BOOST}; o custo sobe a cada treino no mesmo jogador.` },
-  { icon: '🔄', name: 'Reroll de reforço', cost: SHOP_COSTS.reroll, d: 'Gera um token para sortear novas opções no reforço pós-partida; tokens acumulam.' },
   { icon: '⭐', name: 'Pacote Único', cost: SHOP_COSTS.uniqueCard, d: 'Mostra quatro Cartas Únicas por rodada; cada abertura sorteia uma delas. Overall 99 e até duas características.' },
-  { icon: '🏥', name: 'Fisioterapia', cost: SHOP_COSTS.physio, d: 'Reduz em uma partida o período de lesão de um jogador.' },
+  { icon: '🏥', name: 'Fisioterapia', cost: SHOP_COSTS.physio, d: 'Reduz em uma partida o período de lesão de um jogador. O nível 1 do Departamento Médico concede 1 uso gratuito por competição.' },
 ];
 
 export default function HowToPlayModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -123,12 +119,12 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
           <Card>
             <H>O FLUXO COMPLETO</H>
             <div className="mt-2 space-y-3">
-              <Step n={1} title="Configure a competição">Escolha o formato, a dificuldade e, se quiser, abra as opções avançadas para ajustar recompensas, reforços, cartões, lesões e limite de apostas.</Step>
+              <Step n={1} title="Configure a competição">Escolha o formato, a dificuldade e, se quiser, abra as opções avançadas para ajustar recompensas, recrutamento, cartões e lesões.</Step>
               <Step n={2} title="Defina sua identidade">Escolha escudo, técnico e formação inicial. O técnico influencia atributos, situações especiais e a química da formação preferida.</Step>
               <Step n={3} title="Monte o elenco no draft">Faça 13 escolhas: 11 titulares e 2 reservas. Cada rodada oferece cartas, e você pode usar até 4 vetos para trocar a oferta.</Step>
               <Step n={4} title="Revise a escalação">Ajuste posições, tática, capitão e cobradores; confira a química, o estado do elenco e as indisponibilidades.</Step>
-              <Step n={5} title="Jogue a competição">Acompanhe a partida ao vivo, o momentum, as estatísticas e os lances. O resultado gera pontos do torneio, créditos e, quando configurado, reforços.</Step>
-              <Step n={6} title="Evolua entre os jogos">Use loja, treino, mercado e alterações no elenco. Nos formatos com mata-mata, cada confronto pode ser em ida e volta e o agregado importa.</Step>
+              <Step n={5} title="Jogue a competição">Acompanhe a partida ao vivo, o momentum, as estatísticas e os lances. O resultado gera pontos do torneio, créditos e, quando configurado, ofertas de recrutamento.</Step>
+              <Step n={6} title="Evolua entre os jogos">Use a Loja, o Centro de Treinamento, o mercado e as alterações no elenco. Nos formatos com mata-mata, cada confronto pode ser em ida e volta e o agregado importa.</Step>
             </div>
           </Card>
 
@@ -168,16 +164,16 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
             <div className="grid gap-2 sm:grid-cols-2">
               <InfoRow label="🩹 Lesões">Ative ou desative novas lesões durante os jogos. Com a opção ativa, uma lesão pode deixar o jogador fora por mais de uma partida.</InfoRow>
               <InfoRow label="🟨 Cartões">Ative ou desative amarelos, vermelhos e suspensões. Desligar cartões não remove as faltas: elas continuam aparecendo nas estatísticas.</InfoRow>
-              <InfoRow label="🎯 Limite de apostas">Define o máximo de saldo apostado por rodada, de 0 a {MAX_BET_ROUND_CAP}. Zero desativa as apostas. Em liga e grupos, o limite é compartilhado pela rodada; no mata-mata, vale por confronto.</InfoRow>
+              <InfoRow label="🎯 Limite de apostas">A banca é uma regra fixa do jogo: {DEFAULT_MATCH_SETTINGS.betRoundCap} créditos por rodada em liga/grupos e por confronto no mata-mata. O limite não é alterado na criação da competição.</InfoRow>
               <InfoRow label="🔁 Ida e volta">Escolha uma ou duas partidas por confronto e se a final será jogo único. No agregado empatado, a decisão vai para prorrogação e pênaltis.</InfoRow>
             </div>
           </Card>
 
           <Card>
-            <H>REFORÇOS E RECOMPENSAS</H>
-            <P>Você pode deixar reforços desligados, recebê-los por rodada ou por fase. A janela pode ser limitada e cada oferta traz de 3 a 6 opções. Também é possível ativar/desativar os créditos da loja na liga e no mata-mata e personalizar cada valor de recompensa.</P>
+            <H>RECRUTAMENTO E RECOMPENSAS</H>
+            <P>Você pode deixar o recrutamento desligado, recebê-lo por rodada ou por fase. A janela pode ser limitada e cada oferta traz de 3 a 6 opções antes dos bônus do Centro de Recrutamento. Também é possível ativar/desativar os créditos da loja na liga e no mata-mata e personalizar cada valor de recompensa.</P>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              <Chip color="#34D399">Padrão: reforço por rodada</Chip>
+              <Chip color="#34D399">Padrão: recrutamento por rodada</Chip>
               <Chip color="#60A5FA">Padrão: 6 opções</Chip>
               <Chip color="#FBBF24">Créditos configuráveis</Chip>
             </div>
@@ -298,7 +294,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
       icon: '📐', label: 'Formações',
       body: (
         <div className="space-y-3">
-          <P>O desenho do campo muda a distribuição das posições, as conexões e os pontos fortes do time. A formação do técnico também é uma fonte de química. Quando uma formação leva vantagem sobre a outra, o time favorecido recebe um <b style={{ color: GOLD }}>bônus temporário durante a partida</b>.</P>
+          <P>O desenho do campo muda a distribuição das posições, as conexões e os pontos fortes do time. A formação do técnico também é uma fonte de química. Quando sua formação leva vantagem sobre a outra, o Núcleo de Análise transforma isso em um <b style={{ color: '#7FCF6A' }}>bônus leve</b>, <b style={{ color: '#F0D77A' }}>bônus claro</b> ou <b style={{ color: '#F97316' }}>bônus forte</b> durante a partida.</P>
           {FORMATIONS.map((formation) => (
             <Card key={formation.id}>
               <div className="mb-1 flex items-center gap-2">
@@ -353,7 +349,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
           <Card accent="#F59E0B44">
             <H>CARACTERÍSTICAS E ATRIBUTOS</H>
             <P>Traits são os estilos de jogo aleatórios do jogador: finalização, passe, defesa, físico, goleiro, liderança e outros. O efeito pode ser contínuo ou condicionado. Quando uma trait dá bônus, ela muda os atributos efetivos correspondentes — não apenas o número do overall.</P>
-            <P><span className="mt-2 block">As características de carta, como Em Alta ou Lobo Solitário, também podem alterar os atributos. No draft, loja, álbum e escolha de reforço você vê essa versão base da carta; no Meu Time e nas partidas, os efeitos do elenco são somados por cima.</span></P>
+            <P><span className="mt-2 block">As características de carta, como Em Alta ou Lobo Solitário, também podem alterar os atributos. No draft, loja, álbum e escolha de recrutamento você vê essa versão base da carta; no Meu Time e nas partidas, os efeitos do elenco são somados por cima.</span></P>
           </Card>
 
           <H>CARACTERÍSTICAS ESPECIAIS</H>
@@ -415,7 +411,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
             <div className="grid gap-2 sm:grid-cols-2">
               <InfoRow label="Amarelos">O jogador acumula cartões; ao chegar a 3 amarelos acumulados, cumpre 1 partida de suspensão e a contagem é reiniciada.</InfoRow>
               <InfoRow label="Vermelho">O jogador é expulso e fica suspenso por 1 partida. Para goleiros, a penalidade é mais pesada.</InfoRow>
-              <InfoRow label="Lesão">Uma lesão pode deixar o jogador indisponível por 1 a 3 partidas. A fisioterapia reduz uma partida do período.</InfoRow>
+              <InfoRow label="Lesão">A duração é fixa conforme o Departamento Médico: 3 partidas no nível 1, 2 no nível 2 e 1 a partir do nível 3. A Fisioterapia reduz uma partida do período.</InfoRow>
               <InfoRow label="Configuração">Se cartões ou lesões forem desligados no torneio, novos eventos desse tipo não são gerados; faltas continuam existindo.</InfoRow>
             </div>
           </Card>
@@ -443,7 +439,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
 
           <Card>
             <H>APOSTAS</H>
-            <P>Você monta um único bilhete por partida e pode marcar uma ou mais condições: placar exato, resultado, total de gols e ambas marcam. Todas as condições marcadas precisam acontecer. O resultado simples paga <b style={{ color: '#34D399' }}>1,5×</b>, o placar exato <b style={{ color: '#34D399' }}>2,5×</b> e o multiplicador do bilhete aparece antes da confirmação. Errar perde a stake; o limite configurado vale para o total apostado no escopo da rodada ou do confronto.</P>
+            <P>Você monta um único bilhete por partida e pode marcar uma ou mais condições: placar exato, resultado, total de gols e ambas marcam. Todas as condições marcadas precisam acontecer. O resultado simples paga <b style={{ color: '#34D399' }}>1,5×</b>, o placar exato <b style={{ color: '#34D399' }}>2,5×</b> e o multiplicador do bilhete aparece antes da confirmação. Errar perde a stake; a banca fixa vale para o total apostado no escopo da rodada ou do confronto.</P>
           </Card>
 
           <H>LOJA</H>
@@ -469,7 +465,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
           <Card accent={`${GOLD}44`}><H>CAMINHO ATÉ A FINAL</H><P>Dependendo do formato, você pode passar por fase de liga, grupos, playoffs, oitavas, quartas, semifinais e final. A tela de competição mostra tabela, confrontos, resultados, artilharia, assistências, notas, goleiros, desarmes e cartões.</P></Card>
           <Card><H>AGREGADO E FORMATO DOS JOGOS</H><P>Confrontos de ida e volta são decididos pelo placar agregado. A final pode ser jogo único ou ida e volta, conforme a configuração. O mando muda entre os jogos; a final única é disputada em campo neutro.</P></Card>
           <Card accent="#F59E0B44"><H>EMPATE</H><P>Se o agregado terminar empatado, o jogo usa prorrogação e, persistindo a igualdade, pênaltis. O cobrador oficial recebe o benefício de compostura, e traits, goleiro e capitão podem influenciar o contexto.</P></Card>
-          <Card><H>REFORÇO PÓS-PARTIDA</H><P>Quando o formato e a janela de recompensas permitem, após a rodada ou fase você escolhe uma nova carta entre as opções apresentadas. Um token de reroll permite renovar a oferta sem apagar a escolha já feita.</P></Card>
+          <Card><H>RECRUTAMENTO PÓS-PARTIDA</H><P>Quando o formato e a janela de recompensas permitem, após a rodada ou fase você escolhe uma nova carta entre as opções apresentadas. O Centro de Recrutamento pode liberar um reroll gratuito por oferta conforme o nível do projeto.</P></Card>
         </div>
       ),
     },

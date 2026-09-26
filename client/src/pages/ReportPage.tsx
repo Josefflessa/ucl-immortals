@@ -15,7 +15,7 @@ import {
 } from '../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
 import CoachStadiumPanel from '../components/game/CoachStadiumPanel';
-import { stadiumFor } from '../lib/stadium';
+import { projectLevel } from '../lib/clubProjects';
 import Crest from '../components/game/Crest';
 import PlayerCard from '../components/game/PlayerCard';
 import PlayerAvatar from '../components/game/PlayerAvatar';
@@ -434,7 +434,7 @@ export default function ReportPage() {
               coach={coach}
               formation={formation}
               coachPrime={!!playerTeam.coachPrime}
-              stadium={stadiumFor(playerTeam.coachId, !!playerTeam.coachPrime)}
+              stadiumProjectLevel={projectLevel(playerTeam.clubProjects, 'stadium')}
               reportSummary
             />
           </motion.div>

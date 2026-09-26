@@ -6,6 +6,8 @@ import {
   statKey, getPlayerSeasonStats, PREFERRED_FORMATION_CHEM_BONUS,
   PlayerCard, MatchResult, applyDefeatGrowth, teamLostMatch, RESILIENTE_DEFEAT_BOOST,
   generateScoutOptions, SCOUT_MIN_OVERALL,
+  formationCounterBonusForAnalysisLevel, formationAdvantageLabelForAnalysisLevel,
+  tacticBuffMultiplierForAnalysisLevel, tacticStatBonus,
 } from './gameEngine';
 
 const asCard = (p: Player, over: Partial<PlayerCard> = {}): PlayerCard =>
@@ -14,6 +16,31 @@ const asCard = (p: Player, over: Partial<PlayerCard> = {}): PlayerCard =>
 const outfield = PLAYERS.find(p => p.position !== 'GK')!;
 const coach = COACHES[0];
 const noChem = { passing: 0, pace: 0, special: false };
+
+describe('formation matchup analysis bonus', () => {
+  it('uses the calibrated +3, +5 and +7 progression', () => {
+    expect(formationCounterBonusForAnalysisLevel(1)).toBe(3);
+    expect(formationCounterBonusForAnalysisLevel(2)).toBe(3);
+    expect(formationCounterBonusForAnalysisLevel(3)).toBe(5);
+    expect(formationCounterBonusForAnalysisLevel(4)).toBe(5);
+    expect(formationCounterBonusForAnalysisLevel(5)).toBe(7);
+    expect(formationCounterBonusForAnalysisLevel(Number.NaN)).toBe(3);
+    expect(formationAdvantageLabelForAnalysisLevel(1)).toBe('Vantagem leve');
+    expect(formationAdvantageLabelForAnalysisLevel(3)).toBe('Vantagem clara');
+    expect(formationAdvantageLabelForAnalysisLevel(5)).toBe('Vantagem forte');
+  });
+
+  it('amplifies each existing tactic buff by 50% at levels 2 and 4', () => {
+    expect(tacticBuffMultiplierForAnalysisLevel(1)).toBe(1);
+    expect(tacticBuffMultiplierForAnalysisLevel(2)).toBe(1.5);
+    expect(tacticBuffMultiplierForAnalysisLevel(4)).toBe(2);
+    expect(tacticStatBonus('balanced', 'pace', 1)).toBe(2);
+    expect(tacticStatBonus('balanced', 'pace', 2)).toBe(3);
+    expect(tacticStatBonus('balanced', 'pace', 4)).toBe(4);
+    expect(tacticStatBonus('possession', 'passing', 2)).toBe(8);
+    expect(tacticStatBonus('possession', 'passing', 4)).toBe(10);
+  });
+});
 
 describe('scout pack filters', () => {
   it('returns only unowned players with the requested primary position and minimum overall', () => {
@@ -79,6 +106,50 @@ describe('getEffectiveAttribute', () => {
     const forward = getEffectiveAttribute(player, 'passing', coach, '', noChem, '__neutral__', { role: 'ST' });
     const midfielder = getEffectiveAttribute(player, 'passing', coach, '', noChem, '__neutral__', { role: 'CM' });
     expect(midfielder - forward).toBe(5); // DNA Guardiola: +5 Passe nos meio-campistas
+  });
+});
+
+describe('Técnico Prime', () => {
+  const noChemistry = { passing: 0, pace: 0, special: 0 };
+  const effective = (
+    coachId: string,
+    player: Player,
+    attribute: keyof Player,
+    context: Record<string, unknown> = {},
+  ) => {
+    const selectedCoach = COACHES.find(candidate => candidate.id === coachId)!;
+    return getEffectiveAttribute(
+      asCard(player),
+      attribute,
+      selectedCoach,
+      '',
+      noChemistry,
+      '__neutral__',
+      context,
+    );
+  };
+
+  it('aumenta a assinatura específica de cada técnico, sem alterar outras regras', () => {
+    const visionPlayer = { ...outfield, vision: 80, traits: [] };
+    expect(effective('guardiola', visionPlayer, 'pace', { coachPrime: true }) - effective('guardiola', visionPlayer, 'pace')).toBe(4);
+
+    const losingPlayer = { ...outfield, traits: [] };
+    expect(effective('klopp', losingPlayer, 'pace', { isLosing: true, coachPrime: true }) - effective('klopp', losingPlayer, 'pace', { isLosing: true })).toBe(6);
+    expect(effective('ferguson', losingPlayer, 'pace', { isLosing: true, coachPrime: true }) - effective('ferguson', losingPlayer, 'pace', { isLosing: true })).toBe(6);
+
+    const defender = { ...outfield, position: 'CB', traits: [] };
+    expect(effective('mourinho', defender, 'defending', { isKnockout: true, role: 'CB', coachPrime: true }) - effective('mourinho', defender, 'defending', { isKnockout: true, role: 'CB' })).toBe(6);
+    expect(effective('ancelotti', losingPlayer, 'pace', { isFinal: true, coachPrime: true }) - effective('ancelotti', losingPlayer, 'pace', { isFinal: true })).toBe(6);
+
+    const legend = { ...outfield, rarity: 'legendary' as const, traits: [] };
+    expect(effective('zidane', legend, 'pace', { isKnockout: true, coachPrime: true }) - effective('zidane', legend, 'pace', { isKnockout: true })).toBe(4);
+  });
+
+  it('preserva os dois bônus posicionais do Luis Enrique e melhora ambos no Prime', () => {
+    const midfielder = { ...outfield, position: 'CM', traits: [] };
+    const attacker = { ...outfield, position: 'ST', traits: [] };
+    expect(effective('luis_enrique', midfielder, 'vision', { role: 'CM', coachPrime: true }) - effective('luis_enrique', midfielder, 'vision', { role: 'CM' })).toBe(4);
+    expect(effective('luis_enrique', attacker, 'pace', { role: 'ST', coachPrime: true }) - effective('luis_enrique', attacker, 'pace', { role: 'ST' })).toBe(4);
   });
 });
 
@@ -276,6 +347,13 @@ describe('simulateMatch', () => {
 describe('generateDraftOptions', () => {
   it('returns the right number of options', () => {
     expect(generateDraftOptions([], []).length).toBe(6);
+    expect(generateDraftOptions([], [], 8).length).toBe(8);
+  });
+
+  it('respects the recruitment overall floor without changing the default draft', () => {
+    const options = generateDraftOptions([], [], 8, 88);
+    expect(options.length).toBeLessThanOrEqual(8);
+    expect(options.every(player => player.overall >= 88)).toBe(true);
   });
 
   it('never mutates the static PLAYERS pool (variant cloning is safe)', () => {

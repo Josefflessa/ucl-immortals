@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { FORMATIONS } from '../../lib/gameData';
-import { formationProfile } from '../../lib/gameEngine';
+import { formationAdvantageLabelForAnalysisLevel, formationProfile } from '../../lib/gameEngine';
 import ImpactMeter from './ImpactMeter';
 import { ChoiceCard } from '../../design-system';
 import FormationPreviewModal, { FormationInfoButton } from './FormationPreviewModal';
@@ -60,10 +60,11 @@ function MatchupPills({ ids, tone }: { ids: string[]; tone: 'positive' | 'negati
   );
 }
 
-interface Props { value: string | undefined; onChange: (id: string) => void; }
+interface Props { value: string | undefined; onChange: (id: string) => void; analysisLevel?: number; }
 
-export default function FormationSelector({ value, onChange }: Props) {
+export default function FormationSelector({ value, onChange, analysisLevel = 1 }: Props) {
   const active = FORMATIONS.find(f => f.id === value) ?? FORMATIONS[0];
+  const matchupLabel = formationAdvantageLabelForAnalysisLevel(analysisLevel);
   const [previewFormationId, setPreviewFormationId] = useState<string | null>(null);
   const previewFormation = FORMATIONS.find(f => f.id === previewFormationId) ?? null;
 
@@ -117,6 +118,15 @@ export default function FormationSelector({ value, onChange }: Props) {
           <span className="font-display text-base tracking-wide text-[var(--ui-brand-strong)]">{active.name}</span>
         </div>
         <ImpactMeter profile={formationProfile(active.id)} />
+        <div className="mt-3 rounded-lg border border-[#60A5FA44] bg-[#60A5FA0D] px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8DBBFF]">Bônus por vantagem na formação</span>
+            <span className="text-xs font-black text-[#8DBBFF]">{matchupLabel}</span>
+          </div>
+          <p className="mt-1 text-[10px] leading-snug text-[var(--ui-text-faint)]">
+            Quando este esquema levar vantagem sobre o adversário, esse é o grau do benefício durante a partida.
+          </p>
+        </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="rounded-lg border border-[#22C55E44] bg-[#22C55E0D] px-2.5 py-2">
             <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[#5EDB82]">Vantagem contra</div>
@@ -128,7 +138,7 @@ export default function FormationSelector({ value, onChange }: Props) {
           </div>
         </div>
         <p className="mt-2 text-[10px] leading-snug text-[var(--ui-text-faint)]">
-          A vantagem é aplicada durante a partida quando o adversário usa uma formação listada acima.
+          A vantagem só aparece quando o adversário usa uma formação listada acima; contra as demais, o confronto fica equilibrado.
         </p>
       </div>
 

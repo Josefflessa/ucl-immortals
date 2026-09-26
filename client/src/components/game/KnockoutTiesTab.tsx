@@ -11,7 +11,8 @@ import { MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel } from 
 import MatchDetailsModal from './MatchDetailsModal';
 import Crest from './Crest';
 import BetSlipModal, { type BetSlipSubmission } from './BetSlipModal';
-import { buildKnockoutMatchKey, describeBet, BET_ROUND_CAP, Bet } from '../../lib/bets';
+import { buildKnockoutMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, bettingPayoutRulesForLevel } from '../../lib/bets';
+import { bettingStakeCapBonus, projectLevel } from '../../lib/clubProjects';
 import { unavailableStarters } from '../../lib/discipline';
 import { getOnlineKnockoutParticipantIds, getReadinessStatus, isOnlineHumanMatch, sortMatchesForOnlineDisplay } from '../../lib/onlineReadiness';
 
@@ -400,7 +401,7 @@ export default function KnockoutTiesTab() {
                       const txt = b.tier === 'exact' ? `✅ Palpite ${word}: placar exato (+${b.payout})`
                         : b.tier === 'outcome' ? `✅ Palpite ${word}: resultado certo (+${b.payout})`
                         : b.tier === 'builder' ? `✅ Aposta ${word}: certa (+${b.payout})`
-                          : `❌ Palpite ${word} perdido (−${b.stake})`;
+                          : `❌ Palpite ${word} perdido (−${b.stake})${(b.protectionRefund ?? 0) > 0 ? ` · devolução +${b.protectionRefund}` : ''}`;
                       return <div key={word} className="text-[11px] font-black" style={{ color: b.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
                     };
                     return (
@@ -573,12 +574,15 @@ export default function KnockoutTiesTab() {
       {/* 🎯 Slip de palpite (mata-mata) */}
       {betSlip && (() => {
           const myBet = betFor(betSlip.matchKey);
-          const capLeft = state.competitionFormat?.matchSettings?.betRoundCap ?? BET_ROUND_CAP; // por jogo: cada partida vai até o teto cheio
+          const bettingLevel = projectLevel(playerTeam?.clubProjects, 'betting');
+          const betCap = BET_ROUND_CAP + bettingStakeCapBonus(bettingLevel);
+          const capLeft = Math.max(0, betCap - roundStakeUsed(bets, betSlip.matchKey) + (myBet?.stake ?? 0));
           return (
             <BetSlipModal
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
               cardsEnabled={state.competitionFormat?.matchSettings?.cardsEnabled !== false}
+              payoutRules={bettingPayoutRulesForLevel(bettingLevel)}
               onConfirm={(submission: BetSlipSubmission) => {
                 if (online) shopPlaceBetOnline(betSlip.matchKey, submission.homeGoals, submission.awayGoals, submission.stake, betSlip.homeTeamId, betSlip.awayTeamId, submission.market, submission.selections);
                 else dispatch({

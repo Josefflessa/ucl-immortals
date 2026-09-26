@@ -15,6 +15,8 @@ export const GOAL_PTS = 3;           // per goal scored (rewards attacking)
 export const CLEAN_SHEET_PTS = 20;   // not conceding
 
 export interface MatchPoints {
+  /** Stable match identity used to acknowledge the reward exactly once in the UI. */
+  matchKey?: string;
   total: number;
   outcome: 'win' | 'draw' | 'loss';
   goalsFor: number;
@@ -25,6 +27,13 @@ export interface MatchPoints {
   gdBonus: number;
   goalsBonus: number;
   csBonus: number;
+  /** Optional post-match modifiers, populated after the project/variant bonuses are applied. */
+  baseTotal?: number;
+  supportersBonus?: number;
+  supportersPercent?: number;
+  supportersVenue?: 'home' | 'away' | 'neutral';
+  magnataBonus?: number;
+  magnataPercent?: number;
 }
 
 // Points the PLAYER earns from one finished league match (from their perspective).
@@ -61,10 +70,9 @@ export const SHOP_COSTS = {
   turbinar: 300,
   starPack: 350,
   scout: 220,
-  reroll: 120, // 🔄 +1 token de re-sorteio do reforço (ilimitado, acumula entre rodadas)
   removeVariant: 150, // 🧹 remove a característica de um jogador (pra poder aplicar outra)
   uniqueCard: 750,    // ⭐ Pacote Único (oferta de 4 cartas por rodada; sorteia uma, raridade Única, overall 99)
-  physio: 250,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
+  physio: 150,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
 } as const;
 
 // ⭐ Técnico Prime (Fase 2): critério + custo pra evoluir o técnico.
@@ -88,8 +96,8 @@ export function sellValue(rarity: string): number {
   return SELL_VALUES[rarity] ?? SELL_VALUES.bronze;
 }
 
-// ── Training (💪) — +3 to a chosen attribute, no cap. Escalating cost per player so stacking
-// everything on one star is expensive (≈ a whole league for +12), while spreading is cheap. ──
+// ── Training attributes and legacy level-1 constants. The user-facing flow now
+// lives in Centro de Treinamento; project-specific formulas are in clubProjects.ts. ──
 export const TRAIN_BOOST = 3;
 export const TRAIN_BASE_COST = 100;
 export const TRAIN_COST_STEP = 50;
@@ -127,7 +135,7 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'estribado', icon: '💰', label: 'Estribado', color: '#FACC15', desc: '+1 em todos os atributos a cada 100 créditos que você possui.' },
   { key: 'todosPorUm', icon: '🤝', label: 'Todos por um', color: '#4ADE80', desc: 'Sozinha não faz nada. Se os 11 titulares tiverem, todos ganham +15 em tudo e o time recebe +50 de química geral.' },
   { key: 'capitaoNato', icon: '🗣️', label: 'Capitão Nato', color: '#F97316', desc: 'Se for o CAPITÃO do time, o bônus de capitão vem DOBRADO.' },
-  { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os créditos da partida de liga por 1,5. Mas −5 em todos os atributos nele.' },
+  { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os créditos da partida por 1,5, na liga e no mata-mata. Mas −7 em todos os atributos nele.' },
   { key: 'prodigio', icon: '📈', label: 'Prodígio', color: '#FDE047', desc: '+1 em todos os atributos a cada 2 partidas iniciadas como titular desde que recebeu a característica.' },
   { key: 'resiliente', icon: '🔥', label: 'Resiliente', color: '#FB7185', desc: '+2 em todos os atributos a cada derrota do time em que for titular. Acumula.' },
   { key: 'goleador', icon: '⚽', label: 'Goleador', color: '#F97316', desc: '+1 em todos os atributos a cada 3 gols marcados. Acumula.' },

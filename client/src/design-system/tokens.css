@@ -171,6 +171,7 @@
   }
 
   .ui-topbar__inner {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -224,6 +225,54 @@
     flex: 1 1 auto;
   }
 
+  .ui-topbar__inner--with-center {
+    display: grid;
+    grid-template-columns: auto minmax(42px, 1fr) auto;
+  }
+
+  .ui-topbar__center {
+    min-width: 0;
+    justify-self: center;
+  }
+
+  .ui-topbar__right {
+    min-width: 0;
+    justify-self: end;
+  }
+
+  .credits-wallet {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 4px 9px;
+    border: 1px solid #C9A84C55;
+    border-radius: 999px;
+    background: #0A0A14;
+    white-space: nowrap;
+  }
+
+  .credits-wallet__icon {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .credits-wallet__label {
+    color: var(--ui-text-muted);
+    font-family: var(--font-ui), sans-serif;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    line-height: 1;
+  }
+
+  .credits-wallet__value {
+    color: var(--ui-brand-strong);
+    font-family: var(--font-display), sans-serif;
+    font-size: 20px;
+    line-height: 1;
+  }
+
   @media (max-width: 639px) {
     .ui-topbar__inner--with-context {
       flex-wrap: wrap;
@@ -236,6 +285,20 @@
       flex: 1 1 100%;
       max-width: 100%;
       margin-left: 0;
+    }
+
+    .credits-wallet {
+      min-height: 30px;
+      gap: 4px;
+      padding-inline: 7px;
+    }
+
+    .credits-wallet__label {
+      display: none;
+    }
+
+    .credits-wallet__value {
+      font-size: 18px;
     }
   }
 
@@ -1084,6 +1147,27 @@
     flex: 1 1 0;
     overflow: hidden;
     padding-inline: 8px;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 899px) {
+  .market-player-row {
+    justify-content: center;
+  }
+
+  .ui-tabs--split-mobile {
+    gap: 0;
+    overflow-x: hidden;
+  }
+
+  .ui-tabs--split-mobile > .ui-tab {
+    min-width: 0;
+    width: 50%;
+    flex: 1 1 0;
+    overflow: hidden;
+    padding-inline: 6px;
+    text-align: center;
     text-overflow: ellipsis;
   }
 }

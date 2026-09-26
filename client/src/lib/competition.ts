@@ -16,6 +16,9 @@ export const MAX_QUALIFIED_TEAMS = 24;
 export const MIN_REINFORCEMENT_OPTIONS = 3;
 export const MAX_REINFORCEMENT_OPTIONS = 6;
 export const MAX_POINTS_PER_RULE = 1000;
+// The betting bank is a game rule, not a tournament customization.
+export const FIXED_BET_ROUND_CAP = 200;
+// Kept exported for old imports and saved-format compatibility.
 export const MIN_BET_ROUND_CAP = 0;
 export const MAX_BET_ROUND_CAP = 10000;
 
@@ -31,7 +34,7 @@ export interface CompetitionMatchSettings {
 export const DEFAULT_MATCH_SETTINGS: CompetitionMatchSettings = {
   injuriesEnabled: true,
   cardsEnabled: true,
-  betRoundCap: 200,
+  betRoundCap: FIXED_BET_ROUND_CAP,
 };
 
 /** Credits awarded to the player's shop balance after a completed match. */
@@ -206,9 +209,9 @@ function isPowerOfTwo(value: number): boolean {
 function validateRewards(rewards: unknown, maxReinforcementWindow: number): string | null {
   if (!rewards || typeof rewards !== 'object') return 'Defina as recompensas da competição.';
   const value = rewards as Partial<CompetitionRewardsConfig>;
-  if (value.reinforcement !== 'off' && value.reinforcement !== 'round' && value.reinforcement !== 'stage') return 'Escolha quando os reforços serão oferecidos.';
-  if (!isInteger(value.reinforcementOptions) || value.reinforcementOptions < MIN_REINFORCEMENT_OPTIONS || value.reinforcementOptions > MAX_REINFORCEMENT_OPTIONS) return `As opções de reforço devem ficar entre ${MIN_REINFORCEMENT_OPTIONS} e ${MAX_REINFORCEMENT_OPTIONS}.`;
-  if (value.reinforcement !== 'off' && value.reinforcementUntilRound !== null && (!isInteger(value.reinforcementUntilRound) || value.reinforcementUntilRound < 1 || value.reinforcementUntilRound > maxReinforcementWindow)) return `A janela de reforços deve ficar entre 1 e ${maxReinforcementWindow}.`;
+  if (value.reinforcement !== 'off' && value.reinforcement !== 'round' && value.reinforcement !== 'stage') return 'Escolha quando as ofertas de recrutamento serão oferecidas.';
+  if (!isInteger(value.reinforcementOptions) || value.reinforcementOptions < MIN_REINFORCEMENT_OPTIONS || value.reinforcementOptions > MAX_REINFORCEMENT_OPTIONS) return `As opções de recrutamento devem ficar entre ${MIN_REINFORCEMENT_OPTIONS} e ${MAX_REINFORCEMENT_OPTIONS}.`;
+  if (value.reinforcement !== 'off' && value.reinforcementUntilRound !== null && (!isInteger(value.reinforcementUntilRound) || value.reinforcementUntilRound < 1 || value.reinforcementUntilRound > maxReinforcementWindow)) return `A janela de recrutamento deve ficar entre 1 e ${maxReinforcementWindow}.`;
   if (typeof value.pointsEnabled !== 'boolean' || typeof value.knockoutPointsEnabled !== 'boolean') return 'Defina se os créditos da loja estarão ativos nas fases.';
   if (!value.points || typeof value.points !== 'object') return 'Defina os créditos da partida.';
   for (const key of ['win', 'draw', 'loss', 'goalDifference', 'goal', 'cleanSheet'] as const) {
@@ -221,13 +224,12 @@ function validateRewards(rewards: unknown, maxReinforcementWindow: number): stri
 export function normalizeMatchSettings(input: unknown): CompetitionMatchSettings {
   if (!input || typeof input !== 'object') return { ...DEFAULT_MATCH_SETTINGS };
   const value = input as Partial<CompetitionMatchSettings>;
-  const betRoundCap = Number(value.betRoundCap);
   return {
     injuriesEnabled: value.injuriesEnabled !== false,
     cardsEnabled: value.cardsEnabled !== false,
-    betRoundCap: Number.isInteger(betRoundCap)
-      ? Math.min(MAX_BET_ROUND_CAP, Math.max(MIN_BET_ROUND_CAP, betRoundCap))
-      : DEFAULT_MATCH_SETTINGS.betRoundCap,
+    // Older rooms may still carry a custom value; normalize it to the fixed
+    // game rule so the old setting cannot silently change the economy.
+    betRoundCap: FIXED_BET_ROUND_CAP,
   };
 }
 
@@ -286,10 +288,9 @@ export function validateCompetitionFormat(value: unknown): string | null {
   if (format.matchSettings !== undefined) {
     const settings = format.matchSettings as Partial<CompetitionMatchSettings>;
     if (typeof settings.injuriesEnabled !== 'boolean' || typeof settings.cardsEnabled !== 'boolean') return 'Defina se lesões e cartões estarão ativos.';
-    if (!isInteger(settings.betRoundCap) || settings.betRoundCap < MIN_BET_ROUND_CAP || settings.betRoundCap > MAX_BET_ROUND_CAP) return `O limite de aposta deve ficar entre ${MIN_BET_ROUND_CAP} e ${MAX_BET_ROUND_CAP}.`;
   }
-  if (format.id === 'league' && format.rewards?.reinforcement === 'stage') return 'Pontos corridos aceita reforço por rodada, não por fase.';
-  if (format.id === 'knockout' && format.rewards?.reinforcement === 'round') return 'O mata-mata direto aceita reforço por fase, não por rodada.';
+  if (format.id === 'league' && format.rewards?.reinforcement === 'stage') return 'Pontos corridos aceita recrutamento por rodada, não por fase.';
+  if (format.id === 'knockout' && format.rewards?.reinforcement === 'round') return 'O mata-mata direto aceita recrutamento por fase, não por rodada.';
   const rewardsError = validateRewards(format.rewards, reinforcementWindowLimit(format as CompetitionFormat));
   if (rewardsError) return rewardsError;
   return null;
@@ -333,6 +334,6 @@ export function competitionRewardSummary(format: CompetitionFormat): string {
   const normalized = normalizeCompetitionFormat(format);
   const rewards = normalized.rewards;
   const roundName = normalized.id === 'groups_knockout' ? 'rodada de grupos' : normalized.id === 'knockout' ? 'fase' : 'rodada da liga';
-  const reinforcement = rewards.reinforcement === 'off' ? 'sem reforços automáticos' : rewards.reinforcement === 'round' ? `1 reforço a cada ${roundName} até a ${rewards.reinforcementUntilRound ?? 'última'}` : '1 reforço ao concluir cada fase eliminatória até o limite escolhido';
+  const reinforcement = rewards.reinforcement === 'off' ? 'sem recrutamento automático' : rewards.reinforcement === 'round' ? `1 oferta a cada ${roundName} até a ${rewards.reinforcementUntilRound ?? 'última'}` : '1 oferta ao concluir cada fase eliminatória até o limite escolhido';
   return `${reinforcement} · ${rewards.pointsEnabled ? 'créditos da loja ativos' : 'créditos da loja desligados'}`;
 }

@@ -10,6 +10,28 @@ export const BET_EXACT_MULT = 2.5;    // acertar o placar exato
 export const BET_ROUND_CAP = DEFAULT_MATCH_SETTINGS.betRoundCap; // teto padrão de stake TOTAL por rodada
 export const BET_MAX_GOALS = 15;      // teto do stepper de placar (0..15 por lado)
 
+export interface BetPayoutRules {
+  outcomeMultiplier: number;
+  exactMultiplier: number;
+  builderMaxMultiplier: number;
+  /** Flat bonus applied once to the final multiplier of every winning ticket. */
+  finalMultiplierBonus: number;
+}
+
+export const DEFAULT_BET_PAYOUT_RULES: BetPayoutRules = {
+  outcomeMultiplier: BET_OUTCOME_MULT,
+  exactMultiplier: BET_EXACT_MULT,
+  builderMaxMultiplier: 3.5,
+  finalMultiplierBonus: 0,
+};
+
+/** Level 5 is the only project level that changes successful-bet returns. */
+export function bettingPayoutRulesForLevel(level: number): BetPayoutRules {
+  return Number.isFinite(level) && level >= 5
+    ? { ...DEFAULT_BET_PAYOUT_RULES, finalMultiplierBonus: 0.25 }
+    : { ...DEFAULT_BET_PAYOUT_RULES };
+}
+
 // A combinada usa poucos mercados estáveis e fáceis de explicar. As odds-base não
 // são multiplicadas integralmente porque alguns mercados são correlacionados (por
 // exemplo, ambas marcam e mais de 2,5). O desconto abaixo mantém o prêmio atrativo
@@ -64,6 +86,7 @@ export type BetDraft = {
   stake: number;
   market?: BetMarket;
   selections?: unknown;
+  payoutRules?: BetPayoutRules;
 };
 
 export interface Bet {
@@ -83,6 +106,9 @@ export interface Bet {
   // Stored when the ticket is created so future balance changes cannot alter an
   // already placed bet's return. The server always calculates this value itself.
   multiplier?: number;
+  payoutRules?: BetPayoutRules;
+  /** Credits returned by the Central de Palpites after a protected loss. */
+  protectionRefund?: number;
   settled?: boolean;     // resultado já calculado (não exibir/creditar ainda)
   revealed?: boolean;    // já creditado + exibido (pós anti-spoiler)
   won?: boolean;
@@ -144,9 +170,9 @@ export function normalizeBuilderSelections(value: unknown): BetBuilderSelection[
   return new Set(parsed.map(selection => selection.type)).size === parsed.length ? parsed : null;
 }
 
-export function builderSelectionMultiplier(selection: BetBuilderSelection): number {
-  if (selection.type === 'exact_score') return BET_EXACT_MULT;
-  if (selection.type === 'outcome') return BET_OUTCOME_MULT;
+export function builderSelectionMultiplier(selection: BetBuilderSelection, payoutRules: BetPayoutRules = DEFAULT_BET_PAYOUT_RULES): number {
+  if (selection.type === 'exact_score') return payoutRules.exactMultiplier;
+  if (selection.type === 'outcome') return payoutRules.outcomeMultiplier;
   if (selection.type === 'total_goals') return BET_TOTAL_GOALS_MULTIPLIERS[selection.operator][selection.line];
   if (selection.type === 'total_cards') return BET_TOTAL_CARDS_MULTIPLIERS[selection.operator][selection.line];
   if (selection.type === 'both_score') return selection.value ? 1.7 : 1.6;
@@ -224,13 +250,17 @@ function selectionsUsedForPricing(selections: BetBuilderSelection[]): BetBuilder
 }
 
 /** Returns the locked, conservative multiplier for a valid combined ticket. */
-export function calculateBuilderMultiplier(selections: unknown): number | null {
+export function calculateBuilderMultiplier(
+  selections: unknown,
+  maxMultiplier = DEFAULT_BET_PAYOUT_RULES.builderMaxMultiplier,
+  payoutRules: BetPayoutRules = DEFAULT_BET_PAYOUT_RULES,
+): number | null {
   const normalized = normalizeBuilderSelections(selections);
   if (!normalized) return null;
   if (!selectionSetIsPossible(normalized)) return null;
 
   const pricedSelections = selectionsUsedForPricing(normalized);
-  const individualMultipliers = pricedSelections.map(builderSelectionMultiplier);
+  const individualMultipliers = pricedSelections.map(selection => builderSelectionMultiplier(selection, payoutRules));
   const product = individualMultipliers.reduce((total, multiplier) => total * multiplier, 1);
   const discount = BET_BUILDER_CORRELATION_DISCOUNT[pricedSelections.length as 1 | 2 | 3 | 4];
   const discountedProduct = product * discount;
@@ -241,9 +271,11 @@ export function calculateBuilderMultiplier(selections: unknown): number | null {
   const strongestIndividual = Math.max(...individualMultipliers);
   const minimumMeaningfulCombination = strongestIndividual
     + BET_BUILDER_MIN_ADDITIONAL_MULTIPLIER * Math.max(0, pricedSelections.length - 1);
+  const baseMultiplier = Math.round(Math.max(strongestIndividual, discountedProduct, minimumMeaningfulCombination) * 100) / 100;
+  const finalBonus = payoutRules.finalMultiplierBonus ?? 0;
   return Math.min(
-    BET_BUILDER_MAX_MULTIPLIER,
-    Math.round(Math.max(strongestIndividual, discountedProduct, minimumMeaningfulCombination) * 100) / 100,
+    Math.max(BET_BUILDER_MAX_MULTIPLIER, maxMultiplier) + finalBonus,
+    Math.round((baseMultiplier + finalBonus) * 100) / 100,
   );
 }
 
@@ -252,6 +284,7 @@ export function createBet(draft: BetDraft): Bet | null {
   if (typeof draft.matchKey !== 'string' || draft.matchKey.length === 0 || draft.matchKey.length > 160
     || !Number.isInteger(draft.stake) || draft.stake <= 0) return null;
   const market = draft.market ?? 'score';
+  const payoutRules = draft.payoutRules ?? DEFAULT_BET_PAYOUT_RULES;
 
   if (market === 'score') {
     if (!Number.isInteger(draft.homeGoals) || !Number.isInteger(draft.awayGoals)
@@ -265,12 +298,13 @@ export function createBet(draft: BetDraft): Bet | null {
       awayGoals: draft.awayGoals!,
       stake: draft.stake,
       market: 'score',
+      payoutRules,
     };
   }
 
   if (market !== 'builder') return null;
   const selections = normalizeBuilderSelections(draft.selections);
-  const multiplier = calculateBuilderMultiplier(selections);
+  const multiplier = calculateBuilderMultiplier(selections, payoutRules.builderMaxMultiplier, payoutRules);
   if (!selections || multiplier == null) return null;
   return {
     matchKey: draft.matchKey,
@@ -284,6 +318,7 @@ export function createBet(draft: BetDraft): Bet | null {
     market: 'builder',
     selections,
     multiplier,
+    payoutRules,
   };
 }
 
@@ -326,6 +361,7 @@ export function settleBet(
     events?: unknown;
   }
 ): { won: boolean; tier: 'exact' | 'outcome' | 'builder' | 'miss'; payout: number } {
+  const payoutRules = bet.payoutRules ?? DEFAULT_BET_PAYOUT_RULES;
   // A two-legged tie changes its home/away order on the return leg. New bets
   // carry the leg's team ids, so a stale UI/order can never turn a win into a
   // loss merely because the two teams were displayed in the opposite order.
@@ -338,7 +374,7 @@ export function settleBet(
 
   if (bet.market === 'builder') {
     const selections = normalizeBuilderSelections(bet.selections);
-    const multiplier = selections ? (bet.multiplier ?? calculateBuilderMultiplier(selections)) : null;
+    const multiplier = selections ? (bet.multiplier ?? calculateBuilderMultiplier(selections, payoutRules.builderMaxMultiplier, payoutRules)) : null;
     // A malformed legacy/network ticket must fail closed and never credit points.
     if (!selections || multiplier == null) return { won: false, tier: 'miss', payout: 0 };
     const effectiveHomeGoals = reversed ? result.awayGoals : result.homeGoals;
@@ -359,8 +395,8 @@ export function settleBet(
   const exact = betHomeGoals === result.homeGoals && betAwayGoals === result.awayGoals;
   const sign = (h: number, a: number) => Math.sign(h - a); // 1 casa / 0 empate / -1 fora
   const outcomeRight = sign(betHomeGoals, betAwayGoals) === sign(result.homeGoals, result.awayGoals);
-  if (exact) return { won: true, tier: 'exact', payout: Math.round(bet.stake * BET_EXACT_MULT) };
-  if (outcomeRight) return { won: true, tier: 'outcome', payout: Math.round(bet.stake * BET_OUTCOME_MULT) };
+  if (exact) return { won: true, tier: 'exact', payout: Math.round(bet.stake * (payoutRules.exactMultiplier + (payoutRules.finalMultiplierBonus ?? 0))) };
+  if (outcomeRight) return { won: true, tier: 'outcome', payout: Math.round(bet.stake * (payoutRules.outcomeMultiplier + (payoutRules.finalMultiplierBonus ?? 0))) };
   return { won: false, tier: 'miss', payout: 0 };
 }
 
@@ -391,6 +427,11 @@ export function betCapPrefix(matchKey: string, leagueRound: number): string {
   return matchKey.startsWith('K') ? matchKey : `L${leagueRound}:`;
 }
 
+/** One protection use per league round, or per knockout leg. */
+export function betProtectionScope(matchKey: string, leagueRound: number): string {
+  return matchKey.startsWith('K') ? matchKey : `L${leagueRound}`;
+}
+
 // Estrutura mínima de um confronto de mata-mata que o reveal precisa conhecer.
 export interface KoTieLike {
   id: string;
@@ -408,8 +449,13 @@ export interface KoTieLike {
 // Corrige o bug de apostar num confronto que você não disputa (o resultado nunca revelava,
 // pois a revelação estava presa a você terminar a sua própria partida).
 export function revealEligibleKoBets(
-  bets: Bet[], ties: KoTieLike[], playerTeamId: string, watchedLegKeys: string[] = []
-): { bets: Bet[]; winnings: number } {
+  bets: Bet[],
+  ties: KoTieLike[],
+  playerTeamId: string,
+  watchedLegKeys: string[] = [],
+  protectionPercent = 0,
+  protectionUsedKeys: string[] = [],
+): { bets: Bet[]; winnings: number; protectionUsedKeys: string[] } {
   let winnings = 0;
   const out = bets.map(bet => {
     if (bet.revealed || !bet.matchKey.startsWith('K')) return bet;
@@ -423,8 +469,21 @@ export function revealEligibleKoBets(
     const watchedThisLeg = watchedLegKeys.includes(`${id}_l${leg}`);
     if (isParticipant && !watchedThisLeg) return bet; // anti-spoiler: espera assistir
     const r = settleBet(bet, res);
-    winnings += r.payout;
-    return { ...bet, settled: true, revealed: true, won: r.won, tier: r.tier, payout: r.payout };
+    const protectionRefund = !r.won && protectionPercent > 0
+      ? Math.round(bet.stake * protectionPercent / 100)
+      : 0;
+    winnings += r.payout + protectionRefund;
+    return {
+      ...bet,
+      settled: true,
+      revealed: true,
+      won: r.won,
+      tier: r.tier,
+      payout: r.payout,
+      protectionRefund,
+    };
   });
-  return { bets: out, winnings };
+  // Mantém o campo legado para compatibilidade com estados antigos; a proteção
+  // agora é aplicada individualmente a cada aposta perdida.
+  return { bets: out, winnings, protectionUsedKeys };
 }

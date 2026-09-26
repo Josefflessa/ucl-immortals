@@ -7,7 +7,7 @@ import { useGame } from '../../contexts/GameContext';
 import { sellValue } from '../../lib/shop';
 import { marketMinPrice } from '../../lib/market';
 import PlayerCard from './PlayerCard';
-import { Button, Panel, PanelBody } from '../../design-system';
+import { Button } from '../../design-system';
 
 export default function MarketTab() {
   const { state, dispatch, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline } = useGame();
@@ -31,14 +31,6 @@ export default function MarketTab() {
 
   return (
     <div className="ui-stack">
-      {/* Cabeçalho */}
-      <Panel tone="accent">
-        <PanelBody className="flex items-center justify-between py-3">
-          <div className="ui-panel__title">🏪 Mercado</div>
-          <div className="font-display text-2xl text-[var(--ui-brand-strong)]">💰 {state.points}</div>
-        </PanelBody>
-      </Panel>
-
       {/* Sub-abas (só no online; no solo só existe VENDER) */}
       {online && (
         <div className="ui-tabs">
@@ -63,10 +55,10 @@ export default function MarketTab() {
           </div>
           {bench.length === 0 ? (
             <div className="ui-empty">
-              Sem reservas pra vender — seus reforços e picks de banco aparecem aqui.
+              Sem reservas pra vender — suas contratações e picks de banco aparecem aqui.
             </div>
           ) : (
-            <div className="flex flex-wrap gap-3">
+            <div className="market-player-row flex flex-wrap gap-3">
               {bench.map(p => (
                 <div key={p.id} className="flex flex-col items-center gap-1">
                   <PlayerCard player={p} compact lite />
@@ -94,7 +86,7 @@ export default function MarketTab() {
                 Sem reservas pra anunciar.
               </div>
             ) : (
-              <div className="flex flex-wrap gap-3">
+              <div className="market-player-row flex flex-wrap gap-3">
                 {bench.map(p => (
                   <div key={p.id} className="flex flex-col items-center gap-1">
                     <PlayerCard player={p} compact lite />
@@ -118,7 +110,7 @@ export default function MarketTab() {
                 Nenhum jogador à venda.
               </div>
             ) : (
-              <div className="flex flex-wrap gap-3">
+              <div className="market-player-row flex flex-wrap gap-3">
                 {state.onlineMarket.map(li => {
                   const mine = li.sellerId === meId;
                   const alreadyOwn = team.players.some(p => p.id === li.player.id);

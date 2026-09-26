@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { FORMATIONS, COACHES } from '../lib/gameData';
-import { formationProfile } from '../lib/gameEngine';
+import { formationAdvantageLabelForAnalysisLevel, formationProfile } from '../lib/gameEngine';
 import FormationField from '../components/game/FormationField';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import ImpactMeter from '../components/game/ImpactMeter';
@@ -141,11 +141,11 @@ export default function FormationPage() {
                     {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
                       <div className="mt-3 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                         {formation.counters.length > 0 && (
-                          <>Confronto favorável contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span> <span style={{ color: '#22C55E' }}>(bônus durante a partida)</span></>
+                          <>Confronto favorável contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span> <span style={{ color: '#22C55E' }}>· {formationAdvantageLabelForAnalysisLevel(1)}</span></>
                         )}
                         {formation.counters.length > 0 && formation.counteredBy.length > 0 && ' · '}
                         {formation.counteredBy.length > 0 && (
-                          <>Pode sofrer contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span> <span style={{ color: '#F97316' }}>(o rival recebe um bônus na partida)</span></>
+                          <>Pode sofrer contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span> <span style={{ color: '#F97316' }}>(o rival terá {formationAdvantageLabelForAnalysisLevel(1).toLowerCase()})</span></>
                         )}
                       </div>
                     )}

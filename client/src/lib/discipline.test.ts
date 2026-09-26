@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { rollInjurySeverity, yellowChance, injuryChanceFromFoul, randomInjuryChance } from './discipline';
 import { generateBotTeam } from './gameEngine';
 
-import { applyMatchDiscipline, resetYellowsForKnockout, healInjury, availKey } from './discipline';
+import { applyMatchDiscipline, resetYellowsForKnockout, healInjury, availKey, applyMedicalReturnBoost } from './discipline';
 const nameOf = () => 'Jogador';
 const evt = (type: any, teamId: string, playerId: string) => ({ minute: 10, type, description: '', teamId, playerId });
 const res = (homeTeamId: string, awayTeamId: string, events: any[]) => ({ homeTeamId, awayTeamId, events });
@@ -43,6 +43,53 @@ describe('applyMatchDiscipline', () => {
     const out = applyMatchDiscipline({}, ['t', 'o'], [res('t', 'o', [evt('injury', 't', 'p')])], nameOf, () => 0.7);
     expect(out.next[availKey('t', 'p')].injured).toBe(2);
     expect(out.newInjuries).toHaveLength(1);
+  });
+  it('aplica exatamente a duração definida pelo Departamento Médico, sem novo sorteio', () => {
+    const prev = { [availKey('t', 'p')]: { yellows: 0, banned: 0, injured: 1 } };
+    const out = applyMatchDiscipline(
+      prev,
+      ['t', 'o'],
+      [res('t', 'o', [evt('injury', 't', 'p')])],
+      nameOf,
+      () => 0.95,
+      () => 2,
+    );
+
+    expect(out.next[availKey('t', 'p')].injured).toBe(2);
+    expect(out.recoveredInjuries).toHaveLength(0);
+
+    const fixedLevelOne = applyMatchDiscipline(
+      {},
+      ['t', 'o'],
+      [res('t', 'o', [evt('injury', 't', 'p')])],
+      nameOf,
+      () => 0.99,
+      () => 3,
+    );
+    expect(fixedLevelOne.next[availKey('t', 'p')].injured).toBe(3);
+
+    const fixedLevelThree = applyMatchDiscipline(
+      {},
+      ['t', 'o'],
+      [res('t', 'o', [evt('injury', 't', 'p')])],
+      nameOf,
+      () => 0,
+      () => 1,
+    );
+    expect(fixedLevelThree.next[availKey('t', 'p')].injured).toBe(1);
+
+    const recovered = applyMatchDiscipline(
+      { [availKey('t', 'p')]: { yellows: 0, banned: 0, injured: 1 } },
+      ['t', 'o'],
+      [res('t', 'o', [])],
+      nameOf,
+      Math.random,
+      () => 2,
+    );
+    expect(recovered.next[availKey('t', 'p')].injured).toBe(0);
+    expect(recovered.recoveredInjuries).toEqual([
+      { teamId: 't', playerId: 'p', playerName: 'Jogador', games: 0, kind: 'injury' },
+    ]);
   });
 });
 
@@ -91,6 +138,26 @@ describe('reset & physio', () => {
   it('healInjury reduz 1 (piso 0)', () => {
     const m = { [availKey('t', 'p')]: { yellows: 0, banned: 0, injured: 2 } };
     expect(healInjury(m, 't', 'p')[availKey('t', 'p')].injured).toBe(1);
+  });
+  it('aplica o bônus médico acumulável em todos os atributos e no overall', () => {
+    const team = mkTeam([mkP('p', 'ST', 80)], { clubProjects: { levels: { medical: 4 } } });
+    const boosted = applyMedicalReturnBoost(team, 'p', 5);
+    const player = boosted.players[0] as any;
+
+    expect(player.pace).toBe(85);
+    expect(player.shooting).toBe(85);
+    expect(player.passing).toBe(85);
+    expect(player.dribbling).toBe(85);
+    expect(player.defending).toBe(85);
+    expect(player.physical).toBe(85);
+    expect(player.vision).toBe(85);
+    expect(player.composure).toBe(85);
+    expect(player.overall).toBe(85);
+    expect(player.medicalReturnBoost).toBe(5);
+
+    const twice = applyMedicalReturnBoost(boosted, 'p', 5).players[0] as any;
+    expect(twice.overall).toBe(90);
+    expect(twice.medicalReturnBoost).toBe(10);
   });
 });
 

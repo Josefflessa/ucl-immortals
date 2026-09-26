@@ -1,13 +1,13 @@
 // UCL Immortals — League Phase Page
 // Show standings, round-by-round fixtures, and results
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
-import LeagueSquadTab from '../components/game/LeagueSquadTab';
+import ClubHubTab from '../components/game/ClubHubTab';
 import MarketTab from '../components/game/MarketTab';
 import ShopTab from '../components/game/ShopTab';
 import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
@@ -16,10 +16,13 @@ import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerCard from '../components/game/PlayerCard';
 import { preloadPlayerPhotos } from '../components/game/PlayerPortrait';
 import Crest from '../components/game/Crest';
+import CreditsWallet from '../components/game/CreditsWallet';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
+import MatchCreditsModal from '../components/game/MatchCreditsModal';
 import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
-import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet } from '../lib/bets';
+import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, bettingPayoutRulesForLevel } from '../lib/bets';
+import { bettingStakeCapBonus, projectLevel } from '../lib/clubProjects';
 import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus, sortMatchesForOnlineDisplay } from '../lib/onlineReadiness';
 import type { MatchResult, Team } from '../lib/gameEngine';
@@ -49,6 +52,36 @@ export default function LeaguePage() {
   const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | 'restart' | 'close' | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
+  // A reward is acknowledged once per match. This also prevents an existing
+  // online reward from reopening as soon as the page mounts or reconnects.
+  const creditsSignature = state.lastMatchPoints
+    ? state.lastMatchPoints.matchKey ?? JSON.stringify(state.lastMatchPoints)
+    : null;
+  const initialCreditsSignature = useRef<string | null | undefined>(undefined);
+  const [dismissedCreditsSignature, setDismissedCreditsSignature] = useState<string | null>(null);
+  useEffect(() => {
+    if (initialCreditsSignature.current !== undefined) return;
+    initialCreditsSignature.current = creditsSignature;
+    if (creditsSignature) setDismissedCreditsSignature(creditsSignature);
+  }, []);
+  const showCreditsModal = initialCreditsSignature.current !== undefined
+    && !!state.lastMatchPoints
+    && creditsSignature !== dismissedCreditsSignature;
+  const closeCreditsModal = () => {
+    if (creditsSignature) setDismissedCreditsSignature(creditsSignature);
+  };
+  const recruitmentOffer = state.reinforcementOffer;
+  const recruitmentEventLabel = recruitmentOffer?.eventKind === 'stage' || state.phase === 'knockout' ? 'FASE' : 'RODADA';
+  const recruitmentLevel = recruitmentOffer?.projectLevel ?? 1;
+  const recruitmentSelectionsRemaining = Math.max(
+    1,
+    (recruitmentOffer?.selectionLimit ?? 1) - (recruitmentOffer?.selectionsMade ?? 0),
+  );
+  const recruitmentTotalOptions = (state.reinforcementOptions?.length ?? 0) + (recruitmentOffer?.selectionsMade ?? 0);
+  const recruitmentRerollsRemaining = Math.max(
+    0,
+    (recruitmentOffer?.freeRerolls ?? 0) - (recruitmentOffer?.rerollsUsed ?? 0),
+  );
 
   // Warm the compact portraits before the reinforcement modal is painted. The
   // modal has only a handful of cards, but waiting for lazy image loading here
@@ -280,7 +313,8 @@ export default function LeaguePage() {
   // 🎯 Palpite — helpers (usam state.bets + rodada atual)
   const bets = state.bets ?? [];
   const betPrefix = `L${leagueRound}:`;
-  const betCap = state.competitionFormat?.matchSettings?.betRoundCap ?? BET_ROUND_CAP;
+  const bettingLevel = projectLevel(playerTeam?.clubProjects, 'betting');
+  const betCap = BET_ROUND_CAP + bettingStakeCapBonus(bettingLevel);
   const remainingCap = Math.max(0, betCap - roundStakeUsed(bets, betPrefix));
   const betFor = (matchKey: string): Bet | undefined => bets.find(b => b.matchKey === matchKey);
 
@@ -493,9 +527,10 @@ export default function LeaguePage() {
     <AppShell className="flex flex-col">
       <TopBar
         title={isKnockout ? 'MATA-MATA' : isGroupStage ? 'FASE DE GRUPOS' : 'FASE DE LIGA'}
+        center={<CreditsWallet points={state.points} />}
         right={
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            {!isKnockout && playerStanding && (
+          <div className="flex items-center gap-2 sm:gap-3">
+              {!isKnockout && playerStanding && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--ui-text-faint)]">Posição:</span>
                 <span className={`font-display text-xl ${qualifies ? 'text-[var(--ui-success)]' : 'text-[var(--ui-danger)]'}`}>{playerPosition}º</span>
@@ -628,18 +663,18 @@ export default function LeaguePage() {
                 { id: 'fixtures', label: 'CONFRONTOS' },
                 { id: 'bracket', label: 'CHAVEAMENTO' },
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
-                { id: 'squad', label: 'MEU TIME' },
+                { id: 'squad', label: 'MEU CLUBE' },
                 { id: 'results', label: 'HISTÓRICO' },
-                { id: 'shop', label: `LOJA · 💰${state.points}` },
+                { id: 'shop', label: 'LOJA' },
                 { id: 'market', label: 'MERCADO' },
               ]
             : [
                 { id: 'fixtures', label: `RODADA ${leagueRound}` },
                 { id: 'standings', label: 'CLASSIFICAÇÃO' },
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
-                { id: 'squad', label: 'MEU TIME' },
+                { id: 'squad', label: 'MEU CLUBE' },
                 { id: 'results', label: 'HISTÓRICO' },
-                { id: 'shop', label: `LOJA · 💰${state.points}` },
+                { id: 'shop', label: 'LOJA' },
                 { id: 'market', label: 'MERCADO' },
               ]
           ).map(tab => (
@@ -813,7 +848,7 @@ export default function LeaguePage() {
                       const txt = myBet.tier === 'exact' ? `✅ Palpite: placar exato (+${myBet.payout})`
                         : myBet.tier === 'outcome' ? `✅ Palpite: resultado certo (+${myBet.payout})`
                           : myBet.tier === 'builder' ? `✅ Aposta certa (+${myBet.payout})`
-                          : `❌ Palpite perdido (−${myBet.stake})`;
+                          : `❌ Palpite perdido (−${myBet.stake})${(myBet.protectionRefund ?? 0) > 0 ? ` · devolução +${myBet.protectionRefund}` : ''}`;
                       return <div className="mt-2 text-center text-[11px] font-black" style={{ color: myBet.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
                     }
                     return (
@@ -1353,8 +1388,8 @@ export default function LeaguePage() {
           </div>
         )}
 
-        {/* Gestão do time */}
-        {activeTab === 'squad' && <LeagueSquadTab />}
+        {/* Área do clube: time em campo + projetos estruturais. */}
+        {activeTab === 'squad' && <ClubHubTab />}
         {activeTab === 'market' && <MarketTab />}
 
         {activeTab === 'shop' && <ShopTab />}
@@ -1367,7 +1402,7 @@ export default function LeaguePage() {
               value={resultsSubTab}
               onValueChange={(value) => setResultsSubTab(value as typeof resultsSubTab)}
             >
-              <TabList>
+              <TabList className="ui-tabs--split-mobile">
               {([['mine', 'MEUS JOGOS'], ['rounds', 'RODADAS ANTERIORES']] as const).map(([id, label]) => (
                 <Tab key={id} value={id} className="text-xs">
                   {label}
@@ -1642,7 +1677,10 @@ export default function LeaguePage() {
 
       {/* ── End-of-round reinforcement pick ── */}
       <>
-        {state.reinforcementOptions && state.reinforcementOptions.length > 0 && (
+        {showCreditsModal && state.lastMatchPoints && (
+          <MatchCreditsModal points={state.lastMatchPoints} onClose={closeCreditsModal} />
+        )}
+        {state.reinforcementOptions && state.reinforcementOptions.length > 0 && !showCreditsModal && (
           <div
             className="ui-modal-backdrop z-50 p-3 sm:p-4"
           >
@@ -1656,45 +1694,31 @@ export default function LeaguePage() {
                     <UserPlus size={20} style={{ color: '#E8C84A' }} />
                   </div>
                   <div className="min-w-0">
+                    <div className="mb-1 text-[10px] font-black tracking-[0.16em]" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
+                      CENTRO DE RECRUTAMENTO · NÍVEL {recruitmentLevel}
+                    </div>
                     <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>
-                      {state.phase === 'knockout' ? 'REFORÇO DA FASE' : 'REFORÇO DA RODADA'}
+                      RECRUTAMENTO DA {recruitmentEventLabel}
                     </h3>
                     <p className="text-[11px] sm:text-xs mt-1" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                      Escolha <b style={{ color: '#FFF' }}>1 jogador</b> para entrar no seu <b style={{ color: '#818CF8' }}>banco de reservas</b>. Depois, na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b>, você pode colocá-lo entre os titulares.
+                      O Centro encontrou <b style={{ color: '#FFF' }}>{recruitmentTotalOptions} jogadores</b>. Escolha <b style={{ color: '#FFF' }}>{recruitmentSelectionsRemaining} para contratar</b> e adicionar ao seu <b style={{ color: '#818CF8' }}>banco de reservas</b>. Depois, na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b>, você pode colocá-los entre os titulares.
+                      {recruitmentOffer?.minimumOverall ? <> Todas as opções têm <b style={{ color: '#F0D77A' }}>overall {recruitmentOffer.minimumOverall}+</b>.</> : null}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Points earned this match */}
-              {state.lastMatchPoints && (
-                <div className="ui-panel ui-panel--inset mx-4 mt-4 flex flex-shrink-0 items-center justify-between border-[var(--ui-success)]/35 bg-[var(--ui-success-soft)] px-4 py-3 sm:mx-6">
-                  <div>
-                    <div className="text-[11px] font-black tracking-widest" style={{ color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>
-                      💰 PONTOS DA PARTIDA
-                    </div>
-                    <div className="text-[10px] mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                      {state.lastMatchPoints.outcome === 'win' ? 'Vitória' : state.lastMatchPoints.outcome === 'draw' ? 'Empate' : 'Derrota'} +{state.lastMatchPoints.base}
-                      {state.lastMatchPoints.gdBonus > 0 && ` · saldo +${state.lastMatchPoints.gdBonus}`}
-                      {state.lastMatchPoints.goalsBonus > 0 && ` · gols +${state.lastMatchPoints.goalsBonus}`}
-                      {state.lastMatchPoints.csBonus > 0 && ` · sem sofrer +${state.lastMatchPoints.csBonus}`}
-                      {` · use na aba 🛒 LOJA`}
-                    </div>
-                  </div>
-                  <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#34D399' }}>+{state.lastMatchPoints.total}</div>
-                </div>
-              )}
-
               {/* Options — bigger full cards (light, no animations) */}
               {/* Opções: grade que cabe SEM rolagem (3 col no celular, 6 no PC) */}
-              <div className="px-3 sm:px-6 py-4 flex-1 min-h-0 flex items-center justify-center">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6">
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 justify-items-center">
                   {state.reinforcementOptions.map(option => (
                     <button
                       key={option.id}
                       onClick={() => online ? pickReinforcementOnline(option) : dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
                       className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none"
-                      title={`Contratar ${option.shortName} para o banco`}
+                      title={`Contratar ${option.shortName} (${recruitmentSelectionsRemaining} escolha${recruitmentSelectionsRemaining === 1 ? '' : 's'} restante${recruitmentSelectionsRemaining === 1 ? '' : 's'})`}
+                      aria-label={`Contratar ${option.shortName}`}
                     >
                       <PlayerCard player={option} compact lite />
                     </button>
@@ -1705,20 +1729,20 @@ export default function LeaguePage() {
               {/* Footer */}
               <div className="ui-modal__footer flex-shrink-0 justify-between px-5 sm:px-6">
                 <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                  👆 Toque num card para contratar
+                  👆 Toque em um card para contratar · {recruitmentSelectionsRemaining} escolha{recruitmentSelectionsRemaining === 1 ? '' : 's'} restante{recruitmentSelectionsRemaining === 1 ? '' : 's'}
                 </span>
                 <div className="flex items-center gap-2 ml-auto">
-                  {state.reinforcementRerolls > 0 && (
+                  {recruitmentRerollsRemaining > 0 && (
                     <Button intent="secondary" className="text-[#f472b6] border-[#f472b6]/40"
                       onClick={() => online ? rerollReinforcementOnline() : dispatch({ type: 'REROLL_REINFORCEMENT' })}
                     >
-                      🔄 Re-sortear ({state.reinforcementRerolls})
+                      🔄 Re-sortear opções · grátis
                     </Button>
                   )}
                   <Button intent="ghost"
                     onClick={() => online ? dismissReinforcementOnline() : dispatch({ type: 'DISMISS_REINFORCEMENT' })}
                   >
-                    Pular reforço
+                    Pular recrutamento
                   </Button>
                 </div>
               </div>
@@ -1726,43 +1750,6 @@ export default function LeaguePage() {
           </div>
         )}
       </>
-
-      {/* ── Post-match points popup (knockout — there's no reinforcement modal there) ── */}
-      <AnimatePresence>
-        {state.knockoutPointsPopup && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="ui-modal-backdrop z-50 p-4"
-            onClick={() => dispatch({ type: 'DISMISS_KO_POINTS' })}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-              onClick={(e) => e.stopPropagation()}
-              className="ui-modal max-w-sm overflow-hidden border-[var(--ui-success)] text-center"
-            >
-              <div className="px-6 pt-6 pb-2">
-                <div className="text-[11px] font-black tracking-widest" style={{ color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}>💰 PONTOS DA PARTIDA</div>
-                <div className="text-6xl font-black leading-none mt-2" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#34D399' }}>
-                  +{state.knockoutPointsPopup.total}
-                </div>
-                <div className="text-[12px] mt-3 leading-relaxed" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                  {state.knockoutPointsPopup.outcome === 'win' ? 'Vitória' : state.knockoutPointsPopup.outcome === 'draw' ? 'Empate' : 'Derrota'} +{state.knockoutPointsPopup.base}
-                  {state.knockoutPointsPopup.gdBonus > 0 && ` · saldo +${state.knockoutPointsPopup.gdBonus}`}
-                  {state.knockoutPointsPopup.goalsBonus > 0 && ` · gols +${state.knockoutPointsPopup.goalsBonus}`}
-                  {state.knockoutPointsPopup.csBonus > 0 && ` · sem sofrer +${state.knockoutPointsPopup.csBonus}`}
-                </div>
-                <div className="text-[11px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Gaste na aba 🛒 LOJA</div>
-              </div>
-              <Button intent="success" className="mt-3 w-full rounded-none border-0"
-                onClick={() => dispatch({ type: 'DISMISS_KO_POINTS' })}
-              >
-                OK
-              </Button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* 🔍 Ver Detalhes da partida (rodada / MEUS JOGOS) */}
       {detailsMatch && (
@@ -1787,6 +1774,7 @@ export default function LeaguePage() {
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
               cardsEnabled={state.competitionFormat?.matchSettings?.cardsEnabled !== false}
+              payoutRules={bettingPayoutRulesForLevel(bettingLevel)}
               onConfirm={(submission: BetSlipSubmission) => {
                 if (online) shopPlaceBetOnline(betSlip.matchKey, submission.homeGoals, submission.awayGoals, submission.stake, betSlip.homeTeamId, betSlip.awayTeamId, submission.market, submission.selections);
                 else dispatch({

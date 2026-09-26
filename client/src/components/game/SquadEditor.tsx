@@ -50,10 +50,13 @@ export interface SquadEditorProps {
   availability?: Record<string, { yellows: number; banned: number; injured: number }>;
   onHealInjury?: (playerId: string) => void;
   canAffordPhysio?: boolean;
+  physioFree?: boolean;
   physioCost?: number;               // 🏥 custo da fisioterapia (mostrado no botão + confirmação)
   // ⭐ Técnico Prime (Fase 2): evolução via critério + pontos (só no MEU TIME).
   coachPrime?: boolean;
   points?: number;
+  analysisLevel?: number;            // 🔎 Núcleo de Análise: progressão de formação/tática.
+  stadiumProjectLevel?: number;      // 🏟️ Nível 5 usa a imagem do estádio Prime.
   wins?: number;
   onEvolvePrime?: () => void;
   // ⭐ Cartas Evoluídas: cada nível libera 6 pontos para distribuir (só no MEU TIME).
@@ -73,8 +76,8 @@ export default function SquadEditor({
   captain, penaltyTaker, freeKickTaker,
   onSetFormation, onSetPlayStyle, onSetMatchPlan, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets,
   showCoachCard = true, footer, isKnockout = false,
-  availability, onHealInjury, canAffordPhysio, physioCost = 250,
-  coachPrime, points, wins, onEvolvePrime,
+  availability, onHealInjury, canAffordPhysio, physioFree = false, physioCost = 150,
+  coachPrime, points, analysisLevel = 1, stadiumProjectLevel = 1, wins, onEvolvePrime,
   onSetEvolvePoint, onResetEvolvePoints,
 }: SquadEditorProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -149,10 +152,10 @@ export default function SquadEditor({
 
   const teamOverall = useMemo(() => xi.length === 11
     ? Math.round(xi.reduce((sum, p, idx) => {
-      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, role: formationRoles[idx] ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false, credits: points });
+      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, coachPrime, analysisLevel, role: formationRoles[idx] ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false, credits: points });
       return sum + eff.overall;
     }, 0) / 11)
-    : null, [xi, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, formationRoles, points]);
+    : null, [xi, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, coachPrime, analysisLevel, formationRoles, points]);
 
   // Meu Time is the only card context that renders effective values. Draft, shop and
   // reinforcement pickers omit this map and therefore keep the card's own values.
@@ -172,6 +175,8 @@ export default function SquadEditor({
           captainBoost: isStarter ? captainBoost : undefined,
           charBoosts,
           isKnockout,
+          coachPrime,
+          analysisLevel,
           role: isStarter ? (formationRoles[index] ?? player.position) : player.position,
           isSecondary: isStarter ? (chemData.secondaryPos[player.id] ?? false) : false,
           credits: points,
@@ -179,7 +184,7 @@ export default function SquadEditor({
       );
       return [player.id, effective];
     }),
-  ), [players, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, formationRoles, points]);
+  ), [players, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, coachPrime, analysisLevel, formationRoles, points]);
 
   const rolePlayers: RoleablePlayer[] = useMemo(() => xi.map(player => ({
     ...player,
@@ -641,7 +646,7 @@ export default function SquadEditor({
               </>
             ) : (
               <p className="text-[11px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                Sem reservas ainda. Você ganha um <b style={{ color: '#E8C84A' }}>reforço ao fim de cada rodada</b> — ele aparece aqui no banco.
+                Sem reservas ainda. Você ganha uma <b style={{ color: '#E8C84A' }}>oferta de recrutamento ao fim de cada rodada</b> — as contratações aparecem aqui no banco.
               </p>
             )}
           </div>
@@ -658,27 +663,27 @@ export default function SquadEditor({
         >
           <DialogHeader className="shrink-0 gap-1 pr-12 pb-4 text-left">
             <DialogTitle className="font-display text-2xl tracking-wide text-[var(--ui-brand-strong)] sm:text-3xl">
-              {fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : fieldSettingsPanel === 'tactic' ? 'TÁTICA DO TIME' : 'TÉCNICO & ESTÁDIO'}
+              {fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : fieldSettingsPanel === 'tactic' ? 'TÁTICA DO TIME' : 'TÉCNICO'}
             </DialogTitle>
             <p className="text-sm leading-snug text-[var(--ui-text-muted)]">
               {fieldSettingsPanel === 'formation'
                 ? 'Escolha o esquema e veja como ele muda o comportamento do time.'
                 : fieldSettingsPanel === 'tactic'
                   ? 'Escolha a mentalidade que orienta o comportamento do time na partida.'
-                  : 'Confira o técnico, o estádio e os efeitos ativos do seu time.'}
+                  : 'Confira o técnico e os efeitos ativos do seu time.'}
             </p>
           </DialogHeader>
           <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 touch-pan-y">
             {fieldSettingsPanel === 'formation' ? (
-              <FormationSelector value={formationId} onChange={onSetFormation} />
+              <FormationSelector value={formationId} onChange={onSetFormation} analysisLevel={analysisLevel} />
             ) : fieldSettingsPanel === 'tactic' ? (
-              <TacticSelector value={playStyle} onChange={onSetPlayStyle} />
+              <TacticSelector value={playStyle} onChange={onSetPlayStyle} analysisLevel={analysisLevel} />
             ) : coach ? (
               <CoachStadiumPanel
                 coach={coach}
                 formation={formation}
                 coachPrime={!!coachPrime}
-                stadium={coachStadium}
+                stadiumProjectLevel={stadiumProjectLevel}
                 wins={wins}
                 points={points}
                 onEvolve={onEvolvePrime}
@@ -739,8 +744,8 @@ export default function SquadEditor({
                           </span>
                         </span>
                         <span className="flex flex-col items-end rounded-lg px-2 py-1 leading-none" style={{ background: '#083344', color: '#67E8F9' }}>
-                          <span className="text-sm font-black tabular-nums">{physioCost}</span>
-                          <span className="mt-0.5 text-[9px] tracking-wider">PTS</span>
+                          <span className="text-sm font-black tabular-nums">{physioFree ? 'GRÁTIS' : physioCost}</span>
+                          <span className="mt-0.5 text-[9px] tracking-wider">{physioFree ? 'USO GRÁTIS' : 'PTS'}</span>
                         </span>
                       </button>
                     )}
@@ -765,7 +770,7 @@ export default function SquadEditor({
                         Reduzir <b style={{ color: '#FFF' }}>1 jogo</b> de lesão de <b style={{ color: '#FFF' }}>{pp.shortName}</b>?
                       </p>
                       <p className="text-[12px] mb-4" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
-                        Fica <b style={{ color: '#FCD34D' }}>{Math.max(0, inj - 1)} jogo(s)</b> de fora · custa <b style={{ color: '#67E8F9' }}>{physioCost} créditos</b>
+                        Fica <b style={{ color: '#FCD34D' }}>{Math.max(0, inj - 1)} jogo(s)</b> de fora · {physioFree ? <b style={{ color: '#67E8F9' }}>1 uso gratuito disponível</b> : <>custa <b style={{ color: '#67E8F9' }}>{physioCost} créditos</b></>}
                       </p>
                       <div className="flex gap-2">
                         <button onClick={() => setConfirmPhysioFor(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#17171f', color: '#9A9AA5' }}>
@@ -789,7 +794,7 @@ export default function SquadEditor({
                   const isStarter = selectedIndex < 11;
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
-                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, role: formationRole, isSecondary: selectedIsSecondary, credits: points });
+                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, coachPrime, analysisLevel, role: formationRole, isSecondary: selectedIsSecondary, credits: points });
                   const originalOverall = selectedPlayer.baseOverall ?? selectedPlayer.overall;
                   // Card-level variants (Em Alta/Lobo/Mártir/Magnata) are already baked into
                   // selectedPlayer.*. For this breakdown, compare the final effective result

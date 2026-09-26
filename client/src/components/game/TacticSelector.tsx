@@ -11,20 +11,21 @@ const ATTRIBUTE_META = [
   { key: 'pace', label: 'Ritmo' },
   { key: 'shooting', label: 'Finalização' },
   { key: 'passing', label: 'Passe' },
+  { key: 'vision', label: 'Visão' },
   { key: 'dribbling', label: 'Drible' },
   { key: 'defending', label: 'Defesa' },
   { key: 'physical', label: 'Físico' },
 ] as const;
 
-function tacticBuffs(playStyle: string): { label: string; value: number }[] {
+function tacticBuffs(playStyle: string, analysisLevel = 1): { label: string; value: number }[] {
   return ATTRIBUTE_META.flatMap(attribute => {
-    const value = tacticStatBonus(playStyle, attribute.key);
+    const value = tacticStatBonus(playStyle, attribute.key, analysisLevel);
     return value === 0 ? [] : [{ label: attribute.label, value }];
   });
 }
 
-function formatTacticBuffs(playStyle: string): string {
-  const buffs = tacticBuffs(playStyle);
+function formatTacticBuffs(playStyle: string, analysisLevel = 1): string {
+  const buffs = tacticBuffs(playStyle, analysisLevel);
   return buffs.length > 0
     ? buffs.map(buff => `+${buff.value} ${buff.label}`).join(' · ')
     : 'Sem bônus de atributo';
@@ -41,11 +42,12 @@ function disciplineEffect(playStyle: string): { label: string; detail: string; c
 interface TacticSelectorProps {
   value: string | undefined;
   onChange: (id: string) => void;
+  analysisLevel?: number;
   disabled?: boolean;
   disabledHint?: string;
 }
 
-export default function TacticSelector({ value, onChange, disabled, disabledHint }: TacticSelectorProps) {
+export default function TacticSelector({ value, onChange, analysisLevel = 1, disabled, disabledHint }: TacticSelectorProps) {
   const active = getTacticById(value);
   const discipline = disciplineEffect(active.id);
 
@@ -105,7 +107,7 @@ export default function TacticSelector({ value, onChange, disabled, disabledHint
         </div>
         <div className="text-xs leading-snug text-[var(--ui-text-muted)]">{active.desc}</div>
         <div className="mt-2 rounded-lg border border-[#22C55E33] bg-[#22C55E0D] px-2.5 py-2 text-xs leading-snug text-[#58D37B]">
-          <b>Bônus:</b> {formatTacticBuffs(active.id)}
+          <b>Bônus:</b> {formatTacticBuffs(active.id, analysisLevel)}
         </div>
         <div className="mt-2 text-[11px] leading-snug" style={{ color: discipline.color }}>
           <b>Disciplina:</b> {discipline.label.toLowerCase()} · {discipline.detail}.

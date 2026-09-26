@@ -21,6 +21,8 @@ import {
 } from './traits';
 import { BOT_CREST_MAP, sameClub } from './crests';
 import { Stadium, stadiumFor } from './stadium';
+import { projectLevel, stadiumHomeBonus } from './clubProjects';
+import type { ClubProjectsState } from './clubProjects';
 import {
   yellowChance, injuryChanceFromFoul, randomInjuryChance, tacticAggression, formationAggression,
   CARD_POS_MULT, STRAIGHT_RED_PROB, RED_PENALTY, RED_GK_PENALTY, INJURY_DEBUFF,
@@ -201,7 +203,7 @@ export interface Team {
   id: string;
   name: string;
   coachId: string;
-  coachPrime?: boolean; // Fase 2: técnico evoluído pro Prime → estádio temático
+  coachPrime?: boolean; // Técnico Prime: habilita a assinatura especial do treinador
   formationId: string;
   playStyle: string;
   matchPlan?: MatchPlan;
@@ -214,6 +216,8 @@ export interface Team {
   botStrength?: number;
   /** Shop-credit balance used by balance-sensitive card characteristics. */
   credits?: number;
+  /** Club progression scaffold. Missing in legacy saves means every project is level 1. */
+  clubProjects?: ClubProjectsState;
   crestId?: string; // selected club crest (see lib/crests.ts); undefined → initials badge
 }
 
@@ -689,6 +693,7 @@ export function getCoachModifiersForPlayer(
     isKnockout?: boolean;
     isFinal?: boolean;
     isLosing?: boolean;
+    coachPrime?: boolean;
     role?: string;
   }
 ): {
@@ -707,6 +712,7 @@ export function getCoachModifiersForPlayer(
   const isKnockout = context?.isKnockout ?? false;
   const isFinal = context?.isFinal ?? false;
   const isLosing = context?.isLosing ?? false;
+  const coachPrime = context?.coachPrime ?? false;
   const role = context?.role ?? player.position;
 
   const modifiers = {
@@ -763,7 +769,7 @@ export function getCoachModifiersForPlayer(
       modifiers.activeEffects.push("DNA Guardiola: +5 Passe/Visão (MC)");
     }
     if (player.vision >= 80) {
-      const b = 3;
+      const b = coachPrime ? 7 : 3;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -772,11 +778,11 @@ export function getCoachModifiersForPlayer(
       modifiers.physical += b;
       modifiers.composure += b;
       modifiers.vision += b;
-      modifiers.activeEffects.push("Visão de Jogo: +3 Geral");
+      modifiers.activeEffects.push("Visão de Jogo" + (coachPrime ? " Prime" : "") + ": +" + b + " Geral");
     }
   } else if (coachId === 'klopp') {
     if (isLosing) {
-      const b = 8;
+      const b = coachPrime ? 14 : 8;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -785,7 +791,7 @@ export function getCoachModifiersForPlayer(
       modifiers.physical += b;
       modifiers.composure += b;
       modifiers.vision += b;
-      modifiers.activeEffects.push("Gegenpressing: +8 Geral");
+      modifiers.activeEffects.push("Gegenpressing" + (coachPrime ? " Prime" : "") + ": +" + b + " Geral");
     }
   } else if (coachId === 'mourinho') {
     if (isGK) {
@@ -793,8 +799,9 @@ export function getCoachModifiersForPlayer(
       modifiers.activeEffects.push("Goleiro Mourinho: +5 Defesa");
     }
     if (isKnockout && isDefender) {
-      modifiers.defending += 6;
-      modifiers.activeEffects.push("Muralha Mourinho: +6 Defesa");
+      const b = coachPrime ? 12 : 6;
+      modifiers.defending += b;
+      modifiers.activeEffects.push("Muralha Mourinho" + (coachPrime ? " Prime" : "") + ": +" + b + " Defesa");
     }
   } else if (coachId === 'ancelotti') {
     if (player.overall >= 85) {
@@ -810,7 +817,7 @@ export function getCoachModifiersForPlayer(
       modifiers.activeEffects.push("Gestão de Estrelas: +4 Geral");
     }
     if (isFinal) {
-      const b = 6;
+      const b = coachPrime ? 12 : 6;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -819,7 +826,7 @@ export function getCoachModifiersForPlayer(
       modifiers.physical += b;
       modifiers.composure += b;
       modifiers.vision += b;
-      modifiers.activeEffects.push("Mentalidade Decisiva: +6 Geral");
+      modifiers.activeEffects.push("Mentalidade Decisiva" + (coachPrime ? " Prime" : "") + ": +" + b + " Geral");
     }
   } else if (coachId === 'zidane') {
     if (player.rarity === 'legendary' || player.rarity === 'immortal') {
@@ -829,8 +836,11 @@ export function getCoachModifiersForPlayer(
       let b = 2; // +2 base + 2 = +4 total
       let label = "Galácticos Zidane: +4 Geral";
       if (isFinal || isKnockout) {
-        b = 4; // +2 base + 4 = +6 total
-        label = isFinal ? "Rei da Final: +6 Geral" : "Rei do Mata-Mata: +6 Geral";
+        b = coachPrime ? 8 : 4; // +2 base + extra = +10 Prime or +6 normal total
+        const total = coachPrime ? 10 : 6;
+        label = isFinal
+          ? "Rei da Final" + (coachPrime ? " Prime" : "") + ": +" + total + " Geral"
+          : "Rei do Mata-Mata" + (coachPrime ? " Prime" : "") + ": +" + total + " Geral";
       }
       modifiers.pace += b;
       modifiers.shooting += b;
@@ -844,7 +854,7 @@ export function getCoachModifiersForPlayer(
     }
   } else if (coachId === 'ferguson') {
     if (isLosing) {
-      const b = 10;
+      const b = coachPrime ? 16 : 10;
       modifiers.pace += b;
       modifiers.shooting += b;
       modifiers.passing += b;
@@ -853,19 +863,21 @@ export function getCoachModifiersForPlayer(
       modifiers.physical += b;
       modifiers.composure += b;
       modifiers.vision += b;
-      modifiers.activeEffects.push("Fergie Time: +10 Geral");
+      modifiers.activeEffects.push("Fergie Time" + (coachPrime ? " Prime" : "") + ": +" + b + " Geral");
     }
   } else if (coachId === 'luis_enrique') {
     // Luis Enrique's identity is vertical circulation: midfielders find the next pass,
     // while the front line attacks the space immediately after the build-up.
     if (isMidfielder) {
-      modifiers.vision += 3;
-      modifiers.activeEffects.push("Transição Vertical: +3 Visão (MC)");
+      const b = coachPrime ? 7 : 3;
+      modifiers.vision += b;
+      modifiers.activeEffects.push("Transição Vertical" + (coachPrime ? " Prime" : "") + ": +" + b + " Visão (MC)");
     }
     if (['ST', 'LW', 'RW'].includes(pos)) {
-      modifiers.pace += 2;
-      modifiers.dribbling += 2;
-      modifiers.activeEffects.push("Transição Vertical: +2 Ritmo/Drible (ataque)");
+      const b = coachPrime ? 6 : 2;
+      modifiers.pace += b;
+      modifiers.dribbling += b;
+      modifiers.activeEffects.push("Transição Vertical" + (coachPrime ? " Prime" : "") + ": +" + b + " Ritmo/Drible (ataque)");
     }
   }
 
@@ -883,6 +895,7 @@ export function getPlayerEffectiveStats(
     isKnockout?: boolean;
     isFinal?: boolean;
     isLosing?: boolean;
+    coachPrime?: boolean;
     role?: string;
     // The captain's single best attribute is boosted by +amount for EVERY teammate
     // (and the captain himself). Mirrors getEffectiveAttribute so the modal matches the engine.
@@ -891,6 +904,8 @@ export function getPlayerEffectiveStats(
     charBoosts?: CharBoostMap;
     // 💰 Estribado reads the owner's current shop-credit balance at runtime.
     credits?: number;
+    // 🔎 Núcleo de Análise: cumulative tactic-buff tier for this team.
+    analysisLevel?: number;
     // 🔁 jogando numa posição SECUNDÁRIA (−5%). Mantém a química (só o OOP zera).
     isSecondary?: boolean;
   }
@@ -914,7 +929,7 @@ export function getPlayerEffectiveStats(
   const traitBonus = (attr: AttrKey) => getTraitAttributeBonus(player.traits, attr);
 
   // Play-style (tactic) modifiers — same rules as getEffectiveAttribute.
-  const styleBonus = (attr: AttrKey): number => tacticStatBonus(playStyle, attr);
+  const styleBonus = (attr: AttrKey): number => tacticStatBonus(playStyle, attr, context?.analysisLevel);
 
   // Global chemistry bonus, same as the engine: +passing/+pace by tier, PLUS a flat +3
   // to every attribute once the team hits perfect chemistry (90+, chemBonus.special).
@@ -1194,6 +1209,8 @@ export function getTeamEffectiveStats(
         isKnockout: options.isKnockout,
         isFinal: options.isFinal,
         isLosing: options.isLosing,
+        coachPrime: team.coachPrime,
+        analysisLevel: projectLevel(team.clubProjects, 'analysis'),
         role: options.roleOverrides?.[player.id]
           ?? (isStarter ? (formationRoles[index] ?? player.position) : player.position),
         isSecondary: isStarter ? (chemistry.secondaryPos[player.id] ?? false) : false,
@@ -1226,6 +1243,8 @@ export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): 
     getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, playStyleOverride ?? 'balanced', {
       captainBoost,
       charBoosts,
+      coachPrime: team.coachPrime,
+      analysisLevel: projectLevel(team.clubProjects, 'analysis'),
       role: formationRoleForPlayer(team, p),
       credits: team.credits,
     });
@@ -1325,6 +1344,7 @@ export function getEffectiveAttribute(
     isKnockout?: boolean;
     isFinal?: boolean;
     isLosing?: boolean;
+    coachPrime?: boolean;
     role?: string;
     // The captain's single best attribute is boosted by +amount for EVERY teammate.
     captainBoost?: { stat: string; amount: number };
@@ -1332,7 +1352,11 @@ export function getEffectiveAttribute(
     charBoosts?: CharBoostMap;
     // 💰 Estribado reads the owner's current shop-credit balance at runtime.
     credits?: number;
-    // 🏟️ Estádio Prime do mandante (só setado pro time da casa) — buff temático nos 2 atributos.
+    // 🔎 Núcleo de Análise: cumulative tactic-buff tier for this team.
+    analysisLevel?: number;
+    // 🏟️ Estádio: project level for the flat home-attribute advantage.
+    stadiumProjectLevel?: number;
+    // 🏟️ Marcador de mandante (só setado pro time da casa); o valor vem do projeto Estádio.
     homeStadium?: Stadium;
   }
 ): number {
@@ -1357,6 +1381,7 @@ export function getEffectiveAttribute(
     isKnockout: context?.isKnockout,
     isFinal: context?.isFinal,
     isLosing: context?.isLosing,
+    coachPrime: context?.coachPrime,
     role: canonicalPosition(context?.role ?? player.position),
   });
 
@@ -1364,7 +1389,7 @@ export function getEffectiveAttribute(
   base += mod;
 
   // Play style modifiers (shared with the display so the two never drift)
-  base += tacticStatBonus(playStyle, attribute as string);
+  base += tacticStatBonus(playStyle, attribute as string, context?.analysisLevel);
 
   // Captain's leadership: their strongest attribute lifts the WHOLE team by +amount.
   if (context?.captainBoost && attribute === context.captainBoost.stat) base += context.captainBoost.amount;
@@ -1396,17 +1421,13 @@ export function getEffectiveAttribute(
   if (cb) base += cb.flatAll + (cb.perStat[attribute as AttrKey] ?? 0);
 
   // 🏟️ Vantagem de casa carimbada por atributo (só o mandante; homeStadium só é setado pra ele,
-  // e nunca na final). Uniforme: +N em TODOS os atributos (+4 padrão / +7 Prime). Temático (Prime):
-  // +3/+6 a mais nos 2 atributos do tema.
+  // e nunca na final). O projeto Estádio é a única fonte do bônus de mando.
   const st = context?.homeStadium;
   if (st) {
-    base += st.homeAttrBonus;
-    if (st.prime && st.themedAttrs && (st.themedAttrs as string[]).includes(attribute as string)) {
-      const themedForClubNation =
-        (!!st.themedClub && sameClub(player.club, st.themedClub)) ||
-        (!!st.themedNation && player.nation === st.themedNation);
-      base += themedForClubNation ? PRIME_THEMED_CLUB_BONUS : PRIME_THEMED_BONUS;
-    }
+    const projectBonus = context?.stadiumProjectLevel == null
+      ? (st.prime ? HOME_ATTR_BONUS : st.homeAttrBonus)
+      : stadiumHomeBonus(context.stadiumProjectLevel);
+    base += projectBonus;
   }
 
   // 🍿 Pipoqueiro — brilha na fase de liga (+N em tudo), some no mata-mata (−N em tudo).
@@ -1448,8 +1469,8 @@ export const FORMATION_DEFENSE_SUPPRESSION_INFLUENCE = 3.6;
 export const TACTIC_DEFENSE_SUPPRESSION_INFLUENCE = 2.2;
 
 // Home advantage: the host enjoys a small territorial edge (crowd, familiarity, no travel).
-// Modelado como +4 em TODOS os atributos do mandante — e como a força do time é a média dos
-// overalls efetivos, +4 em todo atributo desloca o overall (logo a força) em +4, então é aplicado
+// Modelado como +3 no nível 1 em TODOS os atributos do mandante — e como a força do time é a média dos
+// overalls efetivos, esse bônus desloca a força na mesma escala, então é aplicado
 // como +4 direto na força. É omitido quando `neutralFinal` é true: na final de jogo único o campo
 // é neutro; na final ida e volta cada equipe conserva o mando de uma partida.
 export const HOME_ATTR_BONUS = 3;
@@ -1466,10 +1487,14 @@ export function positionFit(player: { position: string; secondaryPositions?: str
   return 'off';
 }
 
-// Fase 2 (Técnico Prime): estádio temático. Buff de casa maior + temático em 2 atributos.
-export const PRIME_HOME_ATTR_BONUS = 6;   // uniforme em casa (vs +3 do padrão)
-export const PRIME_THEMED_BONUS = 3;      // nos 2 atributos do tema, todos os titulares do mandante
-export const PRIME_THEMED_CLUB_BONUS = 6; // nos 2 atributos, pros do clube/nação daquele estádio
+// Compatibilidade de export para consumidores antigos. Estes valores não
+// participam mais do motor; os bônus de mando vêm exclusivamente do projeto.
+/** @deprecated O Estádio Prime não usa mais este bônus. */
+export const PRIME_HOME_ATTR_BONUS = 6;
+/** @deprecated Bônus temático removido da regra atual. */
+export const PRIME_THEMED_BONUS = 3;
+/** @deprecated Bônus temático removido da regra atual. */
+export const PRIME_THEMED_CLUB_BONUS = 6;
 
 // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3.
 // Cada nível libera um pacote independente de 6 pontos; os pacotes podem ser
@@ -1577,10 +1602,43 @@ export function startingIdsForResult(result: MatchResult, teamId: string, fallba
 }
 
 // Formation counter edge: if your shape "counters" the opponent's (see FORMATIONS[].counters),
-// you get this much added strength. A SOFT nudge on top of each formation's own profile (which
-// already carries its identity) — kept at the home-advantage scale so picking the counter tilts
-// the matchup without deciding it. The countered side gets +0 (not a penalty), so it's not a swing.
-export const FORMATION_COUNTER_BONUS = 3;
+// the analysis project adds a small, persistent team-level edge. It is deliberately not a
+// per-player attribute bonus and it never penalizes the countered side.
+//
+// Formation levels alternate with the tactic-buff levels of the analysis project:
+//   level 1 → +3 (light advantage)
+//   level 2 → tactic-buff upgrade; formation stays at +3
+//   level 3 → +5 (clear advantage)
+//   level 4 → tactic-buff upgrade; formation stays at +5
+//   level 5 → +7 (strong advantage)
+// Keeping this mapping here makes solo and online simulations use the same rule and preserves
+// level 1 behaviour for legacy teams that do not have clubProjects yet.
+export const FORMATION_COUNTER_BONUSES = [3, 3, 5, 5, 7] as const;
+export const FORMATION_COUNTER_BONUS = FORMATION_COUNTER_BONUSES[0];
+
+export function formationCounterBonusForAnalysisLevel(level: number): number {
+  if (!Number.isFinite(level)) return FORMATION_COUNTER_BONUS;
+  const safeLevel = Math.max(1, Math.floor(level));
+  return FORMATION_COUNTER_BONUSES[Math.min(safeLevel, FORMATION_COUNTER_BONUSES.length) - 1];
+}
+
+export type FormationAdvantageTier = 'light' | 'clear' | 'strong';
+
+/** User-facing formation matchup label. Internal strength values stay in the engine. */
+export function formationAdvantageTierForAnalysisLevel(level: number): FormationAdvantageTier {
+  if (Number.isFinite(level) && Math.floor(level) >= 5) return 'strong';
+  if (Number.isFinite(level) && Math.floor(level) >= 3) return 'clear';
+  return 'light';
+}
+
+export function formationAdvantageLabelForAnalysisLevel(level: number): string {
+  const labels: Record<FormationAdvantageTier, string> = {
+    light: 'Vantagem leve',
+    clear: 'Vantagem clara',
+    strong: 'Vantagem forte',
+  };
+  return labels[formationAdvantageTierForAnalysisLevel(level)];
+}
 
 // ── Flavour match statistics (shots/saves/corners/fouls) ──────
 // These populate the box-score WITHOUT ever changing the score. They are
@@ -1746,21 +1804,31 @@ export function formationProfile(formationId: string): FormationProfile {
 // ── Tactic (play-style) effects — SHARED so the engine and the display never drift ──
 // Each tactic now has a richer attribute footprint (not a single stat) AND a profile
 // (attack/defense/control) that shapes how many and how good its chances are.
-export function tacticStatBonus(playStyle: string, attr: string): number {
+export function tacticBuffMultiplierForAnalysisLevel(level: number): number {
+  if (!Number.isFinite(level)) return 1;
+  const safeLevel = Math.max(1, Math.floor(level));
+  if (safeLevel >= 4) return 2;
+  if (safeLevel >= 2) return 1.5;
+  return 1;
+}
+
+export function tacticStatBonus(playStyle: string, attr: string, analysisLevel = 1): number {
   const core = attr === 'pace' || attr === 'shooting' || attr === 'passing'
     || attr === 'dribbling' || attr === 'defending' || attr === 'physical';
+  let base: number;
   switch (playStyle) {
     // Balanced is a real CHOICE, not the absence of one: a well-drilled side with no weak spot —
     // a modest +2 across every core stat (same total budget as the specialists, just no peak), so
     // it isn't strictly dominated by tactics that hand out free stats.
-    case 'balanced':       return core ? 2 : 0;
-    case 'possession':     return attr === 'passing' ? 5 : attr === 'vision' ? 5 : attr === 'dribbling' ? 3 : 0;
-    case 'counter':        return (attr === 'pace' || attr === 'shooting') ? 5 : attr === 'defending' ? 2 : 0;
-    case 'high_press':     return attr === 'physical' ? 5 : attr === 'defending' ? 3 : attr === 'pace' ? 2 : 0;
-    case 'defensive':      return attr === 'defending' ? 8 : attr === 'physical' ? 3 : 0;
-    case 'all_out_attack': return attr === 'shooting' ? 8 : attr === 'pace' ? 4 : attr === 'dribbling' ? 2 : 0;
-    default:               return 0;
+    case 'balanced':       base = core ? 2 : 0; break;
+    case 'possession':     base = attr === 'passing' ? 5 : attr === 'vision' ? 5 : attr === 'dribbling' ? 3 : 0; break;
+    case 'counter':        base = (attr === 'pace' || attr === 'shooting') ? 5 : attr === 'defending' ? 2 : 0; break;
+    case 'high_press':     base = attr === 'physical' ? 5 : attr === 'defending' ? 3 : attr === 'pace' ? 2 : 0; break;
+    case 'defensive':      base = attr === 'defending' ? 8 : attr === 'physical' ? 3 : 0; break;
+    case 'all_out_attack': base = attr === 'shooting' ? 8 : attr === 'pace' ? 4 : attr === 'dribbling' ? 2 : 0; break;
+    default:               base = 0;
   }
+  return base === 0 ? 0 : Math.round(base * tacticBuffMultiplierForAnalysisLevel(analysisLevel));
 }
 
 // How a tactic shapes the same three axes as a formation:
@@ -1896,8 +1964,12 @@ export function runMatchSimulation(
   const homeChem = getChemistryBonus(home.totalChemistry);
   const awayChem = getChemistryBonus(away.totalChemistry);
 
-  const homeFormBonus = homeFormation.counters.includes(away.formationId) ? FORMATION_COUNTER_BONUS : 0;
-  const awayFormBonus = awayFormation.counters.includes(home.formationId) ? FORMATION_COUNTER_BONUS : 0;
+  const homeFormBonus = homeFormation.counters.includes(away.formationId)
+    ? formationCounterBonusForAnalysisLevel(projectLevel(home.clubProjects, 'analysis'))
+    : 0;
+  const awayFormBonus = awayFormation.counters.includes(home.formationId)
+    ? formationCounterBonusForAnalysisLevel(projectLevel(away.clubProjects, 'analysis'))
+    : 0;
 
   // Formation shape + tactic both shape how each side creates/concedes chances.
   const homeProf = formationProfile(home.formationId);
@@ -2197,8 +2269,8 @@ export function runMatchSimulation(
 
     const homeIsLosing = homeGoals < awayGoals;
     const awayIsLosing = awayGoals < homeGoals;
-    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, credits: home.credits, homeStadium: neutralFinal ? undefined : stadiumFor(home.coachId, !!home.coachPrime) };
-    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts, credits: away.credits };
+    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, coachPrime: home.coachPrime, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, credits: home.credits, analysisLevel: projectLevel(home.clubProjects, 'analysis'), stadiumProjectLevel: projectLevel(home.clubProjects, 'stadium'), homeStadium: neutralFinal ? undefined : stadiumFor(home.coachId, false) };
+    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, coachPrime: away.coachPrime, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts, credits: away.credits, analysisLevel: projectLevel(away.clubProjects, 'analysis') };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
     const playerContext = (team: Team, player: PlayerCard, ctx: typeof attackCtx) => ({
@@ -3140,6 +3212,7 @@ export function calculateTeamStrength(
       captainBoost,
       charBoosts,
       role,
+      coachPrime: team.coachPrime,
       credits: team.credits,
     }) - debuff;
     // GKs are evaluated on shot-stopping attributes (defending + physical), not the outfield
@@ -3236,17 +3309,21 @@ type PenCtx = {
   coach: Coach;
   chem: { passing: number; pace: number; special: number };
   playStyle: string;
+  coachPrime?: boolean;
+  analysisLevel?: number;
   credits?: number;
   role?: string;
   emergencyGoalkeeper?: boolean;
 };
 function penaltyKickGoal(taker: PlayerCard, takerCtx: PenCtx, gk: PlayerCard, gkCtx: PenCtx, designatedTakerId: string): boolean {
-  const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle, { credits: takerCtx.credits })
+  const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle, { coachPrime: takerCtx.coachPrime, analysisLevel: takerCtx.analysisLevel, credits: takerCtx.credits })
     + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
   const gkRef = goalkeeperShotStoppingRating(
     gk,
     getEffectiveAttribute(gk, 'defending', gkCtx.coach, 'Defesa', gkCtx.chem, gkCtx.playStyle, {
       credits: gkCtx.credits,
+      analysisLevel: gkCtx.analysisLevel,
+      coachPrime: gkCtx.coachPrime,
       role: gkCtx.role ?? 'GK',
     }),
     gk.traits,
@@ -3279,8 +3356,8 @@ export function simulatePenalties(
   const homeTakerId = getPenaltyTaker(home, undefined, _playerStats).id;
   const awayTakerId = getPenaltyTaker(away, undefined, _playerStats).id;
   // Per-team context so each kick uses EFFECTIVE composure/defending (coach, chemistry, traits…).
-  const homeCtx: PenCtx = { coach: COACHES.find(c => c.id === home.coachId)!, chem: getChemistryBonus(home.totalChemistry), playStyle: homePlayStyle, credits: home.credits };
-  const awayCtx: PenCtx = { coach: COACHES.find(c => c.id === away.coachId)!, chem: getChemistryBonus(away.totalChemistry), playStyle: awayPlayStyle, credits: away.credits };
+  const homeCtx: PenCtx = { coach: COACHES.find(c => c.id === home.coachId)!, chem: getChemistryBonus(home.totalChemistry), playStyle: homePlayStyle, coachPrime: home.coachPrime, analysisLevel: projectLevel(home.clubProjects, 'analysis'), credits: home.credits };
+  const awayCtx: PenCtx = { coach: COACHES.find(c => c.id === away.coachId)!, chem: getChemistryBonus(away.totalChemistry), playStyle: awayPlayStyle, coachPrime: away.coachPrime, analysisLevel: projectLevel(away.clubProjects, 'analysis'), credits: away.credits };
   const homeGKCtx: PenCtx = { ...homeCtx, role: 'GK', emergencyGoalkeeper: homeGKInfo.emergency };
   const awayGKCtx: PenCtx = { ...awayCtx, role: 'GK', emergencyGoalkeeper: awayGKInfo.emergency };
 
@@ -3385,10 +3462,10 @@ const DRAFT_TODOS_POR_UM_CHANCE = 0.03; // 🤝 Todos por um — só ativa quand
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
-const MAGNATA_STAT_PENALTY = 5;     // 🤑 Magnata: −5 em todos os atributos (nele mesmo)
-// 🤑 Magnata — titular multiplica os CRÉDITOS da partida de liga por isto (não empilha: 1+ magnatas → 1 só).
+const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
+// 🤑 Magnata — titular multiplica os CRÉDITOS da partida por isto (não empilha: 1+ magnatas → 1 só).
 export const MAGNATA_POINT_MULT = 1.5;
-// Créditos da liga ×MAGNATA_POINT_MULT se QUALQUER titular (0-10) for Magnata; senão ×1 (não empilha).
+// Créditos da partida ×MAGNATA_POINT_MULT se QUALQUER titular (0-10) for Magnata; senão ×1 (não empilha).
 export function magnataPointMultiplier(starters: (Player | undefined)[]): number {
   return starters.slice(0, 11).some(p => p?.magnata) ? MAGNATA_POINT_MULT : 1;
 }
@@ -3531,7 +3608,7 @@ function applyDraftVariant(p: Player): Player {
   acc += DRAFT_CAPITAO_CHANCE;
   if (r < acc) return { ...p, capitaoNato: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
-  // 🤑 Magnata — sacrifica −5 em tudo, mas multiplica os créditos da partida de liga (efeito em magnataPointMultiplier).
+  // 🤑 Magnata — sacrifica −7 em tudo, mas multiplica os créditos da partida (efeito em magnataPointMultiplier).
   acc += DRAFT_MAGNATA_CHANCE;
   if (r < acc) {
     const b = MAGNATA_STAT_PENALTY;
@@ -3690,11 +3767,17 @@ function shuffleWithDraftNeed(pool: Player[], neededPositions: string[], limit =
 export function generateDraftOptions(
   neededPositions: string[],
   alreadyDrafted: string[],
+  optionCount = DRAFT_OPTIONS_COUNT,
+  minimumOverall = 0,
 ): Player[] {
-  const fullAvailable = PLAYERS.filter(p => !alreadyDrafted.includes(p.id));
+  const requestedCount = Math.max(1, Math.floor(optionCount));
+  const overallFloor = Math.max(0, Math.floor(minimumOverall));
+  const fullAvailable = PLAYERS.filter(p =>
+    !alreadyDrafted.includes(p.id) && p.overall >= overallFloor,
+  );
 
   if (neededPositions.length === 0) {
-    return withDraftVariants(shuffleWithDraftNeed(fullAvailable, [], DRAFT_OPTIONS_COUNT));
+    return withDraftVariants(shuffleWithDraftNeed(fullAvailable, [], requestedCount));
   }
 
   // Hard-gate the starter draft to the remaining formation roles. This keeps
@@ -3719,7 +3802,7 @@ export function generateDraftOptions(
   // Shuffle each bucket
   const shuffledExact = shuffleWithDraftNeed(exactMatch, neededPositions, 1);
   const shuffledGroup = shuffleWithDraftNeed(groupMatch, neededPositions, 1);
-  const shuffledAll   = shuffleWithDraftNeed(available, neededPositions, DRAFT_OPTIONS_COUNT);
+  const shuffledAll   = shuffleWithDraftNeed(available, neededPositions, requestedCount);
 
   // Guaranteed slot: prefer exact match, fall back to group, then any
   const guaranteed = shuffledExact[0] ?? shuffledGroup[0] ?? shuffledAll[0];
@@ -3728,9 +3811,9 @@ export function generateDraftOptions(
   // Fill remaining slots using rarity plus the needs of all remaining roles.
   const rest = shuffledAll
     .filter(p => !usedIds.has(p.id))
-    .slice(0, DRAFT_OPTIONS_COUNT - 1);
+    .slice(0, requestedCount - 1);
 
-  const result = guaranteed ? [guaranteed, ...rest] : rest.slice(0, DRAFT_OPTIONS_COUNT);
+  const result = guaranteed ? [guaranteed, ...rest] : rest.slice(0, requestedCount);
   // Shuffle the final list so the guaranteed pick isn't always first
   return withDraftVariants(result.sort(() => Math.random() - 0.5));
 }

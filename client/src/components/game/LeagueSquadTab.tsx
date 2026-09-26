@@ -3,13 +3,17 @@
 // (or online sync) to the editor's callbacks. All the UI lives in SquadEditor.
 import { useGame } from '../../contexts/GameContext';
 import SquadEditor from './SquadEditor';
-import { SHOP_COSTS } from '../../lib/shop';
+import { medicalFreeTreatmentsPerCompetition, medicalPhysioCost, projectLevel } from '../../lib/clubProjects';
 
 export default function LeagueSquadTab() {
   const { state, dispatch, setMatchRolesOnline, setMatchPlanOnline, swapPlayerTeamOnline, martirTargetsOnline, healInjuryOnline, evolveCoachPrimeOnline, setEvolvePointOnline, resetEvolvePointsOnline } = useGame();
   const team = state.playerTeam;
   if (!team) return null;
   const online = state.mode === 'online';
+  const medicalLevel = projectLevel(team.clubProjects, 'medical');
+  const freeTreatmentLimit = medicalFreeTreatmentsPerCompetition(medicalLevel);
+  const physioFree = (state.medicalFreeTreatmentsUsed ?? 0) < freeTreatmentLimit;
+  const physioCost = medicalPhysioCost(medicalLevel);
   const wins = state.leagueStandings.find(s => s.teamId === team.id)?.won ?? 0;
   const cap = team.captain ?? null;
   const pen = team.penaltyTaker ?? null;
@@ -26,11 +30,14 @@ export default function LeagueSquadTab() {
     <SquadEditor
       isKnockout={state.phase === 'knockout'}
       availability={availability}
-      canAffordPhysio={state.points >= SHOP_COSTS.physio}
-      physioCost={SHOP_COSTS.physio}
+      canAffordPhysio={physioFree || state.points >= physioCost}
+      physioFree={physioFree}
+      physioCost={physioCost}
       onHealInjury={(playerId) => online ? healInjuryOnline(playerId) : dispatch({ type: 'HEAL_INJURY', playerId })}
       coachPrime={team.coachPrime}
       points={state.points}
+      analysisLevel={projectLevel(team.clubProjects, 'analysis')}
+      stadiumProjectLevel={projectLevel(team.clubProjects, 'stadium')}
       wins={wins}
       onEvolvePrime={() => online ? evolveCoachPrimeOnline() : dispatch({ type: 'EVOLVE_COACH_PRIME' })}
       onSetEvolvePoint={(playerId, attr, delta) => online ? setEvolvePointOnline(playerId, attr, delta) : dispatch({ type: 'SET_EVOLVE_POINT', playerId, attr, delta })}

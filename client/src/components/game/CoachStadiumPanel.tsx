@@ -1,19 +1,18 @@
 import { useState } from 'react';
 import { Coach, Formation } from '../../lib/gameData';
-import { Stadium, DEFAULT_STADIUM, stadiumFor } from '../../lib/stadium';
+import { stadiumDisplayFor, stadiumFor } from '../../lib/stadium';
 import { PRIME_COST, PRIME_WINS_REQUIRED } from '../../lib/shop';
+import { coachPrimeDefinition } from '../../lib/coachPrime';
 import CoachCard from './CoachCard';
-import StadiumCard from './StadiumCard';
 import { Button } from '../../design-system';
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 
-const ATTR_PT: Record<string, string> = { pace: 'Ritmo', shooting: 'Finalização', passing: 'Passe', dribbling: 'Drible', defending: 'Defesa', physical: 'Físico', vision: 'Visão', composure: 'Compostura' };
 
 interface Props {
   coach: Coach;
   formation?: Formation;
   coachPrime: boolean;
-  stadium: Stadium;
+  stadiumProjectLevel?: number;
   wins?: number;
   points?: number;
   onEvolve?: () => void; // presente só no MEU TIME (editável); ausente = só exibição
@@ -48,38 +47,19 @@ function TransitionRow({ label, before, beforeCaption, after, afterCaption }: { 
   );
 }
 
-// Uma linha de mudança "de → para".
-function ChangeRow({ icon, label, from, to, last }: { icon: string; label: string; from: string; to: string; last?: boolean }) {
-  return (
-    <div className="flex min-w-0 shrink-0 items-center gap-2.5 px-3 py-2" style={{ borderBottom: last ? 'none' : '1px solid #14141F' }}>
-      <span className="text-sm flex-shrink-0">{icon}</span>
-      <div className="min-w-0 flex-1">
-        <div className="text-[9px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{label}</div>
-        <div className="flex items-center gap-1.5 text-[11px] font-bold leading-tight" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-          <span style={{ color: '#8A8A9A' }}>{from}</span>
-          <span style={{ color: '#C9A84C' }}>→</span>
-          <span style={{ color: '#E8C84A' }}>{to}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Card único "TÉCNICO & ESTÁDIO": técnico em cima (com o botão de evoluir), estádio embaixo.
-export default function CoachStadiumPanel({ coach, formation, coachPrime, stadium, wins = 0, points = 0, onEvolve, reportSummary = false }: Props) {
+// Exibição do técnico. O estádio é uma seção independente em "Meu Clube".
+export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiumProjectLevel = 1, wins = 0, points = 0, onEvolve, reportSummary = false }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [reportStadiumImgOk, setReportStadiumImgOk] = useState(true);
   const canEvolve = wins >= PRIME_WINS_REQUIRED && points >= PRIME_COST;
-  const primeStadium = stadiumFor(coach.id, true);
-  const hasPrime = primeStadium.prime === true;
+  const primeDefinition = coachPrimeDefinition(coach.id);
+  const primeCoachPhotoUrl = stadiumFor(coach.id, true).coachPhotoUrl;
+  // Nível 5 unlocks the Prime stadium image as the club's visual stadium;
+  // it does not evolve the coach or grant the Prime thematic coach effects.
+  const displayedStadium = stadiumDisplayFor(coach.id, coachPrime, stadiumProjectLevel);
+  const hasPrime = !!primeDefinition;
   const showButton = !!onEvolve && !coachPrime && hasPrime;
-  const themedAttrNames = primeStadium.themedAttrs ? primeStadium.themedAttrs.map(a => ATTR_PT[a]) : [];
-  const themedAttrsJsx = themedAttrNames.map((n, i) => (
-    <span key={n}>{i > 0 ? ' e ' : ''}<b style={{ color: '#FFF' }}>{n}</b></span>
-  ));
-  const themedTargetPrefix = primeStadium.themedClub ? 'do' : 'de';
-  const themedTargetName = primeStadium.themedClub ?? primeStadium.themedNation ?? '';
-  const reportCoachPhoto = coachPrime && stadium.coachPhotoUrl ? stadium.coachPhotoUrl : coach.photoUrl;
+  const reportCoachPhoto = coachPrime && primeCoachPhotoUrl ? primeCoachPhotoUrl : coach.photoUrl;
 
   if (reportSummary) {
     return (
@@ -120,15 +100,15 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             </div>
             {reportStadiumImgOk && (
               <img
-                src={stadium.photoUrl}
-                alt={stadium.name}
+                src={displayedStadium.photoUrl}
+                alt={displayedStadium.name}
                 onError={() => setReportStadiumImgOk(false)}
                 className="mt-3 h-[120px] w-[120px] rounded-xl object-cover"
-                style={{ border: `2px solid ${stadium.prime ? '#E8C84A88' : '#16A34A55'}` }}
+                style={{ border: `2px solid ${displayedStadium.prime ? '#E8C84A88' : '#16A34A55'}` }}
               />
             )}
             <div className="mt-3 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>
-              {stadium.name}
+              {displayedStadium.name}
             </div>
           </div>
         </div>
@@ -138,14 +118,9 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
 
   return (
     <div className="ui-panel overflow-hidden">
-      <div className="ui-panel__header">
-        <span className="ui-panel__title">Técnico &amp; estádio</span>
-        {coachPrime && <span className="ui-badge ui-badge--brand">Prime</span>}
-      </div>
+      <CoachCard coach={coach} formation={formation} isPrime={coachPrime} primePhotoUrl={primeCoachPhotoUrl} bare showHeader={false} />
 
-      <CoachCard coach={coach} formation={formation} isPrime={coachPrime} primePhotoUrl={stadium.coachPhotoUrl} bare />
-
-      {/* Botão de evoluir — na parte do técnico, acima do estádio */}
+      {/* Botão de evoluir — exclusivo da seção do técnico */}
       {showButton && (
         <div className="px-4 pb-4 -mt-1">
           <Button intent="primary" className="w-full" onClick={() => setShowModal(true)}>
@@ -153,9 +128,6 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
           </Button>
         </div>
       )}
-
-      <div style={{ height: 1, background: '#1A1A2A' }} />
-      <StadiumCard stadium={stadium} bare />
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent
@@ -170,7 +142,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
               <span className="text-xl">⭐</span>
               <div className="min-w-0">
                 <DialogTitle className="ui-modal__title">Evolução Prime</DialogTitle>
-                <div className="truncate text-xs text-[var(--ui-text-muted)]">{coach.name} · {primeStadium.name}</div>
+                <div className="truncate text-xs text-[var(--ui-text-muted)]">{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
               </div>
             </div>
 
@@ -178,44 +150,33 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             <div className="ui-modal__body ui-stack min-h-0 min-w-0 flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y">
               {/* Transição do técnico */}
               <TransitionRow
-                label="TÉCNICO"
+                label="TÉCNICO · ANTES E DEPOIS"
                 before={
                   <img src={coach.photoUrl} alt={coach.name} referrerPolicy="no-referrer" className="w-28 h-28 rounded-lg object-cover mx-auto"
                     style={{ objectPosition: 'center top', filter: 'grayscale(0.45) brightness(0.8)', border: '1px solid #2A2A3A' }} />
                 }
-                beforeCaption="Agora"
+                beforeCaption="ANTES"
                 after={
                   <div className="relative w-28 h-28 mx-auto">
-                    <img src={primeStadium.coachPhotoUrl} alt={`${coach.name} Prime`} className="w-28 h-28 rounded-lg object-cover" style={{ objectPosition: 'center top', border: '2px solid #E8C84A' }} />
+                    <img src={primeCoachPhotoUrl ?? coach.photoUrl} alt={coach.name + ' Prime'} className="w-28 h-28 rounded-lg object-cover" style={{ objectPosition: 'center top', border: '2px solid #E8C84A' }} />
                     <img src="/coaches/prime/moldura.webp" alt="" aria-hidden className="absolute inset-0 w-full h-full pointer-events-none" />
                   </div>
                 }
-                afterCaption="Prime"
-              />
-
-              {/* Transição do estádio */}
-              <TransitionRow
-                label="ESTÁDIO"
-                before={<img src={DEFAULT_STADIUM.photoUrl} alt="Estádio Padrão" className="w-28 h-28 rounded-lg object-cover mx-auto" style={{ filter: 'grayscale(0.35) brightness(0.85)', border: '1px solid #2A2A3A' }} />}
-                beforeCaption="Estádio Padrão"
-                after={<img src={primeStadium.photoUrl} alt={primeStadium.name} className="w-28 h-28 rounded-lg object-cover mx-auto" style={{ border: '2px solid #E8C84A' }} />}
-                afterCaption={primeStadium.name}
+                afterCaption="DEPOIS · PRIME"
               />
 
               {/* Mudanças detalhadas */}
               <div className="ui-panel ui-panel--inset min-w-0 shrink-0 overflow-hidden">
                 <div className="ui-panel__header py-2 text-[var(--ui-brand-strong)]">O que muda</div>
-                <ChangeRow icon="🏟️" label="Estádio" from="Padrão" to={primeStadium.name} />
-                <ChangeRow icon="🏠" label="Vantagem em casa" from={`+${DEFAULT_STADIUM.homeAttrBonus} em tudo`} to={`+${primeStadium.homeAttrBonus} em tudo`} />
-                {/* Buff temático explicado (não é um simples de→para) */}
                 <div className="px-3 py-2.5" style={{ background: '#0d0d16' }}>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-sm">⚡</span>
-                    <span className="text-[10px] font-black tracking-wider" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>BUFF TEMÁTICO EM CASA</span>
+                    <span className="text-sm">⭐</span>
+                    <span className="text-[10px] font-black tracking-wider" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>{primeDefinition?.name ?? 'ASSINATURA PRIME'}</span>
                   </div>
-                  <div className="text-[11px] leading-snug space-y-1" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>
-                    <div><b style={{ color: '#22C55E' }}>+3</b> de {themedAttrsJsx} para <b>todos</b> os seus titulares</div>
-                    <div><b style={{ color: '#E8C84A' }}>+6</b> de {themedAttrsJsx} para os jogadores {themedTargetPrefix} <b style={{ color: '#FFF' }}>{themedTargetName}</b></div>
+                  <div className="space-y-2 text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <div><b style={{ color: '#8A8A9A' }}>Antes:</b> {primeDefinition?.normal ?? coach.specialAbility}</div>
+                    <div><b style={{ color: '#E8C84A' }}>Depois:</b> {primeDefinition?.prime ?? 'A habilidade especial fica mais forte.'}</div>
+                    <div><b style={{ color: '#8A8A9A' }}>Ativa quando:</b> {primeDefinition?.condition ?? 'Conforme a situação da partida.'}</div>
                   </div>
                 </div>
               </div>

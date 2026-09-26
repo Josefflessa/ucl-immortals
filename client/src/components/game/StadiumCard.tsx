@@ -1,8 +1,5 @@
 import { useState } from 'react';
 import { Stadium, DEFAULT_STADIUM } from '../../lib/stadium';
-import { PRIME_THEMED_BONUS, PRIME_THEMED_CLUB_BONUS } from '../../lib/gameEngine';
-
-const ATTR_PT: Record<string, string> = { pace: 'Ritmo', shooting: 'Finalização', passing: 'Passe', dribbling: 'Drible', defending: 'Defesa', physical: 'Físico', vision: 'Visão', composure: 'Compostura' };
 
 interface StadiumCardProps {
   stadium?: Stadium;
@@ -52,26 +49,12 @@ export default function StadiumCard({ stadium = DEFAULT_STADIUM, variant = 'full
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-lg font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{stadium.name}</div>
-          {stadium.prime && stadium.themedAttrs ? (
-            <>
-              <div className="text-[11px] font-black mt-1 leading-tight" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>
-                🏠 Em casa: +{stadium.homeAttrBonus} em todos os atributos de todos os titulares
-              </div>
-              <div className="text-[10px] font-bold leading-snug mt-0.5" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
-                ⚡ {stadium.themedAttrs.map(a => ATTR_PT[a]).join(' e ')}: <b>+{PRIME_THEMED_BONUS}</b> pra todos, <b>+{PRIME_THEMED_CLUB_BONUS}</b> pros jogadores {stadium.themedClub ? `do ${stadium.themedClub}` : `de ${stadium.themedNation}`}
-              </div>
-              <div className="text-[10px] leading-snug mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>Vale quando você é mandante. Final única é neutra; na ida e volta, vale no seu jogo em casa.</div>
-            </>
-          ) : (
-            <>
-              <div className="text-[11px] font-black mt-1 leading-tight" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
-                🏠 Em casa: +{stadium.homeAttrBonus} em TODOS os atributos de TODOS os seus titulares
-              </div>
-              <div className="text-[10px] leading-snug mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                Vale quando você é mandante. Final única é neutra; na ida e volta, vale no seu jogo em casa.
-              </div>
-            </>
-          )}
+          <div className="text-[11px] font-black mt-1 leading-tight" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
+            🏠 Em casa: +{stadium.homeAttrBonus} em TODOS os atributos de TODOS os seus titulares
+          </div>
+          <div className="text-[10px] leading-snug mt-0.5" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+            Vale quando você é mandante. Final única é neutra; na ida e volta, vale no seu jogo em casa.
+          </div>
         </div>
       </div>
     </div>
