@@ -9,6 +9,8 @@ export interface PlayerPortraitProps {
   loading?: 'eager' | 'lazy';
   fetchPriority?: 'high' | 'low' | 'auto';
   lowRes?: boolean;
+  /** Foto explícita da carta, usada antes do catálogo local e dos fallbacks. */
+  photoUrl?: string;
   fallback?: ReactNode;
 }
 
@@ -25,9 +27,13 @@ export function PlayerPortrait({
   loading = 'eager',
   fetchPriority,
   lowRes = true,
+  photoUrl,
   fallback,
 }: PlayerPortraitProps) {
-  const sources = useMemo(() => buildPlayerPhotoSources(playerId, lowRes), [playerId, lowRes]);
+  const sources = useMemo(
+    () => buildPlayerPhotoSources(playerId, lowRes, photoUrl),
+    [playerId, lowRes, photoUrl],
+  );
   const [sourceIndex, setSourceIndex] = useState(0);
   const [failed, setFailed] = useState(false);
 
@@ -36,7 +42,7 @@ export function PlayerPortrait({
   useEffect(() => {
     setSourceIndex(0);
     setFailed(false);
-  }, [playerId, lowRes]);
+  }, [playerId, lowRes, photoUrl]);
 
   const url = sources[sourceIndex] ?? null;
   const handleError = () => {

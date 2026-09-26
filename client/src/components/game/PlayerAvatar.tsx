@@ -9,6 +9,7 @@ import { getRarityColor } from '../../lib/gameData';
 
 interface PlayerAvatarProps {
   playerId: string;
+  photoUrl?: string;
   rarity?: string;
   size?: number;          // px (width = height)
   rounded?: string;       // tailwind radius class
@@ -18,13 +19,14 @@ interface PlayerAvatarProps {
 
 export default function PlayerAvatar({
   playerId,
+  photoUrl,
   rarity,
   size = 40,
   rounded = 'rounded-lg',
   ring = true,
   fallback,
 }: PlayerAvatarProps) {
-  const urls = buildPlayerPhotoSources(playerId, true);
+  const urls = buildPlayerPhotoSources(playerId, true, photoUrl);
   const isUnique = urls[0]?.startsWith('/players/unico/') ?? false;
 
   const color = rarity ? getRarityColor(rarity as Parameters<typeof getRarityColor>[0]) : '#2A2A3A';
@@ -37,6 +39,7 @@ export default function PlayerAvatar({
     >
       <PlayerPortrait
         playerId={playerId}
+        photoUrl={photoUrl}
         alt=""
         lowRes
         loading={isUnique ? 'eager' : 'lazy'}

@@ -36,6 +36,15 @@ describe('fontes de foto dos jogadores', () => {
     expect(buildPlayerPhotoSources('jogador_local_novo')[0]).toBe('/players/regular/jogador_local_novo.webp');
   });
 
+  it('prioriza a foto baixada da carta mesmo quando recebe apenas o id', () => {
+    const sornoza = PLAYERS.find(player => player.shortName === 'Junior Sornoza');
+    const sources = buildPlayerPhotoSources(sornoza?.id ?? '', true);
+
+    expect(sornoza?.photoUrl).toBe('/players/sortitoutsi/sortitoutsi_86029992.webp');
+    expect(sources[0]).toBe(sornoza?.photoUrl);
+    expect(existsSync(resolve(process.cwd(), 'client/public', sources[0]!.replace(/^\//, '')))).toBe(true);
+  });
+
   it.each([
     ['lewandowski'],
     ['lewandowski_barcelona'],

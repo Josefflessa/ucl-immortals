@@ -226,6 +226,7 @@ export default function MatchSimPage() {
           >
             <PlayerPortrait
               playerId={p.id}
+              photoUrl={p.photoUrl}
               alt={p.shortName}
               lowRes
               className="w-full h-full object-cover"

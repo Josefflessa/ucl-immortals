@@ -30,6 +30,7 @@ function HighlightPortrait({ player, color }: { player: Player; color: string })
   return (
     <PlayerAvatar
       playerId={player.id}
+      photoUrl={player.photoUrl}
       rarity={player.rarity}
       size={54}
       rounded="rounded-xl"

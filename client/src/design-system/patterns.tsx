@@ -1,7 +1,9 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 import * as React from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Badge, Button, Panel, PanelBody, PanelHeader, PanelTitle, SectionHeader, type UiIntent } from './primitives';
+import { Badge, Button, IconButton, Panel, PanelBody, PanelHeader, PanelTitle, SectionHeader, type UiIntent } from './primitives';
 import { Tabs as PrimitiveTabs, TabsContent as PrimitiveTabsContent, TabsList as PrimitiveTabsList, TabsTrigger as PrimitiveTabsTrigger } from '../components/ui/tabs';
 import {
   AlertDialog,
@@ -141,5 +143,89 @@ export function ConfirmDialog({ open, onOpenChange, title, description, confirmL
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+export interface GameModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Rendered in .ui-modal__title. Omit for a header-less modal (rare — prefer a title). */
+  title?: ReactNode;
+  /** Small text under the title, inside the same header block. */
+  subtitle?: ReactNode;
+  /** Extra header content before the close button (e.g. a tab counter). */
+  headerExtra?: ReactNode;
+  /** .ui-modal__footer content — action buttons. */
+  footer?: ReactNode;
+  size?: 'default' | 'wide';
+  /** A modal opened on top of another already-open modal (e.g. a purchase
+   * confirmation over the shop's item modal). Only set this where that is
+   * actually true — most modals are the base layer. */
+  stacked?: boolean;
+  /**
+   * false = the decision is mandatory: no X, no Esc, no click-outside.
+   * Only the explicit action button(s) in `footer`/children close it
+   * (recruitment pick, penalty shootout, invalid-lineup acknowledgement).
+   */
+  dismissible?: boolean;
+  /** aria-label of the close button. Default 'Fechar'. */
+  closeLabel?: string;
+  bodyClassName?: string;
+  className?: string;
+  children?: ReactNode;
+}
+
+/**
+ * The one modal shell for every game overlay. Built on Radix Dialog (real
+ * Esc + focus trap) but styled with the game's existing .ui-modal* classes —
+ * no new colors, fonts or chrome, just one consistent structure and one
+ * consistent close button (40px, top-right, always labeled).
+ */
+export function GameModal({
+  open, onOpenChange, title, subtitle, headerExtra, footer,
+  size = 'default', stacked = false, dismissible = true, closeLabel = 'Fechar',
+  bodyClassName, className, children,
+}: GameModalProps) {
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={next => { if (dismissible || next) onOpenChange(next); }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          className={cn('ui-modal-backdrop', stacked ? 'z-[60]' : 'z-50')}
+          onClick={event => { if (!dismissible) event.preventDefault(); }}
+        >
+          <DialogPrimitive.Content
+            className={cn('ui-modal', size === 'wide' && 'ui-modal--wide', 'flex flex-col', className)}
+            aria-describedby={undefined}
+            onPointerDownOutside={event => { if (!dismissible) event.preventDefault(); }}
+            onEscapeKeyDown={event => { if (!dismissible) event.preventDefault(); }}
+            onOpenAutoFocus={dismissible ? undefined : event => event.preventDefault()}
+          >
+            {!title ? <DialogPrimitive.Title className="sr-only">Janela</DialogPrimitive.Title> : null}
+            {(title || headerExtra || dismissible) && (
+              <div className="ui-modal__header flex-shrink-0">
+                <div className="min-w-0">
+                  {title ? <DialogPrimitive.Title className="ui-modal__title">{title}</DialogPrimitive.Title> : null}
+                  {subtitle ? <p className="mt-0.5 text-xs text-[var(--ui-text-muted)]">{subtitle}</p> : null}
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  {headerExtra}
+                  {dismissible ? (
+                    <DialogPrimitive.Close asChild>
+                      <IconButton label={closeLabel}>
+                        <X size={20} strokeWidth={2} aria-hidden="true" />
+                      </IconButton>
+                    </DialogPrimitive.Close>
+                  ) : null}
+                </div>
+              </div>
+            )}
+            <div className={cn('ui-modal__body min-h-0 flex-1', bodyClassName)}>
+              {children}
+            </div>
+            {footer ? <div className="ui-modal__footer flex-shrink-0">{footer}</div> : null}
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Overlay>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

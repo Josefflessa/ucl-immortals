@@ -16,7 +16,8 @@ import type { MatchPlan } from '../../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import CoachStadiumPanel from './CoachStadiumPanel';
 import { stadiumFor } from '../../lib/stadium';
-import PlayerCard, { buildSofifaUrl, cardTexture, UNIQUE_STYLE, getCardVariants } from './PlayerCard';
+import PlayerCard, { cardTexture, UNIQUE_STYLE, getCardVariants } from './PlayerCard';
+import PlayerPortrait from './PlayerPortrait';
 import RolesSelector, { roleMetricFor, suggestedRoleId, type GameRole, type RoleablePlayer } from './RolesSelector';
 import TacticSelector from './TacticSelector';
 import MatchPlanSelector from './MatchPlanSelector';
@@ -498,11 +499,18 @@ export default function SquadEditor({
                   <b className="block tracking-widest">ESCOLHA O {activeRoleLabel}</b>
                   <span className="mt-1 block text-[13px] text-[#D0CBAE]">Toque em um titular no campo para definir a função.</span>
                   {roleSuggestionId && (() => {
-                    const suggestion = rolePlayers.find(player => player.id === roleSuggestionId);
-                    const photoUrl = suggestion ? buildSofifaUrl(suggestion.id, 120) : null;
+                    const suggestion = xi.find(player => player.id === roleSuggestionId);
                     return suggestion ? (
                       <span className="mt-2 flex items-center gap-2 text-[13px] text-[#C9A84C]">
-                        {photoUrl && <img src={photoUrl} alt="" className="h-10 w-8 rounded object-cover object-top" />}
+                        <span className="h-10 w-8 shrink-0 overflow-hidden rounded bg-[#10101d]">
+                          <PlayerPortrait
+                            playerId={suggestion.id}
+                            photoUrl={suggestion.photoUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            style={{ objectPosition: 'center top' }}
+                          />
+                        </span>
                         <span>★ Sugestão: <b>{suggestion.shortName}</b></span>
                       </span>
                     ) : null;
@@ -804,7 +812,6 @@ export default function SquadEditor({
                     : 0;
                   const effectiveOverallDelta = eff.overall - originalOverall;
                   const originalStat = (value: number) => value - cardVariantDelta;
-                  const photoUrl = UNIQUE_STYLE[selectedPlayer.id]?.render ?? buildSofifaUrl(selectedPlayer.id, 120);
                   const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
                   const linkLabels: Record<string, string> = { club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica' };
                   const selLinks = posIdx >= 0
@@ -843,9 +850,14 @@ export default function SquadEditor({
                     <div className="rounded-xl overflow-hidden" style={{ background: '#07070f', border: `1px solid ${getRarityColor(selectedPlayer.rarity)}22` }}>
                       <div className="flex items-center gap-4 p-4">
                         <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#10101d', border: `2px solid ${getRarityColor(selectedPlayer.rarity)}` }}>
-                          {photoUrl
-                            ? <img src={photoUrl} alt={selectedPlayer.shortName} referrerPolicy="no-referrer" className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} />
-                            : <span className="text-2xl" style={{ color: getRarityColor(selectedPlayer.rarity) }}>⚽</span>}
+                          <PlayerPortrait
+                            playerId={selectedPlayer.id}
+                            photoUrl={selectedPlayer.photoUrl}
+                            alt={selectedPlayer.shortName}
+                            className="w-full h-full object-cover"
+                            style={{ objectPosition: 'center top', scale: '1.2' }}
+                            fallback={<span className="text-2xl" style={{ color: getRarityColor(selectedPlayer.rarity) }}>⚽</span>}
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5 mb-1">
@@ -1066,8 +1078,6 @@ export default function SquadEditor({
                       const preview = getChemPreview(idx);
                       const diffColor = preview.diff > 0 ? '#22C55E' : preview.diff < 0 ? '#EF4444' : '#8A8A9A';
                       const diffLabel = preview.diff > 0 ? `+${preview.diff}` : `${preview.diff}`;
-                      const isUnique = !!UNIQUE_STYLE[candidate.id];
-                      const photoUrl = UNIQUE_STYLE[candidate.id]?.render ?? buildSofifaUrl(candidate.id, 120);
                       const variants = getCardVariants(candidate);
                       const candidateDisciplineChips = disciplineChips(candidate.id);
                       const { fit, role, occupant } = swapFit(candidate, idx);
@@ -1082,9 +1092,15 @@ export default function SquadEditor({
                           className="flex items-center gap-3 p-3 rounded-xl cursor-pointer border hover:brightness-125 active:scale-[0.98] transition-all"
                           style={{ background: bgCol, borderColor: borderCol }}>
                           <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#10101d]" style={{ border: `1.5px solid ${getRarityColor(candidate.rarity)}` }}>
-                            {photoUrl
-                              ? <img src={photoUrl} alt={candidate.shortName} className="w-full h-full object-cover" style={{ objectPosition: 'center top', scale: '1.2' }} loading={isUnique ? 'eager' : 'lazy'} referrerPolicy="no-referrer" />
-                              : <span className="text-sm font-bold" style={{ color: getRarityColor(candidate.rarity) }}>⚽</span>}
+                            <PlayerPortrait
+                              playerId={candidate.id}
+                              photoUrl={candidate.photoUrl}
+                              alt={candidate.shortName}
+                              loading="lazy"
+                              className="w-full h-full object-cover"
+                              style={{ objectPosition: 'center top', scale: '1.2' }}
+                              fallback={<span className="text-sm font-bold" style={{ color: getRarityColor(candidate.rarity) }}>⚽</span>}
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             {/* nome + características */}

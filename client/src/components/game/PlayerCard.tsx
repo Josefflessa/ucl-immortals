@@ -1,11 +1,15 @@
 import { useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
-import { Player, POS_PT } from '../../lib/gameData';
+import { PLAYERS, Player, POS_PT } from '../../lib/gameData';
 import { arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { canonicalClubName, crestIdForClub } from '../../lib/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 import Crest from './Crest';
+
+const CATALOG_PLAYER_PHOTO_URLS = new Map<string, string>(
+  PLAYERS.flatMap(player => player.photoUrl ? [[player.id, player.photoUrl] as const] : []),
+);
 
 export interface PlayerCardStats {
   overall: number;
@@ -726,16 +730,23 @@ export function buildPlayerPhotoSources(playerId: string, lowRes = false, explic
 
   const baseId = getBasePlayerId(playerId);
   const m = SOFIFA_MAPPING[baseId];
+  // Algumas cartas carregadas de arquivos externos (como o pacote do
+  // SortitoutSI) já trazem uma foto local própria. Centralizar essa consulta
+  // aqui garante que listas, modais e avatares usem a mesma imagem do card,
+  // mesmo quando o chamador só conhece o id do jogador.
+  const catalogPhotoUrl = CATALOG_PLAYER_PHOTO_URLS.get(playerId) ?? CATALOG_PLAYER_PHOTO_URLS.get(baseId);
+  const preferredPhotoUrls = [explicitPhotoUrl, catalogPhotoUrl]
+    .filter((url): url is string => Boolean(url));
 
   // Prefer the readable local filename used by the downloaded Icon portraits,
   // then the converted/legacy numeric package, and only then use SoFIFA online.
   // The exact player ID is always tried, so adding `players/regular/<id>.webp`
   // is enough even when the ID has not been added to a mapping yet.
-  return [
-    ...(explicitPhotoUrl ? [explicitPhotoUrl] : []),
+  return Array.from(new Set([
+    ...preferredPhotoUrls,
     ...buildLocalPlayerUrls(playerId),
     ...(m ? buildSofifaUrls(m, lowRes) : []),
-  ];
+  ]));
 }
 
 export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null {

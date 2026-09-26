@@ -1346,7 +1346,7 @@ export default function LeaguePage() {
                           </span>
 
                           {/* Player face avatar (robust fallback) */}
-                          <PlayerAvatar playerId={player.id} rarity={player.rarity} size={40} />
+                          <PlayerAvatar playerId={player.id} photoUrl={player.photoUrl} rarity={player.rarity} size={40} />
 
                           {/* Player details */}
                           <div className="flex-1 min-w-0">

@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { Info } from 'lucide-react';
 import { CAPTAIN_BOOST, captainBestStatFromStarters, type EffectiveStats } from '../../lib/gameEngine';
 import type { Player } from '../../lib/gameData';
-import { buildSofifaUrl } from './PlayerCard';
+import PlayerPortrait from './PlayerPortrait';
 import { IconButton } from '../../design-system';
 
 type RoleStat = 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'composure';
@@ -38,6 +38,7 @@ export interface RoleablePlayer {
   overall: number;
   effectiveOverall?: number;
   rarity?: string;
+  photoUrl?: string;
   composure?: number;
   pace?: number;
   shooting?: number;
@@ -213,11 +214,17 @@ export default function RolesSelector({
                 <span className="mt-1 flex min-h-7 items-center gap-1.5 truncate text-[12px] font-bold" style={{ color: card.player ? '#FFF' : '#8A8A9A' }}>
                   {card.player ? (
                     <>
-                      <img
-                        src={buildSofifaUrl(card.player.id, 120) ?? undefined}
-                        alt=""
-                        className="h-7 w-6 shrink-0 rounded object-cover object-top"
-                      />
+                      <span className="h-7 w-6 shrink-0 overflow-hidden rounded bg-[#10101d]">
+                        <PlayerPortrait
+                          playerId={card.player.id}
+                          photoUrl={card.player.photoUrl}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                          style={{ objectPosition: 'center top' }}
+                          fallback={<span className="flex h-full w-full items-center justify-center text-[10px]">⚽</span>}
+                        />
+                      </span>
                       <span className="truncate">{card.player.shortName}</span>
                     </>
                   ) : 'Escolher'}

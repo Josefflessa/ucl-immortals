@@ -686,6 +686,7 @@ export default function FormationField({
                 {player ? (
                   <PlayerPortrait
                     playerId={player.id}
+                    photoUrl={player.photoUrl}
                     alt={player.shortName}
                     lowRes
                     className="w-full h-full object-cover rounded-full"
