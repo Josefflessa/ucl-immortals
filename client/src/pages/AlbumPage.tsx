@@ -436,21 +436,24 @@ export default function AlbumPage() {
     <AppShell>
       <TopBar />
 
-      <PageContainer wide className="pb-10 pt-7 sm:pt-10">
+      <PageContainer wide className="relative pb-10 pt-7 sm:pt-10">
+        <IconButton
+          label="Voltar ao menu"
+          onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}
+          className="absolute right-[var(--ui-gutter)] top-7 shrink-0 sm:top-10"
+        >
+          <X size={20} strokeWidth={2} aria-hidden="true" />
+        </IconButton>
+
         <SectionHeader
           kicker="CATÁLOGO · CONSULTA LIVRE"
           title="Álbum de jogadores"
           description="Explore todas as cartas disponíveis, compare versões históricas e encontre o jogador ideal para o seu próximo elenco."
-          className="mb-6"
+          className="mb-6 pr-14"
           actions={
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="hidden items-center gap-2 text-xs text-[var(--ui-text-muted)] lg:flex">
-                <Users size={16} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
-                <span>Catálogo atualizado com as versões do jogo</span>
-              </div>
-              <IconButton label="Voltar ao menu" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="shrink-0">
-                <X size={20} strokeWidth={2} aria-hidden="true" />
-              </IconButton>
+            <div className="hidden items-center gap-2 text-xs text-[var(--ui-text-muted)] lg:flex">
+              <Users size={16} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
+              <span>Catálogo atualizado com as versões do jogo</span>
             </div>
           }
         />
