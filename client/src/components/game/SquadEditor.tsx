@@ -751,9 +751,9 @@ export default function SquadEditor({
                             <span className="mt-1 text-[10px] font-bold tracking-wide" style={{ color: '#A5F3FC' }}>−1 JOGO DE LESÃO</span>
                           </span>
                         </span>
-                        <span className="flex flex-col items-end rounded-lg px-2 py-1 leading-none" style={{ background: '#083344', color: '#67E8F9' }}>
+                        <span className="flex flex-col items-end rounded-lg px-2.5 py-2 leading-none" style={{ background: '#083344', color: '#67E8F9' }}>
                           <span className="text-sm font-black tabular-nums">{physioFree ? 'GRÁTIS' : physioCost}</span>
-                          <span className="mt-0.5 text-[9px] tracking-wider">{physioFree ? 'USO GRÁTIS' : 'PTS'}</span>
+                          {!physioFree && <span className="mt-0.5 text-[9px] tracking-wider">PTS</span>}
                         </span>
                       </button>
                     )}
@@ -933,7 +933,7 @@ export default function SquadEditor({
                         </div>
                       )}
 
-                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} charBoost={charBoosts[selectedPlayer.id]} isStarter={isStarter} formationRole={isStarter ? formationRole : undefined} credits={points} />
+                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} charBoost={charBoosts[selectedPlayer.id]} isStarter={isStarter} formationRole={isStarter ? formationRole : undefined} credits={points} playStyle={playStyle} />
                     </div>
                   );
                 })()}

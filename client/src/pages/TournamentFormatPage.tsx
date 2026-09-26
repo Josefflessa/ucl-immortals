@@ -249,17 +249,10 @@ export default function TournamentFormatPage() {
         <SectionHeader
           kicker="NOVA COMPETIÇÃO"
           title="Formato do torneio"
-          description="Escolha um modelo pronto e personalize apenas o que faz sentido para aquela estrutura. A dificuldade dos bots vem na próxima etapa."
+          description="Escolha um modelo pronto e personalize apenas o que faz sentido para aquela estrutura."
         />
 
         <div>
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <div>
-              <div className="ui-section-label">ESCOLHA UM MODELO</div>
-              <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Os presets abaixo já respeitam o que o motor do jogo consegue disputar.</p>
-            </div>
-            <div className="hidden items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--ui-text-faint)] sm:flex"><Settings2 size={13} /> Personalizável</div>
-          </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             {(Object.values(COMPETITION_FORMAT_PRESETS) as typeof COMPETITION_FORMAT_PRESETS[CompetitionFormatId][]).map(option => {
               const selected = format.id === option.id;
@@ -279,7 +272,7 @@ export default function TournamentFormatPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span className="text-3xl" aria-hidden="true">{option.icon}</span>
-                    {selected ? <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#C9A84C] text-sm font-black text-[#080810]">✓</span> : <span className="rounded-full border border-[var(--ui-line-subtle)] px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[var(--ui-text-faint)]">Preset</span>}
+                    {selected && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#C9A84C] text-sm font-black text-[#080810]">✓</span>}
                   </div>
                   <div className="mt-3 font-black tracking-wide text-white" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 22 }}>{option.name.toUpperCase()}</div>
                   <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{option.shortDescription}</p>

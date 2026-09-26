@@ -812,7 +812,7 @@ export default function LeaguePage() {
                         </span>
                         {fixture.result.playerStats && (
                           <button onClick={() => openMatchDetails(fixture.result!, { isKnockout: false, isFinal: false })}
-                            className="mt-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125"
+                            className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                             style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                             🔍 Detalhes
                           </button>
@@ -1463,7 +1463,7 @@ export default function LeaguePage() {
                       </div>
                       {result.playerStats && (
                         <button onClick={() => openMatchDetails(result)}
-                          className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125"
+                          className="h-7 min-h-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                           style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                           🔍 Detalhes
                         </button>
@@ -1526,7 +1526,7 @@ export default function LeaguePage() {
                                   </span>
                                   {fixture.result.playerStats && (
                                     <button onClick={() => openMatchDetails(fixture.result!, { isKnockout: false, isFinal: false })}
-                                      className="mt-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125"
+                                      className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                                       style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                                       🔍 Detalhes
                                     </button>
@@ -1701,7 +1701,7 @@ export default function LeaguePage() {
                       RECRUTAMENTO DA {recruitmentEventLabel}
                     </h3>
                     <p className="text-[11px] sm:text-xs mt-1" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                      O Centro encontrou <b style={{ color: '#FFF' }}>{recruitmentTotalOptions} jogadores</b>. Escolha <b style={{ color: '#FFF' }}>{recruitmentSelectionsRemaining} para contratar</b> e adicionar ao seu <b style={{ color: '#818CF8' }}>banco de reservas</b>. Depois, na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b>, você pode colocá-los entre os titulares.
+                      O Centro encontrou <b style={{ color: '#FFF' }}>{recruitmentTotalOptions} jogadores</b>. Escolha <b style={{ color: '#FFF' }}>{recruitmentSelectionsRemaining} para contratar</b> e adicionar ao seu <b style={{ color: '#818CF8' }}>banco de reservas</b>.
                       {recruitmentOffer?.minimumOverall ? <> Todas as opções têm <b style={{ color: '#F0D77A' }}>overall {recruitmentOffer.minimumOverall}+</b>.</> : null}
                     </p>
                   </div>

@@ -8,13 +8,13 @@ describe('Pacote Único', () => {
 });
 
 describe('canEvolvePrime', () => {
-  it('exige 4 vitórias E 500 pontos', () => {
-    expect(PRIME_COST).toBe(500);
+  it('exige 4 vitórias E 350 pontos', () => {
+    expect(PRIME_COST).toBe(350);
     expect(PRIME_WINS_REQUIRED).toBe(4);
-    expect(canEvolvePrime(4, 500)).toBe(true);
+    expect(canEvolvePrime(4, 350)).toBe(true);
     expect(canEvolvePrime(10, 800)).toBe(true);
     expect(canEvolvePrime(3, 500)).toBe(false);
-    expect(canEvolvePrime(4, 499)).toBe(false);
+    expect(canEvolvePrime(4, 349)).toBe(false);
   });
 });
 

@@ -36,12 +36,15 @@ describe('fontes de foto dos jogadores', () => {
     expect(buildPlayerPhotoSources('jogador_local_novo')[0]).toBe('/players/regular/jogador_local_novo.webp');
   });
 
-  it('prioriza a foto baixada da carta mesmo quando recebe apenas o id', () => {
-    const sornoza = PLAYERS.find(player => player.shortName === 'Junior Sornoza');
-    const sources = buildPlayerPhotoSources(sornoza?.id ?? '', true);
+  it.each([
+    ['Junior Sornoza', '/players/sortitoutsi/sortitoutsi_86029992.webp'],
+    ['Germán Cano', '/players/sortitoutsi/sortitoutsi_14003037.webp'],
+  ])('prioriza a foto baixada de %s mesmo quando recebe apenas o id', (name, expectedUrl) => {
+    const player = PLAYERS.find(candidate => candidate.shortName === name);
+    const sources = buildPlayerPhotoSources(player?.id ?? '', true);
 
-    expect(sornoza?.photoUrl).toBe('/players/sortitoutsi/sortitoutsi_86029992.webp');
-    expect(sources[0]).toBe(sornoza?.photoUrl);
+    expect(player?.photoUrl).toBe(expectedUrl);
+    expect(sources[0]).toBe(expectedUrl);
     expect(existsSync(resolve(process.cwd(), 'client/public', sources[0]!.replace(/^\//, '')))).toBe(true);
   });
 

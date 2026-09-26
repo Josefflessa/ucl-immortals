@@ -110,28 +110,6 @@ export default function FormationPage() {
                       )}
                     </div>
 
-                    {/* Strengths */}
-                    <div className="mb-2">
-                      {formation.strengths.slice(0, 2).map(s => (
-                        <div key={s} className="mb-0.5 flex items-center gap-1.5 text-sm"
-                          style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
-                          <span className="shrink-0">+</span>
-                          <span className="min-w-0 break-words leading-snug">{s}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Weaknesses */}
-                    <div>
-                      {formation.weaknesses.slice(0, 1).map(w => (
-                        <div key={w} className="flex items-start gap-1.5 text-sm"
-                          style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
-                          <span className="shrink-0">−</span>
-                          <span className="min-w-0 break-words leading-snug">{w}</span>
-                        </div>
-                      ))}
-                    </div>
-
                     {/* Impacto qualitativo (setas) */}
                     <div className="mt-2">
                       <ImpactMeter profile={formationProfile(formation.id)} />
@@ -180,23 +158,21 @@ export default function FormationPage() {
             <Panel tone="inset" className="w-full p-4">
               <div className="mb-2 text-sm font-bold tracking-widest"
                 style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
-                ANÁLISE TÁTICA
+                INDICADORES DO ESQUEMA
               </div>
-              <div className="space-y-1">
-                {selectedFormation.strengths.map(s => (
-                  <div key={s} className="flex items-start gap-2 text-sm"
-                    style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
-                    <span className="flex-shrink-0">✓</span>
-                    <span className="min-w-0 break-words leading-snug">{s}</span>
-                  </div>
-                ))}
-                {selectedFormation.weaknesses.map(w => (
-                  <div key={w} className="flex items-start gap-2 text-sm"
-                    style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
-                    <span className="flex-shrink-0">✗</span>
-                    <span className="min-w-0 break-words leading-snug">{w}</span>
-                  </div>
-                ))}
+              <ImpactMeter profile={formationProfile(selectedFormation.id)} />
+              <div className="mt-3 space-y-2 text-sm" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <div>
+                  <span className="font-bold text-[#22C55E]">Vantagem contra:</span>{' '}
+                  <span className="text-[#BFC0CE]">{selectedFormation.counters.join(', ') || 'Nenhuma formação específica'}</span>
+                </div>
+                <div>
+                  <span className="font-bold text-[#F97316]">Desvantagem contra:</span>{' '}
+                  <span className="text-[#BFC0CE]">{selectedFormation.counteredBy.join(', ') || 'Nenhuma formação específica'}</span>
+                </div>
+                <div className="text-xs text-[#8A8A9A]">
+                  Um confronto favorável concede <strong className="text-[#22C55E]">{formationAdvantageLabelForAnalysisLevel(1).toLowerCase()}</strong> ao time durante a partida.
+                </div>
               </div>
             </Panel>
           )}

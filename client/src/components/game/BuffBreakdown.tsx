@@ -5,7 +5,7 @@
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
 import { EffectiveStats, ChemLinkType, CharBoost, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, prodigioStatBoost } from '../../lib/gameEngine';
-import { Player } from '../../lib/gameData';
+import { getTacticById, Player } from '../../lib/gameData';
 import { getCardVariant } from './PlayerCard';
 
 const ATTR_PT: Record<string, string> = {
@@ -65,7 +65,7 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   arrogante: { icon: '👑', label: 'ARROGANTE', color: '#E879F9' },
 };
 
-export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter, formationRole, credits }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean; formationRole?: string; credits?: number }) {
+export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter, formationRole, credits, playStyle }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean; formationRole?: string; credits?: number; playStyle?: string }) {
   // 🪑 12º Homem só rende NO BANCO — se estiver jogando, fica sem efeito. Sinaliza esse estado
   // (é a única característica cujo efeito liga/desliga de um jeito contraintuitivo).
   const decimoInactive = !!player?.decimoHomem && isStarter === true;
@@ -81,14 +81,11 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const captain = collect(eff, b => b.captain);
   const train = collect(eff, b => b.train);
   const evolve = collect(eff, b => b.evolve);
-  const prodigio = collect(eff, b => b.prodigio);
-  const resiliente = collect(eff, b => b.resiliente);
-  const goleador = collect(eff, b => b.goleador);
-  const garcom = collect(eff, b => b.garcom);
-  const arrogante = collect(eff, b => b.arrogante);
-  const estribado = collect(eff, b => b.estribado);
   const position = collect(eff, b => b.position);
   const char = collect(eff, b => b.char);
+  // A carta especial própria já é explicada no bloco especial acima. Aqui ficam apenas
+  // características especiais que deram um bônus a este jogador.
+  const receivedCharSources = (charBoost?.sources ?? []).filter(source => !source.self && source.fromId !== player?.id);
   const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
   const showChem = chemNet !== 0 || !!chem;
   const showTraits = (traits && traits.length > 0) || traitDeltas.length > 0;
@@ -115,11 +112,12 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const goalkeeperDefLoss = Math.max(0, goalkeeperDefBefore - eff.defending);
   const positionColor = eff.isOOP ? '#EF4444' : '#EAB308';
   const positionLabel = eff.isOOP ? 'FORA DE POSIÇÃO · −15%' : '2ª POSIÇÃO · −5%';
+  const activeTactic = getTacticById(playStyle);
   // Named coach effects (e.g. "Visão de Jogo: +3 Geral") are ALREADY folded into the
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || prodigio.length > 0 || resiliente.length > 0 || goleador.length > 0 || garcom.length > 0 || arrogante.length > 0 || estribado.length > 0 || position.length > 0 || char.length > 0 || !!variant || isOutfieldInGoal;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || position.length > 0 || char.length > 0 || !!variant || isOutfieldInGoal;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -315,7 +313,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
           )}
 
           {tactic.length > 0 && (
-            <Row icon="📋" name="TÁTICA (ESTILO)" color="#4FC3F7">
+            <Row icon="📋" name={`TÁTICA (${activeTactic.name.toUpperCase()})`} color="#4FC3F7">
               <div className="flex flex-wrap gap-1">{chips(tactic, '#4FC3F7')}</div>
             </Row>
           )}
@@ -341,59 +339,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
             </Row>
           )}
 
-          {prodigio.length > 0 && (
-            <Row icon="📈" name="PRODÍGIO" color="#FDE047">
-              <div className="flex flex-wrap gap-1">{chips(prodigio, '#FDE047')}</div>
-              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                +1 em todos os atributos a cada {PRODIGIO_STARTS_PER_BOOST} partidas iniciadas como titular desde que a característica foi recebida.
-              </div>
-            </Row>
-          )}
-
-          {resiliente.length > 0 && (
-            <Row icon="🔥" name="RESILIENTE" color="#FB7185">
-              <div className="flex flex-wrap gap-1">{chips(resiliente, '#FB7185')}</div>
-              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                +{RESILIENTE_DEFEAT_BOOST} em todos os atributos por cada derrota do time em que a carta foi titular — o bônus acumula.
-              </div>
-            </Row>
-          )}
-
-          {goleador.length > 0 && (
-            <Row icon="⚽" name="GOLEADOR" color="#F97316">
-              <div className="flex flex-wrap gap-1">{chips(goleador, '#F97316')}</div>
-              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                +1 em todos os atributos a cada {GOLEADOR_GOALS_PER_BOOST} gols marcados. O bônus acumula e usa os gols da partida oficial.
-              </div>
-            </Row>
-          )}
-
-          {garcom.length > 0 && (
-            <Row icon="🎯" name="GARÇOM" color="#38BDF8">
-              <div className="flex flex-wrap gap-1">{chips(garcom, '#38BDF8')}</div>
-              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                +1 em todos os atributos a cada {GARCOM_ASSISTS_PER_BOOST} assistências dadas. O bônus acumula e usa as assistências da partida oficial.
-              </div>
-            </Row>
-          )}
-
-          {arrogante.length > 0 && (
-            <Row icon="👑" name="ARROGANTE" color="#E879F9">
-              <div className="flex flex-wrap gap-1">{chips(arrogante, '#E879F9')}</div>
-              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                +2 em todos os atributos por gol; a cada {ARROGANTE_GOALS_PER_PENALTY} gols, os outros titulares perdem −1 em tudo.
-              </div>
-            </Row>
-          )}
-
-          {estribado.length > 0 && (
-            <Row icon="💰" name="ESTRIBADO" color="#FACC15">
-              <div className="flex flex-wrap gap-1">{chips(estribado, '#FACC15')}</div>
-              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                +1 em todos os atributos a cada {ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis. Saldo considerado: {currentCredits}.
-              </div>
-            </Row>
-          )}
+          {/* As características da própria carta já aparecem no bloco especial acima. */}
 
           {/* 🔁 POSIÇÃO — penalidade por jogar fora da nativa (química fica intacta). */}
           {position.length > 0 && (
@@ -405,10 +351,10 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
             </Row>
           )}
 
-          {/* 🩸❤️🪑👑 Buff recebido de características de companheiros. */}
-          {/* CARACTERÍSTICA DO TIME — uma linha ESPECÍFICA por fonte (quem deu e quanto) */}
-          {charBoost && charBoost.sources.length > 0
-            ? charBoost.sources.map((src, i) => {
+          {/* 🩸❤️🪑👑 Bônus recebido de características especiais de companheiros. */}
+          {/* Uma linha específica por fonte — sem repetir a característica do próprio jogador. */}
+          {receivedCharSources.length > 0
+            ? receivedCharSources.map((src, i) => {
               const vis = TEAMCHAR[src.type];
               return (
                 <Row key={i} icon={vis.icon} name={src.self ? `${vis.label} (ATIVO)` : `${vis.label} — de ${src.fromName}`} color={vis.color}>
@@ -431,7 +377,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 </Row>
               );
             })
-            : char.length > 0 && (
+            : char.length > 0 && !variant && (
               <Row icon="🤝" name="CARACTERÍSTICA DO TIME" color="#F472B6">
                 <div className="flex flex-wrap gap-1">{chips(char, '#F472B6')}</div>
               </Row>

@@ -76,7 +76,7 @@ export const SHOP_COSTS = {
 } as const;
 
 // ⭐ Técnico Prime (Fase 2): critério + custo pra evoluir o técnico.
-export const PRIME_COST = 500;
+export const PRIME_COST = 350;
 export const PRIME_WINS_REQUIRED = 4;
 export function canEvolvePrime(wins: number, points: number): boolean {
   return wins >= PRIME_WINS_REQUIRED && points >= PRIME_COST;

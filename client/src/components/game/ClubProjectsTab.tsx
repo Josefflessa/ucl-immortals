@@ -2,7 +2,7 @@
 // Efeitos de gameplay são ativados por etapas; esta tela já usa o contrato
 // normalizado para ficar pronta para solo, online e campanhas antigas.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useGame } from '../../contexts/GameContext';
 import { ConfirmDialog } from '../../design-system';
 import PlayerCard from './PlayerCard';
@@ -30,6 +30,15 @@ function ProjectLevelBar({ level, color }: { level: number; color: string }) {
         />
       ))}
     </div>
+  );
+}
+
+function formatProjectCopy(projectId: string, text: string): ReactNode {
+  if (projectId !== 'analysis') return text;
+  return text.split(/(leve|clara|forte)/gi).map((part, index) =>
+    /^(leve|clara|forte)$/i.test(part)
+      ? <strong key={`${part}-${index}`} className="font-black text-[#60A5FA]">{part}</strong>
+      : part,
   );
 }
 
@@ -118,7 +127,7 @@ export default function ClubProjectsTab() {
           return (
             <article
               key={project.id}
-              className="relative overflow-hidden rounded-2xl border p-4 sm:p-5"
+              className="relative flex h-full flex-col overflow-hidden rounded-2xl border p-4 sm:p-5"
               style={{ background: '#0F0F1A', borderColor: `${project.color}55` }}
             >
               <div className="absolute inset-x-0 top-0 h-1" style={{ background: project.color }} />
@@ -149,25 +158,25 @@ export default function ClubProjectsTab() {
                 <ProjectLevelBar level={level} color={project.color} />
                   <p className="mt-3 text-pretty text-sm leading-relaxed text-[#B0B0BE]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   <span className="font-bold text-white">Nível atual:</span>{' '}
-                  {project.levelEffects?.[level - 1] ?? project.foundation}
+                  {formatProjectCopy(project.id, project.levelEffects?.[level - 1] ?? project.foundation)}
                 </p>
                 {!maxed && (
                     <p className="mt-1 text-pretty text-sm leading-relaxed text-[#77778A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     <span className="font-bold text-[#A0A0B0]">Próximo:</span>{' '}
-                    {project.levelEffects?.[level] ?? project.nextStep}
+                    {formatProjectCopy(project.id, project.levelEffects?.[level] ?? project.nextStep)}
                   </p>
                 )}
               </div>
 
-              <div className="mt-3 flex flex-col gap-2">
-                <span className="text-xs font-black tracking-wider text-[#626274]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="mt-auto flex min-h-[72px] flex-col gap-2 pt-3">
+                <span className="flex min-h-4 items-center text-xs font-black leading-4 tracking-wider text-[#626274]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {maxed ? 'PROJETO COMPLETO' : implemented ? 'PROJETO ATIVO' : 'ESTRUTURA PREPARADA'}
                 </span>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid h-10 grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setDetailsProjectId(project.id)}
-                    className="rounded-lg border px-3 py-3 text-xs font-black tracking-wider transition-colors hover:bg-white/[.04]"
+                    className="h-10 rounded-lg border px-3 text-xs font-black tracking-wider transition-colors hover:bg-white/[.04]"
                     style={{ borderColor: `${project.color}55`, color: '#D7D7E2', fontFamily: 'Rajdhani, sans-serif' }}
                   >
                     VER NÍVEIS
@@ -176,7 +185,7 @@ export default function ClubProjectsTab() {
                     type="button"
                     disabled={!canUpgrade}
                     onClick={() => setSelectedProjectId(project.id)}
-                    className="rounded-lg border px-3 py-3 text-xs font-black tracking-wider transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
+                    className="h-10 rounded-lg border px-3 text-xs font-black tracking-wider transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
                     style={{ borderColor: `${project.color}66`, color: project.color, fontFamily: 'Rajdhani, sans-serif' }}
                     title={
                       !implemented ? 'Este projeto será ativado em uma próxima etapa'
@@ -195,7 +204,7 @@ export default function ClubProjectsTab() {
                   type="button"
                   disabled={!trainingAvailable}
                   onClick={() => { setTrainingOpen(true); setTrainingPlayerId(null); }}
-                  className="mt-3 w-full rounded-lg border px-3 py-2.5 text-[11px] font-black tracking-wider transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
+                  className="mt-3 h-10 w-full rounded-lg border px-3 text-[11px] font-black tracking-wider transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
                   style={{ borderColor: `${project.color}66`, color: project.color, fontFamily: 'Rajdhani, sans-serif' }}
                   title={!trainingAvailable ? 'O treinamento fica disponível durante a competição' : 'Abrir Centro de Treinamento'}
                 >
@@ -368,7 +377,7 @@ export default function ClubProjectsTab() {
                         </span>
                       </div>
                       <p className="mt-2 text-sm leading-relaxed text-[#D0D0DC]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                        {effect}
+                        {formatProjectCopy(detailsProject.id, effect)}
                       </p>
                       <div className="mt-3 border-t border-white/[.08] pt-2 text-xs font-bold tracking-wide text-[#8F8FA0]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                         {levelNumber === 1 ? 'BASE DO PROJETO' : 'CUSTO PARA DESBLOQUEAR · ' + projectUpgradeCost(levelNumber) + ' CR'}
@@ -387,7 +396,31 @@ export default function ClubProjectsTab() {
           open={!!selectedProjectId}
           onOpenChange={open => { if (!open) setSelectedProjectId(null); }}
           title={`Evoluir ${selectedProject.title}`}
-          description={`Subir do nível ${selectedLevel} para o nível ${selectedNextLevel} custa ${selectedCost} créditos. O próximo benefício será: ${selectedNextEffect} A compra não pode ser desfeita e ${selectedProjectId === 'recruitment' ? 'vale para as próximas ofertas; uma oferta já aberta mantém as regras com que foi criada.' : selectedProjectId === 'analysis' ? 'o efeito vale para as próximas partidas; a partida em andamento não é recalculada.' : selectedProjectId === 'betting' ? 'vale para as próximas apostas; bilhetes já confirmados mantêm as regras do momento em que foram feitos.' : selectedProjectId === 'medical' ? 'o efeito vale para as próximas lesões, tratamentos e retornos de lesão.' : 'o efeito será aplicado nas próximas oportunidades do projeto.'}`}
+          description={(
+            <div className="space-y-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-[#2A2A40] bg-[#0A0A14] px-3 py-2.5">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black tracking-widest text-[#7E7E92]">NÍVEL ATUAL</div>
+                  <div className="mt-0.5 text-xl font-black text-white">{selectedLevel}</div>
+                </div>
+                <span className="text-xl text-[#6A6A7A]" aria-hidden="true">→</span>
+                <div className="min-w-0 text-right">
+                  <div className="text-[10px] font-black tracking-widest text-[#7E7E92]">PRÓXIMO NÍVEL</div>
+                  <div className="mt-0.5 text-xl font-black" style={{ color: selectedProject.color }}>{selectedNextLevel}</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border px-3 py-3" style={{ borderColor: selectedProject.color + '55', background: selectedProject.color + '0D' }}>
+                <div className="text-[10px] font-black tracking-widest" style={{ color: selectedProject.color }}>NOVO BENEFÍCIO</div>
+                <p className="mt-1.5 text-sm leading-relaxed text-[#D6D6E0]">{formatProjectCopy(selectedProject.id, selectedNextEffect)}</p>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-[#C9A84C55] bg-[#C9A84C0D] px-3 py-2.5">
+                <span className="text-[10px] font-black tracking-widest text-[#A7A7B8]">CUSTO DA EVOLUÇÃO</span>
+                <strong className="shrink-0 text-base font-black text-[#E8C84A]">{selectedCost} CRÉDITOS</strong>
+              </div>
+            </div>
+          )}
           confirmLabel={`CONFIRMAR · ${selectedCost} CR`}
           cancelLabel="CANCELAR"
           intent="primary"
