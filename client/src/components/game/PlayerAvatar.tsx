@@ -3,6 +3,7 @@
 // handling, so a missing SoFIFA asset (404) showed a broken image. This walks the
 // same multi-version fallback chain as the card and lands on a placeholder.
 
+import { memo } from 'react';
 import PlayerPortrait from './PlayerPortrait';
 import { buildPlayerPhotoSources } from './PlayerCard';
 import { getRarityColor } from '../../lib/gameData';
@@ -17,7 +18,7 @@ interface PlayerAvatarProps {
   fallback?: React.ReactNode;
 }
 
-export default function PlayerAvatar({
+function PlayerAvatar({
   playerId,
   photoUrl,
   rarity,
@@ -52,3 +53,6 @@ export default function PlayerAvatar({
     </div>
   );
 }
+
+// Memoized: rendered per row in every scorer/squad/swap list on screen.
+export default memo(PlayerAvatar);

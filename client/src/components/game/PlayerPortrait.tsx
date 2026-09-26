@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { buildPlayerPhotoSources } from './PlayerCard';
 
 export interface PlayerPortraitProps {
@@ -109,4 +109,7 @@ export function preloadPlayerPhotos(playerIds: string[], lowRes = true): () => v
   };
 }
 
-export default PlayerPortrait;
+// Memoized: dozens of these render per screen (squad rows, the live field, the
+// draft board) and are pure given their props — no reason to redraw one whose
+// own playerId/photoUrl/style didn't change just because a parent re-rendered.
+export default memo(PlayerPortrait);
