@@ -434,22 +434,20 @@ export default function AlbumPage() {
 
   return (
     <AppShell>
-      <TopBar />
+      <TopBar
+        right={
+          <IconButton label="Voltar ao menu" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="shrink-0">
+            <X size={20} strokeWidth={2} aria-hidden="true" />
+          </IconButton>
+        }
+      />
 
-      <PageContainer wide className="relative pb-10 pt-7 sm:pt-10">
-        <IconButton
-          label="Voltar ao menu"
-          onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}
-          className="absolute right-[var(--ui-gutter)] top-7 shrink-0 sm:top-10"
-        >
-          <X size={20} strokeWidth={2} aria-hidden="true" />
-        </IconButton>
-
+      <PageContainer wide className="pb-10 pt-7 sm:pt-10">
         <SectionHeader
           kicker="CATÁLOGO · CONSULTA LIVRE"
           title="Álbum de jogadores"
           description="Explore todas as cartas disponíveis, compare versões históricas e encontre o jogador ideal para o seu próximo elenco."
-          className="mb-6 pr-14"
+          className="mb-6"
           actions={
             <div className="hidden items-center gap-2 text-xs text-[var(--ui-text-muted)] lg:flex">
               <Users size={16} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
