@@ -125,6 +125,85 @@ const entries: Entry[] = [
   ['Ruan Pablo', 'CAM', 'Bahia', 2000382044], ['Cristian Olivera', 'CAM', 'Bahia', 78097898],
   // Flamengo
   ['João Gomes', 'CDM', 'Flamengo', 19371031], ['Diego', 'CAM', 'Flamengo', 311148],
+  // Ceará (lote grande)
+  ['Matheus Araújo', 'CAM', 'Ceará', 19390539], ['Rafael Ramos', 'RB', 'Ceará', 55070266],
+  ['Matheusinho', 'CAM', 'Ceará', 19284049], ['Wendel Silva', 'ST', 'Ceará', 19350600],
+  ['Alex Silva', 'RB', 'Ceará', 19227020], ['Bruno Ferreira', 'GK', 'Ceará', 19174987],
+  ['Lucca', 'CAM', 'Ceará', 2000088465], ['Sanchez', 'LB', 'Ceará', 19222422],
+  // Vasco (lote grande)
+  ['Brenner', 'CAM', 'Vasco', 19302917], ['Jair', 'CDM', 'Vasco', 19190120],
+  ['Hugo Moura', 'CDM', 'Vasco', 19270228], ['David', 'CAM', 'Vasco', 19249510],
+  ['Johan Rojas', 'CAM', 'Vasco', 2000159964], ['JP Murilo', 'CAM', 'Vasco', 2000218977],
+  ['Daniel Fuzato', 'GK', 'Vasco', 19220270],
+  // Atlético Mineiro (lote grande)
+  ['Maycon', 'CDM', 'Atlético Mineiro', 19221567], ['Natanael', 'RB', 'Atlético Mineiro', 19383253],
+  ['Vitor Hugo', 'CB', 'Atlético Mineiro', 19144097], ['Ruan Tressoldi', 'CB', 'Atlético Mineiro', 19352206],
+  ['Iván Román', 'CB', 'Atlético Mineiro', 2000230119], ['Alan Minda', 'CAM', 'Atlético Mineiro', 2000048774],
+  // Flamengo (lote grande)
+  ['Erick Pulgar', 'CDM', 'Flamengo', 75030706], ['Ayrton Lucas', 'LB', 'Flamengo', 19284037],
+  ['Everton Cebolinha', 'CAM', 'Flamengo', 19233146], ['Guillermo Varela', 'RB', 'Flamengo', 78044524],
+  // Cruzeiro (lote grande)
+  ['Wanderson', 'CAM', 'Cruzeiro', 18073840], ['Lucas Silva', 'CDM', 'Cruzeiro', 19152917],
+  ['Kaiki', 'LB', 'Cruzeiro', 2000086175], ['Walace', 'CDM', 'Cruzeiro', 19184263],
+  ['Matheus Cunha', 'GK', 'Cruzeiro', 19347269], ['Bruno Rodrigues', 'CAM', 'Cruzeiro', 19280849],
+  ['Chico da Costa', 'ST', 'Cruzeiro', 51069231], ['Fágner', 'RB', 'Cruzeiro', 19023829],
+  // Bahia (lote grande)
+  ['Gabriel Xavier', 'CB', 'Bahia', 83335593], ['Nicolás Acevedo', 'CDM', 'Bahia', 78094472],
+  ['David Duarte', 'CB', 'Bahia', 19273581], ['Michel Araújo', 'CAM', 'Bahia', 78082187],
+  ['Iago Borduchi', 'LB', 'Bahia', 19287778],
+  // Juventude (lote grande)
+  ['Rodrigo Sam', 'CB', 'Juventude', 19250588], ['Alan Ruschel', 'LB', 'Juventude', 19052745],
+  ['Manuel Castro', 'CAM', 'Juventude', 78064929], ['Émerson Galego', 'CAM', 'Juventude', 2000278091],
+  // Vitória (lote grande)
+  ['Riccieli', 'CB', 'Vitória', 19362992], ['Osvaldo', 'CAM', 'Vitória', 19019038],
+  ['Luan Cândido', 'CB', 'Vitória', 19340771], ['Camutanga', 'CB', 'Vitória', 19190175],
+  ['Renzo López', 'ST', 'Vitória', 78048433],
+  // Fluminense (lote grande)
+  ['Ignacio', 'CB', 'Fluminense', 19357955], ['Otávio', 'CDM', 'Fluminense', 19226437],
+  ['Renê', 'LB', 'Fluminense', 19174999], ['Guga', 'RB', 'Fluminense', 19266494],
+  ['Santiago Moreno', 'CAM', 'Fluminense', 76062954], ['Nonato', 'CAM', 'Fluminense', 19263853],
+  ['Igor Rabello', 'CB', 'Fluminense', 19193798], ['David Terans', 'CAM', 'Fluminense', 78064511],
+  // Fortaleza (lote grande)
+  ['Brenno', 'GK', 'Fortaleza', 19352200], ['Diogo Barbosa', 'LB', 'Fortaleza', 19144893],
+  ['Lucas Gazal', 'CB', 'Fortaleza', 19351380], ['Pierre', 'CDM', 'Fortaleza', 19372220],
+  ['Tobias Figueiredo', 'CB', 'Fortaleza', 55022465],
+  // Grêmio (lote grande)
+  ['Cristian Pavón', 'CAM', 'Grêmio', 14083972], ['Wagner Leonardo', 'CB', 'Grêmio', 19348577],
+  ['Felipe Carballo', 'CDM', 'Grêmio', 78074391], ['Dodi', 'CDM', 'Grêmio', 19212066],
+  ['Caio Paulista', 'LB', 'Grêmio', 19261679], ['Walter Kannemann', 'CB', 'Grêmio', 14023376],
+  ['José Enamorado', 'CAM', 'Grêmio', 76050433],
+  // Mirassol (lote grande)
+  ['João Victor', 'CB', 'Mirassol', 19351947], ['Rodrigues', 'CB', 'Mirassol', 19261651],
+  ['Igor Cariús', 'RB', 'Mirassol', 19278016], ['Lucas Mugni', 'CDM', 'Mirassol', 14023268],
+  ['André Luís', 'CAM', 'Mirassol', 19258902],
+  ['Chico Kim', 'CAM', 'Mirassol', 19119371], ['Igor Formiga', 'RB', 'Mirassol', 19355315],
+  ['Carlos Eduardo', 'CAM', 'Mirassol', 19220698], ['Alex Muralha', 'GK', 'Mirassol', 19172116],
+  // Bragantino (lote grande)
+  ['José Hurtado', 'RB', 'Bragantino', 86078361], ['Lucas Barbosa', 'CAM', 'Bragantino', 19409769],
+  ["Agustín Sant'Anna", 'RB', 'Bragantino', 78079054],
+  // Santos (lote grande)
+  ['Lautaro Díaz', 'CAM', 'Santos', 14221703], ['João Schmidt', 'CDM', 'Santos', 19102937],
+  ['Luan Peres', 'CB', 'Santos', 19215476], ['Thaciano', 'CAM', 'Santos', 19246772],
+  ['Zé Ivaldo', 'CB', 'Santos', 19232616], ['Tomás Rincón', 'CDM', 'Santos', 86000589],
+  ['Moisés', 'CAM', 'Santos', 19383039], ['Christian Oliva', 'CDM', 'Santos', 78091915],
+  ['Gonzalo Escobar', 'LB', 'Santos', 14172026], ['Miguel Terceros', 'CAM', 'Santos', 2000088460],
+  // Corinthians (lote grande)
+  ['Matheus Bidu', 'LB', 'Corinthians', 19388106], ['Allan', 'CDM', 'Corinthians', 19260884],
+  ['Jesse Lingard', 'CAM', 'Corinthians', 28047560], ['André Ramalho', 'CB', 'Corinthians', 16097159],
+  ['Fabrizio Angileri', 'LB', 'Corinthians', 14079839], ['Pedro Raul', 'ST', 'Corinthians', 83212491],
+  ['Hugo', 'LB', 'Corinthians', 19305767], ['Alex Santana', 'CDM', 'Corinthians', 19167419],
+  ['Charles', 'CDM', 'Corinthians', 19305263],
+  // Sport (lote grande)
+  ['Gustavo Coutinho', 'ST', 'Sport', 83219468], ['Ramon', 'CB', 'Sport', 19259411],
+  ['Halls', 'GK', 'Sport', 19404758], ['Dênis', 'GK', 'Sport', 19003589],
+  ['Marlon Douglas', 'CAM', 'Sport', 19382495], ['Zé Gabriel', 'CB', 'Sport', 19306936],
+  // Internacional (lote grande)
+  ['Félix Torres', 'CB', 'Internacional', 86057914], ['Juninho', 'CB', 'Internacional', 19233485],
+  ['Rodrigo Villagra', 'CDM', 'Internacional', 14223258], ['Clayton Sampaio', 'CB', 'Internacional', 19306931],
+  ['Matheus Bahia', 'LB', 'Internacional', 19293344], ['Kayky', 'CAM', 'Internacional', 19408255],
+  // Botafogo (lote grande)
+  ['Chris Ramos', 'CAM', 'Botafogo', 67264011], ['Marçal', 'LB', 'Botafogo', 19051992],
+  ['Léo Linck', 'GK', 'Botafogo', 19337932],
 ];
 
 const FOREIGN_NATIONS: Record<string, string> = {
@@ -137,6 +216,32 @@ const FOREIGN_NATIONS: Record<string, string> = {
   'Mateo Ponte': 'Uruguai', 'Cristian Olivera': 'Uruguai', 'Yeison Guzmán': 'Colômbia',
   'Emiliano Rigoni': 'Argentina', 'Éder': 'Itália',
   'Eduard Atuesta': 'Colômbia',
+  'Andrés Gómez': 'Equador', 'Nuno Moreira': 'Portugal', 'Claudio Spinelli': 'Argentina',
+  'Carlos Cuesta': 'Colômbia', 'José Luis Rodríguez': 'Venezuela', 'Hugo Moura': 'Portugal',
+  'Mateo Cassierra': 'Colômbia', 'Ángelo Preciado': 'Equador', 'Junior Alonso': 'Paraguai',
+  'Tomás Cuello': 'Argentina', 'Alan Franco': 'Argentina', 'Iván Román': 'Argentina', 'Alan Minda': 'Equador',
+  'Giorgian De Arrascaeta': 'Uruguai', 'Saúl': 'Espanha', 'Nicolás de la Cruz': 'Uruguai',
+  'Guillermo Varela': 'Uruguai', 'Luis Sinisterra': 'Colômbia', 'Lucas Romero': 'Argentina',
+  'Lucas Villalba': 'Argentina', 'Santiago Ramos Mingo': 'Argentina', 'Nicolás Acevedo': 'Uruguai',
+  'Emmanuel Martínez': 'Argentina', 'Aitor Cantalapiedra': 'Espanha', 'Renzo López': 'Uruguai',
+  'Jefferson Savarino': 'Venezuela', 'Agustín Canobbio': 'Uruguai', 'Kevin Serna': 'Colômbia',
+  'Yeferson Soteldo': 'Venezuela', 'Santiago Moreno': 'Colômbia', 'David Terans': 'Uruguai',
+  'Tomás Pochettino': 'Argentina', 'Emanuel Brítez': 'Paraguai', 'Tomás Cardona': 'Argentina',
+  'Juan Miritello': 'Argentina', 'Tobias Figueiredo': 'Portugal', 'Mathías Villasanti': 'Paraguai',
+  'Martin Braithwaite': 'Dinamarca', 'Francis Amuzu': 'Gana', 'Juan Ignacio Nardoni': 'Argentina',
+  'Erick Noriega': 'Peru', 'Cristian Pavón': 'Argentina', 'Felipe Carballo': 'Uruguai',
+  'Walter Kannemann': 'Argentina', 'José Enamorado': 'Honduras', 'Antonio Galeano': 'Paraguai',
+  'Lucas Mugni': 'Argentina', 'Guzmán Rodríguez': 'Uruguai', 'José Hurtado': 'Venezuela',
+  'Agustín Sant\'Anna': 'Uruguai', 'Benjamín Rollheiser': 'Argentina', 'Álvaro Barreal': 'Argentina',
+  'Adonis Frías': 'Argentina', 'Lautaro Díaz': 'Argentina', 'Tomás Rincón': 'Venezuela',
+  'Christian Oliva': 'Uruguai', 'Gonzalo Escobar': 'Paraguai', 'Miguel Terceros': 'Bolívia',
+  'Memphis Depay': 'Holanda', 'André Carrillo': 'Peru', 'Jesse Lingard': 'Inglaterra',
+  'Fabrizio Angileri': 'Argentina', 'Sérgio Oliveira': 'Portugal', 'Carlos de Pena': 'Uruguai',
+  'Sergio Rochet': 'Uruguai', 'Alexandro Bernabei': 'Argentina', 'Alan Rodríguez': 'Uruguai',
+  'Braian Aguirre': 'Argentina', 'Gabriel Mercado': 'Argentina', 'Johan Carbonero': 'Colômbia',
+  'Félix Torres': 'Equador', 'Rodrigo Villagra': 'Argentina', 'Alexander Barboza': 'Argentina',
+  'Nahuel Ferraresi': 'Venezuela', 'Joaquín Correa': 'Argentina', 'Bastos': 'Angola',
+  'Chris Ramos': 'Espanha',
 };
 
 const ELITE_NAMES = new Set([
