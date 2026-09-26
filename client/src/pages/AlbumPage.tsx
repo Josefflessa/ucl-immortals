@@ -176,7 +176,10 @@ function PlayerDetail({
   return (
     <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start">
       <div className="flex flex-col items-center md:items-start">
-        <div className="md:origin-top-left md:scale-[1.2]">
+        {/* scale-[1.2] only stretches the paint, not the layout box — without
+            this reserved space the button below sits under the card's
+            visually-overflowing bottom edge. */}
+        <div className="md:origin-top-left md:scale-[1.2] md:mb-16">
           <PlayerCard player={player} lite />
         </div>
         <button
@@ -430,16 +433,7 @@ export default function AlbumPage() {
 
   return (
     <AppShell>
-      <TopBar
-        title="ÁLBUM DE JOGADORES"
-        right={
-          <Button intent="ghost" size="default" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="ml-auto shrink-0 px-3 text-xs sm:px-4">
-            <ArrowLeft size={15} aria-hidden="true" />
-            <span className="hidden sm:inline">VOLTAR AO MENU</span>
-            <span className="sm:hidden">VOLTAR</span>
-          </Button>
-        }
-      />
+      <TopBar />
 
       <PageContainer wide className="pb-10 pt-7 sm:pt-10">
         <SectionHeader
@@ -448,9 +442,16 @@ export default function AlbumPage() {
           description="Explore todas as cartas disponíveis, compare versões históricas e encontre o jogador ideal para o seu próximo elenco."
           className="mb-6"
           actions={
-            <div className="hidden items-center gap-2 text-xs text-[var(--ui-text-muted)] lg:flex">
-              <Users size={16} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
-              <span>Catálogo atualizado com as versões do jogo</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="hidden items-center gap-2 text-xs text-[var(--ui-text-muted)] lg:flex">
+                <Users size={16} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
+                <span>Catálogo atualizado com as versões do jogo</span>
+              </div>
+              <Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="shrink-0 px-3 text-xs sm:px-4">
+                <ArrowLeft size={15} aria-hidden="true" />
+                <span className="hidden sm:inline">VOLTAR AO MENU</span>
+                <span className="sm:hidden">VOLTAR</span>
+              </Button>
             </div>
           }
         />
