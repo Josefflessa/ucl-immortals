@@ -788,6 +788,18 @@ function isHost(room: RoomState, socketId: string): boolean {
   return !!host && host.socketId === socketId;
 }
 
+/**
+ * A host-only action used to fail in total silence for anyone else — no
+ * error, no toast, the click just looked like it did nothing. This makes the
+ * rejection visible instead. Only call it once `room` is known to exist;
+ * an unknown room stays silent (nothing to explain to a bogus roomCode).
+ */
+function requireHost(room: RoomState, socket: RealtimeSocket, event: string, message = 'Só o anfitrião da sala pode fazer isso.'): boolean {
+  if (isHost(room, socket.id)) return true;
+  socket.emit('action_error', { event, message });
+  return false;
+}
+
 function leagueParticipantIds(room: RoomState): string[] {
   return getOnlineLeagueParticipantIds(room.players, room.leagueFixtures, room.leagueRound);
 }
@@ -1519,7 +1531,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // Host starts setup phase
     on("start_setup", ({ roomCode }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isHost(room, socket.id) || room.phase !== 'lobby') return;
+      if (!room) return;
+      if (!requireHost(room, socket, 'start_setup', 'Só o anfitrião pode iniciar a configuração.')) return;
+      if (room.phase !== 'lobby') return;
       if (room.players.filter(p => p.connected).length < 2) {
         socket.emit("error_message", "São necessários pelo menos 2 jogadores conectados para iniciar.");
         return;
@@ -1534,9 +1548,18 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (room.phase !== 'setup') return;
-      if (!isValidId(coachId) || !VALID_COACH_IDS.has(coachId)) return;
-      if (!isValidId(formationId) || !VALID_FORMATION_IDS.has(formationId)) return;
-      if (crestId != null && (!isValidId(crestId) || !VALID_CREST_IDS.has(crestId))) return;
+      if (!isValidId(coachId) || !VALID_COACH_IDS.has(coachId)) {
+        socket.emit('action_error', { event: 'submit_setup', message: 'Técnico inválido. Recarregue a página e tente de novo.' });
+        return;
+      }
+      if (!isValidId(formationId) || !VALID_FORMATION_IDS.has(formationId)) {
+        socket.emit('action_error', { event: 'submit_setup', message: 'Formação inválida. Recarregue a página e tente de novo.' });
+        return;
+      }
+      if (crestId != null && (!isValidId(crestId) || !VALID_CREST_IDS.has(crestId))) {
+        socket.emit('action_error', { event: 'submit_setup', message: 'Escudo inválido. Recarregue a página e tente de novo.' });
+        return;
+      }
 
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
@@ -2334,10 +2357,23 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!isShopPhase(room)) return;
       const buyer = room.players.find(p => p.socketId === socket.id);
       const li = room.market.find(l => l.id === listingId);
-      if (!buyer || !buyer.team || !li) return;
+      if (!buyer || !buyer.team) return;
+      if (!li) {
+        // Someone else bought it (or the seller cancelled) between the click
+        // and this handler running — a normal race in a shared market, not a
+        // bug. Without this the click just looked like it did nothing.
+        socket.emit('action_error', { event: 'market_buy', message: 'Esse anúncio não está mais disponível — alguém foi mais rápido.' });
+        return;
+      }
       if (buyer.id === li.sellerId) return;                                  // não compra o próprio
-      if (buyer.points < li.price) return;                                   // sem saldo
-      if (buyer.team.players.some(p => p.id === li.player.id)) return;       // já tem o jogador
+      if (buyer.points < li.price) {
+        socket.emit('action_error', { event: 'market_buy', message: 'Você não tem créditos suficientes para essa compra.' });
+        return;
+      }
+      if (buyer.team.players.some(p => p.id === li.player.id)) {
+        socket.emit('action_error', { event: 'market_buy', message: 'Você já tem esse jogador no elenco.' });
+        return;
+      }
       const seller = room.players.find(p => p.id === li.sellerId);
       if (!seller) return;                                                   // vendedor saiu da sala → aborta (não some pontos)
       buyer.points -= li.price;
@@ -2473,7 +2509,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("play_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'league') return;
-      if (!isHost(room, socket.id)) return;
+      if (!requireHost(room, socket, 'play_round', 'Só o anfitrião pode jogar a rodada.')) return;
 
       // ✅ Apenas humanos conectados com partida na rodada entram no ready-check.
       const participantIds = leagueParticipantIds(room);
@@ -2641,7 +2677,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("advance_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'league') return;
-      if (!isHost(room, socket.id)) return;
+      if (!requireHost(room, socket, 'advance_round', 'Só o anfitrião pode avançar a rodada.')) return;
 
       const roundFixtures = room.leagueFixtures.filter(f => f.round === room.leagueRound);
       const allPlayed = roundFixtures.length > 0 && roundFixtures.every(f => f.played);
@@ -2694,7 +2730,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("play_knockout_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
-      if (!isHost(room, socket.id)) return;
+      if (!requireHost(room, socket, 'play_knockout_round', 'Só o anfitrião pode jogar o mata-mata.')) return;
       // Once a leg has been simulated, a repeated click must not reset the
       // watch/readiness window or manufacture a second transition.
       if (knockoutLegAlreadyPlayed(room)) return;
@@ -2889,7 +2925,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("advance_knockout_round", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (!room || room.phase !== 'knockout' || !room.knockoutBracket) return;
-      if (!isHost(room, socket.id)) return;
+      if (!requireHost(room, socket, 'advance_knockout_round', 'Só o anfitrião pode avançar o mata-mata.')) return;
 
       // Block until all human players who are in the current knockout round have
       // confirmed watching the leg just played (the volta).
@@ -2968,7 +3004,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // Restart game in room (host only — otherwise any player could wipe progress)
     on("restart_room", ({ roomCode }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isHost(room, socket.id)) return;
+      if (!room) return;
+      if (!requireHost(room, socket, 'restart_room', 'Só o anfitrião pode reiniciar a partida.')) return;
 
       clearDraftTurnTimer(roomCode);
       cancelRoomCleanup(roomCode);
@@ -3042,7 +3079,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // competition keeps its progress and only the authority changes.
     on("transfer_host", ({ roomCode, targetPlayerId }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isHost(room, socket.id) || !isValidId(targetPlayerId)) return;
+      if (!room) return;
+      if (!requireHost(room, socket, 'transfer_host', 'Só o anfitrião pode transferir a liderança da sala.')) return;
+      if (!isValidId(targetPlayerId)) return;
 
       const target = room.players.find(player => (
         player.id === targetPlayerId
@@ -3062,7 +3101,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // but the player is marked as kicked and cannot reconnect.
     on("remove_player", ({ roomCode, targetPlayerId }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isHost(room, socket.id) || !isValidId(targetPlayerId)) return;
+      if (!room) return;
+      if (!requireHost(room, socket, 'remove_player', 'Só o anfitrião pode remover um jogador da sala.')) return;
+      if (!isValidId(targetPlayerId)) return;
 
       const targetIndex = room.players.findIndex(player => (
         player.id === targetPlayerId && player.id !== room.hostId && !player.kicked
@@ -3149,7 +3190,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // clears its local session instead of trying to reconnect to stale state.
     on("close_room", ({ roomCode }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isHost(room, socket.id)) return;
+      if (!room) return;
+      if (!requireHost(room, socket, 'close_room', 'Só o anfitrião pode encerrar a sala.')) return;
 
       clearDraftTurnTimer(roomCode);
       cancelRoomCleanup(roomCode);

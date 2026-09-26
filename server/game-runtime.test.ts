@@ -491,4 +491,29 @@ describe('game runtime isolation', () => {
 
     expect(outsider.sent.some(message => message.event === 'match_result_full')).toBe(false);
   });
+
+  it('tells a non-host their click was rejected instead of failing in silence', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+    const room = runtime.rooms.get('ABCD')!;
+    room.phase = 'league';
+
+    runWithGameRuntime(runtime, () => guest.receive('play_round', { roomCode: 'ABCD' }));
+
+    const error = guest.sent.find(message => message.event === 'action_error')?.payload as any;
+    expect(error?.event).toBe('play_round');
+    expect(typeof error?.message).toBe('string');
+    expect(error.message.length).toBeGreaterThan(0);
+  });
 });
