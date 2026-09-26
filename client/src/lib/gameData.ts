@@ -73,7 +73,7 @@ export interface Player {
   todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +15 em tudo e +50 de química geral
   capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão vem DOBRADO
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida por 1,5, mas −7 em tudo nele
-  fragil?: boolean;      // 🥂 Frágil — +7 em tudo, mas aumenta drasticamente o risco de lesão
+  fragil?: boolean;      // 🩹 Frágil — +7 em tudo, mas aumenta drasticamente o risco de lesão
   prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada 2 titularidades acumuladas
   prodigioStarts?: number; // 📈 titularidades acumuladas desde que a característica foi recebida
   resiliente?: boolean;  // 🔥 Resiliente — cresce após cada derrota do time em que estiver no XI

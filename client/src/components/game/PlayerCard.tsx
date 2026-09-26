@@ -967,7 +967,7 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   todosPorUm: { color: '#4ADE80', icon: '🤝', label: 'TODOS POR UM', treatment: 'halo' },
   capitaoNato: { color: '#F97316', icon: '🗣️', label: 'CAPITÃO NATO', treatment: 'ring' },
   magnata: { color: '#16A34A', icon: '🤑', label: 'MAGNATA', treatment: 'ring' },
-  fragil: { color: '#F59E0B', icon: '🥂', label: 'FRÁGIL', treatment: 'pulse' },
+  fragil: { color: '#F59E0B', icon: '🩹', label: 'FRÁGIL', treatment: 'pulse' },
   prodigio: { color: '#FDE047', icon: '📈', label: 'PRODÍGIO', treatment: 'ring' },
   resiliente: { color: '#FB7185', icon: '🔥', label: 'RESILIENTE', treatment: 'pulse' },
   goleador: { color: '#F97316', icon: '⚽', label: 'GOLEADOR', treatment: 'pulse' },

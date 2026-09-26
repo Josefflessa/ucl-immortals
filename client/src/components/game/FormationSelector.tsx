@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { FORMATIONS } from '../../lib/gameData';
-import { formationAdvantageLabelForAnalysisLevel, formationProfile } from '../../lib/gameEngine';
+import { formationAdvantageColorForAnalysisLevel, formationAdvantageLabelForAnalysisLevel, formationProfile } from '../../lib/gameEngine';
 import ImpactMeter from './ImpactMeter';
 import { ChoiceCard } from '../../design-system';
 import FormationPreviewModal, { FormationInfoButton } from './FormationPreviewModal';
@@ -121,7 +121,7 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
         <div className="mt-3 rounded-lg border border-[#60A5FA44] bg-[#60A5FA0D] px-2.5 py-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8DBBFF]">Bônus por vantagem na formação</span>
-            <span className="text-xs font-black text-[#8DBBFF]">{matchupLabel}</span>
+            <span className="text-xs font-black" style={{ color: formationAdvantageColorForAnalysisLevel(analysisLevel) }}>{matchupLabel}</span>
           </div>
           <p className="mt-1 text-[10px] leading-snug text-[var(--ui-text-faint)]">
             Quando este esquema levar vantagem sobre o adversário, esse é o grau do benefício durante a partida.

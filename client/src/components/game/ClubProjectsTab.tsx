@@ -17,6 +17,7 @@ import {
   trainingBoostForProject,
   trainingCostForProject,
 } from '../../lib/clubProjects';
+import { formationAdvantageColorForAnalysisLevel } from '../../lib/gameEngine';
 import type { ClubProjectId } from '../../lib/clubProjects';
 
 function ProjectLevelBar({ level, color }: { level: number; color: string }) {
@@ -37,7 +38,7 @@ function formatProjectCopy(projectId: string, text: string): ReactNode {
   if (projectId !== 'analysis') return text;
   return text.split(/(leve|clara|forte)/gi).map((part, index) =>
     /^(leve|clara|forte)$/i.test(part)
-      ? <strong key={`${part}-${index}`} className="font-black text-[#60A5FA]">{part}</strong>
+      ? <strong key={`${part}-${index}`} className="font-black" style={{ color: formationAdvantageColorForAnalysisLevel(part.toLowerCase() === 'forte' ? 5 : part.toLowerCase() === 'clara' ? 3 : 1) }}>{part}</strong>
       : part,
   );
 }

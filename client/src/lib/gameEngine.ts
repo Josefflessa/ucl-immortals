@@ -1655,6 +1655,15 @@ export function formationAdvantageLabelForAnalysisLevel(level: number): string {
   return labels[formationAdvantageTierForAnalysisLevel(level)];
 }
 
+export function formationAdvantageColorForAnalysisLevel(level: number): string {
+  const colors: Record<FormationAdvantageTier, string> = {
+    light: '#7FCF6A',
+    clear: '#F0D77A',
+    strong: '#F97316',
+  };
+  return colors[formationAdvantageTierForAnalysisLevel(level)];
+}
+
 // ── Flavour match statistics (shots/saves/corners/fouls) ──────
 // These populate the box-score WITHOUT ever changing the score. They are
 // per-minute probabilistic and scaled by a per-match tempo/aggression roll, so
@@ -3466,7 +3475,7 @@ const DRAFT_NOE_CHANCE = 0.02;        // 🛟 Noé — raro (é MUITO forte)
 const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
 const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
-const DRAFT_FRAGIL_CHANCE = 0.03;   // 🥂 Frágil — +7 em tudo, mas se machuca com muito mais frequência
+const DRAFT_FRAGIL_CHANCE = 0.03;   // 🩹 Frágil — +7 em tudo, mas se machuca com muito mais frequência
 const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada 2 titularidades
 const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
 const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +1 por jogador na reserva
@@ -3479,7 +3488,7 @@ const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele
 export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
 const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
-export const FRAGIL_STAT_BOOST = 7;  // 🥂 Frágil: +7 em todos os atributos (nele mesmo)
+export const FRAGIL_STAT_BOOST = 7;  // 🩹 Frágil: +7 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida por isto (não empilha: 1+ magnatas → 1 só).
 export const MAGNATA_POINT_MULT = 1.5;
 // Créditos da partida ×MAGNATA_POINT_MULT se QUALQUER titular (0-10) for Magnata; senão ×1 (não empilha).
@@ -3638,7 +3647,7 @@ function applyDraftVariant(p: Player): Player {
     };
   }
 
-  // 🥂 Frágil — ganha +7 em tudo, mas fica muito mais sujeito a lesões durante as partidas.
+  // 🩹 Frágil — ganha +7 em tudo, mas fica muito mais sujeito a lesões durante as partidas.
   acc += DRAFT_FRAGIL_CHANCE;
   if (r < acc) {
     const b = FRAGIL_STAT_BOOST;
@@ -5144,5 +5153,3 @@ export function getPlayerSeasonStats(
 
   return stats;
 }
-
-

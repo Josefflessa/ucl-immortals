@@ -136,7 +136,7 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'todosPorUm', icon: '🤝', label: 'Todos por um', color: '#4ADE80', desc: 'Sozinha não faz nada. Se os 11 titulares tiverem, todos ganham +15 em tudo e o time recebe +50 de química geral.' },
   { key: 'capitaoNato', icon: '🗣️', label: 'Capitão Nato', color: '#F97316', desc: 'Se for o CAPITÃO do time, o bônus de capitão vem DOBRADO.' },
   { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os créditos da partida por 1,5, na liga e no mata-mata. Mas −7 em todos os atributos nele.' },
-  { key: 'fragil', icon: '🥂', label: 'Frágil', color: '#F59E0B', desc: '+7 em todos os atributos, mas aumenta drasticamente a chance de se machucar.' },
+  { key: 'fragil', icon: '🩹', label: 'Frágil', color: '#F59E0B', desc: '+7 em todos os atributos, mas aumenta drasticamente a chance de se machucar.' },
   { key: 'prodigio', icon: '📈', label: 'Prodígio', color: '#FDE047', desc: '+1 em todos os atributos a cada 2 partidas iniciadas como titular desde que recebeu a característica.' },
   { key: 'resiliente', icon: '🔥', label: 'Resiliente', color: '#FB7185', desc: '+2 em todos os atributos a cada derrota do time em que for titular. Acumula.' },
   { key: 'goleador', icon: '⚽', label: 'Goleador', color: '#F97316', desc: '+1 em todos os atributos a cada 3 gols marcados. Acumula.' },
