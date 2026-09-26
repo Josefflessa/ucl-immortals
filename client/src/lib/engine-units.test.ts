@@ -14,7 +14,7 @@ import {
   MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
-  getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, EVOLVE_GAMES, EVOLVE_POINTS,
+  getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, evolvePointsBudget, specializationAttributeBonus, canChooseSpecialization, choosePlayerSpecialization, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, EVOLVE_GAMES, EVOLVE_POINTS,
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost, GOLEADOR_GOALS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, goleadorStatBoost, garcomStatBoost,
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, arroganteStatBoost, arroganteTeamPenalty,
   ESTRIBADO_CREDITS_PER_BOOST, ESTRIBADO_STAT_BOOST, estribadoStatBoost,
@@ -218,6 +218,9 @@ describe('⭐ cartas evoluídas', () => {
     expect(getEvolutionLevel({ rarity: 'bronze', appearances: 12 })).toBe(3);
     expect(getEvolutionLevel({ rarity: 'gold', evolutionLevel: 2 })).toBe(2);
     expect(getEvolutionLevel({ rarity: 'immortal', evolutionLevel: 3 })).toBe(3);
+    expect(getEvolutionLevel({ rarity: 'immortal', appearances: 16 })).toBe(4);
+    expect(getEvolutionLevel({ rarity: 'gold', appearances: 16 })).toBe(3);
+    expect(getEvolutionLevel({ rarity: 'gold', evolutionLevel: 4 })).toBe(3);
     expect(getEvolutionLevel({ rarity: 'unique', evolutionLevel: 3, appearances: 99 })).toBe(0);
   });
   it('aplica cada pacote de 6 pontos de uma vez', () => {
@@ -228,6 +231,27 @@ describe('⭐ cartas evoluídas', () => {
     expect(applyEvolvePoint({ shooting: 6 }, 'pace', EVOLVE_POINTS, 12)).toEqual({ shooting: 6, pace: 6 });
     expect(applyEvolvePoint({ shooting: 12 }, 'pace', EVOLVE_POINTS, 12)).toEqual({ shooting: 12 });
     expect(evolvePointsSpent({ shooting: 6 })).toBe(6);
+  });
+  it('libera especialização apenas para Imortais no nível 4', () => {
+    const immortal = mkP({ rarity: 'immortal', appearances: 16 });
+    const gold = mkP({ rarity: 'gold', appearances: 16 });
+    expect(evolvePointsBudget(4)).toBe(18);
+    expect(canChooseSpecialization(immortal)).toBe(true);
+    expect(canChooseSpecialization(gold)).toBe(false);
+    expect(specializationAttributeBonus({ ...immortal, specialization: 'maestro' }, 'passing')).toBe(6);
+    expect(specializationAttributeBonus({ ...immortal, specialization: 'maestro' }, 'vision')).toBe(6);
+    expect(specializationAttributeBonus({ ...immortal, specialization: 'maestro' }, 'shooting')).toBe(0);
+    expect(specializationAttributeBonus({ ...gold, specialization: 'maestro' }, 'passing')).toBe(0);
+    const chosen = choosePlayerSpecialization(immortal, 'muralha');
+    expect(chosen.specialization).toBe('muralha');
+    const changed = choosePlayerSpecialization(chosen, 'motor');
+    expect(changed.specialization).toBe('motor');
+    expect(changed).not.toBe(chosen);
+    const maestro = { ...immortal, specialization: 'maestro' as const };
+    const effective = getPlayerEffectiveStats(maestro, 0, false, '', 0, '__neutral__');
+    expect(effective.breakdown.passing.specialization).toBe(6);
+    expect(effective.breakdown.vision.specialization).toBe(6);
+    expect(effective.breakdown.shooting.specialization).toBe(0);
   });
 
   // 🟥 Cartão vermelho na transmissão: o MESMO id de jogador pode estar nos DOIS times

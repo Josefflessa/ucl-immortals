@@ -36,7 +36,7 @@ const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'place_bet', 'cancel_bet', 'heal_injury', 'emergency_replace_player',
   'market_sell', 'market_list', 'market_cancel', 'market_buy',
   'player_ready', 'player_unready', 'swap_player_team', 'set_martir_targets', 'remove_player',
-  'set_evolve_point', 'reset_evolve_points',
+  'set_evolve_point', 'choose_player_specialization', 'reset_evolve_points',
   'reroll_reinforcement', 'pick_reinforcement', 'dismiss_reinforcement',
 ]);
 

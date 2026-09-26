@@ -15,7 +15,41 @@ export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | '
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
 // Visual/progression level for standard cards. Unique cards intentionally do
 // not participate in the evolution track.
-export type EvolutionLevel = 0 | 1 | 2 | 3;
+export type EvolutionLevel = 0 | 1 | 2 | 3 | 4;
+export type PlayerSpecialization = 'finalizador' | 'maestro' | 'motor' | 'muralha';
+
+// Level 4 is an Immortal-only specialization. The texture is intentionally
+// independent from rarity: rarity continues to be shown by the card frame and
+// ribbon, while this texture identifies the chosen specialization.
+export const PLAYER_SPECIALIZATIONS = {
+  finalizador: {
+    label: 'FINALIZADOR', icon: '🎯', color: '#F97316', texture: '/cards/especializacoes/finalizador.webp',
+    attributes: ['shooting', 'composure'] as const,
+    attributeLabel: 'Finalização e compostura',
+  },
+  maestro: {
+    label: 'MAESTRO', icon: '🎼', color: '#8B5CF6', texture: '/cards/especializacoes/maestro.webp',
+    attributes: ['passing', 'vision'] as const,
+    attributeLabel: 'Passe e visão',
+  },
+  motor: {
+    label: 'MOTOR', icon: '⚡', color: '#22C55E', texture: '/cards/especializacoes/motor.webp',
+    attributes: ['pace', 'dribbling'] as const,
+    attributeLabel: 'Ritmo e drible',
+  },
+  muralha: {
+    label: 'MURALHA', icon: '🛡️', color: '#E2E8F0', texture: '/cards/especializacoes/muralha.webp',
+    attributes: ['defending', 'physical'] as const,
+    attributeLabel: 'Defesa e físico',
+  },
+} as const satisfies Record<PlayerSpecialization, {
+  label: string;
+  icon: string;
+  color: string;
+  texture: string;
+  attributes: readonly string[];
+  attributeLabel: string;
+}>;
 
 export interface Player {
   id: string;
@@ -95,12 +129,15 @@ export interface Player {
     pace?: number; shooting?: number; passing?: number; dribbling?: number;
     defending?: number; physical?: number; vision?: number; composure?: number;
   };
-  // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3;
-  // cada nível libera mais 6 pontos para distribuir nos atributos.
+  // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3.
+  // Cartas Imortais chegam ao nível 4 com 16 titularidades e escolhem uma
+  // especialização; os níveis 1–3 continuam liberando pacotes de 6 pontos.
   appearances?: number;
   // Explicit evolution level for the expanded visual track. Existing cards
   // without this field the level is derived from the cumulative appearances.
   evolutionLevel?: EvolutionLevel;
+  // ⭐ Especialização do nível 4 (exclusiva de cartas Imortais; escolha única).
+  specialization?: PlayerSpecialization;
   // Identificadores das partidas/pernas que já concederam uma titularidade.
   // Mantido na carta para que uma repetição do mesmo evento nunca conte duas vezes,
   // inclusive depois de reconexão ou reenvio da ação no online.

@@ -26,7 +26,7 @@ import {
   rebuildTeamChemistry,
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
   bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
-  getEvolutionLevel, isEvolved, applyEvolvePoint, EVOLVE_POINTS, applyDefeatGrowth,
+  getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, EVOLVE_POINTS, applyDefeatGrowth,
   draftSlotIndex,
   VariantFlag,
   MatchPlan,
@@ -1907,9 +1907,22 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr) || !Number.isInteger(delta) || delta !== EVOLVE_POINTS) return;
       player.team.players = player.team.players.map(p => {
         if (p.id !== playerId || !isEvolved(p)) return p;
-        const unlockedPoints = getEvolutionLevel(p) * EVOLVE_POINTS;
+        const unlockedPoints = evolvePointsBudget(getEvolutionLevel(p));
         return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta, unlockedPoints) };
       });
+      invalidateReady(room, player.id);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      emitReadyState(io, room);
+    });
+    on("choose_player_specialization", ({ roomCode, playerId, specialization }: { roomCode: string; playerId: string; specialization: any }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      if (!isValidId(playerId) || !['finalizador', 'maestro', 'motor', 'muralha'].includes(specialization)) return;
+      player.team.players = player.team.players.map(p => p.id === playerId
+        ? choosePlayerSpecialization(p, specialization)
+        : p);
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);

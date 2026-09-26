@@ -174,6 +174,7 @@ export interface GameModalProps {
   /** aria-label of the close button. Default 'Fechar'. */
   closeLabel?: string;
   bodyClassName?: string;
+  bodyStyle?: React.CSSProperties;
   className?: string;
   children?: ReactNode;
 }
@@ -187,7 +188,7 @@ export interface GameModalProps {
 export function GameModal({
   open, onOpenChange, title, subtitle, headerExtra, footer, stickyTop,
   size = 'default', stacked = false, dismissible = true, closeLabel = 'Fechar',
-  bodyClassName, className, children,
+  bodyClassName, bodyStyle, className, children,
 }: GameModalProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={next => { if (dismissible || next) onOpenChange(next); }}>
@@ -223,7 +224,7 @@ export function GameModal({
               </div>
             )}
             {stickyTop ? <div className="flex-shrink-0">{stickyTop}</div> : null}
-            <div className={cn('ui-modal__body min-h-0 flex-1', bodyClassName)}>
+            <div className={cn('ui-modal__body min-h-0 flex-1', bodyClassName)} style={bodyStyle}>
               {children}
             </div>
             {footer ? <div className="ui-modal__footer flex-shrink-0">{footer}</div> : null}

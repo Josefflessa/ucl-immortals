@@ -19,10 +19,11 @@ import {
   draftSlotIndex,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
   bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
-  getEvolutionLevel, isEvolved, applyEvolvePoint, EVOLVE_POINTS, applyDefeatGrowth, applyDefeatGrowthForResults,
+  getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, applyDefeatGrowth, applyDefeatGrowthForResults,
 } from '../lib/gameEngine';
 import type { MatchPlan, VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
+import type { PlayerSpecialization } from '../lib/gameData';
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
 import { Bet, BetBuilderSelection, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, betCapPrefix, createBet, revealEligibleKoBets, settleBet, BET_ROUND_CAP, bettingPayoutRulesForLevel } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, healInjury, applyEmergencyReplacement } from '../lib/discipline';
@@ -247,6 +248,7 @@ export type GameAction =
   | { type: 'SHOP_CHANGE_COACH'; coachId: string }
   | { type: 'EVOLVE_COACH_PRIME' }
   | { type: 'SET_EVOLVE_POINT'; playerId: string; attr: AttrKey; delta: number }
+  | { type: 'CHOOSE_PLAYER_SPECIALIZATION'; playerId: string; specialization: PlayerSpecialization }
   | { type: 'RESET_EVOLVE_POINTS'; playerId: string }
   | { type: 'SHOP_OPEN_UNIQUE_PACK' } // cobra 750 e sorteia uma Única ainda não possuída
   | { type: 'SHOP_CLAIM_UNIQUE_PACK' } // adiciona a carta revelada ao banco, sem nova cobrança
@@ -727,9 +729,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.playerTeam) return state;
       const players = state.playerTeam.players.map(p => {
         if (p.id !== action.playerId || !isEvolved(p)) return p;
-        const unlockedPoints = getEvolutionLevel(p) * EVOLVE_POINTS;
+        const unlockedPoints = evolvePointsBudget(getEvolutionLevel(p));
         return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, action.attr, action.delta, unlockedPoints) };
       });
+      return { ...state, playerTeam: { ...state.playerTeam, players } };
+    }
+    case 'CHOOSE_PLAYER_SPECIALIZATION': {
+      if (!state.playerTeam) return state;
+      const players = state.playerTeam.players.map(p => p.id === action.playerId
+        ? choosePlayerSpecialization(p, action.specialization)
+        : p);
       return { ...state, playerTeam: { ...state.playerTeam, players } };
     }
     case 'RESET_EVOLVE_POINTS': {
@@ -1967,6 +1976,7 @@ interface GameContextType {
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
   setEvolvePointOnline: (playerId: string, attr: AttrKey, delta: number) => void;
+  chooseSpecializationOnline: (playerId: string, specialization: PlayerSpecialization) => void;
   resetEvolvePointsOnline: (playerId: string) => void;
   rerollReinforcementOnline: () => void;
   pickReinforcementOnline: (player: Player) => void;
@@ -2508,6 +2518,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_EVOLVE_POINT', playerId, attr, delta });
     emitOnlineAction("set_evolve_point", { roomCode: state.roomCode, playerId, attr, delta });
   }, [dispatch, emitOnlineAction, state.roomCode]);
+  const chooseSpecializationOnline = useCallback((playerId: string, specialization: PlayerSpecialization) => {
+    if (!socketRef.current || !state.roomCode) return;
+    dispatch({ type: 'CHOOSE_PLAYER_SPECIALIZATION', playerId, specialization });
+    emitOnlineAction("choose_player_specialization", { roomCode: state.roomCode, playerId, specialization });
+  }, [dispatch, emitOnlineAction, state.roomCode]);
   const resetEvolvePointsOnline = useCallback((playerId: string) => {
     if (!socketRef.current || !state.roomCode) return;
     dispatch({ type: 'RESET_EVOLVE_POINTS', playerId });
@@ -2607,7 +2622,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
-    swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
+    swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline, requestMatchResultOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state, dispatch]);
@@ -2618,5 +2633,3 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     </GameContext.Provider>
   );
 }
-
-

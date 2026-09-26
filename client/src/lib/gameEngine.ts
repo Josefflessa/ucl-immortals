@@ -4,7 +4,8 @@
 import {
   Player, Coach, Formation,
   PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, HISTORICAL_TRIOS, getTacticById,
-  canonicalPosition, getPositionGroup, effectiveSecondaries, type Rarity, type EvolutionLevel,
+  canonicalPosition, getPositionGroup, effectiveSecondaries, PLAYER_SPECIALIZATIONS,
+  type Rarity, type EvolutionLevel, type PlayerSpecialization,
 } from './gameData';
 import {
   selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc,
@@ -679,6 +680,7 @@ export interface StatBreakdown {
   arrogante: number;  // 👑 Arrogante — +2 em tudo por gol; −1 nos outros titulares a cada 2 gols
   estribado: number;  // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
   char: number;       // 🩸❤️🪑🤝 team-effect characteristics buffing THIS player
+  specialization: number; // ⭐ Especialização do nível 4 — +6 nos dois atributos da área
 }
 
 export interface EffectiveStats {
@@ -964,6 +966,7 @@ export function getPlayerEffectiveStats(
   // other additive buffs — it feeds the per-attribute delta and therefore the effective overall.
   const trainBonus = (attr: AttrKey): number => player.trainBoosts?.[attr] ?? 0;
   const evolveBonus = (attr: AttrKey): number => player.evolvePoints?.[attr] ?? 0;
+  const specializationBonus = (attr: AttrKey): number => specializationAttributeBonus(player, attr);
   // 📈 Prodígio: +1 a cada 2 partidas iniciadas como titular desde que a carta recebeu a característica.
   const prodigioBonus = (_attr: AttrKey): number => player.prodigio ? prodigioStatBoost(player.prodigioStarts) : 0;
   // 🔥 Resiliente: cresce após cada derrota do time em que a carta foi titular.
@@ -986,7 +989,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -1020,6 +1023,7 @@ export function getPlayerEffectiveStats(
     captain: captainBonus(attr),
     train: trainBonus(attr),
     evolve: evolveBonus(attr),
+    specialization: specializationBonus(attr),
     prodigio: prodigioBonus(attr),
     resiliente: resilienteBonus(attr),
     goleador: goleadorBonus(attr),
@@ -1418,6 +1422,9 @@ export function getEffectiveAttribute(
   // ⭐ Carta Evoluída: bônus dos atributos escolhidos (mesma natureza do Treino).
   base += (player.evolvePoints?.[attribute as keyof NonNullable<Player['evolvePoints']>] ?? 0);
 
+  // ⭐ Especialização da carta Imortal: +6 em cada atributo da área escolhida.
+  base += specializationAttributeBonus(player, attribute as AttrKey);
+
   // 📈 Prodígio: +1 a cada 2 titularidades desde que a característica foi recebida.
   base += player.prodigio ? prodigioStatBoost(player.prodigioStarts) : 0;
 
@@ -1512,11 +1519,19 @@ export const PRIME_THEMED_BONUS = 3;
 export const PRIME_THEMED_CLUB_BONUS = 6;
 
 // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3.
-// Cada nível libera um pacote independente de 6 pontos; os pacotes podem ser
-// colocados no mesmo atributo (até +18 no total).
-export const EVOLVE_LEVEL_THRESHOLDS = [0, 4, 8, 12] as const;
+// Cartas Imortais chegam ao nível 4 com 16 titularidades e escolhem uma
+// especialização. O nível 4 não adiciona um quarto pacote genérico de pontos.
+export const EVOLVE_LEVEL_THRESHOLDS = [0, 4, 8, 12, 16] as const;
 export const EVOLVE_GAMES = EVOLVE_LEVEL_THRESHOLDS[1];
 export const EVOLVE_POINTS = 6;
+export const EVOLVE_POINT_LEVELS = 3;
+export const SPECIALIZATION_LEVEL = 4;
+export const SPECIALIZATION_POINTS = 6;
+
+export function evolvePointsBudget(level: number): number {
+  return Math.min(EVOLVE_POINT_LEVELS, Math.max(0, Math.floor(level))) * EVOLVE_POINTS;
+}
+
 export function getEvolutionLevel(p: { rarity?: Rarity | string; evolutionLevel?: number; appearances?: number }): EvolutionLevel {
   // Unique cards have their own fixed presentation and never evolve.
   if (p.rarity === 'unique') return 0;
@@ -1525,8 +1540,10 @@ export function getEvolutionLevel(p: { rarity?: Rarity | string; evolutionLevel?
   // Explicit levels are useful for isolated previews/old data without an
   // appearance counter. Real cards always derive the level from appearances.
   if (p.appearances === undefined && (explicit === 1 || explicit === 2 || explicit === 3)) return explicit;
+  if (p.appearances === undefined && explicit === SPECIALIZATION_LEVEL) return p.rarity === 'immortal' ? SPECIALIZATION_LEVEL : 3;
 
   const appearances = Math.max(0, p.appearances ?? 0);
+  if (p.rarity === 'immortal' && appearances >= EVOLVE_LEVEL_THRESHOLDS[SPECIALIZATION_LEVEL]) return SPECIALIZATION_LEVEL;
   if (appearances >= EVOLVE_LEVEL_THRESHOLDS[3]) return 3;
   if (appearances >= EVOLVE_LEVEL_THRESHOLDS[2]) return 2;
   if (appearances >= EVOLVE_LEVEL_THRESHOLDS[1]) return 1;
@@ -1551,6 +1568,22 @@ export function applyEvolvePoint(
   // enforced here so both solo and online flows can safely call the same rule.
   if (delta !== EVOLVE_POINTS || evolvePointsSpent(ep) + delta > unlockedPoints) return ep;
   return { ...ep, [attr]: (ep[attr] ?? 0) + delta };
+}
+
+export function specializationAttributeBonus(player: Pick<Player, 'rarity' | 'specialization' | 'evolutionLevel' | 'appearances'>, attr: AttrKey): number {
+  if (player.rarity !== 'immortal' || getEvolutionLevel(player) < SPECIALIZATION_LEVEL || !player.specialization) return 0;
+  return (PLAYER_SPECIALIZATIONS[player.specialization].attributes as readonly string[]).includes(attr)
+    ? SPECIALIZATION_POINTS
+    : 0;
+}
+
+export function canChooseSpecialization(player: Pick<Player, 'rarity' | 'specialization' | 'evolutionLevel' | 'appearances'>): boolean {
+  return player.rarity === 'immortal' && getEvolutionLevel(player) >= SPECIALIZATION_LEVEL;
+}
+
+export function choosePlayerSpecialization<T extends Player>(player: T, specialization: PlayerSpecialization): T {
+  if (!canChooseSpecialization(player) || !PLAYER_SPECIALIZATIONS[specialization]) return player;
+  return { ...player, specialization } as T;
 }
 const MAX_APPEARANCE_RECEIPTS = 64;
 

@@ -5,11 +5,11 @@
 // so each host wires its own state (drafted players vs the league team) and actions.
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from 'react';
 import { motion } from 'framer-motion';
-import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, Player, POS_PT, effectiveSecondaries } from '../../lib/gameData';
+import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, PLAYER_SPECIALIZATIONS, Player, POS_PT, effectiveSecondaries, type PlayerSpecialization } from '../../lib/gameData';
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, getEvolutionLevel,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, captainBoostFromStarters,
-  computeCharacteristicBoosts, evolvePointsSpent, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, positionFit, type EffectiveStats,
+  computeCharacteristicBoosts, evolvePointsSpent, evolvePointsBudget, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, SPECIALIZATION_LEVEL, positionFit, type EffectiveStats,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, type AttrKey } from '../../lib/traits';
 import type { MatchPlan } from '../../lib/gameEngine';
@@ -62,6 +62,7 @@ export interface SquadEditorProps {
   onEvolvePrime?: () => void;
   // ⭐ Cartas Evoluídas: cada nível libera 6 pontos para distribuir (só no MEU TIME).
   onSetEvolvePoint?: (playerId: string, attr: AttrKey, delta: number) => void;
+  onChooseSpecialization?: (playerId: string, specialization: PlayerSpecialization) => void;
   onResetEvolvePoints?: (playerId: string) => void;
 }
 
@@ -79,7 +80,7 @@ export default function SquadEditor({
   showCoachCard = true, footer, isKnockout = false,
   availability, onHealInjury, canAffordPhysio, physioFree = false, physioCost = 150,
   coachPrime, points, analysisLevel = 1, stadiumProjectLevel = 1, wins, onEvolvePrime,
-  onSetEvolvePoint, onResetEvolvePoints,
+  onSetEvolvePoint, onChooseSpecialization, onResetEvolvePoints,
 }: SquadEditorProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   // 🔍 Ver o card do jogador em tela cheia (só visualização).
@@ -715,13 +716,19 @@ export default function SquadEditor({
                 className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg text-sm font-black text-gray-300 hover:text-white hover:bg-white/5 transition-colors focus:outline-none whitespace-nowrap"
                 style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2E2E42' }}>Cancelar</button>
             }
-            bodyClassName="relative"
+            bodyClassName="relative !p-0"
+            bodyStyle={{
+              backgroundColor: '#090910',
+              backgroundImage: `linear-gradient(180deg,rgba(9,9,16,.48),rgba(9,9,16,.66)),url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity, getEvolutionLevel(selectedPlayer), selectedPlayer.specialization)})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center center',
+              backgroundRepeat: 'no-repeat',
+              backgroundAttachment: 'scroll',
+            }}
           >
-            {/* Fundo: textura da carta do jogador (a Única usa a sua própria), com véu leve p/ legibilidade */}
-            <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, backgroundImage: `url(${UNIQUE_STYLE[selectedPlayer.id]?.texture ?? cardTexture(selectedPlayer.rarity, getEvolutionLevel(selectedPlayer))})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.95 }} />
-            <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, background: 'linear-gradient(180deg,rgba(9,9,16,.52),rgba(9,9,16,.6))' }} />
-
-            <div className="relative z-10 space-y-5">
+            {/* O body do modal recebe a textura: ela fica fixa no viewport rolável
+                entre o cabeçalho e o rodapé, sem acompanhar o scroll do conteúdo. */}
+            <div className="relative z-10 space-y-5 p-[18px]">
               {/* 🟨🟥🩹 Faixa compacta de disponibilidade — só aparece quando o jogador tem alguma pendência. */}
               {(() => {
                 const a = availability?.[selectedPlayer.id];
@@ -804,7 +811,7 @@ export default function SquadEditor({
                     { label: 'CMP', base: originalStat(selectedPlayer.composure), eff: eff.composure },
                   ];
                   return (
-                    <div className="rounded-xl overflow-hidden" style={{ background: '#07070f', border: `1px solid ${getRarityColor(selectedPlayer.rarity)}22` }}>
+                    <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(7,7,15,.78)', border: `1px solid ${getRarityColor(selectedPlayer.rarity)}22` }}>
                       <div className="flex items-center gap-4 p-4">
                         <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#10101d', border: `2px solid ${getRarityColor(selectedPlayer.rarity)}` }}>
                           <PlayerPortrait
@@ -927,19 +934,21 @@ export default function SquadEditor({
                   );
                 })()}
 
-                {/* ⭐ Evolução cumulativa — cada nível libera mais um pacote de 6 pontos */}
+                {/* ⭐ Evolução cumulativa — nível 4 escolhe uma especialização Imortal */}
                 {onSetEvolvePoint && selectedPlayer.rarity !== 'unique' && (() => {
                   const evolutionLevel = getEvolutionLevel(selectedPlayer);
                   const evolved = evolutionLevel > 0;
                   const ep = selectedPlayer.evolvePoints ?? {};
                   const spent = evolvePointsSpent(ep);
-                  const unlockedPoints = evolutionLevel * EVOLVE_POINTS;
+                  const unlockedPoints = evolvePointsBudget(evolutionLevel);
                   const availablePoints = Math.max(0, unlockedPoints - spent);
                   const apps = selectedPlayer.appearances ?? 0;
-                  const nextThreshold = evolutionLevel < 3 ? EVOLVE_LEVEL_THRESHOLDS[evolutionLevel + 1] : null;
-                  const progressTarget = nextThreshold ?? EVOLVE_LEVEL_THRESHOLDS[3];
+                  const maxLevel = selectedPlayer.rarity === 'immortal' ? SPECIALIZATION_LEVEL : 3;
+                  const nextThreshold = evolutionLevel < maxLevel ? EVOLVE_LEVEL_THRESHOLDS[evolutionLevel + 1] : null;
+                  const progressTarget = nextThreshold ?? EVOLVE_LEVEL_THRESHOLDS[maxLevel];
                   const progressCurrent = Math.min(apps, progressTarget);
-                  const progressLabel = evolutionLevel < 3 ? `PROGRESSO · NÍVEL ${evolutionLevel} → ${evolutionLevel + 1}` : 'PROGRESSO · NÍVEL 3';
+                  const progressLabel = evolutionLevel < maxLevel ? `PROGRESSO · NÍVEL ${evolutionLevel} → ${evolutionLevel + 1}` : `PROGRESSO · NÍVEL ${maxLevel}`;
+                  const specializationEntries = (Object.keys(PLAYER_SPECIALIZATIONS) as PlayerSpecialization[]).map(id => [id, PLAYER_SPECIALIZATIONS[id]] as const);
                   const evolutionProgress = (
                     <div className="rounded-lg px-3 py-2.5 mb-3" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
                       <div className="flex items-center justify-between text-[10px] font-black mb-1.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
@@ -950,24 +959,28 @@ export default function SquadEditor({
                         <div className="h-full rounded-full" style={{ width: `${progressTarget ? progressCurrent / progressTarget * 100 : 100}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
                       </div>
                       <div className="text-[9px] mt-1.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                        {evolutionLevel < 3
+                        {evolutionLevel < maxLevel
                           ? `Faltam ${Math.max(0, progressTarget - apps)} titularidade${Math.max(0, progressTarget - apps) === 1 ? '' : 's'} para liberar o nível ${evolutionLevel + 1}.`
-                          : 'Nível máximo alcançado.'}
+                          : evolutionLevel === 3 && selectedPlayer.rarity === 'immortal'
+                            ? `Faltam ${Math.max(0, progressTarget - apps)} titularidade${Math.max(0, progressTarget - apps) === 1 ? '' : 's'} para liberar o nível 4.`
+                            : evolutionLevel === 4 ? 'Nível máximo alcançado.' : 'Nível máximo disponível para esta carta.'}
                       </div>
                     </div>
                   );
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${evolved ? '#22C55E55' : '#1A1A2A'}` }}>
                       <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
-                        <span className="text-[11px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ EVOLUÇÃO · NÍVEL {evolutionLevel}/3</span>
+                        <span className="text-[11px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ EVOLUÇÃO · NÍVEL {evolutionLevel}/{maxLevel}</span>
                         {evolved && <span className="text-[11px] font-black" style={{ color: availablePoints > 0 ? '#4ADE80' : '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>{availablePoints > 0 ? `+${availablePoints} DISPONÍVEIS` : `+${spent} APLICADOS`}</span>}
                       </div>
-                      {evolved ? (
-                        <div className="p-3.5">
-                          {evolutionProgress}
+                      <div className="p-3.5">
+                        {evolutionProgress}
+                        {evolved && evolutionLevel < SPECIALIZATION_LEVEL && (
                           <div className="text-[10px] mb-2 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                             Cada nível libera <b style={{ color: '#C9C9D5' }}>+{EVOLVE_POINTS}</b>. Você pode colocar todos os pontos no mesmo atributo.
                           </div>
+                        )}
+                        {evolved && evolutionLevel > 0 && (
                           <div className="grid grid-cols-2 gap-2">
                             {EVOLVE_ATTRS.map(a => (
                               <button
@@ -987,28 +1000,26 @@ export default function SquadEditor({
                               </button>
                             ))}
                           </div>
-                          {nextThreshold !== null && availablePoints === 0 && (
-                            <div className="text-[10px] mt-2.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                              Nível {evolutionLevel + 1} libera mais <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS}</b> em {nextThreshold} titularidades.
+                        )}
+                        {onResetEvolvePoints && spent > 0 && (
+                          <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2.5 py-2.5 rounded-lg text-[11px] font-black tracking-wide transition-transform active:scale-[0.98]" style={{ background: '#1A1A2A', color: '#9A9AAA', border: '1px solid #2A2A3A', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>
+                        )}
+                        {evolutionLevel === SPECIALIZATION_LEVEL && selectedPlayer.rarity === 'immortal' && onChooseSpecialization && (
+                          <div className="mt-3 rounded-lg p-3" style={{ background: '#0A0A12', border: '1px solid #C9A84C55' }}>
+                            <div className="text-[11px] font-black tracking-widest" style={{ color: '#F5D76E', fontFamily: 'Rajdhani, sans-serif' }}>{selectedPlayer.specialization ? 'ALTERAR ESPECIALIZAÇÃO' : 'ESCOLHA UMA ESPECIALIZAÇÃO'}</div>
+                            <div className="text-[10px] mt-1 mb-2.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{selectedPlayer.specialization ? 'Clique em outra opção para trocar a escolha.' : 'Escolha uma área para receber +6 nos dois atributos relacionados.'}</div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {specializationEntries.map(([id, definition]) => (
+                                <button key={id} type="button" onClick={() => onChooseSpecialization(selectedPlayer.id, id)} className="relative overflow-hidden min-h-[104px] rounded-lg p-3 text-left transition-transform active:scale-[0.98]" style={{ border: `${selectedPlayer.specialization === id ? 2 : 1}px solid ${definition.color}${selectedPlayer.specialization === id ? '' : '88'}`, boxShadow: selectedPlayer.specialization === id ? `0 0 0 1px ${definition.color}55, 0 0 16px ${definition.color}33` : 'none', background: `linear-gradient(180deg,rgba(5,5,12,.18),rgba(5,5,12,.78)),url(${definition.texture}) center/cover` }}>
+                                  <span className="relative z-10 flex items-center gap-1.5 text-[13px] font-black" style={{ color: definition.color, fontFamily: 'Rajdhani, sans-serif' }}><span>{definition.icon}</span>{definition.label}</span>
+                                  <span className="relative z-10 mt-1.5 block text-[11px] leading-tight" style={{ color: '#F3F4F6', fontFamily: 'Rajdhani, sans-serif' }}>+6 {definition.attributeLabel}</span>
+                                  {selectedPlayer.specialization === id && <span className="relative z-10 mt-2 inline-flex rounded px-1.5 py-0.5 text-[9px] font-black tracking-wider" style={{ color: '#090910', background: definition.color, fontFamily: 'Rajdhani, sans-serif' }}>✓ ESCOLHIDA</span>}
+                                </button>
+                              ))}
                             </div>
-                          )}
-                          {evolutionLevel === 3 && availablePoints === 0 && (
-                            <div className="text-[10px] mt-2.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                              Evolução máxima alcançada: <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS * 3}</b> distribuídos.
-                            </div>
-                          )}
-                          {onResetEvolvePoints && spent > 0 && (
-                            <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2.5 py-2.5 rounded-lg text-[11px] font-black tracking-wide transition-transform active:scale-[0.98]" style={{ background: '#1A1A2A', color: '#9A9AAA', border: '1px solid #2A2A3A', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="p-3">
-                          {evolutionProgress}
-                          <div className="text-[10px] leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                            Ao liberar cada nível, você recebe mais <b style={{ color: '#22C55E' }}>+{EVOLVE_POINTS}</b> pontos para distribuir.
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   );
                 })()}

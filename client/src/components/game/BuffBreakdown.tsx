@@ -81,6 +81,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const captain = collect(eff, b => b.captain);
   const train = collect(eff, b => b.train);
   const evolve = collect(eff, b => b.evolve);
+  const specialization = collect(eff, b => b.specialization);
+  const evolution = [...evolve, ...specialization];
   const position = collect(eff, b => b.position);
   const char = collect(eff, b => b.char);
   // A carta especial própria já é explicada no bloco especial acima. Aqui ficam apenas
@@ -117,7 +119,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolve.length > 0 || position.length > 0 || char.length > 0 || !!variant || isOutfieldInGoal;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolution.length > 0 || position.length > 0 || char.length > 0 || !!variant || isOutfieldInGoal;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -333,11 +335,11 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
           )}
 
           {/* ⭐ EVOLUÇÃO — bônus aplicado aos atributos escolhidos. */}
-          {evolve.length > 0 && (
-              <Row icon="⭐" name="EVOLUÇÃO" color="#22C55E">
-              <div className="flex flex-wrap gap-1">{chips(evolve, '#22C55E')}</div>
+          {evolution.length > 0 && (
+            <Row icon="⭐" name="EVOLUÇÃO" color="#22C55E">
+              <div className="flex flex-wrap gap-1">{chips(evolution, '#22C55E')}</div>
               <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                Bônus de evolução aplicado aos atributos escolhidos — soma direto nos atributos e reflete no geral.
+                Bônus de evolução aplicados aos atributos escolhidos — soma direto nos atributos e reflete no geral.
               </div>
             </Row>
           )}

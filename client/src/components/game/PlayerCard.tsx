@@ -1,6 +1,6 @@
 import { useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
-import { PLAYERS, Player, POS_PT } from '../../lib/gameData';
+import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '../../lib/gameData';
 import { arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { canonicalClubName, crestIdForClub } from '../../lib/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
@@ -831,16 +831,20 @@ const RARITY_FILE: Record<string, string> = {
 const RARITY_SLUG: Record<string, string> = {
   immortal: 'imortal', legendary: 'lendario', gold: 'ouro', silver: 'prata', bronze: 'bronze',
 };
-export function cardTexture(rarity: string, evolutionLevel: number | boolean = 0): string {
+export function cardTexture(rarity: string, evolutionLevel: number | boolean = 0, specialization?: PlayerSpecialization): string {
   const base = RARITY_FILE[rarity] ?? RARITY_FILE.bronze;
   // Keep boolean support for older call sites while using one consistent
   // nivel1/nivel2/nivel3 naming scheme for every evolved texture.
   const level = typeof evolutionLevel === 'boolean'
     ? (evolutionLevel ? 1 : 0)
-    : Math.max(0, Math.min(3, Math.floor(evolutionLevel)));
+    : Math.max(0, Math.min(4, Math.floor(evolutionLevel)));
+  if (rarity === 'immortal' && level >= 4 && specialization && PLAYER_SPECIALIZATIONS[specialization]) {
+    return PLAYER_SPECIALIZATIONS[specialization].texture;
+  }
   if (level === 0) return `/cards/${base}.webp`;
   const slug = RARITY_SLUG[rarity] ?? RARITY_SLUG.bronze;
   if (level === 1) return `/cards/${slug}_nivel1.webp`;
+  if (level >= 4) return `/cards/${slug}_nivel3.webp`;
   return `/cards/${slug}_nivel${level}.webp`;
 }
 
@@ -1085,7 +1089,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           ...frameMask('93% 94%'), zIndex: 1, background:
             `linear-gradient(180deg,rgba(0,0,0,.34),transparent 28%),` +
             `linear-gradient(0deg,rgba(0,0,0,.58),transparent 40%),` +
-            `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolutionLevel)}) center/cover no-repeat,` +
+            `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolutionLevel, player.specialization)}) center/cover no-repeat,` +
             `${theme.bg}`
         }} />
 
@@ -1179,7 +1183,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           `linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,0) 24%),` +
           `linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 46%),` +
           `radial-gradient(58% 38% at 17% 25%,rgba(0,0,0,.38),transparent 70%),` +
-          `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolutionLevel)}) center/cover no-repeat,` +
+            `url(${uniq ? uniq.texture : cardTexture(player.rarity, evolutionLevel, player.specialization)}) center/cover no-repeat,` +
           `${theme.bg}`
       }} />
 
