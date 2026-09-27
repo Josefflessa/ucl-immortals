@@ -44,7 +44,7 @@ import {
   purchaseClubProjectUpgrade,
 } from '../lib/clubProjects';
 import type { ClubProjectId, RecruitmentEventKind, RecruitmentOfferMeta } from '../lib/clubProjects';
-import { MarketListing } from '../lib/market';
+import { MarketListing, TradeOffer } from '../lib/market';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem, getClientId } from '../lib/storage';
 import { DEFAULT_COMPETITION_FORMAT, DEFAULT_REWARDS_CONFIG, normalizeCompetitionFormat, type CompetitionFormat, validateCompetitionFormat } from '../lib/competition';
 import { applyRoomPatch, type RoomPatchOperation } from '../../../shared/room-sync';
@@ -180,6 +180,7 @@ export interface GameState {
   onlineWatchedPlayers: string[];
   onlineReadyPlayers: string[]; // ✅ jogadores que apertaram "Estou pronto" p/ a rodada/perna atual
   onlineMarket: MarketListing[]; // 🏪 anúncios do mercado online (compartilhado pela sala)
+  onlineTrades: TradeOffer[]; // 🔄 propostas de troca direta (compartilhado pela sala)
   // Names the host is still waiting on before advancing (from the server's
   // advance_blocked event); null when not blocked.
   advanceBlocked: string[] | null;
@@ -351,6 +352,7 @@ const initialState: GameState = {
   onlineWatchedPlayers: [],
   onlineReadyPlayers: [],
   onlineMarket: [],
+  onlineTrades: [],
   advanceBlocked: null,
 };
 
@@ -1914,6 +1916,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           : (roomState.watchedKnockoutLegPlayers || []),
         onlineReadyPlayers: roomState.readyPlayers || [],
         onlineMarket: roomState.market || [],
+        onlineTrades: roomState.trades || [],
 
         // Local player sync
         playerName: me ? me.name : state.playerName,
@@ -2053,6 +2056,10 @@ interface GameContextType {
   marketListOnline: (playerId: string, price: number) => void;
   marketCancelOnline: (listingId: string) => void;
   marketBuyOnline: (listingId: string) => void;
+  tradeProposeOnline: (toPlayerId: string, offeredPlayerId: string, requestedPlayerId: string, creditsDelta: number) => void;
+  tradeCancelOnline: (tradeId: string) => void;
+  tradeAcceptOnline: (tradeId: string) => void;
+  tradeRejectOnline: (tradeId: string) => void;
   playerReadyOnline: () => void;
   playerUnreadyOnline: () => void;
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
@@ -2581,6 +2588,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const marketBuyOnline = useCallback((listingId: string) => {
     emitOnlineAction("market_buy", { roomCode: state.roomCode, listingId });
   }, [emitOnlineAction, state.roomCode]);
+  const tradeProposeOnline = useCallback((toPlayerId: string, offeredPlayerId: string, requestedPlayerId: string, creditsDelta: number) => {
+    emitOnlineAction("trade_propose", { roomCode: state.roomCode, toPlayerId, offeredPlayerId, requestedPlayerId, creditsDelta });
+  }, [emitOnlineAction, state.roomCode]);
+  const tradeCancelOnline = useCallback((tradeId: string) => {
+    emitOnlineAction("trade_cancel", { roomCode: state.roomCode, tradeId });
+  }, [emitOnlineAction, state.roomCode]);
+  const tradeAcceptOnline = useCallback((tradeId: string) => {
+    emitOnlineAction("trade_accept", { roomCode: state.roomCode, tradeId });
+  }, [emitOnlineAction, state.roomCode]);
+  const tradeRejectOnline = useCallback((tradeId: string) => {
+    emitOnlineAction("trade_reject", { roomCode: state.roomCode, tradeId });
+  }, [emitOnlineAction, state.roomCode]);
   const playerReadyOnline = useCallback(() => {
     emitOnlineAction("player_ready", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
@@ -2704,7 +2723,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline, setMatchPlanOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
-    shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
+    shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, tradeProposeOnline, tradeCancelOnline, tradeAcceptOnline, tradeRejectOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline, requestMatchResultOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps

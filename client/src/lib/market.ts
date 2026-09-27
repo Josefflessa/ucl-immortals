@@ -15,3 +15,18 @@ export interface MarketListing {
 export function marketMinPrice(player: Player): number {
   return sellValue(player.rarity);
 }
+
+// 🔄 Troca direta (P2P) — um jogador do banco por outro, com créditos opcionais pra equilibrar.
+// Sem escrow: os dois jogadores continuam nos elencos originais enquanto a proposta está pendente;
+// o servidor revalida tudo (posição no banco, créditos disponíveis) só no momento do ACEITE.
+export interface TradeOffer {
+  id: string;             // id único da proposta
+  fromPlayerId: string;   // RoomPlayer.id de quem propôs
+  fromPlayerName: string;
+  toPlayerId: string;     // RoomPlayer.id de quem recebeu a proposta
+  toPlayerName: string;
+  offeredPlayer: Player;   // jogador do banco de quem propôs
+  requestedPlayer: Player; // jogador do banco de quem recebeu a proposta
+  /** Créditos extras pra equilibrar a troca. Positivo = quem propôs paga; negativo = quem propôs pede. */
+  creditsDelta: number;
+}

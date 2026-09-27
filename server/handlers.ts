@@ -46,7 +46,7 @@ import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockou
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
 import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
-import { MarketListing, marketMinPrice } from "../client/src/lib/market.js";
+import { MarketListing, marketMinPrice, TradeOffer } from "../client/src/lib/market.js";
 import {
   createInitialClubProjects,
   createRecruitmentOfferMeta,
@@ -155,6 +155,7 @@ export interface RoomState {
   readyPlayers: string[];    // ✅ participantes da rodada/perna atual que confirmaram "Estou pronto"
   discipline: DisciplineMap; // 🟨🟥🩹 disponibilidade por jogador (todos os times)
   market: MarketListing[];   // 🏪 anúncios do mercado online (jogadores em escrow, fora dos elencos)
+  trades: TradeOffer[];      // 🔄 propostas de troca direta (sem escrow — revalidadas no aceite)
   draftState: {
     round: number;
     timerKey: number;
@@ -1375,6 +1376,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         readyPlayers: [],
         discipline: {},
         market: [],
+        trades: [],
         draftState: {
           round: 1,
           timerKey: 0,
@@ -2397,6 +2399,112 @@ export function registerSocketHandlers(io: RealtimeServer) {
       emitRoomUpdate(io, room);
     });
 
+    // 🔄 Troca online — PROPOR (jogador do banco por jogador do banco de outro jogador, + créditos
+    // opcionais). Sem escrow: os dois jogadores continuam nos elencos originais até o ACEITE.
+    on("trade_propose", ({ roomCode, toPlayerId, offeredPlayerId, requestedPlayerId, creditsDelta }:
+      { roomCode: string; toPlayerId: string; offeredPlayerId: string; requestedPlayerId: string; creditsDelta: number }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      if (!isShopPhase(room)) return;
+      if (!Array.isArray(room.trades)) room.trades = [];
+      const proposer = room.players.find(p => p.socketId === socket.id);
+      const target = room.players.find(p => p.id === toPlayerId);
+      if (!proposer || !proposer.team || !target || !target.team || proposer.id === target.id) return;
+      const offeredIdx = proposer.team.players.findIndex(p => p.id === offeredPlayerId);
+      const requestedIdx = target.team.players.findIndex(p => p.id === requestedPlayerId);
+      if (offeredIdx < 11 || requestedIdx < 11) return; // só reserva (índice ≥ 11) dos dois lados
+      const safeCreditsDelta = Number.isSafeInteger(creditsDelta) ? creditsDelta : 0;
+      if (safeCreditsDelta > 0 && proposer.points < safeCreditsDelta) {
+        socket.emit('action_error', { event: 'trade_propose', message: 'Você não tem créditos suficientes pra incluir nessa proposta.' });
+        return;
+      }
+      room.trades.push({
+        id: `t${++marketSeq}`,
+        fromPlayerId: proposer.id,
+        fromPlayerName: proposer.name,
+        toPlayerId: target.id,
+        toPlayerName: target.name,
+        offeredPlayer: proposer.team.players[offeredIdx],
+        requestedPlayer: target.team.players[requestedIdx],
+        creditsDelta: safeCreditsDelta,
+      });
+      emitRoomUpdate(io, room);
+    });
+
+    // 🔄 Troca online — CANCELAR (só quem propôs).
+    on("trade_cancel", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      if (!Array.isArray(room.trades)) room.trades = [];
+      const proposer = room.players.find(p => p.socketId === socket.id);
+      const offer = room.trades.find(t => t.id === tradeId);
+      if (!proposer || !offer || offer.fromPlayerId !== proposer.id) return;
+      room.trades = room.trades.filter(t => t.id !== tradeId);
+      emitRoomUpdate(io, room);
+    });
+
+    // 🔄 Troca online — RECUSAR (só quem recebeu a proposta).
+    on("trade_reject", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      if (!Array.isArray(room.trades)) room.trades = [];
+      const responder = room.players.find(p => p.socketId === socket.id);
+      const offer = room.trades.find(t => t.id === tradeId);
+      if (!responder || !offer || offer.toPlayerId !== responder.id) return;
+      room.trades = room.trades.filter(t => t.id !== tradeId);
+      emitRoomUpdate(io, room);
+    });
+
+    // 🔄 Troca online — ACEITAR (revalida tudo e faz a troca atômica + créditos).
+    on("trade_accept", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      if (!isShopPhase(room)) return;
+      if (!Array.isArray(room.trades)) room.trades = [];
+      const responder = room.players.find(p => p.socketId === socket.id);
+      const offer = room.trades.find(t => t.id === tradeId);
+      if (!responder || !offer || offer.toPlayerId !== responder.id) return;
+      const proposer = room.players.find(p => p.id === offer.fromPlayerId);
+      if (!proposer || !proposer.team || !responder.team) {
+        room.trades = room.trades.filter(t => t.id !== tradeId);
+        socket.emit('action_error', { event: 'trade_accept', message: 'Essa troca não é mais válida — quem propôs saiu da sala.' });
+        return;
+      }
+      const offeredIdx = proposer.team.players.findIndex(p => p.id === offer.offeredPlayer.id);
+      const requestedIdx = responder.team.players.findIndex(p => p.id === offer.requestedPlayer.id);
+      if (offeredIdx < 11 || requestedIdx < 11) {
+        room.trades = room.trades.filter(t => t.id !== tradeId);
+        socket.emit('action_error', { event: 'trade_accept', message: 'Um dos jogadores dessa troca não está mais disponível no banco.' });
+        return;
+      }
+      if (offer.creditsDelta > 0 && proposer.points < offer.creditsDelta) {
+        room.trades = room.trades.filter(t => t.id !== tradeId);
+        socket.emit('action_error', { event: 'trade_accept', message: 'Quem propôs não tem mais créditos suficientes pra essa troca.' });
+        return;
+      }
+      if (offer.creditsDelta < 0 && responder.points < -offer.creditsDelta) {
+        socket.emit('action_error', { event: 'trade_accept', message: 'Você não tem créditos suficientes pra aceitar essa troca.' });
+        return;
+      }
+      const offeredPlayer = proposer.team.players[offeredIdx];
+      const requestedPlayer = responder.team.players[requestedIdx];
+      proposer.team.players = proposer.team.players.filter((_, i) => i !== offeredIdx);
+      responder.team.players = responder.team.players.filter((_, i) => i !== requestedIdx);
+      proposer.team.players.push({ ...requestedPlayer, chemistryScore: 0, isOOP: false } as PlayerCard);
+      responder.team.players.push({ ...offeredPlayer, chemistryScore: 0, isOOP: false } as PlayerCard);
+      delete room.discipline[`${proposer.team.id}:${offeredPlayer.id}`];
+      delete room.discipline[`${responder.team.id}:${requestedPlayer.id}`];
+      proposer.points -= offer.creditsDelta;
+      responder.points += offer.creditsDelta;
+      // Qualquer outra proposta pendente que envolva um dos dois jogadores agora trocados vira inválida.
+      room.trades = room.trades.filter(t => t.id !== tradeId
+        && t.offeredPlayer.id !== offeredPlayer.id && t.offeredPlayer.id !== requestedPlayer.id
+        && t.requestedPlayer.id !== offeredPlayer.id && t.requestedPlayer.id !== requestedPlayer.id);
+      invalidateReady(room, proposer.id);
+      invalidateReady(room, responder.id);
+      emitRoomUpdate(io, room);
+    });
+
     // 🔄 Level 4 Recruitment Centre: one free re-roll for the current offer.
     on("reroll_reinforcement", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
@@ -3084,6 +3192,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       room.readyPlayers = [];
       room.discipline = {};
       room.market = [];
+      room.trades = [];
       room.draftState = {
         round: 1,
         timerKey: 0,
