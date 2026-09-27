@@ -142,7 +142,7 @@ export const CLUB_PROJECT_DEFINITIONS: readonly ClubProjectDefinition[] = [
       '+2 opções em cada recrutamento.',
       'Permite contratar 2 jogadores por recrutamento.',
       '1 reroll gratuito por recrutamento.',
-      'Somente jogadores de overall 88+ nas ofertas.',
+      'Somente jogadores de overall 85+ nas ofertas.',
     ],
   },
   {
@@ -324,7 +324,7 @@ export function getRecruitmentOfferConfig(
     optionCount: Math.min(optionCap, safeBaseOptions + optionBonus),
     selectionLimit: level >= 3 ? 2 : 1,
     freeRerolls: level >= 4 ? 1 : 0,
-    minimumOverall: level >= 5 ? 88 : 0,
+    minimumOverall: level >= 5 ? 85 : 0,
   };
 }
 

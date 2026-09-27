@@ -126,12 +126,12 @@ recrutamento, nenhum nível do Centro de Recrutamento cria ofertas do nada.
 | 2 | Adiciona **+2 opções** à lista de cada oferta, com limite de 10 opções. |
 | 3 | Mantém as opções extras e libera **+1 contratação**: o jogador pode escolher 2 cartas no mesmo recrutamento. |
 | 4 | Mantém as duas contratações e libera **1 reroll gratuito por recrutamento**. O reroll é exclusivo do projeto e não é comprado na Loja. |
-| 5 | Mantém todos os bônus anteriores e faz o Centro oferecer somente jogadores de **overall 88 ou mais**. |
+| 5 | Mantém todos os bônus anteriores e faz o Centro oferecer somente jogadores de **overall 85 ou mais**. |
 
 Exemplo: se a competição oferece 6 jogadores e 1 escolha por rodada, um clube
 no nível 2 recebe 8 opções e escolhe 1 jogador. No nível 3, 4 ou 5 recebe 8
 opções e escolhe 2; no nível 4 ou 5 também pode trocar a lista uma vez sem
-gastar créditos. No nível 5, as 8 opções precisam ter overall 88 ou mais.
+gastar créditos. No nível 5, as 8 opções precisam ter overall 85 ou mais.
 
 Regras adicionais:
 

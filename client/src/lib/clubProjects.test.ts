@@ -91,7 +91,7 @@ describe('estrutura dos Projetos do Clube', () => {
     expect(getRecruitmentOfferConfig(6, 2, 1)).toEqual({ optionCount: 8, selectionLimit: 1, freeRerolls: 0, minimumOverall: 0 });
     expect(getRecruitmentOfferConfig(6, 3, 2)).toEqual({ optionCount: 8, selectionLimit: 2, freeRerolls: 0, minimumOverall: 0 });
     expect(getRecruitmentOfferConfig(6, 4, 1)).toEqual({ optionCount: 8, selectionLimit: 2, freeRerolls: 1, minimumOverall: 0 });
-    expect(getRecruitmentOfferConfig(6, 5, 1)).toEqual({ optionCount: 8, selectionLimit: 2, freeRerolls: 1, minimumOverall: 88 });
+    expect(getRecruitmentOfferConfig(6, 5, 1)).toEqual({ optionCount: 8, selectionLimit: 2, freeRerolls: 1, minimumOverall: 85 });
     expect(getRecruitmentOfferConfig(12, 5, 1).optionCount).toBe(10);
   });
 

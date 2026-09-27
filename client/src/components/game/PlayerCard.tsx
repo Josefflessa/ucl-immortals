@@ -941,6 +941,9 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false, photoUrl }: { p
         height: '100%',
         objectFit: 'contain',
         objectPosition: 'center bottom',
+        // O retrato do Kluivert precisa ficar um pouco mais baixo no recorte
+        // da carta; manter o ajuste isolado evita desalinhamentos nos demais.
+        transform: playerId === 'kluivert' ? 'translate(-3px, 26px)' : undefined,
         filter: 'drop-shadow(0 6px 14px rgba(0,0,0,.65))',
       }}
     />
@@ -1012,7 +1015,7 @@ function variantDesc(player: Player): string {
   if (player.fragil) return `FRÁGIL: +${FRAGIL_STAT_BOOST} em cada atributo, mas aumenta drasticamente a chance de se machucar`;
   if (player.prodigio) {
     const starts = player.prodigioStarts ?? 0;
-    return `PRODÍGIO: +${prodigioStatBoost(starts)} em cada atributo · +1 a cada ${PRODIGIO_STARTS_PER_BOOST} titularidades (${starts} acumuladas)`;
+    return `PRODÍGIO: +${prodigioStatBoost(starts)} em cada atributo · +1 a cada ${PRODIGIO_STARTS_PER_BOOST} ${PRODIGIO_STARTS_PER_BOOST === 1 ? 'titularidade' : 'titularidades'} (${starts} acumuladas)`;
   }
   if (player.resiliente) {
     const defeats = player.resilienteDefeats ?? 0;

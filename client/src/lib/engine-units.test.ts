@@ -319,7 +319,7 @@ describe('⭐ cartas evoluídas', () => {
     expect(result.startingLineups?.home).toEqual(starterPlayerIds(home));
     expect(result.startingLineups?.away).toEqual(starterPlayerIds(away));
   });
-  it('Prodígio: acumula titularidades e dá +1 a cada 2, sem evoluir reservas', () => {
+  it('Prodígio: acumula titularidades e dá +1 a cada uma, sem evoluir reservas', () => {
     const prodigio = mkP({ prodigio: true, prodigioStarts: 0 });
     const team = mkTeam('T', [prodigio, ...Array.from({ length: 12 }, () => mkP())]);
     const once = bumpStarterAppearances(team);
@@ -327,11 +327,11 @@ describe('⭐ cartas evoluídas', () => {
     expect(once.players[11].prodigioStarts).toBeUndefined();
     const twice = bumpStarterAppearances(once);
     expect(twice.players[0].prodigioStarts).toBe(2);
-    expect(PRODIGIO_STARTS_PER_BOOST).toBe(2);
+    expect(PRODIGIO_STARTS_PER_BOOST).toBe(1);
     expect(prodigioStatBoost(0)).toBe(0);
-    expect(prodigioStatBoost(1)).toBe(0);
-    expect(prodigioStatBoost(2)).toBe(1);
-    expect(prodigioStatBoost(5)).toBe(2);
+    expect(prodigioStatBoost(1)).toBe(1);
+    expect(prodigioStatBoost(2)).toBe(2);
+    expect(prodigioStatBoost(5)).toBe(5);
   });
   it('Goleador e Garçom acumulam estatísticas oficiais sem duplicar após repetir o resultado', () => {
     const scorer = mkP({ goleador: true, goleadorGoals: 0 });
@@ -1055,7 +1055,7 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.resiliente).toBe(true);
     expect(v.resilienteDefeats).toBe(0);
   });
-  it('📈 Prodígio começa sem bônus e soma +1 a cada 2 titularidades', () => {
+  it('📈 Prodígio começa sem bônus e soma +1 a cada titularidade', () => {
     const v = applyShopVariant(src, 'prodigio');
     expect(v.prodigio).toBe(true);
     expect(v.prodigioStarts).toBe(0);
@@ -1064,9 +1064,9 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     const afterOneStart = getEffectiveAttribute(card({ ...v, prodigioStarts: 1 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
     const afterTwoStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 2 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
     const afterFourStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 4 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
-    expect(afterOneStart - base).toBe(0);
-    expect(afterTwoStarts - base).toBe(1);
-    expect(afterFourStarts - base).toBe(2);
+    expect(afterOneStart - base).toBe(1);
+    expect(afterTwoStarts - base).toBe(2);
+    expect(afterFourStarts - base).toBe(4);
   });
   it('⚽/🎯 Goleador e Garçom começam com o histórico já feito na competição', () => {
     const scorer = applyShopVariant(src, 'goleador', { goals: 7 });

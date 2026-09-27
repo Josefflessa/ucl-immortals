@@ -675,7 +675,7 @@ export interface StatBreakdown {
   captain: number;    // captain leadership bonus (+CAPTAIN_BOOST on the captain's best stat, for everyone)
   train: number;      // 💪 shop "Treino" — permanent, stacking per-attribute boost
   evolve: number;     // ⭐ Carta Evoluída — bônus do atributo escolhido
-  prodigio: number;   // 📈 Prodígio — +1 a cada 2 titularidades desde que a carta recebeu a característica
+  prodigio: number;   // 📈 Prodígio — +1 a cada titularidade desde que a carta recebeu a característica
   resiliente: number; // 🔥 Resiliente — +2 em tudo por derrota do time
   goleador: number;   // ⚽ Goleador — +1 em tudo a cada 3 gols marcados
   garcom: number;     // 🎯 Garçom — +1 em tudo a cada 2 assistências dadas
@@ -969,7 +969,7 @@ export function getPlayerEffectiveStats(
   const trainBonus = (attr: AttrKey): number => player.trainBoosts?.[attr] ?? 0;
   const evolveBonus = (attr: AttrKey): number => player.evolvePoints?.[attr] ?? 0;
   const specializationBonus = (attr: AttrKey): number => specializationAttributeBonus(player, attr);
-  // 📈 Prodígio: +1 a cada 2 partidas iniciadas como titular desde que a carta recebeu a característica.
+  // 📈 Prodígio: +1 a cada partida iniciada como titular desde que a carta recebeu a característica.
   const prodigioBonus = (_attr: AttrKey): number => player.prodigio ? prodigioStatBoost(player.prodigioStarts) : 0;
   // 🔥 Resiliente: cresce após cada derrota do time em que a carta foi titular.
   const resilienteBonus = (_attr: AttrKey): number => player.resiliente
@@ -1139,7 +1139,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     contribute(c.id, { type: 'colecionador', fromId: c.id, fromName: c.shortName, flatAll: reservePlayerCount * COLECIONADOR_PER_RESERVE, perStat: {}, self: true });
   }
   // 🤝 Todos por um — a característica só existe de verdade quando o XI inteiro
-  // a carrega. Cada titular recebe a mesma fonte para o breakdown explicar o +15.
+  // a carrega. Cada titular recebe a mesma fonte para o breakdown explicar o +20.
   if (xi.length === 11 && xi.every(player => player.todosPorUm)) {
     for (const mate of xi) {
       contribute(mate.id, {
@@ -1427,7 +1427,7 @@ export function getEffectiveAttribute(
   // ⭐ Especialização da carta Imortal: +6 em cada atributo da área escolhida.
   base += specializationAttributeBonus(player, attribute as AttrKey);
 
-  // 📈 Prodígio: +1 a cada 2 titularidades desde que a característica foi recebida.
+  // 📈 Prodígio: +1 a cada titularidade desde que a característica foi recebida.
   base += player.prodigio ? prodigioStatBoost(player.prodigioStarts) : 0;
 
   // 🔥 Resiliente: +2 em todos os atributos por derrota do time como titular.
@@ -3511,7 +3511,7 @@ const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
 const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
 const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
 const DRAFT_FRAGIL_CHANCE = 0.03;   // 🩹 Frágil — +7 em tudo, mas se machuca com muito mais frequência
-const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada 2 titularidades
+const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada titularidade
 const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
 const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +1 por jogador na reserva
 const DRAFT_GOLEADOR_CHANCE = 0.03; // ⚽ Goleador — cresce a cada 3 gols marcados
@@ -3557,13 +3557,13 @@ export const LOBO_STAT_BOOST = 7;     // Lobo Solitário: a BIGGER personal boos
 export const LOBO_CHEM_PENALTY = 12; // …paid for with this much TEAM chemistry per lone wolf.
 export const PILAR_CHEM_BONUS = 12;  // Pilar: lifts the team's total chemistry by this much.
 export const RESILIENTE_DEFEAT_BOOST = 2;
-export const PRODIGIO_STARTS_PER_BOOST = 2;
+export const PRODIGIO_STARTS_PER_BOOST = 1;
 export const GOLEADOR_GOALS_PER_BOOST = 3;
 export const GARCOM_ASSISTS_PER_BOOST = 2;
 export const ARROGANTE_GOALS_PER_PENALTY = 2;
 export const ARROGANTE_STAT_BOOST_PER_GOAL = 2;
 export const ARROGANTE_TEAM_PENALTY = 1;
-export const TODOS_POR_UM_STAT_BOOST = 15;
+export const TODOS_POR_UM_STAT_BOOST = 20;
 export const TODOS_POR_UM_CHEM_BONUS = 50;
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */

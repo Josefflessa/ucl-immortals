@@ -105,11 +105,11 @@ export interface Player {
   forasteiro?: boolean;  // 🧳 Forasteiro — +8 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
   colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva
   estribado?: boolean;    // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
-  todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +15 em tudo e +50 de química geral
+  todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +20 em tudo e +50 de química geral
   capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão vem DOBRADO
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida por 1,5, mas −7 em tudo nele
   fragil?: boolean;      // 🩹 Frágil — +7 em tudo, mas aumenta drasticamente o risco de lesão
-  prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada 2 titularidades acumuladas
+  prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada titularidade acumulada
   prodigioStarts?: number; // 📈 titularidades acumuladas desde que a característica foi recebida
   resiliente?: boolean;  // 🔥 Resiliente — cresce após cada derrota do time em que estiver no XI
   resilienteDefeats?: number; // 🔥 derrotas do time contabilizadas enquanto foi titular
