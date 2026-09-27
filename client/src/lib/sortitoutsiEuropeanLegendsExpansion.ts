@@ -315,7 +315,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
   },
   {
     id: 'radebe', shortName: 'Lucas Radebe', fullName: 'Lucas Radebe', position: 'CB', 
-    nation: 'África do Sul', club: 'Leeds United', season: '1999/00', rarity: 'gold', overall: 82,
+    nation: 'África do Sul', club: 'Leeds', season: '1999/00', rarity: 'gold', overall: 82,
     pace: 77, shooting: 33, passing: 69, dribbling: 58,
     defending: 82, physical: 84, composure: 81, vision: 58,
     traits: [],
@@ -323,7 +323,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
   },
   {
     id: 'woodgate', shortName: 'Jonathan Woodgate', fullName: 'Jonathan Woodgate', position: 'CB', 
-    nation: 'Inglaterra', club: 'Leeds United', season: '1999/00', rarity: 'gold', overall: 81,
+    nation: 'Inglaterra', club: 'Leeds', season: '1999/00', rarity: 'gold', overall: 81,
     pace: 78, shooting: 34, passing: 70, dribbling: 48,
     defending: 83, physical: 85, composure: 71, vision: 59,
     traits: [],
