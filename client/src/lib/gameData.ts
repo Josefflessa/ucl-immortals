@@ -9,6 +9,7 @@ import { MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE } from './majorLeagueCatalogExpansi
 import { NEXT_GENERATION_PLAYERS } from './next-generationPlayers';
 import { SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS } from './sortitoutsiMajorLeagueExpansion';
 import { SORTITOUTSI_1000_ADDITIONS } from './sortitoutsiThousandExpansion';
+import { SORTITOUTSI_EUROPEAN_LEGENDS } from './sortitoutsiEuropeanLegendsExpansion';
 import { clubIdForName } from './crests';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
@@ -728,6 +729,7 @@ export const PLAYERS: Player[] = [
   ...NEXT_GENERATION_PLAYERS,
   ...SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS,
   ...SORTITOUTSI_1000_ADDITIONS,
+  ...SORTITOUTSI_EUROPEAN_LEGENDS,
   // ===== IMMORTALS =====
   {
     id: 'messi',
