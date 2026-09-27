@@ -19,6 +19,8 @@ import Crest from '../components/game/Crest';
 import CreditsWallet from '../components/game/CreditsWallet';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import MatchCreditsModal from '../components/game/MatchCreditsModal';
+import TradeInviteModal from '../components/game/TradeInviteModal';
+import TradeNegotiationModal from '../components/game/TradeNegotiationModal';
 import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, bettingPayoutRulesForLevel } from '../lib/bets';
@@ -62,7 +64,11 @@ export default function LeaguePage() {
   useEffect(() => {
     if (initialCreditsSignature.current !== undefined) return;
     initialCreditsSignature.current = creditsSignature;
-    if (creditsSignature) setDismissedCreditsSignature(creditsSignature);
+    // In solo, LeaguePage remounts after MatchSimPage finishes. The current
+    // lastMatchPoints is therefore the reward for the match just played and
+    // must be shown immediately. Online keeps the mount-time dismissal so a
+    // reconnect does not replay an already-seen reward.
+    if (state.mode === 'online' && creditsSignature) setDismissedCreditsSignature(creditsSignature);
   }, []);
   const showCreditsModal = initialCreditsSignature.current !== undefined
     && !!state.lastMatchPoints
@@ -466,6 +472,12 @@ export default function LeaguePage() {
       dispatch({ type: 'FINISH_GAME', champion });
     } else {
       dispatch({ type: 'START_KNOCKOUT' });
+    }
+  };
+
+  const handleFinishEliminatedCampaign = () => {
+    if (state.mode === 'solo' && !qualifies) {
+      dispatch({ type: 'FINISH_ELIMINATED_CAMPAIGN' });
     }
   };
 
@@ -1059,22 +1071,19 @@ export default function LeaguePage() {
                   </button>
                 ) : (
                   <button
-                    onClick={handleAdvanceKnockout}
-                    disabled={!qualifies}
+                    onClick={qualifies ? handleAdvanceKnockout : handleFinishEliminatedCampaign}
                     className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all"
                     style={{
                       fontFamily: 'Bebas Neue, sans-serif',
-                      background: qualifies
-                        ? 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)'
-                        : '#1A1A2A',
-                      color: qualifies ? '#000' : '#555',
-                      boxShadow: qualifies ? '0 0 25px rgba(34,197,94,0.3)' : 'none',
-                      cursor: qualifies ? 'pointer' : 'not-allowed',
+                      background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 50%, #22C55E 100%)',
+                      color: '#000',
+                      boxShadow: '0 0 25px rgba(34,197,94,0.3)',
+                      cursor: 'pointer',
                     }}
                   >
                     {qualifies
                       ? (isLeagueOnly ? '🏆 FINALIZAR COMPETIÇÃO →' : '🏆 AVANÇAR PARA O MATA-MATA →')
-                      : isGroupStage ? '❌ ELIMINADO — FORA DA ZONA DO GRUPO' : `❌ ELIMINADO — FORA DO TOP ${qualifiedTeams}`}
+                      : '🏁 ENCERRAR CAMPANHA →'}
                   </button>
                 )}
               </div>
@@ -1697,6 +1706,8 @@ export default function LeaguePage() {
         {showCreditsModal && state.lastMatchPoints && (
           <MatchCreditsModal points={state.lastMatchPoints} onClose={closeCreditsModal} />
         )}
+        {state.mode === 'online' && <TradeInviteModal />}
+        {state.mode === 'online' && <TradeNegotiationModal />}
         {state.reinforcementOptions && state.reinforcementOptions.length > 0 && !showCreditsModal && (
           <GameModal
             open

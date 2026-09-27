@@ -119,8 +119,8 @@ function fakeRoom(playerA: RoomPlayer, playerB: RoomPlayer): RoomState {
 interface Harness {
   runtime: ReturnType<typeof createGameRuntime>;
   server: FakeServer;
-  alice: FakeSocket; // fromPlayer (proposer)
-  bruno: FakeSocket; // toPlayer (target)
+  alice: FakeSocket; // host (quem convida)
+  bruno: FakeSocket; // guest (quem é convidado)
 }
 
 function setup(): Harness {
@@ -144,144 +144,147 @@ function benchIds(runtime: Harness['runtime'], playerId: string): string[] {
   return runtime.rooms.get('ABCD')!.players.find(p => p.id === playerId)!.team!.players.slice(11).map(p => p.id);
 }
 
-describe('trocas online (trade_propose / cancel / reject / accept)', () => {
-  it('propõe, e a proposta aparece em room.trades pros dois lados', () => {
-    const { runtime, alice } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: 0,
-    }));
+function invite(h: Harness): string {
+  runWithGameRuntime(h.runtime, () => h.alice.receive('trade_invite', { roomCode: 'ABCD', toPlayerId: 'bruno' }));
+  return h.runtime.rooms.get('ABCD')!.trades[0].id;
+}
 
-    const room = runtime.rooms.get('ABCD')!;
-    expect(room.trades).toHaveLength(1);
-    expect(room.trades[0]).toMatchObject({
-      fromPlayerId: 'alice', toPlayerId: 'bruno', creditsDelta: 0,
-    });
-    expect(room.trades[0].offeredPlayer.id).toBe('a_bench0');
-    expect(room.trades[0].requestedPlayer.id).toBe('b_bench0');
+function inviteAndNegotiate(h: Harness): string {
+  const tradeId = invite(h);
+  runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_accept_invite', { roomCode: 'ABCD', tradeId }));
+  return tradeId;
+}
+
+describe('convite de troca (trade_invite / trade_leave / trade_accept_invite)', () => {
+  it('convida, e a sessão aparece pendente pros dois lados', () => {
+    const h = setup();
+    const tradeId = invite(h);
+    const session = h.runtime.rooms.get('ABCD')!.trades.find(t => t.id === tradeId)!;
+    expect(session).toMatchObject({ hostId: 'alice', guestId: 'bruno', status: 'invite' });
   });
 
-  it('recusa propor com um jogador titular (índice < 11) de qualquer lado', () => {
-    const { runtime, alice } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'teamA_st0', requestedPlayerId: 'b_bench0', creditsDelta: 0,
-    }));
-    expect(runtime.rooms.get('ABCD')!.trades).toHaveLength(0);
+  it('recusa convidar quem já está em outra sessão (convite ou negociação)', () => {
+    const h = setup();
+    invite(h); // alice ↔ bruno já ocupados
+    const teamC = fakeTeam('teamC', ['c_bench0']);
+    const roomCarla = fakeRoomPlayer('carla', 'socket-carla', teamC, 100);
+    h.runtime.rooms.get('ABCD')!.players.push(roomCarla);
+    const carla = new FakeSocket('socket-carla', h.server);
+    registerSocketHandlers(h.server);
+    runWithGameRuntime(h.runtime, () => { h.server.connect(carla); carla.join('ABCD'); });
+
+    runWithGameRuntime(h.runtime, () => carla.receive('trade_invite', { roomCode: 'ABCD', toPlayerId: 'alice' }));
+    expect(h.runtime.rooms.get('ABCD')!.trades).toHaveLength(1); // não criou uma segunda sessão
+    expect(carla.sent.some(m => m.event === 'action_error')).toBe(true);
   });
 
-  it('recusa propor mais créditos do que o proponente tem', () => {
-    const { runtime, alice } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: 9999,
-    }));
-    expect(runtime.rooms.get('ABCD')!.trades).toHaveLength(0);
-    expect(alice.sent.some(m => m.event === 'action_error')).toBe(true);
+  it('sair (trade_leave) cancela um convite pendente — só quem está nele pode', () => {
+    const h = setup();
+    const tradeId = invite(h);
+    const teamC = fakeTeam('teamC', ['c_bench0']);
+    const roomCarla = fakeRoomPlayer('carla', 'socket-carla', teamC, 100);
+    h.runtime.rooms.get('ABCD')!.players.push(roomCarla);
+    const carla = new FakeSocket('socket-carla', h.server);
+    runWithGameRuntime(h.runtime, () => h.server.connect(carla));
+
+    runWithGameRuntime(h.runtime, () => carla.receive('trade_leave', { roomCode: 'ABCD', tradeId }));
+    expect(h.runtime.rooms.get('ABCD')!.trades).toHaveLength(1); // carla não faz parte dessa sessão
+
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_leave', { roomCode: 'ABCD', tradeId }));
+    expect(h.runtime.rooms.get('ABCD')!.trades).toHaveLength(0);
   });
 
-  it('cancela — só quem propôs pode, e o jogador não é removido do banco', () => {
-    const { runtime, alice, bruno } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: 0,
+  it('só o convidado pode aceitar o convite, e isso abre a negociação', () => {
+    const h = setup();
+    const tradeId = invite(h);
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_accept_invite', { roomCode: 'ABCD', tradeId }));
+    expect(h.runtime.rooms.get('ABCD')!.trades[0].status).toBe('invite'); // proponente não pode aceitar a própria
+
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_accept_invite', { roomCode: 'ABCD', tradeId }));
+    expect(h.runtime.rooms.get('ABCD')!.trades[0].status).toBe('negotiating');
+  });
+});
+
+describe('negociação de troca (trade_select / trade_ready)', () => {
+  it('cada lado escolhe um jogador do PRÓPRIO banco; titular (índice < 11) é recusado', () => {
+    const h = setup();
+    const tradeId = inviteAndNegotiate(h);
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', {
+      roomCode: 'ABCD', tradeId, playerId: 'teamA_st0', creditsDelta: 0,
     }));
-    const tradeId = runtime.rooms.get('ABCD')!.trades[0].id;
+    expect(h.runtime.rooms.get('ABCD')!.trades[0].host.playerId).toBeNull();
 
-    // O alvo (bruno) NÃO pode cancelar a proposta de outra pessoa.
-    runWithGameRuntime(runtime, () => bruno.receive('trade_cancel', { roomCode: 'ABCD', tradeId }));
-    expect(runtime.rooms.get('ABCD')!.trades).toHaveLength(1);
-
-    runWithGameRuntime(runtime, () => alice.receive('trade_cancel', { roomCode: 'ABCD', tradeId }));
-    expect(runtime.rooms.get('ABCD')!.trades).toHaveLength(0);
-    expect(benchIds(runtime, 'alice')).toContain('a_bench0');
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', {
+      roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 20,
+    }));
+    const session = h.runtime.rooms.get('ABCD')!.trades[0];
+    expect(session.host).toMatchObject({ playerId: 'a_bench0', creditsDelta: 20, ready: false });
   });
 
-  it('recusar (reject) só pode ser feito por quem recebeu, e some da lista sem trocar nada', () => {
-    const { runtime, alice, bruno } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: 0,
-    }));
-    const tradeId = runtime.rooms.get('ABCD')!.trades[0].id;
-
-    runWithGameRuntime(runtime, () => alice.receive('trade_reject', { roomCode: 'ABCD', tradeId }));
-    expect(runtime.rooms.get('ABCD')!.trades).toHaveLength(1); // proponente não pode recusar a própria proposta
-
-    runWithGameRuntime(runtime, () => bruno.receive('trade_reject', { roomCode: 'ABCD', tradeId }));
-    expect(runtime.rooms.get('ABCD')!.trades).toHaveLength(0);
-    expect(benchIds(runtime, 'alice')).toEqual(['a_bench0', 'a_bench1']);
-    expect(benchIds(runtime, 'bruno')).toEqual(['b_bench0']);
+  it('marcar Pronto exige uma escolha válida primeiro', () => {
+    const h = setup();
+    const tradeId = inviteAndNegotiate(h);
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
+    expect(h.runtime.rooms.get('ABCD')!.trades[0].host.ready).toBe(false);
+    expect(h.alice.sent.some(m => m.event === 'action_error')).toBe(true);
   });
 
-  it('aceitar troca 1-por-1 sem créditos: troca os jogadores dos dois lados atomicamente', () => {
-    const { runtime, alice, bruno } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: 0,
-    }));
-    const tradeId = runtime.rooms.get('ABCD')!.trades[0].id;
+  it('mudar a escolha de um lado reseta o Pronto dos DOIS', () => {
+    const h = setup();
+    const tradeId = inviteAndNegotiate(h);
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'b_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
+    expect(h.runtime.rooms.get('ABCD')!.trades[0].host.ready).toBe(true);
 
-    runWithGameRuntime(runtime, () => bruno.receive('trade_accept', { roomCode: 'ABCD', tradeId }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'b_bench0', creditsDelta: 15 }));
+    const session = h.runtime.rooms.get('ABCD')!.trades[0];
+    expect(session.host.ready).toBe(false);
+    expect(session.guest.ready).toBe(false);
+  });
 
-    const room = runtime.rooms.get('ABCD')!;
+  it('quando os dois marcam Pronto, executa a troca atomicamente (jogadores + créditos)', () => {
+    const h = setup();
+    const tradeId = inviteAndNegotiate(h);
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 30 }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'b_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
+
+    const room = h.runtime.rooms.get('ABCD')!;
     expect(room.trades).toHaveLength(0);
-    expect(benchIds(runtime, 'alice')).toEqual(['a_bench1', 'b_bench0']);
-    expect(benchIds(runtime, 'bruno')).toEqual(['a_bench0']);
-    expect(room.players.find(p => p.id === 'alice')!.points).toBe(100);
-    expect(room.players.find(p => p.id === 'bruno')!.points).toBe(100);
-  });
-
-  it('aceitar troca com créditos positivos: proponente paga o alvo', () => {
-    const { runtime, alice, bruno } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: 30,
-    }));
-    const tradeId = runtime.rooms.get('ABCD')!.trades[0].id;
-    runWithGameRuntime(runtime, () => bruno.receive('trade_accept', { roomCode: 'ABCD', tradeId }));
-
-    const room = runtime.rooms.get('ABCD')!;
+    expect(benchIds(h.runtime, 'alice')).toEqual(['a_bench1', 'b_bench0']);
+    expect(benchIds(h.runtime, 'bruno')).toEqual(['a_bench0']);
+    // Alice ofereceu +30 créditos junto do jogador: ela paga, bruno recebe.
     expect(room.players.find(p => p.id === 'alice')!.points).toBe(70);
     expect(room.players.find(p => p.id === 'bruno')!.points).toBe(130);
   });
 
-  it('aceitar troca com créditos negativos: proponente pede créditos do alvo', () => {
-    const { runtime, alice, bruno } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: -25,
-    }));
-    const tradeId = runtime.rooms.get('ABCD')!.trades[0].id;
-    runWithGameRuntime(runtime, () => bruno.receive('trade_accept', { roomCode: 'ABCD', tradeId }));
+  it('rejeita a execução se um dos dois não tem mais créditos suficientes, e destrava o Pronto pro outro tentar de novo', () => {
+    const h = setup();
+    const tradeId = inviteAndNegotiate(h);
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 500 }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'b_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
 
-    const room = runtime.rooms.get('ABCD')!;
-    expect(room.players.find(p => p.id === 'alice')!.points).toBe(125);
-    expect(room.players.find(p => p.id === 'bruno')!.points).toBe(75);
+    const room = h.runtime.rooms.get('ABCD')!;
+    expect(room.trades).toHaveLength(1); // a sessão não foi consumida
+    expect(room.trades[0].host.ready).toBe(false);
+    expect(room.trades[0].guest.ready).toBe(false);
+    expect(benchIds(h.runtime, 'alice')).toEqual(['a_bench0', 'a_bench1']); // nada trocou de dono
+    expect(h.bruno.sent.some(m => m.event === 'action_error')).toBe(true);
   });
 
-  it('rejeita o aceite se o alvo não tem créditos suficientes pra pagar a parte pedida', () => {
-    const { runtime, alice, bruno } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: -500,
-    }));
-    const tradeId = runtime.rooms.get('ABCD')!.trades[0].id;
-    runWithGameRuntime(runtime, () => bruno.receive('trade_accept', { roomCode: 'ABCD', tradeId }));
+  it('sair da negociação a qualquer momento encerra a sessão sem trocar nada', () => {
+    const h = setup();
+    const tradeId = inviteAndNegotiate(h);
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_leave', { roomCode: 'ABCD', tradeId }));
 
-    const room = runtime.rooms.get('ABCD')!;
-    // Proposta continua pendente (não foi consumida) e nada trocou de dono.
-    expect(room.trades).toHaveLength(1);
-    expect(benchIds(runtime, 'alice')).toEqual(['a_bench0', 'a_bench1']);
-    expect(bruno.sent.some(m => m.event === 'action_error')).toBe(true);
-  });
-
-  it('ao aceitar uma troca, invalida qualquer OUTRA proposta pendente que envolva os mesmos dois jogadores', () => {
-    const { runtime, alice, bruno } = setup();
-    runWithGameRuntime(runtime, () => alice.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'bruno', offeredPlayerId: 'a_bench0', requestedPlayerId: 'b_bench0', creditsDelta: 0,
-    }));
-    // Uma segunda proposta (de bruno pra alice) mirando o MESMO par de jogadores.
-    runWithGameRuntime(runtime, () => bruno.receive('trade_propose', {
-      roomCode: 'ABCD', toPlayerId: 'alice', offeredPlayerId: 'b_bench0', requestedPlayerId: 'a_bench1', creditsDelta: 0,
-    }));
-    expect(runtime.rooms.get('ABCD')!.trades).toHaveLength(2);
-
-    const firstTradeId = runtime.rooms.get('ABCD')!.trades[0].id;
-    runWithGameRuntime(runtime, () => bruno.receive('trade_accept', { roomCode: 'ABCD', tradeId: firstTradeId }));
-
-    // A segunda proposta referenciava b_bench0 (agora com alice), então fica inválida e é removida.
-    expect(runtime.rooms.get('ABCD')!.trades).toHaveLength(0);
+    const room = h.runtime.rooms.get('ABCD')!;
+    expect(room.trades).toHaveLength(0);
+    expect(benchIds(h.runtime, 'alice')).toEqual(['a_bench0', 'a_bench1']);
+    expect(benchIds(h.runtime, 'bruno')).toEqual(['b_bench0']);
   });
 });

@@ -19,6 +19,7 @@ import { projectLevel } from '../lib/clubProjects';
 import Crest from '../components/game/Crest';
 import PlayerCard from '../components/game/PlayerCard';
 import PlayerAvatar from '../components/game/PlayerAvatar';
+import PlayerDetailsModal from '../components/game/PlayerDetailsModal';
 import { AppShell, Button, PageContainer, TopBar } from '../design-system';
 
 function playerInitials(player: Player): string {
@@ -126,6 +127,7 @@ export default function ReportPage() {
 
   // ── Cinematic reveal phases ────────────────────────────────────────────────
   const [phase, setPhase] = useState(0);
+  const [selectedPlayer, setSelectedPlayer] = useState<{ player: Player; positionIndex: number } | null>(null);
   useEffect(() => {
     const timers = [
       setTimeout(() => setPhase(1), 300),
@@ -490,6 +492,7 @@ export default function ReportPage() {
                   chemLinks={getChemistryLinks(starters, playerTeam.coachId)}
                   showPlayerCards
                   effectiveStats={effectiveStatsById}
+                  onPlayerClick={(player, positionIndex) => setSelectedPlayer({ player, positionIndex })}
                 />
                 {/* Legenda das conexões — com a contagem de cada tipo no XI */}
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 mt-3">
@@ -520,7 +523,13 @@ export default function ReportPage() {
                 <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                   {starters.map((pl, i) => (
                     <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
-                      <PlayerCard player={pl} compact lite effectiveStats={effectiveStatsById[pl.id]} />
+                      <PlayerCard
+                        player={pl}
+                        compact
+                        lite
+                        effectiveStats={effectiveStatsById[pl.id]}
+                        onClick={() => setSelectedPlayer({ player: pl, positionIndex: i })}
+                      />
                     </motion.div>
                   ))}
                 </div>
@@ -532,7 +541,13 @@ export default function ReportPage() {
                   <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                     {bench.map((pl, i) => (
                       <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
-                        <PlayerCard player={pl} compact lite effectiveStats={effectiveStatsById[pl.id]} />
+                        <PlayerCard
+                          player={pl}
+                          compact
+                          lite
+                          effectiveStats={effectiveStatsById[pl.id]}
+                          onClick={() => setSelectedPlayer({ player: pl, positionIndex: starters.length + i })}
+                        />
                       </motion.div>
                     ))}
                   </div>
@@ -555,6 +570,21 @@ export default function ReportPage() {
           </Button>
         )}
       </PageContainer>
+
+      {selectedPlayer && playerTeam && (
+        <PlayerDetailsModal
+          player={selectedPlayer.player}
+          team={playerTeam}
+          positionIndex={selectedPlayer.positionIndex}
+          activePlayStyle={reportPlayStyle}
+          isKnockout={reportIsKnockout}
+          isFinal={reportIsFinal}
+          isLosing={reportIsLosing}
+          coachPrime={!!playerTeam.coachPrime}
+          analysisLevel={projectLevel(playerTeam.clubProjects, 'analysis')}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
     </AppShell>
   );
 }

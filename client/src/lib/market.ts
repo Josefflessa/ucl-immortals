@@ -16,17 +16,34 @@ export function marketMinPrice(player: Player): number {
   return sellValue(player.rarity);
 }
 
-// 🔄 Troca direta (P2P) — um jogador do banco por outro, com créditos opcionais pra equilibrar.
-// Sem escrow: os dois jogadores continuam nos elencos originais enquanto a proposta está pendente;
-// o servidor revalida tudo (posição no banco, créditos disponíveis) só no momento do ACEITE.
-export interface TradeOffer {
-  id: string;             // id único da proposta
-  fromPlayerId: string;   // RoomPlayer.id de quem propôs
-  fromPlayerName: string;
-  toPlayerId: string;     // RoomPlayer.id de quem recebeu a proposta
-  toPlayerName: string;
-  offeredPlayer: Player;   // jogador do banco de quem propôs
-  requestedPlayer: Player; // jogador do banco de quem recebeu a proposta
-  /** Créditos extras pra equilibrar a troca. Positivo = quem propôs paga; negativo = quem propôs pede. */
-  creditsDelta: number;
+// 🔄 Troca direta (P2P) — fluxo em duas etapas:
+//   1) CONVITE: A convida B (só escolhe a pessoa, sem escolher jogador ainda). B recebe um
+//      pop-up e pode aceitar ou recusar.
+//   2) NEGOCIAÇÃO: se B aceitar, os dois entram numa "sala" compartilhada onde cada lado
+//      escolhe (e pode trocar de ideia) um jogador do PRÓPRIO banco + créditos opcionais pra
+//      oferecer, vendo a escolha do outro em tempo real. Quando os dois marcam "Pronto" com
+//      uma escolha válida, o servidor revalida tudo e executa a troca atomicamente.
+// Sem escrow: os jogadores continuam nos elencos originais até a execução. Cada jogador só
+// pode estar em UMA sessão (convite ou negociação) por vez.
+export type TradeSessionStatus = 'invite' | 'negotiating';
+
+export interface TradeSessionSide {
+  playerId: string | null;  // jogador do PRÓPRIO banco que esse lado está oferecendo
+  creditsDelta: number;     // créditos que esse lado adiciona à oferta (sempre ≥ 0)
+  ready: boolean;           // marcou "Pronto" com a escolha atual
+}
+
+export function emptyTradeSide(): TradeSessionSide {
+  return { playerId: null, creditsDelta: 0, ready: false };
+}
+
+export interface TradeSession {
+  id: string;
+  hostId: string;    // RoomPlayer.id de quem convidou
+  hostName: string;
+  guestId: string;   // RoomPlayer.id de quem foi convidado
+  guestName: string;
+  status: TradeSessionStatus;
+  host: TradeSessionSide;
+  guest: TradeSessionSide;
 }

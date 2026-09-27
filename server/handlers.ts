@@ -46,7 +46,7 @@ import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockou
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
 import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
-import { MarketListing, marketMinPrice, TradeOffer } from "../client/src/lib/market.js";
+import { MarketListing, marketMinPrice, TradeSession } from "../client/src/lib/market.js";
 import {
   createInitialClubProjects,
   createRecruitmentOfferMeta,
@@ -155,7 +155,7 @@ export interface RoomState {
   readyPlayers: string[];    // ✅ participantes da rodada/perna atual que confirmaram "Estou pronto"
   discipline: DisciplineMap; // 🟨🟥🩹 disponibilidade por jogador (todos os times)
   market: MarketListing[];   // 🏪 anúncios do mercado online (jogadores em escrow, fora dos elencos)
-  trades: TradeOffer[];      // 🔄 propostas de troca direta (sem escrow — revalidadas no aceite)
+  trades: TradeSession[];    // 🔄 sessões de troca direta (convite → negociação; revalidadas no aceite)
   draftState: {
     round: number;
     timerKey: number;
@@ -2399,109 +2399,137 @@ export function registerSocketHandlers(io: RealtimeServer) {
       emitRoomUpdate(io, room);
     });
 
-    // 🔄 Troca online — PROPOR (jogador do banco por jogador do banco de outro jogador, + créditos
-    // opcionais). Sem escrow: os dois jogadores continuam nos elencos originais até o ACEITE.
-    on("trade_propose", ({ roomCode, toPlayerId, offeredPlayerId, requestedPlayerId, creditsDelta }:
-      { roomCode: string; toPlayerId: string; offeredPlayerId: string; requestedPlayerId: string; creditsDelta: number }) => {
+    // 🔄 Troca online — CONVIDAR (só escolhe a pessoa; os jogadores são escolhidos na negociação).
+    // Cada jogador só pode estar em UMA sessão (convite OU negociação) por vez.
+    on("trade_invite", ({ roomCode, toPlayerId }: { roomCode: string; toPlayerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (!isShopPhase(room)) return;
       if (!Array.isArray(room.trades)) room.trades = [];
-      const proposer = room.players.find(p => p.socketId === socket.id);
-      const target = room.players.find(p => p.id === toPlayerId);
-      if (!proposer || !proposer.team || !target || !target.team || proposer.id === target.id) return;
-      const offeredIdx = proposer.team.players.findIndex(p => p.id === offeredPlayerId);
-      const requestedIdx = target.team.players.findIndex(p => p.id === requestedPlayerId);
-      if (offeredIdx < 11 || requestedIdx < 11) return; // só reserva (índice ≥ 11) dos dois lados
-      const safeCreditsDelta = Number.isSafeInteger(creditsDelta) ? creditsDelta : 0;
-      if (safeCreditsDelta > 0 && proposer.points < safeCreditsDelta) {
-        socket.emit('action_error', { event: 'trade_propose', message: 'Você não tem créditos suficientes pra incluir nessa proposta.' });
+      const host = room.players.find(p => p.socketId === socket.id);
+      const guest = room.players.find(p => p.id === toPlayerId);
+      if (!host || !host.team || !guest || !guest.team || host.id === guest.id) return;
+      const busy = (playerId: string) => room.trades.some(t => t.hostId === playerId || t.guestId === playerId);
+      if (busy(host.id) || busy(guest.id)) {
+        socket.emit('action_error', { event: 'trade_invite', message: 'Um dos dois já está em outra negociação de troca agora.' });
         return;
       }
       room.trades.push({
         id: `t${++marketSeq}`,
-        fromPlayerId: proposer.id,
-        fromPlayerName: proposer.name,
-        toPlayerId: target.id,
-        toPlayerName: target.name,
-        offeredPlayer: proposer.team.players[offeredIdx],
-        requestedPlayer: target.team.players[requestedIdx],
-        creditsDelta: safeCreditsDelta,
+        hostId: host.id, hostName: host.name,
+        guestId: guest.id, guestName: guest.name,
+        status: 'invite',
+        host: { playerId: null, creditsDelta: 0, ready: false },
+        guest: { playerId: null, creditsDelta: 0, ready: false },
       });
       emitRoomUpdate(io, room);
     });
 
-    // 🔄 Troca online — CANCELAR (só quem propôs).
-    on("trade_cancel", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
+    // 🔄 Troca online — SAIR (cancela um convite pendente OU encerra uma negociação em andamento;
+    // qualquer um dos dois lados pode chamar isso a qualquer momento).
+    on("trade_leave", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (!Array.isArray(room.trades)) room.trades = [];
-      const proposer = room.players.find(p => p.socketId === socket.id);
-      const offer = room.trades.find(t => t.id === tradeId);
-      if (!proposer || !offer || offer.fromPlayerId !== proposer.id) return;
+      const me = room.players.find(p => p.socketId === socket.id);
+      const session = room.trades.find(t => t.id === tradeId);
+      if (!me || !session || (session.hostId !== me.id && session.guestId !== me.id)) return;
       room.trades = room.trades.filter(t => t.id !== tradeId);
       emitRoomUpdate(io, room);
     });
 
-    // 🔄 Troca online — RECUSAR (só quem recebeu a proposta).
-    on("trade_reject", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
-      const room = rooms.get(roomCode);
-      if (!room) return;
-      if (!Array.isArray(room.trades)) room.trades = [];
-      const responder = room.players.find(p => p.socketId === socket.id);
-      const offer = room.trades.find(t => t.id === tradeId);
-      if (!responder || !offer || offer.toPlayerId !== responder.id) return;
-      room.trades = room.trades.filter(t => t.id !== tradeId);
-      emitRoomUpdate(io, room);
-    });
-
-    // 🔄 Troca online — ACEITAR (revalida tudo e faz a troca atômica + créditos).
-    on("trade_accept", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
+    // 🔄 Troca online — ACEITAR CONVITE (só o convidado; abre a sala de negociação pros dois).
+    on("trade_accept_invite", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (!isShopPhase(room)) return;
       if (!Array.isArray(room.trades)) room.trades = [];
-      const responder = room.players.find(p => p.socketId === socket.id);
-      const offer = room.trades.find(t => t.id === tradeId);
-      if (!responder || !offer || offer.toPlayerId !== responder.id) return;
-      const proposer = room.players.find(p => p.id === offer.fromPlayerId);
-      if (!proposer || !proposer.team || !responder.team) {
+      const guest = room.players.find(p => p.socketId === socket.id);
+      const session = room.trades.find(t => t.id === tradeId);
+      if (!guest || !session || session.guestId !== guest.id || session.status !== 'invite') return;
+      session.status = 'negotiating';
+      emitRoomUpdate(io, room);
+    });
+
+    // 🔄 Troca online — ESCOLHER (define/atualiza sua oferta: jogador do PRÓPRIO banco + créditos).
+    // Muda a escolha de qualquer lado sempre reseta o "Pronto" dos DOIS, já que os termos mudaram.
+    on("trade_select", ({ roomCode, tradeId, playerId, creditsDelta }:
+      { roomCode: string; tradeId: string; playerId: string | null; creditsDelta: number }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      if (!Array.isArray(room.trades)) room.trades = [];
+      const me = room.players.find(p => p.socketId === socket.id);
+      const session = room.trades.find(t => t.id === tradeId);
+      if (!me || !session || session.status !== 'negotiating') return;
+      const mine = session.hostId === me.id ? session.host : session.guestId === me.id ? session.guest : null;
+      if (!mine || !me.team) return;
+      const safeCreditsDelta = Number.isSafeInteger(creditsDelta) && creditsDelta >= 0 ? creditsDelta : 0;
+      if (playerId !== null) {
+        const idx = me.team.players.findIndex(p => p.id === playerId);
+        if (idx < 11) return; // só reserva (índice ≥ 11)
+      }
+      mine.playerId = playerId;
+      mine.creditsDelta = safeCreditsDelta;
+      session.host.ready = false;
+      session.guest.ready = false;
+      emitRoomUpdate(io, room);
+    });
+
+    // 🔄 Troca online — PRONTO (marca sua escolha como travada; quando os dois marcam, executa).
+    on("trade_ready", ({ roomCode, tradeId }: { roomCode: string; tradeId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      if (!isShopPhase(room)) return;
+      if (!Array.isArray(room.trades)) room.trades = [];
+      const me = room.players.find(p => p.socketId === socket.id);
+      const session = room.trades.find(t => t.id === tradeId);
+      if (!me || !session || session.status !== 'negotiating') return;
+      const mine = session.hostId === me.id ? session.host : session.guestId === me.id ? session.guest : null;
+      if (!mine) return;
+      if (!mine.playerId) {
+        socket.emit('action_error', { event: 'trade_ready', message: 'Escolha um jogador do seu banco antes de marcar Pronto.' });
+        return;
+      }
+      mine.ready = true;
+      if (!session.host.ready || !session.guest.ready) {
+        emitRoomUpdate(io, room);
+        return;
+      }
+      // Os dois marcaram Pronto — revalida tudo e executa a troca atomicamente.
+      const host = room.players.find(p => p.id === session.hostId);
+      const guest = room.players.find(p => p.id === session.guestId);
+      if (!host || !host.team || !guest || !guest.team) {
         room.trades = room.trades.filter(t => t.id !== tradeId);
-        socket.emit('action_error', { event: 'trade_accept', message: 'Essa troca não é mais válida — quem propôs saiu da sala.' });
+        socket.emit('action_error', { event: 'trade_ready', message: 'Essa negociação não é mais válida.' });
         return;
       }
-      const offeredIdx = proposer.team.players.findIndex(p => p.id === offer.offeredPlayer.id);
-      const requestedIdx = responder.team.players.findIndex(p => p.id === offer.requestedPlayer.id);
-      if (offeredIdx < 11 || requestedIdx < 11) {
+      const hostIdx = host.team.players.findIndex(p => p.id === session.host.playerId);
+      const guestIdx = guest.team.players.findIndex(p => p.id === session.guest.playerId);
+      if (hostIdx < 11 || guestIdx < 11) {
         room.trades = room.trades.filter(t => t.id !== tradeId);
-        socket.emit('action_error', { event: 'trade_accept', message: 'Um dos jogadores dessa troca não está mais disponível no banco.' });
+        socket.emit('action_error', { event: 'trade_ready', message: 'Um dos jogadores escolhidos não está mais disponível no banco.' });
         return;
       }
-      if (offer.creditsDelta > 0 && proposer.points < offer.creditsDelta) {
-        room.trades = room.trades.filter(t => t.id !== tradeId);
-        socket.emit('action_error', { event: 'trade_accept', message: 'Quem propôs não tem mais créditos suficientes pra essa troca.' });
+      if (session.host.creditsDelta > host.points || session.guest.creditsDelta > guest.points) {
+        session.host.ready = false;
+        session.guest.ready = false;
+        socket.emit('action_error', { event: 'trade_ready', message: 'Um dos dois não tem mais créditos suficientes pra essa troca.' });
+        emitRoomUpdate(io, room);
         return;
       }
-      if (offer.creditsDelta < 0 && responder.points < -offer.creditsDelta) {
-        socket.emit('action_error', { event: 'trade_accept', message: 'Você não tem créditos suficientes pra aceitar essa troca.' });
-        return;
-      }
-      const offeredPlayer = proposer.team.players[offeredIdx];
-      const requestedPlayer = responder.team.players[requestedIdx];
-      proposer.team.players = proposer.team.players.filter((_, i) => i !== offeredIdx);
-      responder.team.players = responder.team.players.filter((_, i) => i !== requestedIdx);
-      proposer.team.players.push({ ...requestedPlayer, chemistryScore: 0, isOOP: false } as PlayerCard);
-      responder.team.players.push({ ...offeredPlayer, chemistryScore: 0, isOOP: false } as PlayerCard);
-      delete room.discipline[`${proposer.team.id}:${offeredPlayer.id}`];
-      delete room.discipline[`${responder.team.id}:${requestedPlayer.id}`];
-      proposer.points -= offer.creditsDelta;
-      responder.points += offer.creditsDelta;
-      // Qualquer outra proposta pendente que envolva um dos dois jogadores agora trocados vira inválida.
-      room.trades = room.trades.filter(t => t.id !== tradeId
-        && t.offeredPlayer.id !== offeredPlayer.id && t.offeredPlayer.id !== requestedPlayer.id
-        && t.requestedPlayer.id !== offeredPlayer.id && t.requestedPlayer.id !== requestedPlayer.id);
-      invalidateReady(room, proposer.id);
-      invalidateReady(room, responder.id);
+      const hostPlayer = host.team.players[hostIdx];
+      const guestPlayer = guest.team.players[guestIdx];
+      host.team.players = host.team.players.filter((_, i) => i !== hostIdx);
+      guest.team.players = guest.team.players.filter((_, i) => i !== guestIdx);
+      host.team.players.push({ ...guestPlayer, chemistryScore: 0, isOOP: false } as PlayerCard);
+      guest.team.players.push({ ...hostPlayer, chemistryScore: 0, isOOP: false } as PlayerCard);
+      delete room.discipline[`${host.team.id}:${hostPlayer.id}`];
+      delete room.discipline[`${guest.team.id}:${guestPlayer.id}`];
+      host.points += session.guest.creditsDelta - session.host.creditsDelta;
+      guest.points += session.host.creditsDelta - session.guest.creditsDelta;
+      room.trades = room.trades.filter(t => t.id !== tradeId);
+      invalidateReady(room, host.id);
+      invalidateReady(room, guest.id);
       emitRoomUpdate(io, room);
     });
 
