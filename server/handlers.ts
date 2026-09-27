@@ -2419,8 +2419,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         hostId: host.id, hostName: host.name,
         guestId: guest.id, guestName: guest.name,
         status: 'invite',
-        host: { playerId: null, creditsDelta: 0, ready: false },
-        guest: { playerId: null, creditsDelta: 0, ready: false },
+        host: { playerIds: [], playerId: null, creditsDelta: 0, ready: false },
+        guest: { playerIds: [], playerId: null, creditsDelta: 0, ready: false },
       });
       emitRoomUpdate(io, room);
     });
@@ -2458,8 +2458,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
     // 🔄 Troca online — ESCOLHER (define/atualiza sua oferta: jogador do PRÓPRIO banco + créditos).
     // Muda a escolha de qualquer lado sempre reseta o "Pronto" dos DOIS, já que os termos mudaram.
-    on("trade_select", ({ roomCode, tradeId, playerId, creditsDelta }:
-      { roomCode: string; tradeId: string; playerId: string | null; creditsDelta: number }) => {
+    on("trade_select", ({ roomCode, tradeId, playerId, playerIds, creditsDelta }:
+      { roomCode: string; tradeId: string; playerId?: string | null; playerIds?: string[]; creditsDelta: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (!Array.isArray(room.trades)) room.trades = [];
@@ -2468,12 +2468,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!me || !session || session.status !== 'negotiating') return;
       const mine = session.hostId === me.id ? session.host : session.guestId === me.id ? session.guest : null;
       if (!mine || !me.team) return;
+      const requestedIds = Array.isArray(playerIds)
+        ? playerIds
+        : playerId ? [playerId] : [];
+      const selectedIds = Array.from(new Set(requestedIds.filter(id => typeof id === 'string' && id.length > 0)));
+      if (selectedIds.some(id => me.team!.players.findIndex(p => p.id === id) < 11)) return; // só reservas (índice ≥ 11)
+      mine.playerIds = selectedIds;
+      mine.playerId = selectedIds[0] ?? null;
       const safeCreditsDelta = Number.isSafeInteger(creditsDelta) && creditsDelta >= 0 ? creditsDelta : 0;
-      if (playerId !== null) {
-        const idx = me.team.players.findIndex(p => p.id === playerId);
-        if (idx < 11) return; // só reserva (índice ≥ 11)
-      }
-      mine.playerId = playerId;
       mine.creditsDelta = safeCreditsDelta;
       session.host.ready = false;
       session.guest.ready = false;
@@ -2491,8 +2493,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!me || !session || session.status !== 'negotiating') return;
       const mine = session.hostId === me.id ? session.host : session.guestId === me.id ? session.guest : null;
       if (!mine) return;
-      if (!mine.playerId) {
-        socket.emit('action_error', { event: 'trade_ready', message: 'Escolha um jogador do seu banco antes de marcar Pronto.' });
+      const minePlayerIds = Array.isArray(mine.playerIds)
+        ? mine.playerIds
+        : mine.playerId ? [mine.playerId] : [];
+      if (minePlayerIds.length === 0) {
+        socket.emit('action_error', { event: 'trade_ready', message: 'Escolha pelo menos um jogador do seu banco antes de marcar Pronto.' });
         return;
       }
       mine.ready = true;
@@ -2508,9 +2513,22 @@ export function registerSocketHandlers(io: RealtimeServer) {
         socket.emit('action_error', { event: 'trade_ready', message: 'Essa negociação não é mais válida.' });
         return;
       }
-      const hostIdx = host.team.players.findIndex(p => p.id === session.host.playerId);
-      const guestIdx = guest.team.players.findIndex(p => p.id === session.guest.playerId);
-      if (hostIdx < 11 || guestIdx < 11) {
+      const hostPlayerIds = Array.isArray(session.host.playerIds)
+        ? session.host.playerIds
+        : session.host.playerId ? [session.host.playerId] : [];
+      const guestPlayerIds = Array.isArray(session.guest.playerIds)
+        ? session.guest.playerIds
+        : session.guest.playerId ? [session.guest.playerId] : [];
+      if (hostPlayerIds.length === 0 || guestPlayerIds.length === 0 || hostPlayerIds.length !== guestPlayerIds.length) {
+        session.host.ready = false;
+        session.guest.ready = false;
+        socket.emit('action_error', { event: 'trade_ready', message: 'As duas ofertas precisam ter a mesma quantidade de jogadores disponíveis no banco.' });
+        emitRoomUpdate(io, room);
+        return;
+      }
+      const hostIndices = hostPlayerIds.map(id => host.team!.players.findIndex(p => p.id === id));
+      const guestIndices = guestPlayerIds.map(id => guest.team!.players.findIndex(p => p.id === id));
+      if (hostIndices.some(index => index < 11) || guestIndices.some(index => index < 11)) {
         room.trades = room.trades.filter(t => t.id !== tradeId);
         socket.emit('action_error', { event: 'trade_ready', message: 'Um dos jogadores escolhidos não está mais disponível no banco.' });
         return;
@@ -2522,14 +2540,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
         emitRoomUpdate(io, room);
         return;
       }
-      const hostPlayer = host.team.players[hostIdx];
-      const guestPlayer = guest.team.players[guestIdx];
-      host.team.players = host.team.players.filter((_, i) => i !== hostIdx);
-      guest.team.players = guest.team.players.filter((_, i) => i !== guestIdx);
-      host.team.players.push({ ...guestPlayer, chemistryScore: 0, isOOP: false } as PlayerCard);
-      guest.team.players.push({ ...hostPlayer, chemistryScore: 0, isOOP: false } as PlayerCard);
-      delete room.discipline[`${host.team.id}:${hostPlayer.id}`];
-      delete room.discipline[`${guest.team.id}:${guestPlayer.id}`];
+      const hostPlayerIdSet = new Set(hostPlayerIds);
+      const guestPlayerIdSet = new Set(guestPlayerIds);
+      const hostPlayers = host.team.players.filter(player => hostPlayerIdSet.has(player.id));
+      const guestPlayers = guest.team.players.filter(player => guestPlayerIdSet.has(player.id));
+      host.team.players = host.team.players.filter(player => !hostPlayerIdSet.has(player.id));
+      guest.team.players = guest.team.players.filter(player => !guestPlayerIdSet.has(player.id));
+      host.team.players.push(...guestPlayers.map(player => ({ ...player, chemistryScore: 0, isOOP: false } as PlayerCard)));
+      guest.team.players.push(...hostPlayers.map(player => ({ ...player, chemistryScore: 0, isOOP: false } as PlayerCard)));
+      for (const player of hostPlayers) delete room.discipline[`${host.team.id}:${player.id}`];
+      for (const player of guestPlayers) delete room.discipline[`${guest.team.id}:${player.id}`];
       host.points += session.guest.creditsDelta - session.host.creditsDelta;
       guest.points += session.host.creditsDelta - session.guest.creditsDelta;
       room.trades = room.trades.filter(t => t.id !== tradeId);

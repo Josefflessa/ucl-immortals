@@ -20,21 +20,24 @@ export function marketMinPrice(player: Player): number {
 //   1) CONVITE: A convida B (só escolhe a pessoa, sem escolher jogador ainda). B recebe um
 //      pop-up e pode aceitar ou recusar.
 //   2) NEGOCIAÇÃO: se B aceitar, os dois entram numa "sala" compartilhada onde cada lado
-//      escolhe (e pode trocar de ideia) um jogador do PRÓPRIO banco + créditos opcionais pra
-//      oferecer, vendo a escolha do outro em tempo real. Quando os dois marcam "Pronto" com
-//      uma escolha válida, o servidor revalida tudo e executa a troca atomicamente.
+//      escolhe (e pode trocar de ideia) um ou mais jogadores do PRÓPRIO banco + créditos
+//      opcionais pra oferecer, vendo a escolha do outro em tempo real. Os dois lados precisam
+//      oferecer a mesma quantidade de jogadores; quando marcam "Pronto", o servidor revalida
+//      tudo e executa a troca atomicamente.
 // Sem escrow: os jogadores continuam nos elencos originais até a execução. Cada jogador só
 // pode estar em UMA sessão (convite ou negociação) por vez.
 export type TradeSessionStatus = 'invite' | 'negotiating';
 
 export interface TradeSessionSide {
-  playerId: string | null;  // jogador do PRÓPRIO banco que esse lado está oferecendo
+  playerIds: string[];      // jogadores do PRÓPRIO banco que esse lado está oferecendo
+  /** Compatibilidade com sessões antigas e consumidores que exibem o primeiro jogador. */
+  playerId: string | null;
   creditsDelta: number;     // créditos que esse lado adiciona à oferta (sempre ≥ 0)
   ready: boolean;           // marcou "Pronto" com a escolha atual
 }
 
 export function emptyTradeSide(): TradeSessionSide {
-  return { playerId: null, creditsDelta: 0, ready: false };
+  return { playerIds: [], playerId: null, creditsDelta: 0, ready: false };
 }
 
 export interface TradeSession {

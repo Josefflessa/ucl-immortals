@@ -138,6 +138,9 @@ export interface GameState {
   // Shop economy (solo league): points earned per match, spent in the LOJA tab.
   points: number;
   lastMatchPoints: MatchPoints | null; // latest reward breakdown (shown in the shared credits modal)
+  // Online replays finish by remounting the league hub. Keep the reward marked
+  // as pending until the player explicitly closes its credits modal.
+  matchCreditsModalPending: boolean;
   knockoutPointsPopup: MatchPoints | null; // legacy transient KO value kept for state compatibility
   // 🛒 Pacote da loja JÁ PAGO na abertura (Pacote do Craque / Caça-Talentos): fica guardado até você
   // escolher 1 → impede re-sortear de graça abrindo/fechando o modal. A escolha em si é grátis.
@@ -276,6 +279,7 @@ export type GameAction =
   | { type: 'ADVANCE_KNOCKOUT' }
   | { type: 'FINISH_KNOCKOUT_MATCH'; result: MatchResult }
   | { type: 'DISMISS_KO_POINTS' }
+  | { type: 'DISMISS_MATCH_CREDITS' }
   | { type: 'SET_CURRENT_MATCH'; result: MatchResult; teams: [Team, Team] }
   | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } }; spectator?: boolean }
   | { type: 'CLEAR_CURRENT_MATCH' }
@@ -324,6 +328,7 @@ const initialState: GameState = {
   reinforcementEventCount: 0,
   points: 0,
   lastMatchPoints: null,
+  matchCreditsModalPending: false,
   knockoutPointsPopup: null,
   pendingPack: null,
   pendingUniquePack: null,
@@ -1802,6 +1807,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'DISMISS_KO_POINTS':
       return { ...state, knockoutPointsPopup: null };
 
+    case 'DISMISS_MATCH_CREDITS':
+      return { ...state, matchCreditsModalPending: false };
+
     case 'SET_CURRENT_MATCH':
       return { ...state, currentMatch: action.result, currentMatchTeams: action.teams };
 
@@ -1820,6 +1828,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatchTeams: action.teams,
         currentMatchResult: action.result,
         currentMatch: null,
+        matchCreditsModalPending: state.mode === 'online' && !action.spectator
+          ? true
+          : state.matchCreditsModalPending,
         activeKnockoutMatch: action.knockout
           ? { matchId: action.knockout.matchId, round: action.knockout.round, leg: action.knockout.leg, firstLeg: action.knockout.firstLeg }
           : null,
@@ -2059,7 +2070,7 @@ interface GameContextType {
   tradeInviteOnline: (toPlayerId: string) => void;
   tradeLeaveOnline: (tradeId: string) => void;
   tradeAcceptInviteOnline: (tradeId: string) => void;
-  tradeSelectOnline: (tradeId: string, playerId: string | null, creditsDelta: number) => void;
+  tradeSelectOnline: (tradeId: string, playerIds: string[], creditsDelta: number) => void;
   tradeReadyOnline: (tradeId: string) => void;
   playerReadyOnline: () => void;
   playerUnreadyOnline: () => void;
@@ -2598,8 +2609,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const tradeAcceptInviteOnline = useCallback((tradeId: string) => {
     emitOnlineAction("trade_accept_invite", { roomCode: state.roomCode, tradeId });
   }, [emitOnlineAction, state.roomCode]);
-  const tradeSelectOnline = useCallback((tradeId: string, playerId: string | null, creditsDelta: number) => {
-    emitOnlineAction("trade_select", { roomCode: state.roomCode, tradeId, playerId, creditsDelta });
+  const tradeSelectOnline = useCallback((tradeId: string, playerIds: string[], creditsDelta: number) => {
+    emitOnlineAction("trade_select", { roomCode: state.roomCode, tradeId, playerIds, creditsDelta });
   }, [emitOnlineAction, state.roomCode]);
   const tradeReadyOnline = useCallback((tradeId: string) => {
     emitOnlineAction("trade_ready", { roomCode: state.roomCode, tradeId });

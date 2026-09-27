@@ -270,6 +270,28 @@ describe('negociação de troca (trade_select / trade_ready)', () => {
     expect(room.players.find(p => p.id === 'bruno')!.points).toBe(130);
   });
 
+  it('permite trocar dois jogadores por dois jogadores na mesma oferta', () => {
+    const h = setup();
+    const room = h.runtime.rooms.get('ABCD')!;
+    room.players.find(p => p.id === 'bruno')!.team!.players.push(fakePlayer('b_bench1'));
+    const tradeId = inviteAndNegotiate(h);
+
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', {
+      roomCode: 'ABCD', tradeId, playerIds: ['a_bench0', 'a_bench1'], creditsDelta: 20,
+    }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', {
+      roomCode: 'ABCD', tradeId, playerIds: ['b_bench0', 'b_bench1'], creditsDelta: 0,
+    }));
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
+
+    expect(room.trades).toHaveLength(0);
+    expect(benchIds(h.runtime, 'alice')).toEqual(['b_bench0', 'b_bench1']);
+    expect(benchIds(h.runtime, 'bruno')).toEqual(['a_bench0', 'a_bench1']);
+    expect(room.players.find(p => p.id === 'alice')!.points).toBe(80);
+    expect(room.players.find(p => p.id === 'bruno')!.points).toBe(120);
+  });
+
   it('rejeita a execução se um dos dois não tem mais créditos suficientes, e destrava o Pronto pro outro tentar de novo', () => {
     const h = setup();
     const tradeId = inviteAndNegotiate(h);

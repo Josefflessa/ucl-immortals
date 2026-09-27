@@ -66,15 +66,17 @@ export default function LeaguePage() {
     initialCreditsSignature.current = creditsSignature;
     // In solo, LeaguePage remounts after MatchSimPage finishes. The current
     // lastMatchPoints is therefore the reward for the match just played and
-    // must be shown immediately. Online keeps the mount-time dismissal so a
-    // reconnect does not replay an already-seen reward.
-    if (state.mode === 'online' && creditsSignature) setDismissedCreditsSignature(creditsSignature);
+    // must be shown immediately. Online uses matchCreditsModalPending because
+    // the hub also remounts after an online replay finishes.
   }, []);
-  const showCreditsModal = initialCreditsSignature.current !== undefined
-    && !!state.lastMatchPoints
-    && creditsSignature !== dismissedCreditsSignature;
+  const showCreditsModal = online
+    ? state.matchCreditsModalPending && !!state.lastMatchPoints
+    : initialCreditsSignature.current !== undefined
+      && !!state.lastMatchPoints
+      && creditsSignature !== dismissedCreditsSignature;
   const closeCreditsModal = () => {
-    if (creditsSignature) setDismissedCreditsSignature(creditsSignature);
+    if (online) dispatch({ type: 'DISMISS_MATCH_CREDITS' });
+    else if (creditsSignature) setDismissedCreditsSignature(creditsSignature);
   };
   const recruitmentOffer = state.reinforcementOffer;
   const recruitmentEventLabel = recruitmentOffer?.eventKind === 'stage' || state.phase === 'knockout' ? 'FASE' : 'RODADA';

@@ -3,6 +3,7 @@
 // normalizado para ficar pronta para solo, online e campanhas antigas.
 
 import { useMemo, useState, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 import { ConfirmDialog, GameModal } from '../../design-system';
 import PlayerCard from './PlayerCard';
@@ -61,6 +62,7 @@ export default function ClubProjectsTab() {
   const detailsProject = detailsProjectId
     ? visibleProjectDefinitions.find(project => project.id === detailsProjectId) ?? null
     : null;
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<ClubProjectId>>(() => new Set());
   const selectedLevel = selectedProjectId ? projects.levels[selectedProjectId] : null;
   const selectedNextLevel = selectedLevel !== null ? selectedLevel + 1 : null;
   const selectedCost = selectedNextLevel !== null ? projectUpgradeCost(selectedNextLevel) : null;
@@ -124,6 +126,8 @@ export default function ClubProjectsTab() {
           const maxed = level >= CLUB_PROJECT_LEVELS;
           const implemented = project.id === 'recruitment' || project.id === 'analysis' || project.id === 'betting' || project.id === 'medical' || project.id === 'training' || project.id === 'stadium' || project.id === 'supporters';
           const canUpgrade = implemented && !maxed && !!nextCost && state.points >= nextCost;
+          const expanded = expandedProjectIds.has(project.id);
+          const detailsPanelId = `club-project-${project.id}-details`;
 
           return (
             <article
@@ -151,7 +155,8 @@ export default function ClubProjectsTab() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-[#242436] bg-[#0A0A14] p-3">
+              {expanded && <>
+              <div id={detailsPanelId} className="mt-4 rounded-xl border border-[#242436] bg-[#0A0A14] p-3">
                 <div className="mb-2 flex items-center justify-between gap-2 text-xs font-black tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   <span className="text-[#77778A]">PROGRESSÃO</span>
                   <span style={{ color: project.color }}>{maxed ? 'MÁXIMO' : nextCost ? `PRÓXIMO · ${nextCost} CR` : 'BASE'}</span>
@@ -212,6 +217,24 @@ export default function ClubProjectsTab() {
                   ABRIR TREINAMENTO
                 </button>
               )}
+              </>}
+
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-controls={detailsPanelId}
+                onClick={() => setExpandedProjectIds(current => {
+                  const next = new Set(current);
+                  if (next.has(project.id)) next.delete(project.id);
+                  else next.add(project.id);
+                  return next;
+                })}
+                className="mt-3 flex h-8 w-full items-center justify-center gap-1 border-t border-[#242436] pt-2 text-[10px] font-black tracking-[0.16em] text-[#77778A] transition-colors hover:text-white"
+                style={{ fontFamily: 'Rajdhani, sans-serif' }}
+              >
+                <span>{expanded ? 'RECOLHER' : 'VER PROGRESSÃO'}</span>
+                <ChevronDown size={15} aria-hidden="true" className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+              </button>
             </article>
           );
         })}
