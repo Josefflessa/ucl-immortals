@@ -330,7 +330,7 @@ const entries: Entry[] = [
   // Flamengo (historico)
   ['Gustavo Cuéllar', 'CDM', 'Flamengo', 76015131], ['Léo Duarte', 'CB', 'Flamengo', 19247744],
   ['Orlando Berrío', 'CAM', 'Flamengo', 76013932], ['Rhodolfo', 'CB', 'Flamengo', 8830345],
-  ['Robert Piris Da Motta', 'CDM', 'Flamengo', 79011895], ['César', 'GK', 'Flamengo', 19124580],
+  ['Piris da Motta', 'CDM', 'Flamengo', 79011895], ['César', 'GK', 'Flamengo', 19124580],
   ['Henrique Dourado', 'ST', 'Flamengo', 19187562], ['Miguel Trauco', 'LB', 'Flamengo', 77017791],
   ['Juan', 'CB', 'Flamengo', 3301249], ['Thiago', 'GK', 'Flamengo', 19174894],
   ['Thuler', 'CB', 'Flamengo', 19270227],
@@ -402,7 +402,7 @@ const FOREIGN_NATIONS: Record<string, string> = {
   'Jonatan Gómez': 'Colômbia',
   'Gustavo Cuéllar': 'Colômbia',
   'Orlando Berrío': 'Colômbia',
-  'Robert Piris Da Motta': 'Paraguai',
+  'Piris da Motta': 'Paraguai',
   'Miguel Trauco': 'Peru',
 };
 
