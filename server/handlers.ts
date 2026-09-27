@@ -2448,6 +2448,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const session = room.trades.find(t => t.id === tradeId);
       if (!guest || !session || session.guestId !== guest.id || session.status !== 'invite') return;
       session.status = 'negotiating';
+      // Os dois ficam "ocupados" numa negociação ativa — não conta como pronto pra avançar a
+      // rodada até a troca terminar (ou alguém sair), senão o anfitrião pode avançar achando
+      // que os dois já confirmaram tudo enquanto eles ainda estão decidindo a troca.
+      invalidateReady(room, session.hostId);
+      invalidateReady(room, session.guestId);
       emitRoomUpdate(io, room);
     });
 

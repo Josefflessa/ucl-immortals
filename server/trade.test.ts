@@ -203,6 +203,16 @@ describe('convite de troca (trade_invite / trade_leave / trade_accept_invite)', 
     runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_accept_invite', { roomCode: 'ABCD', tradeId }));
     expect(h.runtime.rooms.get('ABCD')!.trades[0].status).toBe('negotiating');
   });
+
+  it('abrir a negociação invalida o "Estou pronto" da rodada dos dois lados', () => {
+    const h = setup();
+    const tradeId = invite(h);
+    h.runtime.rooms.get('ABCD')!.readyPlayers = ['alice', 'bruno'];
+
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_accept_invite', { roomCode: 'ABCD', tradeId }));
+
+    expect(h.runtime.rooms.get('ABCD')!.readyPlayers).toEqual([]);
+  });
 });
 
 describe('negociação de troca (trade_select / trade_ready)', () => {
