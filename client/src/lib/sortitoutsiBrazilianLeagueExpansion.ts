@@ -259,7 +259,7 @@ const entries: Entry[] = [
   ['Cláudio Winck', 'RB', 'Vasco', 19159360],
   // Atlético Mineiro (historico)
   ['Juan Cazares', 'CAM', 'Atlético Mineiro', 14031128], ['Rómulo Otero', 'CAM', 'Atlético Mineiro', 86006513],
-  ['Diego Tardelli', 'CAM', 'Atlético Mineiro', 8825510], ['Ricardo Oliveira', 'ST', 'Atlético Mineiro', 308379],
+  ['Ricardo Oliveira', 'ST', 'Atlético Mineiro', 308379],
   ['Victor', 'GK', 'Atlético Mineiro', 317032], ['Réver', 'CB', 'Atlético Mineiro', 2110905],
   ['Gustavo Blanco', 'CDM', 'Atlético Mineiro', 19249500], ['Fábio Santos', 'LB', 'Atlético Mineiro', 8825880],
   ['Hyoran', 'CAM', 'Atlético Mineiro', 19183683], ['Edinho', 'CAM', 'Atlético Mineiro', 19221407],
