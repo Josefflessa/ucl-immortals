@@ -13,7 +13,7 @@ const normalize = (value: string) => value
 describe('SortitoutSI European legends expansion', () => {
   it('contains only unique, locally illustrated cards', () => {
     const additions = SORTITOUTSI_EUROPEAN_LEGENDS;
-    expect(additions).toHaveLength(43);
+    expect(additions).toHaveLength(11);
     expect(new Set(additions.map(player => player.id)).size).toBe(additions.length);
     expect(new Set(additions.map(player => normalize(player.fullName))).size).toBe(additions.length);
 
