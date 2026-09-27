@@ -220,6 +220,8 @@ export interface Team {
   /** Club progression scaffold. Missing in legacy saves means every project is level 1. */
   clubProjects?: ClubProjectsState;
   crestId?: string; // selected club crest (see lib/crests.ts); undefined → initials badge
+  /** 🔥 Recuperação — consecutive losses in a row right now. Resets to 0 on a win or draw. */
+  lossStreak?: number;
 }
 
 // The order of `team.players` is the order of the formation slots for the XI,

@@ -46,7 +46,7 @@ export default function MatchCreditsModal({ points, onClose }: MatchCreditsModal
             {points.csBonus > 0 && ` · sem sofrer +${points.csBonus}`}
           </div>
 
-          {((points.supportersBonus ?? 0) > 0 || (points.magnataBonus ?? 0) > 0) && (
+          {((points.supportersBonus ?? 0) > 0 || (points.magnataBonus ?? 0) > 0 || (points.lossStreakBonus ?? 0) > 0) && (
             <div
               className="mt-3 border-t border-white/10 pt-3 text-center text-[11px]"
               style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}
@@ -57,6 +57,10 @@ export default function MatchCreditsModal({ points, onClose }: MatchCreditsModal
               {(points.supportersBonus ?? 0) > 0 && (points.magnataBonus ?? 0) > 0 && ' · '}
               {(points.magnataBonus ?? 0) > 0 && (
                 <>🤑 Magnata +{points.magnataPercent}% (+{points.magnataBonus})</>
+              )}
+              {((points.supportersBonus ?? 0) > 0 || (points.magnataBonus ?? 0) > 0) && (points.lossStreakBonus ?? 0) > 0 && ' · '}
+              {(points.lossStreakBonus ?? 0) > 0 && (
+                <>🔥 Recuperação (+{points.lossStreakBonus})</>
               )}
             </div>
           )}

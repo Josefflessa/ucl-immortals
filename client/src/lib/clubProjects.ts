@@ -265,25 +265,30 @@ export interface ClubRewardBreakdown {
   supportersVenue: SupportersVenue;
   magnataBonus: number;
   magnataPercent: number;
+  lossStreakBonus: number;
   total: number;
 }
 
 /**
  * Applies match-credit modifiers independently to the same base reward. This
  * prevents Torcida and Magnata from multiplying one another and keeps solo and
- * online rewards on one deterministic formula.
+ * online rewards on one deterministic formula. `lossStreakBonusAmount` is a
+ * flat extra (already computed by `lossStreakBonus` in shop.ts) that is simply
+ * added on top, since it is a fixed catch-up amount, not a percentage of base.
  */
 export function calculateClubReward(
   base: number,
   supportersLevel: number,
   venue: SupportersVenue,
   magnataActive: boolean,
+  lossStreakBonusAmount = 0,
 ): ClubRewardBreakdown {
   const safeBase = Math.max(0, Math.floor(Number.isFinite(base) ? base : 0));
   const supportersPercent = supportersBonusPercent(supportersLevel, venue);
   const supportersBonus = Math.round(safeBase * supportersPercent / 100);
   const magnataPercent = magnataActive ? 50 : 0;
   const magnataBonus = Math.round(safeBase * magnataPercent / 100);
+  const safeLossStreakBonus = Math.max(0, Math.floor(Number.isFinite(lossStreakBonusAmount) ? lossStreakBonusAmount : 0));
   return {
     base: safeBase,
     supportersBonus,
@@ -291,7 +296,8 @@ export function calculateClubReward(
     supportersVenue: venue,
     magnataBonus,
     magnataPercent,
-    total: safeBase + supportersBonus + magnataBonus,
+    lossStreakBonus: safeLossStreakBonus,
+    total: safeBase + supportersBonus + magnataBonus + safeLossStreakBonus,
   };
 }
 

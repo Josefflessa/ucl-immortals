@@ -34,6 +34,9 @@ export interface MatchPoints {
   supportersVenue?: 'home' | 'away' | 'neutral';
   magnataBonus?: number;
   magnataPercent?: number;
+  /** 🔥 Recuperação — extra credits paid on a loss, scaled by the CURRENT losing streak. */
+  lossStreakBonus?: number;
+  lossStreakAfter?: number;
 }
 
 // Points the PLAYER earns from one finished league match (from their perspective).
@@ -62,6 +65,25 @@ export function computeMatchPointsWithConfig(result: MatchResult, playerTeamId: 
   const csBonus = goalsAgainst === 0 ? config.cleanSheet : 0;
 
   return { total: base + gdBonus + goalsBonus + csBonus, outcome, goalsFor, goalsAgainst, gd, cleanSheet: goalsAgainst === 0, base, gdBonus, goalsBonus, csBonus };
+}
+
+// ── 🔥 Recuperação — catch-up bonus for teams stuck on a losing streak ──
+// Every loss still pays LOSS_PTS as usual; on TOP of that, each consecutive loss
+// beyond the first adds another step, capped so it never reaches WIN_PTS. A win
+// or a draw resets the streak back to zero.
+export const LOSS_STREAK_BONUS_STEP = 15;
+export const LOSS_STREAK_BONUS_MAX_STEPS = 5; // 6th+ loss in a row caps the bonus
+
+/** `priorLossStreak` is how many losses in a row happened BEFORE this match. */
+export function lossStreakBonus(outcome: MatchPoints['outcome'], priorLossStreak: number): number {
+  if (outcome !== 'loss') return 0;
+  const steps = Math.min(Math.max(0, Math.floor(priorLossStreak)), LOSS_STREAK_BONUS_MAX_STEPS);
+  return steps * LOSS_STREAK_BONUS_STEP;
+}
+
+/** Next streak value to persist on the team after this match's outcome. */
+export function nextLossStreak(outcome: MatchPoints['outcome'], priorLossStreak: number): number {
+  return outcome === 'loss' ? Math.max(0, Math.floor(priorLossStreak)) + 1 : 0;
 }
 
 // ── Fixed item costs ──

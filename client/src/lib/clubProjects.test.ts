@@ -155,9 +155,23 @@ describe('estrutura dos Projetos do Clube', () => {
       supportersVenue: 'home',
       magnataBonus: 50,
       magnataPercent: 50,
+      lossStreakBonus: 0,
       total: 175,
     });
     expect(calculateClubReward(100, 5, 'away', false).total).toBe(125);
+  });
+
+  it('soma o bônus de Recuperação (sequência de derrotas) por fora, sem afetar Torcida/Magnata', () => {
+    expect(calculateClubReward(100, 1, 'home', false, 45)).toEqual({
+      base: 100,
+      supportersBonus: 0,
+      supportersPercent: 0,
+      supportersVenue: 'home',
+      magnataBonus: 0,
+      magnataPercent: 0,
+      lossStreakBonus: 45,
+      total: 145,
+    });
   });
 
   it('migra o projeto combinado antigo para Estádio e Torcida', () => {

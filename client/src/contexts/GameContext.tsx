@@ -24,7 +24,7 @@ import {
 import type { MatchPlan, VariantFlag } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import type { PlayerSpecialization } from '../lib/gameData';
-import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST } from '../lib/shop';
+import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, lossStreakBonus, nextLossStreak } from '../lib/shop';
 import { Bet, BetBuilderSelection, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, betCapPrefix, createBet, revealEligibleKoBets, settleBet, BET_ROUND_CAP, bettingPayoutRulesForLevel } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, healInjury, applyEmergencyReplacement } from '../lib/discipline';
 import {
@@ -278,6 +278,7 @@ export type GameAction =
   | { type: 'SET_CURRENT_MATCH'; result: MatchResult; teams: [Team, Team] }
   | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } }; spectator?: boolean }
   | { type: 'CLEAR_CURRENT_MATCH' }
+  | { type: 'FINISH_ELIMINATED_CAMPAIGN' }
   | { type: 'FINISH_GAME'; champion: string }
   | { type: 'RESET_GAME' }
   | { type: 'SET_ONLINE_STATE'; roomState: any; socketId: string }
@@ -428,6 +429,68 @@ function applyMedicalRecoveries(team: Team, recoveredInjuries: { teamId: string;
   return recoveredInjuries
     .filter(recovery => recovery.teamId === team.id)
     .reduce((current, recovery) => applyMedicalReturnBoost(current, recovery.playerId, boost), team);
+}
+
+/**
+ * Ends a solo campaign when the player misses the knockout qualification line.
+ * The player no longer has a tie to play, so the remaining bracket is resolved
+ * in the background and the normal end-of-season report receives the complete
+ * league + knockout result set.
+ */
+function finishEliminatedSoloCampaign(state: GameState): GameState {
+  if (state.mode !== 'solo' || !state.playerTeam) return state;
+
+  const allTeams = [state.playerTeam, ...state.botTeams];
+  const format = state.competitionFormat;
+  let bracket = state.knockoutBracket;
+  let champion: string | null = null;
+
+  if (format.id !== 'league') {
+    const qualifiedStandings = format.id === 'groups_knockout'
+      ? computeGroupQualifiedStandings(allTeams, state.leagueFixtures, format)
+      : state.leagueStandings;
+    bracket = (bracket
+      ? JSON.parse(JSON.stringify(bracket))
+      : createKnockoutBracket(qualifiedStandings, format)) as KnockoutBracket;
+
+    const teamById = new Map(allTeams.map(team => [team.id, team]));
+    for (let guard = 0; guard < 64 && !champion; guard++) {
+      const active = getActiveKnockoutMatches(bracket);
+      if (active.length === 0) break;
+
+      playActiveKnockoutLeg(
+        bracket,
+        (teamId: string) => {
+          const team = teamById.get(teamId);
+          return team ? resolveAvailableLineup(team, state.discipline).team : undefined;
+        },
+        format.matchSettings,
+      );
+      champion = advanceKnockoutBracket(bracket);
+    }
+  }
+
+  const fallbackChampion = state.leagueStandings[0]?.teamId ?? state.playerTeam.id;
+  const championId = champion ?? fallbackChampion;
+  const championTeam = allTeams.find(team => team.id === championId);
+  const report = generateImmortalReport(
+    state.playerTeam,
+    getAllPlayedMatchResults(state.leagueResults, bracket),
+    championTeam?.name ?? 'Campeão',
+  );
+
+  return {
+    ...state,
+    knockoutBracket: bracket,
+    champion: championId,
+    report,
+    phase: 'report',
+    activeKnockoutMatch: null,
+    currentMatch: null,
+    currentMatchTeams: null,
+    currentMatchResult: null,
+    spectating: false,
+  };
 }
 
 // ============================================================
@@ -1333,11 +1396,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const rewardVenue = playerResult.homeTeamId === state.playerTeam.id ? 'home' : 'away';
       // 🏟️📣 Torcida and 🤑 Magnata are independent bonuses calculated from the base reward.
       const magMult = magnataPointMultiplier(state.playerTeam.players);
+      // 🔥 Recuperação — extra credits scaled by the CURRENT losing streak, reset on win/draw.
+      const priorLossStreak = state.playerTeam.lossStreak ?? 0;
+      const streakBonusAmount = lossStreakBonus(matchPoints.outcome, priorLossStreak);
+      const updatedLossStreak = nextLossStreak(matchPoints.outcome, priorLossStreak);
       const reward = calculateClubReward(
         matchPoints.total,
         projectLevel(state.playerTeam.clubProjects, 'supporters'),
         rewardVenue,
         magMult > 1,
+        streakBonusAmount,
       );
       const earnedPoints = rewards.pointsEnabled ? reward.total : 0;
       const decoratedMatchPoints = rewards.pointsEnabled
@@ -1351,6 +1419,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             supportersVenue: reward.supportersVenue,
             magnataBonus: reward.magnataBonus,
             magnataPercent: reward.magnataPercent,
+            lossStreakBonus: reward.lossStreakBonus,
+            lossStreakAfter: updatedLossStreak,
           }
         : null;
 
@@ -1411,7 +1481,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         bets: settledBets,
         discipline: disc.next,
         // ⭐ +1 jogo pros 11 titulares do jogador (progresso pra Carta Evoluída).
-        playerTeam: { ...recoveredPlayerTeam, credits: nextPoints },
+        playerTeam: { ...recoveredPlayerTeam, credits: nextPoints, lossStreak: updatedLossStreak },
         botTeams: updatedBotTeams,
       };
     }
@@ -1633,6 +1703,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const isFinal = state.knockoutBracket?.currentRound === 'final';
       let points = state.points;
       let popup: MatchPoints | null = null;
+      let playerTeamAfterStreak = state.playerTeam;
       const knockoutRewardKey = state.activeKnockoutMatch?.matchId
         ? buildKnockoutMatchKey(
             state.activeKnockoutMatch.matchId,
@@ -1646,11 +1717,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         const rewardVenue = state.knockoutBracket?.currentRound === 'final'
           ? 'neutral'
           : action.result.homeTeamId === state.playerTeam.id ? 'home' : 'away';
+        // 🔥 Recuperação — extra credits scaled by the CURRENT losing streak, reset on win/draw.
+        const priorLossStreak = state.playerTeam.lossStreak ?? 0;
+        const streakBonusAmount = lossStreakBonus(mp.outcome, priorLossStreak);
+        const updatedLossStreak = nextLossStreak(mp.outcome, priorLossStreak);
+        playerTeamAfterStreak = { ...state.playerTeam, lossStreak: updatedLossStreak };
         const reward = calculateClubReward(
           mp.total,
           projectLevel(state.playerTeam.clubProjects, 'supporters'),
           rewardVenue,
           magnataPointMultiplier(state.playerTeam.players) > 1,
+          streakBonusAmount,
         );
         popup = {
           ...mp,
@@ -1662,6 +1739,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           supportersVenue: reward.supportersVenue,
           magnataBonus: reward.magnataBonus,
           magnataPercent: reward.magnataPercent,
+          lossStreakBonus: reward.lossStreakBonus,
+          lossStreakAfter: updatedLossStreak,
         };
         if (state.mode !== 'online') points += reward.total;
       }
@@ -1710,6 +1789,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentMatchTeams: null,
         currentMatchResult: null,
         points,
+        playerTeam: playerTeamAfterStreak,
         lastMatchPoints: popup ?? state.lastMatchPoints,
         knockoutPointsPopup: popup,
         bets: koBets,
@@ -1755,6 +1835,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'FINISH_GAME':
       return { ...state, champion: action.champion, phase: 'report' };
+
+    case 'FINISH_ELIMINATED_CAMPAIGN':
+      return finishEliminatedSoloCampaign(state);
 
     case 'SET_ONLINE_STATE': {
       const { roomState, socketId } = action;

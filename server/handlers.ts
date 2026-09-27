@@ -40,7 +40,7 @@ import {
 
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
-import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS } from "../client/src/lib/shop.js";
+import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS, lossStreakBonus, nextLossStreak } from "../client/src/lib/shop.js";
 import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, createBet, settleBet, bettingPayoutRulesForLevel, BET_ROUND_CAP } from "../client/src/lib/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
@@ -2609,11 +2609,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
             const rewardVenue = fixture.result.homeTeamId === p.team.id ? 'home' : 'away';
             // 🏟️📣 Torcida and 🤑 Magnata are independent bonuses calculated from the base reward.
             const magMult = magnataPointMultiplier(p.team.players);
+            // 🔥 Recuperação — extra credits scaled by the CURRENT losing streak, reset on win/draw.
+            const priorLossStreak = p.team.lossStreak ?? 0;
+            const streakBonusAmount = lossStreakBonus(mp.outcome, priorLossStreak);
+            p.team = { ...p.team, lossStreak: nextLossStreak(mp.outcome, priorLossStreak) };
             const reward = calculateClubReward(
               mp.total,
               projectLevel(p.team.clubProjects, 'supporters'),
               rewardVenue,
               magMult > 1,
+              streakBonusAmount,
             );
             const earned = rewards.pointsEnabled ? reward.total : 0;
             const decoratedMatchPoints = rewards.pointsEnabled
@@ -2627,6 +2632,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
                   supportersVenue: reward.supportersVenue,
                   magnataBonus: reward.magnataBonus,
                   magnataPercent: reward.magnataPercent,
+                  lossStreakBonus: reward.lossStreakBonus,
+                  lossStreakAfter: p.team.lossStreak,
                 }
               : null;
             // FIX anti-spoiler: NÃO credita agora; guarda como pendente até a revelação.
@@ -2864,11 +2871,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
           if (legRes) {
             const mp = computeMatchPointsWithConfig(legRes, p.team.id, room.competitionFormat.rewards.points);
             const rewardVenue = legRes.homeTeamId === p.team.id ? 'home' : 'away';
+            // 🔥 Recuperação — extra credits scaled by the CURRENT losing streak, reset on win/draw.
+            const priorLossStreak = p.team.lossStreak ?? 0;
+            const streakBonusAmount = lossStreakBonus(mp.outcome, priorLossStreak);
+            p.team = { ...p.team, lossStreak: nextLossStreak(mp.outcome, priorLossStreak) };
             const reward = calculateClubReward(
               mp.total,
               projectLevel(p.team.clubProjects, 'supporters'),
               rewardVenue,
               magnataPointMultiplier(p.team.players) > 1,
+              streakBonusAmount,
             );
             p.pendingMatchPoints = room.competitionFormat.rewards.pointsEnabled ? reward.total : undefined;
             p.lastMatchPoints = room.competitionFormat.rewards.pointsEnabled
@@ -2882,6 +2894,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
                   supportersVenue: reward.supportersVenue,
                   magnataBonus: reward.magnataBonus,
                   magnataPercent: reward.magnataPercent,
+                  lossStreakBonus: reward.lossStreakBonus,
+                  lossStreakAfter: p.team.lossStreak,
                 }
               : null;
           }
