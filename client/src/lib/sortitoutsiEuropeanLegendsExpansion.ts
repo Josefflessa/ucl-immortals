@@ -15,7 +15,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 78, shooting: 68, passing: 87, dribbling: 80,
     defending: 83, physical: 90, composure: 92, vision: 88,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_533344.webp',
+    photoUrl: '/players/euro-legends/futwiz_yaya_toure.webp',
   },
   {
     id: 'trezeguet', shortName: 'David Trezeguet', fullName: 'David Trezeguet', position: 'ST',
@@ -23,7 +23,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 89, shooting: 90, passing: 75, dribbling: 89,
     defending: 44, physical: 87, composure: 91, vision: 82,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_9893.webp',
+    photoUrl: '/players/euro-legends/futwiz_trezeguet.webp',
   },
   {
     id: 'godin', shortName: 'Diego Godín', fullName: 'Diego Godín', position: 'CB',
@@ -31,7 +31,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 76, shooting: 37, passing: 78, dribbling: 61,
     defending: 90, physical: 86, composure: 77, vision: 70,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_8826848.webp',
+    photoUrl: '/players/euro-legends/futwiz_godin.webp',
   },
   {
     id: 'rakitic', shortName: 'Ivan Rakitić', fullName: 'Ivan Rakitić', position: 'CM',
@@ -39,7 +39,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 85, shooting: 70, passing: 92, dribbling: 79,
     defending: 70, physical: 85, composure: 83, vision: 88,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_5727652.webp',
+    photoUrl: '/players/euro-legends/futwiz_rakitic.webp',
   },
   {
     id: 'kounde', shortName: 'Jules Koundé', fullName: 'Jules Koundé', position: 'CB', secondaryPositions: ['RB'],
@@ -47,7 +47,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 78, shooting: 45, passing: 70, dribbling: 59,
     defending: 83, physical: 85, composure: 82, vision: 59,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_48036304.webp',
+    photoUrl: '/players/euro-legends/futwiz_kounde.webp',
   },
   {
     id: 'thomas_muller', shortName: 'Thomas Müller', fullName: 'Thomas Müller', position: 'CAM', secondaryPositions: ['ST'],
@@ -55,7 +55,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 88, shooting: 77, passing: 92, dribbling: 94,
     defending: 48, physical: 76, composure: 88, vision: 97,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_35011448.webp',
+    photoUrl: '/players/euro-legends/futwiz_thomas_muller.webp',
   },
   {
     id: 'gotze', shortName: 'Mario Götze', fullName: 'Mario Götze', position: 'CAM',
@@ -63,7 +63,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 80, shooting: 75, passing: 85, dribbling: 93,
     defending: 53, physical: 76, composure: 83, vision: 87,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_35017438.webp',
+    photoUrl: '/players/euro-legends/futwiz_gotze.webp',
   },
   {
     id: 'jesus_navas', shortName: 'Jesús Navas', fullName: 'Jesús Navas', position: 'RW', secondaryPositions: ['RB'],
@@ -71,7 +71,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 88, shooting: 74, passing: 85, dribbling: 93,
     defending: 45, physical: 75, composure: 78, vision: 77,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_7456721.webp',
+    photoUrl: '/players/euro-legends/futwiz_jesus_navas.webp',
   },
   {
     id: 'kanoute', shortName: 'Frédéric Kanouté', fullName: 'Frédéric Kanouté', position: 'ST',
@@ -79,7 +79,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 87, shooting: 85, passing: 78, dribbling: 89,
     defending: 41, physical: 81, composure: 82, vision: 70,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_400823.webp',
+    photoUrl: '/players/euro-legends/futwiz_kanoute.webp',
   },
   {
     id: 'aimar', shortName: 'Pablo Aimar', fullName: 'Pablo Aimar', position: 'CAM',
@@ -87,7 +87,7 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     pace: 80, shooting: 75, passing: 85, dribbling: 93,
     defending: 53, physical: 76, composure: 83, vision: 87,
     traits: [],
-    photoUrl: '/players/euro-legends/sortitoutsi_2000111.webp',
+    photoUrl: '/players/euro-legends/futwiz_aimar.webp',
   },
   {
     id: 'gerd_muller', shortName: 'Gerd Müller', fullName: 'Gerd Müller', position: 'ST',

@@ -18,7 +18,7 @@ describe('SortitoutSI European legends expansion', () => {
     expect(new Set(additions.map(player => normalize(player.fullName))).size).toBe(additions.length);
 
     for (const player of additions) {
-      expect(player.photoUrl).toMatch(/^\/players\/euro-legends\/sortitoutsi_\d+\.webp$/);
+      expect(player.photoUrl).toMatch(/^\/players\/euro-legends\/(sortitoutsi_\d+|futwiz_[a-z_]+)\.webp$/);
       expect(existsSync(resolve(process.cwd(), 'client/public', player.photoUrl!.slice(1)))).toBe(true);
     }
   });
