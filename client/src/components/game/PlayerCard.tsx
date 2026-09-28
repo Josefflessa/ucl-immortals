@@ -891,6 +891,12 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   delpiero_unico: { texture: '/cards/delpiero_unico.webp', render: '/players/unico/delpiero.webp', font: '#F5D27A', ring: '#C9A24C', photoX: 6, photoY: 8, photoW: 102 },
   dani_alves_unico: { texture: '/cards/dani_alves_unico.webp', render: '/players/unico/dani_alves.webp', font: '#F5E8C8', ring: '#D7A93D', photoX: 7, photoY: 12, photoW: 101 },
   roberto_carlos_unico: { texture: '/cards/roberto_carlos_unico.webp', render: '/players/unico/roberto_carlos.webp', font: '#FFF6E2', ring: '#D5AE4A', photoX: 14, photoY: 14, photoW: 112 },
+  sergio_ramos_unico: { texture: '/cards/sergio_ramos_unico.webp', render: '/players/unico/sergio_ramos.webp', font: '#FFF1F6', ring: '#E8C84A', photoX: 11, photoY: 14, photoW: 84 },
+  pele_unico: { texture: '/cards/pele_unico.webp', render: '/players/unico/pele.webp', font: '#F7E08C', ring: '#2DB36A', photoX: -4, photoY: 14, photoW: 96 },
+  xavi_unico: { texture: '/cards/xavi_unico.webp', render: '/players/unico/xavi.webp', font: '#F5E8C8', ring: '#D6344A', photoX: 12, photoY: -4, photoW: 106 },
+  shevchenko_unico: { texture: '/cards/shevchenko_unico.webp', render: '/players/unico/shevchenko.webp', font: '#FCEBC4', ring: '#8C3B55', photoX: 8, photoY: -5, photoW: 144 },
+  zidane_unico: { texture: '/cards/zidane_unico.webp', render: '/players/unico/zidane.webp', font: '#FFF6E2', ring: '#D5AE4A', photoX: 6, photoY: -2, photoW: 100 },
+  figo_unico: { texture: '/cards/figo_unico.webp', render: '/players/unico/figo.webp', font: '#F7E08C', ring: '#1F8A55', photoX: 7, photoY: -2, photoW: 100 },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
