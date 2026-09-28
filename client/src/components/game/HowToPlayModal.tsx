@@ -91,16 +91,15 @@ const RARITIES: { r: Rarity; label: string; desc: string }[] = [
   { r: 'gold', label: 'Ouro', desc: 'Craques consagrados.' },
   { r: 'legendary', label: 'Lendário', desc: 'Jogadores históricos com alto potencial.' },
   { r: 'immortal', label: 'Imortal', desc: 'Ícones raros para elevar o elenco.' },
-  { r: 'unique', label: 'Único', desc: 'Cartas especiais de overall 99, obtidas no pacote Único.' },
+  { r: 'unique', label: 'Único', desc: 'Cartas especiais de overall 99, obtidas no pacote de jogador Único.' },
 ];
 
 const ECONOMY_ITEMS = [
   { icon: '🎓', name: 'Trocar técnico', cost: SHOP_COSTS.changeCoach, d: 'Troca o comandante e, com ele, sua filosofia, bônus e formação preferida.' },
   { icon: '✨', name: 'Turbinar carta', cost: SHOP_COSTS.turbinar, d: 'Aplica uma característica especial a um jogador que ainda não tem uma.' },
   { icon: '🧹', name: 'Remover característica', cost: SHOP_COSTS.removeVariant, d: 'Remove a característica atual para liberar uma nova aplicação de Turbinar.' },
-  { icon: '🌟', name: 'Pacote do Craque', cost: SHOP_COSTS.starPack, d: 'Oferece três opções de jogadores de overall 88 ou mais.' },
+  { icon: '📦', name: 'Pacotes de jogador', cost: '60–750', d: 'Abre uma oferta temática com quatro cartas de Bronze, Prata, Ouro, Lendário, Imortal ou Único. A abertura revela uma carta aleatória da oferta.' },
   { icon: '🔍', name: 'Caça-talentos', cost: SHOP_COSTS.scout, d: `Oferece até quatro jogadores ${SCOUT_MIN_OVERALL}+ cuja posição principal é a escolhida.` },
-  { icon: '⭐', name: 'Pacote Único', cost: SHOP_COSTS.uniqueCard, d: 'Mostra quatro Cartas Únicas por rodada; cada abertura sorteia uma delas. Overall 99 e até duas características.' },
   { icon: '🏥', name: 'Fisioterapia', cost: SHOP_COSTS.physio, d: 'Reduz em uma partida o período de lesão de um jogador. O nível 1 do Departamento Médico concede 1 uso gratuito por competição.' },
 ];
 
@@ -226,7 +225,7 @@ export default function HowToPlayModal({ open, onClose }: { open: boolean; onClo
         <div className="space-y-4">
           <Card accent="#34D39944">
             <H>ESCALAÇÃO</H>
-            <P>Seu elenco tem <b style={{ color: '#FFF' }}>11 titulares e 2 reservas</b>. No campo, arraste ou troque jogadores entre as posições permitidas pela formação. A disposição visual é a mesma usada nas telas de partida e de resultado, com cards simplificados e linhas de conexão.</P>
+            <P>Você começa com <b style={{ color: '#FFF' }}>11 titulares e 2 reservas</b>. O banco pode crescer com recrutamentos e compras, mas partidas só podem começar com até <b style={{ color: '#FFF' }}>20 reservas</b>. No campo, arraste ou troque jogadores entre as posições permitidas pela formação.</P>
           </Card>
 
           <Card>

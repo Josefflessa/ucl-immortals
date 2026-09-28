@@ -124,7 +124,7 @@ export default function ClubProjectsTab() {
           const level = projects.levels[project.id];
           const nextCost = projectUpgradeCost(level + 1);
           const maxed = level >= CLUB_PROJECT_LEVELS;
-          const implemented = project.id === 'recruitment' || project.id === 'analysis' || project.id === 'betting' || project.id === 'medical' || project.id === 'training' || project.id === 'stadium' || project.id === 'supporters';
+    const implemented = project.id === 'recruitment' || project.id === 'analysis' || project.id === 'betting' || project.id === 'medical' || project.id === 'training' || project.id === 'stadium' || project.id === 'supporters' || project.id === 'missions';
           const canUpgrade = implemented && !maxed && !!nextCost && state.points >= nextCost;
           const expanded = expandedProjectIds.has(project.id);
           const detailsPanelId = `club-project-${project.id}-details`;
@@ -229,7 +229,7 @@ export default function ClubProjectsTab() {
                   else next.add(project.id);
                   return next;
                 })}
-                className="mt-3 flex h-8 w-full items-center justify-center gap-1 border-t border-[#242436] pt-2 text-[10px] font-black tracking-[0.16em] text-[#77778A] transition-colors hover:text-white"
+                className="mt-auto flex h-8 w-full items-center justify-center gap-1 border-t border-[#242436] pt-2 text-[10px] font-black tracking-[0.16em] text-[#77778A] transition-colors hover:text-white"
                 style={{ fontFamily: 'Rajdhani, sans-serif' }}
               >
                 <span>{expanded ? 'RECOLHER' : 'VER PROGRESSÃO'}</span>

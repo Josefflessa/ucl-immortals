@@ -5,6 +5,23 @@
 // (they need the player pool). Designed to be a balanced points SINK, not a snowball.
 import type { MatchResult } from './gameEngine';
 import type { CompetitionPointsConfig } from './competition';
+export const PLAYER_PACK_RARITIES = ['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique'] as const;
+export type PlayerPackRarity = typeof PLAYER_PACK_RARITIES[number];
+export type RegularPlayerPackRarity = Exclude<PlayerPackRarity, 'unique'>;
+
+export const PLAYER_PACK_META: Record<PlayerPackRarity, {
+  label: string;
+  icon: string;
+  color: string;
+  description: string;
+}> = {
+  bronze: { label: 'BRONZE', icon: '🥉', color: '#CD7F32', description: 'A base do elenco, com jogadores de raridade Bronze.' },
+  silver: { label: 'PRATA', icon: '🥈', color: '#A8A8B8', description: 'Peças confiáveis para fortalecer o time.' },
+  gold: { label: 'OURO', icon: '🥇', color: '#C9A84C', description: 'Jogadores de alto nível para dar qualidade ao elenco.' },
+  legendary: { label: 'LENDÁRIA', icon: '🔥', color: '#FF8C00', description: 'Cartas históricas de raridade Lendária.' },
+  immortal: { label: 'IMORTAL', icon: '👑', color: '#FFD700', description: 'Ícones raros de raridade Imortal.' },
+  unique: { label: 'ÚNICA', icon: '⭐', color: '#F0E6C0', description: 'Cartas especiais de overall 99 e até duas características.' },
+};
 
 // ── Points earned per league match (performance-based, with catch-up for losses) ──
 export const WIN_PTS = 100;
@@ -90,12 +107,33 @@ export function nextLossStreak(outcome: MatchPoints['outcome'], priorLossStreak:
 export const SHOP_COSTS = {
   changeCoach: 250,
   turbinar: 300,
+  playerPack: {
+    bronze: 60,
+    silver: 100,
+    gold: 160,
+    legendary: 300,
+    immortal: 450,
+    unique: 750,
+  } satisfies Record<PlayerPackRarity, number>,
+  // Compatibilidade com saves/clients antigos. A oferta não aparece mais na Loja.
   starPack: 350,
   scout: 220,
   removeVariant: 150, // 🧹 remove a característica de um jogador (pra poder aplicar outra)
   uniqueCard: 750,    // ⭐ Pacote Único (oferta de 4 cartas por rodada; sorteia uma, raridade Única, overall 99)
   physio: 150,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
 } as const;
+
+export function playerPackCost(rarity: PlayerPackRarity): number {
+  return SHOP_COSTS.playerPack[rarity];
+}
+
+export function isPlayerPackRarity(value: unknown): value is PlayerPackRarity {
+  return typeof value === 'string' && (PLAYER_PACK_RARITIES as readonly string[]).includes(value);
+}
+
+export function isRegularPlayerPackRarity(value: unknown): value is Exclude<PlayerPackRarity, 'unique'> {
+  return isPlayerPackRarity(value) && value !== 'unique';
+}
 
 // ⭐ Técnico Prime (Fase 2): critério + custo pra evoluir o técnico.
 export const PRIME_COST = 350;
@@ -140,7 +178,7 @@ export const TRAIN_ATTRS: { key: TrainAttr; label: string }[] = [
 ];
 
 // ── "Turbinar Carta" — the special variants the player can buy onto a card. ──
-export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante';
+export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario';
 export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: '+4 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: '+7 em todos os atributos, mas −12 na química geral do time.' },
@@ -164,4 +202,5 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'goleador', icon: '⚽', label: 'Goleador', color: '#F97316', desc: '+1 em todos os atributos a cada 3 gols marcados. Acumula.' },
   { key: 'garcom', icon: '🎯', label: 'Garçom', color: '#38BDF8', desc: '+1 em todos os atributos a cada 2 assistências dadas. Acumula.' },
   { key: 'arrogante', icon: '👑', label: 'Arrogante', color: '#E879F9', desc: '+2 em todos os atributos por gol; a cada 2 gols, os outros titulares perdem −1 em tudo.' },
+  { key: 'mercenario', icon: '🏆', label: 'Conquistador', color: '#F59E0B', desc: '+2 em todos os atributos por missão concluída. Acumula sem limite.' },
 ];

@@ -23,11 +23,11 @@ import {
 } from './clubProjects';
 
 describe('estrutura dos Projetos do Clube', () => {
-  it('mantém os sete projetos na ordem oficial e todos começam no nível 1', () => {
+  it('mantém os oito projetos na ordem oficial e todos começam no nível 1', () => {
     const projects = createInitialClubProjects();
 
     expect(CLUB_PROJECT_DEFINITIONS.map(project => project.id)).toEqual([...CLUB_PROJECT_ORDER]);
-    expect(Object.values(projects.levels)).toEqual([1, 1, 1, 1, 1, 1, 1]);
+    expect(Object.values(projects.levels)).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
     expect(CLUB_PROJECT_LEVELS).toBe(5);
   });
 
@@ -41,6 +41,7 @@ describe('estrutura dos Projetos do Clube', () => {
       training: 1,
       stadium: 1,
       supporters: 1,
+      missions: 1,
     });
   });
 
@@ -114,7 +115,7 @@ describe('estrutura dos Projetos do Clube', () => {
     expect(first).toMatchObject({ fromLevel: 1, toLevel: 2, cost: 150, remainingCredits: 50 });
     expect(first?.projects.levels.recruitment).toBe(2);
     expect(purchaseClubProjectUpgrade(createInitialClubProjects(), 'recruitment', 149)).toBeNull();
-    expect(purchaseClubProjectUpgrade({ levels: { recruitment: 5, analysis: 1, betting: 1, medical: 1, training: 1, stadium: 1, supporters: 1 } }, 'recruitment', 9999)).toBeNull();
+    expect(purchaseClubProjectUpgrade({ levels: { recruitment: 5, analysis: 1, betting: 1, medical: 1, training: 1, stadium: 1, supporters: 1, missions: 1 } }, 'recruitment', 9999)).toBeNull();
   });
 
   it('permite evoluir o Núcleo de Análise com a mesma regra atômica', () => {

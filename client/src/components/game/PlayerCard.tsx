@@ -1,7 +1,7 @@
 import { useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '../../lib/gameData';
-import { arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
+import { arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { canonicalClubName, crestIdForClub } from '../../lib/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -980,8 +980,9 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   goleador: { color: '#F97316', icon: '⚽', label: 'GOLEADOR', treatment: 'pulse' },
   garcom: { color: '#38BDF8', icon: '🎯', label: 'GARÇOM', treatment: 'ring' },
   arrogante: { color: '#E879F9', icon: '👑', label: 'ARROGANTE', treatment: 'pulse' },
+  mercenario: { color: '#F59E0B', icon: '🏆', label: 'CONQUISTADOR', treatment: 'pulse' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario'] as const;
 export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 export function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -1032,6 +1033,10 @@ function variantDesc(player: Player): string {
   if (player.arrogante) {
     const goals = player.arroganteGoals ?? 0;
     return `ARROGANTE: +${arroganteStatBoost(goals)} em cada atributo · −${arroganteTeamPenalty(goals)} nos outros titulares a cada ${ARROGANTE_GOALS_PER_PENALTY} gols (${goals} acumulado${goals === 1 ? '' : 's'})`;
+  }
+  if (player.mercenario) {
+    const missions = player.mercenarioMissions ?? 0;
+    return `CONQUISTADOR: +${mercenarioStatBoost(missions)} em cada atributo · +${MERCENARIO_STAT_BOOST_PER_MISSION} por missão concluída (${missions} concluída${missions === 1 ? '' : 's'})`;
   }
   return '';
 }

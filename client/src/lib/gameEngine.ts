@@ -224,6 +224,16 @@ export interface Team {
   lossStreak?: number;
 }
 
+// The first eleven slots are always the starting XI. Everything after them is
+// the reserve bank, which is intentionally larger than the initial two draft
+// reserves so the player can keep recruiting without creating an unbounded
+// roster.
+export const MAX_RESERVE_PLAYERS = 20;
+
+export function reservePlayerCount(team: Pick<Team, 'players'>): number {
+  return Math.max(0, team.players.length - 11);
+}
+
 // The order of `team.players` is the order of the formation slots for the XI,
 // followed by the bench. Centralize this lookup so positional coach effects use
 // the role actually occupied by a card, not only its native position.
@@ -489,6 +499,23 @@ export function applyMatchStatGrowthForResults(team: Team, results: MatchResult[
   return results.reduce((current, result) => applyMatchStatGrowth(current, result), team);
 }
 
+/**
+ * Persists the campaign-wide completed-mission total on every Conquistador card.
+ * Keeping the snapshot on the card makes the effect deterministic in solo,
+ * online and after a reconnect, without making the match simulator depend on
+ * the private mission state object.
+ */
+export function applyMercenarioProgress(team: Team, completedMissions: number): Team {
+  const count = Math.max(0, Math.floor(completedMissions));
+  let changed = false;
+  const players = team.players.map(player => {
+    if (!player.mercenario || player.mercenarioMissions === count) return player;
+    changed = true;
+    return { ...player, mercenarioMissions: count };
+  });
+  return changed ? { ...team, players } : team;
+}
+
 export interface StandingsEntry {
   teamId: string;
   teamName: string;
@@ -681,6 +708,7 @@ export interface StatBreakdown {
   garcom: number;     // 🎯 Garçom — +1 em tudo a cada 2 assistências dadas
   arrogante: number;  // 👑 Arrogante — +2 em tudo por gol; −1 nos outros titulares a cada 2 gols
   estribado: number;  // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
+  mercenario: number; // 🏆 Conquistador — +2 em tudo por missão concluída
   char: number;       // 🩸❤️🪑🤝 team-effect characteristics buffing THIS player
   specialization: number; // ⭐ Especialização do nível 4 — +6 nos dois atributos da área
 }
@@ -981,6 +1009,7 @@ export function getPlayerEffectiveStats(
   const garcomBonus = (_attr: AttrKey): number => player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
   const arroganteBonus = (_attr: AttrKey): number => player.arrogante ? arroganteStatBoost(player.arroganteGoals) : 0;
   const estribadoBonus = (_attr: AttrKey): number => player.estribado ? estribadoStatBoost(context?.credits) : 0;
+  const mercenarioBonus = (_attr: AttrKey): number => player.mercenario ? mercenarioStatBoost(player.mercenarioMissions) : 0;
 
   // 🩸❤️🪑🤝 Team-effect characteristics buffing THIS player.
   const charB = context?.charBoosts?.[player.id];
@@ -991,7 +1020,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + mercenarioBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -1032,6 +1061,7 @@ export function getPlayerEffectiveStats(
     garcom: garcomBonus(attr),
     arrogante: arroganteBonus(attr),
     estribado: estribadoBonus(attr),
+    mercenario: mercenarioBonus(attr),
     char: charBonus(attr),
   });
 
@@ -1439,6 +1469,7 @@ export function getEffectiveAttribute(
   base += player.garcom ? garcomStatBoost(player.garcomAssists) : 0;
   base += player.arrogante ? arroganteStatBoost(player.arroganteGoals) : 0;
   base += player.estribado ? estribadoStatBoost(context?.credits) : 0;
+  base += player.mercenario ? mercenarioStatBoost(player.mercenarioMissions) : 0;
 
   // 🩸❤️🪑🤝 Team-effect characteristics buffing this player.
   const cb = context?.charBoosts?.[player.id];
@@ -3519,6 +3550,7 @@ const DRAFT_GARCOM_CHANCE = 0.03; // 🎯 Garçom — cresce a cada 2 assistênc
 const DRAFT_ARROGANTE_CHANCE = 0.03; // 👑 Arrogante — +2 por gol; −1 aos outros a cada 2 gols
 const DRAFT_ESTRIBADO_CHANCE = 0.03; // 💰 Estribado — +1 por cada 100 créditos disponíveis
 const DRAFT_TODOS_POR_UM_CHANCE = 0.03; // 🤝 Todos por um — só ativa quando fecha o XI
+const DRAFT_MERCENARIO_CHANCE = 0.03; // 🏆 Conquistador — +2 por missão concluída
 const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
@@ -3565,6 +3597,7 @@ export const ARROGANTE_STAT_BOOST_PER_GOAL = 2;
 export const ARROGANTE_TEAM_PENALTY = 1;
 export const TODOS_POR_UM_STAT_BOOST = 20;
 export const TODOS_POR_UM_CHEM_BONUS = 50;
+export const MERCENARIO_STAT_BOOST_PER_MISSION = 2;
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */
 export function prodigioStatBoost(starts: number | undefined): number {
@@ -3589,6 +3622,11 @@ export function arroganteStatBoost(goals: number | undefined): number {
 /** Returns the all-attribute penalty Arrogante applies to every other starter. */
 export function arroganteTeamPenalty(goals: number | undefined): number {
   return Math.floor(Math.max(0, goals ?? 0) / ARROGANTE_GOALS_PER_PENALTY) * ARROGANTE_TEAM_PENALTY;
+}
+
+/** Returns Conquistador's all-attribute bonus from completed missions. */
+export function mercenarioStatBoost(completedMissions: number | undefined): number {
+  return Math.max(0, Math.floor(completedMissions ?? 0)) * MERCENARIO_STAT_BOOST_PER_MISSION;
 }
 
 // Aplica o +N/−N das características assadas no BASE (Em Alta/Lobo/Mártir/Magnata). SEM teto de 99:
@@ -3723,6 +3761,10 @@ function applyDraftVariant(p: Player): Player {
   // 🤝 Todos por um — flag pura; o bônus só liga quando os 11 titulares a possuem.
   acc += DRAFT_TODOS_POR_UM_CHANCE;
   if (r < acc) return { ...p, todosPorUm: true, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🏆 Conquistador — começa sem missões acumuladas e cresce com o mural da campanha.
+  acc += DRAFT_MERCENARIO_CHANCE;
+  if (r < acc) return { ...p, mercenario: true, mercenarioMissions: 0, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -3893,8 +3935,47 @@ export function generateDraftOptions(
 }
 
 // ── Shop packs ──────────────────────────────────────────────────────────────
-// "Pacote do Craque": 3 elite (overall ≥ 88) players the team doesn't already own. Plain
-// cards (no random draft variant) — what you see is what you buy.
+// Rarity-themed regular packs: the pool is exact, never a loose overall
+// threshold. This keeps a Bronze pack from unexpectedly containing a Silver
+// card and makes the package identity legible in the UI.
+export const PLAYER_PACK_OFFER_SIZE = 4;
+
+export function generatePlayerPackOptions(
+  rarity: Exclude<Rarity, 'unique'>,
+  ownedIds: string[],
+  size = 3,
+): Player[] {
+  const pool = PLAYERS.filter(player => player.rarity === rarity && !ownedIds.includes(player.id));
+  return shuffleWithRarityWeight(pool).slice(0, Math.max(0, size)).map(player => ({ ...player }));
+}
+
+/** Creates the four cards shown in a regular rarity pack for one round. */
+export function generatePlayerPackOffer(
+  rarity: Exclude<Rarity, 'unique'>,
+  ownedIds: string[],
+  excludedIds: string[] = [],
+  size = PLAYER_PACK_OFFER_SIZE,
+): string[] {
+  const excluded = Array.from(new Set([...ownedIds, ...excludedIds]));
+  return generatePlayerPackOptions(rarity, excluded, size).map(player => player.id);
+}
+
+/** Draws one unowned card from the persisted offer; the client never chooses the result. */
+export function drawPlayerPackCard(
+  offerIds: string[],
+  rarity: Exclude<Rarity, 'unique'>,
+  ownedIds: string[],
+): Player | null {
+  const owned = new Set(ownedIds);
+  const pool = Array.from(new Set(offerIds))
+    .map(id => PLAYERS.find(player => player.id === id))
+    .filter((player): player is Player => !!player && player.rarity === rarity && !owned.has(player.id));
+  if (pool.length === 0) return null;
+  return { ...pool[Math.floor(Math.random() * pool.length)] };
+}
+
+// Legacy elite pack kept for compatibility with older saved/online sessions.
+// It is no longer exposed by the Shop UI; new purchases use exact rarity packs.
 const STAR_PACK_MIN_OVERALL = 88;
 export function generateStarPackOptions(ownedIds: string[]): Player[] {
   let pool = PLAYERS.filter(p => !ownedIds.includes(p.id) && p.overall >= STAR_PACK_MIN_OVERALL);
@@ -3972,8 +4053,8 @@ export function generateUniquePackCard(ownedIds: string[]): Player | null {
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(
   player: Player,
-  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante',
-  competitionStats: { goals?: number; assists?: number } = {},
+  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario',
+  competitionStats: { goals?: number; assists?: number; missionsCompleted?: number } = {},
 ): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata' || variant === 'fragil') {
     // inForm/lobo/fragil add to every attribute; martir/magnata SUBTRACT from every attribute.
@@ -3990,12 +4071,13 @@ export function applyShopVariant(
   if (variant === 'goleador') return { ...player, goleador: true, goleadorGoals: Math.max(0, competitionStats.goals ?? 0), goleadorMatchIds: [] };
   if (variant === 'garcom') return { ...player, garcom: true, garcomAssists: Math.max(0, competitionStats.assists ?? 0), garcomMatchIds: [] };
   if (variant === 'arrogante') return { ...player, arrogante: true, arroganteGoals: Math.max(0, competitionStats.goals ?? 0), arroganteMatchIds: [] };
+  if (variant === 'mercenario') return { ...player, mercenario: true, mercenarioMissions: Math.max(0, Math.floor(competitionStats.missionsCompleted ?? 0)) };
   return { ...player, [variant]: true };
 }
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -4034,6 +4116,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.todosPorUm; delete p.capitaoNato; delete p.magnata; delete p.fragil; delete p.prodigio; delete p.prodigioStarts;
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
   delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds; delete p.arrogante; delete p.arroganteGoals; delete p.arroganteMatchIds;
+  delete p.mercenario; delete p.mercenarioMissions;
   return p;
 }
 
@@ -4063,6 +4146,7 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
   if (variant === 'goleador') { delete p.goleadorGoals; delete p.goleadorMatchIds; }
   if (variant === 'garcom') { delete p.garcomAssists; delete p.garcomMatchIds; }
   if (variant === 'arrogante') { delete p.arroganteGoals; delete p.arroganteMatchIds; }
+  if (variant === 'mercenario') delete p.mercenarioMissions;
   return p;
 }
 
@@ -4445,25 +4529,27 @@ function normalizedLeagueRounds(teamCount: number, requestedRounds: number): num
   const rawRounds = Number.isFinite(requestedRounds)
     ? Math.trunc(requestedRounds)
     : DEFAULT_COMPETITION_FORMAT.leagueRounds;
-  return Math.min(Math.max(rawRounds, 1), teamCount - 1);
+  return Math.min(Math.max(rawRounds, 1), (teamCount - 1) * 2);
 }
 
 /**
- * Creates the pairings first, independently of home/away. This is the actual
- * draw: every round is generated up front by the circle method, so no later
- * round is re-sorted based on the live table and no pair can repeat early just
- * because the teams arrived in a fixed array order.
+ * Creates the pairings first, independently of home/away. The first leg uses
+ * the circle method; when a second leg is requested, it repeats those exact
+ * rounds with the home/away candidates swapped. No later round is re-sorted
+ * based on the live table and no pair repeats before the return leg.
  */
 function generateLeaguePairings(teams: Team[], requestedRounds: number): LeaguePairing[] {
   const rounds = normalizedLeagueRounds(teams.length, requestedRounds);
   if (rounds === 0) return [];
+  const roundsPerLeg = teams.length - 1;
+  const firstLegRounds = Math.min(rounds, roundsPerLeg);
 
   // The dummy slot keeps the helper correct for odd-sized custom groups too.
   const slots: Array<Team | null> = [...teams];
   if (slots.length % 2 !== 0) slots.push(null);
 
   const pairings: LeaguePairing[] = [];
-  for (let round = 0; round < rounds; round++) {
+  for (let round = 0; round < firstLegRounds; round++) {
     for (let index = 0; index < slots.length / 2; index++) {
       const left = slots[index];
       const right = slots[slots.length - 1 - index];
@@ -4477,6 +4563,18 @@ function generateLeaguePairings(teams: Team[], requestedRounds: number): LeagueP
     const last = slots.pop()!;
     slots.splice(1, 0, last);
   }
+
+  if (rounds > roundsPerLeg) {
+    const returnLegRounds = Math.min(rounds - roundsPerLeg, roundsPerLeg);
+    for (const pairing of pairings.filter(candidate => candidate.round <= returnLegRounds)) {
+      pairings.push({
+        round: pairing.round + roundsPerLeg,
+        teamAId: pairing.teamBId,
+        teamBId: pairing.teamAId,
+      });
+    }
+  }
+
   return pairings;
 }
 
@@ -4555,7 +4653,36 @@ function orientLeaguePairings(pairings: LeaguePairing[], teams: Team[], rng: Sch
 }
 
 function generateLeagueFixturesFromOrder(teams: Team[], requestedRounds: number, rng: ScheduleRng): LeagueFixture[] {
-  return orientLeaguePairings(generateLeaguePairings(teams, requestedRounds), teams, rng);
+  const pairings = generateLeaguePairings(teams, requestedRounds);
+  if (pairings.length === 0) return [];
+
+  const roundsPerLeg = teams.length - 1;
+  if (normalizedLeagueRounds(teams.length, requestedRounds) <= roundsPerLeg) {
+    return orientLeaguePairings(pairings, teams, rng);
+  }
+
+  // Orient only the first leg. Returning the reverse fixture directly keeps
+  // every matchup genuinely ida e volta instead of merely scheduling the same
+  // pair twice with a potentially unchanged venue.
+  const firstLeg = pairings.filter(pairing => pairing.round <= roundsPerLeg);
+  const firstFixtures = orientLeaguePairings(firstLeg, teams, rng);
+  const byPair = new Map(firstFixtures.map(fixture => [
+    [fixture.homeTeamId, fixture.awayTeamId].sort().join('|'),
+    fixture,
+  ]));
+  const returnFixtures = pairings
+    .filter(pairing => pairing.round > roundsPerLeg)
+    .map(pairing => {
+      const firstFixture = byPair.get([pairing.teamAId, pairing.teamBId].sort().join('|'));
+      return {
+        round: pairing.round,
+        homeTeamId: firstFixture?.awayTeamId ?? pairing.teamAId,
+        awayTeamId: firstFixture?.homeTeamId ?? pairing.teamBId,
+        played: false,
+      };
+    });
+
+  return [...firstFixtures, ...returnFixtures];
 }
 
 /** Deterministic generator retained for legacy tools and saved-session tests. */

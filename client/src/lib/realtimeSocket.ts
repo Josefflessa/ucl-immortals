@@ -31,13 +31,13 @@ const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'set_match_roles', 'set_match_plan', 'play_round', 'advance_round',
   'play_knockout_round', 'advance_knockout_round', 'restart_room', 'leave_room', 'close_room',
   'player_match_watched', 'shop_change_coach', 'upgrade_club_project', 'evolve_coach_prime',
-  'shop_open_unique_pack', 'shop_claim_unique_pack', 'shop_open_pack',
+  'shop_open_unique_pack', 'shop_claim_unique_pack', 'shop_ensure_player_pack_offers', 'shop_open_player_pack', 'shop_claim_player_pack', 'shop_open_pack',
   'shop_pick_pack', 'shop_turbinar', 'shop_train', 'shop_remove_variant',
   'place_bet', 'cancel_bet', 'heal_injury', 'emergency_replace_player',
   'market_sell', 'market_list', 'market_cancel', 'market_buy',
   'player_ready', 'player_unready', 'swap_player_team', 'set_martir_targets', 'remove_player',
   'set_evolve_point', 'choose_player_specialization', 'reset_evolve_points',
-  'reroll_reinforcement', 'pick_reinforcement', 'dismiss_reinforcement',
+  'reroll_reinforcement', 'pick_reinforcement', 'dismiss_reinforcement', 'reroll_missions',
 ]);
 
 function hasCommandId(payload: unknown): boolean {

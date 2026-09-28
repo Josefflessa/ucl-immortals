@@ -894,6 +894,34 @@ describe('generateLeagueFixtures', () => {
     expect(pairKeys.size).toBe(fixtures.length);
     expect(teams.every(team => homeCount.get(team.id) === 4 && awayCount.get(team.id) === 4)).toBe(true);
   });
+
+  it('supports a complete ida e volta schedule with reversed venues', () => {
+    const teams = Array.from({ length: 20 }, (_, i) => mkTeam(`Double${i}`, [mkP()]));
+    const fixtures = generateRandomLeagueFixtures(teams, 38, () => 0.37);
+    const byPair = new Map<string, typeof fixtures>();
+
+    expect(fixtures).toHaveLength(20 * 19);
+    for (let round = 1; round <= 38; round++) {
+      const roundTeams = fixtures
+        .filter(fixture => fixture.round === round)
+        .flatMap(fixture => [fixture.homeTeamId, fixture.awayTeamId]);
+      expect(new Set(roundTeams).size).toBe(20);
+    }
+
+    for (const fixture of fixtures) {
+      const pairKey = [fixture.homeTeamId, fixture.awayTeamId].sort().join('|');
+      const pairFixtures = byPair.get(pairKey) ?? [];
+      pairFixtures.push(fixture);
+      byPair.set(pairKey, pairFixtures);
+    }
+
+    expect(byPair.size).toBe(20 * 19 / 2);
+    for (const pairFixtures of byPair.values()) {
+      expect(pairFixtures).toHaveLength(2);
+      expect(pairFixtures[0].homeTeamId).toBe(pairFixtures[1].awayTeamId);
+      expect(pairFixtures[0].awayTeamId).toBe(pairFixtures[1].homeTeamId);
+    }
+  });
 });
 
 describe('knockout seeding and return leg', () => {

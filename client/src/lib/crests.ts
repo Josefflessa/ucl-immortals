@@ -67,6 +67,7 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "bologna", name: "Bologna", url: "https://upload.wikimedia.org/wikipedia/commons/5/5b/Bologna_F.C._1909_logo.svg" },
       { id: "lecce", name: "Lecce", url: "https://commons.wikimedia.org/wiki/Special:FilePath/US%20Lecce%20Stemma.svg" },
       { id: "pisa", name: "Pisa", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Logo%20Pisa%20Sporting%20Club.svg" },
+      { id: "como", name: "Como", url: "https://upload.wikimedia.org/wikipedia/commons/9/99/Calcio_Como_-_logo_%28Italy%2C_2019-%29.svg" },
     ]
   },
   {

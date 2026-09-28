@@ -10,6 +10,8 @@ import { NEXT_GENERATION_PLAYERS } from './next-generationPlayers';
 import { SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS } from './sortitoutsiMajorLeagueExpansion';
 import { SORTITOUTSI_1000_ADDITIONS } from './sortitoutsiThousandExpansion';
 import { SORTITOUTSI_EUROPEAN_LEGENDS } from './sortitoutsiEuropeanLegendsExpansion';
+import { FIFAINDEX_FAMOUS_ADDITIONS } from './fifaIndexFamousExpansion';
+import { USER_SELECTED_HISTORICAL_PLAYERS } from './userSelectedHistoricalPlayers';
 import { clubIdForName } from './crests';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
@@ -123,6 +125,8 @@ export interface Player {
   arrogante?: boolean;   // 👑 Arrogante — +2 em tudo por gol; −1 nos outros titulares a cada 2 gols
   arroganteGoals?: number; // 👑 gols acumulados desde que recebeu a característica
   arroganteMatchIds?: string[]; // 👑 partidas já contabilizadas (idempotência online/reconexão)
+  mercenario?: boolean;  // 🏆 Conquistador — +2 em tudo por missão concluída
+  mercenarioMissions?: number; // 🏆 missões concluídas contabilizadas enquanto a carta carrega a característica
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).
@@ -730,6 +734,8 @@ export const PLAYERS: Player[] = [
   ...SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS,
   ...SORTITOUTSI_1000_ADDITIONS,
   ...SORTITOUTSI_EUROPEAN_LEGENDS,
+  ...USER_SELECTED_HISTORICAL_PLAYERS,
+  ...FIFAINDEX_FAMOUS_ADDITIONS,
   // ===== IMMORTALS =====
   {
     id: 'messi',

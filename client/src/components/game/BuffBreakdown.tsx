@@ -4,7 +4,7 @@
 // team-wide chemistry, the coach, the player's traits (named, with what each grants)
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
-import { EffectiveStats, ChemLinkType, CharBoost, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, prodigioStatBoost } from '../../lib/gameEngine';
+import { EffectiveStats, ChemLinkType, CharBoost, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, mercenarioStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { getTacticById, Player } from '../../lib/gameData';
 import { getCardVariant } from './PlayerCard';
 
@@ -106,6 +106,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const arroganteGoals = player?.arroganteGoals ?? 0;
   const arroganteBoost = arroganteStatBoost(arroganteGoals);
   const arrogantePenalty = arroganteTeamPenalty(arroganteGoals);
+  const mercenarioMissions = player?.mercenarioMissions ?? 0;
+  const mercenarioBoost = mercenarioStatBoost(mercenarioMissions);
   const currentCredits = Math.max(0, credits ?? 0);
   const estribadoBoost = estribadoStatBoost(currentCredits);
   const isOutfieldInGoal = !!player && isOutfieldGoalkeeper(player, formationRole);
@@ -171,6 +173,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {player.goleador && <Chip text={`+${goleadorBoost} EM CADA ATRIBUTO (${goleadorGoals} GOL${goleadorGoals === 1 ? '' : 'S'} · 1 A CADA ${GOLEADOR_GOALS_PER_BOOST})`} color="#F97316" />}
                 {player.garcom && <Chip text={`+${garcomBoost} EM CADA ATRIBUTO (${garcomAssists} ASSISTÊNCIA${garcomAssists === 1 ? '' : 'S'} · 1 A CADA ${GARCOM_ASSISTS_PER_BOOST})`} color="#38BDF8" />}
                 {player.arrogante && <Chip text={`+${arroganteBoost} EM TUDO · −${arrogantePenalty} NOS OUTROS (${arroganteGoals} GOL${arroganteGoals === 1 ? '' : 'S'} · 1 PENALIDADE A CADA ${ARROGANTE_GOALS_PER_PENALTY})`} color="#E879F9" />}
+                {player.mercenario && <Chip text={`+${mercenarioBoost} EM CADA ATRIBUTO (${mercenarioMissions} ${mercenarioMissions === 1 ? 'MISSÃO' : 'MISSÕES'} · +${MERCENARIO_STAT_BOOST_PER_MISSION} POR MISSÃO)`} color="#F59E0B" />}
                 {player.estribado && <Chip text={`+${estribadoBoost} EM CADA ATRIBUTO (${currentCredits} CRÉDITOS · 1 A CADA ${ESTRIBADO_CREDITS_PER_BOOST})`} color="#FACC15" />}
                 {player.todosPorUm && !todosPorUmInactive && <Chip text={`+${TODOS_POR_UM_STAT_BOOST} EM TUDO · +${TODOS_POR_UM_CHEM_BONUS} QUÍMICA GERAL`} color="#4ADE80" />}
                 {player.todosPorUm && todosPorUmInactive && <Chip text="SEM EFEITO — OS 11 TITULARES PRECISAM TER" color="#EF4444" />}
@@ -199,6 +202,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                                                 : player.goleador ? `A cada ${GOLEADOR_GOALS_PER_BOOST} gols marcados, ganha +1 em todos os atributos. Já marcou ${goleadorGoals} gol${goleadorGoals === 1 ? '' : 's'} e o bônus atual é +${goleadorBoost}.`
                                                   : player.garcom ? `A cada ${GARCOM_ASSISTS_PER_BOOST} assistências dadas, ganha +1 em todos os atributos. Já deu ${garcomAssists} assistência${garcomAssists === 1 ? '' : 's'} e o bônus atual é +${garcomBoost}.`
                                                     : player.arrogante ? `Ganha +2 em todos os atributos por gol. A cada ${ARROGANTE_GOALS_PER_PENALTY} gols, os outros titulares perdem −1 em tudo. Já marcou ${arroganteGoals} gol${arroganteGoals === 1 ? '' : 's'}; bônus próprio +${arroganteBoost} e penalidade atual −${arrogantePenalty}.`
+                                     : player.mercenario ? `Ganha +${MERCENARIO_STAT_BOOST_PER_MISSION} em todos os atributos por missão concluída. Já concluiu ${mercenarioMissions} ${mercenarioMissions === 1 ? 'missão' : 'missões'}; bônus atual +${mercenarioBoost}.`
                                      : player.estribado ? `A cada ${ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis, ganha +1 em todos os atributos. Saldo atual: ${currentCredits} créditos; bônus atual +${estribadoBoost}.`
                                        : player.todosPorUm ? `Só funciona quando os 11 titulares têm a característica: todos recebem +${TODOS_POR_UM_STAT_BOOST} em tudo e o time ganha +${TODOS_POR_UM_CHEM_BONUS} de química geral.`
                                          : 'Já no valor base — por isso não aparece como delta acima.'}

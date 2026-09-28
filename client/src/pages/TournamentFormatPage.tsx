@@ -4,12 +4,11 @@ import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   Bot,
+  CalendarDays,
   CheckCircle2,
-  CircleDollarSign,
   GitBranch,
   Info,
   Settings2,
-  ShieldCheck,
   Swords,
   Trophy,
   Users,
@@ -21,20 +20,14 @@ import {
   MAX_BOT_TEAMS,
   MAX_COMPETITION_TEAMS,
   MAX_ONLINE_PLAYERS,
-  MAX_POINTS_PER_RULE,
-  MAX_REINFORCEMENT_OPTIONS,
   MIN_COMPETITION_TEAMS,
   MIN_QUALIFIED_TEAMS,
-  MIN_REINFORCEMENT_OPTIONS,
   createCompetitionFormat,
-  competitionFormatSummary,
-  competitionRewardSummary,
   normalizeCompetitionFormat,
-  reinforcementWindowLimit,
   validateCompetitionFormat,
   type CompetitionFormat,
   type CompetitionFormatId,
-  type ReinforcementMode,
+  type LeagueLegs,
 } from '../lib/competition';
 import { AppShell, Button, ChoiceCard, Input, PageContainer, SectionHeader, TopBar } from '../design-system';
 
@@ -104,47 +97,34 @@ function ConfigSection({ index, icon, eyebrow, title, description, children }: {
   );
 }
 
-function ToggleRow({ title, description, enabled, onToggle }: { title: string; description: string; enabled: boolean; onToggle: () => void }) {
+function SummaryMetric({ icon, label, value, detail }: { icon: ReactNode; label: string; value: string; detail: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-4 py-3">
-      <div className="min-w-0">
-        <div className="text-sm font-bold text-white">{title}</div>
-        <div className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
+    <div className="min-w-0">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold uppercase text-[var(--ui-text-faint)]">
+          <span className="shrink-0 text-[#C9A84C]" aria-hidden="true">{icon}</span>
+          <span className="truncate">{label}</span>
+        </div>
+        <div className="shrink-0 text-sm font-black leading-tight text-right text-white text-balance tabular-nums">{value}</div>
       </div>
-      <button
-        type="button"
-        aria-pressed={enabled}
-        onClick={onToggle}
-        className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${enabled ? 'bg-[#C9A84C] text-[#080810]' : 'bg-[#292936] text-[#A0A0AF]'}`}
-      >
-        {enabled ? 'Ativo' : 'Off'}
-      </button>
+      <div className="mt-0.5 pl-[22px] text-[10px] leading-tight text-[var(--ui-text-faint)] text-pretty">{detail}</div>
     </div>
   );
 }
 
-function reinforcementStageOptions(format: CompetitionFormat): Array<{ value: number; label: string }> {
-  if (format.id === 'knockout') {
-    if (format.teamCount === 4) return [{ value: 1, label: 'Até as semifinais' }];
-    if (format.teamCount === 8) return [{ value: 1, label: 'Até as quartas de final' }, { value: 2, label: 'Até as semifinais' }];
-    return [{ value: 1, label: 'Até as oitavas de final' }, { value: 2, label: 'Até as quartas de final' }, { value: 3, label: 'Até as semifinais' }];
-  }
-  if (format.id === 'league_knockout' && format.qualifiedTeams > 16) {
-    return [
-      { value: 1, label: 'Até o playoff' },
-      { value: 2, label: 'Até as oitavas de final' },
-      { value: 3, label: 'Até as quartas de final' },
-      { value: 4, label: 'Até as semifinais' },
-    ];
-  }
-  if (format.id === 'league_knockout' || format.id === 'groups_knockout') {
-    return [
-      { value: 2, label: 'Até as oitavas de final' },
-      { value: 3, label: 'Até as quartas de final' },
-      { value: 4, label: 'Até as semifinais' },
-    ];
-  }
-  return [];
+function SummaryRow({ icon, label, value, detail }: { icon: ReactNode; label: string; value: string; detail?: string }) {
+  return (
+    <div className="flex items-start gap-2 py-2 first:pt-0 last:pb-0">
+      <span className="flex size-6 shrink-0 items-center justify-center text-[var(--ui-text-muted)]" aria-hidden="true">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <span className="text-xs font-bold text-[var(--ui-text-muted)]">{label}</span>
+          <span className="text-xs font-black text-white text-right tabular-nums">{value}</span>
+        </div>
+        {detail && <div className="mt-0.5 text-[10px] leading-tight text-[var(--ui-text-faint)] text-pretty">{detail}</div>}
+      </div>
+    </div>
+  );
 }
 
 export default function TournamentFormatPage() {
@@ -171,7 +151,27 @@ export default function TournamentFormatPage() {
 
   const setNumber = (key: keyof CompetitionFormat, raw: string) => {
     const value = Number(raw);
-    setFormat(previous => ({ ...previous, [key]: Number.isFinite(value) ? value : 0 }));
+    setFormat(previous => {
+      const next = { ...previous, [key]: Number.isFinite(value) ? value : 0 };
+      if (key === 'teamCount' && next.id === 'league') {
+        next.leagueRounds = next.leagueLegs * Math.max(1, next.teamCount - 1);
+        next.rewards = { ...next.rewards, reinforcementUntilRound: next.leagueRounds };
+      }
+      return next;
+    });
+    setError(null);
+  };
+
+  const setLeagueLegs = (leagueLegs: LeagueLegs) => {
+    setFormat(previous => ({
+      ...previous,
+      leagueLegs,
+      leagueRounds: leagueLegs * Math.max(1, previous.teamCount - 1),
+      rewards: {
+        ...previous.rewards,
+        reinforcementUntilRound: leagueLegs * Math.max(1, previous.teamCount - 1),
+      },
+    }));
     setError(null);
   };
 
@@ -183,38 +183,6 @@ export default function TournamentFormatPage() {
       if (key === 'groupCount' || key === 'qualifiedPerGroup') next.qualifiedTeams = next.groupCount * next.qualifiedPerGroup;
       if (key === 'groupRounds') next.leagueRounds = next.groupRounds;
       return next;
-    });
-    setError(null);
-  };
-
-  const setPoints = (key: keyof CompetitionFormat['rewards']['points'], raw: string) => {
-    const value = Number(raw);
-    setFormat(previous => ({
-      ...previous,
-      rewards: { ...previous.rewards, points: { ...previous.rewards.points, [key]: Number.isFinite(value) ? value : 0 } },
-    }));
-    setError(null);
-  };
-
-  const setRewardNumber = (key: 'reinforcementUntilRound' | 'reinforcementOptions', raw: string) => {
-    const value = Number(raw);
-    setFormat(previous => updateRewards(previous, { [key]: Number.isFinite(value) ? value : 0 }));
-    setError(null);
-  };
-
-  const setMatchSetting = <K extends keyof CompetitionFormat['matchSettings']>(key: K, value: CompetitionFormat['matchSettings'][K]) => {
-    setFormat(previous => ({ ...previous, matchSettings: { ...previous.matchSettings, [key]: value } }));
-    setError(null);
-  };
-
-  const selectReinforcementMode = (mode: ReinforcementMode) => {
-    setFormat(previous => {
-      const limit = reinforcementWindowLimit(previous, mode);
-      const currentWindow = previous.rewards.reinforcementUntilRound ?? 1;
-      return updateRewards(previous, {
-        reinforcement: mode,
-        reinforcementUntilRound: mode === 'off' ? null : Math.min(currentWindow, limit),
-      });
     });
     setError(null);
   };
@@ -232,15 +200,42 @@ export default function TournamentFormatPage() {
 
   const preset = COMPETITION_FORMAT_PRESETS[format.id];
   const isGroups = format.id === 'groups_knockout';
-  const hasLeague = format.id === 'league' || format.id === 'league_knockout';
   const hasKnockout = format.id !== 'league';
   const validationError = validateCompetitionFormat(format);
-  const reinforcementLimit = reinforcementWindowLimit(format);
-  const isReinforcementEnabled = format.rewards.reinforcement !== 'off';
-  const stageOptions = reinforcementStageOptions(format);
-  const selectedStageValue = stageOptions.some(option => option.value === format.rewards.reinforcementUntilRound)
-    ? format.rewards.reinforcementUntilRound ?? stageOptions[0]?.value ?? 1
-    : stageOptions[0]?.value ?? 1;
+  const calendarValue = format.id === 'league'
+    ? `${format.leagueRounds} rodadas`
+    : format.id === 'groups_knockout'
+      ? `${format.groupRounds} rodadas`
+      : format.id === 'knockout'
+        ? format.knockoutLegs === 2 ? 'Ida e volta' : 'Jogo único'
+        : `${format.leagueRounds} rodadas`;
+  const calendarDetail = format.id === 'league'
+    ? format.leagueLegs === 2 ? 'Todos se enfrentam duas vezes.' : 'Todos se enfrentam uma vez.'
+    : format.id === 'groups_knockout'
+      ? `${format.groupCount} grupos de ${format.teamsPerGroup} times.`
+      : format.id === 'knockout'
+        ? 'Eliminação desde a primeira fase.'
+        : `${format.qualifiedTeams} times avançam ao mata-mata.`;
+  const advancementValue = format.id === 'league'
+    ? 'Tabela final'
+    : format.id === 'groups_knockout'
+      ? `${format.qualifiedTeams} classificados`
+      : format.id === 'knockout'
+        ? 'Eliminação direta'
+        : `${format.qualifiedTeams} classificados`;
+  const advancementDetail = format.id === 'league'
+    ? 'O campeão é o líder ao fim da liga.'
+    : format.id === 'groups_knockout'
+      ? `${format.qualifiedPerGroup} por grupo seguem adiante.`
+      : format.id === 'knockout'
+        ? 'Perdeu, está eliminado.'
+        : 'A classificação define o caminho do mata-mata.';
+  const finalValue = format.id === 'league'
+    ? 'Sem mata-mata'
+    : format.finalSingleLeg ? 'Jogo único' : 'Ida e volta';
+  const finalDetail = format.id === 'league'
+    ? 'Decisão pela tabela.'
+    : 'Formato da final.';
 
   return (
     <AppShell>
@@ -310,9 +305,33 @@ export default function TournamentFormatPage() {
                   />
                 )}
 
-                {hasLeague && (
+                {format.id === 'league' && (
+                  <div className="sm:col-span-2">
+                    <div className={labelClass}>Formato da liga</div>
+                    <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {([
+                        [1, 'Turno único', 'Cada adversário é enfrentado uma vez.'],
+                        [2, 'Ida e volta', 'Cada adversário é enfrentado duas vezes, com o mando invertido.'],
+                      ] as const).map(([legs, title, description]) => (
+                        <ChoiceCard
+                          key={legs}
+                          selected={format.leagueLegs === legs}
+                          onClick={() => setLeagueLegs(legs)}
+                          className="rounded-xl border p-4 text-left transition-colors"
+                          style={{ borderColor: format.leagueLegs === legs ? '#C9A84C' : '#242436', background: format.leagueLegs === legs ? '#C9A84C12' : '#0F0F1A' }}
+                        >
+                          <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{title}</div>{format.leagueLegs === legs && <CheckCircle2 size={16} className="text-[#C9A84C]" />}</div>
+                          <div className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
+                          <div className="mt-2 text-xs font-black text-[#C9A84C]">{legs * Math.max(1, format.teamCount - 1)} rodadas</div>
+                        </ChoiceCard>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {format.id === 'league_knockout' && (
                   <NumberField
-                    label={format.id === 'league' ? 'Rodadas da liga' : 'Rodadas da fase de liga'}
+                    label="Rodadas da fase de liga"
                     value={format.leagueRounds}
                     min={1}
                     max={Math.max(1, format.teamCount - 1)}
@@ -383,108 +402,40 @@ export default function TournamentFormatPage() {
               </ConfigSection>
             )}
 
-            <ConfigSection index={hasKnockout ? '03' : '02'} eyebrow="REGRAS DA COMPETIÇÃO" title="Recrutamento e créditos" description="Defina o ritmo das ofertas de recrutamento e os créditos ganhos por desempenho. Essas regras valem só para este torneio." icon={<CircleDollarSign size={17} />}>
-              <div>
-                <div className="flex items-center gap-2 text-sm font-bold text-white"><ShieldCheck size={16} className="text-[#C9A84C]" /> Recrutamento gratuito</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">A oferta aparece para o jogador quando o evento configurado é concluído.</p>
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {([
-                    ['off', 'Sem recrutamento automático', 'A evolução vem apenas da loja.'],
-                    ['round', hasLeague ? 'Durante a fase de liga' : isGroups ? 'Durante a fase de grupos' : 'Após cada fase', hasLeague ? 'Uma oferta ao fechar cada rodada da liga.' : isGroups ? 'Uma oferta ao fechar cada rodada do grupo.' : 'Uma oferta ao fechar cada fase.'],
-                    ...(hasKnockout ? [['stage', 'Após cada fase eliminatória', 'Uma oferta ao concluir cada bloco eliminatório.'] as const] : []),
-                  ] as const).filter(([mode]) => mode !== 'round' || hasLeague || isGroups).map(([mode, title, description]) => (
-                    <ChoiceCard key={mode} selected={format.rewards.reinforcement === mode} onClick={() => selectReinforcementMode(mode)} className="rounded-xl border px-3 py-3 text-left transition-colors" style={{ borderColor: format.rewards.reinforcement === mode ? '#C9A84C' : '#242436', background: format.rewards.reinforcement === mode ? '#C9A84C12' : '#0F0F1A' }}>
-                      <div className="flex items-center justify-between gap-2"><div className="text-xs font-bold text-white">{title}</div>{format.rewards.reinforcement === mode && <CheckCircle2 size={14} className="text-[#C9A84C]" />}</div>
-                      <div className="mt-1 text-[10px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
-                    </ChoiceCard>
-                  ))}
-                </div>
-                {hasLeague || isGroups ? (
-                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-3 py-2.5 text-[10px] leading-relaxed text-[var(--ui-text-faint)]">
-                    <Info size={14} className="mt-0.5 shrink-0 text-[#C9A84C]" />
-                    <span><strong className="text-white">Como funciona:</strong> liga e grupos são organizados por rodadas; o mata-mata, por fases eliminatórias. Na liga/grupos, “disponível até a rodada” define a última rodada que pode gerar recrutamento.</span>
-                  </div>
-                ) : null}
-                {isReinforcementEnabled && (
-                  <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] p-4 sm:grid-cols-2">
-                    {format.rewards.reinforcement === 'round' ? (
-                    <NumberField
-                        label="Recrutamento disponível até a rodada"
-                        value={format.rewards.reinforcementUntilRound ?? 1}
-                        min={1}
-                        max={reinforcementLimit}
-                        onChange={value => setRewardNumber('reinforcementUntilRound', value)}
-                        helper={`A oferta aparece ao fechar cada rodada até a ${reinforcementLimit}ª, conforme o limite definido.`}
-                      />
-                    ) : (
-                      <label className="block">
-                        <span className="flex items-center justify-between gap-2"><span className={labelClass}>Disponível até</span><span className="text-[10px] font-medium normal-case tracking-normal text-[var(--ui-text-faint)]">inclui a fase escolhida</span></span>
-                        <select value={selectedStageValue} onChange={event => setRewardNumber('reinforcementUntilRound', event.target.value)} className={inputClass}>
-                          {stageOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
-                        <span className="mt-1 block text-[10px] leading-relaxed text-[var(--ui-text-faint)]">O limite inclui a fase selecionada: a oferta aparece depois que ela termina. A final nunca oferece recrutamento.</span>
-                      </label>
-                    )}
-                    <NumberField label="Opções por recrutamento" value={format.rewards.reinforcementOptions} min={MIN_REINFORCEMENT_OPTIONS} max={MAX_REINFORCEMENT_OPTIONS} onChange={value => setRewardNumber('reinforcementOptions', value)} helper="Quantidade de jogadores exibidos na oferta gratuita." />
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6 border-t border-[var(--ui-line-subtle)] pt-5">
-                <div className="flex items-center gap-2 text-sm font-bold text-white"><Trophy size={16} className="text-[#C9A84C]" /> Créditos da loja</div>
-                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Créditos são a moeda usada na loja. A classificação do torneio continua sendo calculada separadamente pelos resultados.</p>
-                <div className="mt-3 flex flex-col gap-2">
-                  <ToggleRow title="Créditos por partida" description={format.rewards.pointsEnabled ? 'Vitória, gols e outros critérios adicionam saldo para gastar na loja.' : 'As partidas não adicionam créditos ao saldo da loja.'} enabled={format.rewards.pointsEnabled} onToggle={() => { setFormat(previous => updateRewards(previous, { pointsEnabled: !previous.rewards.pointsEnabled })); setError(null); }} />
-                  {hasKnockout && <ToggleRow title="Créditos no mata-mata" description="Defina se as partidas eliminatórias também dão créditos para a loja." enabled={format.rewards.knockoutPointsEnabled} onToggle={() => { setFormat(previous => updateRewards(previous, { knockoutPointsEnabled: !previous.rewards.knockoutPointsEnabled })); setError(null); }} />}
-                </div>
-                {format.rewards.pointsEnabled && (
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {([['win', 'Vitória'], ['draw', 'Empate'], ['loss', 'Derrota'], ['goalDifference', 'Saldo positivo'], ['goal', 'Gol marcado'], ['cleanSheet', 'Sem sofrer gol']] as const).map(([key, title]) => (
-                      <NumberField key={key} label={title} value={format.rewards.points[key]} min={0} max={MAX_POINTS_PER_RULE} onChange={value => setPoints(key, value)} helper={`0 a ${MAX_POINTS_PER_RULE} créditos.`} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </ConfigSection>
-
-            <ConfigSection index={hasKnockout ? '04' : '03'} eyebrow="REGRAS DA PARTIDA" title="Como cada partida acontece?" description="Personalize os eventos disciplinares desta competição." icon={<Settings2 size={17} />}>
-              <div className="flex flex-col gap-3">
-                <ToggleRow
-                  title="Lesões"
-                  description="Jogadores podem se lesionar durante a partida e ficar indisponíveis nas próximas rodadas."
-                  enabled={format.matchSettings.injuriesEnabled}
-                  onToggle={() => setMatchSetting('injuriesEnabled', !format.matchSettings.injuriesEnabled)}
-                />
-                <ToggleRow
-                  title="Cartões"
-                  description="Ative para permitir amarelos, vermelhos e suspensões. As faltas continuam existindo mesmo desligado."
-                  enabled={format.matchSettings.cardsEnabled}
-                  onToggle={() => setMatchSetting('cardsEnabled', !format.matchSettings.cardsEnabled)}
-                />
-              </div>
-
-            </ConfigSection>
           </motion.div>
           )}
 
           <aside className={advancedOpen ? 'flex flex-col gap-4 lg:sticky lg:top-24' : ''}>
             <div className="ui-panel overflow-hidden p-0">
-              <div className="border-b border-[var(--ui-line-subtle)] px-5 py-4 sm:px-6">
-                <div className="ui-section-label">RESUMO DO TORNEIO</div>
-                <div className="mt-2 text-lg font-bold leading-snug text-white">{competitionFormatSummary(format)}</div>
-                <div className="mt-3 text-xs leading-relaxed text-[var(--ui-text-muted)]">{competitionRewardSummary(format)}</div>
-                <div className="mt-3 border-t border-[var(--ui-line-subtle)] pt-3 text-[10px] leading-relaxed text-[var(--ui-text-faint)]">
-                  <span className="font-bold text-[var(--ui-text-muted)]">PARTIDA:</span>{' '}
-                  {format.matchSettings.injuriesEnabled ? 'lesões' : 'sem lesões'} · {format.matchSettings.cardsEnabled ? 'cartões' : 'sem cartões'} · banca de apostas fixa
+              <div className="border-b border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-4 py-4 sm:px-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-[#C9A84C44] bg-[#C9A84C12] text-xl" aria-hidden="true">{preset.icon}</div>
+                  <div className="min-w-0">
+                    <div className="ui-section-label">RESUMO DO TORNEIO</div>
+                    <h2 className="mt-0.5 text-lg font-black leading-tight text-white text-balance">{preset.name}</h2>
+                    <p className="mt-0.5 text-xs leading-tight text-[var(--ui-text-muted)] text-pretty">{preset.shortDescription}</p>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 p-4 sm:p-5">
-                <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] p-3"><div className="text-2xl font-black text-[#C9A84C]">{format.teamCount}</div><div className="text-[10px] uppercase tracking-wider text-[var(--ui-text-faint)]">times totais</div></div>
-                <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] p-3"><div className="text-2xl font-black text-[#C9A84C]">{isOnlineRoomCreation ? 'AUTO' : Math.max(0, format.teamCount - 1)}</div><div className="text-[10px] uppercase tracking-wider text-[var(--ui-text-faint)]">{isOnlineRoomCreation ? 'bots completam as vagas' : 'bots no solo'}</div></div>
-              </div>
-              <div className={`mx-4 mb-4 flex items-start gap-2 rounded-xl border px-3 py-3 text-[11px] leading-relaxed sm:mx-5 sm:mb-5 ${validationError ? 'border-[var(--ui-danger)] bg-[var(--ui-danger)]0D text-[var(--ui-danger)]' : 'border-[var(--ui-success)] bg-[var(--ui-success)]0D text-[var(--ui-success)]'}`} role="status">
-                {validationError ? <AlertTriangle size={15} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={15} className="mt-0.5 shrink-0" />}
-                <div><strong className="block">{validationError ? 'Revise a configuração' : 'Configuração válida'}</strong><span className="mt-0.5 block">{validationError ?? 'Os limites e as relações entre as fases estão coerentes.'}</span></div>
+              <div className="p-3 sm:p-4">
+                <div className="grid grid-cols-2 gap-4 border-b border-[var(--ui-line-subtle)] pb-3">
+                  <SummaryMetric icon={<Users size={14} />} label="Participantes" value={`${format.teamCount} times`} detail="Total da competição." />
+                  <SummaryMetric icon={<Bot size={14} />} label="Bots" value={isOnlineRoomCreation ? 'Automático' : `${Math.max(0, format.teamCount - 1)}`} detail={isOnlineRoomCreation ? 'Preenchem as vagas restantes.' : 'Além do seu time.'} />
+                </div>
+
+                <div className="mt-3">
+                  <div className="ui-section-label">ESTRUTURA</div>
+                  <div className="mt-1.5 divide-y divide-[var(--ui-line-subtle)]">
+                    <SummaryRow icon={<CalendarDays size={15} />} label="Calendário" value={calendarValue} detail={calendarDetail} />
+                    <SummaryRow icon={<GitBranch size={15} />} label="Classificação" value={advancementValue} detail={advancementDetail} />
+                    <SummaryRow icon={<Swords size={15} />} label="Final" value={finalValue} detail={finalDetail} />
+                  </div>
+                </div>
+
+                <div className={`mt-3 flex items-center gap-1.5 border-t pt-2 text-[10px] leading-tight ${validationError ? 'border-[var(--ui-danger)] text-[var(--ui-danger)]' : 'border-[var(--ui-success)] text-[var(--ui-success)]'}`} role="status">
+                  {validationError ? <AlertTriangle size={13} className="shrink-0" /> : <CheckCircle2 size={13} className="shrink-0" />}
+                  <div className="flex min-w-0 flex-wrap gap-x-1.5"><strong>{validationError ? 'Revise a configuração:' : 'Configuração válida:'}</strong><span className="text-pretty">{validationError ?? 'Todos os limites e formatos estão coerentes.'}</span></div>
+                </div>
               </div>
             </div>
 
@@ -507,8 +458,4 @@ export default function TournamentFormatPage() {
       </PageContainer>
     </AppShell>
   );
-}
-
-function updateRewards(format: CompetitionFormat, patch: Partial<CompetitionFormat['rewards']>): CompetitionFormat {
-  return { ...format, rewards: { ...format.rewards, ...patch, points: { ...format.rewards.points } } };
 }

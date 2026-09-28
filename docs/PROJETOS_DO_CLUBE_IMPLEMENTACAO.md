@@ -1,6 +1,6 @@
 # UCL Immortals — Projetos do Clube
 
-**Status:** estrutura implementada; Recrutamento, Análise, Central de Palpites, Médico, Treinamento, Estádio e Torcida ativos  
+**Status:** estrutura implementada; Recrutamento, Análise, Central de Palpites, Médico, Treinamento, Estádio, Torcida e Núcleo de Missões ativos
 **Escopo desta versão:** regras de progressão, contrato de dados e integração dos projetos ativos com solo e online.  
 **Observação:** todos os clubes começam no nível 1; cada jogador decide onde investir os créditos da própria campanha.
 
@@ -22,6 +22,7 @@ A fantasia é a de um clube que vai se estruturando durante a campanha:
 - treina o elenco com mais eficiência;
 - transforma o estádio em uma vantagem real de mando;
 - constrói uma torcida que melhora a receita em casa.
+- mantém um mural de missões com objetivos, prazos e recompensas variáveis.
 
 ## 2. Onde o sistema aparece
 
@@ -53,7 +54,7 @@ O topo da tela mostra:
 - aviso de que os efeitos pertencem somente ao jogador atual;
 - resumo do nível total investido nos projetos.
 
-Ao abrir **PROJETOS**, sete cards são exibidos em uma grade responsiva:
+Ao abrir **PROJETOS**, oito cards são exibidos em uma grade responsiva:
 
 1. Centro de Recrutamento;
 2. Núcleo de Análise;
@@ -62,6 +63,7 @@ Ao abrir **PROJETOS**, sete cards são exibidos em uma grade responsiva:
 5. Centro de Treinamento;
 6. Estádio;
 7. Torcida.
+8. Núcleo de Missões.
 
 Cada card mostra o nível atual, o efeito ativo, o próximo efeito e o custo para
 subir de nível. O jogador deve conseguir entender o benefício sem abrir um
@@ -83,14 +85,14 @@ confirmação, o card atualiza imediatamente sem recarregar a página.
 
 ## 3. Progressão e economia
 
-Todos os sete projetos começam no **nível 1** gratuitamente.
+Todos os oito projetos começam no **nível 1** gratuitamente.
 
 | Evolução | Custo |
 |---|---:|
 | Nível 1 → 2 | 150 créditos |
-| Nível 2 → 3 | 300 créditos |
-| Nível 3 → 4 | 500 créditos |
-| Nível 4 → 5 | 800 créditos |
+| Nível 2 → 3 | 200 créditos |
+| Nível 3 → 4 | 250 créditos |
+| Nível 4 → 5 | 300 créditos |
 
 O custo é pago uma única vez por evolução. O nível é permanente dentro daquela
 campanha, mas volta ao nível 1 ao iniciar uma nova competição.
@@ -108,7 +110,7 @@ Regras de economia:
 
 Os valores foram escolhidos para permitir uma primeira decisão relevante sem
 permitir que o jogador maximize tudo rapidamente. Evoluir um único projeto ao
-nível 5 custa 1.750 créditos, portanto a especialização continua sendo uma
+nível 5 custa 900 créditos, portanto a especialização continua sendo uma
 escolha real durante uma campanha.
 
 ## 4. Projetos e efeitos concretos
@@ -117,8 +119,10 @@ escolha real durante uma campanha.
 
 Responsável pelas ofertas de recrutamento recebidas ao fechar uma rodada ou fase.
 
-O projeto respeita a configuração da competição. Se o organizador desligar o
-recrutamento, nenhum nível do Centro de Recrutamento cria ofertas do nada.
+O projeto usa o padrão fixo da competição: há uma oferta ao fechar cada rodada
+da liga ou dos grupos e, nos formatos com mata-mata, uma oferta adicional ao
+concluir cada fase eliminatória antes da final. No mata-mata direto, as ofertas
+acontecem ao fim de cada fase antes da final.
 
 | Nível | Efeito |
 |---|---|
@@ -139,8 +143,7 @@ Regras adicionais:
 - uma escolha duplicada na mesma oferta é proibida;
 - o jogador pode recusar a oferta normalmente;
 - uma oferta pendente continua reservada em caso de reconexão;
-- o bônus vale tanto para eventos de liga quanto para fases eliminatórias que
-  já ofereçam recrutamento pela configuração atual;
+- o bônus vale tanto para eventos de liga quanto para fases eliminatórias;
 - o projeto não altera a quantidade de cartas do draft inicial.
 
 ### 4.2 Núcleo de Análise
@@ -296,6 +299,27 @@ Regras:
 - a mensagem de créditos mostra a base, o bônus percentual da Torcida, o bônus
   do Magnata e o total.
 
+### 4.8 Núcleo de Missões
+
+O Núcleo de Missões aprimora o mural privado de cada jogador. O mural sempre
+exibe cinco ofertas escolhidas aleatoriamente do catálogo completo; cada rodada
+troca as ofertas, mas missões aceitas continuam ativas até serem concluídas,
+expirarem ou serem removidas. O limite permanece em duas missões ativas.
+
+| Nível | Efeito |
+|---|---|
+| 1 | Mural normal com cinco ofertas e até duas missões ativas. |
+| 2 | Um reroll gratuito por rodada, substituindo as cinco ofertas do mural. |
+| 3 | Reduz pela metade o custo de remoção de qualquer missão. |
+| 4 | Adiciona **+1 partida** ao prazo das missões; as missões já ativas também recebem o acréscimo quando o nível é comprado. |
+| 5 | Aumenta em **50%** a recompensa das missões concluídas, arredondada para o crédito inteiro mais próximo. |
+
+O reroll é determinístico por jogador e rodada, não repete imediatamente as
+ofertas removidas e é validado pelo servidor no online. O custo reduzido,
+prazo ampliado e recompensa maior usam as mesmas funções puras no solo e no
+online. O histórico registra a recompensa efetivamente paga, e o modal
+pós-partida mostra separadamente missões concluídas e expiradas.
+
 ## 5. Relação com o técnico
 
 O técnico não vira um sexto projeto.
@@ -306,6 +330,8 @@ O sistema fica dividido assim:
 - **Estádio:** nível de mando adquirido em Projetos do Clube;
 - **Torcida:** percentual da recompensa adquirido em Projetos do Clube;
 - **Núcleo de Análise:** preparação específica para cada partida.
+- **Núcleo de Missões:** objetivos e recompensas da campanha, sem alterar o
+  resultado da simulação.
 
 Ao evoluir o técnico para Prime, o jogador não perde níveis dos projetos. O
 Prime continua podendo trocar o estádio visual e liberar o bônus temático, mas
@@ -329,6 +355,7 @@ O servidor é a única autoridade para:
 - contratação extra;
 - bônus de treino por rodada;
 - recompensa do Estádio e da Torcida.
+- reroll, aceitação, remoção, prazo e recompensa das missões.
 
 Eventos sugeridos:
 
@@ -357,7 +384,8 @@ export type ClubProjectId =
   | 'medical'
   | 'training'
   | 'stadium'
-  | 'supporters';
+  | 'supporters'
+  | 'missions';
 
 export interface ClubProjectsState {
   levels: Record<ClubProjectId, number>;

@@ -5,6 +5,9 @@ import {
   generateDraftOptions,
   getNeededPositions,
   generateBotTeam,
+  generatePlayerPackOptions,
+  generatePlayerPackOffer,
+  drawPlayerPackCard,
   generateStarPackOptions,
   generateScoutOptions,
   generateUniquePackOffer,
@@ -27,7 +30,9 @@ import {
   applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
   bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
   getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, EVOLVE_POINTS, applyDefeatGrowth,
+  applyMercenarioProgress,
   draftSlotIndex,
+  MAX_RESERVE_PLAYERS, reservePlayerCount,
   VariantFlag,
   MatchPlan,
   Team,
@@ -40,7 +45,8 @@ import {
 
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
-import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS, lossStreakBonus, nextLossStreak } from "../client/src/lib/shop.js";
+import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS, lossStreakBonus, nextLossStreak, isRegularPlayerPackRarity } from "../client/src/lib/shop.js";
+import type { PlayerPackRarity, RegularPlayerPackRarity } from "../client/src/lib/shop.js";
 import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, createBet, settleBet, bettingPayoutRulesForLevel, BET_ROUND_CAP } from "../client/src/lib/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
@@ -73,6 +79,22 @@ import {
   validateCompetitionFormat,
 } from "../client/src/lib/competition.js";
 import type { CompetitionFormat } from "../client/src/lib/competition.js";
+import {
+  acceptMission,
+  extendActiveMissionDeadlines,
+  rerollMissionBoard,
+  createMissionMatchContext,
+  createMissionState,
+  missionCycleKey,
+  missionRemovalCost,
+  normalizeMissionState,
+  removeMission,
+  rotateMissionBoard,
+  updateMissionsAfterMatch,
+  completedMissionCount,
+  dismissMissionResolution,
+} from "../client/src/lib/missions.js";
+import type { MissionState } from "../client/src/lib/missions.js";
 
 export interface RoomPlayer {
   socketId: string;
@@ -100,13 +122,17 @@ export interface RoomPlayer {
   reinforcementOffer?: RecruitmentOfferMeta | null;
   reinforcementEventCount: number;
   medicalFreeTreatmentsUsed: number;
-  pendingPack: { kind: 'star' | 'scout'; options: Player[] } | null; // 🛒 pacote JÁ PAGO na abertura (escolha grátis)
+  pendingPack: { kind: 'star' | 'scout' | PlayerPackRarity; options: Player[] } | null; // 🛒 pacote JÁ PAGO na abertura (escolha grátis)
+  pendingPackReveal: { kind: RegularPlayerPackRarity; card: Player } | null;
   pendingUniquePack: Player | null; // ⭐ pacote Único já pago, aguardando revelação
   uniquePackOfferIds?: string[]; // ⭐ quatro cartas visíveis da rodada (privado por jogador)
   uniquePackOfferRoundKey?: string | null;
+  playerPackOfferIds?: Partial<Record<RegularPlayerPackRarity, string[]>>;
+  playerPackOfferRoundKeys?: Partial<Record<RegularPlayerPackRarity, string | null>>;
   bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação)
   betProtectionUsedKeys: string[];    // uma devolução por rodada/perna
   pendingMatchPoints?: number;        // pontos da partida calculados, NÃO creditados até a revelação
+  missions?: MissionState;            // mural privado de missões do jogador
 }
 
 export interface RoomState {
@@ -400,12 +426,16 @@ function roomViewForSocket(room: RoomState, socketId: string, compactHistory = f
       reinforcementEventCount: 0,
       medicalFreeTreatmentsUsed: 0,
       pendingPack: null,
+      pendingPackReveal: null,
       pendingUniquePack: null,
       uniquePackOfferIds: [],
       uniquePackOfferRoundKey: null,
+      playerPackOfferIds: {},
+      playerPackOfferRoundKeys: {},
       bets: [],
       betProtectionUsedKeys: [],
       pendingMatchPoints: undefined,
+      missions: undefined,
       // Shop balance is private; the public opponent team still carries the
       // lineup, but never the credits used by Estribado.
       team: player.team ? { ...player.team, credits: undefined } : null,
@@ -572,6 +602,30 @@ function ensureUniquePackOffer(room: RoomState, player: RoomPlayer): void {
   player.uniquePackOfferRoundKey = roundKey;
 }
 
+const REGULAR_PLAYER_PACK_RARITIES: RegularPlayerPackRarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal'];
+
+/** Materializes the four-card offer for every regular rarity once per round. */
+function ensurePlayerPackOffers(room: RoomState, player: RoomPlayer): void {
+  if (!player.team || !isShopPhase(room)) return;
+  const roundKey = uniquePackRoundKeyForRoom(room);
+  if (!roundKey) return;
+  const ownedIds = player.team.players.map(card => card.id);
+  const ids = { ...(player.playerPackOfferIds ?? {}) };
+  const keys = { ...(player.playerPackOfferRoundKeys ?? {}) };
+
+  for (const rarity of REGULAR_PLAYER_PACK_RARITIES) {
+    const stored = ids[rarity];
+    const validStored = Array.isArray(stored)
+      && stored.every(id => PLAYERS.some(card => card.id === id && card.rarity === rarity));
+    if (keys[rarity] === roundKey && validStored) continue;
+    ids[rarity] = generatePlayerPackOffer(rarity, ownedIds);
+    keys[rarity] = roundKey;
+  }
+
+  player.playerPackOfferIds = ids;
+  player.playerPackOfferRoundKeys = keys;
+}
+
 function createRecruitmentOffer(
   team: Team,
   baseOptions: number,
@@ -630,7 +684,12 @@ function autoPickOfflineReinforcement(player: RoomPlayer): void {
     .sort(() => Math.random() - 0.5)
     .slice(0, remainingSelections)
     .map(option => ({ ...option, chemistryScore: 0, isOOP: false } as PlayerCard));
-  player.team = { ...player.team, players: [...player.team.players, ...chosen] };
+  if (chosen.length > 0) {
+    player.team = applyMercenarioProgress(
+      { ...player.team, players: [...player.team.players, ...chosen] },
+      completedMissionCount(player.missions ?? createMissionState(`${player.id}:missions`, 'L1')),
+    );
+  }
   player.reinforcementOptions = null;
   player.reinforcementOffer = null;
 }
@@ -824,6 +883,10 @@ function emitReadyState(io: RealtimeServer, room: RoomState): void {
 function pruneReadyPlayers(room: RoomState, participantIds: string[]): void {
   const participants = new Set(participantIds);
   room.readyPlayers = room.readyPlayers.filter(id => participants.has(id));
+}
+
+function reserveLimitExceeded(player: RoomPlayer): boolean {
+  return !!player.team && reservePlayerCount(player.team) > MAX_RESERVE_PLAYERS;
 }
 
 // Whether every human in the active knockout round has confirmed watching the leg
@@ -1355,11 +1418,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
             reinforcementEventCount: 0,
             medicalFreeTreatmentsUsed: 0,
             pendingPack: null,
+            pendingPackReveal: null,
             pendingUniquePack: null,
             uniquePackOfferIds: [],
             uniquePackOfferRoundKey: null,
+            playerPackOfferIds: {},
+            playerPackOfferRoundKeys: {},
             bets: [],
-            betProtectionUsedKeys: []
+            betProtectionUsedKeys: [],
+            missions: createMissionState(`${roomCode}:player_0`, 'L1')
           }
         ],
         botTeams: [],
@@ -1515,11 +1582,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
         reinforcementEventCount: 0,
         medicalFreeTreatmentsUsed: 0,
         pendingPack: null,
+        pendingPackReveal: null,
         pendingUniquePack: null,
         uniquePackOfferIds: [],
         uniquePackOfferRoundKey: null,
+        playerPackOfferIds: {},
+        playerPackOfferRoundKeys: {},
         bets: [],
-        betProtectionUsedKeys: []
+        betProtectionUsedKeys: [],
+        missions: createMissionState(`${code}:player_${room.players.length}`, 'L1')
       };
 
       room.players.push(newPlayer);
@@ -1736,6 +1807,13 @@ export function registerSocketHandlers(io: RealtimeServer) {
             clubProjects: p.team?.clubProjects ?? createInitialClubProjects(),
             crestId: p.crestId ?? undefined
           };
+          p.missions = normalizeMissionState(
+            p.missions,
+            `${room.code}:${p.id}`,
+            room.competitionFormat.id === 'knockout'
+              ? missionCycleKey('knockout', 1, 'round16', 1)
+              : missionCycleKey('league', 1),
+          );
         });
 
         // Generate only the number of bots required by the selected preset.
@@ -1949,10 +2027,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const room = rooms.get(roomCode);
       if (!room || !isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !['recruitment', 'analysis', 'betting', 'medical', 'training', 'stadium', 'supporters'].includes(projectId)) return;
+      if (!player || !player.team || !['recruitment', 'analysis', 'betting', 'medical', 'training', 'stadium', 'supporters', 'missions'].includes(projectId)) return;
       if (projectId === 'medical' && room.competitionFormat.matchSettings?.injuriesEnabled === false) return;
 
-      const project = projectId as 'recruitment' | 'analysis' | 'betting' | 'medical' | 'training' | 'stadium' | 'supporters';
+      const project = projectId as 'recruitment' | 'analysis' | 'betting' | 'medical' | 'training' | 'stadium' | 'supporters' | 'missions';
       const upgrade = purchaseClubProjectUpgrade(player.team.clubProjects, project, player.points);
       if (!upgrade) {
         const currentLevel = projectLevel(player.team.clubProjects, project);
@@ -1969,6 +2047,17 @@ export function registerSocketHandlers(io: RealtimeServer) {
         credits: player.points,
         clubProjects: upgrade.projects,
       };
+      if (project === 'missions') {
+        const cycle = room.phase === 'knockout'
+          ? missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg)
+          : missionCycleKey('league', room.leagueRound);
+        const currentMissions = normalizeMissionState(
+          player.missions,
+          `${room.code}:${player.id}`,
+          cycle,
+        );
+        player.missions = extendActiveMissionDeadlines(currentMissions, upgrade.fromLevel, upgrade.toLevel);
+      }
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
@@ -2015,7 +2104,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room) return;
       if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || player.pendingUniquePack || player.pendingPack) return;
+      if (!player || !player.team || player.pendingUniquePack || player.pendingPack || player.pendingPackReveal) return;
       if (room.phase !== 'league' && room.phase !== 'knockout') return;
       ensureUniquePackOffer(room, player);
       const cost = SHOP_COSTS.uniqueCard;
@@ -2057,29 +2146,101 @@ export function registerSocketHandlers(io: RealtimeServer) {
       // Só consumimos o pacote depois que a carta passou pela validação final.
       // Assim, um estado inconsistente não faz o jogador perder uma compra já paga.
       player.pendingUniquePack = null;
-      player.team.players = [...player.team.players, card];
+      player.team = applyMercenarioProgress(
+        { ...player.team, players: [...player.team.players, card] },
+        completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
+      );
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
 
-    // 🛒 Abrir pacote (Craque/Caça-Talentos): COBRA aqui e guarda as opções → impede re-sortear de graça.
+    // 📦 Ofertas regulares — quatro cartas por raridade, estáveis durante a rodada.
+    on("shop_ensure_player_pack_offers", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room || !isShopPhase(room)) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      ensurePlayerPackOffers(room, player);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+    });
+
+    // 📦 Abrir pacote regular: cobra aqui, sorteia no servidor e reserva o resultado.
+    on("shop_open_player_pack", ({ roomCode, rarity }: { roomCode: string; rarity: RegularPlayerPackRarity }) => {
+      const room = rooms.get(roomCode);
+      if (!room || !isShopPhase(room)) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || player.pendingUniquePack || player.pendingPack || player.pendingPackReveal) return;
+      if (!isRegularPlayerPackRarity(rarity)) return;
+      ensurePlayerPackOffers(room, player);
+      const cost = SHOP_COSTS.playerPack[rarity];
+      if (player.points < cost) {
+        socket.emit("action_error", { event: "shop_open_player_pack", message: `Saldo insuficiente: você tem ${player.points} pontos e precisa de ${cost}.` });
+        emitRoomSnapshot(socket, room);
+        return;
+      }
+      const chosen = drawPlayerPackCard(
+        player.playerPackOfferIds?.[rarity] ?? [],
+        rarity,
+        player.team.players.map(card => card.id),
+      );
+      if (!chosen) {
+        socket.emit("action_error", { event: "shop_open_player_pack", message: "Você já possui todas as cartas disponíveis desta oferta." });
+        return;
+      }
+      player.points -= cost;
+      player.pendingPackReveal = { kind: rarity, card: { ...chosen } };
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+    });
+
+    // 📦 Adicionar a carta revelada ao banco, sem nova cobrança.
+    on("shop_claim_player_pack", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room || !isShopPhase(room)) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || !player.pendingPackReveal) return;
+      const pending = player.pendingPackReveal;
+      const canonical = PLAYERS.find(card => card.id === pending.card.id && card.rarity === pending.kind);
+      if (!canonical || player.team.players.some(card => card.id === canonical.id)) {
+        socket.emit("action_error", { event: "shop_claim_player_pack", message: "Não foi possível adicionar esta carta ao banco." });
+        emitRoomUpdate(io, room, { onlySocketId: socket.id });
+        return;
+      }
+      player.pendingPackReveal = null;
+      const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
+      player.team = applyMercenarioProgress(
+        { ...player.team, players: [...player.team.players, card] },
+        completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
+      );
+      invalidateReady(room, player.id);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      emitReadyState(io, room);
+    });
+
+    // 🛒 Abrir pacote: COBRA aqui e guarda as opções → impede re-sortear de graça.
     // The server rolls from its own catalog. The client sends only the scout position;
     // client-provided card objects/options are deliberately ignored.
-    on("shop_open_pack", ({ roomCode, kind, position }: { roomCode: string; kind: 'star' | 'scout'; position?: string }) => {
+    on("shop_open_pack", ({ roomCode, kind, position }: { roomCode: string; kind: 'star' | 'scout' | PlayerPackRarity; position?: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || player.pendingPack) return;              // um pacote pendente por vez
-      if (kind !== 'star' && kind !== 'scout') return;
+      if (!player || !player.team || player.pendingPack || player.pendingUniquePack || player.pendingPackReveal) return;              // um pacote pendente por vez
+      const isRarityPack = isRegularPlayerPackRarity(kind);
+      if (kind !== 'star' && kind !== 'scout' && !isRarityPack) return;
       if (kind === 'scout' && (!isValidId(position) || !VALID_POSITION_IDS.has(position))) return;
       const ownedIds = player.team.players.map(p => p.id);
       const options = kind === 'star'
         ? generateStarPackOptions(ownedIds)
-        : generateScoutOptions(position!, ownedIds);
+        : kind === 'scout'
+          ? generateScoutOptions(position!, ownedIds)
+          : generatePlayerPackOptions(kind, ownedIds);
       if (options.length === 0 || options.some(option => !PLAYERS.some(base => base.id === option.id))) return;
-      const cost = kind === 'star' ? SHOP_COSTS.starPack : SHOP_COSTS.scout;
+      const cost = kind === 'star'
+        ? SHOP_COSTS.starPack
+        : kind === 'scout'
+          ? SHOP_COSTS.scout
+          : SHOP_COSTS.playerPack[kind];
       if (player.points < cost) return;
       if (kind === 'star' && options.some(o => o.overall < 88)) return;       // pacote do craque = 88+
       player.points -= cost;
@@ -2107,7 +2268,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       }
       player.pendingPack = null;
       const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
-      player.team.players = [...player.team.players, card];
+      player.team = applyMercenarioProgress(
+        { ...player.team, players: [...player.team.players, card] },
+        completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
+      );
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
@@ -2126,11 +2290,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!canAddVariant(target)) return; // 1 por carta (Únicas: até 2)
       // A característica usa o histórico da competição inteira, inclusive
       // partidas disputadas antes da compra no meio da temporada.
-      const competitionStats = getPlayerSeasonStats(
-        target.id,
-        player.team.id,
-        getAllPlayedMatchResults(authoritativeLeagueResults(room), room.knockoutBracket),
-      );
+      const competitionStats = {
+        ...getPlayerSeasonStats(
+          target.id,
+          player.team.id,
+          getAllPlayedMatchResults(authoritativeLeagueResults(room), room.knockoutBracket),
+        ),
+        missionsCompleted: completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
+      };
       player.points -= cost;
       player.team.players = player.team.players.map(p =>
         p.id === playerId ? ({ ...applyShopVariant(p, variant, competitionStats), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
@@ -2359,7 +2526,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const seller = room.players.find(p => p.socketId === socket.id);
       const li = room.market.find(l => l.id === listingId);
       if (!seller || !seller.team || !li || li.sellerId !== seller.id) return;
-      seller.team.players.push({ ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard);
+      seller.team = applyMercenarioProgress(
+        { ...seller.team, players: [...seller.team.players, { ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard] },
+        completedMissionCount(seller.missions ?? createMissionState(`${room.code}:${seller.id}`, 'L1')),
+      );
       room.market = room.market.filter(l => l.id !== listingId);
       invalidateReady(room, seller.id);
       emitRoomUpdate(io, room);
@@ -2393,7 +2563,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!seller) return;                                                   // vendedor saiu da sala → aborta (não some pontos)
       buyer.points -= li.price;
       seller.points += li.price;
-      buyer.team.players.push({ ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard);
+      buyer.team = applyMercenarioProgress(
+        { ...buyer.team, players: [...buyer.team.players, { ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard] },
+        completedMissionCount(buyer.missions ?? createMissionState(`${room.code}:${buyer.id}`, 'L1')),
+      );
       room.market = room.market.filter(l => l.id !== listingId);
       invalidateReady(room, buyer.id);
       emitRoomUpdate(io, room);
@@ -2546,8 +2719,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const guestPlayers = guest.team.players.filter(player => guestPlayerIdSet.has(player.id));
       host.team.players = host.team.players.filter(player => !hostPlayerIdSet.has(player.id));
       guest.team.players = guest.team.players.filter(player => !guestPlayerIdSet.has(player.id));
-      host.team.players.push(...guestPlayers.map(player => ({ ...player, chemistryScore: 0, isOOP: false } as PlayerCard)));
-      guest.team.players.push(...hostPlayers.map(player => ({ ...player, chemistryScore: 0, isOOP: false } as PlayerCard)));
+      host.team = applyMercenarioProgress(
+        { ...host.team, players: [...host.team.players, ...guestPlayers.map(player => ({ ...player, chemistryScore: 0, isOOP: false } as PlayerCard))] },
+        completedMissionCount(host.missions ?? createMissionState(`${room.code}:${host.id}`, 'L1')),
+      );
+      guest.team = applyMercenarioProgress(
+        { ...guest.team, players: [...guest.team.players, ...hostPlayers.map(player => ({ ...player, chemistryScore: 0, isOOP: false } as PlayerCard))] },
+        completedMissionCount(guest.missions ?? createMissionState(`${room.code}:${guest.id}`, 'L1')),
+      );
       for (const player of hostPlayers) delete room.discipline[`${host.team.id}:${player.id}`];
       for (const player of guestPlayers) delete room.discipline[`${guest.team.id}:${player.id}`];
       host.points += session.guest.creditsDelta - session.host.creditsDelta;
@@ -2595,7 +2774,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
         return;
       }
       const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
-      player.team.players = [...player.team.players, card];
+      player.team = applyMercenarioProgress(
+        { ...player.team, players: [...player.team.players, card] },
+        completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
+      );
       invalidateReady(room, player.id);
       const offer = player.reinforcementOffer;
       const selectionsMade = (offer?.selectionsMade ?? 0) + 1;
@@ -2648,6 +2830,91 @@ export function registerSocketHandlers(io: RealtimeServer) {
     });
 
     // ============================================================
+    // MISSIONS — private board, authoritative per player
+    // ============================================================
+    on("accept_mission", ({ roomCode, missionId }: { roomCode: string; missionId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || typeof missionId !== 'string') return;
+      const cycle = room.phase === 'knockout'
+        ? missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg)
+        : missionCycleKey('league', room.leagueRound);
+      const board = rotateMissionBoard(
+        normalizeMissionState(player.missions, `${room.code}:${player.id}`, cycle),
+        `${room.code}:${player.id}`,
+        cycle,
+      );
+      const next = acceptMission(board, missionId, projectLevel(player.team.clubProjects, 'missions'));
+      if (!next) {
+        socket.emit('action_error', { event: 'accept_mission', message: 'Essa missão não está disponível ou você já possui duas missões ativas.' });
+        return;
+      }
+      player.missions = next;
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+    });
+
+    on("reroll_missions", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      const cycle = room.phase === 'knockout'
+        ? missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg)
+        : missionCycleKey('league', room.leagueRound);
+      const board = rotateMissionBoard(
+        normalizeMissionState(player.missions, `${room.code}:${player.id}`, cycle),
+        `${room.code}:${player.id}`,
+        cycle,
+      );
+      const next = rerollMissionBoard(
+        board,
+        `${room.code}:${player.id}`,
+        projectLevel(player.team.clubProjects, 'missions'),
+      );
+      if (!next) {
+        socket.emit('action_error', { event: 'reroll_missions', message: 'A atualização gratuita deste mural já foi usada ou o projeto ainda não está no nível necessário.' });
+        return;
+      }
+      player.missions = next;
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+    });
+
+    on("remove_mission", ({ roomCode, missionId }: { roomCode: string; missionId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team || typeof missionId !== 'string') return;
+      const currentMissions = normalizeMissionState(
+        player.missions,
+        `${room.code}:${player.id}`,
+        room.phase === 'knockout'
+          ? missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg)
+          : missionCycleKey('league', room.leagueRound),
+      );
+      const missionsLevel = projectLevel(player.team.clubProjects, 'missions');
+      const removed = removeMission(currentMissions, missionId, player.points, missionsLevel);
+      if (!removed) {
+        const cost = missionRemovalCost(missionId, missionsLevel);
+        socket.emit('action_error', { event: 'remove_mission', message: Number.isFinite(cost) ? `Você precisa de ${cost} créditos para remover essa missão.` : 'Essa missão não está ativa.' });
+        return;
+      }
+      player.points -= removed.cost;
+      player.missions = removed.state;
+      syncTeamCredits(player);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+    });
+
+    on("dismiss_mission_resolution", ({ roomCode }: { roomCode: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player?.missions) return;
+      player.missions = dismissMissionResolution(player.missions);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+    });
+
+    // ============================================================
     // LEAGUE — server-authoritative, host-driven round progression
     // ============================================================
 
@@ -2666,6 +2933,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const participantIds = room.phase === 'league' ? leagueParticipantIds(room) : knockoutParticipantIds(room);
       pruneReadyPlayers(room, participantIds);
       if (!participantIds.includes(player.id)) return;
+      if (reserveLimitExceeded(player)) {
+        socket.emit("action_error", { event: "player_ready", message: `Seu banco tem mais de ${MAX_RESERVE_PLAYERS} reservas. Venda ou remova jogadores antes de iniciar a partida.` });
+        return;
+      }
       const bad = unavailableStarters(player.team, room.discipline);
       if (bad.length > 0) { socket.emit("ready_blocked", { players: bad.map((u: any) => u.shortName) }); return; }
       if (!room.readyPlayers.includes(player.id)) room.readyPlayers.push(player.id);
@@ -2690,11 +2961,21 @@ export function registerSocketHandlers(io: RealtimeServer) {
       pruneReadyPlayers(room, participantIds);
       if (!participantIds.every(id => room.readyPlayers.includes(id))) return; // ainda faltam prontos
 
+      const reserveBlocked = room.players.find(player => participantIds.includes(player.id) && reserveLimitExceeded(player));
+      if (reserveBlocked) {
+        invalidateReady(room, reserveBlocked.id);
+        const blockedSocket = room.players.find(player => player.id === reserveBlocked.id)?.socketId;
+        if (blockedSocket) io.to(blockedSocket).emit("action_error", { event: "play_round", message: `Seu banco tem mais de ${MAX_RESERVE_PLAYERS} reservas. Venda ou remova jogadores antes de iniciar a partida.` });
+        emitReadyState(io, room);
+        return;
+      }
+
       syncAllTeamCredits(room);
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
 
       let simulatedAny = false;
+      const missionSnapshots = new Map<string, { team: Team; opponent: Team; result: MatchResult; matchKey: string }>();
       room.leagueFixtures = room.leagueFixtures.map(f => {
         if (f.round === room.leagueRound && !f.played) {
           const home = allTeams.find(t => t.id === f.homeTeamId);
@@ -2715,6 +2996,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
             room.competitionFormat.matchSettings,
           );
           const authoritativeResult = stampMatchStartingLineups(result, resolvedHome, resolvedAway);
+          const matchKey = buildLeagueMatchKey(f.round, f.homeTeamId, f.awayTeamId);
+          missionSnapshots.set(resolvedHome.id, { team: resolvedHome, opponent: resolvedAway, result: authoritativeResult, matchKey });
+          missionSnapshots.set(resolvedAway.id, { team: resolvedAway, opponent: resolvedHome, result: authoritativeResult, matchKey });
           simulatedAny = true;
           return { ...f, played: true, result: authoritativeResult };
         }
@@ -2801,6 +3085,28 @@ export function registerSocketHandlers(io: RealtimeServer) {
             p.pendingMatchPoints = rewards.pointsEnabled ? earned : undefined;
             p.lastMatchPoints = decoratedMatchPoints; // resumo do PRÓPRIO jogo (não é spoiler)
           }
+          const missionSnapshot = missionSnapshots.get(p.team.id);
+          if (missionSnapshot) {
+            const cycle = missionCycleKey('league', room.leagueRound);
+            const currentMissions = rotateMissionBoard(
+              normalizeMissionState(p.missions, `${room.code}:${p.id}`, cycle),
+              `${room.code}:${p.id}`,
+              cycle,
+            );
+            const missionContext = createMissionMatchContext(missionSnapshot.team, missionSnapshot.opponent, missionSnapshot.result);
+            if (missionContext) {
+              const missionUpdate = updateMissionsAfterMatch(
+                currentMissions,
+                missionContext,
+                missionSnapshot.matchKey,
+                projectLevel(p.team.clubProjects, 'missions'),
+              );
+              p.missions = missionUpdate.state;
+              p.points += missionUpdate.reward;
+              p.team = { ...p.team, credits: p.points };
+              p.team = applyMercenarioProgress(p.team, completedMissionCount(p.missions));
+            }
+          }
           p.team = applyMedicalRecoveries(p.team, disciplineResult.recoveredInjuries);
           // 🎯 Liquida (sem creditar) os palpites da rodada deste jogador.
           const betPrefix = `L${room.leagueRound}:`;
@@ -2817,9 +3123,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
           });
           const rewards = room.competitionFormat.rewards;
           const stageRounds = room.competitionFormat.id === 'groups_knockout' ? room.competitionFormat.groupRounds : room.competitionFormat.leagueRounds;
+          const offersByRound = rewards.reinforcement === 'round' || rewards.reinforcement === 'round_and_stage';
           const shouldOfferReinforcement = rewards.reinforcement !== 'off'
             && (rewards.reinforcementUntilRound === null || room.leagueRound <= rewards.reinforcementUntilRound)
-            && (rewards.reinforcement === 'round' || room.leagueRound === stageRounds);
+            && (offersByRound || room.leagueRound === stageRounds);
           // If a player disconnected after a previous offer was created, settle
           // that offer before materializing the next round's reward.
           autoPickOfflineReinforcement(p);
@@ -2879,6 +3186,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const stageRounds = room.competitionFormat.id === 'groups_knockout' ? room.competitionFormat.groupRounds : room.competitionFormat.leagueRounds;
       if (room.leagueRound < stageRounds) {
         room.leagueRound += 1;
+        room.players.forEach(player => {
+          const cycle = missionCycleKey('league', room.leagueRound);
+          player.missions = rotateMissionBoard(
+            normalizeMissionState(player.missions, `${room.code}:${player.id}`, cycle),
+            `${room.code}:${player.id}`,
+            cycle,
+          );
+        });
       } else if (room.competitionFormat.id === 'league') {
         room.phase = 'report';
         room.champion = room.leagueStandings[0]?.teamId ?? null;
@@ -2896,6 +3211,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
         room.watchedKnockoutLegPlayers = [];
         room.watchedKnockoutLegKey = null;
         room.discipline = resetYellowsForKnockout(room.discipline); // 🟨 amarelos zeram no mata-mata
+        room.players.forEach(player => {
+          const cycle = missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg);
+          player.missions = rotateMissionBoard(
+            normalizeMissionState(player.missions, `${room.code}:${player.id}`, cycle),
+            `${room.code}:${player.id}`,
+            cycle,
+          );
+        });
       }
 
       emitRoomUpdate(io, room);
@@ -2931,6 +3254,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const participantIds = knockoutParticipantIds(room);
       pruneReadyPlayers(room, participantIds);
       if (!participantIds.every(id => room.readyPlayers.includes(id))) return;
+
+      const reserveBlocked = room.players.find(player => participantIds.includes(player.id) && reserveLimitExceeded(player));
+      if (reserveBlocked) {
+        invalidateReady(room, reserveBlocked.id);
+        const blockedSocket = room.players.find(player => player.id === reserveBlocked.id)?.socketId;
+        if (blockedSocket) io.to(blockedSocket).emit("action_error", { event: "play_knockout_round", message: `Seu banco tem mais de ${MAX_RESERVE_PLAYERS} reservas. Venda ou remova jogadores antes de iniciar a partida.` });
+        emitReadyState(io, room);
+        return;
+      }
 
       syncAllTeamCredits(room);
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
@@ -3001,11 +3333,35 @@ export function registerSocketHandlers(io: RealtimeServer) {
           if (!result) return;
           const tie = active.find((candidate: any) => candidate.homeTeamId === p.team!.id || candidate.awayTeamId === p.team!.id);
           const matchKey = tie ? buildKnockoutMatchKey(tie.id, legPlayed) : undefined;
+          const missionTeam = resolvedTeams.get(p.team.id);
+          const missionOpponentId = result.homeTeamId === p.team.id ? result.awayTeamId : result.homeTeamId;
+          const missionOpponent = resolvedTeams.get(missionOpponentId) ?? allTeams.find(team => team.id === missionOpponentId);
+          if (missionTeam && missionOpponent && matchKey) {
+            const cycle = missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, legPlayed);
+            const currentMissions = rotateMissionBoard(
+              normalizeMissionState(p.missions, `${room.code}:${p.id}`, cycle),
+              `${room.code}:${p.id}`,
+              cycle,
+            );
+            const missionContext = createMissionMatchContext(missionTeam, missionOpponent, result);
+            if (missionContext) {
+              const missionUpdate = updateMissionsAfterMatch(
+                currentMissions,
+                missionContext,
+                matchKey,
+                projectLevel(p.team.clubProjects, 'missions'),
+              );
+              p.missions = missionUpdate.state;
+              p.points += missionUpdate.reward;
+              p.team = applyMercenarioProgress(p.team, completedMissionCount(p.missions));
+            }
+          }
           p.team = bumpStarterAppearances(
             applyMatchStatGrowth(applyDefeatGrowth(p.team, result), result, matchKey),
             startingIdsForResult(result, p.team.id, p.team),
             matchKey,
           );
+          p.team = { ...p.team, credits: p.points };
           p.team = applyMedicalRecoveries(p.team, disciplineResult.recoveredInjuries);
         });
         room.botTeams = room.botTeams.map(team => {
@@ -3070,9 +3426,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
         : ({ playoffs: 1, round16: 2, quarters: 3, semis: 4, final: 5 } as Record<string, number>)[room.knockoutBracket.currentRound] ?? 1;
       const koRewards = room.competitionFormat.rewards;
       const stageFinished = ties.length > 0 && ties.every((t: any) => t.played);
+      const offersByStage = koRewards.reinforcement === 'stage' || koRewards.reinforcement === 'round_and_stage';
       const offerStageReinforcement = !isFinalRound && stageFinished
-        && koRewards.reinforcement === 'stage'
-        && (koRewards.reinforcementUntilRound === null || stageNumber <= koRewards.reinforcementUntilRound);
+        && offersByStage
+        && (koRewards.reinforcement === 'round_and_stage' || koRewards.reinforcementUntilRound === null || stageNumber <= koRewards.reinforcementUntilRound);
       room.players.forEach(p => {
         if (!p.team) return;
         autoPickOfflineReinforcement(p);
@@ -3127,6 +3484,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (champion) {
         room.champion = champion;
         room.phase = 'report';
+      } else {
+        room.players.forEach(player => {
+          const cycle = missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg);
+          player.missions = rotateMissionBoard(
+            normalizeMissionState(player.missions, `${room.code}:${player.id}`, cycle),
+            `${room.code}:${player.id}`,
+            cycle,
+          );
+        });
       }
 
       emitRoomUpdate(io, room);
@@ -3224,12 +3590,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
         p.reinforcementEventCount = 0;
         p.medicalFreeTreatmentsUsed = 0;
         p.pendingPack = null;
+        p.pendingPackReveal = null;
         p.pendingUniquePack = null;
         p.uniquePackOfferIds = [];
         p.uniquePackOfferRoundKey = null;
+        p.playerPackOfferIds = {};
+        p.playerPackOfferRoundKeys = {};
         p.bets = [];
         p.betProtectionUsedKeys = [];
         p.pendingMatchPoints = undefined;
+        p.missions = createMissionState(`${room.code}:${p.id}`, 'L1');
       });
       room.botTeams = [];
       room.leagueFixtures = [];

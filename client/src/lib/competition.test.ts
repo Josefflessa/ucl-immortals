@@ -31,10 +31,49 @@ describe('competition format validation', () => {
       expect(validateCompetitionFormat(preset.format)).toBeNull();
       expect(competitionFormatSummary(preset.format)).toBeTruthy();
     }
+    expect(COMPETITION_FORMAT_PRESETS.league.format.leagueLegs).toBe(2);
+    expect(COMPETITION_FORMAT_PRESETS.league.format.leagueRounds).toBe(38);
+    expect(competitionFormatSummary(COMPETITION_FORMAT_PRESETS.league.format)).toContain('ida e volta');
+    expect(COMPETITION_FORMAT_PRESETS.league_knockout.format.rewards.reinforcement).toBe('round_and_stage');
+    expect(COMPETITION_FORMAT_PRESETS.groups_knockout.format.rewards.reinforcement).toBe('round_and_stage');
+    expect(COMPETITION_FORMAT_PRESETS.knockout.format.rewards.reinforcement).toBe('stage');
     const legacy = normalizeCompetitionFormat({ leagueRounds: 5, qualifiedTeams: 20 });
     expect(legacy.id).toBe('league_knockout');
     expect(legacy.leagueRounds).toBe(5);
     expect(legacy.qualifiedTeams).toBe(20);
+  });
+
+  it('keeps points league rounds tied to the selected leg format', () => {
+    const league = normalizeCompetitionFormat(COMPETITION_FORMAT_PRESETS.league.format);
+    expect(league.leagueRounds).toBe(38);
+    expect(validateCompetitionFormat(league)).toBeNull();
+
+    league.leagueLegs = 1;
+    league.leagueRounds = 19;
+    league.rewards.reinforcementUntilRound = 19;
+    expect(validateCompetitionFormat(league)).toBeNull();
+
+    league.leagueLegs = 2;
+    league.leagueRounds = 19;
+    expect(validateCompetitionFormat(league)).toContain('exatamente 38');
+  });
+
+  it('keeps reward and match rules fixed to the selected preset', () => {
+    const preset = COMPETITION_FORMAT_PRESETS.league_knockout.format;
+    const customized = {
+      ...preset,
+      matchSettings: { ...preset.matchSettings, injuriesEnabled: false, cardsEnabled: false },
+      rewards: {
+        ...preset.rewards,
+        reinforcement: 'off' as const,
+        pointsEnabled: false,
+        points: { ...preset.rewards.points, win: 0 },
+      },
+    };
+
+    const normalized = normalizeCompetitionFormat(customized);
+    expect(normalized.matchSettings).toEqual(preset.matchSettings);
+    expect(normalized.rewards).toEqual(preset.rewards);
   });
 
   it('rejects values outside the safe limits and invalid phase relationships', () => {

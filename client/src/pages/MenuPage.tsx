@@ -3,8 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Gamepad2, Trophy, Plus, LogIn, BookOpen, LibraryBig } from 'lucide-react';
-import HowToPlayModal from '../components/game/HowToPlayModal';
+import { Gamepad2, Trophy, Plus, LogIn, LibraryBig } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
@@ -29,7 +28,6 @@ export default function MenuPage() {
   } = useGame();
 
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
-  const [showGuide, setShowGuide] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
@@ -310,17 +308,6 @@ export default function MenuPage() {
                   <LibraryBig size={16} strokeWidth={2.5} /> ÁLBUM DE JOGADORES
                 </span>
               </Button>
-
-              <Button
-                type="button"
-                intent="ghost"
-                onClick={() => setShowGuide(true)}
-                className="w-full border border-[var(--ui-line-subtle)]"
-              >
-                <span className="inline-flex items-center justify-center gap-2">
-                  <BookOpen size={16} strokeWidth={2.5} /> COMO JOGAR
-                </span>
-              </Button>
             </div>
           )}
 
@@ -487,8 +474,6 @@ export default function MenuPage() {
           by J.Lessa
         </span>
       </footer>
-
-      <HowToPlayModal open={showGuide} onClose={() => setShowGuide(false)} />
     </AppShell>
   );
 }

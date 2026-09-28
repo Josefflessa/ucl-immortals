@@ -4,15 +4,15 @@
 // validates the cost. Solo and online league flows share the same presentation.
 import { useEffect, useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import { COACHES, POS_PT, Player, UNIQUE_CARDS } from '../../lib/gameData';
-import { buildUniquePackRoundKey, generateStarPackOptions, generateScoutOptions, SCOUT_MIN_OVERALL, hasVariant, canAddVariant, variantCount } from '../../lib/gameEngine';
+import { COACHES, PLAYERS, POS_PT, Player, UNIQUE_CARDS } from '../../lib/gameData';
+import { buildUniquePackRoundKey, generateScoutOptions, SCOUT_MIN_OVERALL, hasVariant, canAddVariant, variantCount } from '../../lib/gameEngine';
 import type { VariantFlag } from '../../lib/gameEngine';
-import { SHOP_COSTS, TURBINAR_VARIANTS, ShopVariant } from '../../lib/shop';
+import { PLAYER_PACK_META, PLAYER_PACK_RARITIES, SHOP_COSTS, TURBINAR_VARIANTS, ShopVariant, type PlayerPackRarity, type RegularPlayerPackRarity, playerPackCost } from '../../lib/shop';
 import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
 import UniquePackOpening from './UniquePackOpening';
 import { Button, GameModal } from '../../design-system';
 
-type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'star' | 'scout' | 'unique';
+type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'scout' | 'playerPacks';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
 const VARIANTS_PER_PAGE = 10;
 // A grade do pacote Único é a parte mais pesada da loja: cada card tem textura,
@@ -64,16 +64,18 @@ function VariantPagination({ page, pageCount, onPageChange }: { page: number; pa
 }
 
 export default function ShopTab() {
-  const { state, dispatch, shopChangeCoachOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline } = useGame();
+  const { state, dispatch, shopChangeCoachOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, ensurePlayerPackOffersOnline, shopOpenPlayerPackOnline, shopClaimPlayerPackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline } = useGame();
   const team = state.playerTeam;
   const points = state.points;
   const online = state.mode === 'online';
-  const pendingPack = state.pendingPack; // 🛒 pacote JÁ PAGO (Craque/Caça-Talentos) aguardando escolha
+  const pendingPack = state.pendingPack; // 🛒 pacote JÁ PAGO aguardando a escolha do jogador
+  const pendingPackReveal = state.pendingPackReveal; // 📦 pacote de raridade já pago, aguardando a animação/revelação
   const pendingUniquePack = state.pendingUniquePack; // ⭐ carta sorteada e reservada até a revelação
   const [active, setActive] = useState<ItemId | null>(null);
   const [selPlayerId, setSelPlayerId] = useState<string | null>(null);
   const [variantPage, setVariantPage] = useState(0);
   const [turbinarView, setTurbinarView] = useState<'catalog' | 'apply'>('catalog');
+  const [selectedPackRarity, setSelectedPackRarity] = useState<PlayerPackRarity | null>(null);
   // 🛒 Confirmação de compra (premium) — reutilizada por todas as compras significativas da loja.
   const [confirmCfg, setConfirmCfg] = useState<null | { title: string; message: string; onConfirm: () => void }>(null);
   const askConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmCfg({ title, message, onConfirm });
@@ -81,10 +83,14 @@ export default function ShopTab() {
   // Deixa o catálogo pronto enquanto o usuário navega pela loja, sem disputar
   // o primeiro frame da troca de aba.
   useEffect(() => {
-    if (active === 'unique' && !online && !pendingUniquePack) {
-      dispatch({ type: 'ENSURE_UNIQUE_PACK_OFFER' });
+    if (active === 'playerPacks' && !pendingUniquePack && !pendingPackReveal) {
+      if (online) ensurePlayerPackOffersOnline();
+      else {
+        dispatch({ type: 'ENSURE_UNIQUE_PACK_OFFER' });
+        dispatch({ type: 'ENSURE_PLAYER_PACK_OFFERS' });
+      }
     }
-  }, [active, online, pendingUniquePack, state.leagueRound, state.knockoutBracket, dispatch]);
+  }, [active, online, pendingUniquePack, pendingPackReveal, state.leagueRound, state.knockoutBracket, dispatch, ensurePlayerPackOffersOnline]);
 
   // A troca de jogador/modal sempre começa pela primeira página. Isso evita
   // manter uma página alta que não exista para a nova lista de características.
@@ -97,9 +103,10 @@ export default function ShopTab() {
   // Solo mutates local state via the reducer; online emits to the authoritative server.
   const buyCoach = (coachId: string) => online ? shopChangeCoachOnline(coachId) : dispatch({ type: 'SHOP_CHANGE_COACH', coachId });
   const openUniquePack = () => online ? shopOpenUniquePackOnline() : dispatch({ type: 'SHOP_OPEN_UNIQUE_PACK' });
+  const claimPlayerPack = () => online ? shopClaimPlayerPackOnline() : dispatch({ type: 'SHOP_CLAIM_PLAYER_PACK' });
   const claimUniquePack = () => online ? shopClaimUniquePackOnline() : dispatch({ type: 'SHOP_CLAIM_UNIQUE_PACK' });
   // 🛒 Pacote: COBRA ao abrir (open) → guarda; a escolha (pick) é grátis. Impede re-sortear de graça.
-  const openPack = (kind: 'star' | 'scout', options: Player[], position?: string) => online ? shopOpenPackOnline(kind, position) : dispatch({ type: 'SHOP_OPEN_PACK', kind, options });
+  const openPack = (kind: 'star' | 'scout' | PlayerPackRarity, options: Player[], position?: string) => online ? shopOpenPackOnline(kind, position) : dispatch({ type: 'SHOP_OPEN_PACK', kind, options });
   const pickPack = (player: Player) => online ? shopPickPackOnline(player) : dispatch({ type: 'SHOP_PICK_PACK', player });
   const buyTurbinar = (playerId: string, variant: ShopVariant) => online ? shopTurbinarOnline(playerId, variant) : dispatch({ type: 'SHOP_TURBINAR', playerId, variant });
   const removeVariant = (playerId: string, variantKey?: VariantFlag) => online ? shopRemoveVariantOnline(playerId, variantKey) : dispatch({ type: 'SHOP_REMOVE_VARIANT', playerId, variantKey });
@@ -115,16 +122,24 @@ export default function ShopTab() {
       .map(id => UNIQUE_CARDS.find(card => card.id === id))
       .filter((card): card is Player => !!card)
     : [];
+  const regularPackCards: Partial<Record<RegularPlayerPackRarity, Player[]>> = {};
+  for (const rarity of PLAYER_PACK_RARITIES) {
+    if (rarity === 'unique') continue;
+    regularPackCards[rarity] = state.playerPackOfferRoundKeys[rarity] === uniqueOfferRoundKey
+      ? (state.playerPackOfferIds[rarity] ?? [])
+        .map(id => PLAYERS.find(card => card.id === id))
+        .filter((card): card is Player => !!card)
+      : [];
+  }
 
-  const close = () => { setActive(null); setSelPlayerId(null); setVariantPage(0); setTurbinarView('catalog'); };
+  const close = () => { setActive(null); setSelPlayerId(null); setVariantPage(0); setTurbinarView('catalog'); setSelectedPackRarity(null); };
 
-  const ITEMS: { id: ItemId; icon: string; name: string; cost: number; color: string; desc: string }[] = [
-    { id: 'unique', icon: '⭐', name: 'PACOTE ÚNICO', cost: SHOP_COSTS.uniqueCard, color: '#F0E6C0', desc: '4 cartas mudam a cada rodada. Cada abertura sorteia uma delas; a carta entra no banco após a revelação.' },
+  const ITEMS: { id: ItemId; icon: string; name: string; cost: number | null; color: string; desc: string }[] = [
     { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: SHOP_COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
+    { id: 'playerPacks', icon: '📦', name: 'PACOTES DE JOGADOR', cost: null, color: '#F0C674', desc: 'Escolha uma raridade, do Bronze à Única, e abra um pacote temático para reforçar o elenco.' },
+    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: `Paga ao abrir e escolhe 1 de até 4 jogadores ${SCOUT_MIN_OVERALL}+ da posição principal escolhida.` },
     { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Consulte todas as características e aplique uma delas a um jogador.' },
     { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: SHOP_COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
-    { id: 'star', icon: '🌟', name: 'PACOTE DO CRAQUE', cost: SHOP_COSTS.starPack, color: '#F59E0B', desc: 'Paga ao abrir e escolhe 1 de 3 jogadores (overall 88+). Entra no banco.' },
-    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: `Paga ao abrir e escolhe 1 de até 4 jogadores ${SCOUT_MIN_OVERALL}+ da posição principal escolhida.` },
   ];
 
   const availableVariants = selPlayer
@@ -145,25 +160,23 @@ export default function ShopTab() {
 
   const openItem = (id: ItemId) => {
     // Se já tem um pacote PAGO pendente, abre ELE (força escolher antes de abrir outro).
-    if (pendingPack && (id === 'unique' || id === 'star' || id === 'scout')) {
-      setSelPlayerId(null); setActive(pendingPack.kind);
+    if (pendingPack && (id === 'playerPacks' || id === 'scout')) {
+      setSelPlayerId(null); setActive(id === 'playerPacks' ? 'playerPacks' : 'scout');
       return;
     }
-    if (pendingUniquePack && id !== 'unique') {
-      setSelPlayerId(null); setActive('unique');
+    if (pendingPackReveal && id !== 'playerPacks') {
+      setSelPlayerId(null); setActive('playerPacks');
       return;
     }
-    if (id === 'unique') {
+    if (pendingUniquePack && id !== 'playerPacks') {
+      setSelPlayerId(null); setActive('playerPacks');
+      return;
+    }
+    if (id === 'playerPacks') {
       if (!online) dispatch({ type: 'ENSURE_UNIQUE_PACK_OFFER' });
-      setSelPlayerId(null); setActive('unique');
-      return;
-    }
-    if (id === 'star') {
-      if (points < SHOP_COSTS.starPack) return;
-      askConfirm('Pacote do Craque', `Abrir o Pacote do Craque por 💰 ${SHOP_COSTS.starPack}? (você escolhe 1 de 3)`, () => {
-        openPack('star', generateStarPackOptions(ownedIds)); // COBRA ao abrir
-        setSelPlayerId(null); setActive('star');
-      });
+      if (!online) dispatch({ type: 'ENSURE_PLAYER_PACK_OFFERS' });
+      setSelectedPackRarity(null);
+      setSelPlayerId(null); setActive('playerPacks');
       return;
     }
     setSelPlayerId(null);
@@ -178,38 +191,54 @@ export default function ShopTab() {
     });
   };
 
+  const openRarityPack = (rarity: PlayerPackRarity) => {
+    const cost = playerPackCost(rarity);
+    const meta = PLAYER_PACK_META[rarity];
+    if (points < cost) return;
+    if (rarity === 'unique') {
+      askConfirm(`Pacote ${meta.label}`, `Abrir um pacote ${meta.label} por 💰 ${cost}? A carta será revelada na animação de abertura.`, openUniquePack);
+      return;
+    }
+    askConfirm(`Pacote ${meta.label}`, `Abrir um pacote ${meta.label} por 💰 ${cost}? Uma das quatro cartas da oferta será revelada na animação.`, () => {
+      if (online) shopOpenPlayerPackOnline(rarity);
+      else dispatch({ type: 'SHOP_OPEN_PLAYER_PACK', rarity });
+      setSelPlayerId(null);
+      setActive('playerPacks');
+    });
+  };
+
   return (
     <div className="ui-stack">
       {/* Item grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {ITEMS.map(item => {
           const cost = item.cost;
-          const affordable = points >= cost;
-          // Cartas Únicas: sempre dá pra ABRIR (ver as cartas) mesmo sem dinheiro — a cobrança é ao comprar.
-           const canOpen = affordable || item.id === 'unique';
+          const affordable = cost === null || points >= cost;
+          const canOpen = affordable;
            return (
              <div
                key={item.id}
-               className="ui-choice relative p-4"
-                style={{ borderColor: (affordable || item.id === 'unique') ? item.color + '88' : undefined }}
+               className="ui-choice relative h-[150px] p-4"
+                style={{ borderColor: affordable ? item.color + '88' : undefined }}
              >
                <button
                  type="button"
                  onClick={() => canOpen && openItem(item.id)}
-                 onPointerDown={() => item.id === 'unique' && warmUniqueCardAssets(uniquePackCards)}
+                 onPointerDown={() => item.id === 'playerPacks' && warmUniqueCardAssets(uniquePackCards)}
                  disabled={!canOpen}
-                 className="w-full pb-8 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                 className="h-full w-full pb-8 text-left disabled:cursor-not-allowed disabled:opacity-50"
                >
                  <div className="flex items-center justify-between mb-1">
-                   <span className="text-2xl">{item.icon}</span>
-                   <span className="text-sm font-black px-2 py-0.5 rounded" style={{ fontFamily: 'Bebas Neue, sans-serif', background: `${item.color}22`, color: item.color }}>
-                     💰 {cost}
-                   </span>
+                   {item.icon && <span className="text-2xl">{item.icon}</span>}
+                   {cost !== null && (
+                     <span className="text-sm font-black px-2 py-0.5 rounded" style={{ fontFamily: 'Bebas Neue, sans-serif', background: `${item.color}22`, color: item.color }}>
+                       💰 {cost}
+                     </span>
+                   )}
                  </div>
                  <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{item.name}</div>
                  <div className="text-[11px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{item.desc}</div>
-                 {!affordable && item.id !== 'unique' && item.id !== 'turbinar' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes</div>}
-                 {!affordable && item.id === 'unique' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#F0E6C0', fontFamily: 'Rajdhani, sans-serif' }}>👀 Ver as cartas</div>}
+                 {!affordable && item.id !== 'turbinar' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes</div>}
                </button>
                {item.id === 'turbinar' && (
                  <button
@@ -229,14 +258,25 @@ export default function ShopTab() {
 
       {/* ⭐ A abertura ocupa a tela inteira: o pacote é a própria experiência, sem a modal padrão da loja. */}
       <>
-        {active === 'unique' && pendingUniquePack && (
+        {active === 'playerPacks' && pendingUniquePack && (
           <div
             className="fixed inset-0 z-[60]"
           >
             <UniquePackOpening
               card={pendingUniquePack}
+              rarity="unique"
               onClose={close}
               onClaim={() => { claimUniquePack(); close(); }}
+            />
+          </div>
+        )}
+        {active === 'playerPacks' && pendingPackReveal && (
+          <div className="fixed inset-0 z-[60]">
+            <UniquePackOpening
+              card={pendingPackReveal.card}
+              rarity={pendingPackReveal.kind}
+              onClose={close}
+              onClaim={() => { claimPlayerPack(); close(); }}
             />
           </div>
         )}
@@ -244,7 +284,7 @@ export default function ShopTab() {
 
       {/* ── Modals ── */}
       <>
-        {active && !pendingUniquePack && (
+        {active && !pendingUniquePack && !pendingPackReveal && (
           <GameModal
             open
             onOpenChange={next => { if (!next) close(); }}
@@ -252,80 +292,114 @@ export default function ShopTab() {
             className="flex max-h-[90vh] flex-col"
             title={
               <>
-                {ITEMS.find(i => i.id === active)?.icon} {ITEMS.find(i => i.id === active)?.name}
+                {ITEMS.find(i => i.id === active)?.icon && `${ITEMS.find(i => i.id === active)?.icon} `}{ITEMS.find(i => i.id === active)?.name}
               </>
             }
           >
-                {/* ⭐ PACOTE ÚNICO — quatro cartas da rodada + abertura/revelação aleatória */}
-                {active === 'unique' && (
-                  pendingUniquePack ? (
-                    <UniquePackOpening
-                      card={pendingUniquePack}
-                      onClaim={() => { claimUniquePack(); close(); }}
-                    />
-                  ) : (() => {
-                    const ownedUniqueCount = UNIQUE_CARDS.filter(card => ownedIds.includes(card.id)).length;
-                    const selectableUniqueCards = uniquePackCards.filter(card => !ownedIds.includes(card.id));
-                    const offerReady = uniquePackCards.length > 0 || ownedUniqueCount >= UNIQUE_CARDS.length;
-                    const canBuyPack = points >= SHOP_COSTS.uniqueCard && selectableUniqueCards.length > 0;
-                    return (
-                      <div>
-                        <p className="text-xs mb-2" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                          A oferta mostra <b style={{ color: '#FFF' }}>4 Cartas Únicas</b>. Por <b style={{ color: '#F0E6C0' }}>💰 {SHOP_COSTS.uniqueCard}</b>, uma delas é sorteada aleatoriamente e só entra no banco depois da revelação.
-                        </p>
-                        <div className="mb-4 text-[11px] font-bold px-3 py-2 rounded-lg flex items-start gap-2" style={{ background: '#F0E6C014', border: '1px solid #F0E6C033', color: '#EAD9A0', fontFamily: 'Rajdhani, sans-serif' }}>
-                          <span className="text-sm leading-none">✨</span>
-                          <span>As Únicas têm <b style={{ color: '#F0E6C0' }}>overall 99</b>, visual exclusivo e podem carregar <b style={{ color: '#F0E6C0' }}>duas características</b> ao mesmo tempo. A oferta muda a cada rodada. Você já tem <b style={{ color: '#FFF' }}>{ownedUniqueCount}</b> de {UNIQUE_CARDS.length}.</span>
-                        </div>
-                        {!offerReady ? (
-                          <div className="rounded-xl px-4 py-8 text-center text-xs font-bold" style={{ background: '#07070f', border: '1px dashed #2A2A3A', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                            Preparando a oferta desta rodada…
-                          </div>
-                        ) : uniquePackCards.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-x-2 gap-y-5 justify-items-center sm:grid-cols-4 sm:gap-x-3">
-                            {uniquePackCards.map(card => {
-                              const owned = ownedIds.includes(card.id);
+                {/* 📦 PACOTES DE JOGADOR — raridade, oferta da rodada e abertura */}
+                {active === 'playerPacks' && !pendingPack && (() => {
+                  const selectedCards = selectedPackRarity === 'unique'
+                    ? uniquePackCards
+                    : selectedPackRarity
+                      ? (regularPackCards[selectedPackRarity] ?? [])
+                      : [];
+                  const availableCards = selectedCards.filter(card => !ownedIds.includes(card.id));
+                  const selectedCost = selectedPackRarity ? playerPackCost(selectedPackRarity) : 0;
+                  const selectedAffordable = points >= selectedCost;
+                  return (
+                    <div>
+                      {!selectedPackRarity ? (
+                        <>
+                          <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                            Escolha a raridade do pacote. Cada oferta mostra <b style={{ color: '#FFF' }}>4 cartas</b> que ficam disponíveis durante toda a rodada e mudam na próxima.
+                          </p>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {PLAYER_PACK_RARITIES.map(rarity => {
+                              const meta = PLAYER_PACK_META[rarity];
+                              const cards = rarity === 'unique' ? uniquePackCards : (regularPackCards[rarity] ?? []);
+                              const available = cards.filter(card => !ownedIds.includes(card.id)).length;
                               return (
-                                <div key={card.id} className="unique-card-catalog-tile relative flex min-w-0 flex-col items-center gap-2">
-                                  <div className={owned ? 'opacity-100' : 'opacity-75'}>
-                                    <PlayerCard player={card} lite scale={0.68} />
+                                <button
+                                  key={rarity}
+                                  type="button"
+                                  onClick={() => setSelectedPackRarity(rarity)}
+                                  className="flex h-full flex-col rounded-xl p-4 text-left transition-all hover:brightness-110 active:scale-[0.99]"
+                                  style={{ background: '#07070f', border: `1px solid ${meta.color}66` }}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-lg font-black" style={{ color: meta.color, fontFamily: 'Bebas Neue, sans-serif' }}>PACOTE {meta.label}</span>
+                                    <span className="text-sm font-black whitespace-nowrap" style={{ color: meta.color, fontFamily: 'Rajdhani, sans-serif' }}>{playerPackCost(rarity)}</span>
                                   </div>
-                                  <span className="text-center text-[10px] font-black px-2.5 py-1 rounded-full tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#CFCFE0', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
-                                    {owned ? 'JÁ POSSUI' : 'DISPONÍVEL'}
-                                  </span>
-                                </div>
+                                  <div className="mt-1.5 min-h-[2.75rem] text-sm leading-snug" style={{ color: '#A9A9BA', fontFamily: 'Rajdhani, sans-serif' }}>{meta.description}</div>
+                                  <div className="mt-auto pt-1.5 text-xs font-bold" style={{ color: '#CFCFE0', fontFamily: 'Rajdhani, sans-serif' }}>{cards.length}/4 cartas na oferta · {available} disponíveis</div>
+                                </button>
                               );
                             })}
                           </div>
-                        ) : (
-                          <div className="rounded-xl px-4 py-8 text-center text-xs font-bold" style={{ background: '#07070f', border: '1px dashed #2A2A3A', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
-                            Você já possui todas as Cartas Únicas.
+                        </>
+                      ) : (
+                        <>
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                              <div className="text-2xl font-black" style={{ color: PLAYER_PACK_META[selectedPackRarity].color, fontFamily: 'Bebas Neue, sans-serif' }}>PACOTE {PLAYER_PACK_META[selectedPackRarity].label}</div>
+                              <div className="text-sm" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Oferta da rodada · 4 cartas · uma será revelada</div>
+                            </div>
                           </div>
-                        )}
-                        <div className="mt-5 rounded-xl p-3 text-center" style={{ background: '#07070f', border: '1px solid #F0E6C033' }}>
-                          <p className="mb-3 text-xs" style={{ color: canBuyPack ? '#CFCFE0' : '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
-                            {!offerReady
-                              ? 'A oferta desta rodada está sendo preparada.'
-                              : selectableUniqueCards.length === 0
-                                ? 'Você já possui as quatro cartas desta oferta.'
-                              : points < SHOP_COSTS.uniqueCard
-                                ? `Faltam ${SHOP_COSTS.uniqueCard - points} créditos para abrir o pacote.`
-                                : 'O jogador será revelado em uma animação de abertura.'}
-                          </p>
+                          {selectedCards.length > 0 ? (
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-5 justify-items-center sm:grid-cols-4 sm:gap-x-4">
+                              {selectedCards.map(card => {
+                                const owned = ownedIds.includes(card.id);
+                                return (
+                                  <div key={card.id} className="flex min-w-0 flex-col items-center gap-1.5">
+                                    <div className={owned ? 'opacity-55' : ''}>
+                                      <PlayerCard player={card} lite scale={0.82} />
+                                    </div>
+                                    <span className="text-center text-xs font-black px-2.5 py-1 rounded-full tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#CFCFE0', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
+                                      {owned ? 'JÁ POSSUI' : 'DISPONÍVEL'}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="rounded-xl px-4 py-8 text-center text-xs font-bold" style={{ background: '#07070f', border: '1px dashed #2A2A3A', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                              Nenhuma carta disponível nesta oferta.
+                            </div>
+                          )}
+                          <div className="mt-4 text-center">
+                            {(availableCards.length === 0 || !selectedAffordable) && (
+                              <p className="mb-3 text-xs" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                                {availableCards.length === 0
+                                  ? 'Você já possui as cartas disponíveis desta oferta.'
+                                  : `Faltam ${selectedCost - points} créditos para abrir este pacote.`}
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              disabled={!selectedAffordable || availableCards.length === 0}
+                              onClick={() => openRarityPack(selectedPackRarity)}
+                              className="w-full rounded-xl px-4 py-3 text-sm font-black tracking-widest transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                              style={{ background: PLAYER_PACK_META[selectedPackRarity].color, color: '#0A0A14', fontFamily: 'Bebas Neue, sans-serif' }}
+                            >
+                              ABRIR PACOTE · 💰 {selectedCost}
+                            </button>
+                          </div>
                           <button
                             type="button"
-                            disabled={!canBuyPack}
-                            onClick={() => askConfirm('Pacote Único', `Abrir um pacote aleatório por 💰 ${SHOP_COSTS.uniqueCard}? A carta sorteada será uma Única que você ainda não possui.`, openUniquePack)}
-                            className="w-full rounded-xl px-4 py-3 text-sm font-black tracking-widest transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-                            style={{ background: '#F0E6C0', color: '#0A0A14', fontFamily: 'Bebas Neue, sans-serif' }}
+                            onClick={() => setSelectedPackRarity(null)}
+                            className="mt-3 w-full rounded-lg px-3 py-2 text-sm font-black tracking-wide transition-colors hover:bg-white/[0.06]"
+                            style={{ color: '#CFCFE0', background: '#0F0F1A', border: '1px solid #343449', fontFamily: 'Rajdhani, sans-serif' }}
                           >
-                            {selectableUniqueCards.length === 0 ? 'OFERTA ADQUIRIDA' : `ABRIR PACOTE · 💰 ${SHOP_COSTS.uniqueCard}`}
+                            ← VOLTAR ÀS RARIDADES
                           </button>
-                        </div>
+                        </>
+                      )}
+                      <div className="mt-3 rounded-lg px-3 py-2 text-[11px]" style={{ background: '#F0C67412', border: '1px solid #F0C67433', color: '#CFCFE0', fontFamily: 'Rajdhani, sans-serif' }}>
+                        A carta revelada entra no banco e não altera seus titulares. Jogadores adquiridos continuam marcados na oferta até a próxima rodada.
                       </div>
-                    );
-                  })()
-                )}
+                    </div>
+                  );
+                })()}
 
                 {/* TROCAR TÉCNICO */}
                 {active === 'coach' && (
@@ -346,8 +420,8 @@ export default function ShopTab() {
                   </div>
                 )}
 
-                {/* PACOTE DO CRAQUE / CAÇA-TALENTOS — escolha do pacote JÁ PAGO */}
-                {(active === 'star' || active === 'scout') && pendingPack && (
+                {/* PACOTES — escolha do pacote JÁ PAGO */}
+                {(active === 'playerPacks' || active === 'scout') && pendingPack && (
                   <div>
                     <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
                       Pacote <b style={{ color: '#22C55E' }}>já pago</b> ✓ — escolha <b style={{ color: '#FFF' }}>1</b> pra entrar no seu banco.

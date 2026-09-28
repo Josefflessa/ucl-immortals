@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame, KnockoutMatch } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
-import { MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel } from '../../lib/gameEngine';
+import { MAX_RESERVE_PLAYERS, MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel, reservePlayerCount } from '../../lib/gameEngine';
 import MatchDetailsModal from './MatchDetailsModal';
 import Crest from './Crest';
 import BetSlipModal, { type BetSlipSubmission } from './BetSlipModal';
@@ -29,7 +29,7 @@ export default function KnockoutTiesTab() {
     homeTeamId?: string;
     awayTeamId?: string;
   } | null>(null);
-  const [lineupWarning, setLineupWarning] = useState<string[] | null>(null); // 🚫 aviso de escalação inválida (solo)
+  const [lineupWarning, setLineupWarning] = useState<{ kind: 'discipline' | 'reserve'; names: string[] } | null>(null); // 🚫 aviso de escalação inválida
   // 🎯 Palpite — POR JOGO: cada partida do mata-mata tem o seu próprio teto (BET_ROUND_CAP), então dá
   // pra apostar em cada jogo (ida E volta) de forma independente, sem um travar o outro.
   const bets = state.bets ?? [];
@@ -65,7 +65,8 @@ export default function KnockoutTiesTab() {
       if (!allReadyKO) return; // host inicia só quando os participantes confirmam
       playKnockoutRoundOnline();
     } else {
-      if (myUnavailableKO.length > 0) { setLineupWarning(myUnavailableKO.map(u => u.shortName ?? '?')); return; }
+      if (reserveLimitExceededKO) { setLineupWarning({ kind: 'reserve', names: [] }); return; }
+      if (myUnavailableKO.length > 0) { setLineupWarning({ kind: 'discipline', names: myUnavailableKO.map(u => u.shortName ?? '?') }); return; }
       dispatch({ type: 'PLAY_KNOCKOUT_LEG' });
     }
   };
@@ -73,7 +74,8 @@ export default function KnockoutTiesTab() {
   const handleReadyToggleKO = () => {
     if (!iPlayThisRound) return;
     if (iAmReadyKO) { playerUnreadyOnline(); return; }
-    if (myUnavailableKO.length > 0) { setLineupWarning(myUnavailableKO.map(u => u.shortName ?? '?')); return; }
+    if (reserveLimitExceededKO) { setLineupWarning({ kind: 'reserve', names: [] }); return; }
+    if (myUnavailableKO.length > 0) { setLineupWarning({ kind: 'discipline', names: myUnavailableKO.map(u => u.shortName ?? '?') }); return; }
     playerReadyOnline();
   };
   const handleAdvance = () => {
@@ -95,6 +97,8 @@ export default function KnockoutTiesTab() {
   // 🟥🩹 Escalação: bloqueia jogar a perna com titular indisponível (sem troca automática).
   const iPlayThisRound = matches.some(m => isPlayerTeam(m.homeTeamId) || isPlayerTeam(m.awayTeamId));
   const myUnavailableKO = (playerTeam && iPlayThisRound) ? unavailableStarters(playerTeam, state.discipline) : [];
+  const reserveCountKO = playerTeam ? reservePlayerCount(playerTeam) : 0;
+  const reserveLimitExceededKO = reserveCountKO > MAX_RESERVE_PLAYERS;
   // ✅ Ready-check: only connected humans in an active tie participate. A host
   // who has no tie can still control the room without confirming readiness.
   const readySet = new Set(state.onlineReadyPlayers);
@@ -609,7 +613,7 @@ export default function KnockoutTiesTab() {
           );
         })()}
 
-      {/* 🚫 Aviso: tentou jogar a perna com titular indisponível (solo) */}
+      {/* 🚫 Aviso: escalação/banco impedem o início da perna */}
       <GameModal
         open={!!lineupWarning}
         onOpenChange={open => { if (!open) setLineupWarning(null); }}
@@ -623,10 +627,17 @@ export default function KnockoutTiesTab() {
         {lineupWarning && (
           <div className="text-center">
             <div className="text-4xl mb-2">🚫</div>
-            <p className="text-[13px] leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
-              Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.join(', ')}</b>.<br />
-              Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar.
-            </p>
+            {lineupWarning.kind === 'reserve' ? (
+              <p className="text-[13px] leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
+                Seu banco tem <b style={{ color: '#FCA5A5' }}>{reserveCountKO} reservas</b>, mas o limite para iniciar uma partida é de <b style={{ color: '#FFF' }}>{MAX_RESERVE_PLAYERS}</b>.<br />
+                Venda ou remova reservas na aba <b style={{ color: '#C9A84C' }}>MERCADO</b> antes de jogar.
+              </p>
+            ) : (
+              <p className="text-[13px] leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
+                Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.names.join(', ')}</b>.<br />
+                Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar.
+              </p>
+            )}
           </div>
         )}
       </GameModal>

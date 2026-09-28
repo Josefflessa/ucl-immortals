@@ -5,9 +5,11 @@ import {
   calculateTeamStrength, simulateMatch, generateBotTeam, generateDraftOptions,
   statKey, getPlayerSeasonStats, PREFERRED_FORMATION_CHEM_BONUS,
   PlayerCard, MatchResult, applyDefeatGrowth, teamLostMatch, RESILIENTE_DEFEAT_BOOST,
-  generateScoutOptions, SCOUT_MIN_OVERALL,
+  generatePlayerPackOptions, generatePlayerPackOffer, drawPlayerPackCard, PLAYER_PACK_OFFER_SIZE, generateScoutOptions, SCOUT_MIN_OVERALL,
   formationCounterBonusForAnalysisLevel, formationAdvantageLabelForAnalysisLevel,
   tacticBuffMultiplierForAnalysisLevel, tacticStatBonus,
+  MAX_RESERVE_PLAYERS, reservePlayerCount,
+  applyMercenarioProgress, applyShopVariant, mercenarioStatBoost, MERCENARIO_STAT_BOOST_PER_MISSION,
 } from './gameEngine';
 
 const asCard = (p: Player, over: Partial<PlayerCard> = {}): PlayerCard =>
@@ -16,6 +18,49 @@ const asCard = (p: Player, over: Partial<PlayerCard> = {}): PlayerCard =>
 const outfield = PLAYERS.find(p => p.position !== 'GK')!;
 const coach = COACHES[0];
 const noChem = { passing: 0, pace: 0, special: false };
+
+describe('reserve bank match eligibility', () => {
+  it('allows the roster to exceed the bank threshold while exposing the exact count for the match gate', () => {
+    const team = { players: Array.from({ length: 11 + MAX_RESERVE_PLAYERS + 1 }, () => asCard(outfield)) };
+
+    expect(MAX_RESERVE_PLAYERS).toBe(20);
+    expect(reservePlayerCount(team)).toBe(21);
+    expect(reservePlayerCount({ players: team.players.slice(0, -1) })).toBe(MAX_RESERVE_PLAYERS);
+  });
+});
+
+describe('Conquistador', () => {
+  it('concede +2 por missão concluída, sem limite', () => {
+    expect(MERCENARIO_STAT_BOOST_PER_MISSION).toBe(2);
+    expect(mercenarioStatBoost(0)).toBe(0);
+    expect(mercenarioStatBoost(7)).toBe(14);
+    expect(mercenarioStatBoost(999)).toBe(1998);
+
+    const plain = asCard({ ...outfield, traits: [] });
+    const mercenario = asCard(applyShopVariant(plain, 'mercenario', { missionsCompleted: 7 }));
+    const base = getEffectiveAttribute(plain, 'pace', coach, '', noChem, '__neutral__');
+    const boosted = getEffectiveAttribute(mercenario, 'pace', coach, '', noChem, '__neutral__');
+
+    expect(mercenario.mercenarioMissions).toBe(7);
+    expect(boosted - base).toBe(14);
+    expect(getPlayerEffectiveStats(mercenario, 0, false, coach.id, 0, '__neutral__').breakdown.pace.mercenario).toBe(14);
+  });
+
+  it('sincroniza o total atualizado nas cartas que carregam a característica', () => {
+    const team = generateBotTeam('Mercenário', 0.8);
+    const tracked = {
+      ...team,
+      players: team.players.map((player, index) => index < 2
+        ? { ...player, mercenario: true, mercenarioMissions: 0 }
+        : player),
+    };
+
+    const updated = applyMercenarioProgress(tracked, 25);
+    expect(updated.players[0].mercenarioMissions).toBe(25);
+    expect(updated.players[1].mercenarioMissions).toBe(25);
+    expect(updated.players[2].mercenario).toBeUndefined();
+  });
+});
 
 describe('formation matchup analysis bonus', () => {
   it('uses the calibrated +3, +5 and +7 progression', () => {
@@ -58,6 +103,37 @@ describe('scout pack filters', () => {
     const options = generateScoutOptions('RM', ownedRightMids);
 
     expect(options).toHaveLength(0);
+  });
+});
+
+describe('player rarity pack filters', () => {
+  it('returns three unowned players from the selected regular rarity', () => {
+    (['bronze', 'silver', 'gold', 'legendary', 'immortal'] as const).forEach(rarity => {
+      const options = generatePlayerPackOptions(rarity, []);
+      expect(options).toHaveLength(3);
+      expect(options.every(player => player.rarity === rarity)).toBe(true);
+      expect(new Set(options.map(player => player.id)).size).toBe(3);
+    });
+  });
+
+  it('does not offer players already owned by the team', () => {
+    const pool = PLAYERS.filter(player => player.rarity === 'gold');
+    const ownedIds = pool.slice(0, 3).map(player => player.id);
+    const options = generatePlayerPackOptions('gold', ownedIds, 20);
+
+    expect(options.every(player => !ownedIds.includes(player.id))).toBe(true);
+    expect(options.every(player => player.rarity === 'gold')).toBe(true);
+  });
+
+  it('keeps a four-card offer stable and draws only from that offer', () => {
+    const offer = generatePlayerPackOffer('legendary', []);
+    expect(offer).toHaveLength(PLAYER_PACK_OFFER_SIZE);
+    expect(new Set(offer).size).toBe(PLAYER_PACK_OFFER_SIZE);
+    expect(offer.every(id => PLAYERS.find(player => player.id === id)?.rarity === 'legendary')).toBe(true);
+
+    const drawn = drawPlayerPackCard(offer, 'legendary', []);
+    expect(drawn).not.toBeNull();
+    expect(offer).toContain(drawn!.id);
   });
 });
 

@@ -21,6 +21,7 @@ export const CLUB_PROJECT_ORDER = [
   'training',
   'stadium',
   'supporters',
+  'missions',
 ] as const;
 
 export type ClubProjectId = typeof CLUB_PROJECT_ORDER[number];
@@ -241,6 +242,22 @@ export const CLUB_PROJECT_DEFINITIONS: readonly ClubProjectDefinition[] = [
       '+45% em casa e +25% fora sobre os créditos-base da partida.',
     ],
   },
+  {
+    id: 'missions',
+    icon: '📜',
+    title: 'NÚCLEO DE MISSÕES',
+    color: '#A78BFA',
+    description: 'Aprimora o mural de missões, seus prazos, custos de remoção e recompensas.',
+    foundation: 'Mural com 5 missões aleatórias e até 2 missões ativas ao mesmo tempo.',
+    nextStep: 'Nível 2: 1 atualização gratuita do mural por rodada.',
+    levelEffects: [
+      'Mural com 5 missões aleatórias e até 2 missões ativas ao mesmo tempo.',
+      '1 atualização gratuita do mural por rodada.',
+      'Custo para remover missões reduzido pela metade.',
+      'Prazos ampliados para todas as missões aceitas.',
+      '+50% nas recompensas das missões concluídas.',
+    ],
+  },
 ] as const;
 
 export type SupportersVenue = 'home' | 'away' | 'neutral';
@@ -360,6 +377,7 @@ export function createInitialClubProjects(): ClubProjectsState {
       training: 1,
       stadium: 1,
       supporters: 1,
+      missions: 1,
     },
   };
 }
@@ -394,6 +412,7 @@ export function normalizeClubProjects(input: unknown): ClubProjectsState {
       training: validLevel(source.training),
       stadium: validLevel(source.stadium ?? legacyStadiumSupporters),
       supporters: validLevel(source.supporters ?? legacyStadiumSupporters),
+      missions: validLevel(source.missions),
     },
   };
 }

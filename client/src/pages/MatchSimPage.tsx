@@ -1505,7 +1505,7 @@ export default function MatchSimPage() {
                   { label: 'No Alvo', homeVal: currentStats.homeShotsOnTarget, awayVal: currentStats.awayShotsOnTarget },
                   { label: 'Escanteios', homeVal: currentStats.homeCorners, awayVal: currentStats.awayCorners },
                   { label: 'Faltas', homeVal: currentStats.homeFouls, awayVal: currentStats.awayFouls },
-                  { label: 'Defesas', homeVal: currentStats.homeSaves, awayVal: currentStats.awaySaves },
+                  { label: 'Defesas do goleiro', homeVal: currentStats.homeSaves, awayVal: currentStats.awaySaves },
                 ].map((s, i) => {
                   const total = s.homeVal + s.awayVal || 1;
                   const hPct = (s.homeVal / total) * 100;

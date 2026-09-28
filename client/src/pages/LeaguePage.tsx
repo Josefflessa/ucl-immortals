@@ -10,6 +10,7 @@ import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults
 import ClubHubTab from '../components/game/ClubHubTab';
 import MarketTab from '../components/game/MarketTab';
 import ShopTab from '../components/game/ShopTab';
+import MissionsTab from '../components/game/MissionsTab';
 import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
 import BracketTab from '../components/game/BracketTab';
 import PlayerAvatar from '../components/game/PlayerAvatar';
@@ -19,6 +20,7 @@ import Crest from '../components/game/Crest';
 import CreditsWallet from '../components/game/CreditsWallet';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import MatchCreditsModal from '../components/game/MatchCreditsModal';
+import MissionResolutionModal from '../components/game/MissionResolutionModal';
 import TradeInviteModal from '../components/game/TradeInviteModal';
 import TradeNegotiationModal from '../components/game/TradeNegotiationModal';
 import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
@@ -27,6 +29,7 @@ import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, b
 import { bettingStakeCapBonus, projectLevel } from '../lib/clubProjects';
 import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus, sortMatchesForOnlineDisplay } from '../lib/onlineReadiness';
+import { MAX_RESERVE_PLAYERS, reservePlayerCount } from '../lib/gameEngine';
 import type { MatchResult, Team } from '../lib/gameEngine';
 import type { Player } from '../lib/gameData';
 import { POS_PT } from '../lib/gameData';
@@ -49,7 +52,7 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, transferHostOnline, removePlayerOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline, requestMatchResultOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, transferHostOnline, removePlayerOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline, requestMatchResultOnline, dismissMissionResolutionOnline } = useGame();
   const online = state.mode === 'online';
   const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | 'restart' | 'close' | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
@@ -77,6 +80,11 @@ export default function LeaguePage() {
   const closeCreditsModal = () => {
     if (online) dispatch({ type: 'DISMISS_MATCH_CREDITS' });
     else if (creditsSignature) setDismissedCreditsSignature(creditsSignature);
+  };
+  const showMissionResolutionModal = !!state.missions.missionResolution && !showCreditsModal;
+  const closeMissionResolutionModal = () => {
+    if (online) dismissMissionResolutionOnline();
+    else dispatch({ type: 'DISMISS_MISSION_RESOLUTION' });
   };
   const recruitmentOffer = state.reinforcementOffer;
   const recruitmentEventLabel = recruitmentOffer?.eventKind === 'stage' || state.phase === 'knockout' ? 'FASE' : 'RODADA';
@@ -116,7 +124,7 @@ export default function LeaguePage() {
   };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
-  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market'>('fixtures');
+  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market' | 'missions'>('fixtures');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles' | 'cards'>('goals');
   // HISTÓRICO: alterna entre "MEUS JOGOS" (do jogador) e "RODADAS ANTERIORES" (todos os resultados por rodada)
   const [resultsSubTab, setResultsSubTab] = useState<'mine' | 'rounds'>('mine');
@@ -130,7 +138,7 @@ export default function LeaguePage() {
     awayTeamId?: string;
   } | null>(null);
   // 🟥🩹 Aviso "ajuste a escalação" — lista de nomes indisponíveis no XI.
-  const [lineupWarning, setLineupWarning] = useState<string[] | null>(null);
+  const [lineupWarning, setLineupWarning] = useState<{ kind: 'discipline' | 'reserve'; names: string[] } | null>(null);
   // 🆘 Contratação emergencial — abre quando não há reserva disponível para a posição.
   const [emergencySelection, setEmergencySelection] = useState<ReturnType<typeof getEmergencyReplacementTarget>>(null);
   // 🔍 "Ver Detalhes" de uma partida (placar + gols + campo dos 2 times c/ notas finais)
@@ -348,6 +356,8 @@ export default function LeaguePage() {
 
   // 🟥🩹 Escalação: titulares indisponíveis do MEU time (bloqueia jogar/pronto até ajustar).
   const myUnavailable = playerTeam ? unavailableStarters(playerTeam, state.discipline) : [];
+  const reserveCount = playerTeam ? reservePlayerCount(playerTeam) : 0;
+  const reserveLimitExceeded = reserveCount > MAX_RESERVE_PLAYERS;
   // ✅ Ready-check: only connected humans with a fixture in this round participate.
   // A host who qualified directly (or has a bye) still controls the room, but does
   // not need to confirm readiness for a match they are not playing.
@@ -404,12 +414,16 @@ export default function LeaguePage() {
   const isPlayerMatchPlayed = playerFixture?.played ?? false;
 
   const handlePlayPlayerMatch = () => {
+    if (reserveLimitExceeded) {
+      setLineupWarning({ kind: 'reserve', names: [] });
+      return;
+    }
     // 🟥🩹 Bloqueio: se não houver reserva compatível, oferece contratação gratuita
     // prata/bronze para a posição antes de liberar a rodada.
     if (myUnavailable.length > 0) {
       const emergency = playerTeam ? getEmergencyReplacementTarget(playerTeam, state.discipline) : null;
       if (emergency && emergency.options.length > 0) { setEmergencySelection(emergency); return; }
-      setLineupWarning(myUnavailable.map(u => u.shortName ?? '?'));
+      setLineupWarning({ kind: 'discipline', names: myUnavailable.map(u => u.shortName ?? '?') });
       return;
     }
 
@@ -439,10 +453,14 @@ export default function LeaguePage() {
   const handleReadyToggle = () => {
     if (!isActiveLeagueParticipant) return;
     if (iAmReady) { playerUnreadyOnline(); return; }
+    if (reserveLimitExceeded) {
+      setLineupWarning({ kind: 'reserve', names: [] });
+      return;
+    }
     if (myUnavailable.length > 0) {
       const emergency = playerTeam ? getEmergencyReplacementTarget(playerTeam, state.discipline) : null;
       if (emergency && emergency.options.length > 0) { setEmergencySelection(emergency); return; }
-      setLineupWarning(myUnavailable.map(u => u.shortName ?? '?'));
+      setLineupWarning({ kind: 'discipline', names: myUnavailable.map(u => u.shortName ?? '?') });
       return;
     }
     playerReadyOnline();
@@ -699,6 +717,7 @@ export default function LeaguePage() {
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU CLUBE' },
                 { id: 'results', label: 'HISTÓRICO' },
+                { id: 'missions', label: 'MISSÕES' },
                 { id: 'shop', label: 'LOJA' },
                 { id: 'market', label: 'MERCADO' },
               ]
@@ -708,6 +727,7 @@ export default function LeaguePage() {
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU CLUBE' },
                 { id: 'results', label: 'HISTÓRICO' },
+                { id: 'missions', label: 'MISSÕES' },
                 { id: 'shop', label: 'LOJA' },
                 { id: 'market', label: 'MERCADO' },
               ]
@@ -778,6 +798,15 @@ export default function LeaguePage() {
                 </div>
               );
             })()}
+
+            {reserveLimitExceeded && (
+              <div className="rounded-xl px-4 py-3 mb-1" style={{ background: '#241010', border: '1px solid #EF444488' }}>
+                <div className="text-[11px] font-black tracking-widest mb-1" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>🚫 BANCO ACIMA DO LIMITE</div>
+                <div className="text-[12px] font-bold" style={{ color: '#E8C4C4', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Seu banco tem {reserveCount}/{MAX_RESERVE_PLAYERS} reservas. Venda ou remova jogadores na aba MERCADO para liberar a partida.
+                </div>
+              </div>
+            )}
 
             {roundGroupIds.map(groupId => {
               const groupFixtures = groupId === null
@@ -1424,6 +1453,7 @@ export default function LeaguePage() {
         {activeTab === 'market' && <MarketTab />}
 
         {activeTab === 'shop' && <ShopTab />}
+        {activeTab === 'missions' && <MissionsTab />}
 
         {/* Results */}
         {activeTab === 'results' && (
@@ -1708,9 +1738,16 @@ export default function LeaguePage() {
         {showCreditsModal && state.lastMatchPoints && (
           <MatchCreditsModal points={state.lastMatchPoints} onClose={closeCreditsModal} />
         )}
+        {showMissionResolutionModal && state.missions.missionResolution && (
+          <MissionResolutionModal
+            resolution={state.missions.missionResolution}
+            onClose={closeMissionResolutionModal}
+            missionsProjectLevel={projectLevel(state.playerTeam?.clubProjects, 'missions')}
+          />
+        )}
         {state.mode === 'online' && <TradeInviteModal />}
         {state.mode === 'online' && <TradeNegotiationModal />}
-        {state.reinforcementOptions && state.reinforcementOptions.length > 0 && !showCreditsModal && (
+        {state.reinforcementOptions && state.reinforcementOptions.length > 0 && !showCreditsModal && !showMissionResolutionModal && (
           <GameModal
             open
             onOpenChange={() => {}}
@@ -1829,7 +1866,7 @@ export default function LeaguePage() {
           );
         })()}
 
-      {/* 🚫 Aviso: tentou jogar com titular indisponível (solo) */}
+      {/* 🚫 Aviso: escalação/banco impedem o início da partida */}
       {lineupWarning && (
         <GameModal
           open
@@ -1843,10 +1880,17 @@ export default function LeaguePage() {
         >
               <div className="text-4xl mb-2">🚫</div>
               <div className="text-lg font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</div>
-              <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
-                Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.join(', ')}</b>.<br />
-                Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar a rodada.
-              </p>
+              {lineupWarning.kind === 'reserve' ? (
+                <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Seu banco tem <b style={{ color: '#FCA5A5' }}>{reserveCount} reservas</b>, mas o limite para iniciar uma partida é de <b style={{ color: '#FFF' }}>{MAX_RESERVE_PLAYERS}</b>.<br />
+                  Venda ou remova reservas na aba <b style={{ color: '#C9A84C' }}>MERCADO</b> antes de jogar.
+                </p>
+              ) : (
+                <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
+                  Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.names.join(', ')}</b>.<br />
+                  Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar a rodada.
+                </p>
+              )}
         </GameModal>
       )}
 

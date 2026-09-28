@@ -50,8 +50,8 @@ describe('lote de fechamento do catálogo de jogadores', () => {
     }
   });
 
-  it('fecha o catálogo em 1.124 e mantém cada carta antiga ligada a clube e retrato locais', () => {
-    expect(PLAYERS).toHaveLength(1124);
+  it('fecha o catálogo em 1.632 e mantém cada carta antiga ligada a clube e retrato locais', () => {
+    expect(PLAYERS).toHaveLength(1632);
 
     for (const player of SORTITOUTSI_1000_ADDITIONS) {
       const catalogPlayer = PLAYERS.find(candidate => candidate.id === player.id);

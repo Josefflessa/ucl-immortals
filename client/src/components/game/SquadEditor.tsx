@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, PLAYER_SPECIALIZATIONS, Player, POS_PT, effectiveSecondaries, type PlayerSpecialization } from '../../lib/gameData';
 import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, getEvolutionLevel,
+  MAX_RESERVE_PLAYERS,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, captainBoostFromStarters,
   computeCharacteristicBoosts, evolvePointsSpent, evolvePointsBudget, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, SPECIALIZATION_LEVEL, positionFit, type EffectiveStats,
 } from '../../lib/gameEngine';
@@ -610,7 +611,7 @@ export default function SquadEditor({
 
           <div className="ui-gesture-surface mt-5 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
             <div className="text-xs font-black tracking-widest mb-2 flex items-center gap-2" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
-              🪑 BANCO / RESERVAS {bench.length > 0 && <span style={{ color: '#6A6A7A' }}>({bench.length})</span>}
+              🪑 BANCO / RESERVAS <span style={{ color: bench.length > MAX_RESERVE_PLAYERS ? '#FCA5A5' : '#6A6A7A' }}>({bench.length}/{MAX_RESERVE_PLAYERS})</span>
             </div>
             {bench.length > 0 ? (
               <>

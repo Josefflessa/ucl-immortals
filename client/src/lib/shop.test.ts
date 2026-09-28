@@ -1,9 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { sellValue, canEvolvePrime, PRIME_COST, PRIME_WINS_REQUIRED, SHOP_COSTS, lossStreakBonus, nextLossStreak, LOSS_STREAK_BONUS_STEP, LOSS_STREAK_BONUS_MAX_STEPS } from './shop';
+import { PLAYER_PACK_RARITIES, playerPackCost, sellValue, canEvolvePrime, PRIME_COST, PRIME_WINS_REQUIRED, SHOP_COSTS, lossStreakBonus, nextLossStreak, LOSS_STREAK_BONUS_STEP, LOSS_STREAK_BONUS_MAX_STEPS } from './shop';
 
 describe('Pacote Único', () => {
   it('custa 750 pontos', () => {
     expect(SHOP_COSTS.uniqueCard).toBe(750);
+  });
+});
+
+describe('Pacotes de jogador por raridade', () => {
+  it('mantém a tabela de preços do Bronze à Única', () => {
+    expect(PLAYER_PACK_RARITIES).toEqual(['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique']);
+    expect(playerPackCost('bronze')).toBe(60);
+    expect(playerPackCost('silver')).toBe(100);
+    expect(playerPackCost('gold')).toBe(160);
+    expect(playerPackCost('legendary')).toBe(300);
+    expect(playerPackCost('immortal')).toBe(450);
+    expect(playerPackCost('unique')).toBe(750);
+    expect(SHOP_COSTS.starPack).toBe(350); // legado preservado para saves antigos, sem card na Loja.
   });
 });
 
