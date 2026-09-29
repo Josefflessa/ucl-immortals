@@ -264,6 +264,62 @@ describe('mission board', () => {
     expect(updated.reward).toBe(180);
   });
 
+  it('recognizes a Coringa outside its natural positions and excludes it from the two secondary-position slots', () => {
+    const homePlayers = [
+      player('gk', { position: 'GK' }),
+      player('lb', { position: 'LB' }),
+      player('cb1', { position: 'CB' }),
+      player('cb2', { position: 'CB' }),
+      player('rb', { position: 'RB' }),
+      player('secondary-1', { position: 'ST', secondaryPositions: ['CM'] }),
+      player('cdm', { position: 'CDM' }),
+      player('secondary-2', { position: 'ST', secondaryPositions: ['CM'] }),
+      player('joker', { position: 'ST', coringa: true }),
+      player('st', { position: 'ST' }),
+      player('rw', { position: 'RW' }),
+    ];
+    const home = team('home', homePlayers);
+    const away = team('away', [player('a1')]);
+    const context = createMissionMatchContext(home, away, result())!;
+    const stateFor = (missionId: string) => ({
+      version: 1 as const,
+      cycleKey: 'L1',
+      boardIds: [missionId],
+      active: [{ missionId, progress: 0, matchesRemaining: 1, acceptedCycleKey: 'L1' }],
+      history: [],
+      processedMatchKeys: [],
+      missionResolution: null,
+    });
+
+    expect(updateMissionsAfterMatch(stateFor('coringa_win'), context, 'L1:coringa').completed)
+      .toEqual(['coringa_win']);
+    expect(updateMissionsAfterMatch(stateFor('coringa_adapted_win'), context, 'L1:coringa-adapted').completed)
+      .toEqual(['coringa_adapted_win']);
+
+    const oneSecondary = [...homePlayers];
+    oneSecondary[7] = player('regular-cm', { position: 'CM' });
+    const negativeContext = createMissionMatchContext(team('home', oneSecondary), away, result())!;
+    expect(updateMissionsAfterMatch(stateFor('coringa_adapted_win'), negativeContext, 'L1:coringa-adapted-negative').completed)
+      .toEqual([]);
+  });
+
+  it('detects that a team was still losing after minute 60 before scoring the equalizer', () => {
+    const home = team('home', [player('h1'), player('h2')]);
+    const away = team('away', [player('a1')]);
+    const context = createMissionMatchContext(home, away, result({
+      homeGoals: 2,
+      awayGoals: 1,
+      events: [
+        { minute: 30, type: 'goal', description: 'gol', teamId: 'away', playerId: 'a1' },
+        { minute: 70, type: 'goal', description: 'gol', teamId: 'home', playerId: 'h1' },
+        { minute: 80, type: 'goal', description: 'gol', teamId: 'home', playerId: 'h2' },
+      ],
+    }))!;
+    const state = { version: 1 as const, cycleKey: 'L1', boardIds: ['late_comeback_win'], active: [{ missionId: 'late_comeback_win', progress: 0, matchesRemaining: 1, acceptedCycleKey: 'L1' }], history: [], processedMatchKeys: [], missionResolution: null };
+    expect(updateMissionsAfterMatch(state, context, 'L1:late-comeback-after-cutoff').completed)
+      .toEqual(['late_comeback_win']);
+  });
+
   it('keeps the same formation for the new same-value streak mission', () => {
     const home = team('home', [player('h1')], { formationId: '4-4-2', playStyle: 'counter' });
     const away = team('away', [player('a1')]);
@@ -436,7 +492,7 @@ describe('mission board', () => {
     expect(updateMissionsAfterMatch(stateFor('late_decisive_goal'), alreadyLeadingLate, 'L1:already-leading').completed)
       .toEqual([]);
 
-    const losingExactlyAt60 = createMissionMatchContext(home, away, result({
+    const losingAt60AndEqualizingLater = createMissionMatchContext(home, away, result({
       homeGoals: 2,
       awayGoals: 1,
       events: [
@@ -445,8 +501,8 @@ describe('mission board', () => {
         { minute: 80, type: 'goal', description: 'gol', teamId: 'home', playerId: 'h2' },
       ],
     }))!;
-    expect(updateMissionsAfterMatch(stateFor('late_comeback_win'), losingExactlyAt60, 'L1:exact-60').completed)
-      .toEqual([]);
+    expect(updateMissionsAfterMatch(stateFor('late_comeback_win'), losingAt60AndEqualizingLater, 'L1:exact-60').completed)
+      .toEqual(['late_comeback_win']);
   });
 
   it('requires the same player to score twice for the Prodígio mission', () => {

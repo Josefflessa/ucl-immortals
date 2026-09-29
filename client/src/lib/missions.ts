@@ -6,7 +6,7 @@
 
 import { COACHES, FORMATIONS, HISTORICAL_TRIOS, getPositionGroup } from './gameData';
 import type { MatchResult, PlayerCard, Team } from './gameEngine';
-import { calculateChemistry } from './gameEngine';
+import { calculateChemistry, positionFit } from './gameEngine';
 import { sameClub } from './crests';
 
 export type MissionRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -732,10 +732,21 @@ function wasLosingAfterMinute(context: MissionMatchContext, minute: number): boo
   let opponent = 0;
   const allGoals = allGoalEvents(context);
   for (const event of allGoals) {
+    // The team may already be behind when the cutoff passes. Check the score
+    // before a later goal as well as after it, rather than only observing goals
+    // that happened after the cutoff.
+    if (event.minute > minute && opponent > own) return true;
     if (event.teamId === context.teamId) own++; else opponent++;
     if (event.minute > minute && opponent > own) return true;
   }
   return false;
+}
+
+function isOutsideNaturalPositions(player: PlayerCard, role: string): boolean {
+  // Coringa is treated as native by the chemistry engine so it can play
+  // anywhere without a chemistry penalty. Missions still need to know whether
+  // the occupied role is outside the card's actual primary/secondary positions.
+  return positionFit({ position: player.position, secondaryPositions: player.secondaryPositions }, role) === 'off';
 }
 
 function goalsInPeriod(context: MissionMatchContext, secondHalf: boolean): number {
@@ -841,6 +852,11 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
   if (!context.isRegulation) return { matched: false };
   const goals = goalEvents(context);
   const starters = context.starters;
+  const formation = FORMATIONS.find(item => item.id === context.formationId);
+  const coringaOutOfPosition = starters.some((player, index) => {
+    const role = formation?.positions[index]?.role;
+    return Boolean(role && player.coringa && isOutsideNaturalPositions(player, role));
+  });
   const playerGoals = (player: PlayerCard) => context.playerStats[player.id]?.goals ?? 0;
   const playerAssists = (player: PlayerCard) => context.playerStats[player.id]?.assists ?? 0;
 
@@ -951,7 +967,6 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
     case 'chemistry_range_and_win': return { matched: context.isWin && context.chemistry >= (rule.value ?? 70) && context.chemistry <= Number(rule.values?.[0] ?? 79) };
     case 'all_compatible_and_win': return { matched: context.isWin && context.starters.every(player => !player.isOOP) };
     case 'secondary_positions_and_win': {
-      const formation = FORMATIONS.find(item => item.id === context.formationId);
       // `isSecondary` is stamped by the squad/chemistry pipeline in current games;
       // the fallback calculates it from the occupied formation role for old rooms.
       const calculated = calculateChemistry(context.starters, context.team.coachId, formation?.positions.map(position => position.role), context.formationId);
@@ -962,13 +977,12 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
       return { matched: context.isWin && fallbackCount >= (rule.value ?? 3) };
     }
     case 'coringa_secondary_and_win': {
-      const formation = FORMATIONS.find(item => item.id === context.formationId);
       const calculated = calculateChemistry(context.starters, context.team.coachId, formation?.positions.map(position => position.role), context.formationId);
       const secondaryCount = formation?.positions.reduce((total, role, index) => {
         const player = context.starters[index];
         return total + (player && !player.coringa && !calculated.outOfPosition[player.id] && calculated.secondaryPos[player.id] ? 1 : 0);
       }, 0) ?? 0;
-      return { matched: context.isWin && starters.some(player => player.coringa && player.isOOP) && secondaryCount >= (rule.value ?? 2) };
+      return { matched: context.isWin && coringaOutOfPosition && secondaryCount >= (rule.value ?? 2) };
     }
     case 'captain_goal_or_assist_win': return { matched: context.isWin && !!context.team.captain && playerHasGoalOrAssist(context, context.team.captain) };
     case 'prime_coach_and_win': return { matched: context.isWin && context.coachPrime };
@@ -1041,7 +1055,7 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
     case 'garcom_assists': return { matched: starters.some(player => player.garcom && playerAssists(player) >= (rule.value ?? 2)) };
     case 'magnata_and_win': return { matched: context.isWin && starters.some(player => player.magnata) };
     case 'pipoqueiro_and_win': return { matched: context.isWin && starters.some(player => player.pipoqueiro) };
-    case 'coringa_oop_and_win': return { matched: context.isWin && starters.some(player => player.coringa && player.isOOP) };
+    case 'coringa_oop_and_win': return { matched: context.isWin && coringaOutOfPosition };
     case 'pilar_chemistry_and_win': return { matched: context.isWin && starters.some(player => player.pilar) && context.chemistry >= (rule.value ?? 80) };
     case 'pilar_clean_sheet_and_win': return { matched: context.isWin && starters.some(player => player.pilar) && context.scoreAgainst === 0 };
     case 'lobo_chemistry_and_win': return { matched: context.isWin && starters.some(player => player.lobo) && context.chemistry <= (rule.value ?? 40) };
