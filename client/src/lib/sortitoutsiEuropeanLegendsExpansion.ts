@@ -186,14 +186,6 @@ export const SORTITOUTSI_EUROPEAN_LEGENDS: Player[] = [
     photoUrl: '/players/euro-legends/futwiz_romario.webp',
   },
   {
-    id: 'kluivert', shortName: 'Patrick Kluivert', fullName: 'Patrick Kluivert', position: 'ST',
-    nation: 'Holanda', club: 'Barcelona', season: '1998/99', rarity: 'legendary', overall: 88,
-    pace: 85, shooting: 87, passing: 75, dribbling: 85,
-    defending: 30, physical: 80, composure: 86, vision: 76,
-    traits: [],
-    photoUrl: '/players/euro-legends/futwiz_kluivert.webp',
-  },
-  {
     id: 'ian_wright', shortName: 'Ian Wright', fullName: 'Ian Wright', position: 'ST',
     nation: 'Inglaterra', club: 'Arsenal', season: '1993/94', rarity: 'gold', overall: 86,
     pace: 88, shooting: 86, passing: 68, dribbling: 82,

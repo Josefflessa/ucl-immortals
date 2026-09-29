@@ -220,6 +220,7 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "basaksehir", name: "Medipol Başakşehir FK", url: "https://upload.wikimedia.org/wikipedia/en/e/e1/İstanbul_Başakşehir_logo.svg" },
       { id: "parma", name: "Parma", url: "https://upload.wikimedia.org/wikipedia/commons/9/97/Logo_Parma_Calcio_1913_%28adozione_2016%29.svg" },
       { id: "sassuolo", name: "Sassuolo", url: "https://upload.wikimedia.org/wikipedia/en/1/1c/US_Sassuolo_Calcio_logo.svg" },
+      { id: "reggiana", name: "Reggiana", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Emblema%20Reggiana.jpg" },
       { id: "toronto-fc", name: "Toronto FC", url: "https://upload.wikimedia.org/wikipedia/en/7/7c/Toronto_FC_Logo.svg" },
     ]
   },

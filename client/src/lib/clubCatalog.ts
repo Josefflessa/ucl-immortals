@@ -67,6 +67,7 @@ const CLUB_METADATA_OVERRIDES: Record<string, CompetitionMetadata> = {
   basaksehir: { countryId: 'turkey', countryName: 'Turquia', leagueId: 'super-lig', leagueName: 'Süper Lig' },
   parma: { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-a', leagueName: 'Serie A' },
   sassuolo: { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-a', leagueName: 'Serie A' },
+  reggiana: { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-a', leagueName: 'Serie A' },
   'toronto-fc': { countryId: 'canada', countryName: 'Canadá', leagueId: 'mls', leagueName: 'MLS' },
   // Brasil representa uma seleção, não um clube de campeonato nacional.
   brazil: { countryId: 'brazil', countryName: 'Brasil', leagueId: 'national-teams', leagueName: 'Seleções' },

@@ -5090,7 +5090,7 @@ export const PLAYERS: Player[] = [
     fullName: 'Cláudio André Mergen Taffarel',
     position: 'GK',
     nation: 'Brasil',
-    club: 'Brasil',
+    club: 'Reggiana',
     season: '1994',
     rarity: 'legendary',
     overall: 90,

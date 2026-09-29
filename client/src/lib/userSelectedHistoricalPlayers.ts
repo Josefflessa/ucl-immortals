@@ -29,7 +29,7 @@ export const USER_SELECTED_HISTORICAL_PLAYERS: Player[] = [
   },
   {
     id: 'jairzinho', shortName: 'Jairzinho', fullName: 'Jair Ventura Filho', position: 'RW', secondaryPositions: ['ST', 'LW'],
-    nation: 'Brasil', club: 'Brasil', season: '1970', rarity: 'immortal', overall: 95,
+    nation: 'Brasil', club: 'Botafogo', season: '1970', rarity: 'immortal', overall: 95,
     pace: 98, shooting: 94, passing: 88, dribbling: 96,
     defending: 36, physical: 86, composure: 94, vision: 88,
     traits: [], photoUrl: '/players/euro-legends/jairzinho.webp',
