@@ -1408,9 +1408,6 @@ export default function LeaguePage() {
                   {statsSubTab === 'tackles' && 'LÍDERES EM DESARMES DO CAMPEONATO'}
                   {statsSubTab === 'cards' && 'DISCIPLINA — MAIS CARTÕES DA TEMPORADA'}
                 </span>
-                <span className="text-[9px] font-black text-yellow-500 tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  UCL IMMORTALS LEAGUE
-                </span>
               </div>
 
               {(() => {
