@@ -220,7 +220,7 @@ export interface RuntimeMutation {
 // intentionally private (bets, shop offers and balances). This also lets a
 // reconnected client receive a clean snapshot without forcing every other
 // participant to download the room again.
-export type GameTimerKind = 'room_cleanup' | 'host_grace' | 'draft_turn';
+export type GameTimerKind = 'room_cleanup' | 'room_watchdog' | 'host_grace' | 'draft_turn';
 
 /** Durable Objects replace Node's process-local timers with persisted alarms. */
 export interface GameTimerScheduler {
@@ -914,9 +914,11 @@ function getUniqueRoomCode(): string {
   return code;
 }
 
-// Pending deletions for rooms whose players have all left (kept off the RoomState
-// so the timer object is never serialized to clients).
+// Pending room timers are kept off RoomState so timer objects are never sent to
+// clients. The watchdog is also the fallback for a transport close event that
+// never reaches the server.
 const ROOM_CLEANUP_MS = 5 * 60 * 1000; // delete an all-empty room after 5 min
+const SOCKET_STALE_MS = 75 * 1000; // client heartbeat is sent every 20 seconds
 
 // O host controla a progressão. A regra é ESTÁVEL (ver room-host.ts): mantém o host
 // atual enquanto ele estiver na sala, mesmo caído um instante — só transfere quando ele
@@ -1161,20 +1163,42 @@ function releaseAllKnockoutMatchRewards(room: RoomState): void {
   revealBotOnlyKnockoutMatches(room, leg);
 }
 
+function scheduleRoomWatchdog(io: RealtimeServer, room: RoomState): void {
+  if (activeRuntime.scheduler) {
+    activeRuntime.scheduler.schedule('room_watchdog', room.code, ROOM_CLEANUP_MS);
+    return;
+  }
+  if (cleanupTimers.has(room.code)) return;
+  const timer = setTimeout(() => {
+    runRoomWatchdog(io, room.code);
+  }, ROOM_CLEANUP_MS);
+  cleanupTimers.set(room.code, timer);
+}
+
+/** Re-arm the fallback for a room restored from durable storage. */
+export function armRoomWatchdog(io: RealtimeServer, runtime: GameRuntime, roomCode: string): void {
+  runWithGameRuntime(runtime, () => {
+    const room = runtime.rooms.get(roomCode);
+    if (room) scheduleRoomWatchdog(io, room);
+  });
+}
+
 // Schedule deletion of a room once every player has disconnected; cancelled if
-// anyone (re)joins. Prevents abandoned rooms from leaking forever.
-function scheduleRoomCleanupIfEmpty(room: RoomState): void {
+// anyone (re)joins. The watchdog remains armed while a room is occupied so a
+// missed transport close cannot leave a durable room around indefinitely.
+function scheduleRoomCleanupIfEmpty(io: RealtimeServer, room: RoomState): void {
   if (room.players.some(p => p.connected)) {
-    cancelRoomCleanup(room.code);
+    scheduleRoomWatchdog(io, room);
     return;
   }
   if (activeRuntime.scheduler) {
+    activeRuntime.scheduler.cancel('room_watchdog', room.code);
     activeRuntime.scheduler.schedule('room_cleanup', room.code, ROOM_CLEANUP_MS);
     return;
   }
   if (cleanupTimers.has(room.code)) return;
   const timer = setTimeout(() => {
-    runRoomCleanup(room.code);
+    runRoomCleanup(io, room.code);
   }, ROOM_CLEANUP_MS);
   cleanupTimers.set(room.code, timer);
 }
@@ -1182,6 +1206,7 @@ function scheduleRoomCleanupIfEmpty(room: RoomState): void {
 function cancelRoomCleanup(code: string): void {
   if (activeRuntime.scheduler) {
     activeRuntime.scheduler.cancel('room_cleanup', code);
+    activeRuntime.scheduler.cancel('room_watchdog', code);
     return;
   }
   const t = cleanupTimers.get(code);
@@ -1317,10 +1342,51 @@ function scheduleDraftTurnTimer(io: RealtimeServer, room: RoomState): void {
   draftTurnTimers.set(room.code, timer);
 }
 
-function runRoomCleanup(roomCode: string): void {
+function hasLivePlayerSocket(io: RealtimeServer, player: RoomPlayer): boolean {
+  if (!player.connected || !player.socketId) return false;
+  const socket = io.sockets.sockets.get(player.socketId);
+  if (!socket) return false;
+  const lastSeenAt = socket.getLastSeenAt?.();
+  return lastSeenAt == null || Date.now() - lastSeenAt <= SOCKET_STALE_MS;
+}
+
+function runRoomWatchdog(io: RealtimeServer, roomCode: string): void {
   cleanupTimers.delete(roomCode);
   const room = rooms.get(roomCode);
-  if (!room || room.players.some(p => p.connected)) return;
+  if (!room) return;
+
+  const stalePlayers = room.players.filter(player => player.connected && !hasLivePlayerSocket(io, player));
+  stalePlayers.forEach(player => {
+    player.connected = false;
+    revealAbandonedPlayerMatch(room, player);
+    invalidateReady(room, player.id);
+    autoPickOfflineReinforcement(player);
+  });
+
+  if (stalePlayers.length > 0) {
+    const staleHost = stalePlayers.some(player => player.id === room.hostId);
+    recomputeHost(room);
+    if (staleHost) scheduleHostGraceTransfer(io, room);
+    if (room.players.some(player => hasLivePlayerSocket(io, player))) emitRoomUpdate(io, room);
+  }
+
+  if (room.players.some(player => hasLivePlayerSocket(io, player))) {
+    scheduleRoomWatchdog(io, room);
+    return;
+  }
+  scheduleRoomCleanupIfEmpty(io, room);
+}
+
+function runRoomCleanup(io: RealtimeServer, roomCode: string): void {
+  cleanupTimers.delete(roomCode);
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  // The cleanup timer is authoritative even if an earlier disconnect callback
+  // was lost. A live player socket always wins and re-arms the watchdog.
+  if (room.players.some(player => hasLivePlayerSocket(io, player))) {
+    scheduleRoomWatchdog(io, room);
+    return;
+  }
   clearDraftTurnTimer(roomCode);
   cancelHostGrace(roomCode);
   rooms.delete(roomCode);
@@ -1366,7 +1432,8 @@ function runDraftTurnTimer(io: RealtimeServer, roomCode: string): void {
 /** Called by Durable Object alarms. Node timers use the same implementation. */
 export function runGameTimer(io: RealtimeServer, runtime: GameRuntime, kind: GameTimerKind, roomCode: string): void {
   runWithGameRuntime(runtime, () => {
-    if (kind === 'room_cleanup') runRoomCleanup(roomCode);
+    if (kind === 'room_cleanup') runRoomCleanup(io, roomCode);
+    else if (kind === 'room_watchdog') runRoomWatchdog(io, roomCode);
     else if (kind === 'host_grace') runHostGraceTransfer(io, roomCode);
     else runDraftTurnTimer(io, roomCode);
   });
@@ -1658,6 +1725,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
       rooms.set(roomCode, newRoom);
       socket.join(roomCode);
+      scheduleRoomWatchdog(io, newRoom);
       emitInitialRoom(socket, "room_created", { roomCode }, newRoom);
       console.log(`Room created: ${roomCode} by ${normalizedCreatorName}`);
     });
@@ -1702,6 +1770,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         byClient.socketId = socket.id;
         byClient.connected = true;
         cancelRoomCleanup(code);
+        scheduleRoomWatchdog(io, room);
         if (byClient.id === room.hostId) cancelHostGrace(code); // só o host que voltou cancela a transferência
         recomputeHost(room);
         socket.join(code);
@@ -1737,6 +1806,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         existingPlayer.connected = true;
         if (clientId) existingPlayer.clientId = clientId; // adota a identidade p/ reconexões futuras
         cancelRoomCleanup(code);
+        scheduleRoomWatchdog(io, room);
         if (existingPlayer.id === room.hostId) cancelHostGrace(code); // só o host que voltou cancela a transferência
         recomputeHost(room);
         socket.join(code);
@@ -1797,6 +1867,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       room.players.push(newPlayer);
       recomputeHost(room);
       socket.join(code);
+      scheduleRoomWatchdog(io, room);
       emitInitialRoom(socket, "joined_room", { roomCode: code, player: newPlayer }, room);
       emitRoomUpdate(io, room, { excludeSocketId: socket.id });
       console.log(`Player joined: ${playerName} to ${code}`);
@@ -3860,6 +3931,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       room.commandReceipts = [];
       room.lastCheckpoint = undefined;
 
+      scheduleRoomWatchdog(io, room);
       emitRoomUpdate(io, room);
     });
 
@@ -3966,7 +4038,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
           if (replacement) room.hostId = replacement.id;
         }
         emitRoomUpdate(io, room);
-        scheduleRoomCleanupIfEmpty(room);
+        scheduleRoomCleanupIfEmpty(io, room);
       }
 
       socket.emit('room_left', {
@@ -4040,7 +4112,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         emitRoomUpdate(io, room);
         if (wasHost) scheduleHostGraceTransfer(io, room);
         if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
-        scheduleRoomCleanupIfEmpty(room);
+        scheduleRoomCleanupIfEmpty(io, room);
       });
     });
   });

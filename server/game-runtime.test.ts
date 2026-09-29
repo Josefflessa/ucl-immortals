@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGameRuntime, registerSocketHandlers, runWithGameRuntime } from './handlers';
+import { createGameRuntime, registerSocketHandlers, runGameTimer, runWithGameRuntime } from './handlers';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime';
 
 class FakeServer implements RealtimeServer {
@@ -161,6 +161,28 @@ describe('game runtime isolation', () => {
     }));
     expect(runtime.rooms.size).toBe(0);
     expect(socket.sent.find(message => message.event === 'action_error')).toBeTruthy();
+  });
+
+  it('uses the room watchdog when a transport close event is lost', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+
+    // Simulate the transport disappearing without invoking socket.disconnect.
+    server.sockets.sockets.delete(host.id);
+    runGameTimer(server, runtime, 'room_watchdog', 'ABCD');
+
+    expect(runtime.rooms.get('ABCD')?.players[0].connected).toBe(false);
+    expect(runtime.cleanupTimers.has('ABCD')).toBe(true);
+
+    runGameTimer(server, runtime, 'room_cleanup', 'ABCD');
+    expect(runtime.rooms.has('ABCD')).toBe(false);
   });
 
   it('applies a command only once when the client retries after a lost response', () => {

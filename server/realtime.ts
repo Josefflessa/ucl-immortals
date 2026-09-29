@@ -10,6 +10,8 @@ export type RealtimeEventHandler = (payload?: unknown) => void;
 
 export interface RealtimeSocket {
   id: string;
+  /** Optional transport-level liveness marker used by the room watchdog. */
+  getLastSeenAt?(): number | undefined;
   on(event: string, handler: RealtimeEventHandler): unknown;
   emit(event: string, payload?: unknown): unknown;
   join(roomCode: string): unknown;

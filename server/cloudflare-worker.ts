@@ -2,6 +2,7 @@
 
 import {
   createGameRuntime,
+  armRoomWatchdog,
   registerSocketHandlers,
   runGameTimer,
   runWithGameRuntime,
@@ -77,6 +78,8 @@ interface SocketAttachment {
   joinedRoomCode?: string;
   /** Restores the incremental sync capability after Durable Object hibernation. */
   supportsPatches?: boolean;
+  /** Last client heartbeat observed before the object hibernated. */
+  lastSeenAt?: number;
 }
 
 interface DurableTransactionSnapshot {
@@ -288,6 +291,7 @@ class DurableSocket implements RealtimeSocket {
   private readonly handlers = new Map<string, RealtimeEventHandler[]>();
   private joinedRoomCode: string | undefined;
   private supportsPatches: boolean;
+  private lastSeenAt: number;
 
   constructor(
     readonly id: string,
@@ -298,6 +302,18 @@ class DurableSocket implements RealtimeSocket {
   ) {
     this.joinedRoomCode = attachment?.joinedRoomCode;
     this.supportsPatches = attachment?.supportsPatches === true;
+    this.lastSeenAt = Number.isFinite(attachment?.lastSeenAt) ? attachment!.lastSeenAt! : Date.now();
+  }
+
+  getLastSeenAt(): number {
+    return this.lastSeenAt;
+  }
+
+  markSeen(): void {
+    const now = Date.now();
+    if (now - this.lastSeenAt < 10_000) return;
+    this.lastSeenAt = now;
+    this.saveAttachment();
   }
 
   on(event: string, handler: RealtimeEventHandler): this {
@@ -368,6 +384,7 @@ class DurableSocket implements RealtimeSocket {
       roomCode: this.objectRoomCode,
       joinedRoomCode: this.joinedRoomCode,
       supportsPatches: this.supportsPatches || undefined,
+      lastSeenAt: this.lastSeenAt,
     } satisfies SocketAttachment);
   }
 }
@@ -465,7 +482,7 @@ class DurableRealtimeServer implements RealtimeServer {
     this.connectionHandlers.forEach((handler) => handler(socket));
     if (restored) socket.restoreCapabilities();
     if (!restored) {
-      webSocket.serializeAttachment({ socketId, roomCode } satisfies SocketAttachment);
+      webSocket.serializeAttachment({ socketId, roomCode, lastSeenAt: socket.getLastSeenAt() } satisfies SocketAttachment);
       webSocket.send(encodeRealtimeMessage({ type: 'system', event: 'connected', socketId }));
     }
     return socket;
@@ -546,6 +563,7 @@ export class GameRoom {
       if (!isValidRoomCode(roomCode)) return new Response('Código de sala inválido.', { status: 400 });
       if (!isWebSocketUpgrade(request)) return new Response('WebSocket upgrade required', { status: 426 });
       await this.ensureInitialized(roomCode);
+      armRoomWatchdog(this.server, this.runtime, roomCode);
 
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
@@ -567,6 +585,7 @@ export class GameRoom {
     if (!incoming) return Promise.resolve();
     const immediateSocket = this.initialized ? this.server.get(webSocket) : undefined;
     if (incoming.event === 'client_ping' && immediateSocket) {
+      immediateSocket.markSeen();
       this.server.sendNow(immediateSocket, 'client_pong', {
         sentAt: incoming.payload && typeof incoming.payload === 'object' && !Array.isArray(incoming.payload)
           ? (incoming.payload as { sentAt?: unknown }).sentAt
@@ -593,6 +612,7 @@ export class GameRoom {
       // the initialized path; subsequent heartbeats use the fast path above.
       if (incoming.event === 'client_ping') {
         if (socket) {
+          socket.markSeen();
           this.server.sendNow(socket, 'client_pong', {
             sentAt: incoming.payload && typeof incoming.payload === 'object' && !Array.isArray(incoming.payload)
               ? (incoming.payload as { sentAt?: unknown }).sentAt
