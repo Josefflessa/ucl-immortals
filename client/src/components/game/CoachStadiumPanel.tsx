@@ -16,6 +16,7 @@ interface Props {
   points?: number;
   onEvolve?: () => void; // presente só no MEU TIME (editável); ausente = só exibição
   reportSummary?: boolean; // resumo enxuto usado exclusivamente no resultado final
+  showStadium?: boolean; // permite ocultar o estádio em resumos específicos
 }
 
 function ProgressRequirement({ label, current, target }: { label: string; current: number; target: number }) {
@@ -54,7 +55,7 @@ function TransitionRow({ before, after }: { before: React.ReactNode; after: Reac
 }
 
 // Exibição do técnico. O estádio é uma seção independente em "Meu Clube".
-export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiumProjectLevel = 1, wins = 0, points = 0, onEvolve, reportSummary = false }: Props) {
+export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiumProjectLevel = 1, wins = 0, points = 0, onEvolve, reportSummary = false, showStadium = true }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [reportStadiumImgOk, setReportStadiumImgOk] = useState(true);
   const canEvolve = wins >= PRIME_WINS_REQUIRED && points >= PRIME_COST;
@@ -71,13 +72,15 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
     return (
       <div className="ui-panel overflow-hidden">
         <div className="ui-panel__header justify-center text-center">
-          <span className="ui-panel__title">Técnico &amp; estádio</span>
+          <span className="ui-panel__title">{showStadium ? 'Técnico & estádio' : 'Técnico'}</span>
         </div>
-        <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0" style={{ borderColor: '#1A1A2A' }}>
+        <div className={showStadium ? 'grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0' : ''} style={{ borderColor: '#1A1A2A' }}>
           <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
-            <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-              TÉCNICO
-            </div>
+            {showStadium && (
+              <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                TÉCNICO
+              </div>
+            )}
             {reportCoachPhoto && (
               <div className="relative mt-3 h-[100px] w-[100px] flex-shrink-0">
                 <img
@@ -100,23 +103,25 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
               {coach.description}
             </p>
           </div>
-          <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
-            <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-              ESTÁDIO
+          {showStadium && (
+            <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
+              <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                ESTÁDIO
+              </div>
+              {reportStadiumImgOk && (
+                <img
+                  src={displayedStadium.photoUrl}
+                  alt={displayedStadium.name}
+                  onError={() => setReportStadiumImgOk(false)}
+                  className="mt-3 h-[120px] w-[120px] rounded-xl object-cover"
+                  style={{ border: `2px solid ${displayedStadium.prime ? '#E8C84A88' : '#16A34A55'}` }}
+                />
+              )}
+              <div className="mt-3 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>
+                {displayedStadium.name}
+              </div>
             </div>
-            {reportStadiumImgOk && (
-              <img
-                src={displayedStadium.photoUrl}
-                alt={displayedStadium.name}
-                onError={() => setReportStadiumImgOk(false)}
-                className="mt-3 h-[120px] w-[120px] rounded-xl object-cover"
-                style={{ border: `2px solid ${displayedStadium.prime ? '#E8C84A88' : '#16A34A55'}` }}
-              />
-            )}
-            <div className="mt-3 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>
-              {displayedStadium.name}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     );

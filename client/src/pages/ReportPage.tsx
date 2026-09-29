@@ -439,6 +439,7 @@ export default function ReportPage() {
               coachPrime={!!playerTeam.coachPrime}
               stadiumProjectLevel={projectLevel(playerTeam.clubProjects, 'stadium')}
               reportSummary
+              showStadium={false}
             />
           </motion.div>
         )}
