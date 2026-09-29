@@ -168,6 +168,7 @@ export default function LeaguePage() {
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market' | 'missions'>('fixtures');
+  const [classificationSubTab, setClassificationSubTab] = useState<'league' | 'bracket'>('league');
   const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles' | 'cards'>('goals');
   // HISTÓRICO: alterna entre "MEUS JOGOS" (do jogador) e "RODADAS ANTERIORES" (todos os resultados por rodada)
   const [resultsSubTab, setResultsSubTab] = useState<'mine' | 'rounds'>('mine');
@@ -256,6 +257,8 @@ export default function LeaguePage() {
   // work in either phase; only the first tab (matches) and the standings tab differ.
   const isKnockout = state.phase === 'knockout';
   const isLeagueOnly = state.competitionFormat.id === 'league';
+  const hasGroupStage = state.competitionFormat.id === 'groups_knockout';
+  const hasLeagueClassification = state.competitionFormat.id !== 'knockout';
   const isGroupStage = !isKnockout && state.competitionFormat.id === 'groups_knockout';
   const knockoutLabel = state.knockoutBracket ? knockoutRoundLabel(state.knockoutBracket.currentRound, state.knockoutBracket.firstRoundSize) : '';
   const leagueRounds = isGroupStage ? state.competitionFormat.groupRounds : state.competitionFormat.leagueRounds;
@@ -263,17 +266,18 @@ export default function LeaguePage() {
   const playoffTeams = Math.max(0, qualifiedTeams - 16);
   const directTeams = 16 - playoffTeams;
   const groupTables = useMemo(
-    () => isGroupStage
+    () => hasGroupStage
       ? computeGroupStandings(allTeams, leagueFixtures, state.competitionFormat)
       : [],
-    [allTeams, leagueFixtures, state.competitionFormat, isGroupStage]
+    [allTeams, leagueFixtures, state.competitionFormat, hasGroupStage]
   );
 
-  // When the season advances league → knockout, the standings tab disappears; fall
-  // back to the matches (CONFRONTOS) tab so we never render a blank panel.
+  // Keep the classification tab available after league → knockout. The current
+  // knockout view is the useful default, while the completed league table stays
+  // available as a historical reference.
   useEffect(() => {
-    if (isKnockout && activeTab === 'standings') setActiveTab('fixtures');
-  }, [isKnockout, activeTab]);
+    setClassificationSubTab(isKnockout ? 'bracket' : 'league');
+  }, [isKnockout]);
 
   // Aggregate stats for all players in the league. Memoized so switching tabs
   // (fixtures → standings → scorers) does not recompute/re-sort every render.
@@ -454,6 +458,9 @@ export default function LeaguePage() {
   const spoilerWaiting = isKnockout
     ? koHumans.filter(p => !state.onlineWatchedPlayers.includes(p.id)).length
     : waitingForCount;
+  const showingLeagueClassification = activeTab === 'standings'
+    && hasLeagueClassification
+    && (!isKnockout || classificationSubTab === 'league');
 
   // Check if player's match in this round is already played
   const playerFixture = currentRoundFixtures.find(
@@ -761,7 +768,9 @@ export default function LeaguePage() {
             {(isKnockout
             ? [
                 { id: 'fixtures', label: 'CONFRONTOS' },
-                { id: 'bracket', label: 'CHAVEAMENTO' },
+                ...(hasLeagueClassification
+                  ? [{ id: 'standings', label: 'CLASSIFICAÇÃO' }]
+                  : [{ id: 'bracket', label: 'CHAVEAMENTO' }]),
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU CLUBE' },
                 { id: 'results', label: 'HISTÓRICO' },
@@ -792,9 +801,25 @@ export default function LeaguePage() {
 
         {/* Matches tab — knockout shows the bracket ties; league shows round fixtures */}
         {activeTab === 'fixtures' && isKnockout && <KnockoutTiesTab />}
-        {activeTab === 'bracket' && isKnockout && (spoilerLock
+        {activeTab === 'bracket' && isKnockout && !hasLeagueClassification && (spoilerLock
           ? <SpoilerLock waiting={spoilerWaiting} label="CHAVEAMENTO OCULTO" />
           : <BracketTab />)}
+        {activeTab === 'standings' && isKnockout && hasLeagueClassification && (
+          <Tabs
+            value={classificationSubTab}
+            onValueChange={(value) => setClassificationSubTab(value as typeof classificationSubTab)}
+          >
+            <TabList className="mb-4 ui-tabs--split-mobile">
+              <Tab value="league">{hasGroupStage ? 'FASE DE GRUPOS' : 'FASE DE LIGA'}</Tab>
+              <Tab value="bracket">CHAVEAMENTO</Tab>
+            </TabList>
+          </Tabs>
+        )}
+        {activeTab === 'standings' && isKnockout && hasLeagueClassification && classificationSubTab === 'bracket' && (
+          spoilerLock
+            ? <SpoilerLock waiting={spoilerWaiting} label="CHAVEAMENTO OCULTO" />
+            : <BracketTab />
+        )}
         {activeTab === 'fixtures' && !isKnockout && (
           <div className="space-y-3">
             <div className="flex justify-between items-center mb-1">
@@ -1170,16 +1195,16 @@ export default function LeaguePage() {
           </div>
         )}
 
-        {/* Standings table — league only (knockout has no table) */}
-        {activeTab === 'standings' && !isKnockout && spoilerLock && (
+        {/* League/group classification remains available as a historical view during knockout. */}
+        {showingLeagueClassification && !isKnockout && spoilerLock && (
           <SpoilerLock waiting={spoilerWaiting} label="CLASSIFICAÇÃO OCULTA" />
         )}
-        {activeTab === 'standings' && !isKnockout && !spoilerLock && (
+        {showingLeagueClassification && (isKnockout || !spoilerLock) && (
           <div
             className="rounded-xl overflow-hidden overflow-x-auto"
             style={{ border: '1px solid #1A1A2A' }}
           >
-            {isGroupStage ? (
+            {hasGroupStage ? (
               <div className="space-y-3 p-3 sm:p-4">
                 <div className="flex items-end justify-between gap-3 px-1">
                   <div>
