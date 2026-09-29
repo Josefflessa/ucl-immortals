@@ -21,7 +21,7 @@ import {
   draftSlotIndex,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
   bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
-  getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, applyDefeatGrowth, applyDefeatGrowthForResults,
+  getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, SPECIALIZATION_UNLOCK_COST, applyDefeatGrowth, applyDefeatGrowthForResults,
   applyMercenarioProgress,
 } from '../lib/gameEngine';
 import type { MatchPlan, VariantFlag, PlayerSeasonStats } from '../lib/gameEngine';
@@ -282,6 +282,7 @@ export type GameAction =
   | { type: 'SHOP_CHANGE_COACH'; coachId: string }
   | { type: 'EVOLVE_COACH_PRIME' }
   | { type: 'SET_EVOLVE_POINT'; playerId: string; attr: AttrKey; delta: number }
+  | { type: 'UNLOCK_PLAYER_SPECIALIZATION'; playerId: string }
   | { type: 'CHOOSE_PLAYER_SPECIALIZATION'; playerId: string; specialization: PlayerSpecialization }
   | { type: 'RESET_EVOLVE_POINTS'; playerId: string }
   | { type: 'SHOP_OPEN_UNIQUE_PACK' } // cobra 750 e sorteia uma Única ainda não possuída
@@ -865,6 +866,22 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, action.attr, action.delta, unlockedPoints) };
       });
       return { ...state, playerTeam: { ...state.playerTeam, players } };
+    }
+    case 'UNLOCK_PLAYER_SPECIALIZATION': {
+      if (!state.playerTeam || state.points < SPECIALIZATION_UNLOCK_COST) return state;
+      let unlocked = false;
+      const players = state.playerTeam.players.map(p => {
+        if (p.id !== action.playerId || !canUnlockSpecialization(p)) return p;
+        unlocked = true;
+        return unlockPlayerSpecialization(p);
+      });
+      if (!unlocked) return state;
+      const points = state.points - SPECIALIZATION_UNLOCK_COST;
+      return {
+        ...state,
+        points,
+        playerTeam: { ...state.playerTeam, credits: points, players },
+      };
     }
     case 'CHOOSE_PLAYER_SPECIALIZATION': {
       if (!state.playerTeam) return state;
@@ -2039,6 +2056,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           }
         }
       }
+      // Keep solo aligned with the server's per-leg mission cycles. The first
+      // leg is evaluated against its own board above; only after that replay is
+      // finished do we expose the board for the return leg. The second leg is
+      // already on that cycle, so this is a no-op until ADVANCE_KNOCKOUT moves
+      // the bracket to the next round.
+      if (state.mode !== 'online' && state.knockoutBracket) {
+        missions = rotateMissionBoard(
+          missions,
+          localMissionSeed(state),
+          missionCycleKey(
+            'knockout',
+            state.leagueRound,
+            state.knockoutBracket.currentRound,
+            state.knockoutBracket.currentLeg,
+          ),
+        );
+      }
       if (playerTeamAfterStreak) playerTeamAfterStreak = { ...playerTeamAfterStreak, credits: points };
 
       return {
@@ -2386,6 +2420,7 @@ interface GameContextType {
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
   setEvolvePointOnline: (playerId: string, attr: AttrKey, delta: number) => void;
+  unlockSpecializationOnline: (playerId: string) => void;
   chooseSpecializationOnline: (playerId: string, specialization: PlayerSpecialization) => void;
   resetEvolvePointsOnline: (playerId: string) => void;
   rerollReinforcementOnline: () => void;
@@ -2967,6 +3002,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_EVOLVE_POINT', playerId, attr, delta });
     emitOnlineAction("set_evolve_point", { roomCode: state.roomCode, playerId, attr, delta });
   }, [dispatch, emitOnlineAction, state.roomCode]);
+  const unlockSpecializationOnline = useCallback((playerId: string) => {
+    if (!socketRef.current || !state.roomCode) return;
+    dispatch({ type: 'UNLOCK_PLAYER_SPECIALIZATION', playerId });
+    emitOnlineAction("unlock_player_specialization", { roomCode: state.roomCode, playerId });
+  }, [dispatch, emitOnlineAction, state.roomCode]);
   const chooseSpecializationOnline = useCallback((playerId: string, specialization: PlayerSpecialization) => {
     if (!socketRef.current || !state.roomCode) return;
     dispatch({ type: 'CHOOSE_PLAYER_SPECIALIZATION', playerId, specialization });
@@ -3089,7 +3129,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, ensurePlayerPackOffersOnline, shopOpenPlayerPackOnline, shopClaimPlayerPackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, tradeInviteOnline, tradeLeaveOnline, tradeAcceptInviteOnline, tradeSelectOnline, tradeReadyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
-    swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
+    swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline, requestMatchResultOnline, acceptMissionOnline, rerollMissionsOnline, removeMissionOnline, dismissMissionResolutionOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state, dispatch]);

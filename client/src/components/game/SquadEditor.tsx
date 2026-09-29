@@ -10,7 +10,7 @@ import {
   calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, getEvolutionLevel,
   MAX_RESERVE_PLAYERS,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, captainBoostFromStarters,
-  computeCharacteristicBoosts, evolvePointsSpent, evolvePointsBudget, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, SPECIALIZATION_LEVEL, positionFit, type EffectiveStats,
+  computeCharacteristicBoosts, evolvePointsSpent, evolvePointsBudget, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, SPECIALIZATION_LEVEL, SPECIALIZATION_UNLOCK_COST, positionFit, type EffectiveStats,
 } from '../../lib/gameEngine';
 import { TRAIT_MAP, traitEffectLabel, type AttrKey } from '../../lib/traits';
 import type { MatchPlan } from '../../lib/gameEngine';
@@ -63,6 +63,7 @@ export interface SquadEditorProps {
   onEvolvePrime?: () => void;
   // ⭐ Cartas Evoluídas: cada nível libera 6 pontos para distribuir (só no MEU TIME).
   onSetEvolvePoint?: (playerId: string, attr: AttrKey, delta: number) => void;
+  onUnlockSpecialization?: (playerId: string) => void;
   onChooseSpecialization?: (playerId: string, specialization: PlayerSpecialization) => void;
   onResetEvolvePoints?: (playerId: string) => void;
 }
@@ -81,7 +82,7 @@ export default function SquadEditor({
   showCoachCard = true, footer, isKnockout = false,
   availability, onHealInjury, canAffordPhysio, physioFree = false, physioCost = 150,
   coachPrime, points, analysisLevel = 1, stadiumProjectLevel = 1, wins, onEvolvePrime,
-  onSetEvolvePoint, onChooseSpecialization, onResetEvolvePoints,
+  onSetEvolvePoint, onUnlockSpecialization, onChooseSpecialization, onResetEvolvePoints,
 }: SquadEditorProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   // 🔍 Ver o card do jogador em tela cheia (só visualização).
@@ -945,8 +946,13 @@ export default function SquadEditor({
                   const availablePoints = Math.max(0, unlockedPoints - spent);
                   const apps = selectedPlayer.appearances ?? 0;
                   const maxLevel = selectedPlayer.rarity === 'immortal' ? SPECIALIZATION_LEVEL : 3;
+                  const needsSpecializationUnlock = selectedPlayer.rarity === 'immortal'
+                    && evolutionLevel === 3
+                    && selectedPlayer.specializationUnlocked !== true;
                   const nextThreshold = evolutionLevel < maxLevel ? EVOLVE_LEVEL_THRESHOLDS[evolutionLevel + 1] : null;
-                  const progressTarget = nextThreshold ?? EVOLVE_LEVEL_THRESHOLDS[maxLevel];
+                  const progressTarget = needsSpecializationUnlock
+                    ? EVOLVE_LEVEL_THRESHOLDS[3]
+                    : nextThreshold ?? EVOLVE_LEVEL_THRESHOLDS[maxLevel];
                   const progressCurrent = Math.min(apps, progressTarget);
                   const progressLabel = evolutionLevel < maxLevel ? `PROGRESSO · NÍVEL ${evolutionLevel} → ${evolutionLevel + 1}` : `PROGRESSO · NÍVEL ${maxLevel}`;
                   const specializationEntries = (Object.keys(PLAYER_SPECIALIZATIONS) as PlayerSpecialization[]).map(id => [id, PLAYER_SPECIALIZATIONS[id]] as const);
@@ -960,7 +966,9 @@ export default function SquadEditor({
                         <div className="h-full rounded-full" style={{ width: `${progressTarget ? progressCurrent / progressTarget * 100 : 100}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
                       </div>
                       <div className="text-[9px] mt-1.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                        {evolutionLevel < maxLevel
+                        {needsSpecializationUnlock
+                          ? `Nível 3 concluído. Desbloqueie o nível 4 por ${SPECIALIZATION_UNLOCK_COST} créditos.`
+                          : evolutionLevel < maxLevel
                           ? `Faltam ${Math.max(0, progressTarget - apps)} titularidade${Math.max(0, progressTarget - apps) === 1 ? '' : 's'} para liberar o nível ${evolutionLevel + 1}.`
                           : evolutionLevel === 3 && selectedPlayer.rarity === 'immortal'
                             ? `Faltam ${Math.max(0, progressTarget - apps)} titularidade${Math.max(0, progressTarget - apps) === 1 ? '' : 's'} para liberar o nível 4.`
@@ -1004,6 +1012,26 @@ export default function SquadEditor({
                         )}
                         {onResetEvolvePoints && spent > 0 && (
                           <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2.5 py-2.5 rounded-lg text-[11px] font-black tracking-wide transition-transform active:scale-[0.98]" style={{ background: '#1A1A2A', color: '#9A9AAA', border: '1px solid #2A2A3A', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>
+                        )}
+                        {needsSpecializationUnlock && onUnlockSpecialization && (
+                          <div className="mt-3 rounded-lg p-3" style={{ background: '#151207', border: '1px solid #C9A84C66' }}>
+                            <div className="text-[11px] font-black tracking-widest" style={{ color: '#F5D76E', fontFamily: 'Rajdhani, sans-serif' }}>DESBLOQUEIO DO NÍVEL 4</div>
+                            <div className="text-[10px] mt-1 mb-2.5 leading-snug" style={{ color: '#A9A9B8', fontFamily: 'Rajdhani, sans-serif' }}>
+                              Pague uma vez para liberar a especialização. Depois disso, você poderá trocar a escolha sem pagar novamente.
+                            </div>
+                            <button
+                              type="button"
+                              disabled={(points ?? 0) < SPECIALIZATION_UNLOCK_COST}
+                              onClick={() => onUnlockSpecialization(selectedPlayer.id)}
+                              className="w-full rounded-lg px-3 py-2.5 text-[11px] font-black tracking-wide transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+                              style={{ background: '#C9A84C22', color: '#F5D76E', border: '1px solid #C9A84C88', fontFamily: 'Rajdhani, sans-serif' }}
+                            >
+                              DESBLOQUEAR · {SPECIALIZATION_UNLOCK_COST} CRÉDITOS
+                            </button>
+                            <div className="mt-1.5 text-center text-[10px]" style={{ color: '#777789', fontFamily: 'Rajdhani, sans-serif' }}>
+                              Saldo: {points ?? 0} créditos
+                            </div>
+                          </div>
                         )}
                         {evolutionLevel === SPECIALIZATION_LEVEL && selectedPlayer.rarity === 'immortal' && onChooseSpecialization && (
                           <div className="mt-3 rounded-lg p-3" style={{ background: '#0A0A12', border: '1px solid #C9A84C55' }}>

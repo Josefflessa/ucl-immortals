@@ -1552,20 +1552,24 @@ export const PRIME_THEMED_BONUS = 3;
 export const PRIME_THEMED_CLUB_BONUS = 6;
 
 // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3.
-// Cartas Imortais chegam ao nível 4 com 16 titularidades e escolhem uma
-// especialização. O nível 4 não adiciona um quarto pacote genérico de pontos.
-export const EVOLVE_LEVEL_THRESHOLDS = [0, 4, 8, 12, 16] as const;
+// Cartas Imortais chegam ao nível 4 com um desbloqueio único de créditos e
+// escolhem uma especialização. O nível 4 não adiciona um quarto pacote genérico
+// de pontos.
+// Level 4 is purchased after level 3; the final slot is kept at 12 only so
+// the shared progress UI can represent the completed level-3 milestone.
+export const EVOLVE_LEVEL_THRESHOLDS = [0, 4, 8, 12, 12] as const;
 export const EVOLVE_GAMES = EVOLVE_LEVEL_THRESHOLDS[1];
 export const EVOLVE_POINTS = 6;
 export const EVOLVE_POINT_LEVELS = 3;
 export const SPECIALIZATION_LEVEL = 4;
 export const SPECIALIZATION_POINTS = 6;
+export const SPECIALIZATION_UNLOCK_COST = 200;
 
 export function evolvePointsBudget(level: number): number {
   return Math.min(EVOLVE_POINT_LEVELS, Math.max(0, Math.floor(level))) * EVOLVE_POINTS;
 }
 
-export function getEvolutionLevel(p: { rarity?: Rarity | string; evolutionLevel?: number; appearances?: number }): EvolutionLevel {
+export function getEvolutionLevel(p: { rarity?: Rarity | string; evolutionLevel?: number; appearances?: number; specializationUnlocked?: boolean }): EvolutionLevel {
   // Unique cards have their own fixed presentation and never evolve.
   if (p.rarity === 'unique') return 0;
 
@@ -1576,7 +1580,7 @@ export function getEvolutionLevel(p: { rarity?: Rarity | string; evolutionLevel?
   if (p.appearances === undefined && explicit === SPECIALIZATION_LEVEL) return p.rarity === 'immortal' ? SPECIALIZATION_LEVEL : 3;
 
   const appearances = Math.max(0, p.appearances ?? 0);
-  if (p.rarity === 'immortal' && appearances >= EVOLVE_LEVEL_THRESHOLDS[SPECIALIZATION_LEVEL]) return SPECIALIZATION_LEVEL;
+  if (p.rarity === 'immortal' && p.specializationUnlocked === true) return SPECIALIZATION_LEVEL;
   if (appearances >= EVOLVE_LEVEL_THRESHOLDS[3]) return 3;
   if (appearances >= EVOLVE_LEVEL_THRESHOLDS[2]) return 2;
   if (appearances >= EVOLVE_LEVEL_THRESHOLDS[1]) return 1;
@@ -1603,15 +1607,26 @@ export function applyEvolvePoint(
   return { ...ep, [attr]: (ep[attr] ?? 0) + delta };
 }
 
-export function specializationAttributeBonus(player: Pick<Player, 'rarity' | 'specialization' | 'evolutionLevel' | 'appearances'>, attr: AttrKey): number {
+export function specializationAttributeBonus(player: Pick<Player, 'rarity' | 'specialization' | 'evolutionLevel' | 'appearances' | 'specializationUnlocked'>, attr: AttrKey): number {
   if (player.rarity !== 'immortal' || getEvolutionLevel(player) < SPECIALIZATION_LEVEL || !player.specialization) return 0;
   return (PLAYER_SPECIALIZATIONS[player.specialization].attributes as readonly string[]).includes(attr)
     ? SPECIALIZATION_POINTS
     : 0;
 }
 
-export function canChooseSpecialization(player: Pick<Player, 'rarity' | 'specialization' | 'evolutionLevel' | 'appearances'>): boolean {
+export function canChooseSpecialization(player: Pick<Player, 'rarity' | 'specialization' | 'evolutionLevel' | 'appearances' | 'specializationUnlocked'>): boolean {
   return player.rarity === 'immortal' && getEvolutionLevel(player) >= SPECIALIZATION_LEVEL;
+}
+
+export function canUnlockSpecialization(player: Pick<Player, 'rarity' | 'evolutionLevel' | 'appearances' | 'specializationUnlocked'>): boolean {
+  return player.rarity === 'immortal'
+    && getEvolutionLevel(player) === 3
+    && player.specializationUnlocked !== true;
+}
+
+export function unlockPlayerSpecialization<T extends Player>(player: T): T {
+  if (!canUnlockSpecialization(player)) return player;
+  return { ...player, specializationUnlocked: true } as T;
 }
 
 export function choosePlayerSpecialization<T extends Player>(player: T, specialization: PlayerSpecialization): T {

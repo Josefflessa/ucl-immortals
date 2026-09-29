@@ -135,13 +135,16 @@ export interface Player {
     defending?: number; physical?: number; vision?: number; composure?: number;
   };
   // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3.
-  // Cartas Imortais chegam ao nível 4 com 16 titularidades e escolhem uma
-  // especialização; os níveis 1–3 continuam liberando pacotes de 6 pontos.
+  // Cartas Imortais chegam ao nível 4 com um desbloqueio único de créditos
+  // depois do nível 3 e escolhem uma especialização; os níveis 1–3 continuam
+  // liberando pacotes de 6 pontos.
   appearances?: number;
-  // Explicit evolution level for the expanded visual track. Existing cards
-  // without this field the level is derived from the cumulative appearances.
+  // Explicit evolution level for previews and legacy cards. New level-4
+  // unlocks are persisted through specializationUnlocked below.
   evolutionLevel?: EvolutionLevel;
-  // ⭐ Especialização do nível 4 (exclusiva de cartas Imortais; escolha única).
+  // ⭐ Desbloqueio pago do nível 4 (exclusivo de cartas Imortais; uma vez só).
+  specializationUnlocked?: boolean;
+  // ⭐ Especialização do nível 4 (exclusiva de cartas Imortais; pode ser trocada sem custo).
   specialization?: PlayerSpecialization;
   // Identificadores das partidas/pernas que já concederam uma titularidade.
   // Mantido na carta para que uma repetição do mesmo evento nunca conte duas vezes,

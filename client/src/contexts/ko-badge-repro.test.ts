@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { gameReducer } from './GameContext';
 import type { GameState } from './GameContext';
 import { buildKnockoutMatchKey } from '../lib/bets';
+import { createMissionState, missionCycleKey } from '../lib/missions';
 
 const base = (over: Partial<GameState> = {}): GameState => ({
   ...({} as GameState),
@@ -85,5 +86,41 @@ describe('KO badge repro (solo two-leg)', () => {
     console.log('AFTER VOLTA:', JSON.stringify(r), 'watched=', state.watchedKnockoutMatches, 'bets=', JSON.stringify(state.bets));
     expect(r.ida).not.toContain('EM_ANDAMENTO');
     expect(r.volta).not.toContain('EM_ANDAMENTO');
+  });
+
+  it('rotates the solo mission mural from ida to volta, then to the next round', () => {
+    const mkRes = (h: number, a: number): any => ({ homeTeamId: 'me', awayTeamId: 'b', homeGoals: h, awayGoals: a, events: [], playerStats: {} });
+    const teamA: any = { id: 'me', players: [] }, teamB: any = { id: 'b', players: [] };
+    let state = base({
+      playerName: 'Me',
+      roomCode: null,
+      currentMatchTeams: [teamA, teamB],
+      missions: createMissionState('solo:me', missionCycleKey('knockout', 1, 'playoffs', 1)),
+      knockoutBracket: {
+        playoffs: [{ id: 't', homeTeamId: 'me', awayTeamId: 'b', played: false, isSingleLeg: false }],
+        round16: [], quarterFinals: [], semiFinals: [], final: null,
+        currentRound: 'playoffs', currentLeg: 1,
+      } as any,
+    });
+
+    // Finishing the ida must evaluate the ida cycle before exposing the volta.
+    (state.knockoutBracket as any).currentLeg = 2;
+    state = gameReducer(state, { type: 'WATCH_ONLINE_MATCH', teams: [teamA, teamB], result: mkRes(1, 0), knockout: { matchId: 't', round: 'playoffs', leg: 1 } } as any);
+    state = gameReducer(state, { type: 'FINISH_KNOCKOUT_MATCH', result: mkRes(1, 0) } as any);
+    expect(state.missions.cycleKey).toBe(missionCycleKey('knockout', 1, 'playoffs', 2));
+
+    // Finishing the volta keeps the volta cycle until the bracket advances.
+    const leg2 = { ...mkRes(0, 0), homeTeamId: 'b', awayTeamId: 'me' };
+    const tie = (state.knockoutBracket as any).playoffs[0];
+    tie.leg1 = mkRes(1, 0);
+    tie.leg2 = leg2;
+    tie.result = { homeTeamId: 'me', awayTeamId: 'b', homeGoals: 1, awayGoals: 0, winner: 'me', events: [] };
+    tie.played = true;
+    state = gameReducer(state, { type: 'WATCH_ONLINE_MATCH', teams: [teamB, teamA], result: leg2, knockout: { matchId: 't', round: 'playoffs', leg: 2 } } as any);
+    state = gameReducer(state, { type: 'FINISH_KNOCKOUT_MATCH', result: leg2 } as any);
+    expect(state.missions.cycleKey).toBe(missionCycleKey('knockout', 1, 'playoffs', 2));
+
+    state = gameReducer(state, { type: 'ADVANCE_KNOCKOUT' } as any);
+    expect(state.missions.cycleKey).toBe(missionCycleKey('knockout', 1, 'round16', 1));
   });
 });
