@@ -5098,6 +5098,7 @@ export const PLAYERS: Player[] = [
     pace: 54, shooting: 20, passing: 56, dribbling: 34, defending: 94, physical: 82,
     composure: 95, vision: 78,
     traits: [],
+    photoUrl: '/players/regular/brazil/national-teams/brazil/taffarel_brasil.webp',
   },
   {
     id: 'ferdinand',
