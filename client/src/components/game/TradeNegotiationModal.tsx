@@ -1,9 +1,29 @@
 // UCL Immortals — Sala de negociação de troca (mercado online): abre pros dois lados assim que
 // o convite é aceito. Cada lado escolhe um ou mais jogadores do PRÓPRIO banco + créditos
 // opcionais, vendo a oferta do outro em tempo real, até os dois marcarem "Pronto".
+import { memo } from 'react';
 import { useGame } from '../../contexts/GameContext';
 import PlayerCard from './PlayerCard';
 import { Button, GameModal } from '../../design-system';
+import type { Player } from '../../lib/gameData';
+
+// Room updates clone the authoritative state. Keep unchanged trade cards from
+// recalculating when only the other side's offer or ready flag changes.
+const TradePlayerCard = memo(function TradePlayerCard({ player, selected, onToggle }: {
+  player: Player;
+  selected?: boolean;
+  onToggle?: (playerId: string) => void;
+}) {
+  return (
+    <PlayerCard
+      player={player}
+      compact
+      lite
+      selected={selected}
+      onClick={onToggle ? () => onToggle(player.id) : undefined}
+    />
+  );
+}, (previous, next) => previous.player.id === next.player.id && previous.selected === next.selected);
 
 export default function TradeNegotiationModal() {
   const { state, tradeSelectOnline, tradeReadyOnline, tradeLeaveOnline } = useGame();
@@ -73,13 +93,11 @@ export default function TradeNegotiationModal() {
             {bench.length === 0 ? (
               <div className="ui-empty">Sem reservas pra oferecer.</div>
             ) : bench.map(p => (
-              <PlayerCard
+              <TradePlayerCard
                 key={p.id}
                 player={p}
-                compact
-                lite
                 selected={myPlayerIds.includes(p.id)}
-                onClick={() => togglePlayer(p.id)}
+                onToggle={togglePlayer}
               />
             ))}
           </div>
@@ -103,7 +121,7 @@ export default function TradeNegotiationModal() {
           </div>
           <div className="market-player-row flex flex-wrap gap-3">
             {theirCards.length > 0 ? (
-              theirCards.map(player => <PlayerCard key={player.id} player={player} compact lite />)
+              theirCards.map(player => <TradePlayerCard key={player.id} player={player} />)
             ) : (
               <div className="ui-empty">Ainda escolhendo...</div>
             )}

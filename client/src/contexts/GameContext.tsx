@@ -24,7 +24,7 @@ import {
   getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, applyDefeatGrowth, applyDefeatGrowthForResults,
   applyMercenarioProgress,
 } from '../lib/gameEngine';
-import type { MatchPlan, VariantFlag } from '../lib/gameEngine';
+import type { MatchPlan, VariantFlag, PlayerSeasonStats } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import type { PlayerSpecialization } from '../lib/gameData';
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, lossStreakBonus, nextLossStreak, type PlayerPackRarity, type RegularPlayerPackRarity } from '../lib/shop';
@@ -133,6 +133,8 @@ export interface GameState {
   draftState: DraftState | null;
   leagueStandings: StandingsEntry[];
   leagueResults: MatchResult[];
+  // Online: compact server-authoritative aggregate for the season leaderboard.
+  onlineSeasonPlayerStats: Record<string, PlayerSeasonStats>;
   leagueRound: number;
   leagueFixtures: LeagueFixture[];
   knockoutBracket: KnockoutBracket | null;
@@ -323,6 +325,7 @@ export type GameAction =
   | { type: 'RESET_GAME' }
   | { type: 'SET_ONLINE_STATE'; roomState: any; socketId: string }
   | { type: 'SET_ONLINE_READY_PLAYERS'; readyPlayers: string[] }
+  | { type: 'SET_ONLINE_TRADE_STATE'; trades: TradeSession[]; readyPlayers: string[] }
   | { type: 'INIT_ONLINE'; socketId: string; roomCode: string; isHost: boolean }
   | { type: 'SET_ADVANCE_BLOCKED'; waiting: string[] | null }
   | { type: 'DISCONNECT_ONLINE' };
@@ -340,6 +343,7 @@ const initialState: GameState = {
   draftState: null,
   leagueStandings: [],
   leagueResults: [],
+  onlineSeasonPlayerStats: {},
   leagueRound: 1,
   leagueFixtures: [],
   knockoutBracket: null,
@@ -784,7 +788,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const valid = !!state.reinforcementOptions
         && state.reinforcementOptions.some(o => o.id === action.player.id)
         && !state.playerTeam.players.some(p => p.id === action.player.id);
-      if (!valid) return { ...state, reinforcementOptions: null, reinforcementOffer: null };
+      // A stale/duplicate click must not close the offer. In online mode the
+      // server may already have accepted the same command and the next room
+      // patch will reconcile the authoritative remaining choices. Clearing
+      // here caused the modal to flicker closed and reopen with a reordered
+      // grid while that patch was in flight.
+      if (!valid) return state;
       // A contratação entra no banco (index 11+). O XI continua intacto, então a
       // química só muda quando o técnico fizer a troca na tela MEU TIME.
       const card: PlayerCard = { ...action.player, chemistryScore: 0, isOOP: false };
@@ -1649,14 +1658,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ? createMissionMatchContext(missionTeam, missionOpponent, playerResult)
         : null;
       const missionKey = buildLeagueMatchKey(playerFixture.round, playerFixture.homeTeamId, playerFixture.awayTeamId);
+      const missionState = state.missions ?? createMissionState('solo', `L${state.leagueRound}`);
       const missionUpdate = missionContext
         ? updateMissionsAfterMatch(
-            state.missions,
+            missionState,
             missionContext,
             missionKey,
             projectLevel(missionTeam?.clubProjects, 'missions'),
           )
-        : { state: state.missions, reward: 0, completed: [], expired: [] };
+        : { state: missionState, reward: 0, completed: [], expired: [] };
       const nextPoints = nextPointsBeforeMissions + missionUpdate.reward;
 
       return {
@@ -2002,7 +2012,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         betProtectionUsedKeys = revealed.protectionUsedKeys;
       }
 
-      let missions = state.missions;
+      let missions = state.missions ?? createMissionState('solo', 'L1');
       if (!state.spectating && state.mode !== 'online' && state.playerTeam && action.result && state.currentMatchTeams) {
         const missionHome = state.currentMatchTeams.find(team => team.id === action.result.homeTeamId);
         const missionAway = state.currentMatchTeams.find(team => team.id === action.result.awayTeamId);
@@ -2017,7 +2027,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             state.activeKnockoutMatch?.leg ?? state.knockoutBracket?.currentLeg ?? 1,
           );
           const missionUpdate = updateMissionsAfterMatch(
-            state.missions,
+            missions,
             missionContext,
             missionKey,
             projectLevel(missionTeam?.clubProjects, 'missions'),
@@ -2156,6 +2166,27 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             roomMissionCycle,
           )
         : state.missions;
+      const serverWatchedThisLeagueRound = roomState.phase === 'league'
+        && !!me
+        && (roomState.watchedRoundPlayers || []).includes(me.id);
+      let syncedWatchedKnockoutMatches = state.watchedKnockoutMatches;
+      if (roomState.phase === 'knockout'
+        && me?.team
+        && roomState.knockoutBracket
+        && roomState.watchedKnockoutLegKey
+        && (roomState.watchedKnockoutLegPlayers || []).includes(me.id)) {
+        const activeTies = getActiveKnockoutMatches(roomState.knockoutBracket) as any[];
+        const myTie = activeTies.find(tie => tie.homeTeamId === me.team.id
+          || tie.awayTeamId === me.team.id
+          || tie.homeTeamId === me.id
+          || tie.awayTeamId === me.id);
+        if (myTie) {
+          const watchedKey = `${myTie.id}_l${roomState.watchedKnockoutLegKey.leg}`;
+          syncedWatchedKnockoutMatches = state.watchedKnockoutMatches.includes(watchedKey)
+            ? state.watchedKnockoutMatches
+            : [...state.watchedKnockoutMatches, watchedKey];
+        }
+      }
 
       return {
         ...state,
@@ -2168,6 +2199,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         leagueFixtures: roomFixtures,
         leagueStandings: roomState.leagueStandings || [],
         leagueResults: roomLeagueResults,
+        onlineSeasonPlayerStats: roomState.seasonPlayerStats ?? {},
         leagueRound: roomState.leagueRound || 1,
         knockoutBracket: roomState.knockoutBracket || null,
         champion: roomState.champion || null,
@@ -2208,6 +2240,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ? (me.medicalFreeTreatmentsUsed ?? state.medicalFreeTreatmentsUsed)
           : state.medicalFreeTreatmentsUsed,
         missions: syncedMissions,
+        // A disconnect/leave is a terminal reveal for the current replay
+        // window. Mirror the server marker so reconnecting does not reopen a
+        // replay that was already released and credited.
+        lastWatchedRound: serverWatchedThisLeagueRound
+          ? Math.max(state.lastWatchedRound, roomState.leagueRound || 1)
+          : state.lastWatchedRound,
+        watchedKnockoutMatches: syncedWatchedKnockoutMatches,
         draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),
         selectedCrestId: keepLocalPicks ? state.selectedCrestId : (me ? (me.crestId ?? state.selectedCrestId) : state.selectedCrestId),
         selectedCoachId: keepLocalPicks ? state.selectedCoachId : (me ? me.coachId : state.selectedCoachId),
@@ -2254,6 +2293,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_ONLINE_READY_PLAYERS':
       return { ...state, onlineReadyPlayers: action.readyPlayers };
+
+    case 'SET_ONLINE_TRADE_STATE':
+      return {
+        ...state,
+        onlineTradeSessions: action.trades,
+        onlineReadyPlayers: action.readyPlayers,
+      };
 
     case 'SET_ADVANCE_BLOCKED':
       return { ...state, advanceBlocked: action.waiting };
@@ -2625,6 +2671,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Trocas alteram somente a sessão de negociação. Receba esse recorte
+    // imediatamente, sem esperar o clone/diff do estado completo da sala.
+    socketInstance.on("trade_state_updated", ({ trades, readyPlayers }: { trades?: unknown; readyPlayers?: unknown }) => {
+      if (!isCurrentSocket() || !Array.isArray(trades)) return;
+      dispatch({
+        type: 'SET_ONLINE_TRADE_STATE',
+        trades: trades as TradeSession[],
+        readyPlayers: Array.isArray(readyPlayers) ? readyPlayers.filter((id): id is string => typeof id === 'string') : [],
+      });
+    });
+
     socketInstance.on("ready_state_updated", ({ readyPlayers }: { readyPlayers?: string[] }) => {
       if (!isCurrentSocket()) return;
       dispatch({ type: 'SET_ONLINE_READY_PLAYERS', readyPlayers: readyPlayers || [] });
@@ -2924,13 +2981,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("reroll_reinforcement", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
   const pickReinforcementOnline = useCallback((player: Player) => {
-    // Close the offer immediately after a valid local selection. The server
-    // remains authoritative and a rejected command already requests a fresh
-    // room snapshot, so stale/offline clicks cannot permanently alter the team.
+    // Keep the current offer visible until the authoritative room update
+    // arrives. Optimistically closing/rebuilding it made a level-3 offer
+    // briefly disappear and reappear when the first selection was confirmed.
+    // The server validates the card and selection limit before changing it.
     if (!socketRef.current || !state.roomCode) return;
-    dispatch({ type: 'PICK_REINFORCEMENT', player });
     emitOnlineAction("pick_reinforcement", { roomCode: state.roomCode, player });
-  }, [dispatch, emitOnlineAction, state.roomCode]);
+  }, [emitOnlineAction, state.roomCode]);
   const dismissReinforcementOnline = useCallback(() => {
     if (!socketRef.current || !state.roomCode) return;
     dispatch({ type: 'DISMISS_REINFORCEMENT' });

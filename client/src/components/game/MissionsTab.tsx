@@ -6,6 +6,7 @@ import {
   MISSION_MAP,
   MISSION_RARITY_META,
   canRerollMissionBoard,
+  completedMissionCount,
   missionDeadline,
   missionReward,
   missionRemovalCost,
@@ -130,6 +131,7 @@ export default function MissionsTab() {
     .map(id => MISSION_MAP[id])
     .filter(definition => definition && !activeById.has(definition.id));
   const activeCount = state.missions.active.length;
+  const completedCount = completedMissionCount(state.missions);
   const availableCredits = Math.max(0, state.points);
   const missionsProjectLevel = projectLevel(state.playerTeam?.clubProjects, 'missions');
   const rerollAvailable = canRerollMissionBoard(state.missions, missionsProjectLevel);
@@ -152,7 +154,7 @@ export default function MissionsTab() {
   return (
     <div className="space-y-5">
       <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(135deg, #17172B, #10101A)', border: '1px solid #2A2A46' }}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
           <div>
             <div className="flex items-center gap-2">
               <ScrollText size={20} style={{ color: '#F0C674' }} />
@@ -162,7 +164,19 @@ export default function MissionsTab() {
               O mural muda a cada rodada, mas as missões aceitas continuam valendo até serem concluídas, expirarem ou serem removidas.
             </p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2 md:justify-self-center">
+            <div className="flex items-stretch gap-2">
+              <div className="rounded-lg px-3 py-2 text-center" style={{ background: '#0B0B15', border: '1px solid #34344E' }}>
+                <div className="text-xs font-black tracking-widest" style={{ color: '#85859A', fontFamily: 'Rajdhani, sans-serif' }}>MISSÕES ATIVAS</div>
+                <div className="mt-0.5 text-3xl font-black tabular-nums" style={{ color: activeCount === 2 ? '#F0C674' : '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>{activeCount}/2</div>
+              </div>
+              <div className="rounded-lg px-3 py-2 text-center" style={{ background: '#0B0B15', border: '1px solid #34344E' }}>
+                <div className="text-xs font-black tracking-widest" style={{ color: '#85859A', fontFamily: 'Rajdhani, sans-serif' }}>CONCLUÍDAS</div>
+                <div className="mt-0.5 text-3xl font-black tabular-nums" style={{ color: '#8FE3B0', fontFamily: 'Bebas Neue, sans-serif' }}>{completedCount}</div>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2 md:justify-self-end">
             {missionsProjectLevel >= 2 && (
               <Button
                 intent={rerollAvailable ? 'primary' : 'secondary'}
@@ -174,10 +188,6 @@ export default function MissionsTab() {
                 <RefreshCw size={15} /> {rerollAvailable ? 'ATUALIZAR MURAL' : 'MURAL ATUALIZADO'}
               </Button>
             )}
-            <div className="rounded-lg px-3 py-2 text-center" style={{ background: '#0B0B15', border: '1px solid #34344E' }}>
-              <div className="text-xs font-black tracking-widest" style={{ color: '#85859A', fontFamily: 'Rajdhani, sans-serif' }}>MISSÕES ATIVAS</div>
-              <div className="mt-0.5 text-3xl font-black tabular-nums" style={{ color: activeCount === 2 ? '#F0C674' : '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>{activeCount}/2</div>
-            </div>
           </div>
         </div>
       </div>

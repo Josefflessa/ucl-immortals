@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
-import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, PlayerSeasonStats } from '../lib/gameEngine';
+import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, statKey, PlayerSeasonStats } from '../lib/gameEngine';
 import ClubHubTab from '../components/game/ClubHubTab';
 import MarketTab from '../components/game/MarketTab';
 import ShopTab from '../components/game/ShopTab';
@@ -63,25 +63,68 @@ export default function LeaguePage() {
     ? state.lastMatchPoints.matchKey ?? JSON.stringify(state.lastMatchPoints)
     : null;
   const initialCreditsSignature = useRef<string | null | undefined>(undefined);
+  const [postMatchModalQueueReady, setPostMatchModalQueueReady] = useState(false);
   const [dismissedCreditsSignature, setDismissedCreditsSignature] = useState<string | null>(null);
   useEffect(() => {
     if (initialCreditsSignature.current !== undefined) return;
     initialCreditsSignature.current = creditsSignature;
+    // Do not paint recruitment or mission resolution before this first check.
+    // On a solo return from the match screen, both the credit result and the
+    // recruitment offer can already exist on the first render; without this
+    // gate, recruitment briefly flashes before the credit modal takes over.
+    setPostMatchModalQueueReady(true);
     // In solo, LeaguePage remounts after MatchSimPage finishes. The current
     // lastMatchPoints is therefore the reward for the match just played and
     // must be shown immediately. Online uses matchCreditsModalPending because
     // the hub also remounts after an online replay finishes.
   }, []);
-  const showCreditsModal = online
+  const showCreditsModal = !postMatchModalQueueReady ? false : online
     ? state.matchCreditsModalPending && !!state.lastMatchPoints
     : initialCreditsSignature.current !== undefined
       && !!state.lastMatchPoints
       && creditsSignature !== dismissedCreditsSignature;
+
+  // A ticket on another player's match may be revealed while this player is
+  // on the hub, not inside the replay. Keep that server-side credit visible
+  // instead of making the balance change silently.
+  const previousBetSnapshot = useRef<{ roomCode: string; states: Map<string, string> } | null>(null);
+  useEffect(() => {
+    if (!online || !state.roomCode) {
+      previousBetSnapshot.current = null;
+      return;
+    }
+    const current = new Map(state.bets.map(bet => [
+      bet.matchKey,
+      `${bet.revealed ? 1 : 0}:${bet.won ? 1 : 0}:${bet.payout ?? 0}:${bet.protectionRefund ?? 0}`,
+    ]));
+    const previous = previousBetSnapshot.current;
+    if (!previous || previous.roomCode !== state.roomCode) {
+      previousBetSnapshot.current = { roomCode: state.roomCode, states: current };
+      return;
+    }
+
+    const newlyRevealed = state.bets.filter(bet => {
+      if (!bet.revealed) return false;
+      const before = previous.states.get(bet.matchKey);
+      const now = current.get(bet.matchKey);
+      return before !== now;
+    });
+    if (newlyRevealed.length > 0) {
+      const credited = newlyRevealed.reduce((total, bet) => total + (bet.payout ?? 0) + (bet.protectionRefund ?? 0), 0);
+      if (credited > 0) {
+        toast.success(`Palpite liquidado · +${credited} créditos`);
+      } else {
+        toast.info(newlyRevealed.length === 1 ? 'Palpite encerrado sem recompensa.' : 'Palpites encerrados sem recompensa.');
+      }
+    }
+    previousBetSnapshot.current = { roomCode: state.roomCode, states: current };
+  }, [online, state.bets, state.roomCode]);
+
   const closeCreditsModal = () => {
     if (online) dispatch({ type: 'DISMISS_MATCH_CREDITS' });
     else if (creditsSignature) setDismissedCreditsSignature(creditsSignature);
   };
-  const showMissionResolutionModal = !!state.missions.missionResolution && !showCreditsModal;
+  const showMissionResolutionModal = postMatchModalQueueReady && !!state.missions.missionResolution && !showCreditsModal;
   const closeMissionResolutionModal = () => {
     if (online) dismissMissionResolutionOnline();
     else dispatch({ type: 'DISMISS_MISSION_RESOLUTION' });
@@ -241,10 +284,15 @@ export default function LeaguePage() {
         ...p,
         teamName: t.name,
         teamId: t.id,
-        stats: getPlayerSeasonStats(p.id, t.id, allPlayedResults),
+        // Online old fixtures are intentionally compacted and no longer carry
+        // playerStats. Use the server's compact cumulative read model so the
+        // leaderboard keeps all rounds without downloading every event log.
+        stats: state.mode === 'online'
+          ? (state.onlineSeasonPlayerStats[statKey(t.id, p.id)] ?? getPlayerSeasonStats(p.id, t.id, allPlayedResults))
+          : getPlayerSeasonStats(p.id, t.id, allPlayedResults),
       }))
     );
-  }, [allTeams, leagueResults, state.knockoutBracket]);
+  }, [allTeams, leagueResults, state.knockoutBracket, state.mode, state.onlineSeasonPlayerStats]);
 
   const { topScorers, topAssists, topRatings, topKeepers, topTacklers, topCards } = useMemo(() => ({
     topScorers: [...allPlayers].filter(p => p.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals),
@@ -1747,7 +1795,7 @@ export default function LeaguePage() {
         )}
         {state.mode === 'online' && <TradeInviteModal />}
         {state.mode === 'online' && <TradeNegotiationModal />}
-        {state.reinforcementOptions && state.reinforcementOptions.length > 0 && !showCreditsModal && !showMissionResolutionModal && (
+        {postMatchModalQueueReady && state.reinforcementOptions && state.reinforcementOptions.length > 0 && !showCreditsModal && !showMissionResolutionModal && (
           <GameModal
             open
             onOpenChange={() => {}}

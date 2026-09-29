@@ -159,7 +159,7 @@ export default function ClubProjectsTab() {
               <div id={detailsPanelId} className="mt-4 rounded-xl border border-[#242436] bg-[#0A0A14] p-3">
                 <div className="mb-2 flex items-center justify-between gap-2 text-xs font-black tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   <span className="text-[#77778A]">PROGRESSÃO</span>
-                  <span style={{ color: project.color }}>{maxed ? 'MÁXIMO' : nextCost ? `PRÓXIMO · ${nextCost} CR` : 'BASE'}</span>
+                  <span style={{ color: project.color }}>{maxed ? 'MÁXIMO' : nextCost ? <>PRÓXIMO · 💰 {nextCost}</> : 'BASE'}</span>
                 </div>
                 <ProjectLevelBar level={level} color={project.color} />
                   <p className="mt-3 text-pretty text-sm leading-relaxed text-[#B0B0BE]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
@@ -200,7 +200,7 @@ export default function ClubProjectsTab() {
                             : `Evoluir para o nível ${level + 1}`
                     }
                   >
-                    {!implemented ? 'EM BREVE' : maxed ? 'MÁXIMO' : `EVOLUIR · ${nextCost} CR`}
+                    {!implemented ? 'EM BREVE' : maxed ? 'MÁXIMO' : <>EVOLUIR · 💰 {nextCost}</>}
                   </button>
                 </div>
               </div>
@@ -392,7 +392,7 @@ export default function ClubProjectsTab() {
                         {formatProjectCopy(detailsProject.id, effect)}
                       </p>
                       <div className="mt-3 border-t border-white/[.08] pt-2 text-xs font-bold tracking-wide text-[#8F8FA0]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                        {levelNumber === 1 ? 'BASE DO PROJETO' : 'CUSTO PARA DESBLOQUEAR · ' + projectUpgradeCost(levelNumber) + ' CR'}
+                        {levelNumber === 1 ? 'BASE DO PROJETO' : <>CUSTO PARA DESBLOQUEAR · 💰 {projectUpgradeCost(levelNumber)}</>}
                       </div>
                     </div>
                   );
@@ -427,11 +427,11 @@ export default function ClubProjectsTab() {
 
               <div className="flex items-center justify-between gap-3 rounded-xl border border-[#C9A84C55] bg-[#C9A84C0D] px-3 py-2.5">
                 <span className="text-[10px] font-black tracking-widest text-[#A7A7B8]">CUSTO DA EVOLUÇÃO</span>
-                <strong className="shrink-0 text-base font-black text-[#E8C84A]">{selectedCost} CRÉDITOS</strong>
+                <strong className="shrink-0 text-base font-black text-[#E8C84A]">💰 {selectedCost}</strong>
               </div>
             </div>
           )}
-          confirmLabel={`CONFIRMAR · ${selectedCost} CR`}
+          confirmLabel={`CONFIRMAR · 💰 ${selectedCost}`}
           cancelLabel="CANCELAR"
           intent="primary"
           onConfirm={confirmUpgrade}

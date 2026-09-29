@@ -92,6 +92,18 @@ export default function ShopTab() {
     }
   }, [active, online, pendingUniquePack, pendingPackReveal, state.leagueRound, state.knockoutBracket, dispatch, ensurePlayerPackOffersOnline]);
 
+  // A compra é confirmada primeiro pelo estado autoritativo (especialmente
+  // no online). Se o modal da loja fechar durante essa atualização, a carta
+  // reservada não deve ficar escondida na tela da loja: reabrimos a experiência
+  // automaticamente quando um novo pacote pendente chega. As dependências
+  // usam a identidade da carta para não reabrir a abertura depois que o usuário
+  // a fechou manualmente sem reivindicá-la.
+  useEffect(() => {
+    if (!pendingPackReveal && !pendingUniquePack) return;
+    setSelPlayerId(null);
+    setActive('playerPacks');
+  }, [pendingPackReveal?.kind, pendingPackReveal?.card.id, pendingUniquePack?.id]);
+
   // A troca de jogador/modal sempre começa pela primeira página. Isso evita
   // manter uma página alta que não exista para a nova lista de características.
   useEffect(() => {

@@ -70,6 +70,14 @@ export interface KnockoutWatchTie {
 
 const isConnected = (player: ReadinessPlayer): boolean => player.connected !== false;
 
+// Older rooms can identify a human team with the player's id, while newer
+// rooms use the authoritative team id. Accept both forms so reconnects and
+// legacy room snapshots do not silently lose their ready/watch participant.
+const playerOwnsTeam = (player: ReadinessPlayer, teamId: string): boolean => {
+  const playerTeamId = (player.team as { id?: string } | null | undefined)?.id;
+  return teamId === player.id || teamId === playerTeamId;
+};
+
 export function getOnlineLeagueParticipantIds(
   players: ReadinessPlayer[],
   fixtures: ReadinessFixture[],
@@ -78,7 +86,7 @@ export function getOnlineLeagueParticipantIds(
   return players
     .filter(player => player.team && isConnected(player)
       && fixtures.some(fixture => fixture.round === round
-        && (fixture.homeTeamId === player.id || fixture.awayTeamId === player.id)))
+        && (playerOwnsTeam(player, fixture.homeTeamId) || playerOwnsTeam(player, fixture.awayTeamId))))
     .map(player => player.id);
 }
 
@@ -88,7 +96,7 @@ export function getOnlineKnockoutParticipantIds(
 ): string[] {
   return players
     .filter(player => player.team && isConnected(player)
-      && ties.some(tie => tie.homeTeamId === player.id || tie.awayTeamId === player.id))
+      && ties.some(tie => playerOwnsTeam(player, tie.homeTeamId) || playerOwnsTeam(player, tie.awayTeamId)))
     .map(player => player.id);
 }
 

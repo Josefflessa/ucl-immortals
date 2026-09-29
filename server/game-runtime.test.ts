@@ -291,6 +291,126 @@ describe('game runtime isolation', () => {
     expect(host.sent.some(message => message.event === 'room_left')).toBe(true);
   });
 
+  it('releases only the watched player reward and tickets for that match', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+
+    const room = runtime.rooms.get('ABCD')!;
+    room.phase = 'league';
+    room.leagueRound = 1;
+    room.watchedLeagueRound = 1;
+    room.players[0].team = { id: 'team-a', name: 'Alice FC', players: [], credits: 100 } as any;
+    room.players[1].team = { id: 'team-b', name: 'Bruno FC', players: [], credits: 100 } as any;
+    room.players[0].points = 100;
+    room.players[1].points = 100;
+    room.players[0].pendingMatchPoints = 40;
+    room.players[1].pendingMatchPoints = 50;
+    room.leagueFixtures = [{
+      round: 1,
+      homeTeamId: 'team-a',
+      awayTeamId: 'team-b',
+      played: true,
+      result: {
+        homeTeamId: 'team-a',
+        awayTeamId: 'team-b',
+        homeGoals: 1,
+        awayGoals: 0,
+        events: [],
+        stats: {},
+      },
+    }] as any;
+    room.players[1].bets = [{
+      matchKey: 'L1:team-a-team-b',
+      homeTeamId: 'team-a',
+      awayTeamId: 'team-b',
+      homeGoals: 1,
+      awayGoals: 0,
+      stake: 10,
+      settled: true,
+      revealed: false,
+    } as any];
+
+    runWithGameRuntime(runtime, () => host.receive('player_match_watched', {
+      roomCode: 'ABCD', type: 'league', round: 1,
+    }));
+
+    expect(room.players[0].points).toBe(140);
+    expect(room.players[0].pendingMatchPoints).toBeUndefined();
+    expect(room.players[1].pendingMatchPoints).toBe(50);
+    expect(room.players[1].points).toBe(125);
+    expect(room.players[1].bets[0].revealed).toBe(true);
+
+    runWithGameRuntime(runtime, () => guest.receive('player_match_watched', {
+      roomCode: 'ABCD', type: 'league', round: 1,
+    }));
+
+    expect(room.players[1].points).toBe(175);
+    expect(room.players[1].pendingMatchPoints).toBeUndefined();
+  });
+
+  it('treats leaving during a replay as a reveal without double-crediting', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+
+    const room = runtime.rooms.get('ABCD')!;
+    room.phase = 'league';
+    room.leagueRound = 1;
+    room.watchedLeagueRound = 1;
+    room.players[0].team = { id: 'team-a', name: 'Alice FC', players: [], credits: 100 } as any;
+    room.players[1].team = { id: 'team-b', name: 'Bruno FC', players: [], credits: 100 } as any;
+    room.players[0].points = 100;
+    room.players[0].pendingMatchPoints = 40;
+    room.leagueFixtures = [{
+      round: 1,
+      homeTeamId: 'team-a',
+      awayTeamId: 'team-b',
+      played: true,
+      result: {
+        homeTeamId: 'team-a',
+        awayTeamId: 'team-b',
+        homeGoals: 1,
+        awayGoals: 0,
+        events: [],
+        stats: {},
+      },
+    }] as any;
+
+    runWithGameRuntime(runtime, () => host.receive('leave_room', {
+      roomCode: 'ABCD', commandId: 'leave-replay-1', roomEpoch: 1,
+    }));
+
+    expect(room.players[0].connected).toBe(false);
+    expect(room.watchedRoundPlayers).toContain(room.players[0].id);
+    expect(room.players[0].points).toBe(140);
+    expect(room.players[0].pendingMatchPoints).toBeUndefined();
+
+    // A later duplicate transport event must not credit the reward again.
+    runWithGameRuntime(runtime, () => host.receive('disconnect'));
+    expect(room.players[0].points).toBe(140);
+  });
+
   it('allows the current host to transfer authority to a connected player', () => {
     const runtime = createGameRuntime({ roomCode: 'ABCD' });
     const server = new FakeServer();
@@ -465,6 +585,63 @@ describe('game runtime isolation', () => {
     expect(full.result.resultTrimmed).toBeUndefined();
     expect(full.result.events).toHaveLength(1);
     expect(full.result.playerStats.p1.rating).toBe(8.2);
+  });
+
+  it('keeps the online season leaderboard populated after old match details are compacted', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+
+    const room = runtime.rooms.get('ABCD')!;
+    room.phase = 'league';
+    room.leagueRound = 2;
+    room.players[0].team = {
+      id: 'team-a',
+      name: 'Alice FC',
+      players: [{ id: 'p1', shortName: 'Jogador 1' }],
+    } as any;
+    room.botTeams = [{ id: 'team-b', name: 'Bot FC', players: [{ id: 'p2', shortName: 'Bot' }] }] as any;
+    room.leagueFixtures = [{
+      round: 1,
+      homeTeamId: 'team-a',
+      awayTeamId: 'team-b',
+      played: true,
+      result: {
+        homeTeamId: 'team-a',
+        awayTeamId: 'team-b',
+        homeGoals: 1,
+        awayGoals: 0,
+        events: [{ type: 'goal', teamId: 'team-a', playerId: 'p1', minute: 10 }],
+        winner: 'team-a',
+        stats: {
+          homePos: 55, awayPos: 45, homeShots: 4, awayShots: 2,
+          homeShotsOnTarget: 2, awayShotsOnTarget: 1, homeFouls: 1, awayFouls: 2,
+          homeSaves: 1, awaySaves: 1, homeCorners: 3, awayCorners: 1,
+        },
+        playerStats: {
+          'team-a::p1': {
+            playerId: 'p1', playerName: 'Jogador 1', teamId: 'team-a', rating: 8.2,
+            goals: 1, assists: 0, shots: 1, tackles: 0, saves: 0, fouls: 0,
+            yellowCards: 0, redCards: 0, keyPasses: 0, interceptions: 0, shotsOnTarget: 1,
+          },
+        },
+      },
+    }, { round: 2, homeTeamId: 'team-a', awayTeamId: 'team-b', played: false }] as any;
+
+    runWithGameRuntime(runtime, () => host.receive('sync_room', { roomCode: 'ABCD' }));
+    const snapshot = host.sent.filter(message => message.event === 'room_snapshot').at(-1)?.payload as any;
+
+    expect(snapshot.roomState.leagueFixtures[0].result.playerStats).toEqual({});
+    expect(snapshot.roomState.seasonPlayerStats['team-a::p1']).toMatchObject({
+      played: 1,
+      goals: 1,
+      ratingAvg: 8.2,
+    });
   });
 
   it('ignores request_match_result from a socket that is not a player in that room', () => {

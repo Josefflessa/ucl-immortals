@@ -40,7 +40,8 @@ import {
   MatchResult,
   LeagueFixture,
   StandingsEntry,
-  KnockoutBracket
+  KnockoutBracket,
+  PlayerSeasonStats,
 } from "../client/src/lib/gameEngine.js";
 
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
@@ -129,9 +130,9 @@ export interface RoomPlayer {
   uniquePackOfferRoundKey?: string | null;
   playerPackOfferIds?: Partial<Record<RegularPlayerPackRarity, string[]>>;
   playerPackOfferRoundKeys?: Partial<Record<RegularPlayerPackRarity, string | null>>;
-  bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação)
+  bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação da partida-alvo)
   betProtectionUsedKeys: string[];    // uma devolução por rodada/perna
-  pendingMatchPoints?: number;        // pontos da partida calculados, NÃO creditados até a revelação
+  pendingMatchPoints?: number;        // pontos da própria partida calculados, aguardando seu replay/revelação
   missions?: MissionState;            // mural privado de missões do jogador
 }
 
@@ -169,6 +170,8 @@ export interface RoomState {
   leagueFixtures: LeagueFixture[];
   leagueStandings: StandingsEntry[];
   leagueResults: MatchResult[];
+  /** Compact public aggregate used by the online season statistics tab. */
+  seasonPlayerStats?: Record<string, PlayerSeasonStats>;
   leagueRound: number;
   knockoutBracket: KnockoutBracket | null;
   champion: string | null;
@@ -378,6 +381,64 @@ function trimMatchResultForSync(result: MatchResult): MatchResult {
 }
 
 /**
+ * Keep season statistics available without re-shipping every old event log and
+ * per-match player-stat map. The room retains the authoritative full results;
+ * this small aggregate is the public read model consumed by the statistics tab.
+ */
+type SeasonPlayerStatsCache = {
+  revision: number;
+  leagueFixtures: LeagueFixture[];
+  leagueResults: MatchResult[];
+  knockoutBracket: KnockoutBracket | null;
+  teamRefs: Array<Team | null>;
+  value: Record<string, PlayerSeasonStats>;
+};
+
+// The cache is intentionally process-local and non-serializable. Durable Object
+// recovery creates a new RoomState object and naturally starts a fresh cache,
+// while every authoritative mutation receives a new stateRevision.
+const seasonPlayerStatsCaches = new WeakMap<RoomState, SeasonPlayerStatsCache>();
+
+function buildSeasonPlayerStats(room: RoomState): Record<string, PlayerSeasonStats> {
+  const revision = Number.isSafeInteger(room.stateRevision) ? room.stateRevision : -1;
+  const teamRefs = [
+    ...room.players.map(player => player.team ?? null),
+    ...room.botTeams,
+  ];
+  const cached = seasonPlayerStatsCaches.get(room);
+  if (cached
+    && cached.revision === revision
+    && cached.leagueFixtures === room.leagueFixtures
+    && cached.leagueResults === room.leagueResults
+    && cached.knockoutBracket === room.knockoutBracket
+    && cached.teamRefs.length === teamRefs.length
+    && cached.teamRefs.every((team, index) => team === teamRefs[index])) {
+    return cached.value;
+  }
+
+  const results = getAllPlayedMatchResults(authoritativeLeagueResults(room), room.knockoutBracket);
+  const teams = teamRefs.filter((team): team is Team => !!team);
+  const summary: Record<string, PlayerSeasonStats> = {};
+
+  for (const team of teams) {
+    for (const player of team.players) {
+      const stats = getPlayerSeasonStats(player.id, team.id, results);
+      if (stats.played > 0) summary[`${team.id}::${player.id}`] = stats;
+    }
+  }
+
+  seasonPlayerStatsCaches.set(room, {
+    revision,
+    leagueFixtures: room.leagueFixtures,
+    leagueResults: room.leagueResults,
+    knockoutBracket: room.knockoutBracket,
+    teamRefs,
+    value: summary,
+  });
+  return summary;
+}
+
+/**
  * The room object is authoritative, but not every field is public information.
  * In particular, a player's clientId is a reconnection credential and balances,
  * pending packs and bets are private. Build a per-socket view before calculating
@@ -386,6 +447,10 @@ function trimMatchResultForSync(result: MatchResult): MatchResult {
 function roomViewForSocket(room: RoomState, socketId: string, compactHistory = false): RoomState {
   const viewer = room.players.find(player => player.socketId === socketId);
   const view = cloneRoomJson(room);
+  // Old fixtures may be compacted below, but the season leaderboard still
+  // needs their goals/assists/ratings. Send only the small cumulative read
+  // model instead of the bulky historical event timelines.
+  view.seasonPlayerStats = buildSeasonPlayerStats(room);
   // Every league fixture already owns its authoritative result. Keeping a
   // second full copy in leagueResults made the room and every sync/diff grow
   // twice as fast. New clients derive leagueResults from the fixtures; legacy
@@ -509,6 +574,24 @@ function emitRoomUpdate(io: RealtimeServer, room: RoomState, options: RoomUpdate
       target.emit('room_patch', { baseRevision, revision, patch });
     }
   }
+}
+
+/**
+ * Trade negotiation changes only a tiny, shared slice of room state. Avoid
+ * cloning the full room, rebuilding season statistics and diffing every team
+ * just to open an invite or update an offer. The next full/patch sync remains
+ * authoritative; this event is only the low-latency presentation path.
+ */
+function emitTradeStateUpdate(io: RealtimeServer, room: RoomState): void {
+  activeRuntime.mutationObserved = true;
+  const payload = {
+    trades: Array.isArray(room.trades) ? room.trades : [],
+    readyPlayers: Array.isArray(room.readyPlayers) ? room.readyPlayers : [],
+  };
+  const roomSocketIds = Array.from(io.sockets.adapter.rooms.get(room.code) ?? []);
+  roomSocketIds.forEach(socketId => {
+    io.sockets.sockets.get(socketId)?.emit('trade_state_updated', payload);
+  });
 }
 
 const VALID_COACH_IDS = new Set(COACHES.map(c => c.id));
@@ -864,6 +947,13 @@ function leagueParticipantIds(room: RoomState): string[] {
   return getOnlineLeagueParticipantIds(room.players, room.leagueFixtures, room.leagueRound);
 }
 
+// Team ids are normally copied from the player id when a room is created, but
+// persisted/reconnected rooms can contain a distinct authoritative team id.
+// All replay and readiness checks must accept either representation.
+function playerOwnsTeam(player: RoomPlayer, teamId: string): boolean {
+  return teamId === player.id || teamId === player.team?.id;
+}
+
 function knockoutParticipantIds(room: RoomState): string[] {
   return room.knockoutBracket
     ? getOnlineKnockoutParticipantIds(room.players, getActiveKnockoutMatches(room.knockoutBracket))
@@ -922,42 +1012,153 @@ function knockoutLegAlreadyPlayed(room: RoomState): boolean {
   });
 }
 
-// 🎯 Revelação da rodada de LIGA: quando todos os humanos conectados com jogo na rodada já
-// assistiram, credita de uma vez os pontos da partida (pendentes) + os ganhos dos palpites.
-// Idempotente: zera pendingMatchPoints e marca bets revealed após creditar.
-function creditLeagueRoundIfAllWatched(room: RoomState): void {
-  const withFixture = leagueParticipantIds(room);
-  const allWatched = withFixture.length > 0 && withFixture.every(id => room.watchedRoundPlayers.includes(id));
-  if (!allWatched) return;
-  const betPrefix = `L${room.leagueRound}:`;
-  room.players.forEach(p => {
-    if (p.pendingMatchPoints != null) { p.points += p.pendingMatchPoints; p.pendingMatchPoints = undefined; }
-    p.bets = p.bets.map(b => {
-      if (b.settled && !b.revealed && b.matchKey.startsWith(betPrefix)) {
-        p.points += (b.payout ?? 0) + (b.protectionRefund ?? 0);
-        return { ...b, revealed: true };
-      }
-      return b;
+/**
+ * Credit a revealed ticket exactly once. The match result is authoritative on
+ * the server; clients never send a payout value back to us.
+ */
+function revealBetsForMatch(room: RoomState, matchKey: string, result: MatchResult): void {
+  room.players.forEach(player => {
+    let changed = false;
+    player.bets = player.bets.map(bet => {
+      if (bet.matchKey !== matchKey || bet.revealed) return bet;
+      const settled = settleBet(bet, result);
+      // New rounds precompute the protection refund during simulation. The
+      // fallback keeps old/in-memory snapshots correct if that field is
+      // missing when the replay is finally revealed.
+      const protectionRefund = bet.protectionRefund ?? (
+        !settled.won
+          ? Math.round(bet.stake * bettingLossRefundPercent(projectLevel(player.team?.clubProjects, 'betting')) / 100)
+          : 0
+      );
+      player.points += settled.payout + protectionRefund;
+      changed = true;
+      return {
+        ...bet,
+        settled: true,
+        revealed: true,
+        won: settled.won,
+        tier: settled.tier,
+        payout: settled.payout,
+        protectionRefund,
+      };
     });
-    syncTeamCredits(p);
+    if (changed) syncTeamCredits(player);
   });
 }
 
-// 🎯 Revelação da PERNA do mata-mata: mesmo princípio, atrelado ao knockoutWatchStatus.
-function creditKnockoutLegIfAllWatched(room: RoomState): void {
+function releasePendingMatchPoints(player: RoomPlayer): void {
+  if (player.pendingMatchPoints == null) return;
+  player.points += player.pendingMatchPoints;
+  player.pendingMatchPoints = undefined;
+  syncTeamCredits(player);
+}
+
+function currentLeagueFixtureForPlayer(room: RoomState, player: RoomPlayer): LeagueFixture | null {
+  if (!player.team) return null;
+  return room.leagueFixtures.find(fixture => fixture.round === room.leagueRound
+    && fixture.played
+    && !!fixture.result
+    && (playerOwnsTeam(player, fixture.homeTeamId) || playerOwnsTeam(player, fixture.awayTeamId))) ?? null;
+}
+
+/**
+ * Reveal one league match. A player's own match reward is released when that
+ * player watches (or abandons) it; bets on the same match are released for all
+ * bettors at that moment. This is deliberately independent from the global
+ * "everyone watched" gate used only by advance_round.
+ */
+function revealLeagueMatch(room: RoomState, fixture: LeagueFixture): void {
+  if (!fixture.result) return;
+  revealBetsForMatch(room, buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId), fixture.result);
+}
+
+function releaseLeaguePlayerMatch(room: RoomState, player: RoomPlayer): void {
+  const fixture = currentLeagueFixtureForPlayer(room, player);
+  if (!fixture?.result) return;
+  releasePendingMatchPoints(player);
+  revealLeagueMatch(room, fixture);
+}
+
+function currentKnockoutMatchForPlayer(room: RoomState, player: RoomPlayer): { tie: any; leg: number; result: MatchResult } | null {
+  if (!room.knockoutBracket || !player.team) return null;
+  const ties = getActiveKnockoutMatches(room.knockoutBracket) as any[];
+  const tie = ties.find(candidate => playerOwnsTeam(player, candidate.homeTeamId) || playerOwnsTeam(player, candidate.awayTeamId));
+  if (!tie) return null;
+  const leg = room.watchedKnockoutLegKey?.round === room.knockoutBracket.currentRound
+    ? room.watchedKnockoutLegKey.leg
+    : room.knockoutBracket.currentLeg;
+  const singleLeg = tie.isSingleLeg === true || (room.knockoutBracket.currentRound === 'final' && tie.isSingleLeg === undefined);
+  const result = singleLeg ? tie.result : leg === 2 ? tie.leg2 : tie.leg1;
+  return result ? { tie, leg, result } : null;
+}
+
+function revealKnockoutMatch(room: RoomState, tie: any, leg: number, result: MatchResult): void {
+  revealBetsForMatch(room, buildKnockoutMatchKey(tie.id, leg), result);
+}
+
+function releaseKnockoutPlayerMatch(room: RoomState, player: RoomPlayer): void {
+  const match = currentKnockoutMatchForPlayer(room, player);
+  if (!match) return;
+  releasePendingMatchPoints(player);
+  revealKnockoutMatch(room, match.tie, match.leg, match.result);
+}
+
+/**
+ * Leaving/disconnecting is a terminal reveal for the current replay window.
+ * It must not leave a player's own reward or another user's ticket escrowed
+ * forever. The player remains disconnected in the room, so the operation is
+ * safe to run again during reconnects.
+ */
+function revealAbandonedPlayerMatch(room: RoomState, player: RoomPlayer): void {
+  if (room.phase === 'league') {
+    const fixture = currentLeagueFixtureForPlayer(room, player);
+    if (fixture) {
+      if (!room.watchedRoundPlayers.includes(player.id)) room.watchedRoundPlayers.push(player.id);
+      releaseLeaguePlayerMatch(room, player);
+    }
+    return;
+  }
+  if (room.phase === 'knockout') {
+    const match = currentKnockoutMatchForPlayer(room, player);
+    if (match) {
+      if (!room.watchedKnockoutLegPlayers.includes(player.id)) room.watchedKnockoutLegPlayers.push(player.id);
+      releaseKnockoutPlayerMatch(room, player);
+    }
+  }
+}
+
+function revealBotOnlyLeagueMatches(room: RoomState): void {
+  const humanTeamIds = new Set(room.players.map(player => player.team?.id).filter((id): id is string => !!id));
+  room.leagueFixtures
+    .filter(fixture => fixture.round === room.leagueRound && fixture.played && fixture.result)
+    .filter(fixture => !humanTeamIds.has(fixture.homeTeamId) && !humanTeamIds.has(fixture.awayTeamId))
+    .forEach(fixture => revealLeagueMatch(room, fixture));
+}
+
+function revealBotOnlyKnockoutMatches(room: RoomState, leg: number): void {
   if (!room.knockoutBracket) return;
-  if (!knockoutWatchStatus(room).allWatched) return;
-  room.players.forEach(p => {
-    if (p.pendingMatchPoints != null) { p.points += p.pendingMatchPoints; p.pendingMatchPoints = undefined; }
-    p.bets = p.bets.map(b => {
-      if (b.settled && !b.revealed && b.matchKey.startsWith('K')) {
-        p.points += (b.payout ?? 0) + (b.protectionRefund ?? 0);
-        return { ...b, revealed: true };
-      }
-      return b;
-    });
-    syncTeamCredits(p);
+  const humanTeamIds = new Set(room.players.map(player => player.team?.id).filter((id): id is string => !!id));
+  (getActiveKnockoutMatches(room.knockoutBracket) as any[]).forEach(tie => {
+    if (humanTeamIds.has(tie.homeTeamId) || humanTeamIds.has(tie.awayTeamId)) return;
+    const singleLeg = tie.isSingleLeg === true || (room.knockoutBracket!.currentRound === 'final' && tie.isSingleLeg === undefined);
+    const result = singleLeg ? tie.result : leg === 2 ? tie.leg2 : tie.leg1;
+    if (result) revealKnockoutMatch(room, tie, leg, result);
   });
+}
+
+/** Defensive fallback for old/reconnected clients before a host advances. */
+function releaseAllLeagueMatchRewards(room: RoomState): void {
+  room.players.forEach(player => releaseLeaguePlayerMatch(room, player));
+  revealBotOnlyLeagueMatches(room);
+}
+
+function releaseAllKnockoutMatchRewards(room: RoomState): void {
+  if (!room.knockoutBracket) return;
+  const leg = room.watchedKnockoutLegKey?.round === room.knockoutBracket.currentRound
+    ? room.watchedKnockoutLegKey.leg
+    : room.knockoutBracket.currentLeg;
+  room.players.forEach(player => releaseKnockoutPlayerMatch(room, player));
+  revealBotOnlyKnockoutMatches(room, leg);
 }
 
 // Schedule deletion of a room once every player has disconnected; cancelled if
@@ -2595,7 +2796,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         host: { playerIds: [], playerId: null, creditsDelta: 0, ready: false },
         guest: { playerIds: [], playerId: null, creditsDelta: 0, ready: false },
       });
-      emitRoomUpdate(io, room);
+      emitTradeStateUpdate(io, room);
     });
 
     // 🔄 Troca online — SAIR (cancela um convite pendente OU encerra uma negociação em andamento;
@@ -2608,7 +2809,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const session = room.trades.find(t => t.id === tradeId);
       if (!me || !session || (session.hostId !== me.id && session.guestId !== me.id)) return;
       room.trades = room.trades.filter(t => t.id !== tradeId);
-      emitRoomUpdate(io, room);
+      emitTradeStateUpdate(io, room);
     });
 
     // 🔄 Troca online — ACEITAR CONVITE (só o convidado; abre a sala de negociação pros dois).
@@ -2626,7 +2827,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       // que os dois já confirmaram tudo enquanto eles ainda estão decidindo a troca.
       invalidateReady(room, session.hostId);
       invalidateReady(room, session.guestId);
-      emitRoomUpdate(io, room);
+      emitTradeStateUpdate(io, room);
     });
 
     // 🔄 Troca online — ESCOLHER (define/atualiza sua oferta: jogador do PRÓPRIO banco + créditos).
@@ -2652,7 +2853,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       mine.creditsDelta = safeCreditsDelta;
       session.host.ready = false;
       session.guest.ready = false;
-      emitRoomUpdate(io, room);
+      emitTradeStateUpdate(io, room);
     });
 
     // 🔄 Troca online — PRONTO (marca sua escolha como travada; quando os dois marcam, executa).
@@ -2675,7 +2876,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       }
       mine.ready = true;
       if (!session.host.ready || !session.guest.ready) {
-        emitRoomUpdate(io, room);
+        emitTradeStateUpdate(io, room);
         return;
       }
       // Os dois marcaram Pronto — revalida tudo e executa a troca atomicamente.
@@ -3081,7 +3282,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
                   lossStreakAfter: p.team.lossStreak,
                 }
               : null;
-            // FIX anti-spoiler: NÃO credita agora; guarda como pendente até a revelação.
+            // A recompensa da própria partida fica pendente apenas até o dono
+            // revelar o replay; não depende dos outros jogadores.
             p.pendingMatchPoints = rewards.pointsEnabled ? earned : undefined;
             p.lastMatchPoints = decoratedMatchPoints; // resumo do PRÓPRIO jogo (não é spoiler)
           }
@@ -3142,6 +3344,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
           autoPickOfflineReinforcement(p);
         });
 
+        // A disconnected participant cannot watch this replay. Treat the
+        // result as revealed for that player and for tickets targeting the
+        // same fixture, while keeping the collective advance gate separate.
+        room.players.filter(player => !player.connected).forEach(player => revealAbandonedPlayerMatch(room, player));
+        // Bot-only fixtures have no human replay to wait for, so their tickets
+        // are safe to settle as soon as the authoritative result exists.
+        revealBotOnlyLeagueMatches(room);
+
         // 🔥 Resiliente também cresce nas equipes controladas pelo servidor, sempre que
         // a carta esteve no XI. A derrota de cada rodada é processada uma única vez aqui.
         room.botTeams = room.botTeams.map(team => {
@@ -3182,6 +3392,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
         socket.emit("advance_blocked", { waiting });
         return;
       }
+
+      // Rewards are released per player as soon as their own replay is
+      // revealed. Keep this fallback for reconnects and older clients that may
+      // have reached the advance gate before their final room patch arrived.
+      releaseAllLeagueMatchRewards(room);
 
       const stageRounds = room.competitionFormat.id === 'groups_knockout' ? room.competitionFormat.groupRounds : room.competitionFormat.leagueRounds;
       if (room.leagueRound < stageRounds) {
@@ -3377,7 +3592,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
       // Award shop points for each human's OWN leg (ida & volta) — same as the league, but with
       // NO reinforcement (league-only) and NO points for the FINAL (season's over, nothing to spend).
-      // FIX anti-spoiler: pontos vão pra pendingMatchPoints (creditados só quando todos assistirem).
+      // FIX anti-spoiler: pontos vão pra pendingMatchPoints e são liberados
+      // quando o próprio replay/perna for revelado.
       const ties = getActiveKnockoutMatches(room.knockoutBracket) as any[];
       if (!isFinalRound && room.competitionFormat.rewards.knockoutPointsEnabled) {
         room.players.forEach(p => {
@@ -3463,6 +3679,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
         });
       });
 
+      // Release each disconnected participant's own leg and tickets targeting
+      // that leg. A bot-only tie has no replay owner, so it is revealed now.
+      room.players.filter(player => !player.connected).forEach(player => revealAbandonedPlayerMatch(room, player));
+      revealBotOnlyKnockoutMatches(room, legPlayed);
+
       emitRoomUpdate(io, room);
     });
 
@@ -3479,6 +3700,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
         socket.emit("advance_blocked", { waiting });
         return;
       }
+
+      // Defensive reconciliation for a reconnect or an older client that
+      // reached the gate before receiving the reward patch.
+      releaseAllKnockoutMatchRewards(room);
 
       const champion = advanceKnockoutBracket(room.knockoutBracket);
       if (champion) {
@@ -3517,21 +3742,24 @@ export function registerSocketHandlers(io: RealtimeServer) {
         if (round != null && room.watchedLeagueRound != null && round !== room.watchedLeagueRound) return;
         const participantIds = leagueParticipantIds(room);
         const fixture = room.leagueFixtures.find(f => f.round === room.leagueRound
-          && (f.homeTeamId === player.id || f.awayTeamId === player.id));
+          && (playerOwnsTeam(player, f.homeTeamId) || playerOwnsTeam(player, f.awayTeamId)));
         // A watch confirmation is accepted only for the participant's own,
         // already simulated fixture in the active round.
         if (!participantIds.includes(player.id) || !fixture?.played || !fixture.result) return;
         if (!room.watchedRoundPlayers.includes(player.id)) {
           room.watchedRoundPlayers.push(player.id);
         }
-        creditLeagueRoundIfAllWatched(room); // 🎯 revela pontos+palpites quando todos assistiram
+        // Only this player's own reward is released here. Tickets targeting
+        // another match are released when that match's owner reveals it.
+        releaseLeaguePlayerMatch(room, player);
       } else if (type === 'knockout') {
         if (room.phase !== 'knockout' || !room.knockoutBracket) return;
         const activeTies = getActiveKnockoutMatches(room.knockoutBracket) as any[];
         const participantIds = knockoutParticipantIds(room);
         const tie = activeTies.find(m => matchId && m.id === matchId)
-          ?? activeTies.find(m => m.homeTeamId === player.id || m.awayTeamId === player.id);
-        const playerIsInTie = !!tie && (tie.homeTeamId === player.id || tie.awayTeamId === player.id);
+          ?? activeTies.find(m => playerOwnsTeam(player, m.homeTeamId) || playerOwnsTeam(player, m.awayTeamId));
+        const playerIsInTie = !!tie
+          && (playerOwnsTeam(player, tie.homeTeamId) || playerOwnsTeam(player, tie.awayTeamId));
         const expectedLeg = room.watchedKnockoutLegKey?.round === room.knockoutBracket.currentRound
           ? room.watchedKnockoutLegKey.leg
           : room.knockoutBracket.currentLeg === 2 && tie?.leg1 && !tie.leg2 ? 1 : room.knockoutBracket.currentLeg;
@@ -3547,7 +3775,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
         if (!room.watchedKnockoutLegPlayers.includes(player.id)) {
           room.watchedKnockoutLegPlayers.push(player.id);
         }
-        creditKnockoutLegIfAllWatched(room);
+        // Same rule for a knockout leg: release this participant's reward and
+        // every ticket targeting this exact leg, without waiting for the room.
+        releaseKnockoutPlayerMatch(room, player);
       } else {
         return;
       }
@@ -3688,6 +3918,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       } else {
         target.kicked = true;
         target.connected = false;
+        revealAbandonedPlayerMatch(room, target);
         target.socketId = '';
         invalidateReady(room, target.id);
         autoPickOfflineReinforcement(target);
@@ -3727,6 +3958,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         }
       } else {
         player.connected = false;
+        revealAbandonedPlayerMatch(room, player);
         invalidateReady(room, player.id);
         autoPickOfflineReinforcement(player);
         if (wasHost) {
@@ -3796,6 +4028,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         // timer that transfers only if they never come back (real abandonment).
         const wasHost = room.players[idx].id === room.hostId;
         room.players[idx].connected = false;
+        revealAbandonedPlayerMatch(room, room.players[idx]);
         // Readiness belongs to the current connection/session and must be
         // confirmed again. Watch confirmations, however, are durable facts:
         // if the player already watched the exact current result, a transient

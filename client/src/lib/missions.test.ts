@@ -202,7 +202,7 @@ describe('mission board', () => {
     const context = createMissionMatchContext(home, away, result());
     expect(context).not.toBeNull();
     const completed = updateMissionsAfterMatch(base, context!, 'L1:home:away');
-    expect(completed.reward).toBe(35);
+    expect(completed.reward).toBe(55);
     expect(completed.completed).toEqual(['clean_sheet_win']);
     expect(completed.state.active).toHaveLength(0);
     expect(completed.state.missionResolution).toEqual({ matchKey: 'L1:home:away', completed: ['clean_sheet_win'], expired: [] });
@@ -222,8 +222,8 @@ describe('mission board', () => {
     };
     expect(missionDeadline('first_win', 1)).toBe(1);
     expect(missionDeadline('first_win', 4)).toBe(2);
-    expect(missionReward('clean_sheet_win', 1)).toBe(35);
-    expect(missionReward('clean_sheet_win', 5)).toBe(53);
+    expect(missionReward('clean_sheet_win', 1)).toBe(55);
+    expect(missionReward('clean_sheet_win', 5)).toBe(85);
     expect(missionRemovalCost('hat_trick', 1)).toBe(125);
     expect(missionRemovalCost('hat_trick', 3)).toBe(63);
     const accepted = acceptMission(state, 'first_win', 4);
@@ -261,7 +261,7 @@ describe('mission board', () => {
     const context = createMissionMatchContext(home, away, result());
     const updated = updateMissionsAfterMatch(state, context!, 'L1:lobo');
     expect(updated.completed).toEqual(['lobo_win']);
-    expect(updated.reward).toBe(180);
+    expect(updated.reward).toBe(270);
   });
 
   it('recognizes a Coringa outside its natural positions and excludes it from the two secondary-position slots', () => {
@@ -545,7 +545,7 @@ describe('mission board', () => {
     const martirState = { ...defenseState, boardIds: ['martir_win'], active: [{ missionId: 'martir_win', progress: 0, matchesRemaining: 1, acceptedCycleKey: 'L1' }] };
     const martirUpdate = updateMissionsAfterMatch(martirState, context, 'L1:martir');
     expect(martirUpdate.completed).toEqual(['martir_win']);
-    expect(martirUpdate.reward).toBe(55);
+    expect(martirUpdate.reward).toBe(85);
   });
 
   it('uses event minutes for first-goal missions and accepts historical card variants', () => {
@@ -601,7 +601,7 @@ describe('mission board', () => {
     const updated = updateMissionsAfterMatch(state, context, 'L1:mixed-resolution');
     expect(updated.completed).toEqual(['clean_sheet_win']);
     expect(updated.expired).toEqual(['hat_trick']);
-    expect(updated.reward).toBe(35);
+    expect(updated.reward).toBe(55);
     expect(updated.state.missionResolution).toEqual({
       matchKey: 'L1:mixed-resolution',
       completed: ['clean_sheet_win'],

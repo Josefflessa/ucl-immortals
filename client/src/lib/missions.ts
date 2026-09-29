@@ -126,6 +126,19 @@ export const MISSION_REMOVE_COSTS: Record<MissionRarity, number> = {
   legendary: 200,
 };
 
+// Global balance adjustment applied once to each mission's base reward. It is
+// intentionally separate from the level-5 Missions Core bonus.
+export const MISSION_GLOBAL_REWARD_MULTIPLIER = 1.5;
+export const MISSION_REWARD_STEP = 5;
+
+export function roundMissionReward(value: number): number {
+  return Math.round(value / MISSION_REWARD_STEP) * MISSION_REWARD_STEP;
+}
+
+function missionBaseReward(reward: number): number {
+  return roundMissionReward(reward * MISSION_GLOBAL_REWARD_MULTIPLIER);
+}
+
 const m = (
   id: string,
   title: string,
@@ -137,7 +150,7 @@ const m = (
   rule: MissionRule,
   target = 1,
   mode: MissionProgressMode = 'single',
-): MissionDefinition => ({ id, title, description, category, rarity, deadline, reward, target, mode, rule });
+): MissionDefinition => ({ id, title, description, category, rarity, deadline, reward: missionBaseReward(reward), target, mode, rule });
 
 // Initial catalog. The board exposes five of these at a time, while two is the
 // maximum number of missions that may be active simultaneously.
@@ -402,7 +415,8 @@ export function missionDeadline(missionId: string, missionsProjectLevel = 1): nu
 export function missionReward(missionId: string, missionsProjectLevel = 1): number {
   const definition = MISSION_MAP[missionId];
   if (!definition) return 0;
-  return missionsProjectLevel >= 5 ? Math.round(definition.reward * 1.5) : definition.reward;
+  const projectMultiplier = missionsProjectLevel >= 5 ? 1.5 : 1;
+  return roundMissionReward(definition.reward * projectMultiplier);
 }
 
 export function missionRemovalCost(missionId: string, missionsProjectLevel = 1): number {
@@ -638,8 +652,29 @@ export function createMissionMatchContext(team: Team, opponent: Team, result: Ma
   const home = result.homeTeamId === team.id;
   const starters = startingPlayers(team, result);
   const starterIds = new Set(starters.map(player => player.id));
+  // Results from the authoritative simulator always include these fields, but
+  // old persisted snapshots and lightweight replay fixtures may omit them.
+  // Normalize at the boundary so mission evaluation remains total and never
+  // crashes while rebuilding a legacy state.
+  const stats = result.stats ?? {
+    homePos: 0,
+    awayPos: 0,
+    homeShots: 0,
+    awayShots: 0,
+    homeShotsOnTarget: 0,
+    awayShotsOnTarget: 0,
+    homeFouls: 0,
+    awayFouls: 0,
+    homeSaves: 0,
+    awaySaves: 0,
+    homeCorners: 0,
+    awayCorners: 0,
+  };
+  const safeResult = result.events && result.stats === stats
+    ? result
+    : { ...result, events: result.events ?? [], stats };
   return {
-    result,
+    result: safeResult,
     team,
     opponent,
     teamId: team.id,
@@ -656,11 +691,11 @@ export function createMissionMatchContext(team: Team, opponent: Team, result: Ma
     bench: team.players.filter(player => !starterIds.has(player.id)),
     starterIds,
     teamStats: home
-      ? { possession: result.stats.homePos, shots: result.stats.homeShots, shotsOnTarget: result.stats.homeShotsOnTarget, saves: result.stats.homeSaves, corners: result.stats.homeCorners, fouls: result.stats.homeFouls }
-      : { possession: result.stats.awayPos, shots: result.stats.awayShots, shotsOnTarget: result.stats.awayShotsOnTarget, saves: result.stats.awaySaves, corners: result.stats.awayCorners, fouls: result.stats.awayFouls },
+      ? { possession: stats.homePos, shots: stats.homeShots, shotsOnTarget: stats.homeShotsOnTarget, saves: stats.homeSaves, corners: stats.homeCorners, fouls: stats.homeFouls }
+      : { possession: stats.awayPos, shots: stats.awayShots, shotsOnTarget: stats.awayShotsOnTarget, saves: stats.awaySaves, corners: stats.awayCorners, fouls: stats.awayFouls },
     opponentStats: home
-      ? { possession: result.stats.awayPos, shots: result.stats.awayShots, shotsOnTarget: result.stats.awayShotsOnTarget, saves: result.stats.awaySaves, corners: result.stats.awayCorners, fouls: result.stats.awayFouls }
-      : { possession: result.stats.homePos, shots: result.stats.homeShots, shotsOnTarget: result.stats.homeShotsOnTarget, saves: result.stats.homeSaves, corners: result.stats.homeCorners, fouls: result.stats.homeFouls },
+      ? { possession: stats.awayPos, shots: stats.awayShots, shotsOnTarget: stats.awayShotsOnTarget, saves: stats.awaySaves, corners: stats.awayCorners, fouls: stats.awayFouls }
+      : { possession: stats.homePos, shots: stats.homeShots, shotsOnTarget: stats.homeShotsOnTarget, saves: stats.homeSaves, corners: stats.homeCorners, fouls: stats.homeFouls },
     playerStats: statsForTeam(result, team.id),
   };
 }
