@@ -48,8 +48,17 @@ export interface CompetitionHistoryEntry {
   coach_id: string | null;
   champion: number;
   placement: number | null;
+  competition_points: number;
   report: Record<string, unknown>;
   completed_at: number;
+}
+
+export interface CompetitionHistoryPage {
+  history: CompetitionHistoryEntry[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface PublicRecordEntry {
@@ -162,7 +171,7 @@ interface AccountContextValue {
   register: (username: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
-  getHistory: () => Promise<CompetitionHistoryEntry[]>;
+  getHistory: (page?: number) => Promise<CompetitionHistoryPage>;
   saveHistory: (payload: {
     mode: 'solo' | 'online';
     difficultyId: string;
@@ -272,9 +281,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return result.account;
   }, []);
 
-  const getHistory = useCallback(async () => {
-    const result = await api<{ history: CompetitionHistoryEntry[] }>('/api/account/history');
-    return result.history;
+  const getHistory = useCallback(async (page = 1) => {
+    const result = await api<CompetitionHistoryPage>(`/api/account/history?page=${encodeURIComponent(String(page))}`);
+    return result;
   }, []);
 
   const saveHistory = useCallback(async (payload: Parameters<AccountContextValue['saveHistory']>[0]) => {

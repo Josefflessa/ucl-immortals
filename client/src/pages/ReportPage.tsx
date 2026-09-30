@@ -92,7 +92,9 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
           </div>)}
         </section>
         <p className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-4 py-3 text-sm text-[var(--ui-text-muted)]">
-          Esta competição foi salva antes de o jogo guardar escalação e detalhes completos do resultado.
+          {entry.report.snapshotArchived === true
+            ? 'O relatório detalhado foi arquivado para liberar espaço. O resumo da competição continua salvo.'
+            : 'Esta competição foi salva antes de o jogo guardar escalação e detalhes completos do resultado.'}
         </p>
         {onBack ? <Button type="button" intent="primary" size="large" onClick={onBack} className="w-full"><ArrowLeft size={16} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button> : null}
       </PageContainer>

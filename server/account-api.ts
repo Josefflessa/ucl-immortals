@@ -1,5 +1,6 @@
 import { DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, isProfileAvatarBackgroundKey } from '../shared/profileAppearance';
 import { getTeamEffectiveStats, type Team } from '../client/src/lib/gameEngine.js';
+import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
 
 const SESSION_COOKIE = 'ucl_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -230,18 +231,7 @@ const ACCOUNT_SELECT = `
       SUM(CASE WHEN competition_points = 60 THEN 1 ELSE 0 END) AS finish_semifinal,
       SUM(CASE WHEN competition_points = 80 THEN 1 ELSE 0 END) AS finish_runner_up,
       SUM(CASE WHEN competition_points = 100 THEN 1 ELSE 0 END) AS finish_champion
-    FROM (
-      SELECT user_id,
-        CASE WHEN champion = 1 THEN 100
-          WHEN json_valid(report_json) THEN COALESCE(
-            CAST(json_extract(report_json, '$.competitionPoints') AS INTEGER),
-            CAST(json_extract(report_json, '$.historySnapshot.competitionPoints') AS INTEGER),
-            0
-          )
-          ELSE 0
-        END AS competition_points
-      FROM competition_history
-    )
+    FROM competition_history
     GROUP BY user_id
   )
   SELECT u.id, u.email, p.username, p.display_name, p.bio, p.avatar_key, p.avatar_background_key,
@@ -439,10 +429,27 @@ async function profileUpdate(request: Request, env: AccountEnv, account: Authent
   return updated ? json({ account: publicAccount(updated) }) : json({ error: 'account_not_found' }, 404);
 }
 
-async function historyList(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
-  const rows = await env.DB.prepare(`SELECT id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, report_json, completed_at
-    FROM competition_history WHERE user_id = ? ORDER BY completed_at DESC LIMIT 50`).bind(account.id).all();
-  return json({ history: rows.results.map(row => ({ ...row, report: JSON.parse(String((row as any).report_json ?? '{}')) })) });
+async function historyList(env: AccountEnv, account: AuthenticatedAccount, requestedPage: number): Promise<Response> {
+  const pageSize = 10;
+  const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM competition_history WHERE user_id = ?')
+    .bind(account.id).first<{ total: number }>();
+  const total = Number(count?.total ?? 0);
+  const totalPages = Math.ceil(total / pageSize);
+  const page = totalPages === 0 ? 1 : Math.min(Math.max(1, requestedPage), totalPages);
+  const offset = (page - 1) * pageSize;
+  const rows = await env.DB.prepare(`SELECT id, mode, difficulty_id, format_id, team_name, crest_id, coach_id,
+      champion, placement, competition_points, report_json, completed_at
+    FROM competition_history
+    WHERE user_id = ?
+    ORDER BY completed_at DESC, id DESC
+    LIMIT ? OFFSET ?`).bind(account.id, pageSize, offset).all();
+  return json({
+    history: rows.results.map(row => ({ ...row, report: JSON.parse(String((row as any).report_json ?? '{}')) })),
+    page,
+    pageSize,
+    total,
+    totalPages,
+  });
 }
 
 async function historyCreate(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
@@ -497,9 +504,9 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   const coachId = body.coachId ? String(body.coachId).slice(0, 80) : null;
   try {
     await env.DB.prepare(`INSERT INTO competition_history
-      (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, report_json, source_key, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, account.id, mode, difficultyId, formatId, teamName, crestId, coachId, champion, placement, reportJson, sourceKey, now).run();
+      (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, competition_points, report_json, source_key, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, account.id, mode, difficultyId, formatId, teamName, crestId, coachId, champion, placement, competitionPoints, reportJson, sourceKey, now).run();
   } catch (error) {
     if (sourceKey) {
       const existing = await env.DB.prepare('SELECT id FROM competition_history WHERE user_id = ? AND source_key = ?')
@@ -509,10 +516,14 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     throw error;
   }
   for (const record of safeRecords) {
+    const playerCard = recordPlayerCard(reportJson, record.playerId);
     await env.DB.prepare(`INSERT INTO competition_records
-      (id, competition_id, user_id, category, difficulty_id, player_id, player_name, player_photo_url, value, username_snapshot, team_name_snapshot, crest_id_snapshot, verified, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
-      .bind(`rec_${randomToken(12)}`, id, account.id, record.category, difficultyId, record.playerId, record.playerName, record.playerPhotoUrl, record.value, account.username, teamName, crestId, now)
+      (id, competition_id, user_id, category, difficulty_id, player_id, player_name, player_photo_url, value,
+       username_snapshot, team_name_snapshot, crest_id_snapshot, mode, format_id, completed_at, player_card_json, verified, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
+      .bind(`rec_${randomToken(12)}`, id, account.id, record.category, difficultyId, record.playerId, record.playerName,
+        record.playerPhotoUrl, record.value, account.username, teamName, crestId, mode, formatId, now,
+        playerCard ? JSON.stringify(playerCard) : null, now)
       .run();
   }
   const reportValues = report as Record<string, unknown>;
@@ -538,6 +549,7 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
       updated_at = excluded.updated_at`)
     .bind(account.id, champion, safeStat('wins', 999), safeStat('draws', 999), safeStat('losses', 999), safeStat('goals', 9999), safeStat('assists', 9999), safeStat('saves', 9999), effectiveRecord?.value ?? 0, effectiveRecord ? difficultyId : null, now)
     .run();
+  await retainRecentCompetitionSnapshots(env.DB, account.id);
   return json({ id, duplicate: false }, 201);
 }
 
@@ -552,8 +564,9 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
   if (difficulty) { clauses.push('r.difficulty_id = ?'); binds.push(difficulty); }
   const where = ['r.verified = 1', ...clauses].join(' AND ');
   const rows = await env.DB.prepare(`WITH ranked_records AS (
-      SELECT r.id, r.user_id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
+    SELECT r.id, r.user_id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
         r.username_snapshot, r.team_name_snapshot, r.crest_id_snapshot, r.created_at, r.competition_id,
+        r.mode, r.format_id, r.completed_at, r.player_card_json,
         ROW_NUMBER() OVER (
           PARTITION BY r.difficulty_id, r.category
           ORDER BY r.value DESC, r.created_at ASC, r.id ASC
@@ -567,18 +580,17 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
       CASE WHEN p.visibility = 'public' THEN p.avatar_key ELSE NULL END AS profile_avatar_key,
       CASE WHEN p.visibility = 'public' THEN p.avatar_background_key ELSE NULL END AS profile_avatar_background_key,
       CASE WHEN p.visibility = 'public' THEN p.avatar_url ELSE NULL END AS profile_avatar_url,
-      h.mode, h.format_id, h.completed_at, h.report_json, r.ranking_position
+      r.mode, r.format_id, r.completed_at, r.player_card_json, r.ranking_position
     FROM ranked_records r
-    JOIN competition_history h ON h.id = r.competition_id
     LEFT JOIN profiles p ON p.user_id = r.user_id
     WHERE r.ranking_position <= 10
     ORDER BY r.difficulty_id, r.category, r.ranking_position`).bind(...binds).all();
   const records = rows.results.map((row: any) => {
-    const { report_json: reportJson, ...record } = row;
+    const { player_card_json: playerCardJson, ...record } = row;
     return {
       ...record,
       rank_position: Number(row.ranking_position),
-      player_card: recordPlayerCard(reportJson, String(row.player_id)),
+      player_card: storedRecordPlayerCard(playerCardJson),
     };
   });
   return json({ records });
@@ -598,17 +610,8 @@ function recordPlayerCard(reportJson: unknown, playerId: string): Record<string,
       && !Array.isArray(candidate) && (candidate as Record<string, unknown>).id === playerId) as Record<string, unknown> | undefined;
     if (!player) return null;
 
-    const stringFields = ['id', 'shortName', 'fullName', 'position', 'nation', 'club', 'season'];
-    const numberFields = ['overall', 'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'composure', 'vision'];
-    const validRarities = new Set(['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique']);
-    if (!stringFields.every(field => typeof player[field] === 'string')
-      || !numberFields.every(field => {
-        const value = player[field];
-        return typeof value === 'number' && Number.isFinite(value);
-      })
-      || !Array.isArray(player.traits) || !player.traits.every(trait => typeof trait === 'string')
-      || typeof player.rarity !== 'string' || !validRarities.has(player.rarity)
-      || (player.photoUrl !== undefined && player.photoUrl !== null && typeof player.photoUrl !== 'string')) return null;
+    const validPlayer = validatedRecordPlayerCard(player);
+    if (!validPlayer) return null;
 
     const effectiveOverallByPlayerId = (snapshot as Record<string, unknown>).effectiveOverallByPlayerId;
     const savedEffectiveOverall = effectiveOverallByPlayerId && typeof effectiveOverallByPlayerId === 'object' && !Array.isArray(effectiveOverallByPlayerId)
@@ -618,8 +621,30 @@ function recordPlayerCard(reportJson: unknown, playerId: string): Record<string,
       ? Math.round(savedEffectiveOverall)
       : legacyEffectiveOverall(report as Record<string, unknown>, snapshot as Record<string, unknown>, team as Record<string, unknown>, playerId);
     return effectiveOverall !== null && effectiveOverall >= 1 && effectiveOverall <= 150
-      ? { ...player, overall: effectiveOverall }
-      : player;
+      ? { ...validPlayer, overall: effectiveOverall }
+      : validPlayer;
+  } catch {
+    return null;
+  }
+}
+
+function validatedRecordPlayerCard(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const player = value as Record<string, unknown>;
+  const stringFields = ['id', 'shortName', 'fullName', 'position', 'nation', 'club', 'season'];
+  const numberFields = ['overall', 'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'composure', 'vision'];
+  const validRarities = new Set(['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique']);
+  if (!stringFields.every(field => typeof player[field] === 'string')
+    || !numberFields.every(field => typeof player[field] === 'number' && Number.isFinite(player[field]))
+    || !Array.isArray(player.traits) || !player.traits.every(trait => typeof trait === 'string')
+    || typeof player.rarity !== 'string' || !validRarities.has(player.rarity)
+    || (player.photoUrl !== undefined && player.photoUrl !== null && typeof player.photoUrl !== 'string')) return null;
+  return player;
+}
+
+function storedRecordPlayerCard(playerCardJson: unknown): Record<string, unknown> | null {
+  try {
+    return validatedRecordPlayerCard(JSON.parse(String(playerCardJson ?? '')));
   } catch {
     return null;
   }
@@ -674,6 +699,7 @@ async function loadRecordHighlights(env: AccountEnv, userId: string): Promise<Re
   const rows = await env.DB.prepare(`WITH ranked_records AS (
       SELECT r.id, r.user_id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
              r.team_name_snapshot, r.crest_id_snapshot, r.created_at, r.competition_id,
+             r.mode, r.format_id, r.completed_at, r.player_card_json,
              ROW_NUMBER() OVER (
                PARTITION BY r.category
                ORDER BY r.value DESC, r.created_at ASC, r.id ASC
@@ -690,20 +716,19 @@ async function loadRecordHighlights(env: AccountEnv, userId: string): Promise<Re
            r.team_name_snapshot, r.crest_id_snapshot,
            p.display_name AS profile_display_name, p.avatar_key AS profile_avatar_key,
            p.avatar_background_key AS profile_avatar_background_key, p.avatar_url AS profile_avatar_url,
-           h.mode, h.format_id, h.completed_at,
-           h.report_json, r.ranking_position AS rank_position
+           r.mode, r.format_id, r.completed_at,
+           r.player_card_json, r.ranking_position AS rank_position
       FROM ranked_records r
-      JOIN competition_history h ON h.id = r.competition_id
       LEFT JOIN profiles p ON p.user_id = r.user_id
      WHERE r.user_id = ? AND r.user_record_rank = 1
      ORDER BY CASE r.category WHEN 'goals' THEN 1 WHEN 'assists' THEN 2 WHEN 'saves' THEN 3 ELSE 4 END`)
     .bind(userId).all();
   return rows.results.map((row: any) => {
-    const { report_json: reportJson, ...record } = row;
+    const { player_card_json: playerCardJson, ...record } = row;
     return {
       ...record,
       rank_position: Number(row.rank_position),
-      player_card: recordPlayerCard(reportJson, String(row.player_id)),
+      player_card: storedRecordPlayerCard(playerCardJson),
     };
   });
 }
@@ -714,7 +739,7 @@ async function accountRecordHighlights(env: AccountEnv, account: AuthenticatedAc
 }
 
 async function scoreLeaderboard(env: AccountEnv): Promise<Response> {
-  const pointExpression = "CASE WHEN json_valid(report_json) THEN COALESCE(CAST(json_extract(report_json, '$.competitionPoints') AS INTEGER), 0) ELSE 0 END";
+  const pointExpression = 'competition_points';
   const rows = await env.DB.prepare(`WITH totals AS (
       SELECT user_id,
         SUM(${pointExpression}) AS points,
@@ -747,7 +772,7 @@ async function scoreLeaderboard(env: AccountEnv): Promise<Response> {
 }
 
 async function scoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
-  const pointExpression = "CASE WHEN json_valid(report_json) THEN COALESCE(CAST(json_extract(report_json, '$.competitionPoints') AS INTEGER), 0) ELSE 0 END";
+  const pointExpression = 'competition_points';
   const row = await env.DB.prepare(`WITH totals AS (
       SELECT user_id,
         SUM(${pointExpression}) AS points,
@@ -980,7 +1005,10 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (url.pathname === '/api/account/profile' && request.method === 'PATCH') return profileUpdate(request, env, account);
     if (url.pathname === '/api/account/leaderboards/score-position' && request.method === 'GET') return scoreLeaderboardPosition(env, account);
     if (url.pathname === '/api/account/records' && request.method === 'GET') return accountRecordHighlights(env, account);
-    if (url.pathname === '/api/account/history' && request.method === 'GET') return historyList(env, account);
+    if (url.pathname === '/api/account/history' && request.method === 'GET') {
+      const requestedPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
+      return historyList(env, account, Number.isFinite(requestedPage) ? requestedPage : 1);
+    }
     if (url.pathname === '/api/account/history' && request.method === 'POST') return historyCreate(request, env, account);
     if (url.pathname === '/api/account/presence' && request.method === 'POST') return updatePresence(request, env, account);
     if (url.pathname === '/api/account/friends' && request.method === 'GET') return friendsList(env, account);

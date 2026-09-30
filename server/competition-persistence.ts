@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats } from '../client/src/lib/gameEngine.js';
 import { competitionRankingPoints } from '../client/src/lib/competitionRanking.js';
 import type { MatchResult, PlayerCard, Team } from '../client/src/lib/gameEngine.js';
+import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
 import type { RoomPlayer, RoomState } from './handlers.js';
 
 interface PersistenceEnv { DB: D1Database; }
@@ -181,9 +182,12 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       if (!record) continue;
       const [category, card, value] = record;
       await env.DB.prepare(`INSERT INTO competition_records
-        (id, competition_id, user_id, category, difficulty_id, player_id, player_name, player_photo_url, value, username_snapshot, team_name_snapshot, crest_id_snapshot, verified, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
-        .bind(`rec_${crypto.randomUUID().replaceAll('-', '')}`, historyId, accountId, category, room.difficulty, card.id, card.shortName, card.photoUrl ?? null, value, username, team.name, team.crestId ?? null, now)
+        (id, competition_id, user_id, category, difficulty_id, player_id, player_name, player_photo_url, value,
+         username_snapshot, team_name_snapshot, crest_id_snapshot, mode, format_id, completed_at, player_card_json, verified, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'online', ?, ?, ?, 1, ?)`)
+        .bind(`rec_${crypto.randomUUID().replaceAll('-', '')}`, historyId, accountId, category, room.difficulty, card.id,
+          card.shortName, card.photoUrl ?? null, value, username, team.name, team.crestId ?? null, room.competitionFormat.id,
+          now, JSON.stringify({ ...card, overall: effectiveOverallByPlayerId[card.id] ?? card.overall }), now)
         .run();
     }
 
@@ -204,5 +208,6 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
         updated_at = excluded.updated_at`)
       .bind(accountId, champion ? 1 : 0, wins, draws, losses, goals, totalAssists, totalSaves, topEffective?.value ?? 0, room.difficulty, now)
       .run();
+    await retainRecentCompetitionSnapshots(env.DB, accountId);
   }
 }

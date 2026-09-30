@@ -347,9 +347,10 @@ function reportNumber(report: Record<string, unknown>, key: string): number | nu
 
 function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView: (entry: CompetitionHistoryEntry) => void }) {
   const report = entry.report ?? {};
-  const competitionPoints = reportNumber(report, 'competitionPoints');
+  const competitionPoints = entry.competition_points ?? reportNumber(report, 'competitionPoints');
   const champion = Boolean(entry.champion) || competitionPoints === COMPETITION_RANKING_POINTS.champion;
   const hasFinishStage = champion || (competitionPoints !== null && HISTORY_FINISH_LABELS[competitionPoints] !== undefined);
+  const summaryOnly = report.snapshotArchived === true;
   const finishLabel = champion
     ? 'Campeão'
     : HISTORY_FINISH_LABELS[competitionPoints ?? -1]
@@ -377,6 +378,7 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
                 </span>
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                   <Badge tone={champion ? 'brand' : 'default'} className="px-2 py-1 text-[10px]">{finishLabel}</Badge>
+                  {summaryOnly ? <Badge className="px-2 py-1 text-[10px]">RESUMO</Badge> : null}
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums text-[var(--ui-text-muted)]">
                     <CalendarDays size={13} aria-hidden="true" />
                     {formatDate(entry.completed_at)}
@@ -430,6 +432,10 @@ export default function AccountPage() {
   const { account, loading, login, register, updateProfile, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyTotalPages, setHistoryTotalPages] = useState(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<CompetitionHistoryEntry | null>(null);
   const [records, setRecords] = useState<PublicRecordEntry[]>([]);
   const [scoreRanking, setScoreRanking] = useState<ScoreLeaderboardEntry[]>([]);
@@ -482,7 +488,20 @@ export default function AccountPage() {
   useEffect(() => {
     setError('');
     setNotice('');
-    if (tab === 'history' && account) void getHistory().then(setHistory).catch(err => setError(err.message));
+    let active = true;
+    if (tab === 'history' && account) {
+      setHistoryLoading(true);
+      void getHistory(historyPage)
+        .then(result => {
+          if (!active) return;
+          setHistory(result.history);
+          setHistoryTotal(result.total);
+          setHistoryTotalPages(result.totalPages);
+          if (result.page !== historyPage) setHistoryPage(result.page);
+        })
+        .catch(err => { if (active) setError(err.message); })
+        .finally(() => { if (active) setHistoryLoading(false); });
+    }
     if (tab === 'profile' && account) {
       setScorePosition(null);
       setScorePositionLoading(true);
@@ -502,7 +521,8 @@ export default function AccountPage() {
       setFriendsLoading(true);
       void getFriends().then(setFriends).catch(err => setError(err.message)).finally(() => setFriendsLoading(false));
     }
-  }, [tab, account, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getFriends]);
+    return () => { active = false; };
+  }, [tab, account, historyPage, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getFriends]);
 
   const submitAuth = async () => {
     setBusy(true); setError(''); setNotice('');
@@ -692,6 +712,8 @@ export default function AccountPage() {
   const acceptedFriends = friends.filter(friend => friend.status === 'accepted');
   const pendingOutgoing = friends.filter(friend => friend.status === 'pending' && friend.requester_id === account.id);
   const coverStyle = profileCoverStyle(account.coverKey, account.coverUrl);
+  const historyStart = historyTotal > 0 ? (historyPage - 1) * 10 + 1 : 0;
+  const historyEnd = Math.min(historyPage * 10, historyTotal);
 
   return (
     <AppShell>
@@ -790,8 +812,19 @@ export default function AccountPage() {
           </TabPanel>
 
           <TabPanel value="history" className="space-y-5 pt-5">
-            <SectionHeader title="Histórico de competições" actions={<span role="status" aria-label={`${history.length} ${history.length === 1 ? 'competição salva' : 'competições salvas'}`} aria-atomic="true" className={cn('font-display whitespace-nowrap text-[clamp(30px,5vw,46px)] font-normal leading-[0.98] tabular-nums', history.length > 0 ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text-muted)]')}>{history.length}</span>} />
-            {history.length === 0 ? <EmptyState title="Nenhuma competição salva" description="Suas campanhas concluídas aparecerão aqui." /> : <div className="space-y-2">{history.map(entry => <HistoryCard key={entry.id} entry={entry} onView={setSelectedHistory} />)}</div>}
+            <SectionHeader title="Histórico de competições" actions={<span role="status" aria-label={`${historyTotal} ${historyTotal === 1 ? 'competição salva' : 'competições salvas'}`} aria-atomic="true" className={cn('font-display whitespace-nowrap text-[clamp(30px,5vw,46px)] font-normal leading-[0.98] tabular-nums', historyTotal > 0 ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text-muted)]')}>{historyTotal}</span>} />
+            {historyLoading ? <div className="space-y-2" aria-label="Carregando histórico">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-[96px] w-full rounded-xl" />)}</div>
+              : history.length === 0 ? <EmptyState title="Nenhuma competição salva" description="Suas competições concluídas aparecerão aqui." />
+                : <>
+                  <div className="space-y-2">{history.map(entry => <HistoryCard key={entry.id} entry={entry} onView={setSelectedHistory} />)}</div>
+                  {historyTotalPages > 1 ? <nav aria-label="Paginação do histórico" className="flex flex-col items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-3 sm:flex-row">
+                    <span className="text-xs text-[var(--ui-text-muted)]">Mostrando <strong className="tabular-nums text-[var(--ui-text)]">{historyStart}–{historyEnd}</strong> de <strong className="tabular-nums text-[var(--ui-text)]">{historyTotal}</strong> · Página <strong className="tabular-nums text-[var(--ui-text)]">{historyPage}</strong> de <strong className="tabular-nums text-[var(--ui-text)]">{historyTotalPages}</strong></span>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" intent="secondary" aria-label="Página anterior do histórico" onClick={() => setHistoryPage(page => Math.max(1, page - 1))} disabled={historyPage <= 1 || historyLoading} className="min-h-9 px-3 text-xs"><ChevronLeft size={15} aria-hidden="true" /> Anterior</Button>
+                      <Button type="button" intent="secondary" aria-label="Próxima página do histórico" onClick={() => setHistoryPage(page => Math.min(historyTotalPages, page + 1))} disabled={historyPage >= historyTotalPages || historyLoading} className="min-h-9 px-3 text-xs">Próxima <ChevronRight size={15} aria-hidden="true" /></Button>
+                    </div>
+                  </nav> : null}
+                </>}
           </TabPanel>
 
           <TabPanel value="friends" className="space-y-5 pt-5">
