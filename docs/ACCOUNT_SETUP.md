@@ -1,23 +1,18 @@
-# Contas, Google e dados online
+# Contas e dados online
 
 O jogo continua funcionando como convidado. A conta é uma camada opcional: o navegador sem sessão usa o mesmo fluxo local de antes e não grava histórico de conta.
 
-## Configurar o Google OAuth
+## Cadastro próprio
 
-1. No Google Cloud Console, crie um OAuth Client ID do tipo **Web application**.
-2. Adicione como redirect URI de produção:
+O login não depende de Google, e-mail ou lista de usuários de teste. Cada jogador pode criar uma conta com:
 
-   `https://ucl-immortals.josefflessa.workers.dev/api/auth/google/callback`
+- nome de usuário único;
+- senha com pelo menos oito caracteres;
+- código de recuperação exibido uma única vez após o cadastro.
 
-3. Se for testar com `wrangler dev`, adicione também a origem/redirect URI local que o terminal informar.
-4. Grave as credenciais como secrets do Worker. Elas não devem entrar no Git:
+As senhas são derivadas com PBKDF2-SHA-256 e salt individual antes de serem gravadas. O Worker guarda somente o hash, nunca a senha original. As sessões usam tokens aleatórios armazenados como hash no D1 e cookie `HttpOnly`, `Secure` e `SameSite=Lax`.
 
-   ```powershell
-   pnpm exec wrangler secret put GOOGLE_CLIENT_ID
-   pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET
-   ```
-
-O Worker usa Authorization Code + PKCE, guarda apenas o vínculo do Google e uma sessão HttpOnly no D1, e nunca recebe a senha do usuário.
+O código de recuperação permite redefinir a senha sem e-mail. Após uma recuperação, o código é trocado e o novo código precisa ser guardado pelo jogador.
 
 ## Persistência
 
@@ -29,10 +24,10 @@ O Worker usa Authorization Code + PKCE, guarda apenas o vínculo do Google e uma
 
 ## Segurança operacional
 
-Depois de configurar os secrets, publique novamente:
+Depois de alterar o Worker ou as migrações, publique novamente:
 
 ```powershell
 pnpm deploy:cloudflare
 ```
 
-Se os secrets ainda não estiverem configurados, o botão informa a situação e o modo convidado permanece disponível.
+O modo convidado permanece disponível mesmo sem conta.

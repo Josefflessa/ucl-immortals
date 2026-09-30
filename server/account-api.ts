@@ -1,13 +1,14 @@
 const SESSION_COOKIE = 'ucl_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
-const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const MAX_BIO_LENGTH = 240;
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,23}$/;
+const PASSWORD_MIN_LENGTH = 8;
+const PBKDF2_ITERATIONS = 120_000;
+const AUTH_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_MAX_FAILURES = 5;
 
 export interface AccountEnv {
   DB: D1Database;
-  GOOGLE_CLIENT_ID?: string;
-  GOOGLE_CLIENT_SECRET?: string;
 }
 
 export interface AuthenticatedAccount {
@@ -71,11 +72,6 @@ function json(data: unknown, status = 200, headers: HeadersInit = {}): Response 
   });
 }
 
-function redirect(url: string, request?: Request): Response {
-  const target = url.startsWith('/') && request ? new URL(url, request.url).toString() : url;
-  return new Response(null, { status: 302, headers: { location: target } });
-}
-
 function randomToken(bytes = 32): string {
   const values = new Uint8Array(bytes);
   crypto.getRandomValues(values);
@@ -91,10 +87,6 @@ function base64url(value: ArrayBuffer | Uint8Array): string {
 
 async function sha256(value: string): Promise<string> {
   return base64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
-}
-
-async function pkceChallenge(verifier: string): Promise<string> {
-  return sha256(verifier);
 }
 
 function parseCookies(request: Request): Record<string, string> {
@@ -120,9 +112,53 @@ function normalizeUsername(value: string): string {
     .slice(0, 24);
 }
 
-function displayNameFromGoogle(name: unknown, email: string): string {
-  if (typeof name === 'string' && name.trim()) return name.trim().slice(0, 40);
-  return email.split('@')[0].slice(0, 40);
+function normalizeRecoveryCode(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function createRecoveryCode(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  const raw = Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
+  return `UCL-${raw.slice(0, 6)}-${raw.slice(6)}`;
+}
+
+async function deriveSecret(secret: string, salt: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations, hash: 'SHA-256' },
+    key,
+    256,
+  );
+  return base64url(bits);
+}
+
+async function hashSecret(secret: string): Promise<string> {
+  const salt = randomToken(16);
+  const digest = await deriveSecret(secret, salt);
+  return `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${salt}$${digest}`;
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  return difference === 0;
+}
+
+async function verifySecret(secret: string, encoded: string | null | undefined): Promise<boolean> {
+  if (!encoded) return false;
+  const [algorithm, iterationsText, salt, expected] = encoded.split('$');
+  const iterations = Number(iterationsText);
+  if (algorithm !== 'pbkdf2-sha256' || !Number.isSafeInteger(iterations) || !salt || !expected) return false;
+  const actual = await deriveSecret(secret, salt, iterations);
+  return constantTimeEqual(actual, expected);
+}
+
+function passwordError(password: string): string | null {
+  if (password.length < PASSWORD_MIN_LENGTH) return `A senha precisa ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`;
+  return null;
 }
 
 function statsFromRow(row: UserRow): AccountStats {
@@ -203,50 +239,6 @@ async function createSession(db: D1Database, userId: string): Promise<string> {
   return token;
 }
 
-async function ensureGoogleUser(db: D1Database, google: { sub: string; email: string; name?: string; picture?: string }): Promise<AuthenticatedAccount> {
-  const existing = await db.prepare(`${ACCOUNT_SELECT}
-    JOIN oauth_accounts oa ON oa.user_id = u.id
-    WHERE oa.provider = 'google' AND oa.provider_account_id = ?`).bind(google.sub).first<UserRow>();
-  const now = Date.now();
-  if (existing) {
-    await db.prepare('UPDATE users SET email = ?, updated_at = ?, last_seen_at = ? WHERE id = ?')
-      .bind(google.email, now, now, existing.id).run();
-    return (await accountById(db, existing.id))!;
-  }
-
-  const byEmail = await db.prepare('SELECT id FROM users WHERE email = ?').bind(google.email).first<{ id: string }>();
-  const userId = byEmail?.id ?? `usr_${randomToken(12)}`;
-  if (!byEmail) {
-    await db.prepare('INSERT INTO users (id, email, created_at, updated_at, last_seen_at) VALUES (?, ?, ?, ?, ?)')
-      .bind(userId, google.email, now, now, now).run();
-  } else {
-    await db.prepare('UPDATE users SET updated_at = ?, last_seen_at = ? WHERE id = ?').bind(now, now, userId).run();
-  }
-
-  const base = normalizeUsername(google.email.split('@')[0]) || `jogador-${randomToken(4).toLowerCase()}`;
-  let username = base.slice(0, 24);
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    const collision = await db.prepare('SELECT user_id FROM profiles WHERE username = ?').bind(username).first<{ user_id: string }>();
-    if (!collision || collision.user_id === userId) break;
-    const suffix = `-${attempt + 1}`;
-    username = `${base.slice(0, 24 - suffix.length)}${suffix}`;
-  }
-
-  await db.batch([
-    db.prepare(`INSERT OR IGNORE INTO profiles
-      (user_id, username, display_name, bio, avatar_key, cover_key, avatar_url, cover_url, favorite_crest_id, visibility, created_at, updated_at)
-      VALUES (?, ?, ?, '', 'default-01', 'cover-01', ?, NULL, NULL, 'public', ?, ?)`)
-      .bind(userId, username, displayNameFromGoogle(google.name, google.email), google.picture ?? null, now, now),
-    db.prepare(`INSERT OR IGNORE INTO profile_stats (user_id, updated_at) VALUES (?, ?)`)
-      .bind(userId, now),
-    db.prepare(`INSERT OR IGNORE INTO oauth_accounts
-      (provider, provider_account_id, user_id, email, created_at) VALUES ('google', ?, ?, ?, ?)`)
-      .bind(google.sub, userId, google.email, now),
-  ]);
-
-  return (await accountById(db, userId))!;
-}
-
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
   try {
     const value = await request.json();
@@ -256,74 +248,112 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
   }
 }
 
-function safeReturnPath(value: string | null): string {
-  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/';
+async function authRateKey(request: Request, username: string): Promise<string> {
+  const address = request.headers.get('CF-Connecting-IP') ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  return sha256(`password-login:${address}:${username}`);
 }
 
-async function googleStart(request: Request, env: AccountEnv): Promise<Response> {
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-    return redirect('/?auth=google_not_configured', request);
-  }
-  const url = new URL(request.url);
-  const state = randomToken(24);
-  const verifier = randomToken(48);
+async function rateLimitStatus(db: D1Database, key: string): Promise<{ blocked: boolean; retryAfter: number }> {
+  const row = await db.prepare('SELECT blocked_until, window_started_at FROM auth_rate_limits WHERE key = ?').bind(key).first<{ blocked_until: number; window_started_at: number }>();
+  if (!row) return { blocked: false, retryAfter: 0 };
   const now = Date.now();
-  await env.DB.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').bind(now).run();
-  await env.DB.prepare('INSERT INTO oauth_states (state, code_verifier, return_path, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(state, verifier, safeReturnPath(url.searchParams.get('returnTo')), now + OAUTH_STATE_TTL_MS, now).run();
-  const redirectUri = `${url.origin}/api/auth/google/callback`;
-  const googleUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  googleUrl.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
-  googleUrl.searchParams.set('redirect_uri', redirectUri);
-  googleUrl.searchParams.set('response_type', 'code');
-  googleUrl.searchParams.set('scope', 'openid email profile');
-  googleUrl.searchParams.set('state', state);
-  googleUrl.searchParams.set('code_challenge', await pkceChallenge(verifier));
-  googleUrl.searchParams.set('code_challenge_method', 'S256');
-  return redirect(googleUrl.toString());
+  if (now - Number(row.window_started_at) >= AUTH_WINDOW_MS) {
+    await db.prepare('DELETE FROM auth_rate_limits WHERE key = ?').bind(key).run();
+    return { blocked: false, retryAfter: 0 };
+  }
+  const retryAfter = Math.max(1, Math.ceil((Number(row.blocked_until) - now) / 1000));
+  return { blocked: Number(row.blocked_until) > now, retryAfter };
 }
 
-async function googleCallback(request: Request, env: AccountEnv): Promise<Response> {
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return redirect('/?auth=google_not_configured', request);
-  const url = new URL(request.url);
-  const state = url.searchParams.get('state');
-  const code = url.searchParams.get('code');
-  if (!state || !code) return redirect('/?auth=google_failed', request);
-  const stateRow = await env.DB.prepare('SELECT code_verifier, return_path FROM oauth_states WHERE state = ? AND expires_at > ?')
-    .bind(state, Date.now()).first<{ code_verifier: string; return_path: string }>();
-  await env.DB.prepare('DELETE FROM oauth_states WHERE state = ?').bind(state).run();
-  if (!stateRow) return redirect('/?auth=google_state_expired', request);
+async function registerAuthFailure(db: D1Database, key: string): Promise<void> {
+  const now = Date.now();
+  const existing = await db.prepare('SELECT failed_count, window_started_at FROM auth_rate_limits WHERE key = ?').bind(key).first<{ failed_count: number; window_started_at: number }>();
+  if (!existing || now - Number(existing.window_started_at) >= AUTH_WINDOW_MS) {
+    await db.prepare('INSERT OR REPLACE INTO auth_rate_limits (key, failed_count, window_started_at, blocked_until) VALUES (?, 1, ?, 0)')
+      .bind(key, now).run();
+    return;
+  }
+  const failedCount = Number(existing.failed_count) + 1;
+  const blockedUntil = failedCount >= AUTH_MAX_FAILURES ? now + AUTH_WINDOW_MS : 0;
+  await db.prepare('UPDATE auth_rate_limits SET failed_count = ?, blocked_until = ? WHERE key = ?')
+    .bind(failedCount, blockedUntil, key).run();
+}
 
-  const redirectUri = `${url.origin}/api/auth/google/callback`;
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: env.GOOGLE_CLIENT_ID,
-      client_secret: env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code',
-      code_verifier: stateRow.code_verifier,
-    }),
-  });
-  const tokenBody = await tokenResponse.json().catch(() => null) as { access_token?: string } | null;
-  if (!tokenResponse.ok || !tokenBody?.access_token) return redirect('/?auth=google_failed', request);
+async function clearAuthFailures(db: D1Database, key: string): Promise<void> {
+  await db.prepare('DELETE FROM auth_rate_limits WHERE key = ?').bind(key).run();
+}
 
-  const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
-    headers: { authorization: `Bearer ${tokenBody.access_token}` },
-  });
-  const google = await userResponse.json().catch(() => null) as { sub?: string; email?: string; name?: string; picture?: string } | null;
-  if (!userResponse.ok || !google?.sub || !google.email) return redirect('/?auth=google_failed', request);
-  const account = await ensureGoogleUser(env.DB, { sub: google.sub, email: google.email, name: google.name, picture: google.picture });
-  const session = await createSession(env.DB, account.id);
-  return new Response(null, {
-    status: 302,
-    headers: {
-      location: `${new URL(request.url).origin}${safeReturnPath(stateRow.return_path)}`,
-      'set-cookie': sessionCookie(session),
-    },
-  });
+async function registerLocalAccount(request: Request, env: AccountEnv): Promise<Response> {
+  const body = await readJson(request);
+  const username = normalizeUsername(String(body?.username ?? ''));
+  const displayName = String(body?.displayName ?? username).trim().slice(0, 40) || username;
+  const password = String(body?.password ?? '');
+  if (!USERNAME_RE.test(username)) return json({ error: 'invalid_username', message: 'Use um nome de usuário com 3 a 24 caracteres: letras, números, ponto, hífen ou sublinhado.' }, 400);
+  const passwordMessage = passwordError(password);
+  if (passwordMessage) return json({ error: 'invalid_password', message: passwordMessage }, 400);
+  const existing = await env.DB.prepare('SELECT user_id FROM profiles WHERE username = ?').bind(username).first<{ user_id: string }>();
+  if (existing) return json({ error: 'username_taken', message: 'Esse nome de usuário já está em uso.' }, 409);
+
+  const now = Date.now();
+  const userId = `usr_${randomToken(12)}`;
+  const recoveryCode = createRecoveryCode();
+  try {
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO users (id, email, password_hash, recovery_code_hash, created_at, updated_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(userId, `${userId}@local.ucl-immortals.invalid`, await hashSecret(password), await hashSecret(normalizeRecoveryCode(recoveryCode)), now, now, now),
+      env.DB.prepare(`INSERT INTO profiles
+        (user_id, username, display_name, bio, avatar_key, cover_key, avatar_url, cover_url, favorite_crest_id, visibility, created_at, updated_at)
+        VALUES (?, ?, ?, '', 'default-01', 'cover-01', NULL, NULL, NULL, 'public', ?, ?)`)
+        .bind(userId, username, displayName, now, now),
+      env.DB.prepare('INSERT INTO profile_stats (user_id, updated_at) VALUES (?, ?)').bind(userId, now),
+    ]);
+  } catch {
+    return json({ error: 'username_taken', message: 'Não foi possível criar essa conta. Tente outro nome de usuário.' }, 409);
+  }
+  return json({ recoveryCode, message: 'Conta criada. Guarde o código de recuperação em um local seguro.' }, 201);
+}
+
+async function loginLocalAccount(request: Request, env: AccountEnv): Promise<Response> {
+  const body = await readJson(request);
+  const username = normalizeUsername(String(body?.username ?? ''));
+  const password = String(body?.password ?? '');
+  const genericError = { error: 'invalid_credentials', message: 'Nome de usuário ou senha incorretos.' };
+  if (!USERNAME_RE.test(username) || !password) return json(genericError, 401);
+  const key = await authRateKey(request, username);
+  const rate = await rateLimitStatus(env.DB, key);
+  if (rate.blocked) return json({ error: 'too_many_attempts', message: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }, 429, { 'retry-after': String(rate.retryAfter) });
+  const row = await env.DB.prepare(`SELECT u.id, u.password_hash
+    FROM users u JOIN profiles p ON p.user_id = u.id WHERE p.username = ?`).bind(username).first<{ id: string; password_hash: string | null }>();
+  if (!row || !(await verifySecret(password, row.password_hash))) {
+    await registerAuthFailure(env.DB, key);
+    return json(genericError, 401);
+  }
+  await clearAuthFailures(env.DB, key);
+  const now = Date.now();
+  await env.DB.prepare('UPDATE users SET updated_at = ?, last_seen_at = ? WHERE id = ?').bind(now, now, row.id).run();
+  const session = await createSession(env.DB, row.id);
+  return json({ account: await accountById(env.DB, row.id) }, 200, { 'set-cookie': sessionCookie(session) });
+}
+
+async function recoverLocalAccount(request: Request, env: AccountEnv): Promise<Response> {
+  const body = await readJson(request);
+  const username = normalizeUsername(String(body?.username ?? ''));
+  const recoveryCode = normalizeRecoveryCode(String(body?.recoveryCode ?? ''));
+  const newPassword = String(body?.newPassword ?? '');
+  const genericError = { error: 'invalid_recovery', message: 'Usuário ou código de recuperação inválido.' };
+  const passwordMessage = passwordError(newPassword);
+  if (!USERNAME_RE.test(username) || !recoveryCode || passwordMessage) return json(passwordMessage ? { error: 'invalid_password', message: passwordMessage } : genericError, 400);
+  const row = await env.DB.prepare(`SELECT u.id, u.recovery_code_hash
+    FROM users u JOIN profiles p ON p.user_id = u.id WHERE p.username = ?`).bind(username).first<{ id: string; recovery_code_hash: string | null }>();
+  if (!row || !(await verifySecret(recoveryCode, row.recovery_code_hash))) return json(genericError, 401);
+  const nextRecoveryCode = createRecoveryCode();
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET password_hash = ?, recovery_code_hash = ?, updated_at = ?, last_seen_at = ? WHERE id = ?')
+      .bind(await hashSecret(newPassword), await hashSecret(normalizeRecoveryCode(nextRecoveryCode)), now, now, row.id),
+    env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(row.id),
+  ]);
+  return json({ recoveryCode: nextRecoveryCode, message: 'Senha atualizada. Guarde o novo código de recuperação.' });
 }
 
 function publicAccount(account: AuthenticatedAccount): Record<string, unknown> {
@@ -557,8 +587,9 @@ async function publicProfile(env: AccountEnv, username: string): Promise<Respons
 export async function handleAccountRequest(request: Request, env: AccountEnv): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/')) return null;
-  if (url.pathname === '/api/auth/google/start' && request.method === 'GET') return googleStart(request, env);
-  if (url.pathname === '/api/auth/google/callback' && request.method === 'GET') return googleCallback(request, env);
+  if (url.pathname === '/api/auth/register' && request.method === 'POST') return registerLocalAccount(request, env);
+  if (url.pathname === '/api/auth/login' && request.method === 'POST') return loginLocalAccount(request, env);
+  if (url.pathname === '/api/auth/recover' && request.method === 'POST') return recoverLocalAccount(request, env);
   if (url.pathname === '/api/auth/me' && request.method === 'GET') {
     const account = await authenticatedAccount(request, env);
     return json({ account: account ? publicAccount(account) : null });

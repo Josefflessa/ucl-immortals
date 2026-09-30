@@ -74,7 +74,9 @@ interface AccountContextValue {
   account: AccountProfile | null;
   loading: boolean;
   refresh: () => Promise<void>;
-  loginWithGoogle: (returnTo?: string) => void;
+  login: (username: string, password: string) => Promise<AccountProfile>;
+  register: (username: string, password: string, displayName?: string) => Promise<string>;
+  recover: (username: string, recoveryCode: string, newPassword: string) => Promise<string>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<AccountProfile, 'username' | 'displayName' | 'bio' | 'avatarKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
   getHistory: () => Promise<CompetitionHistoryEntry[]>;
@@ -134,9 +136,29 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const loginWithGoogle = useCallback((returnTo = '/') => {
-    const path = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
-    window.location.assign(`/api/auth/google/start?returnTo=${encodeURIComponent(path)}`);
+  const login = useCallback(async (username: string, password: string) => {
+    const result = await api<{ account: AccountProfile }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    setAccount(result.account);
+    return result.account;
+  }, []);
+
+  const register = useCallback(async (username: string, password: string, displayName?: string) => {
+    const result = await api<{ recoveryCode: string }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, displayName }),
+    });
+    return result.recoveryCode;
+  }, []);
+
+  const recover = useCallback(async (username: string, recoveryCode: string, newPassword: string) => {
+    const result = await api<{ recoveryCode: string }>('/api/auth/recover', {
+      method: 'POST',
+      body: JSON.stringify({ username, recoveryCode, newPassword }),
+    });
+    return result.recoveryCode;
   }, []);
 
   const logout = useCallback(async () => {
@@ -181,9 +203,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, loginWithGoogle, logout, updateProfile, getHistory, saveHistory, getRecords,
+    account, loading, refresh, login, register, recover, logout, updateProfile, getHistory, saveHistory, getRecords,
     getFriends, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, loginWithGoogle, logout, updateProfile, getHistory, saveHistory, getRecords, getFriends, sendFriendRequest, updateFriendship]);
+  }), [account, loading, refresh, login, register, recover, logout, updateProfile, getHistory, saveHistory, getRecords, getFriends, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

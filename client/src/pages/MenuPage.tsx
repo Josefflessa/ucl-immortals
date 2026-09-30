@@ -27,7 +27,7 @@ export default function MenuPage() {
     transferHostOnline,
     removePlayerOnline,
   } = useGame();
-  const { account, loading: accountLoading, loginWithGoogle } = useAccount();
+  const { account, loading: accountLoading } = useAccount();
 
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
   const [playerName, setPlayerName] = useState('');
@@ -35,7 +35,6 @@ export default function MenuPage() {
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
-  const [authNotice, setAuthNotice] = useState('');
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
 
   useEffect(() => {
@@ -46,13 +45,6 @@ export default function MenuPage() {
       setMenuMode('selection');
     }
   }, [state.phase, state.roomCode]);
-
-  useEffect(() => {
-    const auth = new URLSearchParams(window.location.search).get('auth');
-    if (auth === 'google_not_configured') setAuthNotice('O login Google ainda precisa ser configurado no ambiente. O modo convidado continua disponível.');
-    if (auth === 'google_failed' || auth === 'google_state_expired') setAuthNotice('Não foi possível concluir o login Google. Tente novamente.');
-    if (auth) window.history.replaceState({}, '', window.location.pathname);
-  }, []);
 
   const handlePlaySolo = () => {
     if (!playerName.trim()) return;
@@ -254,14 +246,12 @@ export default function MenuPage() {
           intent="ghost"
           size="default"
           disabled={accountLoading}
-          onClick={() => account ? dispatch({ type: 'SET_PHASE', phase: 'account' }) : loginWithGoogle('/')}
+          onClick={() => dispatch({ type: 'SET_PHASE', phase: 'account' })}
           className="border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/75 backdrop-blur-sm"
         >
           <span className="inline-flex items-center gap-2"><UserRound size={15} /> {account ? 'MEU PERFIL' : 'ENTRAR'}</span>
         </Button>
       </div>
-
-      {authNotice ? <div className="absolute inset-x-4 top-20 z-20 mx-auto max-w-md"><StatusBanner tone="warning" title="Conta opcional">{authNotice}</StatusBanner></div> : null}
 
       {/* Content */}
       <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 py-8">

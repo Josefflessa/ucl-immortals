@@ -29,8 +29,6 @@ interface Env {
   DB: D1Database;
   GAME_ROOM: DurableObjectNamespace;
   ROOM_DIRECTORY: DurableObjectNamespace;
-  GOOGLE_CLIENT_ID?: string;
-  GOOGLE_CLIENT_SECRET?: string;
 }
 
 interface RoomReservation {

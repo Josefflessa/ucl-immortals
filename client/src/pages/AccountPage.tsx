@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Clock3, Crown, LogOut, Medal, Search, Shield, Sparkles, Trophy, UserRound, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, Clock3, Crown, KeyRound, LogIn, LogOut, Medal, RotateCcw, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useAccount, type CompetitionHistoryEntry, type FriendshipEntry, type PublicRecordEntry } from '../contexts/AccountContext';
 import { useGame } from '../contexts/GameContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
@@ -127,7 +127,7 @@ function friendName(friend: FriendshipEntry, accountId: string): string {
 
 export default function AccountPage() {
   const { dispatch } = useGame();
-  const { account, loading, loginWithGoogle, logout, updateProfile, getHistory, getRecords, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, login, register, recover, logout, updateProfile, getHistory, getRecords, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const [tab, setTab] = useState('profile');
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
   const [records, setRecords] = useState<PublicRecordEntry[]>([]);
@@ -137,6 +137,9 @@ export default function AccountPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'recovery'>('login');
+  const [authForm, setAuthForm] = useState({ username: '', displayName: '', password: '', recoveryCode: '', newPassword: '' });
+  const [recoveryCodeToSave, setRecoveryCodeToSave] = useState('');
 
   useEffect(() => {
     if (!account) return;
@@ -164,6 +167,33 @@ export default function AccountPage() {
       return { difficulty, category, records: group.slice(0, 10) };
     }).sort((a, b) => DIFFICULTY_LEVELS.findIndex(level => level.id === a.difficulty) - DIFFICULTY_LEVELS.findIndex(level => level.id === b.difficulty));
   }, [records]);
+
+  const submitAuth = async () => {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      if (authMode === 'login') {
+        await login(authForm.username, authForm.password);
+        return;
+      }
+      if (authMode === 'register') {
+        const recoveryCode = await register(authForm.username, authForm.password, authForm.displayName);
+        setRecoveryCodeToSave(recoveryCode);
+        setAuthMode('login');
+        setAuthForm(form => ({ ...form, password: '', recoveryCode: '', newPassword: '' }));
+        setNotice('Conta criada. Guarde o código de recuperação abaixo antes de entrar.');
+        return;
+      }
+      const nextRecoveryCode = await recover(authForm.username, authForm.recoveryCode, authForm.newPassword);
+      setRecoveryCodeToSave(nextRecoveryCode);
+      setAuthMode('login');
+      setAuthForm(form => ({ ...form, password: '', recoveryCode: '', newPassword: '' }));
+      setNotice('Senha atualizada. Guarde o novo código de recuperação abaixo e entre novamente.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível concluir essa ação.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const saveProfile = async () => {
     setBusy(true); setError(''); setNotice('');
@@ -206,11 +236,31 @@ export default function AccountPage() {
             <div className="border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-5 py-6 sm:px-8">
               <Badge tone="brand">CONTA OPCIONAL</Badge>
               <h1 className="mt-3 font-display text-4xl text-[var(--ui-text)]">Seu legado, salvo.</h1>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--ui-text-muted)]">Entre com o Google para guardar seu perfil, histórico de competições, recordes e amizades. O modo convidado continua local e separado, como sempre.</p>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--ui-text-muted)]">Crie uma conta com nome de usuário e senha para guardar seu perfil, histórico, recordes e amizades. O modo convidado continua local e separado.</p>
             </div>
             <PanelBody className="space-y-4 p-5 sm:p-8">
-              <Button intent="primary" size="large" className="w-full" onClick={() => loginWithGoogle('/')}><span className="inline-flex items-center gap-2"><LogOut size={18} className="rotate-180" /> CONTINUAR COM GOOGLE</span></Button>
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Shield size={15} className="mt-0.5 flex-shrink-0 text-[var(--ui-success)]" /> Sua conta não altera suas partidas de convidado e não exige senha criada no jogo.</div>
+              <div className="grid grid-cols-3 gap-2">
+                <Button type="button" intent={authMode === 'login' ? 'primary' : 'ghost'} onClick={() => { setAuthMode('login'); setError(''); setNotice(''); }}>ENTRAR</Button>
+                <Button type="button" intent={authMode === 'register' ? 'primary' : 'ghost'} onClick={() => { setAuthMode('register'); setError(''); setNotice(''); }}>CRIAR CONTA</Button>
+                <Button type="button" intent={authMode === 'recovery' ? 'primary' : 'ghost'} onClick={() => { setAuthMode('recovery'); setError(''); setNotice(''); }}>RECUPERAR</Button>
+              </div>
+
+              {recoveryCodeToSave ? <div className="rounded-xl border border-[var(--ui-brand)]/50 bg-[var(--ui-brand)]/10 p-4">
+                <div className="flex items-start gap-3"><KeyRound size={17} className="mt-0.5 flex-shrink-0 text-[var(--ui-brand-strong)]" /><div className="min-w-0"><div className="ui-kicker text-[var(--ui-brand-strong)]">CÓDIGO DE RECUPERAÇÃO</div><code className="mt-2 block break-all text-lg font-black tracking-[0.12em] text-[var(--ui-text)]">{recoveryCodeToSave}</code><p className="mt-2 text-xs leading-relaxed text-[var(--ui-text-muted)]">Anote esse código agora. Ele é a única forma de redefinir sua senha se você esquecer.</p></div></div>
+              </div> : null}
+
+              {notice ? <StatusBanner tone="success" title="Tudo certo">{notice}</StatusBanner> : null}
+              {error ? <StatusBanner tone="danger" title="Não foi possível concluir">{error}</StatusBanner> : null}
+
+              <form className="space-y-4" onSubmit={event => { event.preventDefault(); void submitAuth(); }}>
+                <label className="block space-y-2"><span className="ui-kicker">NOME DE USUÁRIO</span><Input autoComplete="username" value={authForm.username} maxLength={24} placeholder="ex.: treinador01" onChange={event => setAuthForm(form => ({ ...form, username: event.target.value }))} /></label>
+                {authMode === 'register' ? <label className="block space-y-2"><span className="ui-kicker">NOME DE EXIBIÇÃO <span className="normal-case tracking-normal text-[var(--ui-text-faint)]">(opcional)</span></span><Input autoComplete="nickname" value={authForm.displayName} maxLength={40} placeholder="Como você quer aparecer" onChange={event => setAuthForm(form => ({ ...form, displayName: event.target.value }))} /></label> : null}
+                {authMode === 'recovery' ? <label className="block space-y-2"><span className="ui-kicker">CÓDIGO DE RECUPERAÇÃO</span><Input autoComplete="one-time-code" value={authForm.recoveryCode} placeholder="UCL-XXXXXX-XXXXXX" onChange={event => setAuthForm(form => ({ ...form, recoveryCode: event.target.value }))} /></label> : null}
+                {authMode === 'recovery' ? <label className="block space-y-2"><span className="ui-kicker">NOVA SENHA</span><Input type="password" autoComplete="new-password" value={authForm.newPassword} placeholder="Mínimo de 8 caracteres" onChange={event => setAuthForm(form => ({ ...form, newPassword: event.target.value }))} /></label> : <label className="block space-y-2"><span className="ui-kicker">SENHA</span><Input type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={authForm.password} placeholder={authMode === 'register' ? 'Mínimo de 8 caracteres' : 'Sua senha'} onChange={event => setAuthForm(form => ({ ...form, password: event.target.value }))} /></label>}
+                <Button type="submit" intent="primary" size="large" className="w-full" loading={busy}><span className="inline-flex items-center gap-2">{authMode === 'login' ? <LogIn size={18} /> : authMode === 'register' ? <UserPlus size={18} /> : <RotateCcw size={18} />} {authMode === 'login' ? 'ENTRAR NA CONTA' : authMode === 'register' ? 'CRIAR CONTA' : 'REDEFINIR SENHA'}</span></Button>
+              </form>
+
+              <div className="flex items-start gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Shield size={15} className="mt-0.5 flex-shrink-0 text-[var(--ui-success)]" /> A senha é protegida no servidor. Sua conta não altera suas partidas de convidado.</div>
               <Button intent="ghost" className="w-full" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}>Continuar como convidado</Button>
             </PanelBody>
           </Panel>
