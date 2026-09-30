@@ -12,6 +12,13 @@
       { "name": "ROOM_DIRECTORY", "class_name": "RoomDirectory" }
     ]
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ucl-immortals-prod",
+      "database_id": "50b59e7c-eb5c-4e76-bcaf-9b8abbe51b54"
+    }
+  ],
   "migrations": [
     {
       "tag": "v1",

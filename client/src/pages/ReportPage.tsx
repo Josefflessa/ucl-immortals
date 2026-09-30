@@ -1,9 +1,10 @@
 // UCL Immortals — Championship End Screen
 // Cinematic celebration / campaign summary after the tournament
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
+import { useAccount } from '../contexts/AccountContext';
 import { useTeams } from '../hooks/useTeams';
 import { FORMATIONS, COACHES, getRarityColor, getRarityGlow, POS_PT, type Player } from '../lib/gameData';
 import {
@@ -46,6 +47,7 @@ function HighlightPortrait({ player, color }: { player: Player; color: string })
 
 export default function ReportPage() {
   const { state, dispatch, leaveRoomOnline } = useGame();
+  const { account, saveHistory } = useAccount();
   const { report, playerTeam, champion, leagueResults, knockoutBracket } = state;
   const { localTeamId, allTeams: allTeamsForStats } = useTeams();
 
@@ -185,6 +187,41 @@ export default function ReportPage() {
   const teamOverall = (playerTeam && chemData && starters.length === 11)
     ? Math.round(starters.reduce((s, p) => s + (effectiveStatsById[p.id]?.overall ?? p.overall), 0) / 11)
     : null;
+  const soloHistoryKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Solo campaigns are not authoritative public records, but an account can
+    // still keep the same final-season snapshot privately. Online campaigns
+    // are persisted by the room server at the report transition.
+    if (!account || state.mode !== 'solo' || !playerTeam || games === 0) return;
+    if (!soloHistoryKey.current) soloHistoryKey.current = `solo:${crypto.randomUUID()}`;
+    void saveHistory({
+      mode: 'solo',
+      difficultyId: state.difficulty,
+      formatId: state.competitionFormat.id,
+      teamName: playerTeam.name,
+      crestId: playerTeam.crestId ?? null,
+      coachId: playerTeam.coachId ?? null,
+      champion: isChampion,
+      placement: isChampion ? 1 : null,
+      sourceKey: soloHistoryKey.current,
+      report: {
+        version: 1,
+        games,
+        wins,
+        draws,
+        losses,
+        goals: totalGoals,
+        goalsAgainst,
+        cleanSheets,
+        goalDiff,
+        teamOverall,
+        topScorer: topScorer ? { playerId: topScorer.pl.id, playerName: topScorer.pl.shortName, value: topScorer.stats.goals } : null,
+        topAssister: topAssister ? { playerId: topAssister.pl.id, playerName: topAssister.pl.shortName, value: topAssister.stats.assists } : null,
+        topRating: topRating ? { playerId: topRating.pl.id, playerName: topRating.pl.shortName, value: topRating.stats.ratingAvg } : null,
+      },
+    }).catch(error => console.error('[account] não foi possível salvar o histórico solo:', error));
+  }, [account, games, isChampion, losses, playerTeam, saveHistory, state.competitionFormat.id, state.difficulty, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (

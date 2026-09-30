@@ -99,6 +99,8 @@ import type { MissionState } from "../client/src/lib/missions.js";
 
 export interface RoomPlayer {
   socketId: string;
+  /** Authenticated account identity; omitted for guest players. */
+  accountId?: string;
   clientId?: string; // identidade persistente do cliente (reconexão robusta, mesmo entre refreshes)
   kicked?: boolean; // removido pelo host; o assento ativo não pode voltar por reconexão
   id: string;
@@ -480,9 +482,10 @@ function roomViewForSocket(room: RoomState, socketId: string, compactHistory = f
   const viewerId = viewer?.id;
 
   view.players = view.players.map(player => {
-    if (player.id === viewerId) return player;
+    if (player.id === viewerId) return { ...player, accountId: undefined };
     return {
       ...player,
+      accountId: undefined,
       clientId: undefined,
       points: 0,
       lastMatchPoints: null,
@@ -1663,6 +1666,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         players: [
           {
             socketId: socket.id,
+            accountId: socket.accountId,
             clientId,
             id: 'player_0',
             name: normalizedCreatorName,
@@ -1768,6 +1772,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
           return;
         }
         byClient.socketId = socket.id;
+        byClient.accountId = socket.accountId;
         byClient.connected = true;
         cancelRoomCleanup(code);
         scheduleRoomWatchdog(io, room);
@@ -1803,6 +1808,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
           return;
         }
         existingPlayer.socketId = socket.id;
+        existingPlayer.accountId = socket.accountId;
         existingPlayer.connected = true;
         if (clientId) existingPlayer.clientId = clientId; // adota a identidade p/ reconexões futuras
         cancelRoomCleanup(code);
@@ -1830,6 +1836,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
       const newPlayer: RoomPlayer = {
         socketId: socket.id,
+        accountId: socket.accountId,
         clientId,
         id: `player_${room.players.length}`,
         name: normalizedPlayerName,

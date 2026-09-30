@@ -14,6 +14,8 @@ import {
   roomMutationDigest,
 } from './handlers.js';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime.js';
+import { authenticatedAccount, handleAccountRequest } from './account-api.js';
+import { persistCompletedCompetition } from './competition-persistence.js';
 import { cloneRoomJson } from '../shared/room-sync.js';
 import {
   MAX_REALTIME_MESSAGE_BYTES,
@@ -24,8 +26,11 @@ import {
 
 interface Env {
   ASSETS: Fetcher;
+  DB: D1Database;
   GAME_ROOM: DurableObjectNamespace;
   ROOM_DIRECTORY: DurableObjectNamespace;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
 }
 
 interface RoomReservation {
@@ -72,6 +77,7 @@ interface ChunkedStoredGameRoomManifest {
 
 interface SocketAttachment {
   socketId: string;
+  accountId?: string;
   /** Durable Object identity, retained even before a player joins the game. */
   roomCode?: string;
   /** Socket.IO-style room membership; absent until join_room/create_room succeeds. */
@@ -292,6 +298,7 @@ class DurableSocket implements RealtimeSocket {
   private joinedRoomCode: string | undefined;
   private supportsPatches: boolean;
   private lastSeenAt: number;
+  readonly accountId?: string;
 
   constructor(
     readonly id: string,
@@ -299,10 +306,12 @@ class DurableSocket implements RealtimeSocket {
     private readonly server: DurableRealtimeServer,
     private readonly objectRoomCode: string,
     attachment?: SocketAttachment,
+    accountId?: string,
   ) {
     this.joinedRoomCode = attachment?.joinedRoomCode;
     this.supportsPatches = attachment?.supportsPatches === true;
     this.lastSeenAt = Number.isFinite(attachment?.lastSeenAt) ? attachment!.lastSeenAt! : Date.now();
+    this.accountId = accountId ?? attachment?.accountId;
   }
 
   getLastSeenAt(): number {
@@ -381,6 +390,7 @@ class DurableSocket implements RealtimeSocket {
   private saveAttachment(): void {
     this.webSocket.serializeAttachment({
       socketId: this.id,
+      accountId: this.accountId,
       roomCode: this.objectRoomCode,
       joinedRoomCode: this.joinedRoomCode,
       supportsPatches: this.supportsPatches || undefined,
@@ -472,17 +482,17 @@ class DurableRealtimeServer implements RealtimeServer {
     };
   }
 
-  attach(webSocket: WebSocket, roomCode: string, restored = false): DurableSocket {
+  attach(webSocket: WebSocket, roomCode: string, restored = false, accountId?: string): DurableSocket {
     const attachment = webSocket.deserializeAttachment() as SocketAttachment | null;
     const socketId = attachment?.socketId || crypto.randomUUID();
-    const socket = new DurableSocket(socketId, webSocket, this, roomCode, attachment ?? undefined);
+    const socket = new DurableSocket(socketId, webSocket, this, roomCode, attachment ?? undefined, accountId);
     this.byWebSocket.set(webSocket, socket);
     this.sockets.sockets.set(socketId, socket);
     socket.restoreMembership();
     this.connectionHandlers.forEach((handler) => handler(socket));
     if (restored) socket.restoreCapabilities();
     if (!restored) {
-      webSocket.serializeAttachment({ socketId, roomCode, lastSeenAt: socket.getLastSeenAt() } satisfies SocketAttachment);
+      webSocket.serializeAttachment({ socketId, roomCode, accountId: socket.accountId, lastSeenAt: socket.getLastSeenAt() } satisfies SocketAttachment);
       webSocket.send(encodeRealtimeMessage({ type: 'system', event: 'connected', socketId }));
     }
     return socket;
@@ -568,7 +578,13 @@ export class GameRoom {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
       this.state.acceptWebSocket(server);
-      runWithGameRuntime(this.runtime, () => this.server.attach(server, roomCode));
+      let accountId: string | undefined;
+      try {
+        accountId = (await authenticatedAccount(request, this.env))?.id;
+      } catch {
+        // Account identity is additive. A temporary D1 issue must not block guests.
+      }
+      runWithGameRuntime(this.runtime, () => this.server.attach(server, roomCode, false, accountId));
       return new Response(null, { status: 101, webSocket: client });
     });
   }
@@ -689,6 +705,12 @@ export class GameRoom {
         this.server.commit();
         committed = true;
         if (checkpoint) this.enqueueCheckpoint(checkpoint);
+        const committedRoom = this.runtime.rooms.get(this.roomCode);
+        if (snapshot.room?.phase !== 'report' && committedRoom?.phase === 'report') {
+          this.state.waitUntil(persistCompletedCompetition(this.env, committedRoom).catch(error => {
+            console.error('[account] não foi possível salvar o encerramento online:', { roomCode: this.roomCode, error });
+          }));
+        }
       } catch (error) {
         if (committed) {
           console.error('A ação foi transmitida, mas o checkpoint não pôde ser agendado:', {
@@ -1199,6 +1221,8 @@ export class GameRoom {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const accountResponse = await handleAccountRequest(request, env);
+    if (accountResponse) return accountResponse;
     if (url.pathname === '/api/realtime/room-code' && request.method === 'POST') {
       const directory = env.ROOM_DIRECTORY.get(env.ROOM_DIRECTORY.idFromName('room-directory'));
       return directory.fetch('https://room-directory/reserve', { method: 'POST' });

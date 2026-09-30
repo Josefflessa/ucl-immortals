@@ -74,6 +74,7 @@ import type { MissionState } from '../lib/missions';
 // ============================================================
 export type GamePhase =
   | 'menu'           // Home screen
+  | 'account'        // Account, profile, records and friends
   | 'album'          // Player album / catalog
   | 'lobby'          // Multiplayer lobby
   | 'format'         // Choose the tournament format

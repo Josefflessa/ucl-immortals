@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { GameProvider, useGame } from "./contexts/GameContext";
+import { AccountProvider } from "./contexts/AccountContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
@@ -17,6 +18,7 @@ import SquadReviewPage from "./pages/SquadReviewPage";
 import LeaguePage from "./pages/LeaguePage";
 import ReportPage from "./pages/ReportPage";
 import MatchSimPage from "./pages/MatchSimPage";
+import AccountPage from "./pages/AccountPage";
 // Pré-carrega a moldura + texturas das cartas uma vez (cacheia; evita "flash" na primeira carta).
 ['card-frame', 'bg-bronze', 'bg-prata', 'bg-ouro', 'bg-lendario', 'bg-imortal'].forEach((n) => {
   const img = new Image();
@@ -101,6 +103,7 @@ function GameRouter() {
   switch (state.phase) {
     case 'menu':
     case 'lobby': return <MenuPage />;
+    case 'account': return <AccountPage />;
     case 'album': return <AlbumPage />;
     case 'format': return <TournamentFormatPage />;
     case 'setup': return <SetupPage />;
@@ -124,11 +127,13 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
-          <GameProvider>
-            <ModalScrollLock />
-            <GameRouter />
-            <InstallPrompt />
-          </GameProvider>
+          <AccountProvider>
+            <GameProvider>
+              <ModalScrollLock />
+              <GameRouter />
+              <InstallPrompt />
+            </GameProvider>
+          </AccountProvider>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
