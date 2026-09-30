@@ -89,6 +89,8 @@ export type GamePhase =
   | 'match_sim'      // Watching a match simulation
   | 'report';        // Final immortal report
 
+export type AccountSection = 'profile' | 'history' | 'records' | 'friends';
+
 
 // ============================================================
 // STATE
@@ -126,6 +128,7 @@ export interface RoomPlayer {
 
 export interface GameState {
   phase: GamePhase;
+  accountSection: AccountSection;
   playerName: string;
   difficulty: string;
   competitionFormat: CompetitionFormat;
@@ -252,6 +255,7 @@ export interface KnockoutMatch {
 // ============================================================
 export type GameAction =
   | { type: 'SET_PHASE'; phase: GamePhase }
+  | { type: 'SET_ACCOUNT_SECTION'; section: AccountSection }
   | { type: 'SET_CREST'; crestId: string | null }
   | { type: 'SET_PLAYER_NAME'; name: string }
   | { type: 'SET_ONLINE_SETUP_INTENT'; intent: 'create' | null }
@@ -337,6 +341,7 @@ export type GameAction =
 // ============================================================
 const initialState: GameState = {
   phase: 'menu',
+  accountSection: 'profile',
   playerName: '',
   difficulty: 'gold',
   competitionFormat: { ...DEFAULT_COMPETITION_FORMAT },
@@ -559,6 +564,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'SET_PHASE':
       return { ...state, phase: action.phase };
+
+    case 'SET_ACCOUNT_SECTION':
+      return { ...state, accountSection: action.section, phase: 'account' };
 
     case 'SET_CREST':
       return { ...state, selectedCrestId: action.crestId };

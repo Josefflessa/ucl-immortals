@@ -271,6 +271,16 @@ export default defineConfig({
       "localhost",
       "127.0.0.1",
     ],
+    // A UI local deve conversar com o Worker local, que mantém o D1 e os
+    // Durable Objects separados da produção. Assim o cadastro/login pode ser
+    // testado sem publicar cada alteração.
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: false,
+        ws: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Clock3, Crown, KeyRound, LogIn, LogOut, Medal, RotateCcw, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, Clock3, Crown, LogIn, LogOut, Medal, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useAccount, type CompetitionHistoryEntry, type FriendshipEntry, type PublicRecordEntry } from '../contexts/AccountContext';
-import { useGame } from '../contexts/GameContext';
-import { DIFFICULTY_LEVELS } from '../lib/gameData';
+import { useGame, type AccountSection } from '../contexts/GameContext';
 import { getCrest } from '../lib/crests';
 import {
   AppShell,
@@ -20,8 +19,6 @@ import {
   SectionHeader,
   Skeleton,
   StatusBanner,
-  Tab,
-  TabList,
   TabPanel,
   Tabs,
   TopBar,
@@ -43,14 +40,11 @@ const RECORD_LABELS: Record<PublicRecordEntry['category'], { label: string; icon
   saves: { label: 'Mais defesas', icon: Shield, suffix: 'defesas' },
   effective_overall: { label: 'Maior geral efetivo', icon: Crown, suffix: 'GERAL' },
 };
+const RECORD_CATEGORY_ORDER: PublicRecordEntry['category'][] = ['goals', 'assists', 'saves', 'effective_overall'];
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)?.[0]}` : parts[0]?.slice(0, 2) ?? '?').toUpperCase();
-}
-
-function difficultyName(id: string): string {
-  return DIFFICULTY_LEVELS.find(level => level.id === id)?.name ?? id;
 }
 
 function crestName(id: string | null | undefined): string {
@@ -105,7 +99,7 @@ function HistoryCard({ entry }: { entry: CompetitionHistoryEntry }) {
                 <strong className="truncate text-base text-[var(--ui-text)]">{entry.team_name}</strong>
                 <Badge tone={entry.champion ? 'brand' : 'default'}>{entry.champion ? 'CAMPEÃO' : `#${entry.placement ?? '—'}`}</Badge>
               </div>
-              <div className="mt-1 text-xs text-[var(--ui-text-muted)]">{difficultyName(entry.difficulty_id)} · {entry.mode === 'online' ? 'Online' : 'Solo'}</div>
+              <div className="mt-1 text-xs text-[var(--ui-text-muted)]">Liga + mata-mata · {entry.mode === 'online' ? 'Online' : 'Solo'}</div>
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-[var(--ui-text-faint)]"><Clock3 size={13} /> {formatDate(entry.completed_at)}</div>
@@ -126,9 +120,9 @@ function friendName(friend: FriendshipEntry, accountId: string): string {
 }
 
 export default function AccountPage() {
-  const { dispatch } = useGame();
-  const { account, loading, login, register, recover, logout, updateProfile, getHistory, getRecords, getFriends, sendFriendRequest, updateFriendship } = useAccount();
-  const [tab, setTab] = useState('profile');
+  const { state, dispatch } = useGame();
+  const { account, loading, login, register, logout, updateProfile, getHistory, getRecords, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const tab: AccountSection = state.accountSection;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
   const [records, setRecords] = useState<PublicRecordEntry[]>([]);
   const [friends, setFriends] = useState<FriendshipEntry[]>([]);
@@ -137,9 +131,8 @@ export default function AccountPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [authMode, setAuthMode] = useState<'login' | 'register' | 'recovery'>('login');
-  const [authForm, setAuthForm] = useState({ username: '', displayName: '', password: '', recoveryCode: '', newPassword: '' });
-  const [recoveryCodeToSave, setRecoveryCodeToSave] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authForm, setAuthForm] = useState({ username: '', displayName: '', password: '' });
 
   useEffect(() => {
     if (!account) return;
@@ -150,22 +143,21 @@ export default function AccountPage() {
     setError('');
     setNotice('');
     if (tab === 'history' && account) void getHistory().then(setHistory).catch(err => setError(err.message));
-    if (tab === 'records') void getRecords().then(setRecords).catch(err => setError(err.message));
+    if (tab === 'records') void getRecords({ difficulty: 'immortal' }).then(setRecords).catch(err => setError(err.message));
     if (tab === 'friends' && account) void getFriends().then(setFriends).catch(err => setError(err.message));
   }, [tab, account, getHistory, getRecords, getFriends]);
 
-  const recordsByGroup = useMemo(() => {
-    const groups = new Map<string, PublicRecordEntry[]>();
+  const recordsByCategory = useMemo(() => {
+    const groups = new Map<PublicRecordEntry['category'], PublicRecordEntry[]>();
     for (const record of records) {
-      const key = `${record.difficulty_id}:${record.category}`;
-      const group = groups.get(key) ?? [];
+      const group = groups.get(record.category) ?? [];
       group.push(record);
-      groups.set(key, group);
+      groups.set(record.category, group);
     }
-    return Array.from(groups.entries()).map(([key, group]) => {
-      const [difficulty, category] = key.split(':') as [string, PublicRecordEntry['category']];
-      return { difficulty, category, records: group.slice(0, 10) };
-    }).sort((a, b) => DIFFICULTY_LEVELS.findIndex(level => level.id === a.difficulty) - DIFFICULTY_LEVELS.findIndex(level => level.id === b.difficulty));
+    return RECORD_CATEGORY_ORDER.flatMap(category => {
+      const group = groups.get(category);
+      return group ? [{ category, records: group.slice(0, 10) }] : [];
+    });
   }, [records]);
 
   const submitAuth = async () => {
@@ -176,18 +168,11 @@ export default function AccountPage() {
         return;
       }
       if (authMode === 'register') {
-        const recoveryCode = await register(authForm.username, authForm.password, authForm.displayName);
-        setRecoveryCodeToSave(recoveryCode);
+        await register(authForm.username, authForm.password, authForm.displayName);
         setAuthMode('login');
-        setAuthForm(form => ({ ...form, password: '', recoveryCode: '', newPassword: '' }));
-        setNotice('Conta criada. Guarde o código de recuperação abaixo antes de entrar.');
-        return;
+        setAuthForm(form => ({ ...form, password: '' }));
+        setNotice('Conta criada. Agora entre com seu nome de usuário e senha.');
       }
-      const nextRecoveryCode = await recover(authForm.username, authForm.recoveryCode, authForm.newPassword);
-      setRecoveryCodeToSave(nextRecoveryCode);
-      setAuthMode('login');
-      setAuthForm(form => ({ ...form, password: '', recoveryCode: '', newPassword: '' }));
-      setNotice('Senha atualizada. Guarde o novo código de recuperação abaixo e entre novamente.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível concluir essa ação.');
     } finally {
@@ -224,30 +209,20 @@ export default function AccountPage() {
   };
 
   if (loading) {
-    return <AppShell><TopBar title="CONTA UCL IMMORTALS" /><PageContainer narrow className="space-y-4 py-8"><Skeleton className="h-40 w-full" /><Skeleton className="h-16 w-full" /><Skeleton className="h-64 w-full" /></PageContainer></AppShell>;
+    return <AppShell><TopBar title="UCL IMMORTALS" /><PageContainer narrow className="space-y-4 py-8"><Skeleton className="h-40 w-full" /><Skeleton className="h-16 w-full" /><Skeleton className="h-64 w-full" /></PageContainer></AppShell>;
   }
 
   if (!account) {
     return (
       <AppShell>
-        <TopBar title="CONTA UCL IMMORTALS" right={<Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}><ArrowLeft size={15} /> Voltar</Button>} />
+        <TopBar title="UCL IMMORTALS" right={<Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}><ArrowLeft size={15} /> Voltar</Button>} />
         <PageContainer narrow className="flex min-h-[calc(100dvh-64px)] items-center py-8">
           <Panel className="w-full overflow-hidden">
-            <div className="border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-5 py-6 sm:px-8">
-              <Badge tone="brand">CONTA OPCIONAL</Badge>
-              <h1 className="mt-3 font-display text-4xl text-[var(--ui-text)]">Seu legado, salvo.</h1>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--ui-text-muted)]">Crie uma conta com nome de usuário e senha para guardar seu perfil, histórico, recordes e amizades. O modo convidado continua local e separado.</p>
-            </div>
             <PanelBody className="space-y-4 p-5 sm:p-8">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button type="button" intent={authMode === 'login' ? 'primary' : 'ghost'} onClick={() => { setAuthMode('login'); setError(''); setNotice(''); }}>ENTRAR</Button>
                 <Button type="button" intent={authMode === 'register' ? 'primary' : 'ghost'} onClick={() => { setAuthMode('register'); setError(''); setNotice(''); }}>CRIAR CONTA</Button>
-                <Button type="button" intent={authMode === 'recovery' ? 'primary' : 'ghost'} onClick={() => { setAuthMode('recovery'); setError(''); setNotice(''); }}>RECUPERAR</Button>
               </div>
-
-              {recoveryCodeToSave ? <div className="rounded-xl border border-[var(--ui-brand)]/50 bg-[var(--ui-brand)]/10 p-4">
-                <div className="flex items-start gap-3"><KeyRound size={17} className="mt-0.5 flex-shrink-0 text-[var(--ui-brand-strong)]" /><div className="min-w-0"><div className="ui-kicker text-[var(--ui-brand-strong)]">CÓDIGO DE RECUPERAÇÃO</div><code className="mt-2 block break-all text-lg font-black tracking-[0.12em] text-[var(--ui-text)]">{recoveryCodeToSave}</code><p className="mt-2 text-xs leading-relaxed text-[var(--ui-text-muted)]">Anote esse código agora. Ele é a única forma de redefinir sua senha se você esquecer.</p></div></div>
-              </div> : null}
 
               {notice ? <StatusBanner tone="success" title="Tudo certo">{notice}</StatusBanner> : null}
               {error ? <StatusBanner tone="danger" title="Não foi possível concluir">{error}</StatusBanner> : null}
@@ -255,12 +230,9 @@ export default function AccountPage() {
               <form className="space-y-4" onSubmit={event => { event.preventDefault(); void submitAuth(); }}>
                 <label className="block space-y-2"><span className="ui-kicker">NOME DE USUÁRIO</span><Input autoComplete="username" value={authForm.username} maxLength={24} placeholder="ex.: treinador01" onChange={event => setAuthForm(form => ({ ...form, username: event.target.value }))} /></label>
                 {authMode === 'register' ? <label className="block space-y-2"><span className="ui-kicker">NOME DE EXIBIÇÃO <span className="normal-case tracking-normal text-[var(--ui-text-faint)]">(opcional)</span></span><Input autoComplete="nickname" value={authForm.displayName} maxLength={40} placeholder="Como você quer aparecer" onChange={event => setAuthForm(form => ({ ...form, displayName: event.target.value }))} /></label> : null}
-                {authMode === 'recovery' ? <label className="block space-y-2"><span className="ui-kicker">CÓDIGO DE RECUPERAÇÃO</span><Input autoComplete="one-time-code" value={authForm.recoveryCode} placeholder="UCL-XXXXXX-XXXXXX" onChange={event => setAuthForm(form => ({ ...form, recoveryCode: event.target.value }))} /></label> : null}
-                {authMode === 'recovery' ? <label className="block space-y-2"><span className="ui-kicker">NOVA SENHA</span><Input type="password" autoComplete="new-password" value={authForm.newPassword} placeholder="Mínimo de 8 caracteres" onChange={event => setAuthForm(form => ({ ...form, newPassword: event.target.value }))} /></label> : <label className="block space-y-2"><span className="ui-kicker">SENHA</span><Input type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={authForm.password} placeholder={authMode === 'register' ? 'Mínimo de 8 caracteres' : 'Sua senha'} onChange={event => setAuthForm(form => ({ ...form, password: event.target.value }))} /></label>}
-                <Button type="submit" intent="primary" size="large" className="w-full" loading={busy}><span className="inline-flex items-center gap-2">{authMode === 'login' ? <LogIn size={18} /> : authMode === 'register' ? <UserPlus size={18} /> : <RotateCcw size={18} />} {authMode === 'login' ? 'ENTRAR NA CONTA' : authMode === 'register' ? 'CRIAR CONTA' : 'REDEFINIR SENHA'}</span></Button>
+                <label className="block space-y-2"><span className="ui-kicker">SENHA</span><Input type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={authForm.password} placeholder={authMode === 'register' ? 'Mínimo de 8 caracteres' : 'Sua senha'} onChange={event => setAuthForm(form => ({ ...form, password: event.target.value }))} /></label>
+                <Button type="submit" intent="primary" size="large" className="w-full" loading={busy}><span className="inline-flex items-center gap-2">{authMode === 'login' ? <LogIn size={18} /> : <UserPlus size={18} />} {authMode === 'login' ? 'ENTRAR NA CONTA' : 'CRIAR CONTA'}</span></Button>
               </form>
-
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Shield size={15} className="mt-0.5 flex-shrink-0 text-[var(--ui-success)]" /> A senha é protegida no servidor. Sua conta não altera suas partidas de convidado.</div>
               <Button intent="ghost" className="w-full" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}>Continuar como convidado</Button>
             </PanelBody>
           </Panel>
@@ -276,9 +248,9 @@ export default function AccountPage() {
 
   return (
     <AppShell>
-      <TopBar title="UCL IMMORTALS — CONTA" right={<div className="flex items-center gap-2"><Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}><ArrowLeft size={15} /> Menu</Button><Button intent="ghost" onClick={() => void logout()}><LogOut size={15} /> Sair</Button></div>} />
+      <TopBar title="UCL IMMORTALS" right={<div className="flex items-center gap-2"><Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}><ArrowLeft size={15} /> Menu</Button><Button intent="ghost" onClick={() => void logout()}><LogOut size={15} /> Sair</Button></div>} />
       <PageContainer wide className="space-y-5 py-5 sm:py-8">
-        <Panel className="overflow-hidden">
+        {tab === 'profile' ? <Panel className="overflow-hidden">
           <div className="relative h-36 sm:h-44" style={coverStyle}>
             <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[var(--ui-surface)] to-transparent" />
           </div>
@@ -293,26 +265,19 @@ export default function AccountPage() {
               <div className="flex items-center gap-2 pb-1 text-xs text-[var(--ui-text-faint)]"><Users size={14} /> {acceptedFriends.length} amigos</div>
             </div>
           </PanelBody>
-        </Panel>
+        </Panel> : null}
 
         {error ? <StatusBanner tone="danger" title="Não foi possível concluir">{error}</StatusBanner> : null}
         {notice ? <StatusBanner tone="success" title="Tudo certo">{notice}</StatusBanner> : null}
 
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabList className="w-full overflow-x-auto">
-            <Tab value="profile"><UserRound size={14} /> PERFIL</Tab>
-            <Tab value="records"><Trophy size={14} /> RECORDES</Tab>
-            <Tab value="history"><Clock3 size={14} /> HISTÓRICO</Tab>
-            <Tab value="friends"><Users size={14} /> AMIGOS</Tab>
-          </TabList>
-
+        <Tabs value={tab}>
           <TabPanel value="profile" className="space-y-5 pt-5">
             <SectionHeader kicker="CENTRAL DA CONTA" title="Seu perfil" description="Personalize sua identidade e acompanhe o que já construiu no UCL Immortals." />
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Metric label="Competições" value={account.stats.competitionsCompleted} detail="campanhas concluídas" />
               <Metric label="Títulos" value={account.stats.titles} detail="conquistas" tone="brand" />
               <Metric label="Participações" value={`${account.stats.wins}V · ${account.stats.draws}E · ${account.stats.losses}D`} detail="campanhas registradas" />
-              <Metric label="Geral efetivo" value={account.stats.highestEffectiveOverall || '—'} detail={account.stats.highestDifficultyId ? difficultyName(account.stats.highestDifficultyId) : 'ainda sem registro'} tone="success" />
+              <Metric label="Geral efetivo" value={account.stats.highestEffectiveOverall || '—'} detail={account.stats.highestEffectiveOverall ? 'melhor marca oficial' : 'ainda sem registro'} tone="success" />
             </div>
             <Panel>
               <PanelHeader><PanelTitle>IDENTIDADE DO JOGADOR</PanelTitle></PanelHeader>
@@ -331,8 +296,8 @@ export default function AccountPage() {
           </TabPanel>
 
           <TabPanel value="records" className="space-y-5 pt-5">
-            <SectionHeader kicker="LIVRO DE RECORDES" title="Marcas que ficam" description="Os quatro recordes principais, separados por dificuldade. Cada resultado mostra quem conseguiu e por qual time." />
-            {recordsByGroup.length === 0 ? <EmptyState title="Ainda não há recordes públicos" description="Os recordes aparecem quando uma campanha solo com conta ou uma campanha online é concluída e validada pelo servidor." /> : <div className="grid gap-4 lg:grid-cols-2">{recordsByGroup.map(group => <Panel key={`${group.difficulty}-${group.category}`} density="compact"><PanelHeader><PanelTitle>{RECORD_LABELS[group.category].label}</PanelTitle><Badge tone="brand">{difficultyName(group.difficulty)}</Badge></PanelHeader><PanelBody className="space-y-2 p-3">{group.records.map((record: PublicRecordEntry, index: number) => <RecordCard key={record.id} record={record} rank={index + 1} />)}</PanelBody></Panel>)}</div>}
+            <SectionHeader kicker="LIVRO DE RECORDES" title="Marcas que ficam" description="Os quatro recordes principais do modo oficial. Cada resultado mostra quem conseguiu e por qual time." />
+            {recordsByCategory.length === 0 ? <EmptyState title="Ainda não há recordes públicos" description="Os recordes aparecem quando uma campanha solo com conta ou uma campanha online é concluída e validada pelo servidor." /> : <div className="grid gap-4 lg:grid-cols-2">{recordsByCategory.map(group => <Panel key={group.category} density="compact"><PanelHeader><PanelTitle>{RECORD_LABELS[group.category].label}</PanelTitle><Badge tone="brand">TOP 10</Badge></PanelHeader><PanelBody className="space-y-2 p-3">{group.records.map((record: PublicRecordEntry, index: number) => <RecordCard key={record.id} record={record} rank={index + 1} />)}</PanelBody></Panel>)}</div>}
           </TabPanel>
 
           <TabPanel value="history" className="space-y-5 pt-5">

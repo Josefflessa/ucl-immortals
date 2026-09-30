@@ -45,7 +45,7 @@ export function TopBar({ className, logoUrl = '/icons/logo_ucl.png', title = 'UC
         </div>
         {center ? <div className="ui-topbar__center">{center}</div> : null}
         {playerName ? <div className="ui-player-context">Time: <strong>{playerName}</strong></div> : null}
-        {right ? <div className={center ? 'ui-topbar__right' : undefined}>{right}</div> : null}
+        {right ? <div className="ui-topbar__right">{right}</div> : null}
       </div>
     </header>
   );

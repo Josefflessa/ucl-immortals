@@ -9,6 +9,8 @@
     "start": "NODE_ENV=production node dist/index.js",
     "preview": "vite preview --host",
     "dev:cloudflare": "pnpm build && wrangler dev",
+    "dev:worker": "wrangler dev --port 8787 --local",
+    "dev:all": "node scripts/dev-local.mjs",
     "deploy:cloudflare": "pnpm build && wrangler deploy",
     "check": "tsc --noEmit",
     "test": "vitest run",

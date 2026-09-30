@@ -236,6 +236,7 @@
   }
 
   .ui-topbar__right {
+    margin-left: auto;
     min-width: 0;
     justify-self: end;
   }

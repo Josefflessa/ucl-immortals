@@ -3,13 +3,13 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Gamepad2, Trophy, Plus, LogIn, LibraryBig, UserRound } from 'lucide-react';
+import { Clock3, Gamepad2, Trophy, Plus, LogIn, LibraryBig, UserRound, Users } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
-import { competitionFormatSummary } from '../lib/competition';
-import { AppShell, Button, ConfirmDialog, Input, Panel, StatusBanner } from '../design-system';
+import { competitionFormatSummary, createCompetitionFormat } from '../lib/competition';
+import { AppShell, Button, ConfirmDialog, GameModal, Input, Panel, StatusBanner } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
@@ -27,12 +27,13 @@ export default function MenuPage() {
     transferHostOnline,
     removePlayerOnline,
   } = useGame();
-  const { account, loading: accountLoading } = useAccount();
+  const { account } = useAccount();
 
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
+  const [accountSoonOpen, setAccountSoonOpen] = useState(false);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
@@ -50,11 +51,23 @@ export default function MenuPage() {
     if (!playerName.trim()) return;
     dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null });
     dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
+    if (account) {
+      dispatch({ type: 'SET_DIFFICULTY', difficulty: 'immortal' });
+      dispatch({ type: 'SET_COMPETITION_FORMAT', format: createCompetitionFormat('league_knockout') });
+      dispatch({ type: 'SET_PHASE', phase: 'crest' });
+      return;
+    }
     dispatch({ type: 'SET_PHASE', phase: 'format' });
   };
 
   const handleCreateRoom = () => {
     if (!playerName.trim()) return;
+    if (account) {
+      dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
+      dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: 'create' });
+      createRoom(playerName.trim(), createCompetitionFormat('league_knockout'), 'immortal');
+      return;
+    }
     dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
     dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: 'create' });
     dispatch({ type: 'SET_PHASE', phase: 'format' });
@@ -67,6 +80,14 @@ export default function MenuPage() {
 
   const handleRoomAction = (action: RoomMenuAction) => {
     setRoomAction(action);
+  };
+
+  const openAccountSection = (section: 'profile' | 'history' | 'records' | 'friends') => {
+    if (!account) {
+      setAccountSoonOpen(true);
+      return;
+    }
+    dispatch({ type: 'SET_ACCOUNT_SECTION', section });
   };
 
   const handleTransferHost = (playerId: string) => {
@@ -240,21 +261,8 @@ export default function MenuPage() {
   return (
     <AppShell immersive backgroundImage={HERO_BG} className="relative overflow-hidden">
 
-      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
-        <Button
-          type="button"
-          intent="ghost"
-          size="default"
-          disabled={accountLoading}
-          onClick={() => dispatch({ type: 'SET_PHASE', phase: 'account' })}
-          className="border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/75 backdrop-blur-sm"
-        >
-          <span className="inline-flex items-center gap-2"><UserRound size={15} /> {account ? 'MEU PERFIL' : 'ENTRAR'}</span>
-        </Button>
-      </div>
-
       {/* Content */}
-      <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 py-8">
+      <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 pb-28 pt-8">
         {/* Eyebrow */}
         <span
           className="ui-kicker mb-3 text-center tracking-[0.32em] sm:tracking-[0.42em]"
@@ -286,9 +294,7 @@ export default function MenuPage() {
         {/* Dynamic Mode Forms */}
         <div>
           {menuMode === 'selection' && (
-            <div
-              className="mb-5 flex w-full max-w-xs flex-col gap-3 sm:mb-8"
-            >
+            <div className="mb-5 flex w-full max-w-xs flex-col gap-3 sm:mb-8">
               <Button
                 type="button"
                 intent="primary"
@@ -323,6 +329,23 @@ export default function MenuPage() {
                   <LibraryBig size={16} strokeWidth={2.5} /> ÁLBUM DE JOGADORES
                 </span>
               </Button>
+
+              <nav aria-label="Navegação da conta" className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] px-3 pt-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}>
+                <div className="mx-auto grid max-w-md grid-cols-4">
+                  <Button type="button" intent="ghost" aria-label="Abrir perfil" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('profile')}>
+                    {account?.avatarUrl ? <img src={account.avatarUrl} alt="" className="size-4 rounded-full object-cover" /> : <UserRound size={16} />} PERFIL
+                  </Button>
+                  <Button type="button" intent="ghost" aria-label="Abrir histórico" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('history')}>
+                    <Clock3 size={16} /> HISTÓRICO
+                  </Button>
+                  <Button type="button" intent="ghost" aria-label="Abrir recordes" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('records')}>
+                    <Trophy size={16} /> RECORDES
+                  </Button>
+                  <Button type="button" intent="ghost" aria-label="Abrir amigos" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('friends')}>
+                    <Users size={16} /> AMIGOS
+                  </Button>
+                </div>
+              </nav>
             </div>
           )}
 
@@ -481,7 +504,25 @@ export default function MenuPage() {
 
       </div>
 
-      <footer className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center px-4 sm:bottom-3">
+      <GameModal
+        open={accountSoonOpen}
+        onOpenChange={setAccountSoonOpen}
+        title="EM BREVE"
+        subtitle="A área de conta está sendo preparada."
+        closeLabel="Fechar aviso"
+        footer={<Button type="button" intent="primary" className="w-full" onClick={() => setAccountSoonOpen(false)}>ENTENDI</Button>}
+      >
+        <div className="flex flex-col items-center gap-3 py-4 text-center">
+          <div className="flex size-14 items-center justify-center rounded-full border border-[var(--ui-brand)]/40 bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)]">
+            <UserRound size={24} />
+          </div>
+          <p className="max-w-sm text-sm leading-relaxed text-[var(--ui-text-muted)]">
+            Perfil, histórico, recordes e amigos estarão disponíveis em uma próxima atualização.
+          </p>
+        </div>
+      </GameModal>
+
+      <footer className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4" style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
         <span
           className="text-[10px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
           style={{ fontFamily: 'Rajdhani, sans-serif' }}

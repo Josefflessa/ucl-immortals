@@ -98,8 +98,13 @@ function parseCookies(request: Request): Record<string, string> {
   }).filter(([key]) => key));
 }
 
-function sessionCookie(token: string, maxAge = SESSION_TTL_SECONDS): string {
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+function isLocalRequest(request: Request): boolean {
+  const hostname = new URL(request.url).hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
+function sessionCookie(token: string, maxAge = SESSION_TTL_SECONDS, secure = true): string {
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; HttpOnly;${secure ? ' Secure;' : ''} SameSite=Lax`;
 }
 
 function normalizeUsername(value: string): string {
@@ -110,18 +115,6 @@ function normalizeUsername(value: string): string {
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '')
     .slice(0, 24);
-}
-
-function normalizeRecoveryCode(value: string): string {
-  return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
-
-function createRecoveryCode(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  const raw = Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
-  return `UCL-${raw.slice(0, 6)}-${raw.slice(6)}`;
 }
 
 async function deriveSecret(secret: string, salt: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
@@ -296,21 +289,25 @@ async function registerLocalAccount(request: Request, env: AccountEnv): Promise<
 
   const now = Date.now();
   const userId = `usr_${randomToken(12)}`;
-  const recoveryCode = createRecoveryCode();
   try {
     await env.DB.batch([
-      env.DB.prepare('INSERT INTO users (id, email, password_hash, recovery_code_hash, created_at, updated_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .bind(userId, `${userId}@local.ucl-immortals.invalid`, await hashSecret(password), await hashSecret(normalizeRecoveryCode(recoveryCode)), now, now, now),
+      env.DB.prepare('INSERT INTO users (id, email, password_hash, created_at, updated_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(userId, `${userId}@local.ucl-immortals.invalid`, await hashSecret(password), now, now, now),
       env.DB.prepare(`INSERT INTO profiles
         (user_id, username, display_name, bio, avatar_key, cover_key, avatar_url, cover_url, favorite_crest_id, visibility, created_at, updated_at)
         VALUES (?, ?, ?, '', 'default-01', 'cover-01', NULL, NULL, NULL, 'public', ?, ?)`)
         .bind(userId, username, displayName, now, now),
       env.DB.prepare('INSERT INTO profile_stats (user_id, updated_at) VALUES (?, ?)').bind(userId, now),
     ]);
-  } catch {
-    return json({ error: 'username_taken', message: 'Não foi possível criar essa conta. Tente outro nome de usuário.' }, 409);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[auth] local account creation failed', message);
+    if (/unique constraint failed.*profiles\.username/i.test(message)) {
+      return json({ error: 'username_taken', message: 'Esse nome de usuário já está em uso.' }, 409);
+    }
+    return json({ error: 'account_create_failed', message: 'Não foi possível criar a conta agora. Tente novamente.' }, 500);
   }
-  return json({ recoveryCode, message: 'Conta criada. Guarde o código de recuperação em um local seguro.' }, 201);
+  return json({ message: 'Conta criada. Agora entre com seu nome de usuário e senha.' }, 201);
 }
 
 async function loginLocalAccount(request: Request, env: AccountEnv): Promise<Response> {
@@ -332,28 +329,7 @@ async function loginLocalAccount(request: Request, env: AccountEnv): Promise<Res
   const now = Date.now();
   await env.DB.prepare('UPDATE users SET updated_at = ?, last_seen_at = ? WHERE id = ?').bind(now, now, row.id).run();
   const session = await createSession(env.DB, row.id);
-  return json({ account: await accountById(env.DB, row.id) }, 200, { 'set-cookie': sessionCookie(session) });
-}
-
-async function recoverLocalAccount(request: Request, env: AccountEnv): Promise<Response> {
-  const body = await readJson(request);
-  const username = normalizeUsername(String(body?.username ?? ''));
-  const recoveryCode = normalizeRecoveryCode(String(body?.recoveryCode ?? ''));
-  const newPassword = String(body?.newPassword ?? '');
-  const genericError = { error: 'invalid_recovery', message: 'Usuário ou código de recuperação inválido.' };
-  const passwordMessage = passwordError(newPassword);
-  if (!USERNAME_RE.test(username) || !recoveryCode || passwordMessage) return json(passwordMessage ? { error: 'invalid_password', message: passwordMessage } : genericError, 400);
-  const row = await env.DB.prepare(`SELECT u.id, u.recovery_code_hash
-    FROM users u JOIN profiles p ON p.user_id = u.id WHERE p.username = ?`).bind(username).first<{ id: string; recovery_code_hash: string | null }>();
-  if (!row || !(await verifySecret(recoveryCode, row.recovery_code_hash))) return json(genericError, 401);
-  const nextRecoveryCode = createRecoveryCode();
-  const now = Date.now();
-  await env.DB.batch([
-    env.DB.prepare('UPDATE users SET password_hash = ?, recovery_code_hash = ?, updated_at = ?, last_seen_at = ? WHERE id = ?')
-      .bind(await hashSecret(newPassword), await hashSecret(normalizeRecoveryCode(nextRecoveryCode)), now, now, row.id),
-    env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(row.id),
-  ]);
-  return json({ recoveryCode: nextRecoveryCode, message: 'Senha atualizada. Guarde o novo código de recuperação.' });
+  return json({ account: await accountById(env.DB, row.id) }, 200, { 'set-cookie': sessionCookie(session, SESSION_TTL_SECONDS, !isLocalRequest(request)) });
 }
 
 function publicAccount(account: AuthenticatedAccount): Record<string, unknown> {
@@ -589,7 +565,6 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
   if (!url.pathname.startsWith('/api/')) return null;
   if (url.pathname === '/api/auth/register' && request.method === 'POST') return registerLocalAccount(request, env);
   if (url.pathname === '/api/auth/login' && request.method === 'POST') return loginLocalAccount(request, env);
-  if (url.pathname === '/api/auth/recover' && request.method === 'POST') return recoverLocalAccount(request, env);
   if (url.pathname === '/api/auth/me' && request.method === 'GET') {
     const account = await authenticatedAccount(request, env);
     return json({ account: account ? publicAccount(account) : null });
@@ -597,7 +572,7 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
   if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
     const token = parseCookies(request)[SESSION_COOKIE];
     if (token) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(token)).run();
-    return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', 0) });
+    return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', 0, !isLocalRequest(request)) });
   }
   if (url.pathname === '/api/records' && request.method === 'GET') return publicRecords(env, url);
   if (url.pathname.startsWith('/api/users/') && request.method === 'GET') return publicProfile(env, decodeURIComponent(url.pathname.slice('/api/users/'.length)));

@@ -75,8 +75,7 @@ interface AccountContextValue {
   loading: boolean;
   refresh: () => Promise<void>;
   login: (username: string, password: string) => Promise<AccountProfile>;
-  register: (username: string, password: string, displayName?: string) => Promise<string>;
-  recover: (username: string, recoveryCode: string, newPassword: string) => Promise<string>;
+  register: (username: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<AccountProfile, 'username' | 'displayName' | 'bio' | 'avatarKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
   getHistory: () => Promise<CompetitionHistoryEntry[]>;
@@ -146,19 +145,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (username: string, password: string, displayName?: string) => {
-    const result = await api<{ recoveryCode: string }>('/api/auth/register', {
+    await api<{ message: string }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, displayName }),
     });
-    return result.recoveryCode;
-  }, []);
-
-  const recover = useCallback(async (username: string, recoveryCode: string, newPassword: string) => {
-    const result = await api<{ recoveryCode: string }>('/api/auth/recover', {
-      method: 'POST',
-      body: JSON.stringify({ username, recoveryCode, newPassword }),
-    });
-    return result.recoveryCode;
   }, []);
 
   const logout = useCallback(async () => {
@@ -203,9 +193,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, login, register, recover, logout, updateProfile, getHistory, saveHistory, getRecords,
+    account, loading, refresh, login, register, logout, updateProfile, getHistory, saveHistory, getRecords,
     getFriends, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, login, register, recover, logout, updateProfile, getHistory, saveHistory, getRecords, getFriends, sendFriendRequest, updateFriendship]);
+  }), [account, loading, refresh, login, register, logout, updateProfile, getHistory, saveHistory, getRecords, getFriends, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }
