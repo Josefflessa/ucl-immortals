@@ -383,6 +383,7 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   const teamName = String(body.teamName ?? '').trim().slice(0, 80);
   const report = body.report;
   const sourceKey = body.sourceKey ? String(body.sourceKey).trim().slice(0, 160) : null;
+  const submittedRecords = Array.isArray(body.records) ? body.records : [];
   if (!mode || !difficultyId || !formatId || !teamName || !report || typeof report !== 'object' || Array.isArray(report)) {
     return json({ error: 'invalid_history' }, 400);
   }
@@ -393,6 +394,27 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     return json({ error: 'invalid_history' }, 400);
   }
   if (reportJson.length > 180_000) return json({ error: 'history_too_large' }, 413);
+  if (mode === 'online' && submittedRecords.length > 0) return json({ error: 'online_records_are_server_authoritative' }, 400);
+  if (submittedRecords.length > 4) return json({ error: 'too_many_records' }, 400);
+  const allowedCategories = new Set(['goals', 'assists', 'saves', 'effective_overall']);
+  const recordCategories = new Set<string>();
+  const safeRecords: Array<{ category: string; playerId: string; playerName: string; playerPhotoUrl: string | null; value: number }> = [];
+  for (const candidate of submittedRecords) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return json({ error: 'invalid_record' }, 400);
+    const record = candidate as Record<string, unknown>;
+    const category = String(record.category ?? '');
+    const playerId = String(record.playerId ?? '').trim().slice(0, 100);
+    const playerName = String(record.playerName ?? '').trim().slice(0, 100);
+    const playerPhotoUrl = record.playerPhotoUrl ? String(record.playerPhotoUrl).slice(0, 500) : null;
+    const value = Number(record.value);
+    if (mode !== 'solo' || !allowedCategories.has(category) || recordCategories.has(category) || !playerId || !playerName || !Number.isSafeInteger(value)) {
+      return json({ error: 'invalid_record' }, 400);
+    }
+    const maxValue = category === 'effective_overall' ? 150 : 200;
+    if (value < 1 || value > maxValue) return json({ error: 'invalid_record_value' }, 400);
+    recordCategories.add(category);
+    safeRecords.push({ category, playerId, playerName, playerPhotoUrl, value });
+  }
   const id = `cmp_${randomToken(12)}`;
   const now = Date.now();
   const champion = body.champion ? 1 : 0;
@@ -412,6 +434,36 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     }
     throw error;
   }
+  for (const record of safeRecords) {
+    await env.DB.prepare(`INSERT INTO competition_records
+      (id, competition_id, user_id, category, difficulty_id, player_id, player_name, player_photo_url, value, username_snapshot, team_name_snapshot, crest_id_snapshot, verified, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
+      .bind(`rec_${randomToken(12)}`, id, account.id, record.category, difficultyId, record.playerId, record.playerName, record.playerPhotoUrl, record.value, account.username, teamName, crestId, now)
+      .run();
+  }
+  const reportValues = report as Record<string, unknown>;
+  const safeStat = (key: string, max: number) => {
+    const value = Number(reportValues[key]);
+    return Number.isSafeInteger(value) ? Math.max(0, Math.min(max, value)) : 0;
+  };
+  const effectiveRecord = safeRecords.find(record => record.category === 'effective_overall');
+  await env.DB.prepare(`INSERT INTO profile_stats
+    (user_id, competitions_completed, titles, wins, draws, losses, goals, assists, saves, highest_effective_overall, highest_difficulty_id, updated_at)
+    VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      competitions_completed = profile_stats.competitions_completed + 1,
+      titles = profile_stats.titles + excluded.titles,
+      wins = profile_stats.wins + excluded.wins,
+      draws = profile_stats.draws + excluded.draws,
+      losses = profile_stats.losses + excluded.losses,
+      goals = profile_stats.goals + excluded.goals,
+      assists = profile_stats.assists + excluded.assists,
+      saves = profile_stats.saves + excluded.saves,
+      highest_effective_overall = MAX(profile_stats.highest_effective_overall, excluded.highest_effective_overall),
+      highest_difficulty_id = CASE WHEN excluded.highest_effective_overall > profile_stats.highest_effective_overall THEN excluded.highest_difficulty_id ELSE profile_stats.highest_difficulty_id END,
+      updated_at = excluded.updated_at`)
+    .bind(account.id, champion, safeStat('wins', 999), safeStat('draws', 999), safeStat('losses', 999), safeStat('goals', 9999), safeStat('assists', 9999), safeStat('saves', 9999), effectiveRecord?.value ?? 0, effectiveRecord ? difficultyId : null, now)
+    .run();
   return json({ id, duplicate: false }, 201);
 }
 

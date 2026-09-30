@@ -176,17 +176,43 @@ export default function ReportPage() {
       .sort((a, b) => a.minute - b.minute)
       .at(-1)?.tacticAction ?? playerTeam?.playStyle
     : playerTeam?.playStyle;
-  const effectiveStatsById = playerTeam
+  const effectiveStatsById = useMemo(() => playerTeam
     ? getTeamEffectiveStats(playerTeam, {
         playStyle: reportPlayStyle,
         isKnockout: reportIsKnockout,
         isFinal: reportIsFinal,
         isLosing: reportIsLosing,
       })
-    : {};
+    : {}, [playerTeam, reportPlayStyle, reportIsKnockout, reportIsFinal, reportIsLosing]);
   const teamOverall = (playerTeam && chemData && starters.length === 11)
     ? Math.round(starters.reduce((s, p) => s + (effectiveStatsById[p.id]?.overall ?? p.overall), 0) / 11)
     : null;
+  const localSeasonRows = useMemo(
+    () => playerTeam
+      ? playerTeam.players.map(player => ({ player, stats: getPlayerSeasonStats(player.id, playerTeam.id, allResults) }))
+      : [],
+    [allResults, playerTeam],
+  );
+  const soloRecordCandidates = useMemo(() => {
+    const candidates: Array<{
+      category: 'goals' | 'assists' | 'saves' | 'effective_overall';
+      playerId: string;
+      playerName: string;
+      playerPhotoUrl: string | null;
+      value: number;
+    }> = [];
+    const topGoals = localSeasonRows.filter(row => row.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals)[0];
+    const topAssists = localSeasonRows.filter(row => row.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists)[0];
+    const topSaves = localSeasonRows.filter(row => row.stats.saves > 0).sort((a, b) => b.stats.saves - a.stats.saves)[0];
+    const topEffective = localSeasonRows
+      .map(row => ({ ...row, value: Math.round(effectiveStatsById[row.player.id]?.overall ?? row.player.overall) }))
+      .sort((a, b) => b.value - a.value)[0];
+    if (topGoals) candidates.push({ category: 'goals', playerId: topGoals.player.id, playerName: topGoals.player.shortName, playerPhotoUrl: topGoals.player.photoUrl ?? null, value: topGoals.stats.goals });
+    if (topAssists) candidates.push({ category: 'assists', playerId: topAssists.player.id, playerName: topAssists.player.shortName, playerPhotoUrl: topAssists.player.photoUrl ?? null, value: topAssists.stats.assists });
+    if (topSaves) candidates.push({ category: 'saves', playerId: topSaves.player.id, playerName: topSaves.player.shortName, playerPhotoUrl: topSaves.player.photoUrl ?? null, value: topSaves.stats.saves });
+    if (topEffective) candidates.push({ category: 'effective_overall', playerId: topEffective.player.id, playerName: topEffective.player.shortName, playerPhotoUrl: topEffective.player.photoUrl ?? null, value: topEffective.value });
+    return { candidates, totalAssists: localSeasonRows.reduce((sum, row) => sum + row.stats.assists, 0), totalSaves: localSeasonRows.reduce((sum, row) => sum + row.stats.saves, 0) };
+  }, [effectiveStatsById, localSeasonRows]);
   const soloHistoryKey = useRef<string | null>(null);
 
   useEffect(() => {
@@ -213,6 +239,8 @@ export default function ReportPage() {
         losses,
         goals: totalGoals,
         goalsAgainst,
+        assists: soloRecordCandidates.totalAssists,
+        saves: soloRecordCandidates.totalSaves,
         cleanSheets,
         goalDiff,
         teamOverall,
@@ -220,8 +248,9 @@ export default function ReportPage() {
         topAssister: topAssister ? { playerId: topAssister.pl.id, playerName: topAssister.pl.shortName, value: topAssister.stats.assists } : null,
         topRating: topRating ? { playerId: topRating.pl.id, playerName: topRating.pl.shortName, value: topRating.stats.ratingAvg } : null,
       },
+      records: soloRecordCandidates.candidates,
     }).catch(error => console.error('[account] não foi possível salvar o histórico solo:', error));
-  }, [account, games, isChampion, losses, playerTeam, saveHistory, state.competitionFormat.id, state.difficulty, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
+  }, [account, games, isChampion, losses, playerTeam, saveHistory, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (

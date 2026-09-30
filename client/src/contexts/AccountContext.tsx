@@ -78,7 +78,25 @@ interface AccountContextValue {
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<AccountProfile, 'username' | 'displayName' | 'bio' | 'avatarKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
   getHistory: () => Promise<CompetitionHistoryEntry[]>;
-  saveHistory: (payload: { mode: 'solo' | 'online'; difficultyId: string; formatId: string; teamName: string; crestId?: string | null; coachId?: string | null; champion?: boolean; placement?: number | null; sourceKey?: string; report: Record<string, unknown> }) => Promise<{ id: string; duplicate: boolean }>;
+  saveHistory: (payload: {
+    mode: 'solo' | 'online';
+    difficultyId: string;
+    formatId: string;
+    teamName: string;
+    crestId?: string | null;
+    coachId?: string | null;
+    champion?: boolean;
+    placement?: number | null;
+    sourceKey?: string;
+    report: Record<string, unknown>;
+    records?: Array<{
+      category: PublicRecordEntry['category'];
+      playerId: string;
+      playerName: string;
+      playerPhotoUrl?: string | null;
+      value: number;
+    }>;
+  }) => Promise<{ id: string; duplicate: boolean }>;
   getRecords: (filters?: { category?: string; difficulty?: string }) => Promise<PublicRecordEntry[]>;
   getFriends: () => Promise<FriendshipEntry[]>;
   sendFriendRequest: (username: string) => Promise<void>;
