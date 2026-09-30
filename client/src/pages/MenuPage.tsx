@@ -9,6 +9,7 @@ import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
 import { competitionFormatSummary, createCompetitionFormat } from '../lib/competition';
+import { cn } from '../lib/utils';
 import { AppShell, Button, ConfirmDialog, GameModal, Input, Panel, StatusBanner } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
@@ -27,7 +28,7 @@ export default function MenuPage() {
     transferHostOnline,
     removePlayerOnline,
   } = useGame();
-  const { account } = useAccount();
+  const { account, loading: accountLoading } = useAccount();
 
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
   const [playerName, setPlayerName] = useState('');
@@ -262,7 +263,21 @@ export default function MenuPage() {
     <AppShell immersive backgroundImage={HERO_BG} className="relative overflow-hidden">
 
       {/* Content */}
-      <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 pb-28 pt-8">
+      {!account ? (
+        <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+          <Button
+            type="button"
+            intent="ghost"
+            disabled={accountLoading}
+            onClick={() => setAccountSoonOpen(true)}
+            className="border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90"
+          >
+            <UserRound size={15} /> ENTRAR
+          </Button>
+        </div>
+      ) : null}
+
+      <div className={cn('relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 pt-8', account ? 'pb-28' : 'pb-8')}>
         {/* Eyebrow */}
         <span
           className="ui-kicker mb-3 text-center tracking-[0.32em] sm:tracking-[0.42em]"
@@ -330,7 +345,7 @@ export default function MenuPage() {
                 </span>
               </Button>
 
-              <nav aria-label="Navegação da conta" className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] px-3 pt-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}>
+              {account ? <nav aria-label="Navegação da conta" className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] px-3 pt-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}>
                 <div className="mx-auto grid max-w-md grid-cols-4">
                   <Button type="button" intent="ghost" aria-label="Abrir perfil" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('profile')}>
                     {account?.avatarUrl ? <img src={account.avatarUrl} alt="" className="size-4 rounded-full object-cover" /> : <UserRound size={16} />} PERFIL
@@ -345,7 +360,7 @@ export default function MenuPage() {
                     <Users size={16} /> AMIGOS
                   </Button>
                 </div>
-              </nav>
+              </nav> : null}
             </div>
           )}
 
@@ -522,7 +537,7 @@ export default function MenuPage() {
         </div>
       </GameModal>
 
-      <footer className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4" style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
+      <footer className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4" style={{ bottom: account ? 'calc(5rem + env(safe-area-inset-bottom))' : '1rem' }}>
         <span
           className="text-[10px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
           style={{ fontFamily: 'Rajdhani, sans-serif' }}
