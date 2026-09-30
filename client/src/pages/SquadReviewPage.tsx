@@ -6,6 +6,7 @@ import { useGame } from '../contexts/GameContext';
 import { Player } from '../lib/gameData';
 import SquadEditor from '../components/game/SquadEditor';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
+import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { AppShell, Button, PageContainer, TopBar } from '../design-system';
 
 export default function SquadReviewPage() {
@@ -24,12 +25,12 @@ export default function SquadReviewPage() {
   };
 
   if (online && isReady) {
-    return <OnlineWaitingScreen message="Os demais jogadores estão confirmando a escalação…" />;
+    return <OnlineWaitingScreen message="Os demais jogadores estão confirmando a escalação…" headerRight={<CompetitionExitControl />} />;
   }
 
   return (
     <AppShell>
-      <TopBar title="REVISÃO DO ELENCO" playerName={state.playerName} />
+      <TopBar title="REVISÃO DO ELENCO" right={<CompetitionExitControl />} />
 
       <PageContainer className="max-w-5xl overflow-y-auto">
         <SquadEditor

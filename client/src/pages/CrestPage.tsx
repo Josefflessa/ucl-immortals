@@ -6,12 +6,15 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
+import { useAccount } from '../contexts/AccountContext';
+import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { CREST_CATALOG, ALL_CRESTS, getCrest } from '../lib/crests';
 import { AppShell, Button, Input, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 const GOLD = '#C9A84C';
 
 export default function CrestPage() {
   const { state, dispatch } = useGame();
+  const { account } = useAccount();
   const [openLeague, setOpenLeague] = useState(CREST_CATALOG[0]?.league ?? '');
   const [query, setQuery] = useState('');
   const selected = state.selectedCrestId;
@@ -24,7 +27,14 @@ export default function CrestPage() {
 
   const pick = (id: string) => dispatch({ type: 'SET_CREST', crestId: selected === id ? null : id });
   const handleContinue = () => dispatch({ type: 'SET_PHASE', phase: 'coach' });
-  const handleBack = () => dispatch({ type: 'SET_PHASE', phase: 'setup' });
+  const handleBack = () => {
+    if (account) {
+      dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null });
+      dispatch({ type: 'SET_PHASE', phase: 'menu' });
+      return;
+    }
+    dispatch({ type: 'SET_PHASE', phase: 'setup' });
+  };
 
   const activeGroup = CREST_CATALOG.find(g => g.league === openLeague);
   const shownCrests = search ? searchResults : (activeGroup?.crests ?? []);
@@ -32,12 +42,12 @@ export default function CrestPage() {
 
   return (
     <AppShell>
-      <TopBar />
+      <TopBar right={<CompetitionExitControl />} />
 
       <PageContainer wide>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
           <SectionHeader
-            kicker="IDENTIDADE DO CLUBE · 03"
+            kicker={`IDENTIDADE DO CLUBE · ${account ? '01' : '03'}`}
             title="Escolha seu escudo"
             description="Represente um clube no torneio. É só visual — não muda os atributos. Opcional: pode pular e usar as iniciais do time."
             className="mb-6"

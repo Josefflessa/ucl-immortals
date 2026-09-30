@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useGame } from '../contexts/GameContext';
+import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import {
   COMPETITION_FORMAT_PRESETS,
   MAX_BOT_TEAMS,
@@ -239,7 +240,7 @@ export default function TournamentFormatPage() {
 
   return (
     <AppShell>
-      <TopBar playerName={state.playerName} />
+      <TopBar right={<CompetitionExitControl />} />
       <PageContainer wide className="flex flex-col gap-6 py-8 sm:py-10">
         <SectionHeader
           kicker="NOVA COMPETIÇÃO"

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
+import { useAccount } from '../contexts/AccountContext';
 import PlayerCard from '../components/game/PlayerCard';
+import AccountTabBar from '../components/account/AccountTabBar';
 import {
   getRarityColor,
   effectiveSecondaries,
@@ -287,6 +289,7 @@ function PlayerDetail({
 
 export default function AlbumPage() {
   const { dispatch } = useGame();
+  const { account } = useAccount();
   const viewportWidth = useViewportWidth();
   const [search, setSearch] = useState('');
   const [positionFilter, setPositionFilter] = useState('ALL');
@@ -434,7 +437,7 @@ export default function AlbumPage() {
   return (
     <AppShell>
       <TopBar
-        right={
+        right={!account ? (
           <div className="absolute right-[var(--ui-gutter)] top-1/2 flex -translate-y-1/2 shrink-0">
             <Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="px-3 text-xs sm:px-4">
               <ArrowLeft size={15} aria-hidden="true" />
@@ -442,10 +445,10 @@ export default function AlbumPage() {
               <span className="sm:hidden">VOLTAR</span>
             </Button>
           </div>
-        }
+        ) : undefined}
       />
 
-      <PageContainer wide className="pb-10 pt-7 sm:pt-10">
+      <PageContainer wide className={cn('pb-10 pt-7 sm:pt-10', account && 'pb-28 sm:pb-28')}>
         <SectionHeader
           kicker="CATÁLOGO · CONSULTA LIVRE"
           title="Álbum de jogadores"
@@ -646,6 +649,16 @@ export default function AlbumPage() {
       >
         {selectedPlayer ? <PlayerCard player={selectedPlayer} scale={1.5} /> : null}
       </GameModal>
+      {account ? <AccountTabBar
+        active={null}
+        onNavigate={destination => {
+          if (destination === 'home') {
+            dispatch({ type: 'SET_PHASE', phase: 'menu' });
+            return;
+          }
+          dispatch({ type: 'SET_ACCOUNT_SECTION', section: destination });
+        }}
+      /> : null}
     </AppShell>
   );
 }

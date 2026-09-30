@@ -14,9 +14,10 @@ import {
   roomMutationDigest,
 } from './handlers.js';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime.js';
-import { authenticatedAccount, handleAccountRequest } from './account-api.js';
+import { ACCOUNT_PRESENCE_TTL_MS, ROOM_INVITATION_TTL_MS, authenticatedAccount, handleAccountRequest } from './account-api.js';
 import { persistCompletedCompetition } from './competition-persistence.js';
 import { cloneRoomJson } from '../shared/room-sync.js';
+import { MAX_ONLINE_PLAYERS } from '../client/src/lib/competition.js';
 import {
   MAX_REALTIME_MESSAGE_BYTES,
   encodeRealtimeMessage,
@@ -567,10 +568,21 @@ export class GameRoom {
 
   fetch(request: Request): Promise<Response> {
     return this.serially(async () => {
-      const roomCode = new URL(request.url).searchParams.get('room')?.toUpperCase();
+      const url = new URL(request.url);
+      const roomCode = url.searchParams.get('room')?.toUpperCase();
       if (!isValidRoomCode(roomCode)) return new Response('Código de sala inválido.', { status: 400 });
-      if (!isWebSocketUpgrade(request)) return new Response('WebSocket upgrade required', { status: 426 });
       await this.ensureInitialized(roomCode);
+
+      if (!isWebSocketUpgrade(request)) {
+        if (url.pathname === '/invitations' && request.method === 'POST') {
+          return this.createRoomInvitation(request, roomCode);
+        }
+        if (url.pathname === '/validate-invitation' && request.method === 'POST') {
+          return this.validateRoomInvitation(request, roomCode);
+        }
+        return new Response('WebSocket upgrade required', { status: 426 });
+      }
+
       armRoomWatchdog(this.server, this.runtime, roomCode);
 
       const pair = new WebSocketPair();
@@ -585,6 +597,95 @@ export class GameRoom {
       runWithGameRuntime(this.runtime, () => this.server.attach(server, roomCode, false, accountId));
       return new Response(null, { status: 101, webSocket: client });
     });
+  }
+
+  private async createRoomInvitation(request: Request, roomCode: string): Promise<Response> {
+    const account = await authenticatedAccount(request, this.env);
+    if (!account) return roomInvitationJson({ error: 'authentication_required' }, 401);
+    const body = await roomInvitationBody(request);
+    const friendshipId = typeof body?.friendshipId === 'string' ? body.friendshipId : '';
+    if (!friendshipId || friendshipId.length > 100) return roomInvitationJson({ error: 'invalid_friendship' }, 400);
+
+    const room = this.runtime.rooms.get(roomCode);
+    if (!room || room.phase !== 'lobby') return roomInvitationJson({ error: 'room_not_available' }, 409);
+    const host = room.players.find(player => player.id === room.hostId);
+    if (host?.accountId !== account.id) return roomInvitationJson({ error: 'host_only' }, 403);
+
+    const friendship = await this.env.DB.prepare(`SELECT
+        CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END AS friend_id
+      FROM friendships
+      WHERE id = ? AND status = 'accepted' AND (requester_id = ? OR addressee_id = ?)`)
+      .bind(account.id, friendshipId, account.id, account.id)
+      .first<{ friend_id: string }>();
+    if (!friendship) return roomInvitationJson({ error: 'accepted_friendship_required' }, 403);
+    if (room.players.some(player => player.accountId === friendship.friend_id)) {
+      return roomInvitationJson({ error: 'friend_already_in_room' }, 409);
+    }
+    if (room.players.length >= MAX_ONLINE_PLAYERS) return roomInvitationJson({ error: 'room_full' }, 409);
+
+    const now = Date.now();
+    const freshnessCutoff = now - ACCOUNT_PRESENCE_TTL_MS;
+    const presence = await this.env.DB.prepare(`SELECT
+        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'available' AND updated_at > ?) AS has_available_session,
+        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'busy' AND updated_at > ?) AS has_busy_session`)
+      .bind(friendship.friend_id, freshnessCutoff, friendship.friend_id, freshnessCutoff)
+      .first<{ has_available_session: number; has_busy_session: number }>();
+    if (!presence?.has_available_session || presence.has_busy_session) {
+      return roomInvitationJson({ error: 'friend_unavailable' }, 409);
+    }
+
+    const expiresAt = now + ROOM_INVITATION_TTL_MS;
+    await this.env.DB.prepare(`UPDATE room_invitations SET status = 'expired', updated_at = ?
+      WHERE room_code = ? AND invitee_user_id = ? AND status = 'pending' AND (expires_at <= ? OR created_at <= ?)`)
+      .bind(now, roomCode, friendship.friend_id, now, now - ROOM_INVITATION_TTL_MS).run();
+    const existing = await this.env.DB.prepare(`SELECT id, expires_at FROM room_invitations
+      WHERE room_code = ? AND invitee_user_id = ? AND status = 'pending' AND expires_at > ? AND created_at > ?
+      ORDER BY created_at DESC LIMIT 1`)
+      .bind(roomCode, friendship.friend_id, now, now - ROOM_INVITATION_TTL_MS)
+      .first<{ id: string; expires_at: number }>();
+    if (existing) return roomInvitationJson({ ok: true, duplicate: true, expiresAt: Number(existing.expires_at) });
+
+    await this.env.DB.prepare(`INSERT INTO room_invitations
+      (id, room_code, inviter_user_id, invitee_user_id, status, created_at, expires_at, updated_at)
+      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`)
+      .bind(`ri_${crypto.randomUUID()}`, roomCode, account.id, friendship.friend_id, now, expiresAt, now).run();
+    return roomInvitationJson({ ok: true, expiresAt });
+  }
+
+  private async validateRoomInvitation(request: Request, roomCode: string): Promise<Response> {
+    const account = await authenticatedAccount(request, this.env);
+    if (!account) return roomInvitationJson({ error: 'authentication_required' }, 401);
+    const body = await roomInvitationBody(request);
+    const invitationId = typeof body?.invitationId === 'string' ? body.invitationId : '';
+    if (!invitationId || invitationId.length > 100) return roomInvitationJson({ error: 'invalid_invitation' }, 400);
+
+    const now = Date.now();
+    const invitation = await this.env.DB.prepare(`SELECT inviter_user_id, created_at FROM room_invitations
+      WHERE id = ? AND room_code = ? AND invitee_user_id = ? AND status = 'pending' AND expires_at > ? AND created_at > ?`)
+      .bind(invitationId, roomCode, account.id, now, now - ROOM_INVITATION_TTL_MS)
+      .first<{ inviter_user_id: string; created_at: number }>();
+    if (!invitation) return roomInvitationJson({ error: 'room_invitation_not_found_or_expired' }, 410);
+
+    const freshnessCutoff = now - ACCOUNT_PRESENCE_TTL_MS;
+    const presence = await this.env.DB.prepare(`SELECT
+        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'available' AND updated_at > ?) AS has_available_session,
+        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'busy' AND updated_at > ?) AS has_busy_session`)
+      .bind(account.id, freshnessCutoff, account.id, freshnessCutoff)
+      .first<{ has_available_session: number; has_busy_session: number }>();
+    if (!presence?.has_available_session || presence.has_busy_session) {
+      return roomInvitationJson({ error: 'invitee_unavailable' }, 409);
+    }
+
+    const room = this.runtime.rooms.get(roomCode);
+    if (!room || room.phase !== 'lobby') return roomInvitationJson({ error: 'room_not_available' }, 410);
+    if (room.players.some(player => player.accountId === account.id)) {
+      return roomInvitationJson({ error: 'already_in_room' }, 409);
+    }
+    if (!room.players.some(player => player.accountId === invitation.inviter_user_id && !player.kicked)) {
+      return roomInvitationJson({ error: 'inviter_left_room' }, 410);
+    }
+    if (room.players.length >= MAX_ONLINE_PLAYERS) return roomInvitationJson({ error: 'room_full' }, 409);
+    return roomInvitationJson({ ok: true });
   }
 
   webSocketMessage(webSocket: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -1219,6 +1320,18 @@ export class GameRoom {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const roomInvitationAction = url.pathname.match(/^\/api\/account\/room-invitations\/([^/]+)$/);
+    if (roomInvitationAction && request.method === 'PATCH') {
+      return handleRoomInvitationAction(request, env, roomInvitationAction[1]);
+    }
+    const roomInvitationCreate = url.pathname.match(/^\/api\/realtime\/rooms\/([A-Z]{4})\/invitations$/i);
+    if (roomInvitationCreate && request.method === 'POST') {
+      const roomCode = roomInvitationCreate[1].toUpperCase();
+      if (!isValidRoomCode(roomCode)) return roomInvitationJson({ error: 'invalid_room_code' }, 400);
+      const room = env.GAME_ROOM.get(env.GAME_ROOM.idFromName(roomCode));
+      return room.fetch(new Request(`https://game-room/invitations?room=${roomCode}`, request));
+    }
+
     const accountResponse = await handleAccountRequest(request, env);
     if (accountResponse) return accountResponse;
     if (url.pathname === '/api/realtime/room-code' && request.method === 'POST') {
@@ -1235,3 +1348,72 @@ export default {
     return env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<Env>;
+
+async function handleRoomInvitationAction(request: Request, env: Env, invitationId: string): Promise<Response> {
+  const account = await authenticatedAccount(request, env);
+  if (!account) return roomInvitationJson({ error: 'authentication_required' }, 401);
+  if (invitationId.length > 100) return roomInvitationJson({ error: 'invalid_invitation' }, 400);
+  const body = await roomInvitationBody(request);
+  const action = body?.action;
+  if (action !== 'accept' && action !== 'decline') return roomInvitationJson({ error: 'invalid_room_invitation_action' }, 400);
+
+  const now = Date.now();
+  const invitation = await env.DB.prepare(`SELECT room_code, status, created_at, expires_at FROM room_invitations
+    WHERE id = ? AND invitee_user_id = ?`).bind(invitationId, account.id)
+    .first<{ room_code: string; status: string; created_at: number; expires_at: number }>();
+  if (!invitation || invitation.status !== 'pending') return roomInvitationJson({ error: 'room_invitation_not_found_or_expired' }, 404);
+  if (Number(invitation.expires_at) <= now || Number(invitation.created_at) <= now - ROOM_INVITATION_TTL_MS) {
+    await env.DB.prepare(`UPDATE room_invitations SET status = 'expired', updated_at = ?
+      WHERE id = ? AND status = 'pending'`).bind(now, invitationId).run();
+    return roomInvitationJson({ error: 'room_invitation_expired' }, 410);
+  }
+
+  if (action === 'decline') {
+    const updated = await env.DB.prepare(`UPDATE room_invitations SET status = 'declined', updated_at = ?
+      WHERE id = ? AND invitee_user_id = ? AND status = 'pending' AND expires_at > ?`)
+      .bind(now, invitationId, account.id, now).run();
+    if (!updated.meta.changes) return roomInvitationJson({ error: 'room_invitation_not_found_or_expired' }, 404);
+    return roomInvitationJson({ ok: true });
+  }
+
+  if (!isValidRoomCode(invitation.room_code)) return roomInvitationJson({ error: 'room_not_available' }, 410);
+  const room = env.GAME_ROOM.get(env.GAME_ROOM.idFromName(invitation.room_code));
+  const validation = await room.fetch(new Request(`https://game-room/validate-invitation?room=${invitation.room_code}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: request.headers.get('cookie') ?? '' },
+    body: JSON.stringify({ invitationId }),
+  }));
+  if (!validation.ok) {
+    if (validation.status === 410) {
+      await env.DB.prepare(`UPDATE room_invitations SET status = 'expired', updated_at = ?
+        WHERE id = ? AND invitee_user_id = ? AND status = 'pending'`)
+        .bind(Date.now(), invitationId, account.id).run();
+    }
+    return validation;
+  }
+
+  const acceptedAt = Date.now();
+  const updated = await env.DB.prepare(`UPDATE room_invitations SET status = 'accepted', updated_at = ?
+    WHERE id = ? AND invitee_user_id = ? AND status = 'pending' AND expires_at > ? AND created_at > ?`)
+    .bind(acceptedAt, invitationId, account.id, acceptedAt, acceptedAt - ROOM_INVITATION_TTL_MS).run();
+  if (!updated.meta.changes) return roomInvitationJson({ error: 'room_invitation_already_handled' }, 409);
+  return roomInvitationJson({ ok: true, roomCode: invitation.room_code });
+}
+
+async function roomInvitationBody(request: Request): Promise<Record<string, unknown> | null> {
+  const contentLength = Number(request.headers.get('content-length') ?? 0);
+  if (contentLength > 2048) return null;
+  try {
+    const body = await request.json();
+    return body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function roomInvitationJson(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}

@@ -1,19 +1,27 @@
 // UCL Immortals — Menu Page
 // Design: Dark Premium Gaming UI — hero with stadium background, gold accents
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock3, Gamepad2, Trophy, Plus, LogIn, LibraryBig, UserRound, Users } from 'lucide-react';
+import { Bell, Check, Gamepad2, Info, Trophy, Plus, LogIn, LogOut, LibraryBig, Send, UserRound, Users, X } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
+import AccountTabBar from '../components/account/AccountTabBar';
 import { useGame } from '../contexts/GameContext';
-import { useAccount } from '../contexts/AccountContext';
+import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
 import { competitionFormatSummary, createCompetitionFormat } from '../lib/competition';
 import { cn } from '../lib/utils';
-import { AppShell, Button, ConfirmDialog, GameModal, Input, Panel, StatusBanner } from '../design-system';
+import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, IconButton, Input, Panel, StatusBanner } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
+
+function friendIdentity(friendship: FriendshipEntry, accountId: string | undefined) {
+  if (friendship.requester_id === accountId) {
+    return { username: friendship.addressee_username, displayName: friendship.addressee_display_name, avatarKey: friendship.addressee_avatar_key };
+  }
+  return { username: friendship.requester_username, displayName: friendship.requester_display_name, avatarKey: friendship.requester_avatar_key };
+}
 
 export default function MenuPage() {
   const {
@@ -28,13 +36,30 @@ export default function MenuPage() {
     transferHostOnline,
     removePlayerOnline,
   } = useGame();
-  const { account, loading: accountLoading } = useAccount();
-
+  const {
+    account,
+    loading: accountLoading,
+    logout,
+    getFriends,
+    inviteFriendToRoom,
+    updateFriendship,
+  } = useAccount();
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
-  const [accountSoonOpen, setAccountSoonOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
+  const [guestModeInfoOpen, setGuestModeInfoOpen] = useState(false);
+  const [friendships, setFriendships] = useState<FriendshipEntry[]>([]);
+  const [incomingFriendRequestCount, setIncomingFriendRequestCount] = useState(0);
+  const [friendNotificationsOpen, setFriendNotificationsOpen] = useState(false);
+  const [friendNotificationError, setFriendNotificationError] = useState('');
+  const [friendActionId, setFriendActionId] = useState<string | null>(null);
+  const [roomInviteActionId, setRoomInviteActionId] = useState<string | null>(null);
+  const [roomInviteFriendsOpen, setRoomInviteFriendsOpen] = useState(false);
+  const [sentRoomInviteFriendships, setSentRoomInviteFriendships] = useState<string[]>([]);
+  const [roomInviteError, setRoomInviteError] = useState('');
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
@@ -47,6 +72,97 @@ export default function MenuPage() {
       setMenuMode('selection');
     }
   }, [state.phase, state.roomCode]);
+
+  const refreshInbox = useCallback(async () => {
+    if (!account) return;
+    try {
+      const nextFriendships = await getFriends();
+      setFriendships(nextFriendships);
+      setIncomingFriendRequestCount(nextFriendships.filter(friendship =>
+        friendship.status === 'pending' && friendship.addressee_id === account.id,
+      ).length);
+    } catch {
+      // Keep the last known requests if the inbox is briefly unavailable.
+    }
+  }, [account, getFriends]);
+
+  useEffect(() => {
+    if (!account) {
+      setFriendships([]);
+      setIncomingFriendRequestCount(0);
+      return;
+    }
+
+    let active = true;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void getFriends().then(nextFriendships => {
+        if (!active) return;
+        setFriendships(nextFriendships);
+        setIncomingFriendRequestCount(nextFriendships.filter(friendship =>
+          friendship.status === 'pending' && friendship.addressee_id === account.id,
+        ).length);
+      }).catch(() => {
+        // Keep the last known friendship badge if the network is unavailable.
+      });
+    };
+
+    refreshWhenVisible();
+    const interval = window.setInterval(refreshWhenVisible, 10_000);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [account?.id, getFriends]);
+
+  const incomingFriendRequests = account
+    ? friendships.filter(friendship => friendship.status === 'pending' && friendship.addressee_id === account.id)
+    : [];
+  const acceptedFriends = account
+    ? friendships.filter(friendship => friendship.status === 'accepted')
+    : [];
+
+  const handleFriendNotification = async (friendshipId: string, action: 'accept' | 'decline') => {
+    setFriendActionId(friendshipId);
+    setFriendNotificationError('');
+    try {
+      await updateFriendship(friendshipId, action);
+      await refreshInbox();
+    } catch (error) {
+      setFriendNotificationError(error instanceof Error ? error.message : 'Não foi possível atualizar o pedido de amizade.');
+    } finally {
+      setFriendActionId(null);
+    }
+  };
+
+  const inviteFriendToCurrentRoom = async (friendshipId: string) => {
+    if (!state.roomCode) return;
+    setRoomInviteActionId(friendshipId);
+    setRoomInviteError('');
+    try {
+      const result = await inviteFriendToRoom(state.roomCode, friendshipId);
+      setSentRoomInviteFriendships(current => current.includes(friendshipId) ? current : [...current, friendshipId]);
+      window.setTimeout(() => {
+        setSentRoomInviteFriendships(current => current.filter(id => id !== friendshipId));
+      }, Math.max(0, result.expiresAt - Date.now()));
+      if (result.duplicate) setRoomInviteError('Esse amigo já tem um convite pendente para esta sala.');
+    } catch (error) {
+      const errorCode = error instanceof Error ? error.message : '';
+      const messages: Record<string, string> = {
+        host_only: 'Só o anfitrião pode convidar amigos.',
+        room_not_available: 'A sala não está mais no lobby.',
+        room_full: 'A sala já está cheia.',
+        friend_already_in_room: 'Esse amigo já está na sala.',
+        friend_unavailable: 'Esse amigo está offline ou ocupado em uma sala/competição.',
+        accepted_friendship_required: 'Só é possível convidar amigos que já aceitaram seu pedido.',
+      };
+      setRoomInviteError(messages[errorCode] ?? 'Não foi possível enviar o convite. Tente novamente.');
+    } finally {
+      setRoomInviteActionId(null);
+    }
+  };
 
   const handlePlaySolo = () => {
     if (!playerName.trim()) return;
@@ -79,16 +195,20 @@ export default function MenuPage() {
     joinRoom(roomCodeInput.trim().toUpperCase(), playerName.trim());
   };
 
-  const handleRoomAction = (action: RoomMenuAction) => {
-    setRoomAction(action);
+  const handleLogout = async () => {
+    setLogoutBusy(true);
+    setLogoutError('');
+    try {
+      await logout();
+    } catch {
+      setLogoutError('Não foi possível sair da conta. Tente novamente.');
+    } finally {
+      setLogoutBusy(false);
+    }
   };
 
-  const openAccountSection = (section: 'profile' | 'history' | 'records' | 'friends') => {
-    if (!account) {
-      setAccountSoonOpen(true);
-      return;
-    }
-    dispatch({ type: 'SET_ACCOUNT_SECTION', section });
+  const handleRoomAction = (action: RoomMenuAction) => {
+    setRoomAction(action);
   };
 
   const handleTransferHost = (playerId: string) => {
@@ -140,6 +260,28 @@ export default function MenuPage() {
                 onRemovePlayer={handleRemovePlayer}
               />
             </div>
+
+            {state.isHost ? (
+              <div className="mt-4">
+                {account ? (
+                  <Button
+                    type="button"
+                    intent="ghost"
+                    onClick={() => {
+                      setRoomInviteError('');
+                      setSentRoomInviteFriendships([]);
+                      setRoomInviteFriendsOpen(true);
+                      void refreshInbox();
+                    }}
+                    className="w-full border border-[var(--ui-line-subtle)]"
+                  >
+                    <span className="inline-flex items-center justify-center gap-2"><Users size={16} /> CONVIDAR AMIGOS</span>
+                  </Button>
+                ) : (
+                  <p className="text-center text-xs text-[var(--ui-text-muted)]">Entre na sua conta para convidar amigos.</p>
+                )}
+              </div>
+            ) : null}
 
             {/* Players List */}
             <div className="my-4">
@@ -254,6 +396,55 @@ export default function MenuPage() {
               setRemoveTarget(null);
             }}
           />
+
+          <GameModal
+            open={roomInviteFriendsOpen}
+            onOpenChange={setRoomInviteFriendsOpen}
+            title="CONVIDAR AMIGOS"
+            subtitle="Só amigos online e disponíveis. O convite expira em 1 minuto."
+            size="wide"
+          >
+            <div className="space-y-3">
+              {roomInviteError ? <StatusBanner tone="danger" role="alert">{roomInviteError}</StatusBanner> : null}
+              {acceptedFriends.length === 0 ? (
+                <EmptyState title="Você ainda não tem amigos" description="Adicione amigos e aguarde eles aceitarem para poder convidá-los para uma sala." />
+              ) : (
+                acceptedFriends.map(friendship => {
+                  const friend = friendIdentity(friendship, account?.id);
+                  const sent = sentRoomInviteFriendships.includes(friendship.id);
+                  const busy = roomInviteActionId === friendship.id;
+                  const canInvite = friendship.is_online && friendship.is_available && !sent && roomInviteActionId === null;
+                  return (
+                    <div key={friendship.id} className="flex items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] p-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--ui-brand)]/15 text-sm font-bold text-[var(--ui-brand-strong)]">
+                        {friend.displayName.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-[var(--ui-text)]">{friend.displayName}</div>
+                        <div className="truncate text-xs text-[var(--ui-text-muted)]">@{friend.username}</div>
+                        <div className={cn(
+                          'mt-1 text-[10px] font-bold uppercase tracking-wider',
+                          friendship.is_available ? 'text-emerald-400' : 'text-[var(--ui-text-muted)]',
+                        )}>
+                          {friendship.is_available ? 'DISPONÍVEL' : friendship.is_busy ? 'OCUPADO' : 'OFFLINE'}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        intent={sent ? 'success' : 'secondary'}
+                        loading={busy}
+                        disabled={!canInvite}
+                        onClick={() => void inviteFriendToCurrentRoom(friendship.id)}
+                        className="shrink-0 px-3 text-xs"
+                      >
+                        {sent ? <><Check size={14} /> ENVIADO</> : <><Send size={14} /> CONVIDAR</>}
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </GameModal>
         </div>
       </AppShell>
     );
@@ -263,19 +454,78 @@ export default function MenuPage() {
     <AppShell immersive backgroundImage={HERO_BG} className="relative overflow-hidden">
 
       {/* Content */}
-      {!account ? (
-        <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
-          <Button
-            type="button"
-            intent="ghost"
-            disabled={accountLoading}
-            onClick={() => setAccountSoonOpen(true)}
-            className="border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90"
-          >
-            <UserRound size={15} /> ENTRAR
-          </Button>
-        </div>
-      ) : null}
+      {account ? (
+        <>
+          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+            <Button
+              type="button"
+              intent="ghost"
+              aria-label={incomingFriendRequestCount > 0
+                ? `Solicitações de amizade, ${incomingFriendRequestCount} pendentes`
+                : 'Solicitações de amizade'}
+              title="Solicitações de amizade"
+              onClick={() => {
+                setFriendNotificationError('');
+                setFriendNotificationsOpen(true);
+                void refreshInbox();
+              }}
+              className="relative size-11 min-h-11 w-11 justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 p-0"
+            >
+              <Bell size={19} aria-hidden="true" />
+              {incomingFriendRequestCount > 0 ? (
+                <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-danger)] px-1 text-[9px] font-bold leading-none tabular-nums text-white">
+                  {incomingFriendRequestCount > 9 ? '9+' : incomingFriendRequestCount}
+                </span>
+              ) : null}
+            </Button>
+          </div>
+          <div className="absolute right-4 top-4 z-20 flex flex-col items-end sm:right-6 sm:top-6">
+            <Button
+              type="button"
+              intent="danger"
+              aria-label="Sair da conta"
+              title="Sair da conta"
+              disabled={accountLoading}
+              loading={logoutBusy}
+              onClick={() => void handleLogout()}
+              className="size-11 min-h-11 w-11 justify-center rounded-full border border-[var(--ui-danger)]/50 p-0"
+            >
+              {!logoutBusy ? <LogOut size={19} aria-hidden="true" /> : null}
+            </Button>
+            {logoutError ? <div role="alert" className="mt-2 max-w-64 rounded-md border border-[var(--ui-danger)]/40 bg-[var(--ui-surface)] px-3 py-2 text-xs text-[var(--ui-danger)]">{logoutError}</div> : null}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+            <Button
+              type="button"
+              intent="ghost"
+              disabled={accountLoading}
+              onClick={() => dispatch({ type: 'SET_PHASE', phase: 'account' })}
+              className="w-20 min-h-9 justify-center border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 px-1 text-[10px] min-[380px]:w-24 min-[380px]:px-2 min-[380px]:text-xs"
+            >
+              <UserRound size={15} aria-hidden="true" /> ENTRAR
+            </Button>
+          </div>
+          {!accountLoading ? (
+            <div className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-bg)]/90 py-1 pl-3 pr-1.5 shadow-lg">
+              <span className="text-[10px] font-bold tracking-[0.12em] text-[var(--ui-text-soft)] min-[400px]:tracking-[0.08em]">
+                <span className="min-[400px]:hidden">CONVIDADO</span>
+                <span className="hidden min-[400px]:inline">MODO CONVIDADO</span>
+              </span>
+              <IconButton
+                label="Como funciona o modo convidado"
+                title="Como funciona o modo convidado"
+                onClick={() => setGuestModeInfoOpen(true)}
+                className="!size-8 !min-h-8 !w-8 rounded-full bg-[var(--ui-surface)]"
+              >
+                <Info size={16} aria-hidden="true" />
+              </IconButton>
+            </div>
+          ) : null}
+        </>
+      )}
 
       <div className={cn('relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 pt-8', account ? 'pb-28' : 'pb-8')}>
         {/* Eyebrow */}
@@ -345,22 +595,14 @@ export default function MenuPage() {
                 </span>
               </Button>
 
-              {account ? <nav aria-label="Navegação da conta" className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] px-3 pt-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}>
-                <div className="mx-auto grid max-w-md grid-cols-4">
-                  <Button type="button" intent="ghost" aria-label="Abrir perfil" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('profile')}>
-                    {account?.avatarUrl ? <img src={account.avatarUrl} alt="" className="size-4 rounded-full object-cover" /> : <UserRound size={16} />} PERFIL
-                  </Button>
-                  <Button type="button" intent="ghost" aria-label="Abrir histórico" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('history')}>
-                    <Clock3 size={16} /> HISTÓRICO
-                  </Button>
-                  <Button type="button" intent="ghost" aria-label="Abrir recordes" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('records')}>
-                    <Trophy size={16} /> RECORDES
-                  </Button>
-                  <Button type="button" intent="ghost" aria-label="Abrir amigos" className="flex h-14 flex-col gap-1 rounded-lg px-0 text-[9px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]" onClick={() => openAccountSection('friends')}>
-                    <Users size={16} /> AMIGOS
-                  </Button>
-                </div>
-              </nav> : null}
+              {account ? <AccountTabBar
+                active="home"
+                incomingFriendRequestCount={incomingFriendRequestCount}
+                onNavigate={tab => {
+                  if (tab === 'home') return;
+                  dispatch({ type: 'SET_ACCOUNT_SECTION', section: tab });
+                }}
+              /> : null}
             </div>
           )}
 
@@ -426,19 +668,21 @@ export default function MenuPage() {
                 />
               </div>
 
-              <Panel tone="inset" className="space-y-3 p-3">
-                <div>
-                  <div className="text-xs font-bold tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    CONFIGURAÇÃO DA PARTIDA
+              {!account ? (
+                <Panel tone="inset" className="space-y-3 p-3">
+                  <div>
+                    <div className="text-xs font-bold tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      CONFIGURAÇÃO DA PARTIDA
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      Ao criar uma sala, você define o formato e a dificuldade nas próximas telas. Depois, o código reúne todos na mesma competição.
+                    </p>
                   </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    Ao criar uma sala, você define o formato do torneio e a dificuldade dos bots nas próximas telas. Depois, o código reúne todos na mesma competição.
+                  <p className="text-[10px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    Para entrar em uma sala existente, basta informar o código — as configurações vêm do anfitrião.
                   </p>
-                </div>
-                <p className="text-[10px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  Para entrar em uma sala existente, basta informar o código — as configurações vêm do anfitrião.
-                </p>
-              </Panel>
+                </Panel>
+              ) : null}
 
               <div className="grid grid-cols-2 gap-2">
                 <Button
@@ -519,24 +763,6 @@ export default function MenuPage() {
 
       </div>
 
-      <GameModal
-        open={accountSoonOpen}
-        onOpenChange={setAccountSoonOpen}
-        title="EM BREVE"
-        subtitle="A área de conta está sendo preparada."
-        closeLabel="Fechar aviso"
-        footer={<Button type="button" intent="primary" className="w-full" onClick={() => setAccountSoonOpen(false)}>ENTENDI</Button>}
-      >
-        <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <div className="flex size-14 items-center justify-center rounded-full border border-[var(--ui-brand)]/40 bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)]">
-            <UserRound size={24} />
-          </div>
-          <p className="max-w-sm text-sm leading-relaxed text-[var(--ui-text-muted)]">
-            Perfil, histórico, recordes e amigos estarão disponíveis em uma próxima atualização.
-          </p>
-        </div>
-      </GameModal>
-
       <footer className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4" style={{ bottom: account ? 'calc(5rem + env(safe-area-inset-bottom))' : '1rem' }}>
         <span
           className="text-[10px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
@@ -545,6 +771,85 @@ export default function MenuPage() {
           by J.Lessa
         </span>
       </footer>
+
+      <GameModal
+        open={guestModeInfoOpen}
+        onOpenChange={setGuestModeInfoOpen}
+        title="DUAS FORMAS DE JOGAR"
+        subtitle="O modo convidado é separado da conta; o modo competitivo registra sua trajetória."
+        size="wide"
+        footer={(
+          <div className="flex w-full flex-col gap-1.5 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              intent="primary"
+              onClick={() => {
+                setGuestModeInfoOpen(false);
+                dispatch({ type: 'SET_PHASE', phase: 'account' });
+              }}
+            >
+              <UserRound size={15} aria-hidden="true" /> ENTRAR OU CRIAR CONTA
+            </Button>
+            <Button type="button" intent="ghost" onClick={() => setGuestModeInfoOpen(false)}>
+              CONTINUAR COMO CONVIDADO
+            </Button>
+          </div>
+        )}
+      >
+        <div className="space-y-2.5">
+          <Panel tone="inset" className="space-y-1.5 p-3">
+            <div className="ui-kicker">MODO CONVIDADO</div>
+            <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">
+              Jogue solo ou multiplayer sem entrar. Essa experiência é independente da conta: suas campanhas não aparecem no perfil, no histórico, nos rankings ou nos recordes.
+            </p>
+          </Panel>
+
+          <Panel tone="accent" className="space-y-1.5 p-3">
+            <div className="ui-kicker">MODO COMPETITIVO · COM CONTA</div>
+            <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">
+              Entre ou crie uma conta para jogar no modo oficial. Suas competições concluídas formam seu histórico e podem alimentar rankings e recordes; seu perfil e suas amizades também ficam vinculados à conta.
+            </p>
+          </Panel>
+        </div>
+      </GameModal>
+
+      <GameModal
+        open={friendNotificationsOpen}
+        onOpenChange={setFriendNotificationsOpen}
+        title="NOTIFICAÇÕES"
+        subtitle="Avisos e solicitações da sua conta."
+        size="wide"
+      >
+        <div className="space-y-3">
+          {friendNotificationError ? <StatusBanner tone="danger" role="alert">{friendNotificationError}</StatusBanner> : null}
+          {incomingFriendRequests.length === 0 ? (
+            <EmptyState title="Tudo em dia" description="Não há notificações pendentes no momento." />
+          ) : incomingFriendRequests.map(friendship => {
+            const friend = friendIdentity(friendship, account?.id);
+            const busy = friendActionId === friendship.id;
+            return (
+              <div key={friendship.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] p-3 sm:flex-nowrap">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--ui-brand)]/15 text-sm font-bold text-[var(--ui-brand-strong)]">
+                  {friend.displayName.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-[var(--ui-text)]">{friend.displayName}</div>
+                  <div className="truncate text-xs text-[var(--ui-text-muted)]">@{friend.username} quer adicionar você</div>
+                </div>
+                <div className="flex w-full gap-2 sm:w-auto">
+                  <Button type="button" intent="ghost" disabled={friendActionId !== null} onClick={() => void handleFriendNotification(friendship.id, 'decline')} className="flex-1 px-3 text-xs sm:flex-none">
+                    <X size={14} /> RECUSAR
+                  </Button>
+                  <Button type="button" intent="primary" loading={busy} disabled={friendActionId !== null} onClick={() => void handleFriendNotification(friendship.id, 'accept')} className="flex-1 px-3 text-xs sm:flex-none">
+                    {!busy ? <Check size={14} /> : null} ACEITAR
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </GameModal>
+
     </AppShell>
   );
 }

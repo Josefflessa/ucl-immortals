@@ -2,15 +2,18 @@
 
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
+import { useAccount } from '../contexts/AccountContext';
 import { FORMATIONS, COACHES } from '../lib/gameData';
 import { formationAdvantageLabelForAnalysisLevel, formationProfile } from '../lib/gameEngine';
 import FormationField from '../components/game/FormationField';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
+import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import ImpactMeter from '../components/game/ImpactMeter';
 import { AppShell, Button, ChoiceCard, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 
 export default function FormationPage() {
   const { state, dispatch, submitSetupOnline } = useGame();
+  const { account } = useAccount();
   const selectedCoach = COACHES.find(c => c.id === state.selectedCoachId);
 
   const me = state.mode === 'online' ? state.onlinePlayers.find(p => p.socketId === state.socketId) : null;
@@ -41,19 +44,19 @@ export default function FormationPage() {
 
   const selectedFormation = FORMATIONS.find(f => f.id === state.selectedFormationId);
   if (state.mode === 'online' && isReady) {
-    return <OnlineWaitingScreen message="Os demais jogadores estão definindo a tática…" />;
+    return <OnlineWaitingScreen message="Os demais jogadores estão definindo a tática…" headerRight={<CompetitionExitControl />} />;
   }
 
   return (
     <AppShell>
-      <TopBar playerName={state.playerName} />
+      <TopBar right={<CompetitionExitControl />} />
 
       <PageContainer wide className="flex flex-col gap-6">
         <div className="flex flex-col gap-6 lg:flex-row">
         {/* Left: Formation list */}
         <div className="flex-1">
           <SectionHeader
-            kicker="PLANO DE JOGO · 05"
+            kicker={`PLANO DE JOGO · ${account ? '03' : '05'}`}
             title="Escolha a formação"
             description={selectedCoach ? `${selectedCoach.name} prefere ${selectedCoach.preferredFormation}.` : undefined}
             className="mb-6"

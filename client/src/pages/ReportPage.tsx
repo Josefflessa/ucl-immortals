@@ -2,6 +2,7 @@
 // Cinematic celebration / campaign summary after the tournament
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
@@ -22,6 +23,9 @@ import PlayerCard from '../components/game/PlayerCard';
 import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerDetailsModal from '../components/game/PlayerDetailsModal';
 import { AppShell, Button, PageContainer, TopBar } from '../design-system';
+import type { CompetitionHistoryEntry } from '../contexts/AccountContext';
+import { getCompetitionHistorySnapshot, type CompetitionHistorySnapshot } from '../lib/historySnapshot';
+import { competitionRankingPoints } from '../lib/competitionRanking';
 
 function playerInitials(player: Player): string {
   const parts = player.shortName.trim().split(/\s+/).filter(Boolean);
@@ -45,11 +49,68 @@ function HighlightPortrait({ player, color }: { player: Player; color: string })
   );
 }
 
-export default function ReportPage() {
+interface ReportPageProps {
+  historyEntry?: CompetitionHistoryEntry;
+  historySnapshot?: CompetitionHistorySnapshot | null;
+  onHistoryBack?: () => void;
+}
+
+function reportNumber(report: Record<string, unknown>, key: string): number | null {
+  const value = report[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry; onBack?: () => void }) {
+  const report = entry.report ?? {};
+  const wins = reportNumber(report, 'wins');
+  const draws = reportNumber(report, 'draws');
+  const losses = reportNumber(report, 'losses');
+  const summary = [
+    ['JOGOS', reportNumber(report, 'games') ?? reportNumber(report, 'matches')],
+    ['VITÓRIAS', wins],
+    ['EMPATES', draws],
+    ['DERROTAS', losses],
+    ['GOLS', reportNumber(report, 'goals')],
+    ['SOFRIDOS', reportNumber(report, 'goalsAgainst')],
+  ] as const;
+  return (
+    <AppShell immersive className="flex flex-col overflow-x-hidden">
+      <TopBar title="UCL IMMORTALS — FIM DE TEMPORADA" right={onBack ? <Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO</Button> : undefined} />
+      <div className="relative z-10 flex flex-col items-center justify-center px-4 py-10 text-center sm:py-14">
+        <div className="mb-4 select-none text-6xl">{entry.champion ? '🏆' : '🏅'}</div>
+        <h1 className="font-display text-5xl text-[var(--ui-text)] sm:text-7xl">{entry.champion ? 'CAMPEÃO!' : 'CAMPANHA ENCERRADA'}</h1>
+        <div className="mt-3 flex items-center gap-3 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-5 py-2.5">
+          <Crest crestId={entry.crest_id} name={entry.team_name} size={34} />
+          <span className="font-display text-xl text-[var(--ui-text)]">{entry.team_name}</span>
+        </div>
+      </div>
+      <PageContainer narrow className="relative z-10 flex-1 space-y-4">
+        <section aria-label="Resumo da competição" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {summary.map(([label, value]) => <div key={label} className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-4 text-center">
+            <div className="font-display text-3xl leading-none text-[var(--ui-brand-strong)]">{value ?? '—'}</div>
+            <div className="mt-1 text-[10px] font-bold tracking-widest text-[var(--ui-text-faint)]">{label}</div>
+          </div>)}
+        </section>
+        <p className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-4 py-3 text-sm text-[var(--ui-text-muted)]">
+          Esta competição foi salva antes de o jogo guardar escalação e detalhes completos do resultado.
+        </p>
+        {onBack ? <Button type="button" intent="primary" size="large" onClick={onBack} className="w-full"><ArrowLeft size={16} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button> : null}
+      </PageContainer>
+    </AppShell>
+  );
+}
+
+export default function ReportPage({ historyEntry, historySnapshot: providedSnapshot, onHistoryBack }: ReportPageProps = {}) {
   const { state, dispatch, leaveRoomOnline } = useGame();
   const { account, saveHistory } = useAccount();
-  const { report, playerTeam, champion, leagueResults, knockoutBracket } = state;
-  const { localTeamId, allTeams: allTeamsForStats } = useTeams();
+  const historySnapshot = providedSnapshot ?? (historyEntry ? getCompetitionHistorySnapshot(historyEntry.report) : null);
+  const { localTeamId: liveTeamId, allTeams: allTeamsForStats } = useTeams();
+  const report = historySnapshot ? historySnapshot.report : state.report;
+  const playerTeam = historySnapshot ? historySnapshot.playerTeam : state.playerTeam;
+  const champion = historySnapshot ? historySnapshot.championId : state.champion;
+  const localTeamId = historySnapshot ? historySnapshot.playerTeam.id : liveTeamId;
+  const leagueResults = state.leagueResults;
+  const knockoutBracket = state.knockoutBracket;
 
   const isChampion = champion === localTeamId;
 
@@ -60,13 +121,15 @@ export default function ReportPage() {
     : null;
 
   const allResults = useMemo(
-    () => getAllPlayedMatchResults(leagueResults, knockoutBracket) as any[],
-    [leagueResults, knockoutBracket]
+    () => historySnapshot ? [] : getAllPlayedMatchResults(leagueResults, knockoutBracket) as any[],
+    [historySnapshot, leagueResults, knockoutBracket]
   );
 
   const playerResults = useMemo(
-    () => allResults.filter((r: any) => r.homeTeamId === localTeamId || r.awayTeamId === localTeamId),
-    [allResults, localTeamId]
+    () => historySnapshot
+      ? historySnapshot.matches
+      : allResults.filter((r: any) => r.homeTeamId === localTeamId || r.awayTeamId === localTeamId),
+    [allResults, historySnapshot, localTeamId]
   );
 
   const wins   = playerResults.filter((r: any) => r.winner === localTeamId).length;
@@ -76,6 +139,10 @@ export default function ReportPage() {
   const goalsAgainst = playerResults.reduce((s: number, r: any) => s + (r.homeTeamId === localTeamId ? r.awayGoals : r.homeGoals), 0);
 
   const handlePlayAgain = () => {
+    if (historyEntry) {
+      onHistoryBack?.();
+      return;
+    }
     // The report can also be reached from an online room. Resetting only the
     // local reducer leaves the socket subscribed to the finished room, whose
     // next authoritative update would immediately restore the old competition.
@@ -87,6 +154,10 @@ export default function ReportPage() {
 
   // ── Top performers across the whole season ────────────────────────────────
   const topScorer = useMemo(() => {
+    if (historySnapshot) {
+      const leader = historySnapshot.leaders.topScorer;
+      return leader ? { pl: leader.player as Player, team: { name: leader.teamName }, stats: { goals: leader.value } } : null;
+    }
     const allPlayers = allTeamsForStats.flatMap(t => t.players);
     const rows = allPlayers.flatMap(pl => {
       const team = allTeamsForStats.find(t => t.players.some(p => p.id === pl.id));
@@ -95,9 +166,13 @@ export default function ReportPage() {
       return [{ pl, team, stats }];
     });
     return rows.filter(x => x.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals)[0] ?? null;
-  }, [allResults]);
+  }, [allResults, allTeamsForStats, historySnapshot]);
 
   const topRating = useMemo(() => {
+    if (historySnapshot) {
+      const leader = historySnapshot.leaders.topRating;
+      return leader ? { pl: leader.player as Player, team: { name: leader.teamName }, stats: { played: leader.played ?? 0, ratingAvg: leader.value } } : null;
+    }
     const allPlayers = allTeamsForStats.flatMap(t => t.players);
     const rows = allPlayers.flatMap(pl => {
       const team = allTeamsForStats.find(t => t.players.some(p => p.id === pl.id));
@@ -106,9 +181,13 @@ export default function ReportPage() {
       return [{ pl, team, stats }];
     });
     return rows.filter(x => x.stats.played >= 3).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg)[0] ?? null;
-  }, [allResults]);
+  }, [allResults, allTeamsForStats, historySnapshot]);
 
   const topAssister = useMemo(() => {
+    if (historySnapshot) {
+      const leader = historySnapshot.leaders.topAssister;
+      return leader ? { pl: leader.player as Player, team: { name: leader.teamName }, stats: { assists: leader.value } } : null;
+    }
     const allPlayers = allTeamsForStats.flatMap(t => t.players);
     const rows = allPlayers.flatMap(pl => {
       const team = allTeamsForStats.find(t => t.players.some(p => p.id === pl.id));
@@ -117,15 +196,16 @@ export default function ReportPage() {
       return [{ pl, team, stats }];
     });
     return rows.filter(x => x.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists)[0] ?? null;
-  }, [allResults]);
+  }, [allResults, allTeamsForStats, historySnapshot]);
 
   // ── Champion team name (works for bot or any human in online mode) ─────────
   const championName = useMemo(() => {
+    if (historySnapshot) return historySnapshot.championName;
     if (!champion) return '';
     const onlineP = state.onlinePlayers.find(p => p.id === champion);
     if (onlineP) return onlineP.team?.name ?? onlineP.name;
     return state.botTeams.find(t => t.id === champion)?.name ?? 'Campeão';
-  }, [champion]);
+  }, [champion, historySnapshot, state.onlinePlayers, state.botTeams]);
 
   // ── Cinematic reveal phases ────────────────────────────────────────────────
   const [phase, setPhase] = useState(0);
@@ -159,22 +239,27 @@ export default function ReportPage() {
     return margins.sort((a: any, b: any) => b.m - a.m)[0] ?? null;
   }, [playerResults, localTeamId]);
   const coach = COACHES.find(c => c.id === playerTeam?.coachId);
-  const finalResult = knockoutBracket?.final?.result;
+  const liveFinalResult = knockoutBracket?.final?.result;
+  const finalResult = historySnapshot ? historySnapshot.finalResult : liveFinalResult;
   const reportFinalResult = finalResult && playerTeam && (
     finalResult.homeTeamId === playerTeam.id || finalResult.awayTeamId === playerTeam.id
   ) ? finalResult : undefined;
-  const reportIsKnockout = state.competitionFormat.id !== 'league' || !!knockoutBracket;
+  const reportIsKnockout = historySnapshot
+    ? historySnapshot.formatId !== 'league'
+    : state.competitionFormat.id !== 'league' || !!knockoutBracket;
   const reportIsFinal = !!reportFinalResult;
   const reportIsLosing = !!playerTeam && !!reportFinalResult && (
     reportFinalResult.homeTeamId === playerTeam?.id
       ? reportFinalResult.homeGoals < reportFinalResult.awayGoals
       : reportFinalResult.awayGoals < reportFinalResult.homeGoals
   );
-  const reportPlayStyle = reportFinalResult
-    ? reportFinalResult.events
-      .filter(event => event.type === 'tactic' && event.teamId === playerTeam?.id && event.tacticAction)
+  const reportPlayStyle = historySnapshot
+    ? historySnapshot.playStyle ?? playerTeam?.playStyle
+    : liveFinalResult && playerTeam && (liveFinalResult.homeTeamId === playerTeam.id || liveFinalResult.awayTeamId === playerTeam.id)
+    ? liveFinalResult.events
+      .filter(event => event.type === 'tactic' && event.teamId === playerTeam.id && event.tacticAction)
       .sort((a, b) => a.minute - b.minute)
-      .at(-1)?.tacticAction ?? playerTeam?.playStyle
+      .at(-1)?.tacticAction ?? playerTeam.playStyle
     : playerTeam?.playStyle;
   const effectiveStatsById = useMemo(() => playerTeam
     ? getTeamEffectiveStats(playerTeam, {
@@ -188,10 +273,10 @@ export default function ReportPage() {
     ? Math.round(starters.reduce((s, p) => s + (effectiveStatsById[p.id]?.overall ?? p.overall), 0) / 11)
     : null;
   const localSeasonRows = useMemo(
-    () => playerTeam
+    () => playerTeam && !historySnapshot
       ? playerTeam.players.map(player => ({ player, stats: getPlayerSeasonStats(player.id, playerTeam.id, allResults) }))
       : [],
-    [allResults, playerTeam],
+    [allResults, historySnapshot, playerTeam],
   );
   const soloRecordCandidates = useMemo(() => {
     const candidates: Array<{
@@ -219,7 +304,7 @@ export default function ReportPage() {
     // Solo campaigns are not authoritative public records, but an account can
     // still keep the same final-season snapshot privately. Online campaigns
     // are persisted by the room server at the report transition.
-    if (!account || state.mode !== 'solo' || !playerTeam || games === 0) return;
+    if (historyEntry || historySnapshot || !account || state.mode !== 'solo' || !playerTeam || games === 0) return;
     if (!soloHistoryKey.current) soloHistoryKey.current = `solo:${crypto.randomUUID()}`;
     void saveHistory({
       mode: 'solo',
@@ -230,6 +315,7 @@ export default function ReportPage() {
       coachId: playerTeam.coachId ?? null,
       champion: isChampion,
       placement: isChampion ? 1 : null,
+      competitionPoints: competitionRankingPoints(playerTeam.id, champion, state.knockoutBracket),
       sourceKey: soloHistoryKey.current,
       report: {
         version: 1,
@@ -247,17 +333,61 @@ export default function ReportPage() {
         topScorer: topScorer ? { playerId: topScorer.pl.id, playerName: topScorer.pl.shortName, value: topScorer.stats.goals } : null,
         topAssister: topAssister ? { playerId: topAssister.pl.id, playerName: topAssister.pl.shortName, value: topAssister.stats.assists } : null,
         topRating: topRating ? { playerId: topRating.pl.id, playerName: topRating.pl.shortName, value: topRating.stats.ratingAvg } : null,
+        historySnapshot: {
+          version: 1,
+          playerTeam,
+          effectiveOverallByPlayerId: Object.fromEntries(playerTeam.players.map(player => [
+            player.id,
+            Math.round(effectiveStatsById[player.id]?.overall ?? player.overall),
+          ])),
+          matches: playerResults.map((result: any) => ({
+            homeTeamId: result.homeTeamId,
+            awayTeamId: result.awayTeamId,
+            homeGoals: result.homeGoals,
+            awayGoals: result.awayGoals,
+            winner: result.winner,
+          })),
+          championId: champion ?? null,
+        competitionPoints: competitionRankingPoints(playerTeam.id, champion, state.knockoutBracket),
+          championName,
+          formatId: state.competitionFormat.id,
+          finalResult: reportFinalResult ? {
+            homeTeamId: reportFinalResult.homeTeamId,
+            awayTeamId: reportFinalResult.awayTeamId,
+            homeGoals: reportFinalResult.homeGoals,
+            awayGoals: reportFinalResult.awayGoals,
+            winner: reportFinalResult.winner,
+          } : null,
+          playStyle: reportPlayStyle ?? null,
+          report,
+          leaders: {
+            topScorer: topScorer ? { player: topScorer.pl, teamName: topScorer.team.name, value: topScorer.stats.goals } : null,
+            topRating: topRating ? { player: topRating.pl, teamName: topRating.team.name, value: topRating.stats.ratingAvg, played: topRating.stats.played } : null,
+            topAssister: topAssister ? { player: topAssister.pl, teamName: topAssister.team.name, value: topAssister.stats.assists } : null,
+          },
+        },
       },
       records: soloRecordCandidates.candidates,
     }).catch(error => console.error('[account] não foi possível salvar o histórico solo:', error));
-  }, [account, games, isChampion, losses, playerTeam, saveHistory, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
+  }, [account, champion, championName, effectiveStatsById, games, historyEntry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
+
+  if (historyEntry && !historySnapshot) {
+    return <LegacyHistoryReport entry={historyEntry} onBack={onHistoryBack} />;
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AppShell immersive className="flex flex-col overflow-x-hidden">
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <TopBar title="UCL IMMORTALS — FIM DE TEMPORADA" />
+      <TopBar
+        title="UCL IMMORTALS — FIM DE TEMPORADA"
+        right={historyEntry && onHistoryBack ? (
+          <Button type="button" intent="ghost" onClick={onHistoryBack}>
+            <ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO
+          </Button>
+        ) : undefined}
+      />
 
       {/* ── HERO: Champion or Runner-up ────────────────────────────────────── */}
       <div className="relative z-10 flex flex-col items-center justify-center py-10 sm:py-14 px-4 text-center">
@@ -559,7 +689,7 @@ export default function ReportPage() {
                   chemLinks={getChemistryLinks(starters, playerTeam.coachId)}
                   showPlayerCards
                   effectiveStats={effectiveStatsById}
-                  onPlayerClick={(player, positionIndex) => setSelectedPlayer({ player, positionIndex })}
+                  onPlayerClick={historyEntry ? undefined : (player, positionIndex) => setSelectedPlayer({ player, positionIndex })}
                 />
                 {/* Legenda das conexões — com a contagem de cada tipo no XI */}
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 mt-3">
@@ -595,7 +725,7 @@ export default function ReportPage() {
                         compact
                         lite
                         effectiveStats={effectiveStatsById[pl.id]}
-                        onClick={() => setSelectedPlayer({ player: pl, positionIndex: i })}
+                        onClick={historyEntry ? undefined : () => setSelectedPlayer({ player: pl, positionIndex: i })}
                       />
                     </motion.div>
                   ))}
@@ -613,7 +743,7 @@ export default function ReportPage() {
                           compact
                           lite
                           effectiveStats={effectiveStatsById[pl.id]}
-                          onClick={() => setSelectedPlayer({ player: pl, positionIndex: starters.length + i })}
+                          onClick={historyEntry ? undefined : () => setSelectedPlayer({ player: pl, positionIndex: starters.length + i })}
                         />
                       </motion.div>
                     ))}
@@ -633,12 +763,12 @@ export default function ReportPage() {
             onClick={handlePlayAgain}
             className="mt-2 w-full"
           >
-            🔄 JOGAR NOVAMENTE
+            {historyEntry ? <><ArrowLeft size={17} aria-hidden="true" /> VOLTAR AO HISTÓRICO</> : '🔄 JOGAR NOVAMENTE'}
           </Button>
         )}
       </PageContainer>
 
-      {selectedPlayer && playerTeam && (
+      {!historyEntry && selectedPlayer && playerTeam && (
         <PlayerDetailsModal
           player={selectedPlayer.player}
           team={playerTeam}

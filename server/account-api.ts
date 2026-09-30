@@ -1,3 +1,6 @@
+import { DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, isProfileAvatarBackgroundKey } from '../shared/profileAppearance';
+import { getTeamEffectiveStats, type Team } from '../client/src/lib/gameEngine.js';
+
 const SESSION_COOKIE = 'ucl_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const MAX_BIO_LENGTH = 240;
@@ -6,6 +9,8 @@ const PASSWORD_MIN_LENGTH = 8;
 const PBKDF2_ITERATIONS = 120_000;
 const AUTH_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_MAX_FAILURES = 5;
+export const ACCOUNT_PRESENCE_TTL_MS = 30_000;
+export const ROOM_INVITATION_TTL_MS = 60_000;
 
 export interface AccountEnv {
   DB: D1Database;
@@ -18,6 +23,7 @@ export interface AuthenticatedAccount {
   displayName: string;
   bio: string;
   avatarKey: string;
+  avatarBackgroundKey: string;
   coverKey: string;
   favoriteCrestId: string | null;
   avatarUrl: string | null;
@@ -30,6 +36,15 @@ export interface AuthenticatedAccount {
 export interface AccountStats {
   competitionsCompleted: number;
   titles: number;
+  finishCounts: {
+    leaguePhase: number;
+    playoff: number;
+    roundOf16: number;
+    quarterfinal: number;
+    semifinal: number;
+    runnerUp: number;
+    champion: number;
+  };
   wins: number;
   draws: number;
   losses: number;
@@ -47,6 +62,7 @@ interface UserRow {
   display_name: string;
   bio: string;
   avatar_key: string;
+  avatar_background_key: string;
   cover_key: string;
   favorite_crest_id: string | null;
   avatar_url: string | null;
@@ -55,6 +71,13 @@ interface UserRow {
   created_at: number;
   competitions_completed?: number;
   titles?: number;
+  finish_league_phase?: number;
+  finish_playoff?: number;
+  finish_round_of_16?: number;
+  finish_quarterfinal?: number;
+  finish_semifinal?: number;
+  finish_runner_up?: number;
+  finish_champion?: number;
   wins?: number;
   draws?: number;
   losses?: number;
@@ -158,6 +181,15 @@ function statsFromRow(row: UserRow): AccountStats {
   return {
     competitionsCompleted: Number(row.competitions_completed ?? 0),
     titles: Number(row.titles ?? 0),
+    finishCounts: {
+      leaguePhase: Number(row.finish_league_phase ?? 0),
+      playoff: Number(row.finish_playoff ?? 0),
+      roundOf16: Number(row.finish_round_of_16 ?? 0),
+      quarterfinal: Number(row.finish_quarterfinal ?? 0),
+      semifinal: Number(row.finish_semifinal ?? 0),
+      runnerUp: Number(row.finish_runner_up ?? 0),
+      champion: Number(row.finish_champion ?? 0),
+    },
     wins: Number(row.wins ?? 0),
     draws: Number(row.draws ?? 0),
     losses: Number(row.losses ?? 0),
@@ -177,6 +209,7 @@ function accountFromRow(row: UserRow): AuthenticatedAccount {
     displayName: row.display_name,
     bio: row.bio,
     avatarKey: row.avatar_key,
+    avatarBackgroundKey: row.avatar_background_key ?? DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY,
     coverKey: row.cover_key,
     favoriteCrestId: row.favorite_crest_id,
     avatarUrl: row.avatar_url ?? null,
@@ -188,10 +221,40 @@ function accountFromRow(row: UserRow): AuthenticatedAccount {
 }
 
 const ACCOUNT_SELECT = `
-  SELECT u.id, u.email, p.username, p.display_name, p.bio, p.avatar_key,
+  WITH competition_finishes AS (
+    SELECT user_id,
+      SUM(CASE WHEN competition_points = 5 THEN 1 ELSE 0 END) AS finish_league_phase,
+      SUM(CASE WHEN competition_points = 15 THEN 1 ELSE 0 END) AS finish_playoff,
+      SUM(CASE WHEN competition_points = 25 THEN 1 ELSE 0 END) AS finish_round_of_16,
+      SUM(CASE WHEN competition_points = 40 THEN 1 ELSE 0 END) AS finish_quarterfinal,
+      SUM(CASE WHEN competition_points = 60 THEN 1 ELSE 0 END) AS finish_semifinal,
+      SUM(CASE WHEN competition_points = 80 THEN 1 ELSE 0 END) AS finish_runner_up,
+      SUM(CASE WHEN competition_points = 100 THEN 1 ELSE 0 END) AS finish_champion
+    FROM (
+      SELECT user_id,
+        CASE WHEN champion = 1 THEN 100
+          WHEN json_valid(report_json) THEN COALESCE(
+            CAST(json_extract(report_json, '$.competitionPoints') AS INTEGER),
+            CAST(json_extract(report_json, '$.historySnapshot.competitionPoints') AS INTEGER),
+            0
+          )
+          ELSE 0
+        END AS competition_points
+      FROM competition_history
+    )
+    GROUP BY user_id
+  )
+  SELECT u.id, u.email, p.username, p.display_name, p.bio, p.avatar_key, p.avatar_background_key,
          p.cover_key, p.favorite_crest_id, p.avatar_url, p.cover_url, p.visibility, p.created_at,
          COALESCE(s.competitions_completed, 0) AS competitions_completed,
          COALESCE(s.titles, 0) AS titles,
+         COALESCE(cf.finish_league_phase, 0) AS finish_league_phase,
+         COALESCE(cf.finish_playoff, 0) AS finish_playoff,
+         COALESCE(cf.finish_round_of_16, 0) AS finish_round_of_16,
+         COALESCE(cf.finish_quarterfinal, 0) AS finish_quarterfinal,
+         COALESCE(cf.finish_semifinal, 0) AS finish_semifinal,
+         COALESCE(cf.finish_runner_up, 0) AS finish_runner_up,
+         COALESCE(cf.finish_champion, 0) AS finish_champion,
          COALESCE(s.wins, 0) AS wins,
          COALESCE(s.draws, 0) AS draws,
          COALESCE(s.losses, 0) AS losses,
@@ -203,6 +266,7 @@ const ACCOUNT_SELECT = `
     FROM users u
     JOIN profiles p ON p.user_id = u.id
     LEFT JOIN profile_stats s ON s.user_id = u.id
+    LEFT JOIN competition_finishes cf ON cf.user_id = u.id
 `;
 
 async function accountById(db: D1Database, userId: string): Promise<AuthenticatedAccount | null> {
@@ -295,7 +359,7 @@ async function registerLocalAccount(request: Request, env: AccountEnv): Promise<
         .bind(userId, `${userId}@local.ucl-immortals.invalid`, await hashSecret(password), now, now, now),
       env.DB.prepare(`INSERT INTO profiles
         (user_id, username, display_name, bio, avatar_key, cover_key, avatar_url, cover_url, favorite_crest_id, visibility, created_at, updated_at)
-        VALUES (?, ?, ?, '', 'default-01', 'cover-01', NULL, NULL, NULL, 'public', ?, ?)`)
+        VALUES (?, ?, ?, '', 'mark-evans', 'cover-01', NULL, NULL, NULL, 'public', ?, ?)`)
         .bind(userId, username, displayName, now, now),
       env.DB.prepare('INSERT INTO profile_stats (user_id, updated_at) VALUES (?, ?)').bind(userId, now),
     ]);
@@ -339,6 +403,7 @@ function publicAccount(account: AuthenticatedAccount): Record<string, unknown> {
     displayName: account.displayName,
     bio: account.bio,
     avatarKey: account.avatarKey,
+    avatarBackgroundKey: account.avatarBackgroundKey,
     coverKey: account.coverKey,
     avatarUrl: account.avatarUrl,
     coverUrl: account.coverUrl,
@@ -351,10 +416,13 @@ function publicAccount(account: AuthenticatedAccount): Record<string, unknown> {
 async function profileUpdate(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
   const body = await readJson(request);
   if (!body) return json({ error: 'invalid_json' }, 400);
-  const username = body.username === undefined ? account.username : normalizeUsername(String(body.username));
+  if (body.username !== undefined && normalizeUsername(String(body.username)) !== account.username) {
+    return json({ error: 'username_immutable', message: 'O nome de usuário não pode ser alterado após o cadastro.' }, 400);
+  }
   const displayName = body.displayName === undefined ? account.displayName : String(body.displayName).trim().slice(0, 40);
   const bio = body.bio === undefined ? account.bio : String(body.bio).trim().slice(0, MAX_BIO_LENGTH);
   const avatarKey = body.avatarKey === undefined ? account.avatarKey : String(body.avatarKey).trim();
+  const avatarBackgroundKey = body.avatarBackgroundKey === undefined ? account.avatarBackgroundKey : String(body.avatarBackgroundKey).trim();
   const coverKey = body.coverKey === undefined ? account.coverKey : String(body.coverKey).trim();
   const avatarUrl = body.avatarUrl === undefined
     ? (body.avatarKey !== undefined && avatarKey !== account.avatarKey ? null : account.avatarUrl)
@@ -363,13 +431,10 @@ async function profileUpdate(request: Request, env: AccountEnv, account: Authent
     ? (body.coverKey !== undefined && coverKey !== account.coverKey ? null : account.coverUrl)
     : (body.coverUrl ? String(body.coverUrl).slice(0, 500) : null);
   const favoriteCrestId = body.favoriteCrestId === undefined ? account.favoriteCrestId : (body.favoriteCrestId ? String(body.favoriteCrestId).slice(0, 80) : null);
-  if (!USERNAME_RE.test(username)) return json({ error: 'invalid_username', message: 'Use de 3 a 24 caracteres: letras, números, ponto, hífen ou sublinhado.' }, 400);
   if (!displayName) return json({ error: 'invalid_display_name' }, 400);
-  if (!/^[a-z0-9-]{3,40}$/.test(avatarKey) || !/^[a-z0-9-]{3,40}$/.test(coverKey)) return json({ error: 'invalid_profile_asset' }, 400);
-  const collision = await env.DB.prepare('SELECT user_id FROM profiles WHERE username = ? AND user_id <> ?').bind(username, account.id).first();
-  if (collision) return json({ error: 'username_taken', message: 'Esse nome de usuário já está em uso.' }, 409);
-  await env.DB.prepare(`UPDATE profiles SET username = ?, display_name = ?, bio = ?, avatar_key = ?, cover_key = ?, avatar_url = ?, cover_url = ?, favorite_crest_id = ?, updated_at = ? WHERE user_id = ?`)
-    .bind(username, displayName, bio, avatarKey, coverKey, avatarUrl, coverUrl, favoriteCrestId, Date.now(), account.id).run();
+  if (!/^[a-z0-9-]{3,40}$/.test(avatarKey) || !/^[a-z0-9-]{3,40}$/.test(coverKey) || !isProfileAvatarBackgroundKey(avatarBackgroundKey)) return json({ error: 'invalid_profile_asset' }, 400);
+  await env.DB.prepare(`UPDATE profiles SET display_name = ?, bio = ?, avatar_key = ?, avatar_background_key = ?, cover_key = ?, avatar_url = ?, cover_url = ?, favorite_crest_id = ?, updated_at = ? WHERE user_id = ?`)
+    .bind(displayName, bio, avatarKey, avatarBackgroundKey, coverKey, avatarUrl, coverUrl, favoriteCrestId, Date.now(), account.id).run();
   const updated = await accountById(env.DB, account.id);
   return updated ? json({ account: publicAccount(updated) }) : json({ error: 'account_not_found' }, 404);
 }
@@ -393,14 +458,18 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   if (!mode || !difficultyId || !formatId || !teamName || !report || typeof report !== 'object' || Array.isArray(report)) {
     return json({ error: 'invalid_history' }, 400);
   }
+  if (mode !== 'solo') return json({ error: 'online_history_server_authoritative', message: 'Resultados online são registrados pelo servidor da sala.' }, 400);
+  const champion = body.champion ? 1 : 0;
+  const allowedFinishPoints = new Set([5, 15, 25, 40, 60, 80]);
+  const submittedPoints = Number(body.competitionPoints);
+  const competitionPoints = champion ? 100 : allowedFinishPoints.has(submittedPoints) ? submittedPoints : 0;
   let reportJson: string;
   try {
-    reportJson = JSON.stringify(report);
+    reportJson = JSON.stringify({ ...(report as Record<string, unknown>), competitionPoints });
   } catch {
     return json({ error: 'invalid_history' }, 400);
   }
   if (reportJson.length > 180_000) return json({ error: 'history_too_large' }, 413);
-  if (mode === 'online' && submittedRecords.length > 0) return json({ error: 'online_records_are_server_authoritative' }, 400);
   if (submittedRecords.length > 4) return json({ error: 'too_many_records' }, 400);
   const allowedCategories = new Set(['goals', 'assists', 'saves', 'effective_overall']);
   const recordCategories = new Set<string>();
@@ -423,7 +492,6 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   }
   const id = `cmp_${randomToken(12)}`;
   const now = Date.now();
-  const champion = body.champion ? 1 : 0;
   const placement = body.placement == null ? null : Math.max(1, Math.min(999, Number(body.placement)) || 1);
   const crestId = body.crestId ? String(body.crestId).slice(0, 80) : null;
   const coachId = body.coachId ? String(body.coachId).slice(0, 80) : null;
@@ -482,36 +550,349 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
   const binds: unknown[] = [];
   if (category) { clauses.push('r.category = ?'); binds.push(category); }
   if (difficulty) { clauses.push('r.difficulty_id = ?'); binds.push(difficulty); }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  const rows = await env.DB.prepare(`SELECT r.id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
-    r.username_snapshot, r.team_name_snapshot, r.crest_id_snapshot, r.created_at
-    FROM competition_records r ${where ? `${where} AND r.verified = 1` : 'WHERE r.verified = 1'}
-    ORDER BY r.difficulty_id, r.category, r.value DESC, r.created_at ASC LIMIT 500`).bind(...binds).all();
-  const grouped = new Map<string, unknown[]>();
-  for (const row of rows.results) {
-    const key = `${(row as any).difficulty_id}:${(row as any).category}`;
-    const bucket = grouped.get(key) ?? [];
-    if (bucket.length < 10) bucket.push(row);
-    grouped.set(key, bucket);
+  const where = ['r.verified = 1', ...clauses].join(' AND ');
+  const rows = await env.DB.prepare(`WITH ranked_records AS (
+      SELECT r.id, r.user_id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
+        r.username_snapshot, r.team_name_snapshot, r.crest_id_snapshot, r.created_at, r.competition_id,
+        ROW_NUMBER() OVER (
+          PARTITION BY r.difficulty_id, r.category
+          ORDER BY r.value DESC, r.created_at ASC, r.id ASC
+        ) AS ranking_position
+      FROM competition_records r
+      WHERE ${where}
+    )
+    SELECT r.id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
+      r.username_snapshot, r.team_name_snapshot, r.crest_id_snapshot, r.created_at,
+      CASE WHEN p.visibility = 'public' THEN p.display_name ELSE NULL END AS profile_display_name,
+      CASE WHEN p.visibility = 'public' THEN p.avatar_key ELSE NULL END AS profile_avatar_key,
+      CASE WHEN p.visibility = 'public' THEN p.avatar_background_key ELSE NULL END AS profile_avatar_background_key,
+      CASE WHEN p.visibility = 'public' THEN p.avatar_url ELSE NULL END AS profile_avatar_url,
+      h.mode, h.format_id, h.completed_at, h.report_json, r.ranking_position
+    FROM ranked_records r
+    JOIN competition_history h ON h.id = r.competition_id
+    LEFT JOIN profiles p ON p.user_id = r.user_id
+    WHERE r.ranking_position <= 10
+    ORDER BY r.difficulty_id, r.category, r.ranking_position`).bind(...binds).all();
+  const records = rows.results.map((row: any) => {
+    const { report_json: reportJson, ...record } = row;
+    return {
+      ...record,
+      rank_position: Number(row.ranking_position),
+      player_card: recordPlayerCard(reportJson, String(row.player_id)),
+    };
+  });
+  return json({ records });
+}
+
+function recordPlayerCard(reportJson: unknown, playerId: string): Record<string, unknown> | null {
+  try {
+    const report: unknown = JSON.parse(String(reportJson ?? ''));
+    if (!report || typeof report !== 'object' || Array.isArray(report)) return null;
+    const snapshot = (report as Record<string, unknown>).historySnapshot;
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null;
+    const team = (snapshot as Record<string, unknown>).playerTeam;
+    if (!team || typeof team !== 'object' || Array.isArray(team)) return null;
+    const players = (team as Record<string, unknown>).players;
+    if (!Array.isArray(players)) return null;
+    const player = players.find(candidate => candidate && typeof candidate === 'object'
+      && !Array.isArray(candidate) && (candidate as Record<string, unknown>).id === playerId) as Record<string, unknown> | undefined;
+    if (!player) return null;
+
+    const stringFields = ['id', 'shortName', 'fullName', 'position', 'nation', 'club', 'season'];
+    const numberFields = ['overall', 'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'composure', 'vision'];
+    const validRarities = new Set(['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique']);
+    if (!stringFields.every(field => typeof player[field] === 'string')
+      || !numberFields.every(field => {
+        const value = player[field];
+        return typeof value === 'number' && Number.isFinite(value);
+      })
+      || !Array.isArray(player.traits) || !player.traits.every(trait => typeof trait === 'string')
+      || typeof player.rarity !== 'string' || !validRarities.has(player.rarity)
+      || (player.photoUrl !== undefined && player.photoUrl !== null && typeof player.photoUrl !== 'string')) return null;
+
+    const effectiveOverallByPlayerId = (snapshot as Record<string, unknown>).effectiveOverallByPlayerId;
+    const savedEffectiveOverall = effectiveOverallByPlayerId && typeof effectiveOverallByPlayerId === 'object' && !Array.isArray(effectiveOverallByPlayerId)
+      ? (effectiveOverallByPlayerId as Record<string, unknown>)[playerId]
+      : null;
+    const effectiveOverall = typeof savedEffectiveOverall === 'number' && Number.isFinite(savedEffectiveOverall)
+      ? Math.round(savedEffectiveOverall)
+      : legacyEffectiveOverall(report as Record<string, unknown>, snapshot as Record<string, unknown>, team as Record<string, unknown>, playerId);
+    return effectiveOverall !== null && effectiveOverall >= 1 && effectiveOverall <= 150
+      ? { ...player, overall: effectiveOverall }
+      : player;
+  } catch {
+    return null;
   }
-  return json({ records: Array.from(grouped.values()).flat() });
+}
+
+function legacyEffectiveOverall(
+  report: Record<string, unknown>,
+  snapshot: Record<string, unknown>,
+  teamRecord: Record<string, unknown>,
+  playerId: string,
+): number | null {
+  const players = teamRecord.players;
+  if (!Array.isArray(players) || players.length > 40) return null;
+
+  const season = report.season;
+  if (season && typeof season === 'object' && !Array.isArray(season)) {
+    const highest = (season as Record<string, unknown>).highestEffectiveOverall;
+    if (highest && typeof highest === 'object' && !Array.isArray(highest)) {
+      const saved = highest as Record<string, unknown>;
+      if (saved.playerId === playerId && typeof saved.value === 'number' && Number.isFinite(saved.value)) return Math.round(saved.value);
+    }
+  }
+
+  const teamId = typeof teamRecord.id === 'string' ? teamRecord.id : '';
+  const formatId = typeof snapshot.formatId === 'string' ? snapshot.formatId : '';
+  const finalResult = snapshot.finalResult && typeof snapshot.finalResult === 'object' && !Array.isArray(snapshot.finalResult)
+    ? snapshot.finalResult as Record<string, unknown>
+    : null;
+  const finalIncludesTeam = Boolean(finalResult && (finalResult.homeTeamId === teamId || finalResult.awayTeamId === teamId));
+  const isServerRecord = report.source === 'server';
+  const isLosing = isServerRecord
+    ? snapshot.championId !== teamId
+    : finalIncludesTeam && (finalResult!.homeTeamId === teamId
+      ? Number(finalResult!.homeGoals) < Number(finalResult!.awayGoals)
+      : Number(finalResult!.awayGoals) < Number(finalResult!.homeGoals));
+
+  try {
+    const effective = getTeamEffectiveStats(teamRecord as unknown as Team, {
+      playStyle: typeof snapshot.playStyle === 'string' ? snapshot.playStyle : undefined,
+      isKnockout: formatId !== 'league',
+      isFinal: isServerRecord || finalIncludesTeam,
+      isLosing,
+    });
+    const value = effective[playerId]?.overall;
+    return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadRecordHighlights(env: AccountEnv, userId: string): Promise<Record<string, unknown>[]> {
+  const rows = await env.DB.prepare(`WITH ranked_records AS (
+      SELECT r.id, r.user_id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
+             r.team_name_snapshot, r.crest_id_snapshot, r.created_at, r.competition_id,
+             ROW_NUMBER() OVER (
+               PARTITION BY r.category
+               ORDER BY r.value DESC, r.created_at ASC, r.id ASC
+             ) AS ranking_position,
+             ROW_NUMBER() OVER (
+               PARTITION BY r.category, r.user_id
+               ORDER BY r.value DESC, r.created_at ASC, r.id ASC
+             ) AS user_record_rank
+        FROM competition_records r
+       WHERE r.difficulty_id = 'immortal' AND r.verified = 1
+         AND r.category IN ('goals', 'assists', 'saves', 'effective_overall')
+    )
+    SELECT r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
+           r.team_name_snapshot, r.crest_id_snapshot,
+           p.display_name AS profile_display_name, p.avatar_key AS profile_avatar_key,
+           p.avatar_background_key AS profile_avatar_background_key, p.avatar_url AS profile_avatar_url,
+           h.mode, h.format_id, h.completed_at,
+           h.report_json, r.ranking_position AS rank_position
+      FROM ranked_records r
+      JOIN competition_history h ON h.id = r.competition_id
+      LEFT JOIN profiles p ON p.user_id = r.user_id
+     WHERE r.user_id = ? AND r.user_record_rank = 1
+     ORDER BY CASE r.category WHEN 'goals' THEN 1 WHEN 'assists' THEN 2 WHEN 'saves' THEN 3 ELSE 4 END`)
+    .bind(userId).all();
+  return rows.results.map((row: any) => {
+    const { report_json: reportJson, ...record } = row;
+    return {
+      ...record,
+      rank_position: Number(row.rank_position),
+      player_card: recordPlayerCard(reportJson, String(row.player_id)),
+    };
+  });
+}
+
+async function accountRecordHighlights(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  const records = await loadRecordHighlights(env, account.id);
+  return json({ records });
+}
+
+async function scoreLeaderboard(env: AccountEnv): Promise<Response> {
+  const pointExpression = "CASE WHEN json_valid(report_json) THEN COALESCE(CAST(json_extract(report_json, '$.competitionPoints') AS INTEGER), 0) ELSE 0 END";
+  const rows = await env.DB.prepare(`WITH totals AS (
+      SELECT user_id,
+        SUM(${pointExpression}) AS points,
+        SUM(CASE WHEN ${pointExpression} > 0 THEN 1 ELSE 0 END) AS scored_competitions,
+        SUM(champion) AS titles
+      FROM competition_history
+      GROUP BY user_id
+    )
+    SELECT p.username, p.display_name, p.avatar_key, p.avatar_background_key, p.avatar_url,
+      latest.team_name AS team_name_snapshot, latest.crest_id AS crest_id_snapshot,
+      totals.points, totals.scored_competitions, totals.titles
+    FROM totals
+    JOIN profiles p ON p.user_id = totals.user_id
+    LEFT JOIN competition_history latest ON latest.id = (
+      SELECT h.id FROM competition_history h
+      WHERE h.user_id = totals.user_id
+      ORDER BY h.completed_at DESC, h.id DESC
+      LIMIT 1
+    )
+    WHERE p.visibility = 'public' AND totals.points > 0
+    ORDER BY totals.points DESC, totals.titles DESC, totals.scored_competitions DESC, LOWER(p.username) ASC
+    LIMIT 10`).all();
+  const ranking = rows.results.map((row: any) => ({
+    ...row,
+    points: Number(row.points ?? 0),
+    scored_competitions: Number(row.scored_competitions ?? 0),
+    titles: Number(row.titles ?? 0),
+  }));
+  return json({ ranking });
+}
+
+async function scoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  const pointExpression = "CASE WHEN json_valid(report_json) THEN COALESCE(CAST(json_extract(report_json, '$.competitionPoints') AS INTEGER), 0) ELSE 0 END";
+  const row = await env.DB.prepare(`WITH totals AS (
+      SELECT user_id,
+        SUM(${pointExpression}) AS points,
+        SUM(CASE WHEN ${pointExpression} > 0 THEN 1 ELSE 0 END) AS scored_competitions,
+        SUM(champion) AS titles
+      FROM competition_history
+      GROUP BY user_id
+    ), ranked AS (
+      SELECT p.user_id,
+        ROW_NUMBER() OVER (
+          ORDER BY totals.points DESC, totals.titles DESC, totals.scored_competitions DESC, LOWER(p.username) ASC
+        ) AS position
+      FROM totals
+      JOIN profiles p ON p.user_id = totals.user_id
+      WHERE p.visibility = 'public' AND totals.points > 0
+    )
+    SELECT ranked.position,
+      COALESCE(totals.points, 0) AS points,
+      COALESCE(totals.scored_competitions, 0) AS scored_competitions,
+      COALESCE(totals.titles, 0) AS titles,
+      (SELECT COUNT(*) FROM ranked) AS participants
+    FROM (SELECT ? AS user_id) viewer
+    LEFT JOIN totals ON totals.user_id = viewer.user_id
+    LEFT JOIN ranked ON ranked.user_id = viewer.user_id`).bind(account.id).first<{
+      position: number | null;
+      points: number;
+      scored_competitions: number;
+      titles: number;
+      participants: number;
+    }>();
+
+  const position = row?.position == null ? null : Number(row.position);
+  const isListed = account.visibility === 'public';
+  return json({
+    position,
+    participants: Number(row?.participants ?? 0),
+    points: Number(row?.points ?? 0),
+    scored_competitions: Number(row?.scored_competitions ?? 0),
+    titles: Number(row?.titles ?? 0),
+    status: !isListed ? 'profile_not_public' : position === null ? 'no_points' : 'ranked',
+  });
 }
 
 async function friendsList(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
-  const rows = await env.DB.prepare(`SELECT f.id, f.status, f.requester_id, f.addressee_id, f.created_at, f.updated_at,
-    pr.username AS requester_username, pr.display_name AS requester_display_name, pr.avatar_key AS requester_avatar_key,
-    pa.username AS addressee_username, pa.display_name AS addressee_display_name, pa.avatar_key AS addressee_avatar_key
-    FROM friendships f
+  const now = Date.now();
+  const rows = await env.DB.prepare(`WITH presence_summary AS (
+      SELECT user_id,
+        MAX(CASE WHEN status IN ('available', 'busy') THEN 1 ELSE 0 END) AS is_online,
+        MAX(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS has_available_session,
+        MAX(CASE WHEN status = 'busy' THEN 1 ELSE 0 END) AS has_busy_session
+      FROM account_presence WHERE updated_at > ? GROUP BY user_id
+    ), friendship_rows AS (
+      SELECT f.id, f.status, f.requester_id, f.addressee_id, f.created_at, f.updated_at,
+        CASE WHEN f.requester_id = ? THEN f.addressee_id ELSE f.requester_id END AS friend_id
+      FROM friendships f
+      WHERE f.requester_id = ? OR f.addressee_id = ?
+    )
+    SELECT f.id, f.status, f.requester_id, f.addressee_id, f.created_at, f.updated_at,
+    pr.username AS requester_username, pr.display_name AS requester_display_name, pr.avatar_key AS requester_avatar_key, pr.avatar_background_key AS requester_avatar_background_key,
+    pa.username AS addressee_username, pa.display_name AS addressee_display_name, pa.avatar_key AS addressee_avatar_key, pa.avatar_background_key AS addressee_avatar_background_key,
+    COALESCE(ps.is_online, 0) AS is_online,
+    CASE WHEN COALESCE(ps.has_available_session, 0) = 1 AND COALESCE(ps.has_busy_session, 0) = 0 THEN 1 ELSE 0 END AS is_available,
+    COALESCE(ps.has_busy_session, 0) AS is_busy
+    FROM friendship_rows f
     JOIN profiles pr ON pr.user_id = f.requester_id
     JOIN profiles pa ON pa.user_id = f.addressee_id
-    WHERE f.requester_id = ? OR f.addressee_id = ? ORDER BY f.updated_at DESC`).bind(account.id, account.id).all();
-  return json({ friends: rows.results });
+    LEFT JOIN presence_summary ps ON ps.user_id = f.friend_id
+    ORDER BY f.updated_at DESC`).bind(now - ACCOUNT_PRESENCE_TTL_MS, account.id, account.id, account.id).all();
+  const friends = rows.results.map((row: any) => ({
+    ...row,
+    is_online: Boolean(row.is_online),
+    is_available: Boolean(row.is_available),
+    is_busy: Boolean(row.is_busy),
+  }));
+  return json({ friends });
+}
+
+async function updatePresence(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  const body = await readJson(request);
+  const presenceId = typeof body?.presenceId === 'string' ? body.presenceId : '';
+  const status = body?.status;
+  const revision = Number(body?.revision);
+  const statusChanged = body?.statusChanged === true;
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(presenceId)
+    || !['available', 'busy', 'away'].includes(String(status))
+    || !Number.isSafeInteger(revision) || revision < 1) {
+    return json({ error: 'invalid_presence' }, 400);
+  }
+
+  const now = Date.now();
+  if (revision === 1 || revision % 360 === 0) {
+    await env.DB.prepare('DELETE FROM account_presence WHERE user_id = ? AND updated_at <= ?')
+      .bind(account.id, now - 24 * 60 * 60 * 1000).run();
+  }
+  const updated = await env.DB.prepare(`INSERT INTO account_presence (user_id, presence_id, status, revision, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, presence_id) DO UPDATE SET
+      status = excluded.status, revision = excluded.revision, updated_at = excluded.updated_at
+    WHERE excluded.revision > account_presence.revision`)
+    .bind(account.id, presenceId, status, revision, now).run();
+  if (statusChanged && status !== 'available' && updated.meta.changes) {
+    const currentPresence = await env.DB.prepare(`SELECT
+        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'available' AND updated_at > ?) AS has_available_session,
+        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'busy' AND updated_at > ?) AS has_busy_session`)
+      .bind(account.id, now - ACCOUNT_PRESENCE_TTL_MS, account.id, now - ACCOUNT_PRESENCE_TTL_MS)
+      .first<{ has_available_session: number; has_busy_session: number }>();
+    if (!currentPresence?.has_available_session || currentPresence.has_busy_session) {
+      await env.DB.prepare(`UPDATE room_invitations SET status = 'expired', updated_at = ?
+        WHERE invitee_user_id = ? AND status = 'pending'`)
+        .bind(now, account.id).run();
+    }
+  }
+  return json({ ok: true });
+}
+
+async function roomInvitationsList(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  const now = Date.now();
+  await env.DB.prepare(`UPDATE room_invitations SET status = 'expired', updated_at = ?
+    WHERE invitee_user_id = ? AND status = 'pending' AND (expires_at <= ? OR created_at <= ?)`)
+    .bind(now, account.id, now, now - ROOM_INVITATION_TTL_MS).run();
+  const rows = await env.DB.prepare(`SELECT i.id, i.room_code, i.inviter_user_id, i.created_at, i.expires_at,
+      p.username AS inviter_username, p.display_name AS inviter_display_name, p.avatar_key AS inviter_avatar_key,
+      p.avatar_background_key AS inviter_avatar_background_key
+    FROM room_invitations i
+    JOIN profiles p ON p.user_id = i.inviter_user_id
+    WHERE i.invitee_user_id = ? AND i.status = 'pending' AND i.expires_at > ? AND i.created_at > ?
+    ORDER BY i.created_at DESC LIMIT 50`).bind(account.id, now, now - ROOM_INVITATION_TTL_MS).all();
+  return json({ invitations: rows.results });
+}
+
+async function roomInvitationDecline(env: AccountEnv, account: AuthenticatedAccount, id: string): Promise<Response> {
+  const now = Date.now();
+  const result = await env.DB.prepare(`UPDATE room_invitations
+    SET status = CASE WHEN expires_at <= ? OR created_at <= ? THEN 'expired' ELSE 'declined' END, updated_at = ?
+    WHERE id = ? AND invitee_user_id = ? AND status = 'pending'`)
+    .bind(now, now - ROOM_INVITATION_TTL_MS, now, id, account.id).run();
+  if (!result.meta.changes) return json({ error: 'room_invitation_not_found_or_expired' }, 404);
+  return json({ ok: true });
 }
 
 async function friendCreate(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
   const body = await readJson(request);
   const username = normalizeUsername(String(body?.username ?? ''));
-  if (!USERNAME_RE.test(username) || username === account.username) return json({ error: 'invalid_friend' }, 400);
+  if (!USERNAME_RE.test(username)) return json({ error: 'invalid_friend_username' }, 400);
+  if (username === account.username) return json({ error: 'cannot_add_self' }, 400);
   const target = await env.DB.prepare('SELECT user_id FROM profiles WHERE username = ?').bind(username).first<{ user_id: string }>();
   if (!target) return json({ error: 'user_not_found' }, 404);
   const existing = await env.DB.prepare(`SELECT id, requester_id, addressee_id, status FROM friendships
@@ -550,14 +931,23 @@ async function friendUpdate(request: Request, env: AccountEnv, account: Authenti
   return json({ ok: true });
 }
 
-async function publicProfile(env: AccountEnv, username: string): Promise<Response> {
+async function publicProfile(request: Request, env: AccountEnv, username: string): Promise<Response> {
   const row = await env.DB.prepare(`${ACCOUNT_SELECT} WHERE p.username = ?`).bind(normalizeUsername(username)).first<UserRow>();
   if (!row) return json({ error: 'user_not_found' }, 404);
   const account = accountFromRow(row);
-  if (account.visibility === 'private') return json({ error: 'profile_private' }, 403);
-  const records = await env.DB.prepare(`SELECT category, difficulty_id, player_id, player_name, player_photo_url, value, team_name_snapshot, crest_id_snapshot, created_at
-    FROM competition_records WHERE user_id = ? AND verified = 1 ORDER BY value DESC, created_at ASC LIMIT 20`).bind(account.id).all();
-  return json({ profile: publicAccount(account), records: records.results });
+  const viewer = await authenticatedAccount(request, env);
+  const isSelf = viewer?.id === account.id;
+  if (!isSelf && account.visibility === 'private') return json({ error: 'profile_private' }, 403);
+  if (!isSelf && account.visibility === 'friends') {
+    if (!viewer) return json({ error: 'profile_private' }, 403);
+    const friendship = await env.DB.prepare(`SELECT id FROM friendships
+      WHERE status = 'accepted'
+        AND ((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?))
+      LIMIT 1`).bind(viewer.id, account.id, account.id, viewer.id).first<{ id: string }>();
+    if (!friendship) return json({ error: 'profile_private' }, 403);
+  }
+  const records = await loadRecordHighlights(env, account.id);
+  return json({ profile: publicAccount(account), records });
 }
 
 export async function handleAccountRequest(request: Request, env: AccountEnv): Promise<Response | null> {
@@ -571,21 +961,37 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
   }
   if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
     const token = parseCookies(request)[SESSION_COOKIE];
-    if (token) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(token)).run();
+    if (token) {
+      const tokenHash = await sha256(token);
+      const session = await env.DB.prepare('SELECT user_id FROM sessions WHERE token_hash = ?').bind(tokenHash).first<{ user_id: string }>();
+      if (session) await env.DB.prepare('DELETE FROM account_presence WHERE user_id = ?').bind(session.user_id).run();
+      await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(tokenHash).run();
+    }
     return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', 0, !isLocalRequest(request)) });
   }
   if (url.pathname === '/api/records' && request.method === 'GET') return publicRecords(env, url);
-  if (url.pathname.startsWith('/api/users/') && request.method === 'GET') return publicProfile(env, decodeURIComponent(url.pathname.slice('/api/users/'.length)));
+  if (url.pathname === '/api/leaderboards/score' && request.method === 'GET') return scoreLeaderboard(env);
+  if (url.pathname.startsWith('/api/users/') && request.method === 'GET') return publicProfile(request, env, decodeURIComponent(url.pathname.slice('/api/users/'.length)));
 
   if (url.pathname.startsWith('/api/account')) {
     const account = await authenticatedAccount(request, env);
     if (!account) return json({ error: 'authentication_required' }, 401);
     if (url.pathname === '/api/account/profile' && request.method === 'GET') return json({ account: publicAccount(account) });
     if (url.pathname === '/api/account/profile' && request.method === 'PATCH') return profileUpdate(request, env, account);
+    if (url.pathname === '/api/account/leaderboards/score-position' && request.method === 'GET') return scoreLeaderboardPosition(env, account);
+    if (url.pathname === '/api/account/records' && request.method === 'GET') return accountRecordHighlights(env, account);
     if (url.pathname === '/api/account/history' && request.method === 'GET') return historyList(env, account);
     if (url.pathname === '/api/account/history' && request.method === 'POST') return historyCreate(request, env, account);
+    if (url.pathname === '/api/account/presence' && request.method === 'POST') return updatePresence(request, env, account);
     if (url.pathname === '/api/account/friends' && request.method === 'GET') return friendsList(env, account);
     if (url.pathname === '/api/account/friends' && request.method === 'POST') return friendCreate(request, env, account);
+    if (url.pathname === '/api/account/room-invitations' && request.method === 'GET') return roomInvitationsList(env, account);
+    const roomInvitationMatch = url.pathname.match(/^\/api\/account\/room-invitations\/([^/]+)$/);
+    if (roomInvitationMatch && request.method === 'PATCH') {
+      const body = await readJson(request);
+      if (body?.action !== 'decline') return json({ error: 'invalid_room_invitation_action' }, 400);
+      return roomInvitationDecline(env, account, roomInvitationMatch[1]);
+    }
     const friendMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)$/);
     if (friendMatch && request.method === 'PATCH') return friendUpdate(request, env, account, friendMatch[1]);
     return json({ error: 'not_found' }, 404);

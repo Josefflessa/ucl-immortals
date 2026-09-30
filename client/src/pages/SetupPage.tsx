@@ -4,11 +4,14 @@
 import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
+import { useAccount } from '../contexts/AccountContext';
+import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '../lib/gameData';
 import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 export default function SetupPage() {
   const { state, dispatch, createRoom } = useGame();
+  const { account } = useAccount();
   const isOnlineRoomCreation = state.onlineSetupIntent === 'create';
   const lastDifficultyClick = useRef<{ id: string; at: number } | null>(null);
 
@@ -40,12 +43,17 @@ export default function SetupPage() {
   };
 
   const handleBack = () => {
+    if (account) {
+      dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null });
+      dispatch({ type: 'SET_PHASE', phase: 'menu' });
+      return;
+    }
     dispatch({ type: 'SET_PHASE', phase: 'format' });
   };
 
   return (
     <AppShell>
-      <TopBar playerName={state.playerName} />
+      <TopBar right={<CompetitionExitControl />} />
 
       <PageContainer narrow className="flex min-h-[calc(100dvh-64px)] flex-col justify-center">
         <motion.div

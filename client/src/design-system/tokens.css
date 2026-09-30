@@ -885,6 +885,17 @@
   .ui-tab[data-active="true"],
   .ui-tab[data-state="active"] { color: var(--ui-brand-strong); border-color: var(--ui-brand); background: transparent !important; box-shadow: none; }
 
+  .ui-tabs--equal { gap: 0; }
+  .ui-tabs--equal > .ui-tab {
+    min-width: 0;
+    flex: 1 1 0;
+    justify-content: center;
+    overflow: hidden;
+    padding-inline: 4px;
+    text-align: center;
+    text-overflow: ellipsis;
+  }
+
   .ui-tab-panel { min-width: 0; }
 
   .ui-divider {

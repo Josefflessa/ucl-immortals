@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { GameProvider, useGame } from "./contexts/GameContext";
-import { AccountProvider } from "./contexts/AccountContext";
+import { AccountProvider, useAccount } from "./contexts/AccountContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
@@ -19,6 +19,8 @@ import LeaguePage from "./pages/LeaguePage";
 import ReportPage from "./pages/ReportPage";
 import MatchSimPage from "./pages/MatchSimPage";
 import AccountPage from "./pages/AccountPage";
+import { createCompetitionFormat } from "./lib/competition";
+import RoomInvitationPrompt from "./components/account/RoomInvitationPrompt";
 // Pré-carrega a moldura + texturas das cartas uma vez (cacheia; evita "flash" na primeira carta).
 ['card-frame', 'bg-bronze', 'bg-prata', 'bg-ouro', 'bg-lendario', 'bg-imortal'].forEach((n) => {
   const img = new Image();
@@ -91,7 +93,9 @@ function ModalScrollLock() {
 }
 
 function GameRouter() {
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
+  const { account } = useAccount();
+  const accountOnLegacySetup = !!account && (state.phase === 'format' || state.phase === 'setup');
 
   // Cada "página" é uma fase (state.phase). Ao trocar de fase, a janela mantinha o
   // scroll da fase anterior (ex.: rolou lá no fim do Escudo → o Treinador abria no meio).
@@ -99,6 +103,19 @@ function GameRouter() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [state.phase]);
+
+  useEffect(() => {
+    if (!accountOnLegacySetup) return;
+    dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null });
+    dispatch({ type: 'SET_DIFFICULTY', difficulty: 'immortal' });
+    dispatch({ type: 'SET_COMPETITION_FORMAT', format: createCompetitionFormat('league_knockout') });
+    dispatch({ type: 'SET_PHASE', phase: 'menu' });
+  }, [accountOnLegacySetup, dispatch]);
+
+  // The account mode has a fixed competition setup. If an old back button or
+  // restored state points at the guest-only format/difficulty pages, skip them
+  // immediately instead of briefly rendering controls that no longer apply.
+  if (accountOnLegacySetup) return <MenuPage />;
 
   switch (state.phase) {
     case 'menu':
@@ -131,6 +148,7 @@ function App() {
             <GameProvider>
               <ModalScrollLock />
               <GameRouter />
+              <RoomInvitationPrompt />
               <InstallPrompt />
             </GameProvider>
           </AccountProvider>

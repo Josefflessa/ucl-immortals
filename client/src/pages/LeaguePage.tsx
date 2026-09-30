@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
-import { Goal, Footprints, Star, Hand, Swords, UserPlus, LogOut, AlertTriangle } from 'lucide-react';
+import { Goal, Footprints, Star, Hand, Swords, UserPlus, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
 import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, statKey, PlayerSeasonStats } from '../lib/gameEngine';
@@ -24,7 +24,7 @@ import MissionResolutionModal from '../components/game/MissionResolutionModal';
 import TradeInviteModal from '../components/game/TradeInviteModal';
 import TradeNegotiationModal from '../components/game/TradeNegotiationModal';
 import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
-import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
+import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, bettingPayoutRulesForLevel } from '../lib/bets';
 import { bettingStakeCapBonus, projectLevel } from '../lib/clubProjects';
 import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
@@ -33,7 +33,7 @@ import { MAX_RESERVE_PLAYERS, reservePlayerCount } from '../lib/gameEngine';
 import type { MatchResult, Team } from '../lib/gameEngine';
 import type { Player } from '../lib/gameData';
 import { POS_PT } from '../lib/gameData';
-import { AppShell, Button, ConfirmDialog, GameModal, PageContainer, StatusBanner, Tab, TabList, Tabs, TopBar } from '../design-system';
+import { AppShell, Button, GameModal, PageContainer, StatusBanner, Tab, TabList, Tabs, TopBar } from '../design-system';
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 // Anti-spoiler placeholder: shown instead of position/standings/stats/bracket while other
@@ -52,11 +52,8 @@ function SpoilerLock({ waiting, label }: { waiting: number; label: string }) {
 }
 
 export default function LeaguePage() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, leaveRoomOnline, closeRoomOnline, restartRoomOnline, transferHostOnline, removePlayerOnline, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline, requestMatchResultOnline, dismissMissionResolutionOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline, requestMatchResultOnline, dismissMissionResolutionOnline } = useGame();
   const online = state.mode === 'online';
-  const [confirmAction, setConfirmAction] = useState<'room' | 'solo' | 'restart' | 'close' | null>(null);
-  const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
-  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   // A reward is acknowledged once per match. This also prevents an existing
   // online reward from reopening as soon as the page mounts or reconnects.
   const creditsSignature = state.lastMatchPoints
@@ -151,20 +148,6 @@ export default function LeaguePage() {
     return preloadPlayerPhotos(reinforcementPhotoKey.split('|'), true);
   }, [reinforcementPhotoKey]);
 
-  const handleLeaveSolo = () => {
-    setConfirmAction('solo');
-  };
-  const handleRoomAction = (action: RoomMenuAction) => {
-    setConfirmAction(action === 'leave' ? 'room' : action);
-  };
-  const handleTransferHost = (playerId: string) => {
-    const target = state.onlinePlayers.find(player => player.id === playerId);
-    if (target) setTransferTarget({ id: target.id, name: target.name });
-  };
-  const handleRemovePlayer = (playerId: string) => {
-    const target = state.onlinePlayers.find(player => player.id === playerId && player.id !== state.onlineHostId && !player.kicked);
-    if (target) setRemoveTarget({ id: target.id, name: target.name });
-  };
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market' | 'missions'>('fixtures');
@@ -643,27 +626,7 @@ export default function LeaguePage() {
                 <span className={`font-display text-xl ${qualifies ? 'text-[var(--ui-success)]' : 'text-[var(--ui-danger)]'}`}>{playerPosition}º</span>
               </div>
             )}
-            {online ? (
-              <RoomOptionsMenu
-                isHost={state.isHost}
-                onAction={handleRoomAction}
-                roomCode={state.roomCode}
-                players={state.onlinePlayers}
-                hostId={state.onlineHostId}
-                onTransferHost={handleTransferHost}
-                onRemovePlayer={handleRemovePlayer}
-              />
-            ) : (
-              <Button
-                type="button"
-                intent="ghost"
-                onClick={handleLeaveSolo}
-                title="Sair do jogo"
-                className="border border-[var(--ui-danger)]/30 text-[var(--ui-danger)]"
-              >
-                <LogOut size={13} /> <span className="hidden sm:inline">Sair</span>
-              </Button>
-            )}
+            <CompetitionExitControl />
           </div>
         }
       />
@@ -1964,54 +1927,6 @@ export default function LeaguePage() {
         </GameModal>
       )}
 
-      <ConfirmDialog
-        open={confirmAction !== null}
-        onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
-        title={confirmAction === 'room' ? 'Sair da sala?' : confirmAction === 'restart' ? 'Reiniciar competição?' : confirmAction === 'close' ? 'Encerrar sala?' : 'Sair do jogo?'}
-        description={confirmAction === 'room'
-          ? state.isHost
-            ? 'Você sairá da sala e o anfitrião passará imediatamente para outro jogador conectado.'
-            : 'Você deixará o torneio online. Para voltar, entre novamente com o mesmo código e nome enquanto a sala existir.'
-          : confirmAction === 'restart'
-            ? 'A competição será zerada para todos, mantendo os jogadores na sala.'
-            : confirmAction === 'close'
-              ? 'A sala será encerrada para todos e não poderá mais ser reaberta.'
-              : 'Você perderá o progresso desta temporada e voltará para a tela inicial.'}
-        confirmLabel={confirmAction === 'room' ? 'Sair da sala' : confirmAction === 'restart' ? 'Reiniciar' : confirmAction === 'close' ? 'Encerrar sala' : 'Sair do jogo'}
-        onConfirm={() => {
-          if (confirmAction === 'room') leaveRoomOnline();
-          if (confirmAction === 'restart') restartRoomOnline();
-          if (confirmAction === 'close') closeRoomOnline();
-          if (confirmAction === 'solo') dispatch({ type: 'RESET_GAME' });
-          setConfirmAction(null);
-        }}
-      />
-
-      <ConfirmDialog
-        open={transferTarget !== null}
-        onOpenChange={(open) => { if (!open) setTransferTarget(null); }}
-        title="Transferir anfitrião?"
-        description={`A partir de agora, ${transferTarget?.name ?? 'esse jogador'} controlará o início, reinício e encerramento da sala.`}
-        confirmLabel="Transferir host"
-        intent="primary"
-        onConfirm={() => {
-          if (transferTarget) transferHostOnline(transferTarget.id);
-          setTransferTarget(null);
-        }}
-      />
-
-      <ConfirmDialog
-        open={removeTarget !== null}
-        onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}
-        title="Remover jogador?"
-        description={`${removeTarget?.name ?? 'Esse jogador'} será removido imediatamente da sala e não poderá reconectar usando este dispositivo.`}
-        confirmLabel="Remover jogador"
-        intent="danger"
-        onConfirm={() => {
-          if (removeTarget) removePlayerOnline(removeTarget.id);
-          setRemoveTarget(null);
-        }}
-      />
     </AppShell>
   );
 }

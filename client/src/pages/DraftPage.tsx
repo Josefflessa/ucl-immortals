@@ -6,6 +6,7 @@ import { useGame } from '../contexts/GameContext';
 import PlayerCard from '../components/game/PlayerCard';
 import PlayerPortrait from '../components/game/PlayerPortrait';
 import FormationField from '../components/game/FormationField';
+import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { Ban } from 'lucide-react';
 import { FORMATIONS, COACHES, Player, POS_PT } from '../lib/gameData';
 import { getTraitInfo, traitEffectLabel } from '../lib/traits';
@@ -392,7 +393,6 @@ export default function DraftPage() {
       {/* Top Header */}
       <TopBar
         title={`DRAFT${isOnline ? ' ONLINE' : ''}`}
-        playerName={state.playerName}
         right={(
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden items-center gap-2 sm:flex">
@@ -411,6 +411,7 @@ export default function DraftPage() {
                 <Ban size={14} /> VETAR ({vetoesLeft})
               </Button>
             )}
+            <CompetitionExitControl />
           </div>
         )}
       />

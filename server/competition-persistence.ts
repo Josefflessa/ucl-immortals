@@ -1,5 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats } from '../client/src/lib/gameEngine.js';
+import { generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats } from '../client/src/lib/gameEngine.js';
+import { competitionRankingPoints } from '../client/src/lib/competitionRanking.js';
 import type { MatchResult, PlayerCard, Team } from '../client/src/lib/gameEngine.js';
 import type { RoomPlayer, RoomState } from './handlers.js';
 
@@ -34,6 +35,39 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
   if (participants.length === 0) return;
 
   const results = getAllPlayedMatchResults(room.leagueResults, room.knockoutBracket);
+  const allTeams = [...humanTeams(room).map(({ team }) => team), ...room.botTeams];
+  const allSeasonRows = allTeams.flatMap(team => team.players.map(card => ({
+    card,
+    team,
+    stats: getPlayerSeasonStats(card.id, team.id, results),
+  })));
+  const leader = (metric: 'goals' | 'assists' | 'ratingAvg') => {
+    const minimumPlayed = metric === 'ratingAvg' ? 3 : 0;
+    const minimumValue = metric === 'ratingAvg' ? -Infinity : 1;
+    const row = allSeasonRows
+      .filter(candidate => candidate.stats.played >= minimumPlayed && candidate.stats[metric] > minimumValue)
+      .sort((a, b) => b.stats[metric] - a.stats[metric])[0];
+    return row ? {
+      player: {
+        id: row.card.id,
+        shortName: row.card.shortName,
+        photoUrl: row.card.photoUrl,
+        rarity: row.card.rarity,
+      },
+      teamName: row.team.name,
+      value: row.stats[metric],
+      ...(metric === 'ratingAvg' ? { played: row.stats.played } : {}),
+    } : null;
+  };
+  const leaders = {
+    topScorer: leader('goals'),
+    topRating: leader('ratingAvg'),
+    topAssister: leader('assists'),
+  };
+  const championTeam = allTeams.find(team => team.id === room.champion);
+  const championPlayer = room.players.find(player => player.id === room.champion);
+  const championName = championTeam?.name ?? championPlayer?.name ?? (room.champion ? 'Campeão' : '');
+  const finalResult: MatchResult | undefined = room.knockoutBracket?.final?.result;
   const sourceKey = `online:${room.code}:${room.roomEpoch}`;
   const accountIds = participants.map(({ player }) => player.accountId!);
   const profiles = await env.DB.prepare(`SELECT user_id, username FROM profiles WHERE user_id IN (${accountIds.map(() => '?').join(',')})`)
@@ -68,11 +102,31 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       isFinal: true,
       isLosing: room.champion !== team.id,
     });
+    const effectiveOverallByPlayerId = Object.fromEntries(team.players.map(card => [
+      card.id,
+      Math.round(effective[card.id]?.overall ?? card.overall),
+    ]));
     const topEffective = allPlayers
       .map(card => ({ card, value: Math.round(effective[card.id]?.overall ?? card.overall) }))
       .sort((a, b) => b.value - a.value)[0];
     const champion = room.champion === team.id;
+    const competitionPoints = competitionRankingPoints(team.id, room.champion, room.knockoutBracket);
     const historyId = `cmp_${crypto.randomUUID().replaceAll('-', '')}`;
+    const playerFinalResult = finalResult && (finalResult.homeTeamId === team.id || finalResult.awayTeamId === team.id)
+      ? {
+          homeTeamId: finalResult.homeTeamId,
+          awayTeamId: finalResult.awayTeamId,
+          homeGoals: finalResult.homeGoals,
+          awayGoals: finalResult.awayGoals,
+          winner: finalResult.winner,
+        }
+      : null;
+    const playStyle = finalResult
+      ? finalResult.events
+        .filter(event => event.type === 'tactic' && event.teamId === team.id && event.tacticAction)
+        .sort((a, b) => a.minute - b.minute)
+        .at(-1)?.tacticAction ?? team.playStyle
+      : team.playStyle;
     const report = {
       version: 1,
       source: 'server',
@@ -83,11 +137,31 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       goals,
       goalsAgainst,
       champion,
+      competitionPoints,
       season: {
         topScorer: topGoals ? { playerId: topGoals.card.id, playerName: topGoals.card.shortName, value: topGoals.stats.goals } : null,
         topAssister: topAssists ? { playerId: topAssists.card.id, playerName: topAssists.card.shortName, value: topAssists.stats.assists } : null,
         topSaver: topSaves ? { playerId: topSaves.card.id, playerName: topSaves.card.shortName, value: topSaves.stats.saves } : null,
         highestEffectiveOverall: topEffective ? { playerId: topEffective.card.id, playerName: topEffective.card.shortName, value: topEffective.value } : null,
+      },
+      historySnapshot: {
+        version: 1,
+        playerTeam: team,
+        effectiveOverallByPlayerId,
+        matches: played.map(result => ({
+          homeTeamId: result.homeTeamId,
+          awayTeamId: result.awayTeamId,
+          homeGoals: result.homeGoals,
+          awayGoals: result.awayGoals,
+          winner: result.winner,
+        })),
+        championId: room.champion,
+        championName,
+        formatId: room.competitionFormat.id,
+        finalResult: playerFinalResult,
+        playStyle,
+        report: generateImmortalReport(team, results, championName),
+        leaders,
       },
     };
     await env.DB.prepare(`INSERT INTO competition_history

@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   username TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
   bio TEXT NOT NULL DEFAULT '',
-  avatar_key TEXT NOT NULL DEFAULT 'default-01',
+  avatar_key TEXT NOT NULL DEFAULT 'mark-evans',
   cover_key TEXT NOT NULL DEFAULT 'cover-01',
   favorite_crest_id TEXT,
   visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'friends', 'private')),
