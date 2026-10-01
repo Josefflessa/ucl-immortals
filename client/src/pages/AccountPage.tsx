@@ -429,7 +429,7 @@ function CareerFinishBreakdown({ counts }: { counts: AccountStats['finishCounts'
 
 export default function AccountPage() {
   const { state, dispatch } = useGame();
-  const { account, loading, login, register, updateProfile, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, refresh, login, register, updateProfile, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
@@ -457,6 +457,7 @@ export default function AccountPage() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [pointsInfoOpen, setPointsInfoOpen] = useState(false);
   const initializedAccountId = useRef<string | null>(null);
+  const profileStatsRefreshAccountId = useRef<string | null>(null);
   const friendProfileRequestId = useRef(0);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [appearanceTab, setAppearanceTab] = useState<'avatar' | 'cover'>('avatar');
@@ -479,6 +480,7 @@ export default function AccountPage() {
   useEffect(() => {
     if (!account) {
       initializedAccountId.current = null;
+      profileStatsRefreshAccountId.current = null;
       return;
     }
     if (initializedAccountId.current === account.id) return;
@@ -503,6 +505,10 @@ export default function AccountPage() {
         .finally(() => { if (active) setHistoryLoading(false); });
     }
     if (tab === 'profile' && account) {
+      if (profileStatsRefreshAccountId.current !== account.id) {
+        profileStatsRefreshAccountId.current = account.id;
+        void refresh();
+      }
       setScorePosition(null);
       setScorePositionLoading(true);
       void getScoreLeaderboardPosition().then(setScorePosition).catch(err => setError(err.message)).finally(() => setScorePositionLoading(false));
@@ -522,7 +528,7 @@ export default function AccountPage() {
       void getFriends().then(setFriends).catch(err => setError(err.message)).finally(() => setFriendsLoading(false));
     }
     return () => { active = false; };
-  }, [tab, account, historyPage, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getFriends]);
+  }, [tab, account, historyPage, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getFriends, refresh]);
 
   const submitAuth = async () => {
     setBusy(true); setError(''); setNotice('');
