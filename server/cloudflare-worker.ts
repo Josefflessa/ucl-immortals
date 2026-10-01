@@ -806,7 +806,20 @@ export class GameRoom {
         if (checkpoint) this.enqueueCheckpoint(checkpoint);
         const committedRoom = this.runtime.rooms.get(this.roomCode);
         if (snapshot.room?.phase !== 'report' && committedRoom?.phase === 'report') {
-          this.state.waitUntil(persistCompletedCompetition(this.env, committedRoom).catch(error => {
+          const completedRoom = cloneRoomJson(committedRoom);
+          this.state.waitUntil((async () => {
+            let lastError: unknown;
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              try {
+                await persistCompletedCompetition(this.env, completedRoom);
+                return;
+              } catch (error) {
+                lastError = error;
+                if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+              }
+            }
+            throw lastError;
+          })().catch(error => {
             console.error('[account] não foi possível salvar o encerramento online:', { roomCode: this.roomCode, error });
           }));
         }

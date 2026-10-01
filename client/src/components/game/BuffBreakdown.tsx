@@ -6,7 +6,7 @@
 // the match engine actually uses.
 import { EffectiveStats, ChemLinkType, CharBoost, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, mercenarioStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { getTacticById, Player } from '../../lib/gameData';
-import { getCardVariant } from './PlayerCard';
+import { getCardVariants } from './PlayerCard';
 
 const ATTR_PT: Record<string, string> = {
   pace: 'RIT', shooting: 'FIN', passing: 'PAS', dribbling: 'DRI', defending: 'DEF', physical: 'FIS',
@@ -53,6 +53,158 @@ function Row({ icon, name, color, children }: { icon: string; name: string; colo
   );
 }
 
+type VariantEffectChip = { text: string; color: string };
+
+function specialVariantDetails({ variant, player, charBoost, isStarter, credits, inactive }: {
+  variant: ReturnType<typeof getCardVariants>[number];
+  player: Player;
+  charBoost?: CharBoost;
+  isStarter?: boolean;
+  credits?: number;
+  inactive: boolean;
+}): { chips: VariantEffectChip[]; description: string } {
+  const green = '#22C55E';
+  const red = '#EF4444';
+  const color = variant.color === '#FFFFFF' ? '#E5E7EB' : variant.color;
+  const prodigioStarts = player.prodigioStarts ?? 0;
+  const goleadorGoals = player.goleadorGoals ?? 0;
+  const garcomAssists = player.garcomAssists ?? 0;
+  const arroganteGoals = player.arroganteGoals ?? 0;
+  const arroganteBoost = arroganteStatBoost(arroganteGoals);
+  const arrogantePenalty = arroganteTeamPenalty(arroganteGoals);
+  const mercenarioMissions = player.mercenarioMissions ?? 0;
+  const currentCredits = Math.max(0, credits ?? 0);
+  const colecionadorBoost = charBoost?.sources.find(source => source.type === 'colecionador')?.flatAll;
+
+  switch (variant.key) {
+    case 'inForm':
+      return { chips: [{ text: `+${INFORM_STAT_BOOST} EM CADA ATRIBUTO`, color }], description: `A carta recebe +${INFORM_STAT_BOOST} em cada atributo; esse bônus já está incluído no geral e nos atributos impressos.` };
+    case 'lobo':
+      return { chips: [
+        { text: `+${LOBO_STAT_BOOST} EM CADA ATRIBUTO`, color },
+        { text: '−12 QUÍMICA GERAL DO TIME', color: red },
+      ], description: `Recebe +${LOBO_STAT_BOOST} em cada atributo, já incluídos nos valores da carta, mas reduz em 12 a química geral do time.` };
+    case 'coringa':
+      return { chips: [{ text: 'IMUNE A FORA-DE-POSIÇÃO', color }], description: 'Pode jogar em qualquer posição sem penalidade de posição ou de química. No gol, ainda sofre a penalidade de aptidão por ser jogador de linha.' };
+    case 'nomade':
+      return { chips: [{ text: 'QUALQUER NAÇÃO NA QUÍMICA', color }], description: 'Forma vínculos de química como se fosse de qualquer nação.' };
+    case 'pilar':
+      return { chips: [{ text: '+12 QUÍMICA GERAL DO TIME', color }], description: 'Aumenta em 12 a química geral do time enquanto estiver na escalação.' };
+    case 'martir':
+      return { chips: [
+        { text: '−6 EM CADA ATRIBUTO', color: red },
+        { text: `+${MARTIR_TARGET_BOOST} EM TUDO A 2 TITULARES`, color: green },
+      ], description: `Sacrifica 6 em cada atributo e concede +${MARTIR_TARGET_BOOST} em tudo a dois titulares escolhidos.` };
+    case 'idolo':
+      return { chips: [{ text: '+2 EM TUDO AOS OUTROS DO MESMO CLUBE', color: green }], description: 'Concede +2 em cada atributo aos outros titulares do mesmo clube; o próprio Ídolo não recebe esse bônus.' };
+    case 'decimoHomem':
+      return {
+        chips: [inactive
+          ? { text: 'SEM EFEITO — PRECISA ESTAR NO BANCO', color: red }
+          : { text: `+${DECIMO_HOMEM_STAT_BOOST} EM TUDO AO TIME (NO BANCO)`, color: green }],
+        description: `Só funciona no banco: concede +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time.`,
+      };
+    case 'pipoqueiro':
+      return { chips: [
+        { text: `+${PIPOQUEIRO_LEAGUE_BOOST} EM TUDO NA FASE DE LIGA`, color: green },
+        { text: `−${PIPOQUEIRO_KO_PENALTY} EM TUDO NO MATA-MATA`, color: red },
+      ], description: `Recebe +${PIPOQUEIRO_LEAGUE_BOOST} em cada atributo na fase de liga e −${PIPOQUEIRO_KO_PENALTY} no mata-mata.` };
+    case 'noe':
+      return {
+        chips: inactive
+          ? [{ text: isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — NÃO É O ÚNICO C/ CARACTERÍSTICA', color: red }]
+          : [
+            { text: `+${NOE_STAT_BOOST} EM TUDO`, color: green },
+            { text: `+${NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color },
+          ],
+        description: `Só funciona enquanto for o único titular com característica: recebe +${NOE_STAT_BOOST} em tudo e dá +${NOE_CHEM_BONUS} de química geral ao time.`,
+      };
+    case 'forasteiro':
+      return {
+        chips: inactive
+          ? [{ text: isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — COMPARTILHA PAÍS OU CLUBE', color: red }]
+          : [{ text: '+8 EM TUDO', color: green }],
+        description: 'Recebe +8 em cada atributo quando é o único titular do seu país e do seu clube.'
+      };
+    case 'colecionador':
+      return {
+        chips: colecionadorBoost === undefined ? [] : [{ text: `+${colecionadorBoost} EM TUDO`, color }],
+        description: 'Ganha +1 em cada atributo por jogador que estiver na reserva.',
+      };
+    case 'estribado':
+      return { chips: [{ text: `+${estribadoStatBoost(currentCredits)} EM CADA ATRIBUTO (${currentCredits} CRÉDITOS · 1 A CADA ${ESTRIBADO_CREDITS_PER_BOOST})`, color }], description: `A cada ${ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis, ganha +1 em cada atributo. Saldo atual: ${currentCredits} créditos.` };
+    case 'todosPorUm':
+      return {
+        chips: inactive
+          ? [{ text: 'SEM EFEITO — OS 11 TITULARES PRECISAM TER', color: red }]
+          : [{ text: `+${TODOS_POR_UM_STAT_BOOST} EM TUDO · +${TODOS_POR_UM_CHEM_BONUS} QUÍMICA GERAL`, color: green }],
+        description: `Só funciona quando os 11 titulares têm a característica: todos recebem +${TODOS_POR_UM_STAT_BOOST} em tudo e o time ganha +${TODOS_POR_UM_CHEM_BONUS} de química geral.`,
+      };
+    case 'capitaoNato':
+      return { chips: [{ text: 'BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)', color: '#F97316' }], description: 'Se for escolhido como capitão, dobra o bônus de capitão que concede a todo o time.' };
+    case 'magnata':
+      return { chips: [
+        { text: 'CRÉDITOS DA PARTIDA ×1,5 (TITULAR)', color: green },
+        { text: '−7 EM TUDO', color: red },
+      ], description: 'Como titular, multiplica por 1,5 os créditos da partida; em troca, perde 7 em cada atributo.' };
+    case 'fragil':
+      return { chips: [
+        { text: `+${FRAGIL_STAT_BOOST} EM TUDO`, color: '#F59E0B' },
+        { text: 'RISCO DE LESÃO MUITO MAIOR', color: red },
+      ], description: `Recebe +${FRAGIL_STAT_BOOST} em todos os atributos, mas fica muito mais sujeito a lesões.` };
+    case 'prodigio': {
+      const boost = prodigioStatBoost(prodigioStarts);
+      return { chips: [{ text: `+${boost} EM CADA ATRIBUTO (${prodigioStarts} TITULARIDADE${prodigioStarts === 1 ? '' : 'S'} · 1 A CADA ${PRODIGIO_STARTS_PER_BOOST})`, color: '#FDE047' }], description: `Ganha +1 em todos os atributos a cada ${PRODIGIO_STARTS_PER_BOOST} titularidades. Já acumulou ${prodigioStarts}; bônus atual: +${boost}.` };
+    }
+    case 'resiliente': {
+      const defeats = player.resilienteDefeats ?? 0;
+      return { chips: [{ text: `+${defeats * RESILIENTE_DEFEAT_BOOST} EM CADA ATRIBUTO (${defeats} DERROTA${defeats === 1 ? '' : 'S'} COMO TITULAR)`, color: '#FB7185' }], description: `Ganha +${RESILIENTE_DEFEAT_BOOST} em todos os atributos a cada derrota do time enquanto for titular. Acumulado: ${defeats} derrota${defeats === 1 ? '' : 's'}.` };
+    }
+    case 'goleador': {
+      const boost = goleadorStatBoost(goleadorGoals);
+      return { chips: [{ text: `+${boost} EM CADA ATRIBUTO (${goleadorGoals} GOL${goleadorGoals === 1 ? '' : 'S'} · 1 A CADA ${GOLEADOR_GOALS_PER_BOOST})`, color: '#F97316' }], description: `Ganha +1 em todos os atributos a cada ${GOLEADOR_GOALS_PER_BOOST} gols. Já marcou ${goleadorGoals}; bônus atual: +${boost}.` };
+    }
+    case 'garcom': {
+      const boost = garcomStatBoost(garcomAssists);
+      return { chips: [{ text: `+${boost} EM CADA ATRIBUTO (${garcomAssists} ASSISTÊNCIA${garcomAssists === 1 ? '' : 'S'} · 1 A CADA ${GARCOM_ASSISTS_PER_BOOST})`, color: '#38BDF8' }], description: `Ganha +1 em todos os atributos a cada ${GARCOM_ASSISTS_PER_BOOST} assistências. Já deu ${garcomAssists}; bônus atual: +${boost}.` };
+    }
+    case 'arrogante':
+      return { chips: [{ text: `+${arroganteBoost} EM TUDO · −${arrogantePenalty} NOS OUTROS (${arroganteGoals} GOL${arroganteGoals === 1 ? '' : 'S'} · 1 PENALIDADE A CADA ${ARROGANTE_GOALS_PER_PENALTY})`, color: '#E879F9' }], description: `Ganha +2 em tudo por gol. A cada ${ARROGANTE_GOALS_PER_PENALTY} gols, os outros titulares perdem −1 em tudo. Já marcou ${arroganteGoals}; bônus próprio +${arroganteBoost}, penalidade atual −${arrogantePenalty}.` };
+    case 'mercenario': {
+      const boost = mercenarioStatBoost(mercenarioMissions);
+      return { chips: [{ text: `+${boost} EM CADA ATRIBUTO (${mercenarioMissions} ${mercenarioMissions === 1 ? 'MISSÃO' : 'MISSÕES'} · +${MERCENARIO_STAT_BOOST_PER_MISSION} POR MISSÃO)`, color: '#F59E0B' }], description: `Ganha +${MERCENARIO_STAT_BOOST_PER_MISSION} em todos os atributos por missão concluída. Já concluiu ${mercenarioMissions} ${mercenarioMissions === 1 ? 'missão' : 'missões'}; bônus atual: +${boost}.` };
+    }
+    default:
+      return { chips: [], description: '' };
+  }
+}
+
+function SpecialVariantRow({ variant, player, charBoost, isStarter, credits }: {
+  variant: ReturnType<typeof getCardVariants>[number];
+  player: Player;
+  charBoost?: CharBoost;
+  isStarter?: boolean;
+  credits?: number;
+}) {
+  const inactive = variant.key === 'decimoHomem' ? isStarter === true
+    : variant.key === 'noe' ? !charBoost?.sources.some(source => source.type === 'noe')
+      : variant.key === 'forasteiro' ? !charBoost?.sources.some(source => source.type === 'forasteiro')
+        : variant.key === 'todosPorUm' ? !charBoost?.sources.some(source => source.type === 'todosPorUm')
+          : false;
+  const title = variant.key === 'decimoHomem' ? `${variant.label} ${inactive ? '(INATIVO — ESTÁ JOGANDO)' : '(ATIVO — NO BANCO)'}`
+    : ['noe', 'forasteiro', 'todosPorUm'].includes(variant.key) ? `${variant.label} ${inactive ? '(INATIVO)' : '(ATIVO)'}`
+      : variant.label;
+  const color = inactive ? '#6A6A7A' : (variant.color === '#FFFFFF' ? '#E5E7EB' : variant.color);
+  const details = specialVariantDetails({ variant, player, charBoost, isStarter, credits, inactive });
+
+  return (
+    <Row icon={variant.icon} name={title} color={color}>
+      {details.chips.length > 0 && <div className="flex flex-wrap gap-1">{details.chips.map((chip, index) => <Chip key={`${variant.key}-${index}`} text={chip.text} color={chip.color} />)}</div>}
+      {details.description && <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{details.description}</div>}
+    </Row>
+  );
+}
+
 // Visual por tipo de característica de time (fonte do bônus).
 const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> = {
   martir: { icon: '🩸', label: 'MÁRTIR', color: '#B91C1C' },
@@ -66,14 +218,6 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
 };
 
 export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter, formationRole, credits, playStyle }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean; formationRole?: string; credits?: number; playStyle?: string }) {
-  // 🪑 12º Homem só rende NO BANCO — se estiver jogando, fica sem efeito. Sinaliza esse estado
-  // (é a única característica cujo efeito liga/desliga de um jeito contraintuitivo).
-  const decimoInactive = !!player?.decimoHomem && isStarter === true;
-  // 🛟 Noé · 🧳 Forasteiro — condicionais: só valem quando a condição do XI bate. A fonte só entra
-  // em charBoost quando está ATIVO, então a ausência dela = INATIVO agora.
-  const noeInactive = !!player?.noe && !charBoost?.sources.some(s => s.type === 'noe');
-  const forasteiroInactive = !!player?.forasteiro && !charBoost?.sources.some(s => s.type === 'forasteiro');
-  const todosPorUmInactive = !!player?.todosPorUm && !charBoost?.sources.some(s => s.type === 'todosPorUm');
   const chemNet = ATTRS.reduce((s, a) => s + eff.breakdown[a].chem, 0);
   const coach = collect(eff, b => b.coach);
   const traitDeltas = collect(eff, b => b.trait);
@@ -91,25 +235,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
   const showChem = chemNet !== 0 || !!chem;
   const showTraits = (traits && traits.length > 0) || traitDeltas.length > 0;
-  // Special draft variant (em alta / lobo / coringa / nômade / pilar) — surfaced here so its
-  // effect is visible. The stat boost (em alta / lobo) lives in the BASE stats, so it never
-  // shows as a per-stat delta below; the chem effects (coringa/nômade/pilar/lobo) live in the team total.
-  const variant = player ? getCardVariant(player) : null;
-  const variantBoost = player?.baseOverall !== undefined ? (player.overall - player.baseOverall) : (player?.inForm ? INFORM_STAT_BOOST : player?.lobo ? LOBO_STAT_BOOST : 0);
-  const variantColor = variant?.color === '#FFFFFF' ? '#E5E7EB' : (variant?.color ?? '#9AA8C8');
-  const prodigioStarts = player?.prodigioStarts ?? 0;
-  const prodigioBoost = prodigioStatBoost(prodigioStarts);
-  const goleadorGoals = player?.goleadorGoals ?? 0;
-  const goleadorBoost = goleadorStatBoost(goleadorGoals);
-  const garcomAssists = player?.garcomAssists ?? 0;
-  const garcomBoost = garcomStatBoost(garcomAssists);
-  const arroganteGoals = player?.arroganteGoals ?? 0;
-  const arroganteBoost = arroganteStatBoost(arroganteGoals);
-  const arrogantePenalty = arroganteTeamPenalty(arroganteGoals);
-  const mercenarioMissions = player?.mercenarioMissions ?? 0;
-  const mercenarioBoost = mercenarioStatBoost(mercenarioMissions);
-  const currentCredits = Math.max(0, credits ?? 0);
-  const estribadoBoost = estribadoStatBoost(currentCredits);
+  // Uma carta Única pode ter duas características; cada uma recebe sua própria linha e explicação.
+  const variants = player ? getCardVariants(player) : [];
   const isOutfieldInGoal = !!player && isOutfieldGoalkeeper(player, formationRole);
   const goalkeeperDefDelta = eff.breakdown.defending.goalkeeper;
   const goalkeeperDefBefore = eff.defending - goalkeeperDefDelta;
@@ -121,7 +248,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolution.length > 0 || position.length > 0 || char.length > 0 || !!variant || isOutfieldInGoal;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolution.length > 0 || position.length > 0 || char.length > 0 || variants.length > 0 || isOutfieldInGoal;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -138,77 +265,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
         </div>
       ) : (
         <div className="divide-y" style={{ borderColor: '#141422' }}>
-          {/* SPECIAL DRAFT VARIANT — em alta / lobo / coringa / nômade / pilar. Stat boosts live in
-              the base stats and chem effects in the team total, so neither shows as a delta above. */}
-          {variant && player && (
-            <Row icon={variant.icon}
-              name={variant.key === 'decimoHomem' ? `12º HOMEM ${decimoInactive ? '(INATIVO — ESTÁ JOGANDO)' : '(ATIVO — NO BANCO)'}`
-                : variant.key === 'noe' ? `NOÉ ${noeInactive ? '(INATIVO)' : '(ATIVO)'}`
-                : variant.key === 'forasteiro' ? `FORASTEIRO ${forasteiroInactive ? '(INATIVO)' : '(ATIVO)'}`
-                    : variant.key === 'todosPorUm' ? `TODOS POR UM ${todosPorUmInactive ? '(INATIVO)' : '(ATIVO)'}`
-                      : `${variant.label} (CARTA ESPECIAL)`}
-              color={(decimoInactive || noeInactive || forasteiroInactive || todosPorUmInactive) ? '#6A6A7A' : variantColor}>
-              <div className="flex flex-wrap gap-1">
-                {variantBoost > 0 && !player.fragil && <Chip text={`+${variantBoost} EM CADA ATRIBUTO`} color={variantColor} />}
-                {player.martir && <Chip text="−6 EM CADA ATRIBUTO" color="#EF4444" />}
-                {player.martir && <Chip text={`+${MARTIR_TARGET_BOOST} EM TUDO A 2 TITULARES`} color="#22C55E" />}
-                {player.idolo && <Chip text="+2 EM TUDO AOS OUTROS DO MESMO CLUBE (NÃO A ELE)" color="#22C55E" />}
-                {player.decimoHomem && !decimoInactive && <Chip text={`+${DECIMO_HOMEM_STAT_BOOST} EM TUDO AO TIME (NO BANCO)`} color="#22C55E" />}
-                {player.decimoHomem && decimoInactive && <Chip text="SEM EFEITO — PRECISA ESTAR NO BANCO" color="#EF4444" />}
-                {player.pipoqueiro && <Chip text={`+${PIPOQUEIRO_LEAGUE_BOOST} EM TUDO NA LIGA`} color="#22C55E" />}
-                {player.pipoqueiro && <Chip text={`−${PIPOQUEIRO_KO_PENALTY} EM TUDO NO MATA-MATA`} color="#EF4444" />}
-                {player.noe && !noeInactive && <Chip text={`+${NOE_STAT_BOOST} EM TUDO`} color="#22C55E" />}
-                {player.noe && !noeInactive && <Chip text={`+${NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`} color={variantColor} />}
-                {player.noe && noeInactive && <Chip text={isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — NÃO É O ÚNICO C/ CARACTERÍSTICA'} color="#EF4444" />}
-                {player.forasteiro && !forasteiroInactive && <Chip text="+8 EM TUDO" color="#22C55E" />}
-                {player.forasteiro && forasteiroInactive && <Chip text={isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — COMPARTILHA PAÍS OU CLUBE'} color="#EF4444" />}
-                {player.colecionador && charBoost?.sources.find(s => s.type === 'colecionador') && <Chip text={`+${charBoost.sources.find(s => s.type === 'colecionador')?.flatAll ?? 0} EM TUDO`} color="#C084FC" />}
-                {player.capitaoNato && <Chip text="🗣️ BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)" color="#F97316" />}
-                {player.magnata && <Chip text="🤑 CRÉDITOS DA PARTIDA ×1,5 (TITULAR)" color="#16A34A" />}
-                {player.magnata && <Chip text="−7 EM TUDO" color="#EF4444" />}
-                {player.fragil && <Chip text={`+${FRAGIL_STAT_BOOST} EM TUDO`} color="#F59E0B" />}
-                {player.fragil && <Chip text="RISCO DE LESÃO MUITO MAIOR" color="#EF4444" />}
-                {player.prodigio && <Chip text={`+${prodigioBoost} EM CADA ATRIBUTO (${prodigioStarts} TITULARIDADE${prodigioStarts === 1 ? '' : 'S'} · 1 A CADA ${PRODIGIO_STARTS_PER_BOOST})`} color="#FDE047" />}
-                {player.resiliente && <Chip text={`+${(player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST} EM CADA ATRIBUTO (${player.resilienteDefeats ?? 0} DERROTA${(player.resilienteDefeats ?? 0) === 1 ? '' : 'S'} COMO TITULAR)`} color="#FB7185" />}
-                {player.goleador && <Chip text={`+${goleadorBoost} EM CADA ATRIBUTO (${goleadorGoals} GOL${goleadorGoals === 1 ? '' : 'S'} · 1 A CADA ${GOLEADOR_GOALS_PER_BOOST})`} color="#F97316" />}
-                {player.garcom && <Chip text={`+${garcomBoost} EM CADA ATRIBUTO (${garcomAssists} ASSISTÊNCIA${garcomAssists === 1 ? '' : 'S'} · 1 A CADA ${GARCOM_ASSISTS_PER_BOOST})`} color="#38BDF8" />}
-                {player.arrogante && <Chip text={`+${arroganteBoost} EM TUDO · −${arrogantePenalty} NOS OUTROS (${arroganteGoals} GOL${arroganteGoals === 1 ? '' : 'S'} · 1 PENALIDADE A CADA ${ARROGANTE_GOALS_PER_PENALTY})`} color="#E879F9" />}
-                {player.mercenario && <Chip text={`+${mercenarioBoost} EM CADA ATRIBUTO (${mercenarioMissions} ${mercenarioMissions === 1 ? 'MISSÃO' : 'MISSÕES'} · +${MERCENARIO_STAT_BOOST_PER_MISSION} POR MISSÃO)`} color="#F59E0B" />}
-                {player.estribado && <Chip text={`+${estribadoBoost} EM CADA ATRIBUTO (${currentCredits} CRÉDITOS · 1 A CADA ${ESTRIBADO_CREDITS_PER_BOOST})`} color="#FACC15" />}
-                {player.todosPorUm && !todosPorUmInactive && <Chip text={`+${TODOS_POR_UM_STAT_BOOST} EM TUDO · +${TODOS_POR_UM_CHEM_BONUS} QUÍMICA GERAL`} color="#4ADE80" />}
-                {player.todosPorUm && todosPorUmInactive && <Chip text="SEM EFEITO — OS 11 TITULARES PRECISAM TER" color="#EF4444" />}
-                {player.lobo && <Chip text="−12 QUÍMICA GERAL DO TIME" color="#EF4444" />}
-                {player.pilar && <Chip text="+12 QUÍMICA GERAL DO TIME" color={variantColor} />}
-                {player.coringa && <Chip text="IMUNE A FORA-DE-POSIÇÃO" color={variantColor} />}
-                {player.nomade && <Chip text="QUALQUER NAÇÃO NA QUÍMICA" color={variantColor} />}
-              </div>
-              <div className="text-[9px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                {player.coringa ? 'Joga em qualquer posição sem penalidade de posição ou química. No gol, ainda sofre a penalidade de aptidão de goleiro por ser jogador de linha.'
-                  : player.nomade ? 'Forma vínculo de química com jogadores de qualquer nação.'
-                    : player.pilar ? 'Eleva a QUÍMICA GERAL do time (o número total) só por estar na escalação.'
-                      : player.lobo ? 'Boost individual forte — mas reduz a QUÍMICA GERAL do time (o número total).'
-                          : player.decimoHomem ? `No banco, dá +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time. Jogando, não tem efeito.`
-                          : player.idolo ? 'Dá +2 em cada atributo aos OUTROS titulares do mesmo clube — não a ele mesmo.'
-                            : player.martir ? `−6 em cada atributo nele (já no valor base); em troca, dá +${MARTIR_TARGET_BOOST} em tudo a 2 titulares escolhidos.`
-                              : player.pipoqueiro ? `+${PIPOQUEIRO_LEAGUE_BOOST} em tudo na FASE DE LIGA, mas −${PIPOQUEIRO_KO_PENALTY} em tudo no MATA-MATA. Craque de campeonato que some no jogo grande.`
-                                : player.noe ? `Só rende enquanto for o ÚNICO titular com característica: +${NOE_STAT_BOOST} em tudo nele e +${NOE_CHEM_BONUS} na química geral (põe o time inteiro na arca). Qualquer outro especial no XI desliga.`
-                                  : player.forasteiro ? 'Quando é o ÚNICO do seu país E do seu clube no XI, ganha +8 em tudo — transforma a química baixa em vantagem.'
-                                    : player.colecionador ? 'Ganha +1 em tudo por cada jogador que estiver na reserva.'
-                                    : player.capitaoNato ? 'Se for o CAPITÃO do time, o bônus de capitão (a melhor stat dele, dada a todos) vem DOBRADO.'
-                                        : player.magnata ? 'Como titular, multiplica os créditos da partida por 1,5 na liga e no mata-mata — em troca de −7 em cada atributo nele.'
-                                          : player.fragil ? `Ganha +${FRAGIL_STAT_BOOST} em todos os atributos, mas aumenta drasticamente a chance de se machucar.`
-                                            : player.prodigio ? `+1 em todos os atributos a cada ${PRODIGIO_STARTS_PER_BOOST} ${PRODIGIO_STARTS_PER_BOOST === 1 ? 'partida' : 'partidas'} iniciada${PRODIGIO_STARTS_PER_BOOST === 1 ? '' : 's'} como titular (${prodigioStarts} titularidade${prodigioStarts === 1 ? '' : 's'}; bônus atual +${prodigioBoost}).`
-                                            : player.resiliente ? `A cada derrota do time em que for titular, ganha +${RESILIENTE_DEFEAT_BOOST} em todos os atributos. Já acumulou ${player.resilienteDefeats ?? 0} derrota${(player.resilienteDefeats ?? 0) === 1 ? '' : 's'} como titular.`
-                                                : player.goleador ? `A cada ${GOLEADOR_GOALS_PER_BOOST} gols marcados, ganha +1 em todos os atributos. Já marcou ${goleadorGoals} gol${goleadorGoals === 1 ? '' : 's'} e o bônus atual é +${goleadorBoost}.`
-                                                  : player.garcom ? `A cada ${GARCOM_ASSISTS_PER_BOOST} assistências dadas, ganha +1 em todos os atributos. Já deu ${garcomAssists} assistência${garcomAssists === 1 ? '' : 's'} e o bônus atual é +${garcomBoost}.`
-                                                    : player.arrogante ? `Ganha +2 em todos os atributos por gol. A cada ${ARROGANTE_GOALS_PER_PENALTY} gols, os outros titulares perdem −1 em tudo. Já marcou ${arroganteGoals} gol${arroganteGoals === 1 ? '' : 's'}; bônus próprio +${arroganteBoost} e penalidade atual −${arrogantePenalty}.`
-                                     : player.mercenario ? `Ganha +${MERCENARIO_STAT_BOOST_PER_MISSION} em todos os atributos por missão concluída. Já concluiu ${mercenarioMissions} ${mercenarioMissions === 1 ? 'missão' : 'missões'}; bônus atual +${mercenarioBoost}.`
-                                     : player.estribado ? `A cada ${ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis, ganha +1 em todos os atributos. Saldo atual: ${currentCredits} créditos; bônus atual +${estribadoBoost}.`
-                                       : player.todosPorUm ? `Só funciona quando os 11 titulares têm a característica: todos recebem +${TODOS_POR_UM_STAT_BOOST} em tudo e o time ganha +${TODOS_POR_UM_CHEM_BONUS} de química geral.`
-                                         : 'Já no valor base — por isso não aparece como delta acima.'}
-              </div>
-            </Row>
-          )}
+          {variants.map(variant => player && <SpecialVariantRow key={variant.key} variant={variant} player={player} charBoost={charBoost} isStarter={isStarter} credits={credits} />)}
 
           {/* INDIVIDUAL CHEMISTRY — the multiplier AND why (connections / out-of-position) */}
           {showChem && (
@@ -386,7 +443,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 </Row>
               );
             })
-            : char.length > 0 && !variant && (
+            : char.length > 0 && variants.length === 0 && (
               <Row icon="🤝" name="CARACTERÍSTICA DO TIME" color="#F472B6">
                 <div className="flex flex-wrap gap-1">{chips(char, '#F472B6')}</div>
               </Row>

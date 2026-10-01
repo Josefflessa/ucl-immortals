@@ -104,7 +104,7 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
 
 export default function ReportPage({ historyEntry, historySnapshot: providedSnapshot, onHistoryBack }: ReportPageProps = {}) {
   const { state, dispatch, leaveRoomOnline } = useGame();
-  const { account, saveHistory } = useAccount();
+  const { account, saveHistory, markCompetitionCompleted } = useAccount();
   const historySnapshot = providedSnapshot ?? (historyEntry ? getCompetitionHistorySnapshot(historyEntry.report) : null);
   const { localTeamId: liveTeamId, allTeams: allTeamsForStats } = useTeams();
   const report = historySnapshot ? historySnapshot.report : state.report;
@@ -301,6 +301,19 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     return { candidates, totalAssists: localSeasonRows.reduce((sum, row) => sum + row.stats.assists, 0), totalSaves: localSeasonRows.reduce((sum, row) => sum + row.stats.saves, 0) };
   }, [effectiveStatsById, localSeasonRows]);
   const soloHistoryKey = useRef<string | null>(null);
+  const soloSaveAttemptKey = useRef<string | null>(null);
+  const reportDataInvalidated = useRef(false);
+  const [historySaveStatus, setHistorySaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [historySaveError, setHistorySaveError] = useState('');
+  const [historySaveRetry, setHistorySaveRetry] = useState(0);
+
+  useEffect(() => {
+    if (reportDataInvalidated.current || historyEntry || historySnapshot || !account || !playerTeam || games === 0) return;
+    reportDataInvalidated.current = true;
+    // Invalidate profile/history reads as soon as a new final report appears.
+    // Online campaigns are persisted by the room server; solo saves below.
+    markCompetitionCompleted();
+  }, [account, games, historyEntry, historySnapshot, markCompetitionCompleted, playerTeam]);
 
   useEffect(() => {
     // Solo campaigns are not authoritative public records, but an account can
@@ -308,6 +321,11 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     // are persisted by the room server at the report transition.
     if (historyEntry || historySnapshot || !account || state.mode !== 'solo' || !playerTeam || games === 0) return;
     if (!soloHistoryKey.current) soloHistoryKey.current = `solo:${crypto.randomUUID()}`;
+    const attemptKey = `${soloHistoryKey.current}:${historySaveRetry}`;
+    if (soloSaveAttemptKey.current === attemptKey) return;
+    soloSaveAttemptKey.current = attemptKey;
+    setHistorySaveStatus('saving');
+    setHistorySaveError('');
     void saveHistory({
       mode: 'solo',
       difficultyId: state.difficulty,
@@ -370,8 +388,14 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         },
       },
       records: soloRecordCandidates.candidates,
-    }).catch(error => console.error('[account] não foi possível salvar o histórico solo:', error));
-  }, [account, champion, championName, effectiveStatsById, games, historyEntry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
+    }).then(() => {
+      setHistorySaveStatus('saved');
+    }).catch(error => {
+      console.error('[account] não foi possível salvar o histórico solo:', error);
+      setHistorySaveError(error instanceof Error ? error.message : 'Não foi possível salvar a competição agora.');
+      setHistorySaveStatus('error');
+    });
+  }, [account, champion, championName, effectiveStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
 
   if (historyEntry && !historySnapshot) {
     return <LegacyHistoryReport entry={historyEntry} onBack={onHistoryBack} />;
@@ -390,6 +414,30 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           </Button>
         ) : undefined}
       />
+
+      {!historyEntry && account && state.mode === 'solo' && games > 0 && historySaveStatus !== 'idle' && (
+        <div className="mx-auto w-full max-w-5xl px-4 pt-3" aria-live="polite">
+          <div
+            role={historySaveStatus === 'error' ? 'alert' : 'status'}
+            className="flex flex-col gap-2 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            style={{
+              borderColor: historySaveStatus === 'error' ? '#7F1D1D' : historySaveStatus === 'saved' ? '#166534' : '#3F3F46',
+              background: historySaveStatus === 'error' ? '#2A1015' : historySaveStatus === 'saved' ? '#0C1F16' : '#111118',
+            }}
+          >
+            <div className="text-sm" style={{ color: historySaveStatus === 'error' ? '#FCA5A5' : historySaveStatus === 'saved' ? '#86EFAC' : '#D4D4D8' }}>
+              {historySaveStatus === 'saving' ? 'Salvando histórico, recordes e dados do perfil…'
+                : historySaveStatus === 'saved' ? 'Competição salva. Histórico, recordes e perfil foram atualizados.'
+                  : `Não foi possível salvar esta competição. ${historySaveError}`}
+            </div>
+            {historySaveStatus === 'error' && (
+              <Button type="button" intent="ghost" onClick={() => setHistorySaveRetry(retry => retry + 1)} className="shrink-0 border border-red-900/70 text-red-200 hover:bg-red-950/60">
+                TENTAR NOVAMENTE
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── HERO: Champion or Runner-up ────────────────────────────────────── */}
       <div className="relative z-10 flex flex-col items-center justify-center py-10 sm:py-14 px-4 text-center">

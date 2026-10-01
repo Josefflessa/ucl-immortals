@@ -429,8 +429,9 @@ function CareerFinishBreakdown({ counts }: { counts: AccountStats['finishCounts'
 
 export default function AccountPage() {
   const { state, dispatch } = useGame();
-  const { account, loading, refresh, login, register, updateProfile, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, refreshProfileIfStale, login, register, updateProfile, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
+  const accountId = account?.id ?? null;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotal, setHistoryTotal] = useState(0);
@@ -456,8 +457,6 @@ export default function AccountPage() {
   const [ownRecordsLoading, setOwnRecordsLoading] = useState(false);
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [pointsInfoOpen, setPointsInfoOpen] = useState(false);
-  const initializedAccountId = useRef<string | null>(null);
-  const profileStatsRefreshAccountId = useRef<string | null>(null);
   const friendProfileRequestId = useRef(0);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [appearanceTab, setAppearanceTab] = useState<'avatar' | 'cover'>('avatar');
@@ -478,20 +477,10 @@ export default function AccountPage() {
   const [authForm, setAuthForm] = useState({ username: '', displayName: '', password: '' });
 
   useEffect(() => {
-    if (!account) {
-      initializedAccountId.current = null;
-      profileStatsRefreshAccountId.current = null;
-      return;
-    }
-    if (initializedAccountId.current === account.id) return;
-    initializedAccountId.current = account.id;
-  }, [account]);
-
-  useEffect(() => {
     setError('');
     setNotice('');
     let active = true;
-    if (tab === 'history' && account) {
+    if (tab === 'history' && accountId) {
       setHistoryLoading(true);
       void getHistory(historyPage)
         .then(result => {
@@ -504,11 +493,10 @@ export default function AccountPage() {
         .catch(err => { if (active) setError(err.message); })
         .finally(() => { if (active) setHistoryLoading(false); });
     }
-    if (tab === 'profile' && account) {
-      if (profileStatsRefreshAccountId.current !== account.id) {
-        profileStatsRefreshAccountId.current = account.id;
-        void refresh();
-      }
+    if (tab === 'profile' && accountId) {
+      void refreshProfileIfStale().then(refreshed => {
+        if (active && !refreshed) setError('Não foi possível atualizar os dados do perfil. Tente abrir esta aba novamente.');
+      });
       setScorePosition(null);
       setScorePositionLoading(true);
       void getScoreLeaderboardPosition().then(setScorePosition).catch(err => setError(err.message)).finally(() => setScorePositionLoading(false));
@@ -523,12 +511,12 @@ export default function AccountPage() {
       void getRecords({ difficulty: 'immortal' }).then(setRecords).catch(err => setError(err.message)).finally(() => setLeaderboardLoading(false));
       void getScoreLeaderboard().then(setScoreRanking).catch(err => setError(err.message)).finally(() => setScoreLoading(false));
     }
-    if (tab === 'friends' && account) {
+    if (tab === 'friends' && accountId) {
       setFriendsLoading(true);
       void getFriends().then(setFriends).catch(err => setError(err.message)).finally(() => setFriendsLoading(false));
     }
     return () => { active = false; };
-  }, [tab, account, historyPage, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getFriends, refresh]);
+  }, [tab, accountId, historyPage, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getFriends, refreshProfileIfStale]);
 
   const submitAuth = async () => {
     setBusy(true); setError(''); setNotice('');

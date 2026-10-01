@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Player } from '../lib/gameData';
 
 export interface AccountStats {
@@ -166,7 +166,9 @@ export interface RoomInvitationEntry {
 interface AccountContextValue {
   account: AccountProfile | null;
   loading: boolean;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<boolean>;
+  refreshProfileIfStale: () => Promise<boolean>;
+  markCompetitionCompleted: () => void;
   login: (username: string, password: string) => Promise<AccountProfile>;
   register: (username: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -208,6 +210,20 @@ interface AccountContextValue {
 
 const AccountContext = createContext<AccountContextValue | null>(null);
 
+interface AccountReadCache {
+  revision: number;
+  historyByPage: Map<number, CompetitionHistoryPage>;
+  historyRequests: Map<number, Promise<CompetitionHistoryPage>>;
+  ownRecordHighlights?: ProfileRecordEntry[];
+  ownRecordHighlightsRequest?: Promise<ProfileRecordEntry[]>;
+  scoreLeaderboardPosition?: ScoreLeaderboardPosition;
+  scoreLeaderboardPositionRequest?: Promise<ScoreLeaderboardPosition>;
+}
+
+function emptyAccountReadCache(): AccountReadCache {
+  return { revision: 0, historyByPage: new Map(), historyRequests: new Map() };
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -225,13 +241,14 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const body = await response.json().catch(() => null) as { message?: string; error?: string } & T;
   if (!response.ok) {
-    if (body?.message || body?.error) throw new Error(body.message || body.error);
+    const withStatus = (message: string) => Object.assign(new Error(message), { status: response.status });
+    if (body?.message || body?.error) throw withStatus(body.message || body.error!);
     const isLocal = typeof window !== 'undefined'
       && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     if (isLocal && response.status >= 500) {
-      throw new Error('O servidor local falhou. Confirme se o Worker está rodando com pnpm dev:all.');
+      throw withStatus('O servidor local falhou. Confirme se o Worker está rodando com pnpm dev:all.');
     }
-    throw new Error(`Não foi possível concluir essa ação (erro ${response.status}).`);
+    throw withStatus(`Não foi possível concluir essa ação (erro ${response.status}).`);
   }
   return body;
 }
@@ -239,18 +256,51 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const readCaches = useRef(new Map<string, AccountReadCache>());
+  const profileStatsDirty = useRef(new Set<string>());
+  const accountId = account?.id ?? null;
+
+  const readCacheFor = useCallback((userId: string) => {
+    let cache = readCaches.current.get(userId);
+    if (!cache) {
+      cache = emptyAccountReadCache();
+      readCaches.current.set(userId, cache);
+    }
+    return cache;
+  }, []);
+
+  const markCompetitionCompleted = useCallback(() => {
+    if (!accountId) return;
+    const cache = readCacheFor(accountId);
+    cache.revision += 1;
+    cache.historyByPage.clear();
+    cache.historyRequests.clear();
+    cache.ownRecordHighlights = undefined;
+    cache.ownRecordHighlightsRequest = undefined;
+    cache.scoreLeaderboardPosition = undefined;
+    cache.scoreLeaderboardPositionRequest = undefined;
+    profileStatsDirty.current.add(accountId);
+  }, [accountId, readCacheFor]);
 
   const refresh = useCallback(async () => {
     try {
       const result = await api<{ account: AccountProfile | null }>('/api/auth/me');
       setAccount(result.account);
+      return true;
     } catch {
-      // A conta é opcional: falha de rede não deve impedir o modo convidado.
-      setAccount(null);
+      // Falha transitória de rede não deve desconectar uma conta já carregada.
+      return false;
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const refreshProfileIfStale = useCallback(async () => {
+    if (!accountId || !profileStatsDirty.current.has(accountId)) return true;
+    const refreshed = await refresh();
+    if (refreshed && accountId === account?.id) profileStatsDirty.current.delete(accountId);
+    return refreshed;
+  }, [account?.id, accountId, refresh]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -259,6 +309,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
+    readCaches.current.delete(result.account.id);
+    profileStatsDirty.current.delete(result.account.id);
     setAccount(result.account);
     return result.account;
   }, []);
@@ -272,8 +324,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await api('/api/auth/logout', { method: 'POST', body: '{}' });
+    if (accountId) {
+      readCaches.current.delete(accountId);
+      profileStatsDirty.current.delete(accountId);
+    }
     setAccount(null);
-  }, []);
+  }, [accountId]);
 
   const updateProfile = useCallback(async (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'coverKey' | 'favoriteCrestId'>>) => {
     const result = await api<{ account: AccountProfile }>('/api/account/profile', { method: 'PATCH', body: JSON.stringify(patch) });
@@ -282,13 +338,38 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getHistory = useCallback(async (page = 1) => {
-    const result = await api<CompetitionHistoryPage>(`/api/account/history?page=${encodeURIComponent(String(page))}`);
-    return result;
-  }, []);
+    const cache = accountId ? readCacheFor(accountId) : null;
+    const cached = cache?.historyByPage.get(page);
+    if (cached) return cached;
+    const revision = cache?.revision;
+    const request = cache?.historyRequests.get(page) ?? api<CompetitionHistoryPage>(`/api/account/history?page=${encodeURIComponent(String(page))}`);
+    if (cache && !cache.historyRequests.has(page)) cache.historyRequests.set(page, request);
+    try {
+      const result = await request;
+      if (cache && cache.revision === revision) cache.historyByPage.set(page, result);
+      return result;
+    } finally {
+      if (cache?.historyRequests.get(page) === request) cache.historyRequests.delete(page);
+    }
+  }, [accountId, readCacheFor]);
 
   const saveHistory = useCallback(async (payload: Parameters<AccountContextValue['saveHistory']>[0]) => {
-    return api<{ id: string; duplicate: boolean }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
-  }, []);
+    let result: { id: string; duplicate: boolean } | null = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        result = await api<{ id: string; duplicate: boolean }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
+        break;
+      } catch (error) {
+        const status = (error as Error & { status?: number }).status;
+        const retryable = status === undefined || status >= 500;
+        if (!retryable || attempt === 2) throw error;
+        await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 400 : 1200));
+      }
+    }
+    if (!result) throw new Error('Não foi possível confirmar o salvamento da competição.');
+    markCompetitionCompleted();
+    return result;
+  }, [markCompetitionCompleted]);
 
   const getRecords = useCallback(async (filters: { category?: string; difficulty?: string } = {}) => {
     const params = new URLSearchParams();
@@ -299,18 +380,49 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getOwnRecordHighlights = useCallback(async () => {
-    const result = await api<{ records: ProfileRecordEntry[] }>('/api/account/records');
-    return result.records;
-  }, []);
+    const cache = accountId ? readCacheFor(accountId) : null;
+    if (cache?.ownRecordHighlights) return cache.ownRecordHighlights;
+    const revision = cache?.revision;
+    const request = cache?.ownRecordHighlightsRequest
+      ?? api<{ records: ProfileRecordEntry[] }>('/api/account/records').then(result => result.records);
+    if (cache && !cache.ownRecordHighlightsRequest) cache.ownRecordHighlightsRequest = request;
+    try {
+      const records = await request;
+      if (cache && cache.revision === revision) cache.ownRecordHighlights = records;
+      return records;
+    } finally {
+      if (cache?.ownRecordHighlightsRequest === request) cache.ownRecordHighlightsRequest = undefined;
+    }
+  }, [accountId, readCacheFor]);
 
   const getScoreLeaderboard = useCallback(async () => {
     const result = await api<{ ranking: ScoreLeaderboardEntry[] }>('/api/leaderboards/score');
+    // A fresh global ranking can change this user's current place too. Keep the
+    // profile position invalidated until the profile requests it again.
+    if (accountId) {
+      const cache = readCacheFor(accountId);
+      cache.revision += 1;
+      cache.scoreLeaderboardPosition = undefined;
+      cache.scoreLeaderboardPositionRequest = undefined;
+    }
     return result.ranking;
-  }, []);
+  }, [accountId, readCacheFor]);
 
   const getScoreLeaderboardPosition = useCallback(async () => {
-    return api<ScoreLeaderboardPosition>('/api/account/leaderboards/score-position');
-  }, []);
+    const cache = accountId ? readCacheFor(accountId) : null;
+    if (cache?.scoreLeaderboardPosition) return cache.scoreLeaderboardPosition;
+    const revision = cache?.revision;
+    const request = cache?.scoreLeaderboardPositionRequest
+      ?? api<ScoreLeaderboardPosition>('/api/account/leaderboards/score-position');
+    if (cache && !cache.scoreLeaderboardPositionRequest) cache.scoreLeaderboardPositionRequest = request;
+    try {
+      const result = await request;
+      if (cache && cache.revision === revision) cache.scoreLeaderboardPosition = result;
+      return result;
+    } finally {
+      if (cache?.scoreLeaderboardPositionRequest === request) cache.scoreLeaderboardPositionRequest = undefined;
+    }
+  }, [accountId, readCacheFor]);
 
   const getPublicProfile = useCallback(async (username: string) => {
     return api<PublicProfileData>(`/api/users/${encodeURIComponent(username)}`);
@@ -356,9 +468,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, login, register, logout, updateProfile, getHistory, saveHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile,
+    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile,
     getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, login, register, logout, updateProfile, getHistory, saveHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

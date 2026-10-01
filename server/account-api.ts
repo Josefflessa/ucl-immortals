@@ -511,29 +511,19 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   const placement = body.placement == null ? null : Math.max(1, Math.min(999, Number(body.placement)) || 1);
   const crestId = body.crestId ? String(body.crestId).slice(0, 80) : null;
   const coachId = body.coachId ? String(body.coachId).slice(0, 80) : null;
-  try {
-    await env.DB.prepare(`INSERT INTO competition_history
+  const statements = [env.DB.prepare(`INSERT INTO competition_history
       (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, competition_points, report_json, source_key, completed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, account.id, mode, difficultyId, formatId, teamName, crestId, coachId, champion, placement, competitionPoints, reportJson, sourceKey, now).run();
-  } catch (error) {
-    if (sourceKey) {
-      const existing = await env.DB.prepare('SELECT id FROM competition_history WHERE user_id = ? AND source_key = ?')
-        .bind(account.id, sourceKey).first<{ id: string }>();
-      if (existing) return json({ id: existing.id, duplicate: true });
-    }
-    throw error;
-  }
+      .bind(id, account.id, mode, difficultyId, formatId, teamName, crestId, coachId, champion, placement, competitionPoints, reportJson, sourceKey, now)];
   for (const record of safeRecords) {
     const playerCard = recordPlayerCard(reportJson, record.playerId);
-    await env.DB.prepare(`INSERT INTO competition_records
+    statements.push(env.DB.prepare(`INSERT INTO competition_records
       (id, competition_id, user_id, category, difficulty_id, player_id, player_name, player_photo_url, value,
        username_snapshot, team_name_snapshot, crest_id_snapshot, mode, format_id, completed_at, player_card_json, verified, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
       .bind(`rec_${randomToken(12)}`, id, account.id, record.category, difficultyId, record.playerId, record.playerName,
         record.playerPhotoUrl, record.value, account.username, teamName, crestId, mode, formatId, now,
-        playerCard ? JSON.stringify(playerCard) : null, now)
-      .run();
+        playerCard ? JSON.stringify(playerCard) : null, now));
   }
   const reportValues = report as Record<string, unknown>;
   const safeStat = (key: string, max: number) => {
@@ -541,7 +531,7 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     return Number.isSafeInteger(value) ? Math.max(0, Math.min(max, value)) : 0;
   };
   const effectiveRecord = safeRecords.find(record => record.category === 'effective_overall');
-  await env.DB.prepare(`INSERT INTO profile_stats
+  statements.push(env.DB.prepare(`INSERT INTO profile_stats
     (user_id, competitions_completed, titles, wins, draws, losses, goals, assists, saves, highest_effective_overall, highest_difficulty_id, updated_at)
     VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
@@ -556,8 +546,22 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
       highest_effective_overall = MAX(profile_stats.highest_effective_overall, excluded.highest_effective_overall),
       highest_difficulty_id = CASE WHEN excluded.highest_effective_overall > profile_stats.highest_effective_overall THEN excluded.highest_difficulty_id ELSE profile_stats.highest_difficulty_id END,
       updated_at = excluded.updated_at`)
-    .bind(account.id, champion, safeStat('wins', 999), safeStat('draws', 999), safeStat('losses', 999), safeStat('goals', 9999), safeStat('assists', 9999), safeStat('saves', 9999), effectiveRecord?.value ?? 0, effectiveRecord ? difficultyId : null, now)
-    .run();
+    .bind(account.id, champion, safeStat('wins', 999), safeStat('draws', 999), safeStat('losses', 999), safeStat('goals', 9999), safeStat('assists', 9999), safeStat('saves', 9999), effectiveRecord?.value ?? 0, effectiveRecord ? difficultyId : null, now));
+  try {
+    // History, record entries, and profile aggregates must commit together so
+    // an automatic retry cannot leave partial competition data behind.
+    await env.DB.batch(statements);
+  } catch (error) {
+    if (sourceKey) {
+      const existing = await env.DB.prepare('SELECT id FROM competition_history WHERE user_id = ? AND source_key = ?')
+        .bind(account.id, sourceKey).first<{ id: string }>();
+      if (existing) {
+        await retainRecentCompetitionSnapshots(env.DB, account.id);
+        return json({ id: existing.id, duplicate: true });
+      }
+    }
+    throw error;
+  }
   await retainRecentCompetitionSnapshots(env.DB, account.id);
   return json({ id, duplicate: false }, 201);
 }

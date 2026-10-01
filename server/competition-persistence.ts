@@ -82,7 +82,10 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
     const existing = await env.DB.prepare('SELECT id FROM competition_history WHERE user_id = ? AND source_key = ?')
       .bind(accountId, sourceKey)
       .first<{ id: string }>();
-    if (existing) continue;
+    if (existing) {
+      await retainRecentCompetitionSnapshots(env.DB, accountId);
+      continue;
+    }
 
     const played = teamResults(team.id, results);
     const wins = played.filter(result => result.winner === team.id).length;
@@ -165,11 +168,11 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
         leaders,
       },
     };
-    await env.DB.prepare(`INSERT INTO competition_history
+    const statements = [env.DB.prepare(`INSERT INTO competition_history
       (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, report_json, source_key, completed_at)
       VALUES (?, ?, 'online', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(historyId, accountId, room.difficulty, room.competitionFormat.id, team.name, team.crestId ?? null, team.coachId ?? null, champion ? 1 : 0, placementFor(room, team.id), JSON.stringify(report), sourceKey, now)
-      .run();
+    ];
 
     const username = usernames.get(accountId) ?? player.name;
     const records: Array<[string, PlayerCard, number] | null> = [
@@ -181,17 +184,16 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
     for (const record of records) {
       if (!record) continue;
       const [category, card, value] = record;
-      await env.DB.prepare(`INSERT INTO competition_records
+      statements.push(env.DB.prepare(`INSERT INTO competition_records
         (id, competition_id, user_id, category, difficulty_id, player_id, player_name, player_photo_url, value,
          username_snapshot, team_name_snapshot, crest_id_snapshot, mode, format_id, completed_at, player_card_json, verified, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'online', ?, ?, ?, 1, ?)`)
         .bind(`rec_${crypto.randomUUID().replaceAll('-', '')}`, historyId, accountId, category, room.difficulty, card.id,
           card.shortName, card.photoUrl ?? null, value, username, team.name, team.crestId ?? null, room.competitionFormat.id,
-          now, JSON.stringify({ ...card, overall: effectiveOverallByPlayerId[card.id] ?? card.overall }), now)
-        .run();
+          now, JSON.stringify({ ...card, overall: effectiveOverallByPlayerId[card.id] ?? card.overall }), now));
     }
 
-    await env.DB.prepare(`INSERT INTO profile_stats
+    statements.push(env.DB.prepare(`INSERT INTO profile_stats
       (user_id, competitions_completed, titles, wins, draws, losses, goals, assists, saves, highest_effective_overall, highest_difficulty_id, updated_at)
       VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET
@@ -206,8 +208,10 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
         highest_effective_overall = MAX(profile_stats.highest_effective_overall, excluded.highest_effective_overall),
         highest_difficulty_id = CASE WHEN excluded.highest_effective_overall > profile_stats.highest_effective_overall THEN excluded.highest_difficulty_id ELSE profile_stats.highest_difficulty_id END,
         updated_at = excluded.updated_at`)
-      .bind(accountId, champion ? 1 : 0, wins, draws, losses, goals, totalAssists, totalSaves, topEffective?.value ?? 0, room.difficulty, now)
-      .run();
+      .bind(accountId, champion ? 1 : 0, wins, draws, losses, goals, totalAssists, totalSaves, topEffective?.value ?? 0, room.difficulty, now));
+    // Make the history row, records, and profile aggregates one idempotent
+    // commit. If persistence is retried, the source key skips this whole set.
+    await env.DB.batch(statements);
     await retainRecentCompetitionSnapshots(env.DB, accountId);
   }
 }
