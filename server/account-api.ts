@@ -8,7 +8,8 @@ const MAX_BIO_LENGTH = 240;
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,23}$/;
 const PASSWORD_MIN_LENGTH = 8;
 const PBKDF2_ITERATIONS = 120_000;
-const AUTH_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_LOCKOUT_MS = 5 * 60 * 1000;
 const AUTH_MAX_FAILURES = 5;
 export const ACCOUNT_PRESENCE_TTL_MS = 30_000;
 export const ROOM_INVITATION_TTL_MS = 60_000;
@@ -304,24 +305,31 @@ async function rateLimitStatus(db: D1Database, key: string): Promise<{ blocked: 
   const row = await db.prepare('SELECT blocked_until, window_started_at FROM auth_rate_limits WHERE key = ?').bind(key).first<{ blocked_until: number; window_started_at: number }>();
   if (!row) return { blocked: false, retryAfter: 0 };
   const now = Date.now();
-  if (now - Number(row.window_started_at) >= AUTH_WINDOW_MS) {
+  const blockedUntil = Number(row.blocked_until);
+  if (blockedUntil > now) {
+    const cappedBlockedUntil = Math.min(blockedUntil, now + AUTH_LOCKOUT_MS);
+    if (cappedBlockedUntil !== blockedUntil) {
+      await db.prepare('UPDATE auth_rate_limits SET blocked_until = ? WHERE key = ?').bind(cappedBlockedUntil, key).run();
+    }
+    return { blocked: true, retryAfter: Math.max(1, Math.ceil((cappedBlockedUntil - now) / 1000)) };
+  }
+  if (blockedUntil > 0 || now - Number(row.window_started_at) >= AUTH_FAILURE_WINDOW_MS) {
     await db.prepare('DELETE FROM auth_rate_limits WHERE key = ?').bind(key).run();
     return { blocked: false, retryAfter: 0 };
   }
-  const retryAfter = Math.max(1, Math.ceil((Number(row.blocked_until) - now) / 1000));
-  return { blocked: Number(row.blocked_until) > now, retryAfter };
+  return { blocked: false, retryAfter: 0 };
 }
 
 async function registerAuthFailure(db: D1Database, key: string): Promise<void> {
   const now = Date.now();
   const existing = await db.prepare('SELECT failed_count, window_started_at FROM auth_rate_limits WHERE key = ?').bind(key).first<{ failed_count: number; window_started_at: number }>();
-  if (!existing || now - Number(existing.window_started_at) >= AUTH_WINDOW_MS) {
+  if (!existing || now - Number(existing.window_started_at) >= AUTH_FAILURE_WINDOW_MS) {
     await db.prepare('INSERT OR REPLACE INTO auth_rate_limits (key, failed_count, window_started_at, blocked_until) VALUES (?, 1, ?, 0)')
       .bind(key, now).run();
     return;
   }
   const failedCount = Number(existing.failed_count) + 1;
-  const blockedUntil = failedCount >= AUTH_MAX_FAILURES ? now + AUTH_WINDOW_MS : 0;
+  const blockedUntil = failedCount >= AUTH_MAX_FAILURES ? now + AUTH_LOCKOUT_MS : 0;
   await db.prepare('UPDATE auth_rate_limits SET failed_count = ?, blocked_until = ? WHERE key = ?')
     .bind(failedCount, blockedUntil, key).run();
 }
@@ -372,7 +380,7 @@ async function loginLocalAccount(request: Request, env: AccountEnv): Promise<Res
   if (!USERNAME_RE.test(username) || !password) return json(genericError, 401);
   const key = await authRateKey(request, username);
   const rate = await rateLimitStatus(env.DB, key);
-  if (rate.blocked) return json({ error: 'too_many_attempts', message: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }, 429, { 'retry-after': String(rate.retryAfter) });
+  if (rate.blocked) return json({ error: 'too_many_attempts', message: 'Muitas tentativas. Aguarde até 5 minutos e tente novamente.' }, 429, { 'retry-after': String(rate.retryAfter) });
   const row = await env.DB.prepare(`SELECT u.id, u.password_hash
     FROM users u JOIN profiles p ON p.user_id = u.id WHERE p.username = ?`).bind(username).first<{ id: string; password_hash: string | null }>();
   if (!row || !(await verifySecret(password, row.password_hash))) {

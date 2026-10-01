@@ -692,7 +692,7 @@ export default function AccountPage() {
                 </label>
                 <Button type="submit" intent="primary" size="large" className="w-full" loading={busy}><span className="inline-flex items-center gap-2">{authMode === 'login' ? <LogIn size={18} /> : <UserPlus size={18} />} {authMode === 'login' ? 'ENTRAR NA CONTA' : 'CRIAR CONTA'}</span></Button>
               </form>
-              <Button intent="ghost" className="w-full" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}>Continuar como convidado</Button>
+              <Button intent="ghost" className="w-full" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}>Jogar sem conta</Button>
             </PanelBody>
           </Panel>
         </PageContainer>

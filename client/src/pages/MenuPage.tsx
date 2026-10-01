@@ -9,12 +9,14 @@ import AccountTabBar from '../components/account/AccountTabBar';
 import { useGame } from '../contexts/GameContext';
 import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '../lib/gameData';
-import { competitionFormatSummary, createCompetitionFormat } from '../lib/competition';
+import { COMPETITION_FORMAT_PRESETS, competitionFormatSummary, createCompetitionFormat } from '../lib/competition';
 import { cn } from '../lib/utils';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, IconButton, Input, Panel, StatusBanner } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
+const COMPETITIVE_FORMAT = createCompetitionFormat('league_knockout');
+const COMPETITIVE_DIFFICULTY = DIFFICULTY_LEVELS.find(level => level.id === 'immortal');
 
 function friendIdentity(friendship: FriendshipEntry, accountId: string | undefined) {
   if (friendship.requester_id === accountId) {
@@ -496,8 +498,24 @@ export default function MenuPage() {
           </div>
         </>
       ) : (
-        <>
-          <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+        <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-between gap-2 sm:inset-x-6 sm:top-6">
+          {!accountLoading ? (
+            <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-bg)]/90 py-1 pl-3 pr-1.5 shadow-lg">
+              <span className="text-[10px] font-bold tracking-[0.12em] text-[var(--ui-text-soft)] min-[400px]:tracking-[0.08em]">
+                <span className="min-[400px]:hidden">LIVRE</span>
+                <span className="hidden min-[400px]:inline">MODO LIVRE</span>
+              </span>
+              <IconButton
+                label="Como funciona o modo livre"
+                title="Como funciona o modo livre"
+                onClick={() => setGuestModeInfoOpen(true)}
+                className="!size-8 !min-h-8 !w-8 rounded-full bg-[var(--ui-surface)]"
+              >
+                <Info size={16} aria-hidden="true" />
+              </IconButton>
+            </div>
+          ) : <span />}
+          <div className="shrink-0">
             <Button
               type="button"
               intent="ghost"
@@ -508,23 +526,7 @@ export default function MenuPage() {
               <UserRound size={15} aria-hidden="true" /> ENTRAR
             </Button>
           </div>
-          {!accountLoading ? (
-            <div className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-bg)]/90 py-1 pl-3 pr-1.5 shadow-lg">
-              <span className="text-[10px] font-bold tracking-[0.12em] text-[var(--ui-text-soft)] min-[400px]:tracking-[0.08em]">
-                <span className="min-[400px]:hidden">CONVIDADO</span>
-                <span className="hidden min-[400px]:inline">MODO CONVIDADO</span>
-              </span>
-              <IconButton
-                label="Como funciona o modo convidado"
-                title="Como funciona o modo convidado"
-                onClick={() => setGuestModeInfoOpen(true)}
-                className="!size-8 !min-h-8 !w-8 rounded-full bg-[var(--ui-surface)]"
-              >
-                <Info size={16} aria-hidden="true" />
-              </IconButton>
-            </div>
-          ) : null}
-        </>
+        </div>
       )}
 
       <div className={cn('relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 pt-8', account ? 'pb-28' : 'pb-8')}>
@@ -776,7 +778,7 @@ export default function MenuPage() {
         open={guestModeInfoOpen}
         onOpenChange={setGuestModeInfoOpen}
         title="DUAS FORMAS DE JOGAR"
-        subtitle="O modo convidado é separado da conta; o modo competitivo registra sua trajetória."
+        subtitle="O modo livre é independente da conta; o modo competitivo registra sua trajetória."
         size="wide"
         footer={(
           <div className="flex w-full flex-col gap-1.5 sm:flex-row sm:justify-end">
@@ -791,24 +793,39 @@ export default function MenuPage() {
               <UserRound size={15} aria-hidden="true" /> ENTRAR OU CRIAR CONTA
             </Button>
             <Button type="button" intent="ghost" onClick={() => setGuestModeInfoOpen(false)}>
-              CONTINUAR COMO CONVIDADO
+              CONTINUAR NO MODO LIVRE
             </Button>
           </div>
         )}
       >
         <div className="space-y-2.5">
           <Panel tone="inset" className="space-y-1.5 p-3">
-            <div className="ui-kicker">MODO CONVIDADO</div>
+            <div className="ui-kicker">MODO LIVRE</div>
             <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">
-              Jogue solo ou multiplayer sem entrar. Essa experiência é independente da conta: suas campanhas não aparecem no perfil, no histórico, nos rankings ou nos recordes.
+              Jogue solo ou multiplayer sem conta. Suas competições no modo livre não aparecem no perfil, no histórico, nos rankings ou nos recordes.
             </p>
           </Panel>
 
           <Panel tone="accent" className="space-y-1.5 p-3">
             <div className="ui-kicker">MODO COMPETITIVO · COM CONTA</div>
             <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">
-              Entre ou crie uma conta para jogar no modo oficial. Suas competições concluídas formam seu histórico e podem alimentar rankings e recordes; seu perfil e suas amizades também ficam vinculados à conta.
+              Entre ou crie uma conta para registrar seu progresso no modo oficial. Suas competições concluídas formam seu histórico e alimentam o perfil, os rankings e os recordes.
             </p>
+            <p className="pt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
+              Para manter a disputa igual para todos, o formato e a dificuldade são fixos:
+            </p>
+            <div className="grid gap-2 pt-1 sm:grid-cols-2">
+              <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
+                <div className="ui-kicker">FORMATO FIXO</div>
+                <div className="mt-1 text-sm font-bold text-[var(--ui-text)]">{COMPETITION_FORMAT_PRESETS[COMPETITIVE_FORMAT.id].name}</div>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{competitionFormatSummary(COMPETITIVE_FORMAT)}</p>
+              </div>
+              <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
+                <div className="ui-kicker">DIFICULDADE FIXA</div>
+                <div className="mt-1 text-sm font-bold text-[var(--ui-brand-strong)]">{COMPETITIVE_DIFFICULTY?.name ?? 'Imortal'}</div>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{COMPETITIVE_DIFFICULTY?.description}</p>
+              </div>
+            </div>
           </Panel>
         </div>
       </GameModal>
