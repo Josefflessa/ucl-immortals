@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Image as ImageIcon, Info, LogIn, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
-import { useAccount, type AccountStats, type CompetitionHistoryEntry, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
+import { useAccount, type AccountStats, type CompetitionHistoryEntry, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
 import Crest from '../components/game/Crest';
@@ -157,15 +157,14 @@ function GalleryPagination({ page, pageCount, label, onPageChange }: { page: num
   );
 }
 
-function RecordPlayerCardVisual({ player, playerId, photoUrl, name, effectiveOverall }: {
+function RecordPlayerCardVisual({ player, playerId, photoUrl, name, effectiveStats }: {
   player: PublicRecordEntry['player_card'];
   playerId: string;
   photoUrl: string | null;
   name: string;
-  effectiveOverall?: number;
+  effectiveStats?: RecordCardEffectiveStats | null;
 }) {
-  const displayPlayer = player && effectiveOverall !== undefined ? { ...player, overall: effectiveOverall } : player;
-  return displayPlayer ? <PlayerCard player={displayPlayer} scale={0.55} lite /> : <div className="flex h-[178px] w-[110px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-[var(--ui-line-strong)] bg-[var(--ui-surface)] p-2 text-center">
+  return player ? <PlayerCard player={player} effectiveStats={effectiveStats ?? undefined} scale={0.55} lite /> : <div className="flex h-[178px] w-[110px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-[var(--ui-line-strong)] bg-[var(--ui-surface)] p-2 text-center">
     <PlayerAvatar playerId={playerId} photoUrl={photoUrl ?? undefined} size={64} rounded="rounded-lg" ring={false} fallback={<Trophy size={20} aria-hidden="true" className="text-[var(--ui-text-muted)]" />} />
     <span className="text-[10px] font-semibold leading-tight text-[var(--ui-text-muted)]">Carta final indisponível</span>
     <span className="max-w-full truncate text-[9px] text-[var(--ui-text-faint)]">{name}</span>
@@ -177,7 +176,7 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
   const rankPosition = record.rank_position ?? rank;
   return (
     <article className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
-      <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveOverall={record.category === 'effective_overall' ? record.value : undefined} />
+      <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveStats={record.player_effective_stats} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
           <div aria-label={`Posição ${rankPosition}`} className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg border font-display text-lg tabular-nums', rankPosition === 1 ? 'border-[var(--ui-brand)]/45 bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)]')}>{String(rankPosition).padStart(2, '0')}</div>
@@ -253,7 +252,7 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
   const rankPosition = record?.rank_position;
   return (
     <article className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
-      {record ? <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveOverall={category === 'effective_overall' ? record.value : undefined} /> : <div aria-hidden="true" className="flex h-[178px] w-[110px] shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--ui-line-strong)] bg-[var(--ui-surface)] text-[var(--ui-text-faint)]"><Icon size={24} /></div>}
+      {record ? <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveStats={record.player_effective_stats} /> : <div aria-hidden="true" className="flex h-[178px] w-[110px] shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--ui-line-strong)] bg-[var(--ui-surface)] text-[var(--ui-text-faint)]"><Icon size={24} /></div>}
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -290,52 +289,80 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
   );
 }
 
+function ProfileCareerContent({
+  scorePosition,
+  scorePositionLoading = false,
+  competitionsCompleted,
+  finishCounts,
+  records,
+  recordsLoading = false,
+  recordsError = '',
+  recordsErrorTitle = 'Não foi possível carregar seus recordes',
+}: {
+  scorePosition: ScoreLeaderboardPosition | null;
+  scorePositionLoading?: boolean;
+  competitionsCompleted: number;
+  finishCounts: AccountStats['finishCounts'];
+  records: ProfileRecordEntry[];
+  recordsLoading?: boolean;
+  recordsError?: string;
+  recordsErrorTitle?: string;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="space-y-3">
+        {scorePositionLoading ? <div className="space-y-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3"><Skeleton className="h-3 w-28" /><Skeleton className="h-8 w-16" /><Skeleton className="h-3 w-36" /></div>
+          : <Metric
+            label="Ranking geral"
+            value={scorePosition?.position ? `#${scorePosition.position}` : '—'}
+            detail={!scorePosition
+              ? 'Posição indisponível no momento'
+              : scorePosition.status === 'ranked'
+                ? `${scorePosition.points.toLocaleString('pt-BR')} pontos`
+                : scorePosition.status === 'profile_not_public'
+                  ? 'Perfil fora do ranking público'
+                  : 'Sem pontuação ainda'}
+            tone="brand"
+          />}
+        <Metric label="Competições" value={competitionsCompleted} detail="concluídas no total" />
+      </div>
+      <CareerFinishBreakdown counts={finishCounts} />
+      <section aria-label="Recordes pessoais" className="space-y-3">
+        <SectionHeader title="Recordes pessoais" className="mb-0" />
+        <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Melhores marcas e posições no ranking.</p>
+        {recordsError ? <StatusBanner tone="danger" title={recordsErrorTitle}>{recordsError}</StatusBanner>
+          : recordsLoading
+            ? <div className="grid grid-cols-1 gap-3" aria-label="Carregando recordes pessoais">{RECORD_CATEGORY_ORDER.map(category => <Skeleton key={category} className="h-[210px] w-full rounded-xl" />)}</div>
+            : <div className="grid grid-cols-1 gap-3">{RECORD_CATEGORY_ORDER.map(category => <PersonalRecordCard key={category} category={category} record={records.find(record => record.category === category)} />)}</div>}
+      </section>
+    </div>
+  );
+}
+
 function FriendProfileView({ data }: { data: PublicProfileData }) {
   const { profile, records } = data;
   const coverStyle = profileCoverStyle(profile.coverKey, profile.coverUrl);
-  const stats = profile.stats;
-  const metrics = [
-    { label: 'Vitórias', value: stats.wins },
-    { label: 'Empates', value: stats.draws },
-    { label: 'Derrotas', value: stats.losses },
-    { label: 'Gols', value: stats.goals },
-    { label: 'Assistências', value: stats.assists },
-    { label: 'Defesas', value: stats.saves },
-    { label: 'Geral efetivo', value: stats.highestEffectiveOverall },
-  ];
 
   return (
     <div className="space-y-5">
       <section className="relative isolate overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]" aria-label={`Perfil de ${profile.displayName}`} style={coverStyle}>
-        <div aria-hidden="true" className="relative h-24" />
-        <div className="relative flex flex-col gap-3 px-4 pb-4 sm:flex-row sm:items-end">
-          <div className="-mt-9 shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey, 'size-20')}</div>
-          <div className="min-w-0 pb-1">
-            <h2 className="truncate font-display text-2xl text-[var(--ui-text)]">{profile.displayName}</h2>
-            <p className="truncate text-sm text-[var(--ui-text-muted)]">@{profile.username}</p>
+        <div aria-hidden="true" className="relative h-36 sm:h-44" />
+        <div className="relative -mt-12 flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:px-8 sm:pb-8">
+          <div className="shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey)}</div>
+          <div className="min-w-0 flex-1 pb-1">
+            <h2 className="truncate font-display text-3xl text-[var(--ui-text)]">{profile.displayName}</h2>
+            <p className="mt-1 truncate text-sm text-[var(--ui-text-muted)]">@{profile.username} · conta criada em {formatDate(profile.createdAt)}</p>
           </div>
-          {profile.favoriteCrestId ? <Crest crestId={profile.favoriteCrestId} name="Brasão favorito" size={38} className="hidden rounded-full border border-[var(--ui-line-subtle)] sm:ml-auto sm:block" /> : null}
+          <div className="flex items-center gap-2 pb-1 text-xs text-[var(--ui-text-faint)]"><Users size={14} aria-hidden="true" /> {data.friendCount} amigos</div>
         </div>
       </section>
 
-      <section aria-label={`Resumo da carreira de ${profile.displayName}`}>
-        <SectionHeader title="Resumo da carreira" className="mb-3" />
-        <Metric label="Competições" value={stats.competitionsCompleted} detail="concluídas no total" className="mb-2 p-3" />
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {metrics.map(metric => <Metric key={metric.label} label={metric.label} value={metric.value} className="p-3" />)}
-        </div>
-      </section>
-
-      <CareerFinishBreakdown counts={stats.finishCounts} />
-
-      {records.length > 0 ? <section aria-label={`Recordes pessoais de ${profile.displayName}`} className="space-y-3">
-        <SectionHeader title="Recordes pessoais" className="mb-0" />
-        <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Melhores marcas e posições no ranking.</p>
-        <div className="grid grid-cols-1 gap-3">{records
-          .slice()
-          .sort((a, b) => RECORD_CATEGORY_ORDER.indexOf(a.category) - RECORD_CATEGORY_ORDER.indexOf(b.category))
-          .map(record => <PersonalRecordCard key={record.category} category={record.category} record={record} />)}</div>
-      </section> : null}
+      <ProfileCareerContent
+        scorePosition={data.scorePosition}
+        competitionsCompleted={profile.stats.competitionsCompleted}
+        finishCounts={profile.stats.finishCounts}
+        records={records}
+      />
     </div>
   );
 }
@@ -736,31 +763,15 @@ export default function AccountPage() {
 
         <Tabs value={tab}>
           <TabPanel value="profile" className="space-y-5 pt-5">
-            <div className="space-y-3">
-              {scorePositionLoading ? <div className="space-y-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3"><Skeleton className="h-3 w-28" /><Skeleton className="h-8 w-16" /><Skeleton className="h-3 w-36" /></div>
-                : <Metric
-                  label="Ranking geral"
-                  value={scorePosition?.position ? `#${scorePosition.position}` : '—'}
-                  detail={!scorePosition
-                    ? 'Posição indisponível no momento'
-                    : scorePosition.status === 'ranked'
-                      ? `${scorePosition.points.toLocaleString('pt-BR')} pontos`
-                      : scorePosition.status === 'profile_not_public'
-                        ? 'Perfil privado'
-                        : 'Sem pontuação ainda'}
-                  tone="brand"
-                />}
-              <Metric label="Competições" value={account.stats.competitionsCompleted} detail="concluídas no total" />
-            </div>
-            <CareerFinishBreakdown counts={account.stats.finishCounts} />
-            <section aria-label="Recordes pessoais" className="space-y-3">
-              <SectionHeader title="Recordes pessoais" className="mb-0" />
-              <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Melhores marcas e posições no ranking.</p>
-              {ownRecordsError ? <StatusBanner tone="danger" title="Não foi possível carregar seus recordes">{ownRecordsError}</StatusBanner>
-                : ownRecordsLoading
-                ? <div className="grid grid-cols-1 gap-3" aria-label="Carregando recordes pessoais">{RECORD_CATEGORY_ORDER.map(category => <Skeleton key={category} className="h-[210px] w-full rounded-xl" />)}</div>
-                : <div className="grid grid-cols-1 gap-3">{RECORD_CATEGORY_ORDER.map(category => <PersonalRecordCard key={category} category={category} record={ownRecords.find(record => record.category === category)} />)}</div>}
-            </section>
+            <ProfileCareerContent
+              scorePosition={scorePosition}
+              scorePositionLoading={scorePositionLoading}
+              competitionsCompleted={account.stats.competitionsCompleted}
+              finishCounts={account.stats.finishCounts}
+              records={ownRecords}
+              recordsLoading={ownRecordsLoading}
+              recordsError={ownRecordsError}
+            />
           </TabPanel>
 
           <TabPanel value="records" className="space-y-5 pt-5">

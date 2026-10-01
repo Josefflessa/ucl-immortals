@@ -524,22 +524,34 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
       (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, competition_points, report_json, source_key, completed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, account.id, mode, difficultyId, formatId, teamName, crestId, coachId, champion, placement, competitionPoints, reportJson, sourceKey, now)];
-  for (const record of safeRecords) {
+  const persistedRecords = safeRecords.map(record => {
     const playerCard = recordPlayerCard(reportJson, record.playerId);
+    const effectiveCardStats = playerCard?.effectiveStats && typeof playerCard.effectiveStats === 'object'
+      ? playerCard.effectiveStats as Record<string, unknown>
+      : null;
+    const value = record.category === 'effective_overall'
+      && typeof effectiveCardStats?.overall === 'number'
+      && Number.isSafeInteger(effectiveCardStats.overall)
+      && effectiveCardStats.overall >= 1
+      ? effectiveCardStats.overall
+      : record.value;
+    return { ...record, value, playerCard };
+  });
+  for (const record of persistedRecords) {
     statements.push(env.DB.prepare(`INSERT INTO competition_records
       (id, competition_id, user_id, category, difficulty_id, player_id, player_name, player_photo_url, value,
        username_snapshot, team_name_snapshot, crest_id_snapshot, mode, format_id, completed_at, player_card_json, verified, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
       .bind(`rec_${randomToken(12)}`, id, account.id, record.category, difficultyId, record.playerId, record.playerName,
         record.playerPhotoUrl, record.value, account.username, teamName, crestId, mode, formatId, now,
-        playerCard ? JSON.stringify(playerCard) : null, now));
+        record.playerCard ? JSON.stringify(record.playerCard) : null, now));
   }
   const reportValues = report as Record<string, unknown>;
   const safeStat = (key: string, max: number) => {
     const value = Number(reportValues[key]);
     return Number.isSafeInteger(value) ? Math.max(0, Math.min(max, value)) : 0;
   };
-  const effectiveRecord = safeRecords.find(record => record.category === 'effective_overall');
+  const effectiveRecord = persistedRecords.find(record => record.category === 'effective_overall');
   statements.push(env.DB.prepare(`INSERT INTO profile_stats
     (user_id, competitions_completed, titles, wins, draws, losses, goals, assists, saves, highest_effective_overall, highest_difficulty_id, updated_at)
     VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -589,6 +601,7 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
     SELECT r.id, r.user_id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
         r.username_snapshot, r.team_name_snapshot, r.crest_id_snapshot, r.created_at, r.competition_id,
         r.mode, r.format_id, r.completed_at, r.player_card_json,
+        ${RECORD_CARD_EFFECTIVE_OVERALL_SQL} AS effective_overall_snapshot,
         ROW_NUMBER() OVER (
           PARTITION BY r.difficulty_id, r.category
           ORDER BY r.value DESC, r.created_at ASC, r.id ASC
@@ -602,17 +615,22 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
       CASE WHEN p.visibility = 'public' THEN p.avatar_key ELSE NULL END AS profile_avatar_key,
       CASE WHEN p.visibility = 'public' THEN p.avatar_background_key ELSE NULL END AS profile_avatar_background_key,
       CASE WHEN p.visibility = 'public' THEN p.avatar_url ELSE NULL END AS profile_avatar_url,
-      r.mode, r.format_id, r.completed_at, r.player_card_json, r.ranking_position
+      r.mode, r.format_id, r.completed_at, r.player_card_json, r.effective_overall_snapshot,
+      ${RECORD_CARD_CONTEXT_SQL} AS player_card_context, r.ranking_position
     FROM ranked_records r
     LEFT JOIN profiles p ON p.user_id = r.user_id
     WHERE r.ranking_position <= 10
     ORDER BY r.difficulty_id, r.category, r.ranking_position`).bind(...binds).all();
   const records = rows.results.map((row: any) => {
-    const { player_card_json: playerCardJson, ...record } = row;
+    const { player_card_json: playerCardJson, effective_overall_snapshot: effectiveOverallSnapshot, player_card_context: playerCardContext, ...record } = row;
+    const contextStats = effectiveCardStatsFromContext(playerCardContext, String(row.player_id));
+    const effectiveOverall = normalizedRecordOverall(effectiveOverallSnapshot) ?? contextStats?.overall ?? null;
+    const cardData = storedRecordCardData(playerCardJson, effectiveOverall, contextStats);
     return {
       ...record,
+      ...(record.category === 'effective_overall' && effectiveOverall !== null ? { value: effectiveOverall } : {}),
       rank_position: Number(row.ranking_position),
-      player_card: storedRecordPlayerCard(playerCardJson),
+      ...cardData,
     };
   });
   return json({ records });
@@ -639,11 +657,30 @@ function recordPlayerCard(reportJson: unknown, playerId: string): Record<string,
     const savedEffectiveOverall = effectiveOverallByPlayerId && typeof effectiveOverallByPlayerId === 'object' && !Array.isArray(effectiveOverallByPlayerId)
       ? (effectiveOverallByPlayerId as Record<string, unknown>)[playerId]
       : null;
-    const effectiveOverall = typeof savedEffectiveOverall === 'number' && Number.isFinite(savedEffectiveOverall)
+    const effectiveStatsByPlayerId = (snapshot as Record<string, unknown>).effectiveStatsByPlayerId;
+    const savedEffectiveStats = effectiveStatsByPlayerId && typeof effectiveStatsByPlayerId === 'object' && !Array.isArray(effectiveStatsByPlayerId)
+      ? normalizedEffectiveCardStats((effectiveStatsByPlayerId as Record<string, unknown>)[playerId])
+      : null;
+    const effectiveStats = savedEffectiveStats
+      ?? legacyEffectiveCardStats(report as Record<string, unknown>, snapshot as Record<string, unknown>, team as Record<string, unknown>, playerId);
+    const effectiveOverall = effectiveStats?.overall ?? (typeof savedEffectiveOverall === 'number' && Number.isFinite(savedEffectiveOverall)
       ? Math.round(savedEffectiveOverall)
-      : legacyEffectiveOverall(report as Record<string, unknown>, snapshot as Record<string, unknown>, team as Record<string, unknown>, playerId);
-    return effectiveOverall !== null && effectiveOverall >= 1 && effectiveOverall <= 150
-      ? { ...validPlayer, overall: effectiveOverall }
+      : legacyEffectiveOverall(report as Record<string, unknown>, snapshot as Record<string, unknown>, team as Record<string, unknown>, playerId));
+    return effectiveOverall !== null && Number.isSafeInteger(effectiveOverall) && effectiveOverall >= 1
+      ? {
+          ...validPlayer,
+          effectiveStats: {
+            overall: effectiveOverall,
+            pace: effectiveStats?.pace ?? validPlayer.pace,
+            shooting: effectiveStats?.shooting ?? validPlayer.shooting,
+            passing: effectiveStats?.passing ?? validPlayer.passing,
+            dribbling: effectiveStats?.dribbling ?? validPlayer.dribbling,
+            defending: effectiveStats?.defending ?? validPlayer.defending,
+            physical: effectiveStats?.physical ?? validPlayer.physical,
+            vision: effectiveStats?.vision ?? validPlayer.vision,
+            composure: effectiveStats?.composure ?? validPlayer.composure,
+          },
+        }
       : validPlayer;
   } catch {
     return null;
@@ -672,15 +709,126 @@ function storedRecordPlayerCard(playerCardJson: unknown): Record<string, unknown
   }
 }
 
+function normalizedRecordOverall(value: unknown): number | null {
+  const overall = typeof value === 'number' ? value : value == null ? NaN : Number(value);
+  return Number.isSafeInteger(overall) && overall >= 1 ? overall : null;
+}
+
+const EFFECTIVE_RECORD_CARD_FIELDS = [
+  'overall', 'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure',
+] as const;
+
+function normalizedEffectiveCardStats(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const stats = value as Record<string, unknown>;
+  const normalized: Record<string, number> = {};
+  for (const field of EFFECTIVE_RECORD_CARD_FIELDS) {
+    const stat = normalizedRecordOverall(stats[field]);
+    if (stat === null) return null;
+    normalized[field] = stat;
+  }
+  return normalized;
+}
+
+function effectiveCardStatsFromContext(contextJson: unknown, playerId: string): Record<string, number> | null {
+  try {
+    const report: unknown = JSON.parse(String(contextJson ?? ''));
+    if (!report || typeof report !== 'object' || Array.isArray(report)) return null;
+    const reportRecord = report as Record<string, unknown>;
+    const snapshot = reportRecord.historySnapshot;
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null;
+    const snapshotRecord = snapshot as Record<string, unknown>;
+    const savedStats = snapshotRecord.effectiveStatsByPlayerId;
+    if (savedStats && typeof savedStats === 'object' && !Array.isArray(savedStats)) {
+      const normalized = normalizedEffectiveCardStats((savedStats as Record<string, unknown>)[playerId]);
+      if (normalized) return normalized;
+    }
+    const team = snapshotRecord.playerTeam;
+    return team && typeof team === 'object' && !Array.isArray(team)
+      ? legacyEffectiveCardStats(reportRecord, snapshotRecord, team as Record<string, unknown>, playerId)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function storedRecordCardData(
+  playerCardJson: unknown,
+  effectiveOverall: number | null,
+  contextEffectiveStats: Record<string, number> | null,
+): { player_card: Record<string, unknown> | null; player_effective_stats: Record<string, number> | null } {
+  const stored = storedRecordPlayerCard(playerCardJson);
+  if (!stored) return { player_card: null, player_effective_stats: null };
+  const { effectiveStats: embeddedStats, ...player } = stored;
+  const effectiveStats = contextEffectiveStats ?? normalizedEffectiveCardStats(embeddedStats);
+  const overall = effectiveOverall ?? effectiveStats?.overall ?? null;
+  const displayedStats = effectiveStats
+    ? { ...effectiveStats, ...(overall !== null ? { overall } : {}) }
+    : overall !== null
+      ? {
+          overall,
+          pace: Number(player.pace),
+          shooting: Number(player.shooting),
+          passing: Number(player.passing),
+          dribbling: Number(player.dribbling),
+          defending: Number(player.defending),
+          physical: Number(player.physical),
+          vision: Number(player.vision),
+          composure: Number(player.composure),
+        }
+      : null;
+  return { player_card: player, player_effective_stats: displayedStats };
+}
+
+// Use one campaign snapshot for every category card. The saved per-player map is
+// authoritative; an effective-overall record is a fallback for archived legacy
+// snapshots where the map was intentionally removed after 20 competitions.
+const RECORD_CARD_EFFECTIVE_OVERALL_SQL = `COALESCE(
+  (SELECT CAST(player_overall.value AS INTEGER)
+     FROM competition_history h
+     JOIN json_each(CASE WHEN json_valid(h.report_json)
+       THEN COALESCE(json_extract(h.report_json, '$.historySnapshot.effectiveOverallByPlayerId'), '{}')
+       ELSE '{}'
+     END) player_overall ON player_overall.key = r.player_id
+    WHERE h.id = r.competition_id
+      AND player_overall.type IN ('integer', 'real')
+      AND CAST(player_overall.value AS INTEGER) >= 1
+    LIMIT 1),
+  (SELECT MAX(e.value)
+     FROM competition_records e
+    WHERE e.competition_id = r.competition_id
+      AND e.player_id = r.player_id
+      AND e.category = 'effective_overall'),
+  CASE WHEN r.category = 'effective_overall' THEN r.value END
+)`;
+
+const RECORD_CARD_CONTEXT_SQL = `(SELECT json_object(
+  'source', json_extract(h.report_json, '$.source'),
+  'historySnapshot', json_object(
+    'playerTeam', CASE WHEN json_type(h.report_json, '$.historySnapshot.playerTeam') = 'object'
+      THEN json(json_extract(h.report_json, '$.historySnapshot.playerTeam')) ELSE NULL END,
+    'effectiveStatsByPlayerId', CASE WHEN json_type(h.report_json, '$.historySnapshot.effectiveStatsByPlayerId') = 'object'
+      THEN json(json_extract(h.report_json, '$.historySnapshot.effectiveStatsByPlayerId')) ELSE NULL END,
+    'effectiveOverallByPlayerId', CASE WHEN json_type(h.report_json, '$.historySnapshot.effectiveOverallByPlayerId') = 'object'
+      THEN json(json_extract(h.report_json, '$.historySnapshot.effectiveOverallByPlayerId')) ELSE NULL END,
+    'formatId', json_extract(h.report_json, '$.historySnapshot.formatId'),
+    'finalResult', CASE WHEN json_type(h.report_json, '$.historySnapshot.finalResult') = 'object'
+      THEN json(json_extract(h.report_json, '$.historySnapshot.finalResult')) ELSE NULL END,
+    'playStyle', json_extract(h.report_json, '$.historySnapshot.playStyle'),
+    'championId', json_extract(h.report_json, '$.historySnapshot.championId')
+  )
+)
+FROM competition_history h
+WHERE h.id = r.competition_id
+  AND json_valid(h.report_json)
+  AND json_type(h.report_json, '$.historySnapshot') = 'object')`;
+
 function legacyEffectiveOverall(
   report: Record<string, unknown>,
   snapshot: Record<string, unknown>,
   teamRecord: Record<string, unknown>,
   playerId: string,
 ): number | null {
-  const players = teamRecord.players;
-  if (!Array.isArray(players) || players.length > 40) return null;
-
   const season = report.season;
   if (season && typeof season === 'object' && !Array.isArray(season)) {
     const highest = (season as Record<string, unknown>).highestEffectiveOverall;
@@ -689,6 +837,18 @@ function legacyEffectiveOverall(
       if (saved.playerId === playerId && typeof saved.value === 'number' && Number.isFinite(saved.value)) return Math.round(saved.value);
     }
   }
+
+  return legacyEffectiveCardStats(report, snapshot, teamRecord, playerId)?.overall ?? null;
+}
+
+function legacyEffectiveCardStats(
+  report: Record<string, unknown>,
+  snapshot: Record<string, unknown>,
+  teamRecord: Record<string, unknown>,
+  playerId: string,
+): Record<string, number> | null {
+  const players = teamRecord.players;
+  if (!Array.isArray(players) || players.length > 40) return null;
 
   const teamId = typeof teamRecord.id === 'string' ? teamRecord.id : '';
   const formatId = typeof snapshot.formatId === 'string' ? snapshot.formatId : '';
@@ -710,8 +870,9 @@ function legacyEffectiveOverall(
       isFinal: isServerRecord || finalIncludesTeam,
       isLosing,
     });
-    const value = effective[playerId]?.overall;
-    return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
+    const stats = effective[playerId];
+    if (!stats) return null;
+    return normalizedEffectiveCardStats(stats);
   } catch {
     return null;
   }
@@ -722,6 +883,7 @@ async function loadRecordHighlights(env: AccountEnv, userId: string): Promise<Re
       SELECT r.id, r.user_id, r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
              r.team_name_snapshot, r.crest_id_snapshot, r.created_at, r.competition_id,
              r.mode, r.format_id, r.completed_at, r.player_card_json,
+             ${RECORD_CARD_EFFECTIVE_OVERALL_SQL} AS effective_overall_snapshot,
              ROW_NUMBER() OVER (
                PARTITION BY r.category
                ORDER BY r.value DESC, r.created_at ASC, r.id ASC
@@ -739,18 +901,23 @@ async function loadRecordHighlights(env: AccountEnv, userId: string): Promise<Re
            p.display_name AS profile_display_name, p.avatar_key AS profile_avatar_key,
            p.avatar_background_key AS profile_avatar_background_key, p.avatar_url AS profile_avatar_url,
            r.mode, r.format_id, r.completed_at,
-           r.player_card_json, r.ranking_position AS rank_position
+           r.player_card_json, r.effective_overall_snapshot,
+           ${RECORD_CARD_CONTEXT_SQL} AS player_card_context, r.ranking_position AS rank_position
       FROM ranked_records r
       LEFT JOIN profiles p ON p.user_id = r.user_id
      WHERE r.user_id = ? AND r.user_record_rank = 1
      ORDER BY CASE r.category WHEN 'goals' THEN 1 WHEN 'assists' THEN 2 WHEN 'saves' THEN 3 ELSE 4 END`)
     .bind(userId).all();
   return rows.results.map((row: any) => {
-    const { player_card_json: playerCardJson, ...record } = row;
+    const { player_card_json: playerCardJson, effective_overall_snapshot: effectiveOverallSnapshot, player_card_context: playerCardContext, ...record } = row;
+    const contextStats = effectiveCardStatsFromContext(playerCardContext, String(row.player_id));
+    const effectiveOverall = normalizedRecordOverall(effectiveOverallSnapshot) ?? contextStats?.overall ?? null;
+    const cardData = storedRecordCardData(playerCardJson, effectiveOverall, contextStats);
     return {
       ...record,
+      ...(record.category === 'effective_overall' && effectiveOverall !== null ? { value: effectiveOverall } : {}),
       rank_position: Number(row.rank_position),
-      player_card: storedRecordPlayerCard(playerCardJson),
+      ...cardData,
     };
   });
 }
@@ -793,7 +960,7 @@ async function scoreLeaderboard(env: AccountEnv): Promise<Response> {
   return json({ ranking });
 }
 
-async function scoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+async function getScoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount) {
   const pointExpression = 'competition_points';
   const row = await env.DB.prepare(`WITH totals AS (
       SELECT user_id,
@@ -828,14 +995,18 @@ async function scoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedA
 
   const position = row?.position == null ? null : Number(row.position);
   const isListed = account.visibility === 'public';
-  return json({
+  return {
     position,
     participants: Number(row?.participants ?? 0),
     points: Number(row?.points ?? 0),
     scored_competitions: Number(row?.scored_competitions ?? 0),
     titles: Number(row?.titles ?? 0),
     status: !isListed ? 'profile_not_public' : position === null ? 'no_points' : 'ranked',
-  });
+  } as const;
+}
+
+async function scoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  return json(await getScoreLeaderboardPosition(env, account));
 }
 
 async function friendsList(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
@@ -993,8 +1164,21 @@ async function publicProfile(request: Request, env: AccountEnv, username: string
       LIMIT 1`).bind(viewer.id, account.id, account.id, viewer.id).first<{ id: string }>();
     if (!friendship) return json({ error: 'profile_private' }, 403);
   }
-  const records = await loadRecordHighlights(env, account.id);
-  return json({ profile: publicAccount(account), records });
+  const [records, scorePosition, friendCountRow] = await Promise.all([
+    loadRecordHighlights(env, account.id),
+    getScoreLeaderboardPosition(env, account),
+    env.DB.prepare(`SELECT COUNT(*) AS friend_count FROM friendships
+      WHERE status = 'accepted' AND (requester_id = ? OR addressee_id = ?)`).bind(account.id, account.id).first<{ friend_count: number }>(),
+  ]);
+  const visibleScorePosition = account.visibility === 'public'
+    ? scorePosition
+    : { ...scorePosition, position: null, points: 0, scored_competitions: 0, titles: 0 };
+  return json({
+    profile: publicAccount(account),
+    records,
+    scorePosition: visibleScorePosition,
+    friendCount: Number(friendCountRow?.friend_count ?? 0),
+  });
 }
 
 export async function handleAccountRequest(request: Request, env: AccountEnv): Promise<Response | null> {

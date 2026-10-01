@@ -14,6 +14,7 @@ import {
   getPlayerSeasonStats,
   getTeamEffectiveStats,
   getChemistryLinks,
+  type EffectiveStats,
 } from '../lib/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
 import CoachStadiumPanel from '../components/game/CoachStadiumPanel';
@@ -26,6 +27,9 @@ import { AppShell, Button, PageContainer, TopBar } from '../design-system';
 import type { CompetitionHistoryEntry } from '../contexts/AccountContext';
 import { getCompetitionHistorySnapshot, type CompetitionHistorySnapshot } from '../lib/historySnapshot';
 import { competitionRankingPoints } from '../lib/competitionRanking';
+
+type SavedEffectiveCardStats = Pick<EffectiveStats,
+  'overall' | 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure'>;
 
 function playerInitials(player: Player): string {
   const parts = player.shortName.trim().split(/\s+/).filter(Boolean);
@@ -271,6 +275,23 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         isLosing: reportIsLosing,
       })
     : {}, [playerTeam, reportPlayStyle, reportIsKnockout, reportIsFinal, reportIsLosing]);
+  const effectiveCardStatsById = useMemo<Record<string, SavedEffectiveCardStats>>(() => {
+    if (!playerTeam) return {};
+    return Object.fromEntries(playerTeam.players.map(player => {
+      const stats = effectiveStatsById[player.id];
+      return [player.id, {
+        overall: Math.round(stats?.overall ?? player.overall),
+        pace: Math.round(stats?.pace ?? player.pace),
+        shooting: Math.round(stats?.shooting ?? player.shooting),
+        passing: Math.round(stats?.passing ?? player.passing),
+        dribbling: Math.round(stats?.dribbling ?? player.dribbling),
+        defending: Math.round(stats?.defending ?? player.defending),
+        physical: Math.round(stats?.physical ?? player.physical),
+        vision: Math.round(stats?.vision ?? player.vision),
+        composure: Math.round(stats?.composure ?? player.composure),
+      }] as const;
+    }));
+  }, [effectiveStatsById, playerTeam]);
   const teamOverall = (playerTeam && chemData && starters.length === 11)
     ? Math.round(starters.reduce((s, p) => s + (effectiveStatsById[p.id]?.overall ?? p.overall), 0) / 11)
     : null;
@@ -356,10 +377,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         historySnapshot: {
           version: 1,
           playerTeam,
-          effectiveOverallByPlayerId: Object.fromEntries(playerTeam.players.map(player => [
-            player.id,
-            Math.round(effectiveStatsById[player.id]?.overall ?? player.overall),
-          ])),
+          effectiveStatsByPlayerId: effectiveCardStatsById,
+          effectiveOverallByPlayerId: Object.fromEntries(Object.entries(effectiveCardStatsById).map(([id, stats]) => [id, stats.overall])),
           matches: playerResults.map((result: any) => ({
             homeTeamId: result.homeTeamId,
             awayTeamId: result.awayTeamId,
@@ -395,7 +414,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       setHistorySaveError(error instanceof Error ? error.message : 'Não foi possível salvar a competição agora.');
       setHistorySaveStatus('error');
     });
-  }, [account, champion, championName, effectiveStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
+  }, [account, champion, championName, effectiveCardStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
 
   if (historyEntry && !historySnapshot) {
     return <LegacyHistoryReport entry={historyEntry} onBack={onHistoryBack} />;

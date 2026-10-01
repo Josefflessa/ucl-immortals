@@ -67,6 +67,7 @@ export interface PublicRecordEntry {
   difficulty_id: string;
   player_id: string;
   player_card?: Player | null;
+  player_effective_stats?: RecordCardEffectiveStats | null;
   player_name: string;
   player_photo_url: string | null;
   value: number;
@@ -111,6 +112,7 @@ export interface ProfileRecordEntry {
   difficulty_id: string;
   player_id: string;
   player_card?: Player | null;
+  player_effective_stats?: RecordCardEffectiveStats | null;
   rank_position?: number;
   player_name: string;
   player_photo_url: string | null;
@@ -126,9 +128,23 @@ export interface ProfileRecordEntry {
   completed_at: number;
 }
 
+export interface RecordCardEffectiveStats {
+  overall: number;
+  pace: number;
+  shooting: number;
+  passing: number;
+  dribbling: number;
+  defending: number;
+  physical: number;
+  vision: number;
+  composure: number;
+}
+
 export interface PublicProfileData {
   profile: AccountProfile;
   records: ProfileRecordEntry[];
+  scorePosition: ScoreLeaderboardPosition;
+  friendCount: number;
 }
 
 export interface FriendshipEntry {

@@ -106,12 +106,26 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       isFinal: true,
       isLosing: room.champion !== team.id,
     });
+    const effectiveStatsByPlayerId = Object.fromEntries(team.players.map(card => {
+      const stats = effective[card.id];
+      return [card.id, {
+        overall: Math.round(stats?.overall ?? card.overall),
+        pace: Math.round(stats?.pace ?? card.pace),
+        shooting: Math.round(stats?.shooting ?? card.shooting),
+        passing: Math.round(stats?.passing ?? card.passing),
+        dribbling: Math.round(stats?.dribbling ?? card.dribbling),
+        defending: Math.round(stats?.defending ?? card.defending),
+        physical: Math.round(stats?.physical ?? card.physical),
+        vision: Math.round(stats?.vision ?? card.vision),
+        composure: Math.round(stats?.composure ?? card.composure),
+      }] as const;
+    }));
     const effectiveOverallByPlayerId = Object.fromEntries(team.players.map(card => [
       card.id,
-      Math.round(effective[card.id]?.overall ?? card.overall),
+      effectiveStatsByPlayerId[card.id].overall,
     ]));
     const topEffective = allPlayers
-      .map(card => ({ card, value: Math.round(effective[card.id]?.overall ?? card.overall) }))
+      .map(card => ({ card, value: effectiveStatsByPlayerId[card.id].overall }))
       .sort((a, b) => b.value - a.value)[0];
     const champion = room.champion === team.id;
     const competitionPoints = competitionRankingPoints(team.id, room.champion, room.knockoutBracket);
@@ -151,6 +165,7 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       historySnapshot: {
         version: 1,
         playerTeam: team,
+        effectiveStatsByPlayerId,
         effectiveOverallByPlayerId,
         matches: played.map(result => ({
           homeTeamId: result.homeTeamId,
@@ -190,7 +205,7 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'online', ?, ?, ?, 1, ?)`)
         .bind(`rec_${crypto.randomUUID().replaceAll('-', '')}`, historyId, accountId, category, room.difficulty, card.id,
           card.shortName, card.photoUrl ?? null, value, username, team.name, team.crestId ?? null, room.competitionFormat.id,
-          now, JSON.stringify({ ...card, overall: effectiveOverallByPlayerId[card.id] ?? card.overall }), now));
+          now, JSON.stringify({ ...card, effectiveStats: effectiveStatsByPlayerId[card.id] }), now));
     }
 
     statements.push(env.DB.prepare(`INSERT INTO profile_stats
