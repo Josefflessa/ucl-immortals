@@ -7,7 +7,8 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const MAX_BIO_LENGTH = 240;
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,23}$/;
 const PASSWORD_MIN_LENGTH = 8;
-const PBKDF2_ITERATIONS = 120_000;
+// Cloudflare Workers WebCrypto rejects PBKDF2 counts above 100,000.
+const PBKDF2_ITERATIONS = 100_000;
 const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_LOCKOUT_MS = 5 * 60 * 1000;
 const AUTH_MAX_FAILURES = 5;
