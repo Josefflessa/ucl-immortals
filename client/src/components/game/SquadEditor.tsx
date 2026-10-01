@@ -100,6 +100,7 @@ export default function SquadEditor({
   const fieldPreviewRef = useRef<HTMLDivElement>(null);
   const benchHoldTimerRef = useRef<number | null>(null);
   const benchHoldClickGuardRef = useRef(false);
+  const benchSwapRevealPendingRef = useRef(false);
   const benchDragClickGuardRef = useRef(false);
   const benchPointerStartRef = useRef<{ index: number; x: number; y: number } | null>(null);
   const [isDesktopInput, setIsDesktopInput] = useState(false);
@@ -224,8 +225,8 @@ export default function SquadEditor({
 
   const revealFieldPreview = () => {
     clearBenchHoldTimer();
-    // Keep the destination visible immediately so the user can choose the
-    // titular without having to maintain a drag gesture during the scroll.
+    // Scroll only after the reserve touch is released. Scrolling while the
+    // pointer is still down can retarget its synthetic click to a field card.
     fieldPreviewRef.current?.scrollIntoView({ behavior: 'auto', block: 'center' });
   };
 
@@ -239,7 +240,7 @@ export default function SquadEditor({
     // Releasing the long press also produces a click on the reserve card. That
     // click must not reopen its player modal after the shortcut was armed.
     benchHoldClickGuardRef.current = true;
-    revealFieldPreview();
+    benchSwapRevealPendingRef.current = true;
   };
 
   const handleBenchPointerDown = (event: PointerEvent<HTMLDivElement>, index: number) => {
@@ -267,6 +268,10 @@ export default function SquadEditor({
     if (isDesktopInput) return;
     clearBenchHoldTimer();
     benchPointerStartRef.current = null;
+    if (benchSwapRevealPendingRef.current) {
+      benchSwapRevealPendingRef.current = false;
+      window.requestAnimationFrame(revealFieldPreview);
+    }
     // The long press itself is followed by a synthetic click in browsers.
     // Ignore that one click, then restore normal reserve-card selection.
     if (benchHoldClickGuardRef.current) {
@@ -560,6 +565,13 @@ export default function SquadEditor({
                   ? players[benchDraggingIndex] ?? null
                   : null}
               onPlayerClick={(_player, posIndex) => {
+                // The synthetic click from a reserve long-press may land on
+                // a field card if the page scrolls during that same gesture.
+                // Consume it without treating it as the user's target choice.
+                if (benchHoldClickGuardRef.current) {
+                  benchHoldClickGuardRef.current = false;
+                  return;
+                }
                 if (activeRole) {
                   if (activeRole === 'captain') onSetCaptain(_player.id);
                   if (activeRole === 'penalty') onSetPenaltyTaker(_player.id);
