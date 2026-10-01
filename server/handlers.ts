@@ -23,6 +23,7 @@ import {
   playActiveKnockoutLeg,
   advanceKnockoutBracket,
   getActiveKnockoutMatches,
+  isKnockoutTeamAlive,
   getAllPlayedMatchResults, getPlayerSeasonStats,
   normalizeMatchPlan,
   validateMatchPlan,
@@ -640,6 +641,12 @@ function isValidClientId(value: unknown): value is string {
 
 function isShopPhase(room: RoomState): boolean {
   return room.phase === 'league' || room.phase === 'knockout';
+}
+
+function canPlayerRecruit(room: RoomState, player: RoomPlayer): boolean {
+  if (!player.team || !isShopPhase(room)) return false;
+  if (room.phase !== 'knockout') return true;
+  return !!room.knockoutBracket && isKnockoutTeamAlive(room.knockoutBracket, player.team.id);
 }
 
 function uniquePackRoundKeyForRoom(room: RoomState): string | null {
@@ -3038,11 +3045,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("reroll_reinforcement", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       const offer = player?.reinforcementOffer;
       const rerollsRemaining = (offer?.freeRerolls ?? 0) - (offer?.rerollsUsed ?? 0);
-      if (!player || !player.team || rerollsRemaining <= 0 || !player.reinforcementOptions?.length) return;
+      if (!player || !player.team || !canPlayerRecruit(room, player) || rerollsRemaining <= 0 || !player.reinforcementOptions?.length) return;
       const ownedIds = player.team.players.map(p => p.id);
       player.reinforcementOptions = generateDraftOptions(
         [],
@@ -3058,9 +3064,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // validates the canonical card and keeps multi-selection atomic.
     on("pick_reinforcement", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
       const room = rooms.get(roomCode);
-      if (!room) return;
+      if (!room || !chosen) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !chosen) return;
+      if (!player || !player.team || !canPlayerRecruit(room, player)) return;
       // The client sends the selected id for convenience, but never gets to
       // submit the card's stats/traits. Rebuild it from the server catalog.
       const offered = player.reinforcementOptions?.find(o => o.id === chosen.id);
@@ -3523,6 +3529,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
         room.watchedKnockoutLegKey = null;
         room.discipline = resetYellowsForKnockout(room.discipline); // 🟨 amarelos zeram no mata-mata
         room.players.forEach(player => {
+          if (!player.team || !isKnockoutTeamAlive(room.knockoutBracket!, player.team.id)) {
+            player.reinforcementOptions = null;
+            player.reinforcementOffer = null;
+          }
           const cycle = missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg);
           player.missions = rotateMissionBoard(
             normalizeMissionState(player.missions, `${room.code}:${player.id}`, cycle),
@@ -3744,6 +3754,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
         && (koRewards.reinforcement === 'round_and_stage' || koRewards.reinforcementUntilRound === null || stageNumber <= koRewards.reinforcementUntilRound);
       room.players.forEach(p => {
         if (!p.team) return;
+        if (!room.knockoutBracket || !isKnockoutTeamAlive(room.knockoutBracket, p.team.id)) {
+          p.reinforcementOptions = null;
+          p.reinforcementOffer = null;
+          return;
+        }
         autoPickOfflineReinforcement(p);
         const eventNumber = offerStageReinforcement
           ? (p.reinforcementEventCount ?? 0) + 1

@@ -19,7 +19,7 @@ import {
   normalizeMatchPlan,
   MAX_RESERVE_PLAYERS, reservePlayerCount,
   draftSlotIndex,
-  advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
+  advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
   bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
   getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, SPECIALIZATION_UNLOCK_COST, applyDefeatGrowth, applyDefeatGrowthForResults,
   applyMercenarioProgress,
@@ -554,6 +554,8 @@ function finishEliminatedSoloCampaign(state: GameState): GameState {
     currentMatchTeams: null,
     currentMatchResult: null,
     spectating: false,
+    reinforcementOptions: null,
+    reinforcementOffer: null,
   };
 }
 
@@ -1779,11 +1781,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ? computeGroupQualifiedStandings(allTeams, state.leagueFixtures, state.competitionFormat)
         : state.leagueStandings;
       const bracket = createKnockoutBracket(bracketStandings, state.competitionFormat) as KnockoutBracket;
+      const playerStillQualified = isKnockoutTeamAlive(bracket, state.playerTeam.id);
       // 🟨 Amarelos acumulados zeram ao entrar no mata-mata (suspensões/lesões em curso continuam).
       return {
         ...state,
         knockoutBracket: bracket,
         phase: 'knockout',
+        reinforcementOptions: playerStillQualified ? state.reinforcementOptions : null,
+        reinforcementOffer: playerStillQualified ? state.reinforcementOffer : null,
         missions: rotateMissionBoard(
           state.missions,
           localMissionSeed(state),
@@ -1898,8 +1903,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         : ({ playoffs: 1, round16: 2, quarters: 3, semis: 4, final: 5 } as Record<string, number>)[bracket.currentRound] ?? 1;
       const koRewards = state.competitionFormat?.rewards ?? DEFAULT_REWARDS_CONFIG;
       const stageFinished = active.length > 0 && active.every(t => t.played);
+      const playerTeamStillInCompetition = !isFinalRound && isKnockoutTeamAlive(bracket, playerTeam.id);
       const offersByStage = koRewards.reinforcement === 'stage' || koRewards.reinforcement === 'round_and_stage';
-      const shouldOfferStageReinforcement = !isFinalRound && stageFinished
+      const shouldOfferStageReinforcement = playerTeamStillInCompetition && stageFinished
         && offersByStage
         && (koRewards.reinforcement === 'round_and_stage' || koRewards.reinforcementUntilRound === null || stageNumber <= koRewards.reinforcementUntilRound);
       const reinforcementEventCount = shouldOfferStageReinforcement
@@ -1908,6 +1914,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const recruitmentOffer = shouldOfferStageReinforcement
         ? createRecruitmentOffer(playerTeam, koRewards.reinforcementOptions, 'stage', reinforcementEventCount)
         : null;
+      const clearRecruitmentOffer = stageFinished && !playerTeamStillInCompetition;
       return {
         ...state,
         knockoutBracket: bracket,
@@ -1917,8 +1924,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         bets: revealed.bets,
         betProtectionUsedKeys: revealed.protectionUsedKeys,
         points: state.points + revealed.winnings,
-        reinforcementOptions: recruitmentOffer?.options ?? state.reinforcementOptions,
-        reinforcementOffer: recruitmentOffer?.offer ?? state.reinforcementOffer,
+        reinforcementOptions: clearRecruitmentOffer ? null : recruitmentOffer?.options ?? state.reinforcementOptions,
+        reinforcementOffer: clearRecruitmentOffer ? null : recruitmentOffer?.offer ?? state.reinforcementOffer,
         reinforcementEventCount,
       };
     }
@@ -1936,7 +1943,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           getAllPlayedMatchResults(state.leagueResults, bracket),
           championTeam?.name ?? 'Campeão'
         );
-        return { ...state, knockoutBracket: bracket, champion, report, phase: 'report' };
+        return { ...state, knockoutBracket: bracket, champion, report, phase: 'report', reinforcementOptions: null, reinforcementOffer: null };
       }
       return {
         ...state,

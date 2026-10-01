@@ -5026,6 +5026,22 @@ export function getActiveKnockoutMatches(bracket: KnockoutBracket): any[] {
   }
 }
 
+/** Whether a team is still alive in the current knockout stage. */
+export function isKnockoutTeamAlive(bracket: KnockoutBracket, teamId: string): boolean {
+  const tie = getActiveKnockoutMatches(bracket).find(match =>
+    match.homeTeamId === teamId || match.awayTeamId === teamId,
+  );
+  if (!tie) {
+    // In the playoff round, direct qualifiers have a bye and already occupy
+    // their Round-of-16 slot while playoff winners are still being decided.
+    return bracket.currentRound === 'playoffs'
+      && bracket.round16.some(match => match.homeTeamId === teamId || match.awayTeamId === teamId);
+  }
+  if (!tie.played || !tie.result) return true;
+  if (bracket.currentRound === 'final') return false;
+  return (tie.result.winner ?? tie.result.penaltyWinner) === teamId;
+}
+
 function emptyMatchStats(): MatchResult['stats'] {
   return {
     homePos: 50, awayPos: 50, homeShots: 0, awayShots: 0,
