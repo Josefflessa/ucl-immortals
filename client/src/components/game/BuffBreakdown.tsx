@@ -229,6 +229,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   const evolution = [...evolve, ...specialization];
   const position = collect(eff, b => b.position);
   const char = collect(eff, b => b.char);
+  const medicalReturnBoost = Math.max(0, Math.floor(player?.medicalReturnBoost ?? 0));
   // A carta especial própria já é explicada no bloco especial acima. Aqui ficam apenas
   // características especiais que deram um bônus a este jogador.
   const receivedCharSources = (charBoost?.sources ?? []).filter(source => !source.self && source.fromId !== player?.id);
@@ -248,7 +249,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
   // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
   const activeCoach = eff.activeCoachEffects ?? [];
   const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolution.length > 0 || position.length > 0 || char.length > 0 || variants.length > 0 || isOutfieldInGoal;
+  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolution.length > 0 || position.length > 0 || char.length > 0 || variants.length > 0 || medicalReturnBoost > 0 || isOutfieldInGoal;
 
   const chips = (list: Delta[], color: string) =>
     list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
@@ -266,6 +267,17 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
       ) : (
         <div className="divide-y" style={{ borderColor: '#141422' }}>
           {variants.map(variant => player && <SpecialVariantRow key={variant.key} variant={variant} player={player} charBoost={charBoost} isStarter={isStarter} credits={credits} />)}
+
+          {medicalReturnBoost > 0 && (
+            <Row icon="🏥" name="DEPARTAMENTO MÉDICO" color="#22D3EE">
+              <div className="flex flex-wrap gap-1">
+                <Chip text={`+${medicalReturnBoost} EM CADA ATRIBUTO`} color="#22D3EE" />
+              </div>
+              <div className="mt-1 text-[9px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                Bônus permanente acumulado ao voltar de lesões. Já está incorporado aos atributos e ao geral da carta.
+              </div>
+            </Row>
+          )}
 
           {/* INDIVIDUAL CHEMISTRY — the multiplier AND why (connections / out-of-position) */}
           {showChem && (

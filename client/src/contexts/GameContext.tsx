@@ -311,7 +311,7 @@ export type GameAction =
   | { type: 'REMOVE_MISSION'; missionId: string }
   | { type: 'DISMISS_MISSION_RESOLUTION' }
   | { type: 'SELL_PLAYER'; playerId: string }
-  | { type: 'START_LEAGUE' }
+  | { type: 'START_LEAGUE'; missionSeed: string }
   | { type: 'SIMULATE_LEAGUE' }
   | { type: 'START_KNOCKOUT' }
   | { type: 'PLAY_LEAGUE_MATCH'; homeTeamId: string; awayTeamId: string }
@@ -428,7 +428,8 @@ function currentUniquePackRoundKey(state: Pick<GameState, 'phase' | 'leagueRound
 
 const REGULAR_PLAYER_PACK_RARITIES: RegularPlayerPackRarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal'];
 
-function localMissionSeed(state: Pick<GameState, 'mode' | 'playerName' | 'roomCode' | 'playerTeam'>): string {
+function localMissionSeed(state: Pick<GameState, 'mode' | 'playerName' | 'roomCode' | 'playerTeam' | 'missions'>): string {
+  if (state.missions.seed) return state.missions.seed;
   if (state.mode === 'online') return `${state.roomCode ?? 'room'}:${state.playerTeam?.id ?? (state.playerName || 'player')}`;
   return `${state.playerName || 'solo'}:${state.playerTeam?.id ?? 'player'}`;
 }
@@ -1377,7 +1378,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ? missionCycleKey('knockout', 1, 'round16', 1)
         : missionCycleKey('league', 1);
       const missions = createMissionState(
-        `${state.playerName || 'solo'}:${playerTeam.id}:${state.competitionFormat.id}`,
+        action.missionSeed,
         initialMissionCycle,
       );
 

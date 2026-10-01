@@ -52,6 +52,8 @@ export interface MissionHistoryEntry {
 
 export interface MissionState {
   version: 1;
+  /** Randomized once per competition and retained to keep later boards stable. */
+  seed?: string;
   cycleKey: string;
   boardIds: string[];
   active: ActiveMission[];
@@ -402,6 +404,10 @@ function seededShuffle<T>(items: T[], seed: string): T[] {
   return output;
 }
 
+export function newMissionSeed(scope = 'campaign'): string {
+  return `${scope}:${crypto.randomUUID()}`;
+}
+
 export function missionDefinition(id: string): MissionDefinition | undefined {
   return MISSION_MAP[id];
 }
@@ -426,11 +432,10 @@ export function missionRemovalCost(missionId: string, missionsProjectLevel = 1):
   return missionsProjectLevel >= 3 ? Math.ceil(baseCost / 2) : baseCost;
 }
 
-function buildBoard(seed: string, cycleKey: string, excludedIds: Set<string>): string[] {
-  // Every mission belongs to the same random pool. The seeded shuffle keeps
-  // the result stable for the same player and round, which is important for
-  // solo reloads and for the authoritative online server, while still making
-  // the complete catalog eligible over successive rounds.
+function buildBoard(seed: string, cycleKey: string, excludedIds: Set<string> = new Set()): string[] {
+  // Each campaign and cycle gets its own stable randomized draw. Exclusions are
+  // only for the current draw (for example, replacing the five visible offers),
+  // so a mission can appear again in a later round.
   return seededShuffle(
     MISSION_CATALOG.filter(definition => !excludedIds.has(definition.id)),
     `${seed}:${cycleKey}:board`,
@@ -438,10 +443,12 @@ function buildBoard(seed: string, cycleKey: string, excludedIds: Set<string>): s
 }
 
 export function createMissionState(seed: string, cycleKey = 'L1'): MissionState {
+  const boardIds = buildBoard(seed, cycleKey);
   return {
     version: 1,
+    seed,
     cycleKey,
-    boardIds: buildBoard(seed, cycleKey, new Set()),
+    boardIds,
     active: [],
     history: [],
     processedMatchKeys: [],
@@ -451,9 +458,10 @@ export function createMissionState(seed: string, cycleKey = 'L1'): MissionState 
 }
 
 function hasValidBoard(boardIds: string[]): boolean {
-  return boardIds.length === 5
-    && new Set(boardIds).size === 5
+  const valid = boardIds.length <= 5
+    && new Set(boardIds).size === boardIds.length
     && boardIds.every(id => Boolean(MISSION_MAP[id]));
+  return valid && boardIds.length === 5;
 }
 
 export function normalizeMissionState(input: unknown, seed: string, cycleKey = 'L1'): MissionState {
@@ -493,6 +501,7 @@ export function normalizeMissionState(input: unknown, seed: string, cycleKey = '
     : null;
   const normalized: MissionState = {
     version: 1,
+    seed: typeof raw.seed === 'string' && raw.seed.length > 0 && raw.seed.length <= 200 ? raw.seed : seed,
     cycleKey: typeof raw.cycleKey === 'string' ? raw.cycleKey : cycleKey,
     boardIds,
     active,
@@ -502,32 +511,37 @@ export function normalizeMissionState(input: unknown, seed: string, cycleKey = '
     ...(typeof raw.rerollUsedCycleKey === 'string' ? { rerollUsedCycleKey: raw.rerollUsedCycleKey } : {}),
   };
   if (hasValidBoard(normalized.boardIds)) return normalized;
-  const excluded = new Set([
-    ...normalized.active.map(activeMission => activeMission.missionId),
-    ...normalized.history.slice(-8).map(historyEntry => historyEntry.missionId),
-  ]);
-  return { ...normalized, boardIds: buildBoard(seed, cycleKey, excluded) };
+  const nextBoard = buildBoard(normalized.seed ?? seed, cycleKey);
+  return {
+    ...normalized,
+    cycleKey,
+    boardIds: nextBoard,
+  };
 }
 
 export function rotateMissionBoard(state: MissionState, seed: string, cycleKey: string): MissionState {
-  if (state.cycleKey === cycleKey && state.boardIds.length === 5) return state;
-  const excluded = new Set([
-    ...state.active.map(active => active.missionId),
-    ...state.history.slice(-8).map(history => history.missionId),
-  ]);
-  let boardIds = buildBoard(seed, cycleKey, excluded);
-  if (boardIds.length < 5) boardIds = buildBoard(seed, cycleKey, new Set(state.active.map(active => active.missionId)));
-  return { ...state, cycleKey, boardIds, rerollUsedCycleKey: undefined };
+  const campaignSeed = state.seed ?? seed;
+  if (state.cycleKey === cycleKey && hasValidBoard(state.boardIds)) {
+    return { ...state, seed: campaignSeed };
+  }
+  const boardIds = buildBoard(campaignSeed, cycleKey);
+  return {
+    ...state,
+    seed: campaignSeed,
+    cycleKey,
+    boardIds,
+    rerollUsedCycleKey: undefined,
+  };
 }
 
 export function canRerollMissionBoard(state: MissionState, missionsProjectLevel = 1): boolean {
-  return missionsProjectLevel >= 2 && state.rerollUsedCycleKey !== state.cycleKey;
+  return missionsProjectLevel >= 2
+    && state.rerollUsedCycleKey !== state.cycleKey;
 }
 
 /**
- * Replaces all five offers once per cycle after the Missions Core reaches
- * level 2. Current offers, active missions and recent history are excluded so
- * a refresh feels meaningful without duplicating a mission immediately.
+ * Replaces the offers once per cycle after the Missions Core reaches level 2.
+ * It draws five different missions, excluding only the offers visible now.
  */
 export function rerollMissionBoard(
   state: MissionState,
@@ -535,16 +549,16 @@ export function rerollMissionBoard(
   missionsProjectLevel = 1,
 ): MissionState | null {
   if (!canRerollMissionBoard(state, missionsProjectLevel)) return null;
-  const excluded = new Set([
-    ...state.boardIds,
-    ...state.active.map(active => active.missionId),
-    ...state.history.slice(-8).map(history => history.missionId),
-  ]);
-  let boardIds = buildBoard(seed, `${state.cycleKey}:reroll`, excluded);
-  if (boardIds.length < 5) {
-    boardIds = buildBoard(seed, `${state.cycleKey}:reroll:fallback`, new Set(state.active.map(active => active.missionId)));
-  }
-  return { ...state, boardIds, rerollUsedCycleKey: state.cycleKey };
+  const campaignSeed = state.seed ?? seed;
+  const boardIds = buildBoard(campaignSeed, `${state.cycleKey}:reroll`, new Set(state.boardIds));
+  return boardIds.length > 0
+    ? {
+        ...state,
+        seed: campaignSeed,
+        boardIds,
+        rerollUsedCycleKey: state.cycleKey,
+      }
+    : null;
 }
 
 export function acceptMission(state: MissionState, missionId: string, missionsProjectLevel = 1): MissionState | null {

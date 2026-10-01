@@ -1,5 +1,6 @@
 import { Coach, Formation } from '../../lib/gameData';
 import { PREFERRED_FORMATION_CHEM_BONUS } from '../../lib/gameEngine';
+import { coachPrimeDefinition } from '../../lib/coachPrime';
 
 interface CoachCardProps {
   coach: Coach;
@@ -13,6 +14,9 @@ interface CoachCardProps {
 // Card do técnico — extraído do inline da SquadEditor pra ser reusado (MEU TIME + fim de campanha).
 export default function CoachCard({ coach, formation, isPrime = false, primePhotoUrl, bare = false, showHeader = true }: CoachCardProps) {
   const photo = isPrime && primePhotoUrl ? primePhotoUrl : coach.photoUrl;
+  const primeDefinition = isPrime ? coachPrimeDefinition(coach.id) : null;
+  const abilityName = primeDefinition?.name ?? coach.specialAbilityName;
+  const abilityDescription = primeDefinition?.prime ?? coach.specialAbility;
   return (
     <div className={bare ? '' : 'rounded-xl overflow-hidden'} style={bare ? undefined : { background: '#0F0F1A', border: `1px solid ${isPrime ? '#C9A84C55' : '#1A1A2A'}` }}>
       {showHeader && (
@@ -46,8 +50,8 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
           <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{coach.effect}</div>
         </div>
         <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #2A2A4A' }}>
-          <div className="text-[9px] font-black tracking-widest mb-1" style={{ color: '#A78BFA', fontFamily: 'Rajdhani, sans-serif' }}>✨ HABILIDADE: {coach.specialAbilityName?.toUpperCase()}</div>
-          <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{coach.specialAbility}</div>
+          <div className="text-[9px] font-black tracking-widest mb-1" style={{ color: isPrime ? '#E8C84A' : '#A78BFA', fontFamily: 'Rajdhani, sans-serif' }}>✨ HABILIDADE{isPrime ? ' PRIME' : ''}: {abilityName?.toUpperCase()}</div>
+          <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{abilityDescription}</div>
         </div>
         {coach.preferredFormation && (
           <div className="flex items-center gap-2 text-[10px] pt-0.5 flex-wrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>

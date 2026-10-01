@@ -781,15 +781,15 @@ export default function SquadEditor({
                   const posIdx = isStarter ? selectedIndex : -1;
                   const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
                   const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, coachPrime, analysisLevel, role: formationRole, isSecondary: selectedIsSecondary, credits: points });
-                  const originalOverall = selectedPlayer.baseOverall ?? selectedPlayer.overall;
-                  // Card-level variants (Em Alta/Lobo/Mártir/Magnata) are already baked into
-                  // selectedPlayer.*. For this breakdown, compare the final effective result
-                  // against the untouched base so the user sees one complete delta.
+                  const medicalReturnBoost = Math.max(0, Math.floor(selectedPlayer.medicalReturnBoost ?? 0));
+                  const originalOverall = Math.max(1, (selectedPlayer.baseOverall ?? selectedPlayer.overall) - medicalReturnBoost);
+                  // Variants and medical returns are baked into selectedPlayer.*. Undo both
+                  // for the baseline so the displayed deltas include each permanent gain once.
                   const cardVariantDelta = selectedPlayer.baseOverall !== undefined
                     ? selectedPlayer.overall - selectedPlayer.baseOverall
                     : 0;
                   const effectiveOverallDelta = eff.overall - originalOverall;
-                  const originalStat = (value: number) => value - cardVariantDelta;
+                  const originalStat = (value: number) => Math.max(1, value - cardVariantDelta - medicalReturnBoost);
                   const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
                   const linkLabels: Record<string, string> = { club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica' };
                   const selLinks = posIdx >= 0

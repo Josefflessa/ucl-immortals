@@ -501,8 +501,17 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     if (mode !== 'solo' || !allowedCategories.has(category) || recordCategories.has(category) || !playerId || !playerName || !Number.isSafeInteger(value)) {
       return json({ error: 'invalid_record' }, 400);
     }
-    const maxValue = category === 'effective_overall' ? 150 : 200;
-    if (value < 1 || value > maxValue) return json({ error: 'invalid_record_value' }, 400);
+    const maxValue = 9_999;
+    if (value < 1 || value > maxValue) {
+      const categoryLabel = category === 'goals' ? 'gols'
+        : category === 'assists' ? 'assistências'
+          : category === 'saves' ? 'defesas'
+            : 'overall efetivo';
+      return json({
+        error: 'invalid_record_value',
+        message: `O recorde de ${categoryLabel} (${value}) precisa ficar entre 1 e ${maxValue}.`,
+      }, 400);
+    }
     recordCategories.add(category);
     safeRecords.push({ category, playerId, playerName, playerPhotoUrl, value });
   }

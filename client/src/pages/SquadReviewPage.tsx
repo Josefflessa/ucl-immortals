@@ -4,6 +4,7 @@
 // draft-phase state + actions; online mode submits the lineup instead of starting locally.
 import { useGame } from '../contexts/GameContext';
 import { Player } from '../lib/gameData';
+import { newMissionSeed } from '../lib/missions';
 import SquadEditor from '../components/game/SquadEditor';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
@@ -20,7 +21,10 @@ export default function SquadReviewPage() {
     if (online) {
       submitSquadReviewOnline(state.captain, state.penaltyTaker, state.freeKickTaker, state.draftedPlayers, state.selectedPlayStyle, state.selectedFormationId, state.selectedMatchPlan);
     } else {
-      dispatch({ type: 'START_LEAGUE' });
+      dispatch({
+        type: 'START_LEAGUE',
+        missionSeed: newMissionSeed(`${state.playerName || 'solo'}:${state.competitionFormat.id}`),
+      });
     }
   };
 

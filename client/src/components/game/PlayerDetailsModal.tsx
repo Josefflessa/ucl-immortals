@@ -89,10 +89,11 @@ export default function PlayerDetailsModal({
     },
   );
 
-  const originalOverall = player.baseOverall ?? player.overall;
+  const medicalReturnBoost = Math.max(0, Math.floor(player.medicalReturnBoost ?? 0));
+  const originalOverall = Math.max(1, (player.baseOverall ?? player.overall) - medicalReturnBoost);
   const cardVariantDelta = player.baseOverall !== undefined ? player.overall - player.baseOverall : 0;
   const effectiveOverallDelta = effectiveStats.overall - originalOverall;
-  const originalStat = (value: number) => value - cardVariantDelta;
+  const originalStat = (value: number) => Math.max(1, value - cardVariantDelta - medicalReturnBoost);
   const chemDots = [0, 1, 2].map(index => index < effectiveStats.chemScore);
   const linkLabels: Record<string, string> = {
     club: 'Mesmo clube',

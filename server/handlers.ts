@@ -87,6 +87,7 @@ import {
   rerollMissionBoard,
   createMissionMatchContext,
   createMissionState,
+  newMissionSeed,
   missionCycleKey,
   missionRemovalCost,
   normalizeMissionState,
@@ -1705,7 +1706,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
             playerPackOfferRoundKeys: {},
             bets: [],
             betProtectionUsedKeys: [],
-            missions: createMissionState(`${roomCode}:player_0`, 'L1')
+            missions: createMissionState(newMissionSeed(`${roomCode}:player_0`), 'L1')
           }
         ],
         botTeams: [],
@@ -1875,7 +1876,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         playerPackOfferRoundKeys: {},
         bets: [],
         betProtectionUsedKeys: [],
-        missions: createMissionState(`${code}:player_${room.players.length}`, 'L1')
+        missions: createMissionState(newMissionSeed(`${code}:player_${room.players.length}`), 'L1')
       };
 
       room.players.push(newPlayer);
@@ -3940,7 +3941,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         p.bets = [];
         p.betProtectionUsedKeys = [];
         p.pendingMatchPoints = undefined;
-        p.missions = createMissionState(`${room.code}:${p.id}`, 'L1');
+        p.missions = createMissionState(newMissionSeed(`${room.code}:${p.id}`), 'L1');
       });
       room.botTeams = [];
       room.leagueFixtures = [];

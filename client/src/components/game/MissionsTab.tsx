@@ -161,7 +161,7 @@ export default function MissionsTab() {
               <h2 className="text-2xl font-black tracking-widest text-balance text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>MURAL DE MISSÕES</h2>
             </div>
             <p className="mt-1 max-w-2xl text-sm text-pretty leading-relaxed" style={{ color: '#9696AA', fontFamily: 'Rajdhani, sans-serif' }}>
-              O mural muda a cada rodada, mas as missões aceitas continuam valendo até serem concluídas, expirarem ou serem removidas.
+              A cada rodada, o mural faz um novo sorteio. Uma missão pode aparecer novamente em outra rodada; as aceitas continuam valendo até serem concluídas, expirarem ou serem removidas.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2 md:justify-self-center">
@@ -182,7 +182,9 @@ export default function MissionsTab() {
                 intent={rerollAvailable ? 'primary' : 'secondary'}
                 size="default"
                 disabled={!rerollAvailable}
-                title={rerollAvailable ? 'Atualiza as 5 ofertas do mural. 1 uso por rodada.' : 'A atualização gratuita desta rodada já foi usada.'}
+                title={rerollAvailable
+                  ? 'Faz um novo sorteio, sem repetir as ofertas que estão no mural. 1 uso por rodada.'
+                  : 'A atualização gratuita desta rodada já foi usada.'}
                 onClick={reroll}
               >
                 <RefreshCw size={15} /> {rerollAvailable ? 'ATUALIZAR MURAL' : 'MURAL ATUALIZADO'}
@@ -228,24 +230,30 @@ export default function MissionsTab() {
             {board.length} {board.length === 1 ? 'oferta disponível' : 'ofertas disponíveis'}
           </span>
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {board.map(definition => {
-            const active = activeById.get(definition.id);
-            const resolved = state.missions.history.some(history => history.missionId === definition.id && history.cycleKey === state.missions.cycleKey);
-            return (
-              <MissionCard
-                key={definition.id}
-                missionId={definition.id}
-                active={active}
-                resolved={resolved}
-                canAccept={activeCount < 2 && !resolved}
-                missionsProjectLevel={missionsProjectLevel}
-                onAccept={() => accept(definition.id)}
-                onRemove={() => setRemoveTarget(definition.id)}
-              />
-            );
-          })}
-        </div>
+        {board.length === 0 ? (
+          <div className="rounded-xl border px-4 py-5 text-sm" style={{ borderColor: '#24243A', background: '#10101C', color: '#9696AA', fontFamily: 'Rajdhani, sans-serif' }}>
+            Todas as ofertas deste mural foram aceitas ou resolvidas. Faça a atualização gratuita, se ainda estiver disponível, ou aguarde o próximo sorteio.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {board.map(definition => {
+              const active = activeById.get(definition.id);
+              const resolved = state.missions.history.some(history => history.missionId === definition.id && history.cycleKey === state.missions.cycleKey);
+              return (
+                <MissionCard
+                  key={definition.id}
+                  missionId={definition.id}
+                  active={active}
+                  resolved={resolved}
+                  canAccept={activeCount < 2 && !resolved}
+                  missionsProjectLevel={missionsProjectLevel}
+                  onAccept={() => accept(definition.id)}
+                  onRemove={() => setRemoveTarget(definition.id)}
+                />
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <ConfirmDialog
