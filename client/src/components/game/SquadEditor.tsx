@@ -63,6 +63,7 @@ export interface SquadEditorProps {
   onEvolvePrime?: () => void;
   // ⭐ Cartas Evoluídas: cada nível libera 6 pontos para distribuir (só no MEU TIME).
   onSetEvolvePoint?: (playerId: string, attr: AttrKey, delta: number) => void;
+  onSetAutoEvolveAttribute?: (playerId: string, attr: AttrKey | null) => void;
   onUnlockSpecialization?: (playerId: string) => void;
   onChooseSpecialization?: (playerId: string, specialization: PlayerSpecialization) => void;
   onResetEvolvePoints?: (playerId: string) => void;
@@ -82,7 +83,7 @@ export default function SquadEditor({
   showCoachCard = true, footer, isKnockout = false,
   availability, onHealInjury, canAffordPhysio, physioFree = false, physioCost = 150,
   coachPrime, points, analysisLevel = 1, stadiumProjectLevel = 1, wins, onEvolvePrime,
-  onSetEvolvePoint, onUnlockSpecialization, onChooseSpecialization, onResetEvolvePoints,
+  onSetEvolvePoint, onSetAutoEvolveAttribute, onUnlockSpecialization, onChooseSpecialization, onResetEvolvePoints,
 }: SquadEditorProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   // 🔍 Ver o card do jogador em tela cheia (só visualização).
@@ -949,13 +950,14 @@ export default function SquadEditor({
                 })()}
 
                 {/* ⭐ Evolução cumulativa — nível 4 escolhe uma especialização Imortal */}
-                {onSetEvolvePoint && selectedPlayer.rarity !== 'unique' && (() => {
+                {(onSetEvolvePoint || onSetAutoEvolveAttribute) && selectedPlayer.rarity !== 'unique' && (() => {
                   const evolutionLevel = getEvolutionLevel(selectedPlayer);
                   const evolved = evolutionLevel > 0;
                   const ep = selectedPlayer.evolvePoints ?? {};
                   const spent = evolvePointsSpent(ep);
                   const unlockedPoints = evolvePointsBudget(evolutionLevel);
                   const availablePoints = Math.max(0, unlockedPoints - spent);
+                  const hasFutureEvolveLevel = evolutionLevel < 3;
                   const apps = selectedPlayer.appearances ?? 0;
                   const maxLevel = selectedPlayer.rarity === 'immortal' ? SPECIALIZATION_LEVEL : 3;
                   const needsSpecializationUnlock = selectedPlayer.rarity === 'immortal'
@@ -996,12 +998,40 @@ export default function SquadEditor({
                       </div>
                       <div className="p-3.5">
                         {evolutionProgress}
+                        {onSetAutoEvolveAttribute && (
+                          <label className="mb-3 block rounded-lg p-3" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
+                            <span className="block text-[10px] font-black tracking-widest" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>AUTOMATIZAR PRÓXIMAS EVOLUÇÕES</span>
+                            <select
+                              value={selectedPlayer.autoEvolveAttribute ?? ''}
+                              onChange={event => {
+                                const attr = EVOLVE_ATTRS.find(attribute => attribute.key === event.target.value)?.key ?? null;
+                                onSetAutoEvolveAttribute(selectedPlayer.id, attr);
+                              }}
+                              className="mt-2 w-full rounded-lg px-3 py-2.5 text-xs font-bold"
+                              style={{ color: '#F3F4F6', background: '#12121E', border: '1px solid #29293A', fontFamily: 'Rajdhani, sans-serif' }}
+                            >
+                              <option value="">Manual · escolher no modal</option>
+                              {EVOLVE_ATTRS.map(attribute => (
+                                <option key={attribute.key} value={attribute.key} disabled={!hasFutureEvolveLevel && selectedPlayer.autoEvolveAttribute !== attribute.key}>
+                                  {attribute.label}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="mt-1.5 block text-[10px] leading-snug" style={{ color: '#777789', fontFamily: 'Rajdhani, sans-serif' }}>
+                              {selectedPlayer.autoEvolveAttribute && hasFutureEvolveLevel
+                                ? `Os próximos pacotes de +${EVOLVE_POINTS} irão para ${EVOLVE_ATTRS.find(attribute => attribute.key === selectedPlayer.autoEvolveAttribute)?.label.toLowerCase()}. Pontos já liberados continuam como estão.`
+                                : selectedPlayer.autoEvolveAttribute
+                                  ? 'Os níveis que liberam pontos já foram concluídos. Você ainda pode desligar a preferência.'
+                                  : 'Sem automação: distribua manualmente os pontos já liberados e escolha os próximos no modal.'}
+                            </span>
+                          </label>
+                        )}
                         {evolved && evolutionLevel < SPECIALIZATION_LEVEL && (
                           <div className="text-[10px] mb-2 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                             Cada nível libera <b style={{ color: '#C9C9D5' }}>+{EVOLVE_POINTS}</b>. Você pode colocar todos os pontos no mesmo atributo.
                           </div>
                         )}
-                        {evolved && evolutionLevel > 0 && (
+                        {onSetEvolvePoint && evolved && evolutionLevel > 0 && (
                           <div className="grid grid-cols-2 gap-2">
                             {EVOLVE_ATTRS.map(a => (
                               <button

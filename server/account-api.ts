@@ -762,7 +762,7 @@ function storedRecordCardData(
   const { effectiveStats: embeddedStats, ...player } = stored;
   const effectiveStats = contextEffectiveStats ?? normalizedEffectiveCardStats(embeddedStats);
   const overall = effectiveOverall ?? effectiveStats?.overall ?? null;
-  const displayedStats = effectiveStats
+  const displayedStats: Record<string, number> | null = effectiveStats
     ? { ...effectiveStats, ...(overall !== null ? { overall } : {}) }
     : overall !== null
       ? {

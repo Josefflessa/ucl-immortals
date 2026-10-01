@@ -69,6 +69,8 @@ export default function ShopTab() {
   const points = state.points;
   const online = state.mode === 'online';
   const pendingPack = state.pendingPack; // 🛒 pacote JÁ PAGO aguardando a escolha do jogador
+  const pendingPackKind = pendingPack?.kind ?? null;
+  const pendingPackOptionIds = pendingPack?.options.map(option => option.id).join('|') ?? null;
   const pendingPackReveal = state.pendingPackReveal; // 📦 pacote de raridade já pago, aguardando a animação/revelação
   const pendingUniquePack = state.pendingUniquePack; // ⭐ carta sorteada e reservada até a revelação
   const [active, setActive] = useState<ItemId | null>(null);
@@ -103,6 +105,16 @@ export default function ShopTab() {
     setSelPlayerId(null);
     setActive('playerPacks');
   }, [pendingPackReveal?.kind, pendingPackReveal?.card.id, pendingUniquePack?.id]);
+
+  // O Caça-Talentos é confirmado pelo estado autoritativo no online. Quando a
+  // oferta chega, abre a escolha sem exigir que a pessoa
+  // feche e abra o item de novo. As dependências identificam uma oferta nova;
+  // fechar manualmente uma oferta pendente não a reabre a cada atualização.
+  useEffect(() => {
+    if (!pendingPackKind) return;
+    setSelPlayerId(null);
+    setActive(pendingPackKind === 'scout' ? 'scout' : 'playerPacks');
+  }, [pendingPackKind, pendingPackOptionIds]);
 
   // A troca de jogador/modal sempre começa pela primeira página. Isso evita
   // manter uma página alta que não exista para a nova lista de características.

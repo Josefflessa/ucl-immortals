@@ -287,6 +287,7 @@ export type GameAction =
   | { type: 'SHOP_CHANGE_COACH'; coachId: string }
   | { type: 'EVOLVE_COACH_PRIME' }
   | { type: 'SET_EVOLVE_POINT'; playerId: string; attr: AttrKey; delta: number }
+  | { type: 'SET_AUTO_EVOLVE_ATTRIBUTE'; playerId: string; attr: AttrKey | null }
   | { type: 'UNLOCK_PLAYER_SPECIALIZATION'; playerId: string }
   | { type: 'CHOOSE_PLAYER_SPECIALIZATION'; playerId: string; specialization: PlayerSpecialization }
   | { type: 'RESET_EVOLVE_POINTS'; playerId: string }
@@ -877,6 +878,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         const unlockedPoints = evolvePointsBudget(getEvolutionLevel(p));
         return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, action.attr, action.delta, unlockedPoints) };
       });
+      return { ...state, playerTeam: { ...state.playerTeam, players } };
+    }
+    case 'SET_AUTO_EVOLVE_ATTRIBUTE': {
+      if (!state.playerTeam) return state;
+      const players = state.playerTeam.players.map(p => p.id === action.playerId && p.rarity !== 'unique'
+        ? { ...p, autoEvolveAttribute: action.attr ?? undefined }
+        : p);
       return { ...state, playerTeam: { ...state.playerTeam, players } };
     }
     case 'UNLOCK_PLAYER_SPECIALIZATION': {
@@ -2437,6 +2445,7 @@ interface GameContextType {
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
   setEvolvePointOnline: (playerId: string, attr: AttrKey, delta: number) => void;
+  setAutoEvolveAttributeOnline: (playerId: string, attr: AttrKey | null) => void;
   unlockSpecializationOnline: (playerId: string) => void;
   chooseSpecializationOnline: (playerId: string, specialization: PlayerSpecialization) => void;
   resetEvolvePointsOnline: (playerId: string) => void;
@@ -3019,6 +3028,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_EVOLVE_POINT', playerId, attr, delta });
     emitOnlineAction("set_evolve_point", { roomCode: state.roomCode, playerId, attr, delta });
   }, [dispatch, emitOnlineAction, state.roomCode]);
+  const setAutoEvolveAttributeOnline = useCallback((playerId: string, attr: AttrKey | null) => {
+    if (!socketRef.current || !state.roomCode) return;
+    dispatch({ type: 'SET_AUTO_EVOLVE_ATTRIBUTE', playerId, attr });
+    emitOnlineAction("set_auto_evolve_attribute", { roomCode: state.roomCode, playerId, attr });
+  }, [dispatch, emitOnlineAction, state.roomCode]);
   const unlockSpecializationOnline = useCallback((playerId: string) => {
     if (!socketRef.current || !state.roomCode) return;
     dispatch({ type: 'UNLOCK_PLAYER_SPECIALIZATION', playerId });
@@ -3146,7 +3160,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, ensurePlayerPackOffersOnline, shopOpenPlayerPackOnline, shopClaimPlayerPackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, tradeInviteOnline, tradeLeaveOnline, tradeAcceptInviteOnline, tradeSelectOnline, tradeReadyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
-    swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
+    swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, setAutoEvolveAttributeOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline, requestMatchResultOnline, acceptMissionOnline, rerollMissionsOnline, removeMissionOnline, dismissMissionResolutionOnline,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state, dispatch]);

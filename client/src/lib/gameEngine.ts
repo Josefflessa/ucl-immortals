@@ -1561,6 +1561,8 @@ export const EVOLVE_LEVEL_THRESHOLDS = [0, 4, 8, 12, 12] as const;
 export const EVOLVE_GAMES = EVOLVE_LEVEL_THRESHOLDS[1];
 export const EVOLVE_POINTS = 6;
 export const EVOLVE_POINT_LEVELS = 3;
+const EVOLVE_ATTRIBUTE_KEYS: readonly AttrKey[] = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'];
+const EVOLVE_ATTRIBUTE_KEY_SET = new Set<string>(EVOLVE_ATTRIBUTE_KEYS);
 export const SPECIALIZATION_LEVEL = 4;
 export const SPECIALIZATION_POINTS = 6;
 export const SPECIALIZATION_UNLOCK_COST = 200;
@@ -1665,11 +1667,22 @@ export function bumpStarterAppearances(
     if (appearanceMatchId && receipts.includes(appearanceMatchId)) return player;
 
     changed = true;
+    const previousEvolutionLevel = getEvolutionLevel(player);
     const next: PlayerCard = {
       ...player,
       appearances: (player.appearances ?? 0) + 1,
       ...(player.prodigio ? { prodigioStarts: (player.prodigioStarts ?? 0) + 1 } : {}),
     };
+    const nextEvolutionLevel = getEvolutionLevel(next);
+    const previousPointLevel = Math.min(EVOLVE_POINT_LEVELS, previousEvolutionLevel);
+    const nextPointLevel = Math.min(EVOLVE_POINT_LEVELS, nextEvolutionLevel);
+    if (next.autoEvolveAttribute && EVOLVE_ATTRIBUTE_KEY_SET.has(next.autoEvolveAttribute) && nextPointLevel > previousPointLevel) {
+      let points = next.evolvePoints ?? {};
+      for (let level = previousPointLevel + 1; level <= nextPointLevel; level += 1) {
+        points = applyEvolvePoint(points, next.autoEvolveAttribute, EVOLVE_POINTS, evolvePointsBudget(level));
+      }
+      next.evolvePoints = points;
+    }
     if (appearanceMatchId) {
       next.appearanceMatchIds = Array.from(new Set([...receipts, appearanceMatchId])).slice(-MAX_APPEARANCE_RECEIPTS);
     }

@@ -2281,6 +2281,23 @@ export function registerSocketHandlers(io: RealtimeServer) {
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
     });
+    on("set_auto_evolve_attribute", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: any }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      if (!isValidId(playerId) || (attr !== null && !VALID_TRAIN_ATTRS.has(attr))) return;
+      let changed = false;
+      player.team.players = player.team.players.map(p => {
+        if (p.id !== playerId || p.rarity === 'unique' || p.autoEvolveAttribute === (attr ?? undefined)) return p;
+        changed = true;
+        return { ...p, autoEvolveAttribute: attr ?? undefined };
+      });
+      if (!changed) return;
+      invalidateReady(room, player.id);
+      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      emitReadyState(io, room);
+    });
     on("unlock_player_specialization", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;

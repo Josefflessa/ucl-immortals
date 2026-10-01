@@ -13,6 +13,7 @@ import { SORTITOUTSI_EUROPEAN_LEGENDS } from './sortitoutsiEuropeanLegendsExpans
 import { FIFAINDEX_FAMOUS_ADDITIONS } from './fifaIndexFamousExpansion';
 import { USER_SELECTED_HISTORICAL_PLAYERS } from './userSelectedHistoricalPlayers';
 import { clubIdForName } from './crests';
+import type { AttrKey } from './traits';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
@@ -154,6 +155,9 @@ export interface Player {
     pace?: number; shooting?: number; passing?: number; dribbling?: number;
     defending?: number; physical?: number; vision?: number; composure?: number;
   };
+  // Atributo que recebe automaticamente os próximos pacotes de 6 pontos ao
+  // desbloquear os níveis 1–3. Pontos já liberados continuam manuais.
+  autoEvolveAttribute?: AttrKey;
 }
 
 export interface CoachBonus {
