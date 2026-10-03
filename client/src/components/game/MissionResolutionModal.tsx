@@ -49,7 +49,7 @@ export default function MissionResolutionModal({ resolution, onClose, missionsPr
           </div>
           <h3
             className="text-2xl sm:text-3xl font-black tracking-widest leading-none"
-            style={{ fontFamily: 'Bebas Neue, sans-serif', color: onlyExpired ? '#CBD5E1' : '#4ADE80' }}
+            style={{ fontFamily: 'var(--font-display), sans-serif', color: onlyExpired ? '#CBD5E1' : '#4ADE80' }}
           >
             {title}
           </h3>
@@ -71,17 +71,17 @@ export default function MissionResolutionModal({ resolution, onClose, missionsPr
                 <CheckCircle2 size={19} className="mt-0.5 flex-shrink-0" style={{ color: '#4ADE80' }} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <strong className="text-base font-black text-white sm:text-lg" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                    <strong className="text-base font-black text-white sm:text-lg" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
                       {mission.title}
                     </strong>
-                    <span className="text-base font-black tabular-nums" style={{ color: '#F0C674', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <span className="text-base font-black tabular-nums" style={{ color: '#F0C674', fontFamily: 'var(--font-game), sans-serif' }}>
                       +{missionReward(mission.id, missionsProjectLevel)} créditos
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-pretty leading-relaxed" style={{ color: '#A5A5B6', fontFamily: 'Rajdhani, sans-serif' }}>
+                  <p className="mt-1 text-sm text-pretty leading-relaxed" style={{ color: '#A5A5B6', fontFamily: 'var(--font-game), sans-serif' }}>
                     {mission.description}
                   </p>
-                  <span className="mt-2 inline-flex rounded px-1.5 py-0.5 text-xs font-black tracking-widest" style={{ color: rarity.color, background: `${rarity.color}18`, fontFamily: 'Rajdhani, sans-serif' }}>
+                  <span className="mt-2 inline-flex rounded px-1.5 py-0.5 text-xs font-black tracking-widest" style={{ color: rarity.color, background: `${rarity.color}18`, fontFamily: 'var(--font-game), sans-serif' }}>
                     CONCLUÍDA · {rarity.label}
                   </span>
                 </div>
@@ -95,13 +95,13 @@ export default function MissionResolutionModal({ resolution, onClose, missionsPr
             <div className="flex items-start gap-3">
               <XCircle size={19} className="mt-0.5 flex-shrink-0" style={{ color: '#94A3B8' }} />
               <div className="min-w-0">
-                <strong className="text-base font-black text-white sm:text-lg" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                <strong className="text-base font-black text-white sm:text-lg" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
                   {mission.title}
                 </strong>
-                <p className="mt-1 text-sm text-pretty leading-relaxed" style={{ color: '#A5A5B6', fontFamily: 'Rajdhani, sans-serif' }}>
+                <p className="mt-1 text-sm text-pretty leading-relaxed" style={{ color: '#A5A5B6', fontFamily: 'var(--font-game), sans-serif' }}>
                   O prazo terminou e a missão foi encerrada sem recompensa.
                 </p>
-                <span className="mt-2 inline-flex rounded px-1.5 py-0.5 text-xs font-black tracking-widest" style={{ color: '#94A3B8', background: '#64748B18', fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="mt-2 inline-flex rounded px-1.5 py-0.5 text-xs font-black tracking-widest" style={{ color: '#94A3B8', background: '#64748B18', fontFamily: 'var(--font-game), sans-serif' }}>
                   EXPIRADA
                 </span>
               </div>
@@ -111,10 +111,10 @@ export default function MissionResolutionModal({ resolution, onClose, missionsPr
 
         {completedTotal > 0 && (
           <div className="flex items-center justify-between rounded-lg border border-[#F0C67433] bg-[#F0C6740D] px-4 py-3">
-            <span className="text-xs font-black tracking-widest" style={{ color: '#A5A5B6', fontFamily: 'Rajdhani, sans-serif' }}>
+            <span className="text-xs font-black tracking-widest" style={{ color: '#A5A5B6', fontFamily: 'var(--font-game), sans-serif' }}>
               TOTAL DE RECOMPENSAS
             </span>
-            <strong className="text-lg font-black" style={{ color: '#F0C674', fontFamily: 'Bebas Neue, sans-serif' }}>
+            <strong className="text-lg font-black" style={{ color: '#F0C674', fontFamily: 'var(--font-display), sans-serif' }}>
               +{completedTotal} créditos
             </strong>
           </div>

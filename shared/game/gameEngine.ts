@@ -32,7 +32,7 @@ export type {
   VariantFlag,
 } from './engine/draft';
 export {
-  generateBotTeam, rebuildTeamChemistry, generateImmortalReport,
+  BOT_NAMES, botCrestId, pickBotNames, generateBotTeam, rebuildTeamChemistry, generateImmortalReport,
 } from './engine/bots';
 export type {
   ImmortalReport,

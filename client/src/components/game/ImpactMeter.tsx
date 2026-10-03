@@ -47,12 +47,12 @@ export default function ImpactMeter({ profile }: { profile: Axes }) {
         return (
           <div key={key} role="img" title={`${label}: ${explanation}`} aria-label={`${label}: ${STATUS[lvl]}. ${explanation}`} className="flex min-h-[64px] min-w-0 overflow-hidden flex-col items-center justify-center rounded-lg px-1.5 py-1.5 text-center"
             style={{ background: '#0A0A14', border: '1px solid #1C1C30' }}>
-            <span className="text-[11px] font-black tracking-[0.08em]" style={{ color: '#9A9AAF', fontFamily: 'Rajdhani, sans-serif' }}>
+            <span className="text-[12px] font-black tracking-[0.08em]" style={{ color: '#9A9AAF', fontFamily: 'var(--font-game), sans-serif' }}>
               {label}
             </span>
             <div className="mt-1 flex min-w-0 max-w-full items-center justify-center gap-0.5 leading-tight">
               <span className="shrink-0 text-sm font-black" style={{ color: a.color }}>{a.txt}</span>
-              <span className="min-w-0 whitespace-normal break-normal text-[11px] font-bold leading-[1.05] tracking-[-0.02em]" style={{ color: a.color }}>{STATUS[lvl]}</span>
+              <span className="min-w-0 whitespace-normal break-normal text-[12px] font-bold leading-[1.05] tracking-[-0.02em]" style={{ color: a.color }}>{STATUS[lvl]}</span>
             </div>
           </div>
         );

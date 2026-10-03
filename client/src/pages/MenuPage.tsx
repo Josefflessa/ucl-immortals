@@ -244,7 +244,7 @@ export default function MenuPage() {
           {/* Logo */}
           <div className="flex items-center gap-3 mb-6">
             <img src={LOGO_URL} alt="UCL Logo" className="w-10 h-10 object-contain" />
-            <h2 className="text-2xl font-black tracking-widest text-primary" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+            <h2 className="text-2xl font-black tracking-widest text-primary" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
               LOBBY MULTIPLAYER
             </h2>
           </div>
@@ -255,12 +255,12 @@ export default function MenuPage() {
             className="ui-panel w-full p-5"
           >
             {/* Room Code Header */}
-            <div className="flex items-center gap-3 pb-4 border-b" style={{ borderColor: '#1A1A2A' }}>
+            <div className="flex items-center gap-3 pb-4 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
               <div className="min-w-0 flex-1 text-center">
-                <span className="text-xs font-bold text-gray-500 tracking-widest block uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-xs font-bold text-gray-500 tracking-widest block uppercase" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   CÓDIGO DA SALA
                 </span>
-                <span className="text-4xl font-black text-yellow-500 tracking-wider block mt-1" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                <span className="text-4xl font-black text-yellow-500 tracking-wider block mt-1" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
                   {state.roomCode}
                 </span>
               </div>
@@ -299,7 +299,7 @@ export default function MenuPage() {
 
             {/* Players List */}
             <div className="my-4">
-              <span className="text-xs font-bold text-primary tracking-widest block uppercase mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <span className="text-xs font-bold text-primary tracking-widest block uppercase mb-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 JOGADORES CONECTADOS ({state.onlinePlayers.length})
               </span>
               <div className="space-y-2">
@@ -309,12 +309,12 @@ export default function MenuPage() {
                     className="flex items-center justify-between p-2.5 rounded-lg border" 
                     style={{ background: '#08080f', borderColor: '#171725' }}
                   >
-                    <span className="font-bold text-white text-sm" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <span className="font-bold text-white text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                       {p.name} {p.socketId === state.socketId && <span className="text-xs text-primary font-normal">(Você)</span>}
                     </span>
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      <span className="text-[12px] text-green-500 font-bold uppercase tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      <span className="text-[12px] text-green-500 font-bold uppercase tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         {p.id === state.onlineHostId ? 'ANFITRIÃO' : 'PRONTO'}
                       </span>
                     </div>
@@ -324,22 +324,22 @@ export default function MenuPage() {
             </div>
 
             {/* Host Options */}
-            <div className="mt-4 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
-              <span className="text-xs font-bold text-primary tracking-widest block uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
+              <span className="text-xs font-bold text-primary tracking-widest block uppercase" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 FORMATO DA COMPETIÇÃO
               </span>
-              <p className="mt-1 text-[13px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <p className="mt-1 text-[13px] leading-relaxed text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 {competitionFormatSummary(state.competitionFormat)}
               </p>
               <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border px-3 py-2" style={{ background: '#08080f', borderColor: '#171725' }}>
-                <span className="text-[12px] font-bold tracking-widest text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>DIFICULDADE DOS BOTS</span>
-                <span className="text-xs font-black uppercase tracking-wider text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{difficultyName}</span>
+                <span className="text-[12px] font-bold tracking-widest text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>DIFICULDADE DOS BOTS</span>
+                <span className="text-xs font-black uppercase tracking-wider text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{difficultyName}</span>
               </div>
             </div>
 
             {/* Host progression */}
             {state.isHost ? (
-              <div className="mt-4 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
+              <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
                 <Button
                   type="button"
                   intent="primary"
@@ -352,8 +352,8 @@ export default function MenuPage() {
                 </Button>
               </div>
             ) : (
-              <div className="mt-4 pt-4 border-t text-center" style={{ borderColor: '#1A1A2A' }}>
-                <div className="flex items-center justify-center gap-2 mb-2 text-xs font-bold text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="mt-4 pt-4 border-t text-center" style={{ borderColor: 'var(--ui-surface-3)' }}>
+                <div className="flex items-center justify-center gap-2 mb-2 text-xs font-bold text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   <div className="w-4 h-4 rounded-full border-2 border-t-transparent border-yellow-500 animate-spin flex-shrink-0" />
                   <span>AGUARDANDO O ANFITRIÃO INICIAR O JOGO...</span>
                 </div>
@@ -487,7 +487,7 @@ export default function MenuPage() {
             >
               <Bell size={19} aria-hidden="true" />
               {incomingFriendRequestCount > 0 ? (
-                <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-danger)] px-1 text-[11px] font-bold leading-none tabular-nums text-white">
+                <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-danger)] px-1 text-[12px] font-bold leading-none tabular-nums text-white">
                   {incomingFriendRequestCount > 9 ? '9+' : incomingFriendRequestCount}
                 </span>
               ) : null}
@@ -569,9 +569,9 @@ export default function MenuPage() {
         </div>
 
         {/* Dynamic Mode Forms */}
-        <div>
+        <div className="flex w-full justify-center">
           {menuMode === 'selection' && (
-            <div className="mb-5 flex w-full max-w-xs flex-col gap-3 sm:mb-8">
+            <div className="mb-5 flex w-full max-w-xs flex-col lg:max-w-sm gap-3 sm:mb-8">
               <Button
                 type="button"
                 intent="primary"
@@ -584,7 +584,7 @@ export default function MenuPage() {
                     <Gamepad2 size={22} strokeWidth={2.5} /> JOGAR SOLO
                   </span>
                   {savedSoloCampaign ? (
-                    <span className="mt-0.5 max-w-full truncate text-[12px] font-semibold normal-case tracking-normal opacity-80">
+                    <span className="mt-0.5 max-w-full truncate text-[12px] font-semibold normal-case tracking-normal opacity-80" style={{ fontFamily: "var(--font-ui), sans-serif" }}>
                       Campanha salva · {savedSoloCampaign.teamName}
                     </span>
                   ) : null}
@@ -656,10 +656,10 @@ export default function MenuPage() {
 
           {menuMode === 'solo' && (
             <div
-              className="w-full max-w-xs space-y-4"
+              className="w-full max-w-xs space-y-4 lg:max-w-sm"
             >
               <div>
-                <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   NOME DO SEU TIME
                 </label>
                 <Input
@@ -699,10 +699,10 @@ export default function MenuPage() {
 
           {menuMode === 'online' && (
             <div
-              className="w-full max-w-xs space-y-4"
+              className="w-full max-w-xs space-y-4 lg:max-w-sm"
             >
               <div>
-                <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   NOME DO SEU TIME
                 </label>
                 <Input
@@ -719,14 +719,14 @@ export default function MenuPage() {
               {!account ? (
                 <Panel tone="inset" className="space-y-3 p-3">
                   <div>
-                    <div className="text-xs font-bold tracking-widest text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <div className="text-xs font-bold tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                       CONFIGURAÇÃO DA PARTIDA
                     </div>
-                    <p className="mt-1 text-[13px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <p className="mt-1 text-[13px] leading-relaxed text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                       Ao criar uma sala, você define o formato e a dificuldade nas próximas telas. Depois, o código reúne todos na mesma competição.
                     </p>
                   </div>
-                  <p className="text-[12px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <p className="text-[12px] leading-relaxed text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                     Para entrar em uma sala existente, basta informar o código — as configurações vêm do anfitrião.
                   </p>
                 </Panel>
@@ -768,11 +768,11 @@ export default function MenuPage() {
 
           {menuMode === 'online_join' && (
             <div
-              className="w-full max-w-xs space-y-4"
+              className="w-full max-w-xs space-y-4 lg:max-w-sm"
             >
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold mb-1 tracking-widest text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <label className="block text-xs font-bold mb-1 tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                     CÓDIGO DA SALA (4 LETRAS)
                   </label>
                   <Input
@@ -814,7 +814,7 @@ export default function MenuPage() {
       <footer className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4" style={{ bottom: account ? 'calc(5rem + env(safe-area-inset-bottom))' : '1rem' }}>
         <span
           className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
-          style={{ fontFamily: 'Rajdhani, sans-serif' }}
+          style={{ fontFamily: 'var(--font-game), sans-serif' }}
         >
           by J.Lessa
         </span>

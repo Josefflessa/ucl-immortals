@@ -93,19 +93,19 @@ export default function ClubProjectsTab() {
     <section className="space-y-4" aria-labelledby="club-projects-title">
       <div
         className="rounded-2xl border p-4 sm:p-5"
-        style={{ background: 'linear-gradient(135deg, #151526, #0F0F1A)', borderColor: '#C9A84C55' }}
+        style={{ background: 'linear-gradient(135deg, #151526, var(--ui-surface-1))', borderColor: '#C9A84C55' }}
       >
         <div>
           <div className="min-w-0">
-            <h2 id="club-projects-title" className="text-3xl font-black tracking-wide text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+            <h2 id="club-projects-title" className="text-3xl font-black tracking-wide text-white" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
               ESTRUTURA DO CLUBE
             </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#9A9AAA]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
               Invista seus créditos nas áreas do clube e escolha quais projetos desenvolver primeiro.
             </p>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#242436] pt-3 text-xs font-bold tracking-wider text-[#77778A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#242436] pt-3 text-xs font-bold tracking-wider text-[#77778A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
           <span>{visibleProjectDefinitions.length} áreas de desenvolvimento</span>
           <span className="text-primary">{totalLevels}/{visibleProjectDefinitions.length * CLUB_PROJECT_LEVELS} níveis investidos</span>
         </div>
@@ -138,28 +138,28 @@ export default function ClubProjectsTab() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-balance text-xl font-black leading-none text-white sm:text-2xl" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{project.title}</h3>
-                    <span className="rounded-full px-2.5 py-1.5 text-[12px] font-black tracking-wider" style={{ background: `${project.color}18`, color: project.color, fontFamily: 'Rajdhani, sans-serif' }}>
+                    <h3 className="text-balance text-xl font-black leading-none text-white sm:text-2xl" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{project.title}</h3>
+                    <span className="rounded-full px-2.5 py-1.5 text-[12px] font-black tracking-wider" style={{ background: `${project.color}18`, color: project.color, fontFamily: 'var(--font-game), sans-serif' }}>
                       NÍVEL {level}/{CLUB_PROJECT_LEVELS}
                     </span>
                   </div>
-                  <p className="mt-2 text-pretty text-sm leading-relaxed text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{project.description}</p>
+                  <p className="mt-2 text-pretty text-sm leading-relaxed text-[#9A9AAA]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{project.description}</p>
                 </div>
               </div>
 
               {expanded && <>
               <div id={detailsPanelId} className="mt-4 rounded-xl border border-[#242436] bg-[#0A0A14] p-3">
-                <div className="mb-2 flex items-center justify-between gap-2 text-xs font-black tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="mb-2 flex items-center justify-between gap-2 text-xs font-black tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   <span className="text-[#77778A]">PROGRESSÃO</span>
                   <span style={{ color: project.color }}>{maxed ? 'MÁXIMO' : nextCost ? <>PRÓXIMO · 💰 {nextCost}</> : 'BASE'}</span>
                 </div>
                 <ProjectLevelBar level={level} color={project.color} />
-                  <p className="mt-3 text-pretty text-sm leading-relaxed text-[#B0B0BE]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <p className="mt-3 text-pretty text-sm leading-relaxed text-[#B0B0BE]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   <span className="font-bold text-white">Nível atual:</span>{' '}
                   {formatProjectCopy(project.id, project.levelEffects?.[level - 1] ?? project.foundation)}
                 </p>
                 {!maxed && (
-                    <p className="mt-1 text-pretty text-sm leading-relaxed text-[#77778A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <p className="mt-1 text-pretty text-sm leading-relaxed text-[#77778A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                     <span className="font-bold text-[#A0A0B0]">Próximo:</span>{' '}
                     {formatProjectCopy(project.id, project.levelEffects?.[level] ?? project.nextStep)}
                   </p>
@@ -167,7 +167,7 @@ export default function ClubProjectsTab() {
               </div>
 
               <div className="mt-auto flex min-h-[72px] flex-col gap-2 pt-3">
-                <span className="flex min-h-4 items-center text-xs font-black leading-4 tracking-wider text-[#626274]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="flex min-h-4 items-center text-xs font-black leading-4 tracking-wider text-[#626274]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   {maxed ? 'PROJETO COMPLETO' : implemented ? 'PROJETO ATIVO' : 'ESTRUTURA PREPARADA'}
                 </span>
                 <div className="grid h-10 grid-cols-2 gap-2">
@@ -175,7 +175,7 @@ export default function ClubProjectsTab() {
                     type="button"
                     onClick={() => setDetailsProjectId(project.id)}
                     className="h-10 rounded-lg border px-3 text-xs font-black tracking-wider transition-colors hover:bg-white/[.04]"
-                    style={{ borderColor: `${project.color}55`, color: '#D7D7E2', fontFamily: 'Rajdhani, sans-serif' }}
+                    style={{ borderColor: `${project.color}55`, color: '#D7D7E2', fontFamily: 'var(--font-game), sans-serif' }}
                   >
                     VER NÍVEIS
                   </button>
@@ -184,7 +184,7 @@ export default function ClubProjectsTab() {
                     disabled={!canUpgrade}
                     onClick={() => setSelectedProjectId(project.id)}
                     className="h-10 rounded-lg border px-3 text-xs font-black tracking-wider transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
-                    style={{ borderColor: `${project.color}66`, color: project.color, fontFamily: 'Rajdhani, sans-serif' }}
+                    style={{ borderColor: `${project.color}66`, color: project.color, fontFamily: 'var(--font-game), sans-serif' }}
                     title={
                       !implemented ? 'Este projeto será ativado em uma próxima etapa'
                         : maxed ? 'Projeto no nível máximo'
@@ -203,7 +203,7 @@ export default function ClubProjectsTab() {
                   disabled={!trainingAvailable}
                   onClick={() => { setTrainingOpen(true); setTrainingPlayerId(null); }}
                   className="mt-3 h-10 w-full rounded-lg border px-3 text-[13px] font-black tracking-wider transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
-                  style={{ borderColor: `${project.color}66`, color: project.color, fontFamily: 'Rajdhani, sans-serif' }}
+                  style={{ borderColor: `${project.color}66`, color: project.color, fontFamily: 'var(--font-game), sans-serif' }}
                   title={!trainingAvailable ? 'O treinamento fica disponível durante a competição' : 'Abrir Centro de Treinamento'}
                 >
                   ABRIR TREINAMENTO
@@ -222,7 +222,7 @@ export default function ClubProjectsTab() {
                   return next;
                 })}
                 className="mt-auto flex h-8 w-full items-center justify-center gap-1 border-t border-[#242436] pt-2 text-[12px] font-black tracking-[0.16em] text-[#77778A] transition-colors hover:text-white"
-                style={{ fontFamily: 'Rajdhani, sans-serif' }}
+                style={{ fontFamily: 'var(--font-game), sans-serif' }}
               >
                 <span>{expanded ? 'RECOLHER' : 'VER PROGRESSÃO'}</span>
                 <ChevronDown size={15} aria-hidden="true" className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
@@ -268,7 +268,7 @@ export default function ClubProjectsTab() {
                               title={!affordable ? `Faltam ${cost - state.points} créditos` : `Treinar ${player.shortName}`}
                             >
                               <PlayerCard player={player} compact lite />
-                              <span className="text-[12px] font-black tracking-wide" style={{ color: affordable ? '#34D399' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>
+                              <span className="text-[12px] font-black tracking-wide" style={{ color: affordable ? '#34D399' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>
                                 💰 {cost}
                               </span>
                             </button>
@@ -284,9 +284,9 @@ export default function ClubProjectsTab() {
                   <div className="flex flex-col items-center gap-3 rounded-xl border border-[#FBBF2444] bg-[#07070F] p-3 sm:flex-row sm:items-start">
                     <PlayerCard player={trainingPlayer} compact lite />
                     <div className="min-w-0 text-center sm:text-left">
-                      <div className="text-lg font-black text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{trainingPlayer.shortName}</div>
+                      <div className="text-lg font-black text-white" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{trainingPlayer.shortName}</div>
                       <div className="mt-1 text-xs text-[#B0B0BE]">Treinos realizados: {trainingPlayer.trainCount ?? 0}</div>
-                      <div className="mt-2 text-sm font-black" style={{ color: state.points >= (trainingCost ?? Infinity) ? '#34D399' : '#EF4444' }}>
+                      <div className="mt-2 text-sm font-black" style={{ color: state.points >= (trainingCost ?? Infinity) ? '#34D399' : 'var(--ui-danger)' }}>
                         💰 {trainingCost} créditos · +{trainingBoost} no atributo
                       </div>
                     </div>
@@ -299,7 +299,7 @@ export default function ClubProjectsTab() {
                         disabled={trainingCost === null || state.points < trainingCost}
                         onClick={() => trainPlayer(attribute.key)}
                         className="rounded-lg border border-[#FBBF2444] bg-[#0A0A14] px-2 py-3 text-xs font-black text-[#FBBF24] transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                        style={{ fontFamily: 'Rajdhani, sans-serif' }}
+                        style={{ fontFamily: 'var(--font-game), sans-serif' }}
                       >
                         {attribute.label}
                         <span className="mt-1 block text-[12px] text-[#9A9AAA]">+{trainingBoost}</span>
@@ -327,10 +327,10 @@ export default function ClubProjectsTab() {
                 {detailsProject.icon}
               </span>
               <div className="min-w-0">
-                <div className="text-xs font-black tracking-widest text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="text-xs font-black tracking-widest text-[#9A9AAA]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   PROGRESSÃO COMPLETA
                 </div>
-                <div className="mt-1 text-xl leading-tight sm:text-2xl font-black" style={{ color: detailsProject.color, fontFamily: 'Bebas Neue, sans-serif' }}>
+                <div className="mt-1 text-xl leading-tight sm:text-2xl font-black" style={{ color: detailsProject.color, fontFamily: 'var(--font-display), sans-serif' }}>
                   {detailsProject.title}
                 </div>
                 <p className="mt-1 text-sm text-[var(--ui-text-soft)]">
@@ -342,7 +342,7 @@ export default function ClubProjectsTab() {
         >
               <div
                 className="rounded-xl border p-3 text-sm leading-relaxed sm:p-4"
-                style={{ borderColor: detailsProject.color + '55', background: detailsProject.color + '0D', color: '#D6D6E0', fontFamily: 'Rajdhani, sans-serif' }}
+                style={{ borderColor: detailsProject.color + '55', background: detailsProject.color + '0D', color: '#D6D6E0', fontFamily: 'var(--font-game), sans-serif' }}
               >
                 {detailsProject.description}
               </div>
@@ -367,24 +367,24 @@ export default function ClubProjectsTab() {
                       }}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-black tracking-wider text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                        <span className="text-sm font-black tracking-wider text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                           NÍVEL {levelNumber}
                         </span>
                         <span
                           className="rounded-full px-2.5 py-1 text-[13px] font-black tracking-wider"
                           style={{
-                            color: isCurrent ? detailsProject.color : isCompleted ? '#34D399' : '#9A9AAA',
+                            color: isCurrent ? detailsProject.color : isCompleted ? '#34D399' : 'var(--ui-text-muted)',
                             background: isCurrent ? detailsProject.color + '18' : '#242436',
-                            fontFamily: 'Rajdhani, sans-serif',
+                            fontFamily: 'var(--font-game), sans-serif',
                           }}
                         >
                           {status}
                         </span>
                       </div>
-                      <p className="mt-2 text-sm leading-relaxed text-[#D0D0DC]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      <p className="mt-2 text-sm leading-relaxed text-[#D0D0DC]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         {formatProjectCopy(detailsProject.id, effect)}
                       </p>
-                      <div className="mt-3 border-t border-white/[.08] pt-2 text-xs font-bold tracking-wide text-[#8F8FA0]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="mt-3 border-t border-white/[.08] pt-2 text-xs font-bold tracking-wide text-[#8F8FA0]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         {levelNumber === 1 ? 'BASE DO PROJETO' : <>CUSTO PARA DESBLOQUEAR · 💰 {projectUpgradeCost(levelNumber)}</>}
                       </div>
                     </div>
@@ -400,7 +400,7 @@ export default function ClubProjectsTab() {
           onOpenChange={open => { if (!open) setSelectedProjectId(null); }}
           title={`Evoluir ${selectedProject.title}`}
           description={(
-            <div className="space-y-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="space-y-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
               <div className="flex items-center justify-between gap-2 rounded-xl border border-[#2A2A40] bg-[#0A0A14] px-3 py-2.5">
                 <div className="min-w-0">
                   <div className="text-[12px] font-black tracking-widest text-[#7E7E92]">NÍVEL ATUAL</div>

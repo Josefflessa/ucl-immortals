@@ -45,7 +45,7 @@ function HighlightPortrait({ player, color }: { player: Player; color: string })
       size={54}
       rounded="rounded-xl"
       fallback={
-        <span className="text-sm font-black" style={{ color, fontFamily: 'Bebas Neue, sans-serif' }}>
+        <span className="text-sm font-black" style={{ color, fontFamily: 'var(--font-display), sans-serif' }}>
           {playerInitials(player)}
         </span>
       }
@@ -478,8 +478,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   <h1
                     className="text-7xl sm:text-8xl font-black tracking-widest leading-none"
                     style={{
-                      fontFamily: 'Bebas Neue, sans-serif',
-                      color: '#E8C84A',
+                      fontFamily: 'var(--font-display), sans-serif',
+                      color: 'var(--ui-brand-strong)',
                       textShadow: '0 0 40px rgba(232,200,74,0.9), 0 0 80px rgba(201,168,76,0.5)',
                     }}
                   >
@@ -490,7 +490,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
                     className="text-xl sm:text-2xl font-black mt-2 tracking-wide"
-                    style={{ fontFamily: 'Rajdhani, sans-serif', color: '#fff' }}
+                    style={{ fontFamily: 'var(--font-game), sans-serif', color: '#fff' }}
                   >
                     {playerTeam?.name}
                   </motion.p>
@@ -499,7 +499,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.6 }}
                     className="text-sm mt-1 font-bold tracking-widest"
-                    style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}
+                    style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}
                   >
                     CONQUISTOU A ULTIMATE CHAMPIONS LEAGUE!
                   </motion.p>
@@ -520,15 +520,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="text-6xl mb-4 select-none">🏅</div>
                 <h1
                   className="text-5xl sm:text-6xl font-black tracking-widest"
-                  style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFFFFF' }}
+                  style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFFFFF' }}
                 >
                   CAMPANHA ENCERRADA
                 </h1>
-                <p className="text-base mt-3 font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                <p className="text-base mt-3 font-bold" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                   Você deu tudo, mas não chegou até o topo desta vez.
                 </p>
                 <div className="mt-4 px-5 py-2.5 rounded-full font-bold text-sm tracking-wider"
-                  style={{ background: '#0F0F1A', border: '1px solid #C9A84C44', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+                  style={{ background: 'var(--ui-surface-1)', border: '1px solid #C9A84C44', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                   🏆 CAMPEÃO: {championName}
                 </div>
               </motion.div>
@@ -538,7 +538,10 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       </div>
 
       {/* ── SCROLLABLE CONTENT ────────────────────────────────────────────── */}
-      <PageContainer narrow className="relative z-10 flex-1 space-y-5">
+      <PageContainer narrow className="relative z-10 flex-1 space-y-5 lg:max-w-6xl">
+        {/* Desktop: campaign numbers and highlights on the left, the final XI on the right. */}
+        <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start lg:gap-6 lg:space-y-0">
+        <div className="min-w-0 space-y-5">
 
         {/* Stats grid */}
         <AnimatePresence>
@@ -563,10 +566,10 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.06 }}
                   className="rounded-xl p-3 text-center"
-                  style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
+                  style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
                 >
-                  <div className="text-2xl font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: s.color }}>{s.value}</div>
-                  <div className="text-[12px] font-bold tracking-widest mt-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{s.label}</div>
+                  <div className="text-2xl font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: s.color }}>{s.value}</div>
+                  <div className="text-[12px] font-bold tracking-widest mt-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{s.label}</div>
                 </motion.div>
               ))}
             </motion.div>
@@ -580,19 +583,19 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className="rounded-xl px-5 py-4"
-            style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
+            style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
-            <div className="text-[12px] font-black tracking-widest mb-3" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>DESEMPENHO GERAL</div>
+            <div className="text-[12px] font-black tracking-widest mb-3" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESEMPENHO GERAL</div>
             <div className="h-2.5 rounded-full overflow-hidden flex gap-0.5">
-              {wins > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(wins / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.3, duration: 0.7 }} style={{ background: '#22C55E' }} />}
-              {draws > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(draws / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.5, duration: 0.5 }} style={{ background: '#EAB308' }} />}
-              {losses > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(losses / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.7, duration: 0.5 }} style={{ background: '#EF4444' }} />}
+              {wins > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(wins / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.3, duration: 0.7 }} style={{ background: 'var(--ui-success)' }} />}
+              {draws > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(draws / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.5, duration: 0.5 }} style={{ background: 'var(--ui-warning)' }} />}
+              {losses > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(losses / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.7, duration: 0.5 }} style={{ background: 'var(--ui-danger)' }} />}
             </div>
             <div className="flex gap-5 mt-3">
               {[{ label: `${wins} Vitórias`, color: '#22C55E' }, { label: `${draws} Empates`, color: '#EAB308' }, { label: `${losses} Derrotas`, color: '#EF4444' }].map(s => (
                 <div key={s.label} className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-                  <span className="text-xs font-bold" style={{ color: s.color, fontFamily: 'Rajdhani, sans-serif' }}>{s.label}</span>
+                  <span className="text-xs font-bold" style={{ color: s.color, fontFamily: 'var(--font-game), sans-serif' }}>{s.label}</span>
                 </div>
               ))}
             </div>
@@ -606,21 +609,21 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
             className="rounded-xl overflow-hidden"
-            style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
+            style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
-            <div className="px-5 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-              <span className="text-[12px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>FICHA DA CAMPANHA</span>
+            <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
+              <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>FICHA DA CAMPANHA</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 border-t" style={{ borderColor: '#1A1A2A' }}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
               {[
                 { l: 'SALDO DE GOLS', v: `${goalDiff > 0 ? '+' : ''}${goalDiff}`, c: goalDiff >= 0 ? '#22C55E' : '#EF4444' },
                 { l: 'APROVEITAMENTO', v: `${aproveitamento}%`, c: '#22C55E' },
                 { l: 'JOGOS S/ SOFRER', v: `${cleanSheets}`, c: '#3B82F6' },
                 { l: 'MAIOR VITÓRIA', v: biggestWin ? `${biggestWin.gf}–${biggestWin.ga}` : '—', c: '#C9A84C' },
               ].map(m => (
-                <div key={m.l} className="px-4 py-3 border-r" style={{ borderColor: '#1A1A2A' }}>
-                  <div className="text-lg font-black leading-none" style={{ color: m.c, fontFamily: 'Bebas Neue, sans-serif' }}>{m.v}</div>
-                  <div className="text-[11px] font-bold tracking-widest mt-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{m.l}</div>
+                <div key={m.l} className="px-4 py-3 border-r" style={{ borderColor: 'var(--ui-surface-3)' }}>
+                  <div className="text-lg font-black leading-none" style={{ color: m.c, fontFamily: 'var(--font-display), sans-serif' }}>{m.v}</div>
+                  <div className="text-[12px] font-bold tracking-widest mt-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{m.l}</div>
                 </div>
               ))}
             </div>
@@ -634,23 +637,23 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="rounded-xl overflow-hidden"
-            style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
+            style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
-            <div className="px-5 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-              <span className="text-[12px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>DESTAQUES DA TEMPORADA</span>
+            <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
+              <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESTAQUES DA TEMPORADA</span>
             </div>
-            <div className="divide-y" style={{ borderColor: '#1A1A2A' }}>
+            <div className="divide-y" style={{ borderColor: 'var(--ui-surface-3)' }}>
               {topScorer && (
                 <div className="flex items-center gap-4 px-5 py-4">
                   <HighlightPortrait player={topScorer.pl} color="#C9A84C" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>ARTILHEIRO</div>
-                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topScorer.pl.shortName}</div>
-                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{topScorer.team.name}</div>
+                    <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>ARTILHEIRO</div>
+                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{topScorer.pl.shortName}</div>
+                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{topScorer.team.name}</div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>{topScorer.stats.goals}</div>
-                    <div className="text-[12px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>gols</div>
+                    <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand)' }}>{topScorer.stats.goals}</div>
+                    <div className="text-[12px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>gols</div>
                   </div>
                 </div>
               )}
@@ -658,13 +661,13 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="flex items-center gap-4 px-5 py-4">
                   <HighlightPortrait player={topRating.pl} color="#22C55E" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>MELHOR NOTA MÉDIA</div>
-                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topRating.pl.shortName}</div>
-                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{topRating.team.name} · {topRating.stats.played} jogos</div>
+                    <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>MELHOR NOTA MÉDIA</div>
+                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{topRating.pl.shortName}</div>
+                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{topRating.team.name} · {topRating.stats.played} jogos</div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#22C55E' }}>{topRating.stats.ratingAvg.toFixed(1)}</div>
-                    <div className="text-[12px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>nota</div>
+                    <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-success)' }}>{topRating.stats.ratingAvg.toFixed(1)}</div>
+                    <div className="text-[12px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>nota</div>
                   </div>
                 </div>
               )}
@@ -672,13 +675,13 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="flex items-center gap-4 px-5 py-4">
                   <HighlightPortrait player={topAssister.pl} color="#4FC3F7" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>REI DAS ASSISTÊNCIAS</div>
-                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topAssister.pl.shortName}</div>
-                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{topAssister.team.name}</div>
+                    <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>REI DAS ASSISTÊNCIAS</div>
+                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{topAssister.pl.shortName}</div>
+                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{topAssister.team.name}</div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#4FC3F7' }}>{topAssister.stats.assists}</div>
-                    <div className="text-[12px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>assist.</div>
+                    <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#4FC3F7' }}>{topAssister.stats.assists}</div>
+                    <div className="text-[12px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>assist.</div>
                   </div>
                 </div>
               )}
@@ -686,9 +689,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="flex items-start gap-4 px-5 py-4">
                   <div className="text-2xl">⚡</div>
                   <div>
-                    <div className="text-[12px] font-bold tracking-widest mb-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
+                    <div className="text-[12px] font-bold tracking-widest mb-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
                     {report.historicalRecreations.map(trio => (
-                      <div key={trio} className="text-sm font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{trio}</div>
+                      <div key={trio} className="text-sm font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{trio}</div>
                     ))}
                   </div>
                 </div>
@@ -711,6 +714,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           </motion.div>
         )}
 
+        </div>
+        <div className="min-w-0">
+
         {/* Squad showcase */}
         {phase >= 4 && playerTeam && (
           <motion.div
@@ -720,7 +726,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             className="rounded-xl overflow-hidden"
             style={{ background: '#0F0F1A', border: `1px solid ${isChampion ? '#C9A84C55' : '#1A1A2A'}` }}
           >
-            <div className="border-b px-5 py-4" style={{ borderColor: '#1A1A2A', background: isChampion ? '#C9A84C11' : 'transparent' }}>
+            <div className="border-b px-5 py-4" style={{ borderColor: 'var(--ui-surface-3)', background: isChampion ? '#C9A84C11' : 'transparent' }}>
               <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                 <div className="flex min-w-[180px] flex-1 items-center gap-3">
                   <Crest
@@ -730,21 +736,21 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     className="flex-shrink-0 drop-shadow-[0_0_10px_rgba(201,168,76,0.25)]"
                   />
                   <div className="min-w-0">
-                    <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>ESCALAÇÃO FINAL</div>
-                    <div className="truncate text-base font-black" style={{ color: '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>{playerTeam.name}</div>
+                    <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>ESCALAÇÃO FINAL</div>
+                    <div className="truncate text-base font-black" style={{ color: '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>{playerTeam.name}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   {chemData && (
                     <div className="flex items-baseline gap-2 whitespace-nowrap">
-                      <span className="text-[11px] font-black tracking-widest" style={{ color: '#7A8A7F', fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA</span>
-                      <strong className="text-xl leading-none" style={{ color: '#22C55E', fontFamily: 'Bebas Neue, sans-serif' }}>{chemData.total}%</strong>
+                      <span className="text-[12px] font-black tracking-widest" style={{ color: '#7A8A7F', fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA</span>
+                      <strong className="text-xl leading-none" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-display), sans-serif' }}>{chemData.total}%</strong>
                     </div>
                   )}
-                  <div className="h-5 w-px" style={{ background: '#2A2A3A' }} />
+                  <div className="h-5 w-px" style={{ background: 'var(--ui-line)' }} />
                   <div className="flex items-baseline gap-2 whitespace-nowrap">
-                    <span className="text-[11px] font-black tracking-widest" style={{ color: '#8A8290', fontFamily: 'Rajdhani, sans-serif' }}>GERAL DO TIME</span>
-                    <strong className="text-xl leading-none" style={{ color: '#E8C84A', fontFamily: 'Bebas Neue, sans-serif' }}>{teamOverall ?? '—'}</strong>
+                    <span className="text-[12px] font-black tracking-widest" style={{ color: '#8A8290', fontFamily: 'var(--font-game), sans-serif' }}>GERAL DO TIME</span>
+                    <strong className="text-xl leading-none" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-display), sans-serif' }}>{teamOverall ?? '—'}</strong>
                   </div>
                 </div>
               </div>
@@ -774,7 +780,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                       return (
                         <div key={t} className="flex items-center gap-1.5" style={{ opacity: n === 0 ? 0.4 : 1 }}>
                           <span className="inline-block w-4 h-0.5 rounded" style={{ background: CHEM_LINK_COLOR[t] }} />
-                          <span className="text-[12px] font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{l} <b style={{ color: '#C9C9D5' }}>({n})</b></span>
+                          <span className="text-[12px] font-bold" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{l} <b style={{ color: '#C9C9D5' }}>({n})</b></span>
                         </div>
                       );
                     });
@@ -785,7 +791,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             <div className="p-4 pt-2 space-y-4">
               {/* TITULARES — cards de verdade, iguais aos do MEU TIME */}
               <div>
-                <div className="text-xs font-black tracking-widest mb-2" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>TITULARES</div>
+                <div className="text-xs font-black tracking-widest mb-2" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>TITULARES</div>
                 <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                   {starters.map((pl, i) => (
                     <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
@@ -802,8 +808,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               </div>
               {/* RESERVAS / BANCO */}
               {bench.length > 0 && (
-                <div className="pt-3 border-t" style={{ borderColor: '#1A1A2A' }}>
-                  <div className="text-xs font-black tracking-widest mb-2" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>🪑 RESERVAS ({bench.length})</div>
+                <div className="pt-3 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
+                  <div className="text-xs font-black tracking-widest mb-2" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>🪑 RESERVAS ({bench.length})</div>
                   <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                     {bench.map((pl, i) => (
                       <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
@@ -822,6 +828,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             </div>
           </motion.div>
         )}
+
+        </div>
+        </div>
 
         {/* Play again */}
         {phase >= 4 && (

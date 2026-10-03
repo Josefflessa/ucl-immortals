@@ -35,7 +35,7 @@ function collect(eff: EffectiveStats, pick: (b: EffectiveStats['breakdown']['pac
 function Chip({ text, color }: { text: string; color: string }) {
   return (
     <span className="text-[13px] leading-tight font-black px-2 py-1 rounded-md"
-      style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'Rajdhani, sans-serif' }}>
+      style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'var(--font-game), sans-serif' }}>
       {text}
     </span>
   );
@@ -46,7 +46,7 @@ function Row({ icon, name, color, children }: { icon: string; name: string; colo
     <div className="flex items-start gap-2.5 py-2.5">
       <span className="text-sm flex-shrink-0">{icon}</span>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-black tracking-wider" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{name}</div>
+        <div className="text-xs font-black tracking-wider" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>{name}</div>
         <div className="mt-0.5">{children}</div>
       </div>
     </div>
@@ -200,7 +200,7 @@ function SpecialVariantRow({ variant, player, charBoost, isStarter, credits }: {
   return (
     <Row icon={variant.icon} name={title} color={color}>
       {details.chips.length > 0 && <div className="flex flex-wrap gap-1">{details.chips.map((chip, index) => <Chip key={`${variant.key}-${index}`} text={chip.text} color={chip.color} />)}</div>}
-      {details.description && <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{details.description}</div>}
+      {details.description && <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{details.description}</div>}
     </Row>
   );
 }
@@ -257,11 +257,11 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
 
   return (
     <div className="px-4 py-3 border-t" style={{ borderColor: '#161626', background: '#09090f' }}>
-      <div className="text-xs font-black text-gray-400 tracking-widest mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="text-xs font-black text-gray-400 tracking-widest mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
         🧬 DE ONDE VEM O BÔNUS
       </div>
       {!anything ? (
-        <div className="text-sm text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        <div className="text-sm text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
           Sem modificadores ativos — atributos no valor base.
         </div>
       ) : (
@@ -273,7 +273,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
               <div className="flex flex-wrap gap-1">
                 <Chip text={`+${medicalReturnBoost} EM CADA ATRIBUTO`} color="#22D3EE" />
               </div>
-              <div className="mt-1 text-[11px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="mt-1 text-[12px] text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 Bônus permanente acumulado ao voltar de lesões. Já está incorporado aos atributos e ao geral da carta.
               </div>
             </Row>
@@ -288,31 +288,31 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {chemNet !== 0 && <Chip text={`${chemNet > 0 ? '+' : ''}${chemNet} no total`} color={chemColor} />}
               </div>
               {chem?.oop ? (
-                <div className="text-[12px] leading-snug mt-1.5 rounded-md px-2 py-1.5" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#FCA5A5', background: '#EF444415', border: '1px solid #EF444433' }}>
+                <div className="text-[12px] leading-snug mt-1.5 rounded-md px-2 py-1.5" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#FCA5A5', background: '#EF444415', border: '1px solid #EF444433' }}>
                   Joga como <b>{chem.formationPos}</b>, mas é <b>{chem.nativePos}</b> de origem → a química zera e ele perde rendimento. Troque por alguém da posição.
                 </div>
               ) : chem && chem.links.length > 0 ? (
                 <>
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     {chem.links.map(l => (
-                      <span key={l.type} className="inline-flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ fontFamily: 'Rajdhani, sans-serif', color: l.color, background: `${l.color}1A`, border: `1px solid ${l.color}44` }}>
+                      <span key={l.type} className="inline-flex items-center gap-1 text-[12px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ fontFamily: 'var(--font-game), sans-serif', color: l.color, background: `${l.color}1A`, border: `1px solid ${l.color}44` }}>
                         <span style={{ width: 7, height: 7, borderRadius: '50%', background: l.color }} />
                         {l.label}: {l.names.join(', ')}
                       </span>
                     ))}
                   </div>
                   {chem.nextAt != null && (
-                    <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                      Vínculos somam <b style={{ color: '#CFCFE0' }}>{chem.rawPts} pt{chem.rawPts === 1 ? '' : 's'}</b>
+                    <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                      Vínculos somam <b style={{ color: 'var(--ui-text-soft)' }}>{chem.rawPts} pt{chem.rawPts === 1 ? '' : 's'}</b>
                       {chem.rawPts < chem.nextAt
-                        ? <> — faltam <b style={{ color: '#E8C84A' }}>{chem.nextAt - chem.rawPts}</b> pra subir 1 nível de química.</>
+                        ? <> — faltam <b style={{ color: 'var(--ui-brand-strong)' }}>{chem.nextAt - chem.rawPts}</b> pra subir 1 nível de química.</>
                         : <> — suficiente pro nível atual.</>}
                     </div>
                   )}
                 </>
               ) : chem ? (
-                <div className="text-[11px] text-gray-500 mt-1.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="text-[12px] text-gray-500 mt-1.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   Na posição certa, mas sem vínculos (clube/nação/técnico) com os titulares.
                 </div>
               ) : null}
@@ -324,7 +324,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
               <div className="flex flex-wrap gap-1">
                 <Chip text={`−30% DEF = −${goalkeeperDefLoss} DEF`} color="#F59E0B" />
               </div>
-              <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 Jogadores de linha aproveitam 70% da Defesa para defender. O valor exibido já inclui o ajuste.
               </div>
             </Row>
@@ -338,8 +338,8 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                 {eff.globalChemBonus.special > 0 && <Chip text={`✨ +${eff.globalChemBonus.special} EM TODOS`} color="#C9A84C" />}
               </div>
               {eff.globalChemBonus.special > 0 && (
-                <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                  Bônus de química do time: <b style={{ color: '#E8C84A' }}>+{eff.globalChemBonus.special} em todos os atributos</b> de todos os titulares (sobe a cada marco, +5 na química perfeita).
+                <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                  Bônus de química do time: <b style={{ color: 'var(--ui-brand-strong)' }}>+{eff.globalChemBonus.special} em todos os atributos</b> de todos os titulares (sobe a cada marco, +5 na química perfeita).
                 </div>
               )}
             </Row>
@@ -351,7 +351,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
           {showCaptain && (
             <Row icon="👑" name="CAPITÃO" color="#3B82F6">
               <div className="flex flex-wrap gap-1">{chips(captain, '#3B82F6')}</div>
-              <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 A melhor estatística do capitão vira <b style={{ color: '#93C5FD' }}>+{captain[0]?.v ?? 3}</b> pra todo o time — inclusive pra ele.
               </div>
             </Row>
@@ -361,7 +361,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
             <Row icon="🎯" name="TREINADOR" color="#E8C84A">
               <div className="flex flex-wrap gap-1">{chips(coach, '#E8C84A')}</div>
               {activeCoach.length > 0 && (
-                <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   Já inclui: {activeCoach.join(' · ')}
                 </div>
               )}
@@ -377,9 +377,9 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                     <div key={t.id} className="flex items-start gap-1.5">
                       <span className="text-xs flex-shrink-0 leading-none mt-0.5">{t.icon}</span>
                       <div className="min-w-0">
-                        <span className="text-[12px] font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{t.id}</span>
-                        {t.effect && <span className="text-[11px] font-bold" style={{ color: '#A78BFA', fontFamily: 'Rajdhani, sans-serif' }}> — {t.effect}</span>}
-                        {t.flavor && <div className="text-[10px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{t.flavor}</div>}
+                        <span className="text-[12px] font-black text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{t.id}</span>
+                        {t.effect && <span className="text-[12px] font-bold" style={{ color: '#A78BFA', fontFamily: 'var(--font-game), sans-serif' }}> — {t.effect}</span>}
+                        {t.flavor && <div className="text-[12px] text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{t.flavor}</div>}
                       </div>
                     </div>
                   ))}
@@ -401,7 +401,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
           {train.length > 0 && (
             <Row icon="💪" name="TREINO (LOJA)" color="#34D399">
               <div className="flex flex-wrap gap-1">{chips(train, '#34D399')}</div>
-              <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 Melhoria permanente comprada na loja — soma direto no atributo (sem teto) e reflete no geral.
               </div>
             </Row>
@@ -411,7 +411,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
           {evolution.length > 0 && (
             <Row icon="⭐" name="EVOLUÇÃO" color="#22C55E">
               <div className="flex flex-wrap gap-1">{chips(evolution, '#22C55E')}</div>
-              <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 Bônus de evolução aplicados aos atributos escolhidos — soma direto nos atributos e reflete no geral.
               </div>
             </Row>
@@ -423,7 +423,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
           {position.length > 0 && (
             <Row icon="🔁" name={positionLabel} color={positionColor}>
               <div className="flex flex-wrap items-center gap-1">{chips(position, positionColor)}</div>
-              <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 A penalidade acima é aplicada aos atributos da carta. A química não é afetada.
               </div>
             </Row>
@@ -442,7 +442,7 @@ export default function BuffBreakdown({ eff, chem, traits, player, charBoost, is
                       <Chip key={k} text={`+${v} ${ATTR_PT[k] ?? k.toUpperCase()}`} color={vis.color} />
                     ))}
                   </div>
-                  <div className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                     {src.type === 'martir' ? `Sacrifício do ${src.fromName} (Mártir): +${MARTIR_TARGET_BOOST} em tudo pra você.`
                       : src.type === 'idolo' ? `${src.fromName} (Ídolo) do mesmo clube: +2 em cada atributo.`
                         : src.type === 'noe' ? `Noé ATIVO: é o único titular com característica → +${NOE_STAT_BOOST} em tudo (e +${NOE_CHEM_BONUS} na química geral do time).`

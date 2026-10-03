@@ -174,13 +174,13 @@ export default function RolesSelector({
   };
 
   return (
-    <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
+    <div className="rounded-xl p-4" style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}>
       <div className="mb-3 flex items-center gap-2">
-        <span className="text-base font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>
+        <span className="text-base font-black tracking-widest" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>
           FUNÇÕES DE JOGO
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-1 sm:gap-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="grid grid-cols-3 gap-1 sm:gap-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
         {roleCards.map(card => {
           const isActive = activeRole === card.role;
           return (
@@ -239,8 +239,8 @@ export default function RolesSelector({
       </div>
 
       {infoRole ? (
-        <div className="mt-2 rounded-lg px-3.5 py-3 text-[13px] leading-snug" style={{ background: '#0A0A14', border: `1px solid ${roleCards.find(card => card.role === infoRole)?.color ?? '#C9A84C'}55`, color: '#B8B8C8', fontFamily: 'Rajdhani, sans-serif' }}>
-          <div className="mb-1 text-sm font-black tracking-widest" style={{ color: roleCards.find(card => card.role === infoRole)?.color ?? '#C9A84C' }}>
+        <div className="mt-2 rounded-lg px-3.5 py-3 text-[13px] leading-snug" style={{ background: '#0A0A14', border: `1px solid ${roleCards.find(card => card.role === infoRole)?.color ?? '#C9A84C'}55`, color: '#B8B8C8', fontFamily: 'var(--font-game), sans-serif' }}>
+          <div className="mb-1 text-sm font-black tracking-widest" style={{ color: roleCards.find(card => card.role === infoRole)?.color ?? 'var(--ui-brand)' }}>
             {info[infoRole].title}
           </div>
           <div>{info[infoRole].description}</div>

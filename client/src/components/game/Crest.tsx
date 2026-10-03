@@ -63,10 +63,10 @@ function CrestImpl({ crestId, name, size = 24, className }: CrestProps) {
       className={className}
       style={{
         width: size, height: size, flexShrink: 0, borderRadius: '50%',
-        background: label ? hueFrom(label) : '#2A2A3A',
+        background: label ? hueFrom(label) : 'var(--ui-line)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: '#fff', fontWeight: 900, fontSize: Math.max(8, size * 0.4),
-        fontFamily: 'Rajdhani, sans-serif', lineHeight: 1,
+        fontFamily: 'var(--font-game), sans-serif', lineHeight: 1,
       }}
       title={label}
     >

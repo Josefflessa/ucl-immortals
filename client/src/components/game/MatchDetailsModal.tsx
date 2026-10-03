@@ -82,7 +82,7 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           <div className="mb-4 flex-shrink-0">
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 sm:gap-4">
               <div className="flex min-w-0 items-center justify-end gap-2">
-                <span className="min-w-0 truncate text-right text-sm font-bold" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>{homeName}</span>
+                <span className="min-w-0 truncate text-right text-sm font-bold" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>{homeName}</span>
                 <Crest crestId={homeTeam?.crestId} name={homeName} size={30} />
               </div>
               <div className="font-display whitespace-nowrap px-1 text-4xl tabular-nums text-[var(--ui-brand-strong)]">
@@ -90,15 +90,15 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
               </div>
               <div className="flex min-w-0 items-center justify-start gap-2">
                 <Crest crestId={awayTeam?.crestId} name={awayName} size={30} />
-                <span className="min-w-0 truncate text-sm font-bold" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>{awayName}</span>
+                <span className="min-w-0 truncate text-sm font-bold" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>{awayName}</span>
               </div>
             </div>
             {result.penaltyWinner && ((result.homePenalties ?? 0) + (result.awayPenalties ?? 0)) > 0 && (
-              <div className="mt-1 text-center text-xs font-bold" style={{ color: '#EAB308', fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="mt-1 text-center text-xs font-bold" style={{ color: 'var(--ui-warning)', fontFamily: 'var(--font-game), sans-serif' }}>
                 Pênaltis: {result.homePenalties} - {result.awayPenalties}
               </div>
             )}
-            {subtitle && <div className="mt-1 text-center text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{subtitle}</div>}
+            {subtitle && <div className="mt-1 text-center text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{subtitle}</div>}
           </div>
 
           {/* Gols + Cartões/lesões — SEMPRE no mesmo bloco, com UMA linha entre eles só quando os
@@ -113,14 +113,14 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
                   <div className="grid grid-cols-2 gap-x-4">
                     <div className="flex flex-col items-end gap-0.5">
                       {homeGoals.map((g, i) => (
-                        <div key={i} className="text-[12px]" style={{ color: '#E8D8A0', fontFamily: 'Rajdhani, sans-serif' }}>
+                        <div key={i} className="text-[12px]" style={{ color: '#E8D8A0', fontFamily: 'var(--font-game), sans-serif' }}>
                           {scorerLabel(g)} <span style={{ color: '#8A8A9A' }}>{g.minute}'</span> ⚽
                         </div>
                       ))}
                     </div>
                     <div className="flex flex-col items-start gap-0.5">
                       {awayGoals.map((g, i) => (
-                        <div key={i} className="text-[12px]" style={{ color: '#E8D8A0', fontFamily: 'Rajdhani, sans-serif' }}>
+                        <div key={i} className="text-[12px]" style={{ color: '#E8D8A0', fontFamily: 'var(--font-game), sans-serif' }}>
                           ⚽ <span style={{ color: '#8A8A9A' }}>{g.minute}'</span> {scorerLabel(g)}
                         </div>
                       ))}
@@ -136,7 +136,7 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
                       return (
                         <div key={sd} className={`flex flex-col gap-0.5 ${sd === 'home' ? 'items-end' : 'items-start'}`}>
                           {list.map((e, i) => (
-                            <div key={i} className="text-[13px]" style={{ color: '#B8B8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div key={i} className="text-[13px]" style={{ color: '#B8B8C8', fontFamily: 'var(--font-game), sans-serif' }}>
                               {sd === 'away' && <>{ic(e.type)} </>}<span style={{ color: '#8A8A9A' }}>{e.minute}'</span> {e.playerId ? (nameById[e.playerId] ?? '?') : '?'}{sd === 'home' && <> {ic(e.type)}</>}
                             </div>
                           ))}

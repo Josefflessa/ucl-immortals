@@ -29,7 +29,7 @@ function profileTags(id: string): Tag[] {
 
 const Chip = ({ tag }: { tag: Tag }) => (
   <span className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[12px] font-black"
-    style={{ background: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}44`, fontFamily: 'Rajdhani, sans-serif' }}>
+    style={{ background: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}44`, fontFamily: 'var(--font-game), sans-serif' }}>
     {tag.label}
   </span>
 );
@@ -69,7 +69,7 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
   const previewFormation = FORMATIONS.find(f => f.id === previewFormationId) ?? null;
 
   return (
-    <div className="space-y-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+    <div className="space-y-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
       <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -98,7 +98,7 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
                 title={`${f.name}: perfil de controle, ataque e defesa`}
                 className="h-full px-2.5 py-2.5 pr-10"
               >
-                <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: isActive ? '#C9A84C' : '#FFF' }}>
+                <div className="text-base font-black tracking-wide" style={{ fontFamily: 'var(--font-display), sans-serif', color: isActive ? 'var(--ui-brand)' : '#FFF' }}>
                   {f.name}
                 </div>
                 <div className="flex flex-wrap gap-1 mt-1">
@@ -120,7 +120,7 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
         <ImpactMeter profile={formationProfile(active.id)} />
         <div className="mt-3 rounded-lg border border-[#60A5FA44] bg-[#60A5FA0D] px-2.5 py-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[#8DBBFF]">Bônus por vantagem na formação</span>
+            <span className="text-[12px] font-black uppercase tracking-[0.12em] text-[#8DBBFF]">Bônus por vantagem na formação</span>
             <span className="text-xs font-black" style={{ color: formationAdvantageColorForAnalysisLevel(analysisLevel) }}>{matchupLabel}</span>
           </div>
           <p className="mt-1 text-[12px] leading-snug text-[var(--ui-text-faint)]">
@@ -129,11 +129,11 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="rounded-lg border border-[#22C55E44] bg-[#22C55E0D] px-2.5 py-2">
-            <div className="text-[11px] font-black uppercase tracking-[0.12em] text-[#5EDB82]">Vantagem contra</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[#5EDB82]">Vantagem contra</div>
             <div className="mt-1"><MatchupPills ids={active.counters} tone="positive" /></div>
           </div>
           <div className="rounded-lg border border-[#F9731644] bg-[#F973160D] px-2.5 py-2">
-            <div className="text-[11px] font-black uppercase tracking-[0.12em] text-[#FB9A62]">Desvantagem contra</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[#FB9A62]">Desvantagem contra</div>
             <div className="mt-1"><MatchupPills ids={active.counteredBy} tone="negative" /></div>
           </div>
         </div>

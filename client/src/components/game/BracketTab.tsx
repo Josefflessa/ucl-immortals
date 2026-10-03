@@ -72,14 +72,14 @@ export default function BracketTab() {
       <div className="flex items-center justify-between gap-2 px-2 py-1">
         <span className="font-ui flex items-center gap-1 truncate text-[13px] font-bold leading-tight"
           style={{
-            fontFamily: 'Rajdhani, sans-serif',
-            color: me ? '#C9A84C' : isWinner ? '#E6E6EE' : name ? '#9A9AAA' : '#55556A',
+            fontFamily: 'var(--font-game), sans-serif',
+            color: me ? 'var(--ui-brand)' : isWinner ? '#E6E6EE' : name ? 'var(--ui-text-muted)' : '#55556A',
           }}>
           {isWinner && !hideScore && <Check size={11} className="text-green-500 flex-shrink-0" />}
           {name || 'A definir'}
         </span>
         <span className="text-xs font-black flex-shrink-0"
-          style={{ fontFamily: 'Bebas Neue, sans-serif', color: isWinner ? '#22C55E' : '#7A7A8A' }}>
+          style={{ fontFamily: 'var(--font-display), sans-serif', color: isWinner ? 'var(--ui-success)' : '#7A7A8A' }}>
           {hideScore ? '·' : score == null ? '' : score}
         </span>
       </div>
@@ -114,10 +114,10 @@ export default function BracketTab() {
   return (
     <div>
       <div className="mb-3 text-sm leading-relaxed text-[var(--ui-text-muted)]">
-        Caminho até o título — seu time em <span style={{ color: '#C9A84C' }}>dourado</span>. O placar da fase em andamento fica oculto até todos assistirem.
+        Caminho até o título — seu time em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>. O placar da fase em andamento fica oculto até todos assistirem.
       </div>
       <div className="overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
-        <div className="flex gap-3 min-w-max">
+        <div className="flex gap-3 min-w-max lg:mx-auto">
           {roundOrder.map((key, ri) => {
             const status: 'done' | 'active' | 'future' = ri < curIdx ? 'done' : ri === curIdx ? 'active' : 'future';
             const real = tiesFor(key);
@@ -128,7 +128,7 @@ export default function BracketTab() {
               <div key={key} className="flex w-[150px] flex-col gap-2">
                 <div className="ui-badge w-full justify-center"
                   style={{
-                    fontFamily: 'Rajdhani, sans-serif',
+                    fontFamily: 'var(--font-game), sans-serif',
                     background: status === 'active' ? '#C9A84C' : '#0F0F1A',
                     color: status === 'active' ? '#080810' : status === 'done' ? '#6A6A7A' : '#44445A',
                     border: `1px solid ${status === 'active' ? '#C9A84C' : '#1A1A2A'}`,

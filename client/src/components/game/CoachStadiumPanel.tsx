@@ -24,7 +24,7 @@ function ProgressRequirement({ label, current, target }: { label: string; curren
   const progress = Math.min(100, Math.round((current / target) * 100));
 
   return (
-    <div className="rounded-xl border border-[#24243A] bg-[#0A0A14] px-3 py-2.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+    <div className="rounded-xl border border-[#24243A] bg-[#0A0A14] px-3 py-2.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex size-5 shrink-0 items-center justify-center rounded-full text-[13px] font-black" style={{ color: complete ? '#04120A' : '#FCA5A5', background: complete ? '#4ADE80' : '#EF444422', border: complete ? 'none' : '1px solid #EF444466' }}>
@@ -74,10 +74,10 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
         <div className="ui-panel__header justify-center text-center">
           <span className="ui-panel__title">{showStadium ? 'Técnico & estádio' : 'Técnico'}</span>
         </div>
-        <div className={showStadium ? 'grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0' : ''} style={{ borderColor: '#1A1A2A' }}>
+        <div className={showStadium ? 'grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0' : ''} style={{ borderColor: 'var(--ui-surface-3)' }}>
           <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
             {showStadium && (
-              <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                 TÉCNICO
               </div>
             )}
@@ -93,19 +93,19 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
                 {coachPrime && <img src="/coaches/prime/moldura.webp" alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />}
               </div>
             )}
-            <div className="mt-2 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>
+            <div className="mt-2 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'var(--font-display), sans-serif' }}>
               {coach.name}
             </div>
-            <div className="mt-2 text-sm font-black" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="mt-2 text-sm font-black" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
               {coach.philosophy}
             </div>
-            <p className="mt-2 max-w-md text-xs leading-relaxed" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+            <p className="mt-2 max-w-md text-xs leading-relaxed" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
               {coach.description}
             </p>
           </div>
           {showStadium && (
             <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
-              <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                 ESTÁDIO
               </div>
               {reportStadiumImgOk && (
@@ -117,7 +117,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
                   style={{ border: `2px solid ${displayedStadium.prime ? '#E8C84A88' : '#16A34A55'}` }}
                 />
               )}
-              <div className="mt-3 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>
+              <div className="mt-3 text-2xl font-black leading-none" style={{ color: '#FFF', fontFamily: 'var(--font-display), sans-serif' }}>
                 {displayedStadium.name}
               </div>
             </div>
@@ -151,9 +151,9 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
           <div className="flex items-center gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/40 bg-primary/9 text-xl" aria-hidden="true">⭐</span>
             <div className="min-w-0">
-              <div className="text-[12px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
-              <div className="mt-0.5 text-2xl leading-none tracking-wide text-brand-strong" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>EVOLUÇÃO PRIME</div>
-              <div className="mt-1 truncate text-xs font-bold text-[var(--ui-text-muted)]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
+              <div className="text-[12px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
+              <div className="mt-0.5 text-2xl leading-none tracking-wide text-brand-strong" style={{ fontFamily: 'var(--font-display), sans-serif' }}>EVOLUÇÃO PRIME</div>
+              <div className="mt-1 truncate text-xs font-bold text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
             </div>
           </div>
         )}
@@ -169,11 +169,11 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
               <TransitionRow
                 before={
                   <img src={coach.photoUrl} alt={coach.name} referrerPolicy="no-referrer" className="mx-auto h-28 w-28 rounded-xl object-cover sm:h-32 sm:w-32"
-                    style={{ objectPosition: 'center top', filter: 'grayscale(0.45) brightness(0.8)', border: '1px solid #2A2A3A' }} />
+                    style={{ objectPosition: 'center top', filter: 'grayscale(0.45) brightness(0.8)', border: '1px solid var(--ui-line)' }} />
                 }
                 after={
                   <div className="relative mx-auto h-28 w-28 sm:h-32 sm:w-32">
-                    <img src={primeCoachPhotoUrl ?? coach.photoUrl} alt={coach.name + ' Prime'} className="h-full w-full rounded-xl object-cover" style={{ objectPosition: 'center top', border: '2px solid #E8C84A' }} />
+                    <img src={primeCoachPhotoUrl ?? coach.photoUrl} alt={coach.name + ' Prime'} className="h-full w-full rounded-xl object-cover" style={{ objectPosition: 'center top', border: '2px solid var(--ui-brand-strong)' }} />
                     <img src="/coaches/prime/moldura.webp" alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />
                   </div>
                 }
@@ -183,7 +183,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
                 <div className="ui-panel__header flex items-center justify-between py-2.5">
                   <span className="text-[var(--ui-brand-strong)]">O QUE MUDA</span>
                 </div>
-                <div className="grid gap-2 p-3 sm:grid-cols-2" style={{ background: '#0d0d16', fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="grid gap-2 p-3 sm:grid-cols-2" style={{ background: '#0d0d16', fontFamily: 'var(--font-game), sans-serif' }}>
                   <div className="rounded-lg border border-[#24243A] bg-[#0A0A14] p-2.5">
                     <div className="text-[12px] font-black tracking-widest text-[#8A8A9A]">ANTES</div>
                     <p className="mt-1.5 text-xs leading-relaxed text-[#C9C9D5]">{primeDefinition?.normal ?? coach.specialAbility}</p>
@@ -197,8 +197,8 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
 
               <section className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-[12px] font-black tracking-[0.16em] text-[#7E7E92]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>REQUISITOS PARA DESBLOQUEAR</div>
-                  <span className="text-[12px] font-bold text-[#6A6A7A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>PRIME</span>
+                  <div className="text-[12px] font-black tracking-[0.16em] text-[#7E7E92]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>REQUISITOS PARA DESBLOQUEAR</div>
+                  <span className="text-[12px] font-bold text-[#6A6A7A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>PRIME</span>
                 </div>
                 <ProgressRequirement label="Vitórias na campanha" current={wins} target={PRIME_WINS_REQUIRED} />
                 <ProgressRequirement label="Créditos disponíveis" current={points} target={PRIME_COST} />

@@ -165,7 +165,7 @@ function RecordPlayerCardVisual({ player, playerId, photoUrl, name, effectiveSta
   return player ? <PlayerCard player={player} effectiveStats={effectiveStats ?? undefined} scale={0.55} lite /> : <div className="flex h-[178px] w-[110px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-[var(--ui-line-strong)] bg-[var(--ui-surface)] p-2 text-center">
     <PlayerAvatar playerId={playerId} photoUrl={photoUrl ?? undefined} size={64} rounded="rounded-lg" ring={false} fallback={<Trophy size={20} aria-hidden="true" className="text-[var(--ui-text-muted)]" />} />
     <span className="text-[12px] font-semibold leading-tight text-[var(--ui-text-muted)]">Carta final indisponível</span>
-    <span className="max-w-full truncate text-[11px] text-[var(--ui-text-faint)]">{name}</span>
+    <span className="max-w-full truncate text-[12px] text-[var(--ui-text-faint)]">{name}</span>
   </div>;
 }
 
@@ -189,7 +189,7 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
                 sizeClassName="size-9"
               />
               <div className="min-w-0">
-                <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Recorde por</span>
+                <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Recorde por</span>
                 <span className="block truncate text-[13px] text-[var(--ui-text-muted)]">@{record.username_snapshot}</span>
               </div>
             </div>
@@ -198,18 +198,18 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
         <div className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/70 px-2 py-1.5">
           <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={24} className="shrink-0 rounded-full" />
           <div className="min-w-0">
-            <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
+            <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
             <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
           </div>
         </div>
         <div className="mt-2 flex min-w-0 items-end justify-between gap-2">
           <div className="min-w-0">
-            <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
+            <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
             <time className="block truncate text-xs text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
           </div>
           <div className="shrink-0 text-right">
             <div className="font-display text-xl leading-none tabular-nums text-[var(--ui-brand-strong)] sm:text-2xl">{record.value}</div>
-            <div className="mt-1 text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</div>
+            <div className="mt-1 text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</div>
           </div>
         </div>
       </div>
@@ -259,26 +259,26 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
           </div>
           {record && rankPosition ? <div role="status" aria-label={`${rankPosition}ª posição no ranking geral de ${meta.label.toLowerCase()}`} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--ui-brand)]/30 bg-[var(--ui-brand-soft)] px-2 py-1 text-[var(--ui-brand-strong)]">
             <span className="font-display text-base leading-none tabular-nums">#{rankPosition}</span>
-            <span className="text-[10px] uppercase leading-none tracking-wider">no geral</span>
-          </div> : record ? <span className="shrink-0 rounded-lg border border-[var(--ui-line-subtle)] px-2 py-1 text-[11px] text-[var(--ui-text-faint)]">posição indisponível</span> : null}
+            <span className="text-[12px] uppercase leading-none tracking-wider">no geral</span>
+          </div> : record ? <span className="shrink-0 rounded-lg border border-[var(--ui-line-subtle)] px-2 py-1 text-[12px] text-[var(--ui-text-faint)]">posição indisponível</span> : null}
         </div>
         {record ? <>
           <div className="mt-2 flex min-w-0 items-baseline justify-between gap-2">
             <strong className="min-w-0 truncate text-xs font-semibold text-[var(--ui-text-soft)]">{record.player_name}</strong>
             <div className="shrink-0 text-right">
               <strong className="font-display text-xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{record.value.toLocaleString('pt-BR')}</strong>
-              <span className="ml-1 text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
+              <span className="ml-1 text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
             </div>
           </div>
           <div className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/70 px-2 py-1.5">
             <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={24} className="shrink-0 rounded-full" />
             <div className="min-w-0">
-              <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
+              <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
               <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
             </div>
           </div>
           <div className="mt-2">
-            <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
+            <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
             <time className="block text-xs text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
           </div>
         </> : <span className="mt-2 block text-xs text-[var(--ui-text-muted)]">Ainda sem marca registrada</span>}
@@ -308,7 +308,8 @@ function ProfileCareerContent({
 }) {
   return (
     <div className="space-y-5">
-      <div className="space-y-3">
+      {/* Desktop: ranking and competitions side by side. */}
+      <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
         {scorePositionLoading ? <div className="space-y-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3"><Skeleton className="h-3 w-28" /><Skeleton className="h-8 w-16" /><Skeleton className="h-3 w-36" /></div>
           : <Metric
             label="Ranking geral"
@@ -330,8 +331,8 @@ function ProfileCareerContent({
         <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Melhores marcas e posições no ranking.</p>
         {recordsError ? <StatusBanner tone="danger" title={recordsErrorTitle}>{recordsError}</StatusBanner>
           : recordsLoading
-            ? <div className="grid grid-cols-1 gap-3" aria-label="Carregando recordes pessoais">{RECORD_CATEGORY_ORDER.map(category => <Skeleton key={category} className="h-[210px] w-full rounded-xl" />)}</div>
-            : <div className="grid grid-cols-1 gap-3">{RECORD_CATEGORY_ORDER.map(category => <PersonalRecordCard key={category} category={category} record={records.find(record => record.category === category)} />)}</div>}
+            ? <div className="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="Carregando recordes pessoais">{RECORD_CATEGORY_ORDER.map(category => <Skeleton key={category} className="h-[210px] w-full rounded-xl" />)}</div>
+            : <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">{RECORD_CATEGORY_ORDER.map(category => <PersonalRecordCard key={category} category={category} record={records.find(record => record.category === category)} />)}</div>}
       </section>
     </div>
   );

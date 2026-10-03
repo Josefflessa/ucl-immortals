@@ -92,20 +92,20 @@ export default function SetupPage() {
                   {/* Emblema do tier (número do nível na cor da raridade) */}
                     <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{ background: `${color}18`, border: `1.5px solid ${isSelected ? color : `${color}55`}` }}>
-                    <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 30, fontWeight: 900, color, lineHeight: 1 }}>{level}</span>
+                    <span style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 30, fontWeight: 900, color, lineHeight: 1 }}>{level}</span>
                   </div>
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black tracking-wider" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 20, color: isSelected ? color : '#FFFFFF' }}>
+                      <span className="font-black tracking-wider" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 20, color: isSelected ? color : '#FFFFFF' }}>
                         {diff.name.toUpperCase()}
                       </span>
-                      <span className="text-[11px] font-black px-1.5 py-0.5 rounded leading-none" style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.06em' }}>
+                      <span className="text-[12px] font-black px-1.5 py-0.5 rounded leading-none" style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'var(--font-game), sans-serif', letterSpacing: '0.06em' }}>
                         NÍVEL {level}
                       </span>
                     </div>
-                    <p className="text-[13px] mt-0.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <p className="text-[13px] mt-0.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                       {diff.description}
                     </p>
                     {/* Medidor visual do nível selecionado */}
@@ -120,7 +120,7 @@ export default function SetupPage() {
 
                   {/* Selecionado */}
                   {isSelected && (
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: color, color: '#080810', fontSize: 13, fontWeight: 900 }}>
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: color, color: 'var(--ui-bg)', fontSize: 13, fontWeight: 900 }}>
                       ✓
                     </div>
                   )}

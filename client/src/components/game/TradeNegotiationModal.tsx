@@ -6,24 +6,30 @@ import { useGame } from '../../contexts/GameContext';
 import PlayerCard from './PlayerCard';
 import { Button, GameModal } from '../../design-system';
 import type { Player } from '@shared/game/gameData';
+import type { EffectiveStats } from '@shared/game/gameEngine';
+import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 
 // Room updates clone the authoritative state. Keep unchanged trade cards from
 // recalculating when only the other side's offer or ready flag changes.
-const TradePlayerCard = memo(function TradePlayerCard({ player, selected, onToggle }: {
+const TradePlayerCard = memo(function TradePlayerCard({ player, effectiveStats, selected, onToggle }: {
   player: Player;
+  /** Own reserves show their Meu Time values; the other side's cards stay as base cards. */
+  effectiveStats?: EffectiveStats;
   selected?: boolean;
   onToggle?: (playerId: string) => void;
 }) {
   return (
     <PlayerCard
       player={player}
+      effectiveStats={effectiveStats}
       compact
       lite
       selected={selected}
       onClick={onToggle ? () => onToggle(player.id) : undefined}
     />
   );
-}, (previous, next) => previous.player.id === next.player.id && previous.selected === next.selected);
+}, (previous, next) => previous.player.id === next.player.id && previous.selected === next.selected
+  && previous.effectiveStats?.overall === next.effectiveStats?.overall);
 
 export default function TradeNegotiationModal() {
   const { state, tradeSelectOnline, tradeReadyOnline, tradeLeaveOnline } = useGame();
@@ -45,6 +51,7 @@ export default function TradeNegotiationModal() {
   const theirCards = theirBench.filter(p => theirPlayerIds.includes(p.id));
 
   const bench = team.players.slice(11);
+  const ownStats = teamEffectiveStats(team, state.phase === 'knockout', state.points);
   const sameOfferSize = theirPlayerIds.length === 0 || theirPlayerIds.length === myPlayerIds.length;
   const togglePlayer = (playerId: string) => {
     const nextPlayerIds = myPlayerIds.includes(playerId)
@@ -92,6 +99,7 @@ export default function TradeNegotiationModal() {
               <TradePlayerCard
                 key={p.id}
                 player={p}
+                effectiveStats={ownStats[p.id]}
                 selected={myPlayerIds.includes(p.id)}
                 onToggle={togglePlayer}
               />

@@ -270,7 +270,7 @@ export default function TournamentFormatPage() {
                     <span className="text-3xl" aria-hidden="true">{option.icon}</span>
                     {selected && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-sm font-black text-[#080810]">✓</span>}
                   </div>
-                  <div className="mt-3 font-black tracking-wide text-white" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 22 }}>{option.name.toUpperCase()}</div>
+                  <div className="mt-3 font-black tracking-wide text-white" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 22 }}>{option.name.toUpperCase()}</div>
                   <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{option.shortDescription}</p>
                 </ChoiceCard>
               );
@@ -319,7 +319,7 @@ export default function TournamentFormatPage() {
                           selected={format.leagueLegs === legs}
                           onClick={() => setLeagueLegs(legs)}
                           className="rounded-xl border p-4 text-left transition-colors"
-                          style={{ borderColor: format.leagueLegs === legs ? '#C9A84C' : '#242436', background: format.leagueLegs === legs ? '#C9A84C12' : '#0F0F1A' }}
+                          style={{ borderColor: format.leagueLegs === legs ? 'var(--ui-brand)' : '#242436', background: format.leagueLegs === legs ? '#C9A84C12' : 'var(--ui-surface-1)' }}
                         >
                           <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{title}</div>{format.leagueLegs === legs && <CheckCircle2 size={16} className="text-primary" />}</div>
                           <div className="mt-1 text-[13px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
@@ -378,7 +378,7 @@ export default function TournamentFormatPage() {
                       selected={format.knockoutLegs === legs}
                       onClick={() => { setFormat(previous => ({ ...previous, knockoutLegs: legs })); setError(null); }}
                       className="rounded-xl border p-4 text-left transition-colors"
-                      style={{ borderColor: format.knockoutLegs === legs ? '#C9A84C' : '#242436', background: format.knockoutLegs === legs ? '#C9A84C12' : '#0F0F1A' }}
+                      style={{ borderColor: format.knockoutLegs === legs ? 'var(--ui-brand)' : '#242436', background: format.knockoutLegs === legs ? '#C9A84C12' : 'var(--ui-surface-1)' }}
                     >
                       <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{legs === 1 ? 'Jogo único' : 'Ida e volta'}</div>{format.knockoutLegs === legs && <CheckCircle2 size={16} className="text-primary" />}</div>
                       <div className="mt-1 text-[13px] leading-relaxed text-[var(--ui-text-muted)]">{legs === 1 ? 'Mais rápido, ideal para torneios compactos.' : 'A soma dos dois jogos define quem avança.'}</div>
@@ -393,7 +393,7 @@ export default function TournamentFormatPage() {
                       [true, 'Jogo único', 'Final em campo neutro, com prorrogação e pênaltis se necessário.'],
                       [false, 'Ida e volta', 'Cada finalista manda um jogo; empate no agregado vai à prorrogação e pênaltis na volta.'],
                     ] as const).map(([singleLeg, title, description]) => (
-                      <ChoiceCard key={title} selected={format.finalSingleLeg === singleLeg} onClick={() => { setFormat(previous => ({ ...previous, finalSingleLeg: singleLeg })); setError(null); }} className="rounded-xl border p-4 text-left transition-colors" style={{ borderColor: format.finalSingleLeg === singleLeg ? '#C9A84C' : '#242436', background: format.finalSingleLeg === singleLeg ? '#C9A84C12' : '#0F0F1A' }}>
+                      <ChoiceCard key={title} selected={format.finalSingleLeg === singleLeg} onClick={() => { setFormat(previous => ({ ...previous, finalSingleLeg: singleLeg })); setError(null); }} className="rounded-xl border p-4 text-left transition-colors" style={{ borderColor: format.finalSingleLeg === singleLeg ? 'var(--ui-brand)' : '#242436', background: format.finalSingleLeg === singleLeg ? '#C9A84C12' : 'var(--ui-surface-1)' }}>
                         <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{title}</div>{format.finalSingleLeg === singleLeg && <CheckCircle2 size={16} className="text-primary" />}</div>
                         <div className="mt-1 text-[13px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
                       </ChoiceCard>

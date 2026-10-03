@@ -27,9 +27,9 @@ function PackBrand({ rarity, back = false }: { rarity: PlayerPackRarity; back?: 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
       <img src="/icons/logo_ucl.png" alt="" className="h-[clamp(52px,10vw,82px)] w-[clamp(52px,10vw,82px)] object-contain opacity-90" />
-      <div className="mt-5 text-[clamp(34px,7vw,58px)] leading-none tracking-[0.12em]" style={{ color: meta.color, fontFamily: 'Bebas Neue, sans-serif' }}>{meta.label}</div>
+      <div className="mt-5 text-[clamp(34px,7vw,58px)] leading-none tracking-[0.12em]" style={{ color: meta.color, fontFamily: 'var(--font-display), sans-serif' }}>{meta.label}</div>
       <div className="mt-3 h-px w-[clamp(40px,10vw,72px)]" style={{ background: `${meta.color}99` }} />
-      <div className="mt-3 text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.22em]" style={{ color: back ? '#C9C3A4' : MUTED, fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="mt-3 text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.22em]" style={{ color: back ? '#C9C3A4' : MUTED, fontFamily: 'var(--font-game), sans-serif' }}>
         PACOTE DE JOGADOR
       </div>
     </div>
@@ -69,7 +69,7 @@ function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMov
       >
         <PackBody accent={accent} background={background}>
           <PackBrand rarity={rarity} />
-          <div className="absolute inset-x-[9%] bottom-[7%] flex items-center justify-between text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.18em]" style={{ color: `${accent}99`, fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="absolute inset-x-[9%] bottom-[7%] flex items-center justify-between text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.18em]" style={{ color: `${accent}99`, fontFamily: 'var(--font-game), sans-serif' }}>
             <span>UCL IMMORTALS</span>
             <span>01 / 01</span>
           </div>
@@ -86,11 +86,11 @@ function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMov
             onPointerCancel={onPointerUp}
             aria-label="Deslize a aba superior para rasgar o pacote"
           >
-            <div className="absolute inset-x-[9%] top-[17%] flex items-center justify-between text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.18em]" style={{ color: `${accent}CC`, fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="absolute inset-x-[9%] top-[17%] flex items-center justify-between text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.18em]" style={{ color: `${accent}CC`, fontFamily: 'var(--font-game), sans-serif' }}>
               <span>UCL</span>
               <span>{meta.label} PACK</span>
             </div>
-            <div className="absolute bottom-[13%] left-1/2 flex -translate-x-1/2 items-center gap-2 text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.15em]" style={{ color: `${accent}AA`, fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="absolute bottom-[13%] left-1/2 flex -translate-x-1/2 items-center gap-2 text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.15em]" style={{ color: `${accent}AA`, fontFamily: 'var(--font-game), sans-serif' }}>
               <Scissors size={15} />
               <span>DESLIZE A ABA</span>
             </div>
@@ -188,8 +188,8 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
           {stage === 'sealed' && (
             <motion.section key="sealed" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} className="flex w-full flex-col items-center">
               <div className="mb-5 text-center sm:mb-7">
-                <div className="text-[13px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'Rajdhani, sans-serif' }}>UMA CARTA. UMA ABERTURA.</div>
-                <p className="mt-2 text-xs" style={{ color: MUTED, fontFamily: 'Rajdhani, sans-serif' }}>Rasgue a aba superior para começar.</p>
+                <div className="text-[13px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'var(--font-game), sans-serif' }}>UMA CARTA. UMA ABERTURA.</div>
+                <p className="mt-2 text-xs" style={{ color: MUTED, fontFamily: 'var(--font-game), sans-serif' }}>Rasgue a aba superior para começar.</p>
               </div>
               <motion.div
                 ref={packRef}
@@ -199,11 +199,11 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
               >
                 <PackFront rarity={rarity} cutProgress={cutProgress} isTearing={isTearing} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} />
               </motion.div>
-              <div className="mt-5 flex items-center gap-2 text-[12px] font-bold tracking-[0.16em]" style={{ color: '#777487', fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="mt-5 flex items-center gap-2 text-[12px] font-bold tracking-[0.16em]" style={{ color: '#777487', fontFamily: 'var(--font-game), sans-serif' }}>
                 <ArrowRight size={14} />
                 <span>{cutProgress > 0 ? 'CONTINUE DESLIZANDO' : 'DESLIZE DA ESQUERDA PARA A DIREITA'}</span>
               </div>
-              <button type="button" onClick={skipCut} className="mt-4 text-[12px] font-bold tracking-[0.14em] transition-colors hover:text-brand-strong" style={{ color: '#656273', fontFamily: 'Rajdhani, sans-serif' }}>
+              <button type="button" onClick={skipCut} className="mt-4 text-[12px] font-bold tracking-[0.14em] transition-colors hover:text-brand-strong" style={{ color: '#656273', fontFamily: 'var(--font-game), sans-serif' }}>
                 ABRIR SEM ANIMAÇÃO
               </button>
             </motion.section>
@@ -211,11 +211,11 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
 
           {stage === 'revealed' && (
             <motion.section key="revealed" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="flex w-full flex-col items-center">
-              <div className="mb-4 text-[13px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'Rajdhani, sans-serif' }}>CARTA {meta.label} REVELADA</div>
+              <div className="mb-4 text-[13px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'var(--font-game), sans-serif' }}>CARTA {meta.label} REVELADA</div>
               <motion.div initial={{ rotateY: 90, scale: .82, opacity: 0 }} animate={{ rotateY: 0, scale: 1, opacity: 1 }} transition={{ duration: .78, ease: [0.22, 1, 0.36, 1] }} className="mx-auto flex w-fit justify-center" style={{ perspective: 1200 }}>
                 <PlayerCard player={card} lite scale={1.18} />
               </motion.div>
-              <p className="mx-auto mt-5 max-w-[330px] text-center text-xs leading-relaxed" style={{ color: MUTED, fontFamily: 'Rajdhani, sans-serif' }}>Esta carta foi reservada para o seu time. Adicione-a ao banco para concluir.</p>
+              <p className="mx-auto mt-5 max-w-[330px] text-center text-xs leading-relaxed" style={{ color: MUTED, fontFamily: 'var(--font-game), sans-serif' }}>Esta carta foi reservada para o seu time. Adicione-a ao banco para concluir.</p>
               <Button type="button" intent="primary" size="large" onClick={onClaim} className="mx-auto mt-5 flex w-full max-w-[420px] items-center justify-center gap-2" style={{ minHeight: 70, borderRadius: 14, fontSize: 24, boxShadow: `0 16px 36px ${accent}33` }}>
                 ADICIONAR AO BANCO <ArrowRight size={17} />
               </Button>

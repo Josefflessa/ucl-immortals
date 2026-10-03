@@ -5,6 +5,7 @@ import {
   generateDraftOptions,
   getNeededPositions,
   generateBotTeam,
+  pickBotNames,
   buildUniquePackRoundKey,
   generateRandomLeagueFixtures,
   generateRandomGroupFixtures,
@@ -2061,22 +2062,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
         const diffLevel = DIFFICULTY_LEVELS.find(d => d.id === room.difficulty);
         const botStrength = diffLevel?.botStrength ?? 0.72;
 
-        const BOT_NAMES = [
-          'Real Madrid', 'Manchester City', 'Bayern München', 'Paris Saint-Germain',
-          'Liverpool FC', 'Inter de Milão', 'Arsenal FC', 'FC Barcelona',
-          'Borussia Dortmund', 'Juventus FC', 'Atlético de Madrid', 'Bayer Leverkusen',
-          'AC Milan', 'Benfica Glorioso', 'Sporting CP', 'FC Porto', 'Ajax Legends',
-          'PSV Eindhoven', 'Feyenoord Roterdã', 'Aston Villa', 'Atalanta Bergamo',
-          'AS Monaco', 'Lille OSC', 'VfB Stuttgart', 'Bologna FC', 'Girona FC',
-          'Celtic FC', 'Club Brugge', 'Shakhtar Donetsk', 'Dinamo Zagreb',
-          'RB Salzburg', 'Sparta Praga', 'Young Boys Bern', 'Estrela Vermelha',
-          'Lazio Roma'
-        ];
-
-        const humanNames = room.players.map(p => p.team!.name.toLowerCase());
-        const filteredBotNames = BOT_NAMES.filter(name => !humanNames.includes(name.toLowerCase()));
+        // Never a bot with the same name or crest as a human club.
         const numBotsNeeded = Math.max(0, room.competitionFormat.teamCount - room.players.length);
-        const selectedBotNames = filteredBotNames.slice(0, numBotsNeeded);
+        const selectedBotNames = pickBotNames(numBotsNeeded, room.players.map(p => p.team!));
 
         room.botTeams = selectedBotNames.map(name => generateBotTeam(name, botStrength));
         const allTeams = [...room.players.map(p => p.team!), ...room.botTeams];

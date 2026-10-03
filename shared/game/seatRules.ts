@@ -139,7 +139,7 @@ export function openUniquePack(seat: PlayerSeat, ctx: SeatContext): SeatResult {
   if (!ctx.shopOpen || hasPendingPack(seat)) return fail();
   const offered = ensureUniquePackOffer(seat, ctx);
   const cost = SHOP_COSTS.uniqueCard;
-  if (offered.points < cost) return insufficient(offered.points, cost, 'pontos');
+  if (offered.points < cost) return insufficient(offered.points, cost);
   const card = drawUniquePackCard(offered.uniquePackOfferIds ?? [], ownedIds(offered));
   if (!card) return fail('Você já possui todas as Cartas Únicas desta oferta.');
   return ok({ ...spend(offered, cost), pendingUniquePack: { ...card } });
@@ -158,7 +158,7 @@ export function openPlayerPack(seat: PlayerSeat, ctx: SeatContext, rarity: Regul
   if (!ctx.shopOpen || hasPendingPack(seat)) return fail();
   const offered = ensurePlayerPackOffers(seat, ctx);
   const cost = SHOP_COSTS.playerPack[rarity];
-  if (offered.points < cost) return insufficient(offered.points, cost, 'pontos');
+  if (offered.points < cost) return insufficient(offered.points, cost);
   const card = drawPlayerPackCard(offered.playerPackOfferIds?.[rarity] ?? [], rarity, ownedIds(offered));
   if (!card) return fail('Você já possui todas as cartas disponíveis desta oferta.');
   return ok({ ...spend(offered, cost), pendingPackReveal: { kind: rarity, card: { ...card } } });
@@ -178,7 +178,7 @@ export function openScoutPack(seat: PlayerSeat, ctx: SeatContext, position: stri
   const options = generateScoutOptions(position, ownedIds(seat));
   if (options.length === 0) return fail();
   const cost = SHOP_COSTS.scout;
-  if (seat.points < cost) return insufficient(seat.points, cost, 'pontos');
+  if (seat.points < cost) return insufficient(seat.points, cost);
   return ok({ ...spend(seat, cost), pendingPack: { kind: 'scout', options: options.map(option => ({ ...option })) } });
 }
 
@@ -206,7 +206,7 @@ export function turbinar(
   const target = seat.team.players.find(card => card.id === playerId);
   const cost = SHOP_COSTS.turbinar;
   if (!target || !canAddVariant(target)) return fail(); // one per card (Únicas: two)
-  if (seat.points < cost) return insufficient(seat.points, cost, 'pontos');
+  if (seat.points < cost) return insufficient(seat.points, cost);
   const stats = { ...competitionStats, missionsCompleted: seat.missions ? completedMissionCount(seat.missions) : 0 };
   const players = mapPlayer(seat, playerId, card => ({ ...applyShopVariant(card, variant, stats), chemistryScore: card.chemistryScore, isOOP: card.isOOP } as PlayerCard));
   return ok(spend(seat, cost, rebuildTeamChemistry({ ...seat.team, players })));
@@ -217,7 +217,7 @@ export function removeVariant(seat: PlayerSeat, ctx: SeatContext, playerId: stri
   const target = seat.team.players.find(card => card.id === playerId);
   const cost = SHOP_COSTS.removeVariant;
   if (!target || !hasVariant(target)) return fail();
-  if (seat.points < cost) return insufficient(seat.points, cost, 'pontos');
+  if (seat.points < cost) return insufficient(seat.points, cost);
   const players = mapPlayer(seat, playerId, card => ({
     ...(variantKey ? stripSpecificVariant(card, variantKey) : stripVariant(card)),
     chemistryScore: card.chemistryScore,

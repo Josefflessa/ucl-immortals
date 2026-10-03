@@ -116,31 +116,31 @@ export default function CoachPage() {
                       <div
                         className="font-black text-lg leading-tight"
                         style={{
-                          fontFamily: 'Bebas Neue, sans-serif',
+                          fontFamily: 'var(--font-display), sans-serif',
                           color: isSelected ? 'var(--ui-brand-strong)' : '#FFFFFF',
                           letterSpacing: '0.05em',
                         }}
                       >
                         {coach.name.toUpperCase()}
                       </div>
-                      <div className="text-xs font-semibold" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="text-xs font-semibold" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
                         {coach.philosophy}
                       </div>
                     </div>
                   </div>
 
                   {/* Description */}
-                  <p className="text-xs mb-3 leading-relaxed" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                  <p className="text-xs mb-3 leading-relaxed" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                     {coach.description}
                   </p>
 
                   {/* Effect */}
                   <div className="px-3 py-2 rounded-lg mb-3"
                     style={{ background: `${color}11`, border: `1px solid ${color}22` }}>
-                    <div className="text-xs font-bold" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>
+                    <div className="text-xs font-bold" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
                       EFEITO TÁTICO
                     </div>
-                    <div className="text-xs mt-0.5" style={{ color: '#CCC', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <div className="text-xs mt-0.5" style={{ color: '#CCC', fontFamily: 'var(--font-game), sans-serif' }}>
                       {coach.effect}
                     </div>
                   </div>
@@ -149,10 +149,10 @@ export default function CoachPage() {
                   <div className="flex items-start gap-2">
                     <div className="text-sm flex-shrink-0">⚡</div>
                     <div>
-                      <div className="text-xs font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="text-xs font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                         {coach.specialAbilityName}
                       </div>
-                      <div className="text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="text-xs" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                         {coach.specialAbility}
                       </div>
                     </div>
@@ -160,11 +160,11 @@ export default function CoachPage() {
 
                   {/* Preferred formation */}
                   <div className="mt-3 flex items-center gap-2">
-                    <span className="text-xs" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <span className="text-xs" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                       Formação preferida:
                     </span>
                     <span className="text-xs font-bold px-2 py-0.5 rounded"
-                      style={{ background: '#1A1A2A', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+                      style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                       {coach.preferredFormation}
                     </span>
                   </div>
@@ -173,7 +173,7 @@ export default function CoachPage() {
                   {isSelected && (
                     <div className="mt-3 flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full" style={{ background: 'var(--ui-brand-strong)' }} />
-                      <span className="text-xs font-bold" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <span className="text-xs font-bold" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}>
                         SELECIONADO
                       </span>
                     </div>

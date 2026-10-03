@@ -61,6 +61,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Keyboard focus for every clickable element (only shows when navigating with the keyboard),
+     the same ring the design-system buttons use. */
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--ui-focus);
+    outline-offset: 3px;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-ui), sans-serif;

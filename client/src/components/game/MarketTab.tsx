@@ -7,6 +7,7 @@ import { useGame } from '../../contexts/GameContext';
 import { sellValue } from '@shared/game/shop';
 import { marketMinPrice } from '@shared/game/market';
 import PlayerCard from './PlayerCard';
+import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 import { Button, GameModal } from '../../design-system';
 
 export default function MarketTab() {
@@ -23,6 +24,8 @@ export default function MarketTab() {
   if (!team) return null;
 
   const bench = team.players.slice(11);
+  // Own reserves show the values they have in Meu Time (team-wide buffs, no individual chemistry).
+  const ownStats = teamEffectiveStats(team, state.phase === 'knockout', state.points);
   const meId = online ? state.onlinePlayers.find(p => p.team?.id === team.id)?.id : undefined;
   const view = online ? subTab : 'sell'; // solo só tem VENDER
 
@@ -70,7 +73,7 @@ export default function MarketTab() {
             <div className="market-player-row flex flex-wrap gap-3">
               {bench.map(p => (
                 <div key={p.id} className="flex flex-col items-center gap-1">
-                  <PlayerCard player={p} compact lite />
+                  <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite />
                   <button
                     onClick={() => setConfirmId(p.id)}
                     className="ui-btn ui-btn--danger min-h-8 px-3 text-[13px]"
@@ -98,7 +101,7 @@ export default function MarketTab() {
               <div className="market-player-row flex flex-wrap gap-3">
                 {bench.map(p => (
                   <div key={p.id} className="flex flex-col items-center gap-1">
-                    <PlayerCard player={p} compact lite />
+                    <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite />
                     <button
                       onClick={() => { setPriceInput(marketMinPrice(p)); setListFor(p.id); }}
                       className="ui-btn ui-btn--info min-h-8 px-3 text-[13px]"

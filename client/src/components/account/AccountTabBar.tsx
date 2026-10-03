@@ -42,14 +42,14 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
               aria-current={selected ? 'page' : undefined}
               onClick={() => onNavigate(id)}
               className={cn(
-                'flex h-14 flex-col gap-1 rounded-lg px-0 text-[11px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]',
+                'flex h-14 flex-col gap-1 rounded-lg px-0 text-[12px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]',
                 selected && 'bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] hover:text-[var(--ui-brand-strong)]',
               )}
             >
               <span className="relative inline-flex size-4 items-center justify-center">
                 <Icon size={16} aria-hidden="true" />
                 {id === 'friends' && incomingFriendRequestCount > 0 ? (
-                  <span aria-hidden="true" className="absolute -right-2 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-[11px] font-bold leading-none tabular-nums text-white">
+                  <span aria-hidden="true" className="absolute -right-2 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-[12px] font-bold leading-none tabular-nums text-white">
                     {incomingFriendRequestCount > 9 ? '9+' : incomingFriendRequestCount}
                   </span>
                 ) : null}

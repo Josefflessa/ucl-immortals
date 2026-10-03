@@ -2,7 +2,7 @@
 
 import { Player, PLAYERS, COACHES, FORMATIONS, HISTORICAL_TRIOS } from '../gameData';
 import { rollPlayerTraits } from '../traits';
-import { BOT_CREST_MAP, sameClub } from '../crests';
+import { ALL_CRESTS, BOT_CREST_MAP, crestIdForClub, sameClub } from '../crests';
 import { random } from '../random';
 import { type PlayerCard, type Team, type MatchResult } from './teamModel';
 import { calculateChemistry } from './chemistry';
@@ -73,6 +73,54 @@ function pickChemAware(cands: Player[], selected: Player[], chemBias: number): P
   let r = random() * total;
   for (let i = 0; i < cands.length; i++) { r -= weights[i]; if (r <= 0) return cands[i]; }
   return cands[cands.length - 1];
+}
+
+// The bot clubs of a competition, in draw order. The last ones are reserves for when human
+// teams take some of the names/crests (see pickBotNames).
+export const BOT_NAMES = [
+  'Real Madrid', 'Manchester City', 'Bayern München', 'Paris Saint-Germain', 'Liverpool FC',
+  'Inter de Milão', 'Arsenal FC', 'FC Barcelona', 'Borussia Dortmund', 'Juventus FC',
+  'Atlético de Madrid', 'Bayer Leverkusen', 'AC Milan', 'Benfica Glorioso', 'Sporting CP',
+  'FC Porto', 'Ajax Legends', 'PSV Eindhoven', 'Feyenoord Roterdã', 'Aston Villa',
+  'Atalanta Bergamo', 'AS Monaco', 'Lille OSC', 'VfB Stuttgart', 'Bologna FC', 'Girona FC',
+  'Celtic FC', 'Club Brugge', 'Shakhtar Donetsk', 'Dinamo Zagreb', 'RB Salzburg',
+  'Sparta Praga', 'Young Boys Bern', 'Estrela Vermelha', 'Lazio Roma',
+  'Real Betis', 'Dynamo Kyiv',
+];
+
+export interface HumanTeamIdentity {
+  name: string;
+  crestId?: string | null;
+}
+
+const identityKey = (value: string) => value
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** The crest a bot of this name plays with. */
+export function botCrestId(name: string): string | undefined {
+  return BOT_CREST_MAP[name] ?? crestIdForClub(name) ?? undefined;
+}
+
+/**
+ * Bot clubs for a competition: never the same name or crest as a human team. Falls back to
+ * other clubs of the crest catalogue if the regular list runs out.
+ */
+export function pickBotNames(count: number, humans: HumanTeamIdentity[]): string[] {
+  const takenNames = new Set(humans.map(h => identityKey(h.name)));
+  const takenCrests = new Set(humans.map(h => h.crestId).filter((id): id is string => !!id));
+  const free = (name: string, crestId: string | undefined) =>
+    !takenNames.has(identityKey(name)) && !(crestId && takenCrests.has(crestId));
+  const picked: string[] = [];
+  const use = (name: string, crestId: string | undefined) => {
+    if (picked.length >= count || !free(name, crestId)) return;
+    picked.push(name);
+    takenNames.add(identityKey(name));
+    if (crestId) takenCrests.add(crestId);
+  };
+  for (const name of BOT_NAMES) use(name, botCrestId(name));
+  for (const crest of ALL_CRESTS) use(crest.name, crest.id);
+  return picked;
 }
 
 export function generateBotTeam(name: string, difficulty: number): Team {
@@ -164,7 +212,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
     totalChemistry: chemData.total,
     isBot: true,
     botStrength: difficulty,
-    crestId: BOT_CREST_MAP[name],
+    crestId: botCrestId(name),
   };
 }
 

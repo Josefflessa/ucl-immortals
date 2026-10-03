@@ -26,6 +26,7 @@ import FormationSelector from './FormationSelector';
 import ChemistryBonusInfo from './ChemistryBonusInfo';
 import BuffBreakdown from './BuffBreakdown';
 import { canonicalClubName } from '@shared/game/crests';
+import { squadEffectiveStats } from '../../lib/squadEffectiveStats';
 import { GameModal } from '../../design-system';
 
 interface SquadEditorProps {
@@ -165,32 +166,9 @@ export default function SquadEditor({
 
   // Meu Time is the only card context that renders effective values. Draft, shop and
   // reinforcement pickers omit this map and therefore keep the card's own values.
-  const effectiveStatsById: Record<string, EffectiveStats> = useMemo(() => Object.fromEntries(
-    players.map((player, index) => {
-      const isStarter = index < 11;
-      const effective = getPlayerEffectiveStats(
-        player,
-        isStarter ? (chemData.individual[player.id] ?? 0) : 0,
-        isStarter ? (chemData.outOfPosition[player.id] ?? false) : false,
-        coachId,
-        // Team-wide chemistry remains the current squad context for reserves;
-        // only their individual link score/position penalty is absent.
-        chemData.total,
-        playStyle,
-        {
-          captainBoost: isStarter ? captainBoost : undefined,
-          charBoosts,
-          isKnockout,
-          coachPrime,
-          analysisLevel,
-          role: isStarter ? (formationRoles[index] ?? player.position) : player.position,
-          isSecondary: isStarter ? (chemData.secondaryPos[player.id] ?? false) : false,
-          credits: points,
-        },
-      );
-      return [player.id, effective];
-    }),
-  ), [players, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, coachPrime, analysisLevel, formationRoles, points]);
+  const effectiveStatsById: Record<string, EffectiveStats> = useMemo(() => squadEffectiveStats({
+    players, coachId, formationId, playStyle, captain, isKnockout, coachPrime, analysisLevel, credits: points,
+  }), [players, coachId, formationId, playStyle, captain, isKnockout, coachPrime, analysisLevel, points]);
 
   const rolePlayers: RoleablePlayer[] = useMemo(() => xi.map(player => ({
     ...player,
@@ -348,24 +326,28 @@ export default function SquadEditor({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      {/* Desktop: chemistry beside plan + roles (same height), then formation, tactic and
+          coach in one full-width row. Mobile keeps the stack. */}
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+      <div className="space-y-4">
       {/* Team overall + chemistry summary */}
-      <div className="rounded-xl p-4" style={{ background: '#0F0F1A', border: `1px solid ${chemColor}44` }}>
+      <div className="rounded-xl p-4 lg:h-full" style={{ background: '#0F0F1A', border: `1px solid ${chemColor}44` }}>
         {teamOverall !== null && (
-          <div className="flex items-center justify-between mb-3 pb-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-            <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>OVERALL DO TIME</span>
-            <span className="text-2xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>{teamOverall}</span>
+          <div className="flex items-center justify-between mb-3 pb-3 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
+            <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>OVERALL DO TIME</span>
+            <span className="text-2xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand-strong)' }}>{teamOverall}</span>
           </div>
         )}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>QUÍMICA DO TIME</span>
-          <span className="text-2xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: chemColor }}>{chemData.total}</span>
+          <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>QUÍMICA DO TIME</span>
+          <span className="text-2xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: chemColor }}>{chemData.total}</span>
         </div>
-        <div className="h-2 rounded-full" style={{ background: '#1A1A2A' }}>
+        <div className="h-2 rounded-full" style={{ background: 'var(--ui-surface-3)' }}>
           <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, chemData.total)}%`, background: chemColor }} />
         </div>
         {coach && formation?.id === coach.preferredFormation && (
           <div className="mt-2 w-full flex items-start gap-1.5 px-2 py-1.5 rounded-md text-[13px] leading-snug"
-            style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'Rajdhani, sans-serif' }}>
+            style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'var(--font-game), sans-serif' }}>
             <span className="shrink-0" aria-hidden="true">✓</span>
             <span className="min-w-0 break-words">Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do técnico ({coach.name})</span>
           </div>
@@ -379,13 +361,13 @@ export default function SquadEditor({
             <div className="mt-2 flex flex-wrap gap-1.5">
               {pilars.map(p => (
                 <span key={p.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px]"
-                  style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'Rajdhani, sans-serif' }}>
+                  style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'var(--font-game), sans-serif' }}>
                   🧱 {p.shortName} <b>+{PILAR_CHEM_BONUS}</b> química geral
                 </span>
               ))}
               {lobos.map(p => (
                 <span key={p.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px]"
-                  style={{ background: '#EF444418', border: '1px solid #EF444440', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                  style={{ background: '#EF444418', border: '1px solid #EF444440', color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>
                   🐺 {p.shortName} <b>−{LOBO_CHEM_PENALTY}</b> química geral
                 </span>
               ))}
@@ -393,12 +375,15 @@ export default function SquadEditor({
           );
         })()}
         {activeTrios.length > 0 && (
-          <div className="mt-3 text-xs" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="mt-3 text-xs" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
             ⭐ {activeTrios.map(t => t?.name).join(' · ')}
           </div>
         )}
         <ChemistryBonusInfo total={chemData.total} />
       </div>
+      </div>
+
+      <div className="space-y-4">
 
       {onSetMatchPlan ? (
         <MatchPlanSelector value={matchPlan} playStyle={playStyle} onChange={onSetMatchPlan} />
@@ -413,18 +398,20 @@ export default function SquadEditor({
         activeRole={activeRole}
       />
 
+      </div>
+
       {/* Controles rápidos do campo: formação e tática em cima, técnico abaixo,
           todos fora da área jogável para nunca cobrir as cartas. */}
-      <div className="mt-3 w-full space-y-2" onPointerDown={event => event.stopPropagation()}>
-        <div className="grid w-full grid-cols-2 gap-2">
+      <div className="mt-3 w-full space-y-2 lg:col-span-2 lg:mt-0 lg:grid lg:grid-cols-3 lg:gap-2 lg:space-y-0" onPointerDown={event => event.stopPropagation()}>
+        <div className="grid w-full grid-cols-2 gap-2 lg:col-span-2">
           <button
             type="button"
             onClick={() => setFieldSettingsPanel('formation')}
             className="flex min-h-[60px] min-w-0 flex-col justify-center rounded-lg border border-primary/60 bg-[#080F0AEE] px-2 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[#1A2A1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             title="Abrir configurações da formação"
           >
-            <span className="block truncate text-[12px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>FORMAÇÃO</span>
-            <span className="block truncate text-base font-black leading-none text-[#F0D77A] sm:text-[17px]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{formation?.name ?? formationId}</span>
+            <span className="block truncate text-[12px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>FORMAÇÃO</span>
+            <span className="block truncate text-base font-black leading-none text-[#F0D77A] sm:text-[17px]" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{formation?.name ?? formationId}</span>
           </button>
           <button
             type="button"
@@ -432,8 +419,8 @@ export default function SquadEditor({
             className="flex min-h-[60px] min-w-0 flex-col justify-center rounded-lg border border-[#818CF899] bg-[#080F0AEE] px-2 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:bg-[#1A2A1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#818CF8]"
             title="Abrir configurações da tática"
           >
-            <span className="block truncate text-[12px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TÁTICA</span>
-            <span className="block truncate text-base font-black leading-none text-[#C7D2FE] sm:text-[17px]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{activeTactic.icon} {activeTactic.name}</span>
+            <span className="block truncate text-[12px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>TÁTICA</span>
+            <span className="block truncate text-base font-black leading-none text-[#C7D2FE] sm:text-[17px]" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{activeTactic.icon} {activeTactic.name}</span>
           </button>
         </div>
         {coach && showCoachCard && (
@@ -456,15 +443,16 @@ export default function SquadEditor({
                 ) : (
                   <span className="flex h-full w-full items-center justify-center text-sm">🎓</span>
                 )}
-                {coachPrime && <span className="absolute bottom-0 right-0 rounded-tl-md bg-brand-strong px-0.5 text-[7px] font-black leading-3 text-[#17120A]">★</span>}
+                {coachPrime && <span className="absolute bottom-0 right-0 rounded-tl-md bg-brand-strong px-0.5 text-[12px] font-black leading-3 text-[#17120A]">★</span>}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-black tracking-[0.12em] text-[#B4B4C4]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TÉCNICO{coachPrime ? ' · PRIME' : ''}</span>
-                <span className="block truncate text-[17px] font-black leading-none text-[#F0D77A] sm:text-lg" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{coach.name}</span>
+                <span className="block truncate text-[13px] font-black tracking-[0.12em] text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>TÉCNICO{coachPrime ? ' · PRIME' : ''}</span>
+                <span className="block truncate text-[17px] font-black leading-none text-[#F0D77A] sm:text-lg" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{coach.name}</span>
               </span>
             </button>
           </div>
         )}
+      </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
@@ -474,7 +462,7 @@ export default function SquadEditor({
               <div
                 role="status"
                 className="flex items-center gap-3 rounded-xl border border-primary/40 bg-[#17151B] px-3.5 py-3 text-sm leading-snug"
-                style={{ color: '#F4D56A', fontFamily: 'Rajdhani, sans-serif' }}
+                style={{ color: '#F4D56A', fontFamily: 'var(--font-game), sans-serif' }}
               >
                 <span className="min-w-0 flex-1">
                   {benchSwapSourceIndex !== null
@@ -499,7 +487,7 @@ export default function SquadEditor({
               <div
                 role="status"
                 className="mb-2 flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm leading-snug"
-                style={{ color: '#F4D56A', background: '#17151B', borderColor: '#C9A84C66', fontFamily: 'Rajdhani, sans-serif' }}
+                style={{ color: '#F4D56A', background: '#17151B', borderColor: '#C9A84C66', fontFamily: 'var(--font-game), sans-serif' }}
               >
                 <span className="min-w-0 flex-1">
                   <b className="block tracking-widest">ESCOLHA O {activeRoleLabel}</b>
@@ -590,7 +578,7 @@ export default function SquadEditor({
               onPlayerDrop={requestPlayerSwap}
             />
             {!activeRole && (
-              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px]" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px]" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
                 <span className="font-bold tracking-wider text-[#6A6A7A]">CONEXÕES:</span>
                 {([['club', 'Mesmo clube'], ['nation', 'Mesma nação'], ['coach', 'Mesmo técnico'], ['partner', 'Dupla histórica']] as const).map(([t, label]) => (
                   <span key={t} className="flex items-center gap-1">
@@ -603,7 +591,7 @@ export default function SquadEditor({
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold tracking-widest mb-3" style={{ color: '#FFF', fontFamily: 'Rajdhani, sans-serif' }}>TITULARES</div>
+          <div className="text-xs font-bold tracking-widest mb-3" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>TITULARES</div>
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-4">
             {xi.map((player, index) => {
               const ab = availBadge(player.id);
@@ -611,16 +599,16 @@ export default function SquadEditor({
                 <div key={player.id} className="relative">
                   <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} chemScore={chemData.individual[player.id]} showChemistry compact
                     selected={selectedIndex === index} onClick={() => setSelectedIndex(index)} />
-                  {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
-                    style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'Rajdhani, sans-serif' }}>{ab.txt}</span>}
+                  {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[12px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
+                    style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'var(--font-game), sans-serif' }}>{ab.txt}</span>}
                 </div>
               );
             })}
           </div>
 
-          <div className="ui-gesture-surface mt-5 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
-            <div className="text-xs font-black tracking-widest mb-2 flex items-center gap-2" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
-              🪑 BANCO / RESERVAS <span style={{ color: bench.length > MAX_RESERVE_PLAYERS ? '#FCA5A5' : '#6A6A7A' }}>({bench.length}/{MAX_RESERVE_PLAYERS})</span>
+          <div className="ui-gesture-surface mt-5 pt-4 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
+            <div className="text-xs font-black tracking-widest mb-2 flex items-center gap-2" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
+              🪑 BANCO / RESERVAS <span style={{ color: bench.length > MAX_RESERVE_PLAYERS ? '#FCA5A5' : 'var(--ui-text-faint)' }}>({bench.length}/{MAX_RESERVE_PLAYERS})</span>
             </div>
             {bench.length > 0 ? (
               <>
@@ -653,19 +641,19 @@ export default function SquadEditor({
                             }
                             setSelectedIndex(11 + i);
                           }} />
-                        {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
-                          style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'Rajdhani, sans-serif' }}>{ab.txt}</span>}
+                        {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[12px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
+                          style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'var(--font-game), sans-serif' }}>{ab.txt}</span>}
                       </div>
                     );
                   })}
                 </div>
-                <p className="text-[13px] mt-2" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                <p className="text-[13px] mt-2" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                   Segure uma reserva para levar o campo à tela e clique no titular que ela vai substituir.
                 </p>
               </>
             ) : (
-              <p className="text-[13px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-                Sem reservas ainda. Você ganha uma <b style={{ color: '#E8C84A' }}>oferta de recrutamento ao fim de cada rodada</b> — as contratações aparecem aqui no banco.
+              <p className="text-[13px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                Sem reservas ainda. Você ganha uma <b style={{ color: 'var(--ui-brand-strong)' }}>oferta de recrutamento ao fim de cada rodada</b> — as contratações aparecem aqui no banco.
               </p>
             )}
           </div>
@@ -724,7 +712,7 @@ export default function SquadEditor({
             footer={
               <button onClick={() => setSelectedIndex(null)}
                 className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg text-sm font-black text-gray-300 hover:text-white hover:bg-white/5 transition-colors focus:outline-none whitespace-nowrap"
-                style={{ fontFamily: 'Rajdhani, sans-serif', border: '1px solid #2E2E42' }}>Cancelar</button>
+                style={{ fontFamily: 'var(--font-game), sans-serif', border: '1px solid #2E2E42' }}>Cancelar</button>
             }
             bodyClassName="relative !p-0"
             bodyStyle={{
@@ -745,14 +733,14 @@ export default function SquadEditor({
                 if (!a || (a.banned === 0 && a.injured === 0 && a.yellows === 0)) return null;
                 return (
                   <div className="relative z-10 flex flex-shrink-0 flex-col items-stretch gap-3 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
-                    <div className="min-w-0 text-xs font-bold leading-tight" style={{ fontFamily: 'Rajdhani, sans-serif', color: a.banned > 0 ? '#FCA5A5' : a.injured > 0 ? '#FCD34D' : '#EAB308' }}>
+                    <div className="min-w-0 text-xs font-bold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: a.banned > 0 ? '#FCA5A5' : a.injured > 0 ? '#FCD34D' : 'var(--ui-warning)' }}>
                       {a.banned > 0 ? `🟥 Suspenso — fora de ${a.banned} jogo(s)` : a.injured > 0 ? `🩹 Lesionado — fora de ${a.injured} jogo(s)` : `🟨 ${a.yellows} amarelo(s) acumulado(s)`}
                     </div>
                     {a.injured > 0 && onHealInjury && (
                       <button disabled={!canAffordPhysio} onClick={() => setConfirmPhysioFor(selectedPlayer.id)}
                         type="button"
                         className="flex w-full flex-shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[13px] font-black tracking-wider whitespace-nowrap disabled:opacity-40 transition-transform active:scale-95 sm:w-auto"
-                        style={{ fontFamily: 'Rajdhani, sans-serif', background: '#0E7490', color: '#ECFEFF', border: '1px solid #22D3EE55' }}
+                        style={{ fontFamily: 'var(--font-game), sans-serif', background: '#0E7490', color: '#ECFEFF', border: '1px solid #22D3EE55' }}
                         title={canAffordPhysio ? undefined : `Faltam créditos (custa ${physioCost})`}>
                         <span className="flex min-w-0 items-center gap-2">
                           <span className="text-lg leading-none" aria-hidden="true">🏥</span>
@@ -763,7 +751,7 @@ export default function SquadEditor({
                         </span>
                         <span className="flex flex-col items-end rounded-lg px-2.5 py-2 leading-none" style={{ background: '#083344', color: '#67E8F9' }}>
                           <span className="text-sm font-black tabular-nums">{physioFree ? 'GRÁTIS' : physioCost}</span>
-                          {!physioFree && <span className="mt-0.5 text-[11px] tracking-wider">PTS</span>}
+                          {!physioFree && <span className="mt-0.5 text-[12px] tracking-wider">CRÉDITOS</span>}
                         </span>
                       </button>
                     )}
@@ -835,29 +823,29 @@ export default function SquadEditor({
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                            <span className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#1c1c2e', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <span className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#1c1c2e', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                               {POS_PT[formationRole] ?? formationRole}
                             </span>
                             {selectedIsOOP && (
-                              <span className="text-[11px] font-black px-2 py-0.5 rounded" style={{ background: '#EF444422', color: '#EF4444', border: '1px solid #EF444444', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO</span>
+                              <span className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#EF444422', color: 'var(--ui-danger)', border: '1px solid #EF444444', fontFamily: 'var(--font-game), sans-serif' }}>⚠️ FORA DE POSIÇÃO</span>
                             )}
                             {selectedIsSecondary && (
-                              <span className="whitespace-nowrap text-[11px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −5%</span>
+                              <span className="whitespace-nowrap text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'var(--font-game), sans-serif' }}>🔁 2ª POSIÇÃO · −5%</span>
                             )}
                           </div>
                           <div className="min-w-0">
-                            <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{selectedPlayer.shortName}</div>
+                            <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{selectedPlayer.shortName}</div>
                             {getEvolutionLevel(selectedPlayer) > 0 && (
-                              <span className="mt-1 inline-flex max-w-full items-center justify-center text-center text-[11px] font-black px-2 py-0.5 rounded leading-none" style={{ background: 'linear-gradient(90deg,#0a7a2f,#22C55E)', color: '#04120a', letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(selectedPlayer)}</span>
+                              <span className="mt-1 inline-flex max-w-full items-center justify-center text-center text-[12px] font-black px-2 py-0.5 rounded leading-none" style={{ background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success))', color: '#04120a', letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(selectedPlayer)}</span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{canonicalClubName(selectedPlayer.club)} · {selectedPlayer.nation}</div>
+                          <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{canonicalClubName(selectedPlayer.club)} · {selectedPlayer.nation}</div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{eff.overall}</div>
-                          {effectiveOverallDelta !== 0 && <div className="text-xs font-bold" style={{ color: effectiveOverallDelta > 0 ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>({effectiveOverallDelta > 0 ? '+' : ''}{effectiveOverallDelta})</div>}
-                          <div className="text-[11px] text-gray-500 mt-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GERAL EFETIVO</div>
-                          <div className="mt-1 text-[10px] font-bold leading-tight" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>BASE ORIGINAL {originalOverall}</div>
+                          <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{eff.overall}</div>
+                          {effectiveOverallDelta !== 0 && <div className="text-xs font-bold" style={{ color: effectiveOverallDelta > 0 ? 'var(--ui-success)' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>({effectiveOverallDelta > 0 ? '+' : ''}{effectiveOverallDelta})</div>}
+                          <div className="text-[12px] text-gray-500 mt-0.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>GERAL EFETIVO</div>
+                          <div className="mt-1 text-[12px] font-bold leading-tight" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>BASE ORIGINAL {originalOverall}</div>
                         </div>
                       </div>
 
@@ -869,9 +857,9 @@ export default function SquadEditor({
                           const firstRow = i < 4;
                           return (
                             <div key={label} className={`flex flex-col items-center py-3 ${rightEdge ? '' : 'border-r'} ${firstRow ? 'border-b' : ''}`} style={{ borderColor: '#161626' }}>
-                              <span className="text-[11px] font-bold text-gray-600 tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
-                              <span className="text-lg font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color: statColor }}>{effVal}</span>
-                              {delta !== 0 && <span className="text-[11px] font-bold" style={{ color: statColor, fontFamily: 'Rajdhani, sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
+                              <span className="text-[12px] font-bold text-gray-600 tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{label}</span>
+                              <span className="text-lg font-black" style={{ fontFamily: 'var(--font-game), sans-serif', color: statColor }}>{effVal}</span>
+                              {delta !== 0 && <span className="text-[12px] font-bold" style={{ color: statColor, fontFamily: 'var(--font-game), sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
                             </div>
                           );
                         })}
@@ -879,29 +867,29 @@ export default function SquadEditor({
 
                       <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: '#161626' }}>
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-gray-500 font-bold tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA INDIVIDUAL</span>
+                          <span className="text-[12px] text-gray-500 font-bold tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA INDIVIDUAL</span>
                           <div className="flex gap-1">
                             {chemDots.map((filled, i) => (
-                              <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: filled ? '#22C55E' : '#1a1a2e', boxShadow: filled ? '0 0 5px #22C55E' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
+                              <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: filled ? 'var(--ui-success)' : '#1a1a2e', boxShadow: filled ? '0 0 5px var(--ui-success)' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
                             ))}
                           </div>
-                          <span className="text-[12px] font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{eff.chemScore}/3</span>
+                          <span className="text-[12px] font-black text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{eff.chemScore}/3</span>
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          <span className="text-[11px] text-gray-500 font-bold tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>JOGA EM:</span>
-                          <span className="text-[11px] font-black px-1.5 py-0.5 rounded" style={{ background: '#1c1c2e', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[selectedPlayer.position] ?? selectedPlayer.position}</span>
+                          <span className="text-[12px] text-gray-500 font-bold tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>JOGA EM:</span>
+                          <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#1c1c2e', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{POS_PT[selectedPlayer.position] ?? selectedPlayer.position}</span>
                           {effectiveSecondaries(selectedPlayer).map(pos => (
-                            <span key={pos} className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: '#12121c', color: '#9A9AAA', border: '1px solid #2a2a3a', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[pos] ?? pos}</span>
+                            <span key={pos} className="text-[12px] font-bold px-1.5 py-0.5 rounded" style={{ background: '#12121c', color: 'var(--ui-text-muted)', border: '1px solid var(--ui-line)', fontFamily: 'var(--font-game), sans-serif' }}>{POS_PT[pos] ?? pos}</span>
                           ))}
                         </div>
                       </div>
 
                       {eff.activeCoachEffects.length > 0 && (
                         <div className="px-4 py-3 border-t" style={{ borderColor: '#161626', background: '#09090f' }}>
-                          <div className="text-[11px] font-black text-yellow-400 tracking-widest mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⚡ BÔNUS ATIVO DO TREINADOR</div>
+                          <div className="text-[12px] font-black text-yellow-400 tracking-widest mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>⚡ BÔNUS ATIVO DO TREINADOR</div>
                           <div className="flex flex-wrap gap-1.5">
                             {eff.activeCoachEffects.map((effect, ei) => (
-                              <span key={ei} className="text-[11px] font-black px-2 py-0.5 rounded" style={{ background: '#C9A84C22', color: '#E8C84A', border: '1px solid #C9A84C44', fontFamily: 'Rajdhani, sans-serif' }}>{effect}</span>
+                              <span key={ei} className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#C9A84C22', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C44', fontFamily: 'var(--font-game), sans-serif' }}>{effect}</span>
                             ))}
                           </div>
                         </div>
@@ -923,8 +911,8 @@ export default function SquadEditor({
                   };
                   return (
                     <div className="rounded-xl p-3" style={{ background: '#1a0808', border: '1px solid #B91C1C55' }}>
-                      <div className="text-[13px] font-black tracking-widest" style={{ color: '#F87171', fontFamily: 'Rajdhani, sans-serif' }}>🩸 SACRIFÍCIO DO MÁRTIR</div>
-                      <p className="text-[13px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="text-[13px] font-black tracking-widest" style={{ color: '#F87171', fontFamily: 'var(--font-game), sans-serif' }}>🩸 SACRIFÍCIO DO MÁRTIR</div>
+                      <p className="text-[13px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                         Escolha até <b style={{ color: '#fff' }}>2 titulares</b> que recebem <b style={{ color: '#F87171' }}>+{MARTIR_TARGET_BOOST} em todos os atributos</b>.
                         {current.length < 2 && <> Sem escolher, vai automático pros 2 de maior overall.</>}
                       </p>
@@ -934,7 +922,7 @@ export default function SquadEditor({
                           return (
                             <button key={o.id} onClick={() => toggle(o.id)}
                               className="text-[13px] font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
-                              style={{ background: sel ? '#B91C1C33' : '#07070f', color: sel ? '#F87171' : '#9A9AAA', border: `1px solid ${sel ? '#B91C1C' : '#1A1A2A'}`, fontFamily: 'Rajdhani, sans-serif' }}>
+                              style={{ background: sel ? '#B91C1C33' : '#07070f', color: sel ? '#F87171' : '#9A9AAA', border: `1px solid ${sel ? '#B91C1C' : '#1A1A2A'}`, fontFamily: 'var(--font-game), sans-serif' }}>
                               {sel ? '✓ ' : ''}{o.shortName}
                             </button>
                           );
@@ -966,15 +954,15 @@ export default function SquadEditor({
                   const progressLabel = evolutionLevel < maxLevel ? `PROGRESSO · NÍVEL ${evolutionLevel} → ${evolutionLevel + 1}` : `PROGRESSO · NÍVEL ${maxLevel}`;
                   const specializationEntries = (Object.keys(PLAYER_SPECIALIZATIONS) as PlayerSpecialization[]).map(id => [id, PLAYER_SPECIALIZATIONS[id]] as const);
                   const evolutionProgress = (
-                    <div className="rounded-lg px-3 py-2.5 mb-3" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
-                      <div className="flex items-center justify-between text-[12px] font-black mb-1.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <div className="rounded-lg px-3 py-2.5 mb-3" style={{ background: '#0A0A12', border: '1px solid var(--ui-surface-3)' }}>
+                      <div className="flex items-center justify-between text-[12px] font-black mb-1.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         <span style={{ color: '#8A8A9A', letterSpacing: '.06em' }}>{progressLabel}</span>
                         <span style={{ color: '#C9C9D5' }}>{progressCurrent}/{progressTarget}</span>
                       </div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1A1A2A' }}>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--ui-surface-3)' }}>
                         <div className="h-full rounded-full" style={{ width: `${progressTarget ? progressCurrent / progressTarget * 100 : 100}%`, background: 'linear-gradient(90deg,#0a7a2f,#22C55E)' }} />
                       </div>
-                      <div className="text-[11px] mt-1.5 leading-snug" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="text-[12px] mt-1.5 leading-snug" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                         {needsSpecializationUnlock
                           ? `Nível 3 concluído. Desbloqueie o nível 4 por ${SPECIALIZATION_UNLOCK_COST} créditos.`
                           : evolutionLevel < maxLevel
@@ -987,15 +975,15 @@ export default function SquadEditor({
                   );
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${evolved ? '#22C55E55' : '#1A1A2A'}` }}>
-                      <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
-                        <span className="text-[13px] font-black tracking-widest" style={{ color: evolved ? '#22C55E' : '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>⭐ EVOLUÇÃO · NÍVEL {evolutionLevel}/{maxLevel}</span>
-                        {evolved && <span className="text-[13px] font-black" style={{ color: availablePoints > 0 ? '#4ADE80' : '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>{availablePoints > 0 ? `+${availablePoints} DISPONÍVEIS` : `+${spent} APLICADOS`}</span>}
+                      <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: 'var(--ui-surface-3)', background: '#0A0A12' }}>
+                        <span className="text-[13px] font-black tracking-widest" style={{ color: evolved ? 'var(--ui-success)' : 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>⭐ EVOLUÇÃO · NÍVEL {evolutionLevel}/{maxLevel}</span>
+                        {evolved && <span className="text-[13px] font-black" style={{ color: availablePoints > 0 ? '#4ADE80' : 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>{availablePoints > 0 ? `+${availablePoints} DISPONÍVEIS` : `+${spent} APLICADOS`}</span>}
                       </div>
                       <div className="p-3.5">
                         {evolutionProgress}
                         {onSetAutoEvolveAttribute && (
-                          <label className="mb-3 block rounded-lg p-3" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
-                            <span className="block text-[12px] font-black tracking-widest" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>AUTOMATIZAR PRÓXIMAS EVOLUÇÕES</span>
+                          <label className="mb-3 block rounded-lg p-3" style={{ background: '#0A0A12', border: '1px solid var(--ui-surface-3)' }}>
+                            <span className="block text-[12px] font-black tracking-widest" style={{ color: '#C9C9D5', fontFamily: 'var(--font-game), sans-serif' }}>AUTOMATIZAR PRÓXIMAS EVOLUÇÕES</span>
                             <select
                               value={selectedPlayer.autoEvolveAttribute ?? ''}
                               onChange={event => {
@@ -1003,7 +991,7 @@ export default function SquadEditor({
                                 onSetAutoEvolveAttribute(selectedPlayer.id, attr);
                               }}
                               className="mt-2 w-full rounded-lg px-3 py-2.5 text-xs font-bold"
-                              style={{ color: '#F3F4F6', background: '#12121E', border: '1px solid #29293A', fontFamily: 'Rajdhani, sans-serif' }}
+                              style={{ color: '#F3F4F6', background: '#12121E', border: '1px solid #29293A', fontFamily: 'var(--font-game), sans-serif' }}
                             >
                               <option value="">Manual · escolher no modal</option>
                               {EVOLVE_ATTRS.map(attribute => (
@@ -1012,7 +1000,7 @@ export default function SquadEditor({
                                 </option>
                               ))}
                             </select>
-                            <span className="mt-1.5 block text-[12px] leading-snug" style={{ color: '#777789', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <span className="mt-1.5 block text-[12px] leading-snug" style={{ color: '#777789', fontFamily: 'var(--font-game), sans-serif' }}>
                               {selectedPlayer.autoEvolveAttribute && hasFutureEvolveLevel
                                 ? `Os próximos pacotes de +${EVOLVE_POINTS} irão para ${EVOLVE_ATTRS.find(attribute => attribute.key === selectedPlayer.autoEvolveAttribute)?.label.toLowerCase()}. Pontos já liberados continuam como estão.`
                                 : selectedPlayer.autoEvolveAttribute
@@ -1022,7 +1010,7 @@ export default function SquadEditor({
                           </label>
                         )}
                         {evolved && evolutionLevel < SPECIALIZATION_LEVEL && (
-                          <div className="text-[12px] mb-2 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                          <div className="text-[12px] mb-2 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                             Cada nível libera <b style={{ color: '#C9C9D5' }}>+{EVOLVE_POINTS}</b>. Você pode colocar todos os pontos no mesmo atributo.
                           </div>
                         )}
@@ -1039,7 +1027,7 @@ export default function SquadEditor({
                                   color: (ep[a.key] ?? 0) > 0 ? '#4ADE80' : availablePoints >= EVOLVE_POINTS ? '#C9C9D5' : '#6A6A7A',
                                   border: `1px solid ${(ep[a.key] ?? 0) > 0 ? '#22C55E88' : '#1A1A2A'}`,
                                   cursor: availablePoints >= EVOLVE_POINTS ? 'pointer' : 'default',
-                                  fontFamily: 'Rajdhani, sans-serif',
+                                  fontFamily: 'var(--font-game), sans-serif',
                                 }}
                               >
                                 <span>{a.label}{(ep[a.key] ?? 0) > 0 ? ` · +${ep[a.key]}` : ''}</span>
@@ -1048,12 +1036,12 @@ export default function SquadEditor({
                           </div>
                         )}
                         {onResetEvolvePoints && spent > 0 && (
-                          <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2.5 py-2.5 rounded-lg text-[13px] font-black tracking-wide transition-transform active:scale-[0.98]" style={{ background: '#1A1A2A', color: '#9A9AAA', border: '1px solid #2A2A3A', fontFamily: 'Rajdhani, sans-serif' }}>↺ RESETAR PONTOS</button>
+                          <button onClick={() => onResetEvolvePoints(selectedPlayer.id)} className="w-full mt-2.5 py-2.5 rounded-lg text-[13px] font-black tracking-wide transition-transform active:scale-[0.98]" style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)', border: '1px solid var(--ui-line)', fontFamily: 'var(--font-game), sans-serif' }}>↺ RESETAR PONTOS</button>
                         )}
                         {needsSpecializationUnlock && onUnlockSpecialization && (
                           <div className="mt-3 rounded-lg p-3" style={{ background: '#151207', border: '1px solid #C9A84C66' }}>
-                            <div className="text-[13px] font-black tracking-widest" style={{ color: '#F5D76E', fontFamily: 'Rajdhani, sans-serif' }}>DESBLOQUEIO DO NÍVEL 4</div>
-                            <div className="text-[12px] mt-1 mb-2.5 leading-snug" style={{ color: '#A9A9B8', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div className="text-[13px] font-black tracking-widest" style={{ color: '#F5D76E', fontFamily: 'var(--font-game), sans-serif' }}>DESBLOQUEIO DO NÍVEL 4</div>
+                            <div className="text-[12px] mt-1 mb-2.5 leading-snug" style={{ color: '#A9A9B8', fontFamily: 'var(--font-game), sans-serif' }}>
                               Pague uma vez para liberar a especialização. Depois disso, você poderá trocar a escolha sem pagar novamente.
                             </div>
                             <button
@@ -1061,25 +1049,25 @@ export default function SquadEditor({
                               disabled={(points ?? 0) < SPECIALIZATION_UNLOCK_COST}
                               onClick={() => onUnlockSpecialization(selectedPlayer.id)}
                               className="w-full rounded-lg px-3 py-2.5 text-[13px] font-black tracking-wide transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
-                              style={{ background: '#C9A84C22', color: '#F5D76E', border: '1px solid #C9A84C88', fontFamily: 'Rajdhani, sans-serif' }}
+                              style={{ background: '#C9A84C22', color: '#F5D76E', border: '1px solid #C9A84C88', fontFamily: 'var(--font-game), sans-serif' }}
                             >
                               DESBLOQUEAR · {SPECIALIZATION_UNLOCK_COST} CRÉDITOS
                             </button>
-                            <div className="mt-1.5 text-center text-[12px]" style={{ color: '#777789', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div className="mt-1.5 text-center text-[12px]" style={{ color: '#777789', fontFamily: 'var(--font-game), sans-serif' }}>
                               Saldo: {points ?? 0} créditos
                             </div>
                           </div>
                         )}
                         {evolutionLevel === SPECIALIZATION_LEVEL && selectedPlayer.rarity === 'immortal' && onChooseSpecialization && (
                           <div className="mt-3 rounded-lg p-3" style={{ background: '#0A0A12', border: '1px solid #C9A84C55' }}>
-                            <div className="text-[13px] font-black tracking-widest" style={{ color: '#F5D76E', fontFamily: 'Rajdhani, sans-serif' }}>{selectedPlayer.specialization ? 'ALTERAR ESPECIALIZAÇÃO' : 'ESCOLHA UMA ESPECIALIZAÇÃO'}</div>
-                            <div className="text-[12px] mt-1 mb-2.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{selectedPlayer.specialization ? 'Clique em outra opção para trocar a escolha.' : 'Escolha uma área para receber +6 nos dois atributos relacionados.'}</div>
+                            <div className="text-[13px] font-black tracking-widest" style={{ color: '#F5D76E', fontFamily: 'var(--font-game), sans-serif' }}>{selectedPlayer.specialization ? 'ALTERAR ESPECIALIZAÇÃO' : 'ESCOLHA UMA ESPECIALIZAÇÃO'}</div>
+                            <div className="text-[12px] mt-1 mb-2.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{selectedPlayer.specialization ? 'Clique em outra opção para trocar a escolha.' : 'Escolha uma área para receber +6 nos dois atributos relacionados.'}</div>
                             <div className="grid grid-cols-2 gap-2">
                               {specializationEntries.map(([id, definition]) => (
                                 <button key={id} type="button" onClick={() => onChooseSpecialization(selectedPlayer.id, id)} className="relative overflow-hidden min-h-[104px] rounded-lg p-3 text-left transition-transform active:scale-[0.98]" style={{ border: `${selectedPlayer.specialization === id ? 2 : 1}px solid ${definition.color}${selectedPlayer.specialization === id ? '' : '88'}`, boxShadow: selectedPlayer.specialization === id ? `0 0 0 1px ${definition.color}55, 0 0 16px ${definition.color}33` : 'none', background: `linear-gradient(180deg,rgba(5,5,12,.18),rgba(5,5,12,.78)),url(${definition.texture}) center/cover` }}>
-                                  <span className="relative z-10 flex items-center gap-1.5 text-[13px] font-black" style={{ color: definition.color, fontFamily: 'Rajdhani, sans-serif' }}><span>{definition.icon}</span>{definition.label}</span>
-                                  <span className="relative z-10 mt-1.5 block text-[13px] leading-tight" style={{ color: '#F3F4F6', fontFamily: 'Rajdhani, sans-serif' }}>+6 {definition.attributeLabel}</span>
-                                  {selectedPlayer.specialization === id && <span className="relative z-10 mt-2 inline-flex rounded px-1.5 py-0.5 text-[11px] font-black tracking-wider" style={{ color: '#090910', background: definition.color, fontFamily: 'Rajdhani, sans-serif' }}>✓ ESCOLHIDA</span>}
+                                  <span className="relative z-10 flex items-center gap-1.5 text-[13px] font-black" style={{ color: definition.color, fontFamily: 'var(--font-game), sans-serif' }}><span>{definition.icon}</span>{definition.label}</span>
+                                  <span className="relative z-10 mt-1.5 block text-[13px] leading-tight" style={{ color: '#F3F4F6', fontFamily: 'var(--font-game), sans-serif' }}>+6 {definition.attributeLabel}</span>
+                                  {selectedPlayer.specialization === id && <span className="relative z-10 mt-2 inline-flex rounded px-1.5 py-0.5 text-[12px] font-black tracking-wider" style={{ color: '#090910', background: definition.color, fontFamily: 'var(--font-game), sans-serif' }}>✓ ESCOLHIDA</span>}
                                 </button>
                               ))}
                             </div>
@@ -1139,23 +1127,23 @@ export default function SquadEditor({
                           <div className="flex-1 min-w-0">
                             {/* nome + características */}
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-sm font-black text-white truncate" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{candidate.shortName.toUpperCase()}</span>
+                              <span className="text-sm font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{candidate.shortName.toUpperCase()}</span>
                               {variants.map(v => (
-                                <span key={v.key} title={v.label} className="inline-flex items-center justify-center flex-shrink-0" style={{ width: 15, height: 15, fontSize: 9, borderRadius: 999, background: `${v.color}22`, border: `1px solid ${v.color}77` }}>{v.icon}</span>
+                                <span key={v.key} title={v.label} className="inline-flex items-center justify-center flex-shrink-0" style={{ width: 15, height: 15, fontSize: 12, borderRadius: 999, background: `${v.color}22`, border: `1px solid ${v.color}77` }}>{v.icon}</span>
                               ))}
                             </div>
                             {/* posições (nativa + secundárias) + GER */}
                             <div className="flex items-center gap-1 flex-wrap mt-1">
-                              <span className="text-[11px] font-black px-1.5 py-0.5 rounded" style={{ background: (starterSel && nativeFit) ? '#0a7a2f' : '#26263a', color: (starterSel && nativeFit) ? '#eafff0' : '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[candidate.position] ?? candidate.position}</span>
+                              <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: (starterSel && nativeFit) ? '#0a7a2f' : '#26263a', color: (starterSel && nativeFit) ? '#eafff0' : '#C9C9D5', fontFamily: 'var(--font-game), sans-serif' }}>{POS_PT[candidate.position] ?? candidate.position}</span>
                               {effectiveSecondaries(candidate).map(pos => (
-                                <span key={pos} className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: (starterSel && secFit && pos === role) ? '#7a5c0f' : '#12121c', color: (starterSel && secFit && pos === role) ? '#ffe8b0' : '#7A7A8A', border: '1px solid #2a2a3a', fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[pos] ?? pos}</span>
+                                <span key={pos} className="text-[12px] font-bold px-1.5 py-0.5 rounded" style={{ background: (starterSel && secFit && pos === role) ? '#7a5c0f' : '#12121c', color: (starterSel && secFit && pos === role) ? '#ffe8b0' : '#7A7A8A', border: '1px solid var(--ui-line)', fontFamily: 'var(--font-game), sans-serif' }}>{POS_PT[pos] ?? pos}</span>
                               ))}
-                              <span className="text-[11px] font-bold text-gray-500 ml-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GER {candidate.overall}</span>
+                              <span className="text-[12px] font-bold text-gray-500 ml-0.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>GER {candidate.overall}</span>
                             </div>
                             {candidateDisciplineChips.length > 0 && (
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {candidateDisciplineChips.map(status => (
-                                  <span key={status.key} title={status.title} className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-black leading-none" style={{ background: `${status.color}18`, border: `1px solid ${status.color}66`, color: status.color, fontFamily: 'Rajdhani, sans-serif' }}>
+                                  <span key={status.key} title={status.title} className="inline-flex items-center rounded px-1.5 py-0.5 text-[12px] font-black leading-none" style={{ background: `${status.color}18`, border: `1px solid ${status.color}66`, color: status.color, fontFamily: 'var(--font-game), sans-serif' }}>
                                     {status.label}
                                   </span>
                                 ))}
@@ -1164,15 +1152,15 @@ export default function SquadEditor({
                             {/* selo de encaixe na vaga (quem ocupa o slot após a troca) */}
                             {role && (
                               <div className="mt-1">
-                                {nativeFit && <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#0a7a2f', color: '#eafff0', fontFamily: 'Rajdhani, sans-serif' }}>✓ ENCAIXA NA VAGA{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
-                                {secFit && <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'Rajdhani, sans-serif' }}>🔁 COBRE A VAGA (2ª pos · −5%){starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
-                                {!fits && <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a0a0a', color: '#EF4444', border: '1px solid #EF444455', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
+                                {nativeFit && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#0a7a2f', color: '#eafff0', fontFamily: 'var(--font-game), sans-serif' }}>✓ ENCAIXA NA VAGA{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
+                                {secFit && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'var(--font-game), sans-serif' }}>🔁 COBRE A VAGA (2ª pos · −5%){starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
+                                {!fits && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a0a0a', color: 'var(--ui-danger)', border: '1px solid #EF444455', fontFamily: 'var(--font-game), sans-serif' }}>⚠️ FORA DE POSIÇÃO{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
                               </div>
                             )}
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <div className="text-[11px] text-gray-500 font-bold" style={{ fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA</div>
-                            <div className="text-xs font-black" style={{ color: diffColor, fontFamily: 'Rajdhani, sans-serif' }}>{preview.total} <span className="text-[12px] font-bold">({diffLabel})</span></div>
+                            <div className="text-[12px] text-gray-500 font-bold" style={{ fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA</div>
+                            <div className="text-xs font-black" style={{ color: diffColor, fontFamily: 'var(--font-game), sans-serif' }}>{preview.total} <span className="text-[12px] font-bold">({diffLabel})</span></div>
                           </div>
                         </div>
                       );
@@ -1185,16 +1173,16 @@ export default function SquadEditor({
                     const Section = ({ title, color, items }: { title: string; color: string; items: { c: Player; i: number }[] }) =>
                       items.length === 0 ? null : (
                         <div className="space-y-2">
-                          <div className="text-[12px] font-black tracking-widest" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{title}</div>
+                          <div className="text-[12px] font-black tracking-widest" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>{title}</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{items.map(({ c, i }) => renderCandidate(c, i))}</div>
                         </div>
                       );
                     return (
                       <>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-[#8A8A9A] tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TROCAR COM</span>
+                          <span className="text-xs font-bold text-[#8A8A9A] tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>TROCAR COM</span>
                           {headerRole && (
-                            <span className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#1c1c2e', color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>VAGA: {POS_PT[headerRole] ?? headerRole}</span>
+                            <span className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#1c1c2e', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>VAGA: {POS_PT[headerRole] ?? headerRole}</span>
                           )}
                         </div>
                         <div className="space-y-4">
@@ -1223,14 +1211,14 @@ export default function SquadEditor({
               title="Fisioterapia"
               footer={
                 <div className="flex w-full gap-2">
-                  <button onClick={() => setConfirmPhysioFor(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#17171f', color: '#9A9AA5' }}>
+                  <button onClick={() => setConfirmPhysioFor(null)} className="flex-1 py-2.5 rounded-xl font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', background: '#17171f', color: '#9A9AA5' }}>
                     CANCELAR
                   </button>
                   <button
                     disabled={!canAffordPhysio}
                     onClick={() => { onHealInjury?.(confirmPhysioFor); setConfirmPhysioFor(null); }}
                     className="flex-1 py-2.5 rounded-xl font-black tracking-widest disabled:opacity-40 transition-transform active:scale-95"
-                    style={{ fontFamily: 'Bebas Neue, sans-serif', background: 'linear-gradient(135deg,#0E7490,#22D3EE)', color: '#062028' }}>
+                    style={{ fontFamily: 'var(--font-display), sans-serif', background: 'linear-gradient(135deg,#0E7490,#22D3EE)', color: '#062028' }}>
                     CONFIRMAR
                   </button>
                 </div>
@@ -1238,10 +1226,10 @@ export default function SquadEditor({
             >
               <div className="text-center">
                 <div className="text-3xl mb-1">🏥</div>
-                <p className="text-[13px] mb-1" style={{ color: '#C8D0D4', fontFamily: 'Rajdhani, sans-serif' }}>
+                <p className="text-[13px] mb-1" style={{ color: '#C8D0D4', fontFamily: 'var(--font-game), sans-serif' }}>
                   Reduzir <b style={{ color: '#FFF' }}>1 jogo</b> de lesão de <b style={{ color: '#FFF' }}>{pp.shortName}</b>?
                 </p>
-                <p className="text-[12px]" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
+                <p className="text-[12px]" style={{ color: '#8A9BA0', fontFamily: 'var(--font-game), sans-serif' }}>
                   Fica <b style={{ color: '#FCD34D' }}>{Math.max(0, inj - 1)} jogo(s)</b> de fora · {physioFree ? <b style={{ color: '#67E8F9' }}>1 uso gratuito disponível</b> : <>custa <b style={{ color: '#67E8F9' }}>{physioCost} créditos</b></>}
                 </p>
               </div>
@@ -1278,16 +1266,16 @@ export default function SquadEditor({
           subtitle="Confira o movimento antes de aplicar ao elenco."
           footer={
             <div className="flex w-full gap-2">
-              <button type="button" onClick={() => setPendingSwap(null)} className="flex-1 rounded-xl border border-[#2E2E42] bg-[#17171F] py-2.5 text-xs font-black tracking-widest text-[#A9A9B8] transition-colors hover:bg-[#222230] hover:text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <button type="button" onClick={() => setPendingSwap(null)} className="flex-1 rounded-xl border border-[#2E2E42] bg-[#17171F] py-2.5 text-xs font-black tracking-widest text-[#A9A9B8] transition-colors hover:bg-[#222230] hover:text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 CANCELAR
               </button>
-              <button type="button" onClick={confirmPlayerSwap} className="flex-1 rounded-xl border border-primary bg-primary py-2.5 text-xs font-black tracking-widest text-[#090910] transition-colors hover:bg-brand-strong" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <button type="button" onClick={confirmPlayerSwap} className="flex-1 rounded-xl border border-primary bg-primary py-2.5 text-xs font-black tracking-widest text-[#090910] transition-colors hover:bg-brand-strong" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 CONFIRMAR
               </button>
             </div>
           }
         >
-          <div className="space-y-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="space-y-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
             <div className="rounded-xl border border-[#22C55E44] bg-[#22C55E0D] px-3 py-2.5">
               <div className="text-[12px] font-black tracking-widest text-[#4ADE80]">{pendingIsStarterSwap ? 'VAI PARA A POSIÇÃO' : 'ENTRA EM CAMPO'}</div>
               <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">

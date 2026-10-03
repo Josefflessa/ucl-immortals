@@ -20,10 +20,10 @@ import { Button, GameModal } from '../../design-system';
 function Stepper({ label, value, set, max }: { label: string; value: number; set: (n: number) => void; max: number }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="max-w-[110px] truncate text-[12px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
+      <span className="max-w-[110px] truncate text-[12px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{label}</span>
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => set(Math.max(0, value - 1))} className="ui-icon-btn" aria-label={`Diminuir ${label}`}>−</button>
-        <span className="w-8 text-center text-2xl font-black tabular-nums" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{value}</span>
+        <span className="w-8 text-center text-2xl font-black tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{value}</span>
         <button type="button" onClick={() => set(Math.min(max, value + 1))} className="ui-icon-btn" aria-label={`Aumentar ${label}`}>+</button>
       </div>
     </div>
@@ -64,10 +64,10 @@ function Choice({ label, active, onClick, disabled = false }: { label: string; a
     <button type="button" onClick={onClick} aria-pressed={active} disabled={disabled}
       className="rounded-lg border px-2.5 py-2 text-[13px] font-black transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       style={{
-        fontFamily: 'Rajdhani, sans-serif',
-        borderColor: active ? '#C9A84C' : '#252538',
-        background: active ? '#C9A84C22' : '#0F0F1A',
-        color: active ? '#E8C84A' : '#9A9AAA',
+        fontFamily: 'var(--font-game), sans-serif',
+        borderColor: active ? 'var(--ui-brand)' : '#252538',
+        background: active ? '#C9A84C22' : 'var(--ui-surface-1)',
+        color: active ? 'var(--ui-brand-strong)' : 'var(--ui-text-muted)',
       }}>
       {label}
     </button>
@@ -193,7 +193,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                   <button type="button" aria-pressed={!!exactSelection} onClick={toggleExactScore}
                     disabled={!exactSelection && selections.length >= BET_BUILDER_MAX_SELECTIONS}
                     className="rounded-md border px-2.5 py-1.5 text-[12px] font-black tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ borderColor: exactSelection ? '#C9A84C' : '#252538', background: exactSelection ? '#C9A84C22' : '#0F0F1A', color: exactSelection ? '#E8C84A' : '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                    style={{ borderColor: exactSelection ? 'var(--ui-brand)' : '#252538', background: exactSelection ? '#C9A84C22' : 'var(--ui-surface-1)', color: exactSelection ? 'var(--ui-brand-strong)' : 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                     {exactSelection ? 'INCLUÍDO' : 'ADICIONAR'}
                   </button>
                 </div>
@@ -218,7 +218,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                 <select value={totalGoalsSelection ? `${totalGoalsSelection.operator}:${totalGoalsSelection.line}` : ''}
                   onChange={event => updateTotalGoals(event.target.value)} disabled={!canAddMarket('total_goals')}
                   className="ui-input w-full cursor-pointer text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   <option value="">Não selecionar</option>
                   <optgroup label="Mais de">
                     {BET_TOTAL_GOALS_LINES.map(line => <option key={`over-${line}`} value={`over:${line}`}>Mais de {formatGoalLine(line)} gols</option>)}
@@ -234,7 +234,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                 <select value={totalCardsSelection ? `${totalCardsSelection.operator}:${totalCardsSelection.line}` : ''}
                   onChange={event => updateTotalCards(event.target.value)} disabled={!canAddMarket('total_cards')}
                   className="ui-input w-full cursor-pointer text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   <option value="">Não selecionar</option>
                   <optgroup label="Mais de">
                     {BET_TOTAL_CARDS_LINES.map(line => <option key={`over-cards-${line}`} value={`over:${line}`}>Mais de {formatGoalLine(line)} cartões</option>)}

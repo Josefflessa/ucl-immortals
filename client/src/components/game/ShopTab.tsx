@@ -45,10 +45,10 @@ function VariantPagination({ page, pageCount, onPageChange }: { page: number; pa
         onClick={() => onPageChange(Math.max(0, page - 1))}
         disabled={page === 0}
         className="rounded-md px-2.5 py-1.5 text-[12px] font-black tracking-wider disabled:opacity-30"
-        style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'Rajdhani, sans-serif' }}>
+        style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'var(--font-game), sans-serif' }}>
         ← ANTERIOR
       </button>
-      <span className="text-[12px] font-black tracking-widest text-center" style={{ color: '#A9A9BA', fontFamily: 'Rajdhani, sans-serif' }}>
+      <span className="text-[12px] font-black tracking-widest text-center" style={{ color: '#A9A9BA', fontFamily: 'var(--font-game), sans-serif' }}>
         PÁGINA {page + 1}/{pageCount}
       </span>
       <button
@@ -56,7 +56,7 @@ function VariantPagination({ page, pageCount, onPageChange }: { page: number; pa
         onClick={() => onPageChange(Math.min(pageCount - 1, page + 1))}
         disabled={page === pageCount - 1}
         className="rounded-md px-2.5 py-1.5 text-[12px] font-black tracking-wider disabled:opacity-30"
-        style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'Rajdhani, sans-serif' }}>
+        style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'var(--font-game), sans-serif' }}>
         PRÓXIMA →
       </button>
     </div>
@@ -255,14 +255,14 @@ export default function ShopTab() {
                  <div className="flex items-center justify-between mb-1">
                    {item.icon && <span className="text-2xl">{item.icon}</span>}
                    {cost !== null && (
-                     <span className="text-sm font-black px-2 py-0.5 rounded" style={{ fontFamily: 'Bebas Neue, sans-serif', background: `${item.color}22`, color: item.color }}>
+                     <span className="text-sm font-black px-2 py-0.5 rounded" style={{ fontFamily: 'var(--font-display), sans-serif', background: `${item.color}22`, color: item.color }}>
                        💰 {cost}
                      </span>
                    )}
                  </div>
-                 <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{item.name}</div>
-                 <div className="text-[13px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{item.desc}</div>
-                 {!affordable && item.id !== 'turbinar' && <div className="text-[12px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes</div>}
+                 <div className="text-base font-black tracking-wide" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{item.name}</div>
+                 <div className="text-[13px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>{item.desc}</div>
+                 {!affordable && item.id !== 'turbinar' && <div className="text-[12px] mt-1 font-bold" style={{ color: 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>Créditos insuficientes</div>}
                </button>
                {item.id === 'turbinar' && (
                  <button
@@ -270,7 +270,7 @@ export default function ShopTab() {
                    aria-label="Ver características especiais"
                    onClick={() => { setSelPlayerId(null); setVariantPage(0); setTurbinarView('catalog'); setActive('turbinar'); }}
                    className="absolute bottom-3 right-3 flex h-7 items-center justify-center rounded-full px-2.5 text-[12px] font-black tracking-wider transition-transform hover:scale-105 active:scale-95"
-                   style={{ color: '#E8C84A', background: '#E8C84A18', border: '1px solid #E8C84A66' }}
+                   style={{ color: 'var(--ui-brand-strong)', background: '#E8C84A18', border: '1px solid #E8C84A66' }}
                  >
                    ⓘ LISTA
                  </button>
@@ -334,7 +334,7 @@ export default function ShopTab() {
                     <div>
                       {!selectedPackRarity ? (
                         <>
-                          <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                          <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                             Escolha a raridade do pacote. Cada oferta mostra <b style={{ color: '#FFF' }}>4 cartas</b> que ficam disponíveis durante toda a rodada e mudam na próxima.
                           </p>
                           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -351,11 +351,11 @@ export default function ShopTab() {
                                   style={{ background: '#07070f', border: `1px solid ${meta.color}66` }}
                                 >
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-lg font-black" style={{ color: meta.color, fontFamily: 'Bebas Neue, sans-serif' }}>PACOTE {meta.label}</span>
-                                    <span className="text-sm font-black whitespace-nowrap" style={{ color: meta.color, fontFamily: 'Rajdhani, sans-serif' }}>{playerPackCost(rarity)}</span>
+                                    <span className="text-lg font-black" style={{ color: meta.color, fontFamily: 'var(--font-display), sans-serif' }}>PACOTE {meta.label}</span>
+                                    <span className="text-sm font-black whitespace-nowrap" style={{ color: meta.color, fontFamily: 'var(--font-game), sans-serif' }}>{playerPackCost(rarity)}</span>
                                   </div>
-                                  <div className="mt-1.5 min-h-[2.75rem] text-sm leading-snug" style={{ color: '#A9A9BA', fontFamily: 'Rajdhani, sans-serif' }}>{meta.description}</div>
-                                  <div className="mt-auto pt-1.5 text-xs font-bold" style={{ color: '#CFCFE0', fontFamily: 'Rajdhani, sans-serif' }}>{cards.length}/4 cartas na oferta · {available} disponíveis</div>
+                                  <div className="mt-1.5 min-h-[2.75rem] text-sm leading-snug" style={{ color: '#A9A9BA', fontFamily: 'var(--font-game), sans-serif' }}>{meta.description}</div>
+                                  <div className="mt-auto pt-1.5 text-xs font-bold" style={{ color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>{cards.length}/4 cartas na oferta · {available} disponíveis</div>
                                 </button>
                               );
                             })}
@@ -365,8 +365,8 @@ export default function ShopTab() {
                         <>
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
-                              <div className="text-2xl font-black" style={{ color: PLAYER_PACK_META[selectedPackRarity].color, fontFamily: 'Bebas Neue, sans-serif' }}>PACOTE {PLAYER_PACK_META[selectedPackRarity].label}</div>
-                              <div className="text-sm" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Oferta da rodada · 4 cartas · uma será revelada</div>
+                              <div className="text-2xl font-black" style={{ color: PLAYER_PACK_META[selectedPackRarity].color, fontFamily: 'var(--font-display), sans-serif' }}>PACOTE {PLAYER_PACK_META[selectedPackRarity].label}</div>
+                              <div className="text-sm" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Oferta da rodada · 4 cartas · uma será revelada</div>
                             </div>
                           </div>
                           {selectedCards.length > 0 ? (
@@ -378,7 +378,7 @@ export default function ShopTab() {
                                     <div className={owned ? 'opacity-55' : ''}>
                                       <PlayerCard player={card} lite scale={0.82} />
                                     </div>
-                                    <span className="text-center text-xs font-black px-2.5 py-1 rounded-full tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#CFCFE0', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
+                                    <span className="text-center text-xs font-black px-2.5 py-1 rounded-full tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#CFCFE0', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
                                       {owned ? 'JÁ POSSUI' : 'DISPONÍVEL'}
                                     </span>
                                   </div>
@@ -386,13 +386,13 @@ export default function ShopTab() {
                               })}
                             </div>
                           ) : (
-                            <div className="rounded-xl px-4 py-8 text-center text-xs font-bold" style={{ background: '#07070f', border: '1px dashed #2A2A3A', color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div className="rounded-xl px-4 py-8 text-center text-xs font-bold" style={{ background: '#07070f', border: '1px dashed var(--ui-line)', color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                               Nenhuma carta disponível nesta oferta.
                             </div>
                           )}
                           <div className="mt-4 text-center">
                             {(availableCards.length === 0 || !selectedAffordable) && (
-                              <p className="mb-3 text-xs" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                              <p className="mb-3 text-xs" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>
                                 {availableCards.length === 0
                                   ? 'Você já possui as cartas disponíveis desta oferta.'
                                   : `Faltam ${selectedCost - points} créditos para abrir este pacote.`}
@@ -403,7 +403,7 @@ export default function ShopTab() {
                               disabled={!selectedAffordable || availableCards.length === 0}
                               onClick={() => openRarityPack(selectedPackRarity)}
                               className="w-full rounded-xl px-4 py-3 text-sm font-black tracking-widest transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-                              style={{ background: PLAYER_PACK_META[selectedPackRarity].color, color: '#0A0A14', fontFamily: 'Bebas Neue, sans-serif' }}
+                              style={{ background: PLAYER_PACK_META[selectedPackRarity].color, color: '#0A0A14', fontFamily: 'var(--font-display), sans-serif' }}
                             >
                               ABRIR PACOTE · 💰 {selectedCost}
                             </button>
@@ -412,13 +412,13 @@ export default function ShopTab() {
                             type="button"
                             onClick={() => setSelectedPackRarity(null)}
                             className="mt-3 w-full rounded-lg px-3 py-2 text-sm font-black tracking-wide transition-colors hover:bg-white/[0.06]"
-                            style={{ color: '#CFCFE0', background: '#0F0F1A', border: '1px solid #343449', fontFamily: 'Rajdhani, sans-serif' }}
+                            style={{ color: 'var(--ui-text-soft)', background: 'var(--ui-surface-1)', border: '1px solid #343449', fontFamily: 'var(--font-game), sans-serif' }}
                           >
                             ← VOLTAR ÀS RARIDADES
                           </button>
                         </>
                       )}
-                      <div className="mt-3 rounded-lg px-3 py-2 text-[13px]" style={{ background: '#F0C67412', border: '1px solid #F0C67433', color: '#CFCFE0', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="mt-3 rounded-lg px-3 py-2 text-[13px]" style={{ background: '#F0C67412', border: '1px solid #F0C67433', color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>
                         A carta revelada entra no banco e não altera seus titulares. Jogadores adquiridos continuam marcados na oferta até a próxima rodada.
                       </div>
                     </div>
@@ -428,16 +428,16 @@ export default function ShopTab() {
                 {/* TROCAR TÉCNICO */}
                 {active === 'coach' && (
                   <div className="space-y-2">
-                    <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o novo técnico (−{SHOP_COSTS.changeCoach} créditos):</p>
+                    <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o novo técnico (−{SHOP_COSTS.changeCoach} créditos):</p>
                     {COACHES.filter(c => c.id !== team.coachId).map(c => (
                       <button key={c.id} onClick={() => askConfirm('Trocar Técnico', `Trocar o comandante para ${c.name} por 💰 ${SHOP_COSTS.changeCoach}?`, () => { buyCoach(c.id); close(); })}
                         className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all hover:border-primary/60 active:scale-[0.99]"
-                        style={{ background: '#07070f', border: '1px solid #1A1A2A' }}>
+                        style={{ background: '#07070f', border: '1px solid var(--ui-surface-3)' }}>
                         {c.photoUrl && <img src={c.photoUrl} alt={c.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" style={{ objectPosition: 'center top', border: '1px solid #C9A84C44' }} />}
                         <div className="min-w-0">
-                          <div className="text-base font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{c.name}</div>
-                          <div className="text-[13px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{c.philosophy}</div>
-                          <div className="text-[12px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{c.effect}</div>
+                          <div className="text-base font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{c.name}</div>
+                          <div className="text-[13px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{c.philosophy}</div>
+                          <div className="text-[12px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>{c.effect}</div>
                         </div>
                       </button>
                     ))}
@@ -447,8 +447,8 @@ export default function ShopTab() {
                 {/* PACOTES — escolha do pacote JÁ PAGO */}
                 {(active === 'playerPacks' || active === 'scout') && pendingPack && (
                   <div>
-                    <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
-                      Pacote <b style={{ color: '#22C55E' }}>já pago</b> ✓ — escolha <b style={{ color: '#FFF' }}>1</b> pra entrar no seu banco.
+                    <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
+                      Pacote <b style={{ color: 'var(--ui-success)' }}>já pago</b> ✓ — escolha <b style={{ color: '#FFF' }}>1</b> pra entrar no seu banco.
                     </p>
                     <div className="flex flex-wrap justify-center gap-2.5 sm:gap-4">
                       {pendingPack.options.map(option => (
@@ -465,12 +465,12 @@ export default function ShopTab() {
                 {/* CAÇA-TALENTOS position picker (só antes de pagar o pacote) */}
                 {active === 'scout' && !pendingPack && (
                   <div>
-                    <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Qual posição você precisa reforçar?</p>
+                    <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Qual posição você precisa reforçar?</p>
                     <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                       {SCOUT_POSITIONS.map(pos => (
                         <button key={pos} onClick={() => pickScoutPosition(pos)}
                           className="py-3 rounded-lg font-black text-sm transition-all hover:border-[#38BDF8]/60 active:scale-95"
-                          style={{ fontFamily: 'Bebas Neue, sans-serif', background: '#07070f', border: '1px solid #1A1A2A', color: '#FFF' }}>
+                          style={{ fontFamily: 'var(--font-display), sans-serif', background: '#07070f', border: '1px solid var(--ui-surface-3)', color: '#FFF' }}>
                           {POS_PT[pos] ?? pos}
                         </button>
                       ))}
@@ -488,8 +488,8 @@ export default function ShopTab() {
                           <div key={v.key} className="w-full min-h-[86px] rounded-xl p-4 flex items-center gap-4" style={{ background: '#07070f', border: `1px solid ${color}44` }}>
                             <span className="text-3xl flex-shrink-0">{v.icon}</span>
                             <div className="min-w-0">
-                              <div className="text-lg font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color }}>{v.label}</div>
-                              <div className="text-xs leading-relaxed" style={{ color: '#B1B1C0', fontFamily: 'Rajdhani, sans-serif' }}>{v.desc}</div>
+                              <div className="text-lg font-black tracking-wide" style={{ fontFamily: 'var(--font-display), sans-serif', color }}>{v.label}</div>
+                              <div className="text-xs leading-relaxed" style={{ color: '#B1B1C0', fontFamily: 'var(--font-game), sans-serif' }}>{v.desc}</div>
                             </div>
                           </div>
                         );
@@ -503,12 +503,12 @@ export default function ShopTab() {
                 {active === 'turbinar' && turbinarView === 'apply' && (
                   !selPlayer ? (
                     <div>
-                      <button type="button" onClick={() => { setTurbinarView('catalog'); setVariantPage(0); }} className="mb-3 text-xs font-bold" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>ⓘ ver características especiais</button>
-                      <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o jogador que vai receber a carta especial:</p>
+                      <button type="button" onClick={() => { setTurbinarView('catalog'); setVariantPage(0); }} className="mb-3 text-xs font-bold" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}>ⓘ ver características especiais</button>
+                      <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o jogador que vai receber a carta especial:</p>
                       <div className="space-y-3">
                         {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
-                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
+                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{g.t}</div>
                             <div className="flex flex-wrap gap-2">
                               {g.list.map(p => (
                                 <button key={p.id} onClick={() => { if (canAddVariant(p)) { setSelPlayerId(p.id); setVariantPage(0); } }} disabled={!canAddVariant(p)}
@@ -521,14 +521,14 @@ export default function ShopTab() {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[12px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Uma característica por carta — as <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter <b>duas</b>. Quem já atingiu o limite fica desabilitado.</p>
+                      <p className="text-[12px] mt-2" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>Uma característica por carta — as <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter <b>duas</b>. Quem já atingiu o limite fica desabilitado.</p>
                     </div>
                   ) : (
                     <div>
-                      <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                         {variantCount(selPlayer) === 1
                           ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> ⭐ (−{SHOP_COSTS.turbinar} créditos):</>
-                          : <>Carta especial para <b style={{ color: '#C9A84C' }}>{selPlayer.shortName}</b> (−{SHOP_COSTS.turbinar} créditos):</>}
+                          : <>Carta especial para <b style={{ color: 'var(--ui-brand)' }}>{selPlayer.shortName}</b> (−{SHOP_COSTS.turbinar} créditos):</>}
                       </p>
                       <div className="space-y-2">
                         {visibleVariants.map(v => {
@@ -539,15 +539,15 @@ export default function ShopTab() {
                               style={{ background: '#07070f', border: `1px solid ${color}44` }}>
                               <span className="text-3xl flex-shrink-0">{v.icon}</span>
                               <div>
-                                <div className="text-lg font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color }}>{v.label}</div>
-                                <div className="text-xs leading-relaxed" style={{ color: '#B1B1C0', fontFamily: 'Rajdhani, sans-serif' }}>{v.desc}</div>
+                                <div className="text-lg font-black tracking-wide" style={{ fontFamily: 'var(--font-display), sans-serif', color }}>{v.label}</div>
+                                <div className="text-xs leading-relaxed" style={{ color: '#B1B1C0', fontFamily: 'var(--font-game), sans-serif' }}>{v.desc}</div>
                               </div>
                             </button>
                           );
                         })}
                       </div>
                       <VariantPagination page={safeVariantPage} pageCount={variantPageCount} onPageChange={setVariantPage} />
-                      <button onClick={() => setSelPlayerId(null)} className="mt-3 text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>← trocar jogador</button>
+                      <button onClick={() => setSelPlayerId(null)} className="mt-3 text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>← trocar jogador</button>
                     </div>
                   )
                 )}
@@ -559,17 +559,17 @@ export default function ShopTab() {
                     { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11).filter(hasVariant) },
                   ];
                   if (groups.every(g => g.list.length === 0)) {
-                    return <p className="text-xs" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Nenhum jogador tem característica pra remover.</p>;
+                    return <p className="text-xs" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Nenhum jogador tem característica pra remover.</p>;
                   }
                   return (
                     <div>
-                      <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                         Clique na <b style={{ color: '#F87171' }}>característica</b> que quer remover (−{SHOP_COSTS.removeVariant} créditos). Cartas <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter duas — some só a que você escolher.
                       </p>
                       <div className="space-y-3">
                         {groups.map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
-                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
+                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{g.t}</div>
                             <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
                               {g.list.map(p => {
                                 const vs = getCardVariants(p);
@@ -583,7 +583,7 @@ export default function ShopTab() {
                                           <button key={v.key} onClick={() => askConfirm('Remover Característica', `Remover ${v.label} de ${p.shortName} por 💰 ${SHOP_COSTS.removeVariant}?`, () => { removeVariant(p.id, v.key as VariantFlag); close(); })}
                                             className="text-[12px] font-black px-2 py-0.5 rounded-full transition-transform hover:scale-[1.08] active:scale-95"
                                             title={`Remover ${v.label}`}
-                                            style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}55`, fontFamily: 'Rajdhani, sans-serif' }}>
+                                            style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}55`, fontFamily: 'var(--font-game), sans-serif' }}>
                                             🧹 {v.icon} {v.label}
                                           </button>
                                         );

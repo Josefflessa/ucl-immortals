@@ -308,7 +308,11 @@ export default function AlbumPage() {
   const clubCountries = PLAYER_CATALOG.countries;
   const allClubs = PLAYER_CATALOG.clubs;
   const leagues = useMemo(
-    () => PLAYER_CATALOG.leagues.filter(league => clubCountryFilter === 'ALL' || league.countryId === clubCountryFilter),
+    // A league with clubs in two countries (MLS: USA + Canada) appears once per country in the
+    // catalogue; the filter matches by league id, so list each league only once.
+    () => PLAYER_CATALOG.leagues
+      .filter(league => clubCountryFilter === 'ALL' || league.countryId === clubCountryFilter)
+      .filter((league, index, list) => list.findIndex(other => other.id === league.id) === index),
     [clubCountryFilter],
   );
   const clubs = useMemo(() => {
@@ -425,7 +429,7 @@ export default function AlbumPage() {
         <div className="mt-2 w-full min-w-0 text-center">
           <h3 className="truncate text-xs font-bold text-[var(--ui-text)]">{player.shortName}</h3>
           <p className="mt-0.5 truncate text-[13px] text-[var(--ui-text-muted)]" title={canonicalClubName(player.club)}>{canonicalClubName(player.club)}</p>
-          <div className="mt-1 w-full min-w-0 max-w-full text-center text-[11px] font-bold uppercase leading-tight tracking-[0.06em]" style={{ color }} title={metaDescription}>
+          <div className="mt-1 w-full min-w-0 max-w-full text-center text-[12px] font-bold uppercase leading-tight tracking-[0.06em]" style={{ color }} title={metaDescription}>
             <div className="truncate">{getPositionLabel(shownPosition)} · {positionDescription}</div>
             <div className="truncate text-[var(--ui-text-muted)]">{RARITY_LABELS[player.rarity]}</div>
           </div>

@@ -510,7 +510,7 @@ export default function FormationField({
               {roleSelection && player && roleMetric && (
                 <div
                   className="absolute left-1/2 top-[-30px] z-30 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1.5 text-[12px] font-black leading-none"
-                  style={{ color: '#FFF', background: '#08080FCC', border: `1px solid ${isRoleSuggestion ? roleAccent : `${roleAccent}66`}`, fontFamily: 'Rajdhani, sans-serif' }}
+                  style={{ color: '#FFF', background: '#08080FCC', border: `1px solid ${isRoleSuggestion ? roleAccent : `${roleAccent}66`}`, fontFamily: 'var(--font-game), sans-serif' }}
                 >
                   {isRoleSuggestion ? '★ ' : ''}{roleMetric.primaryLabel} {roleMetric.primaryValue}
                   {roleMetric.secondaryLabel ? ` · ${roleMetric.secondaryLabel} ${roleMetric.secondaryValue}` : ''}
@@ -533,11 +533,11 @@ export default function FormationField({
                       boxShadow: isPositionGuideTarget
                         ? `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`
                         : `inset 0 0 0 1px ${posColor}22, 0 4px 12px rgba(0, 0, 0, 0.22)`,
-                      fontFamily: 'Rajdhani, sans-serif',
+                      fontFamily: 'var(--font-game), sans-serif',
                       textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)',
                     }}
                   >
-                    <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 25, lineHeight: 1 }}>
+                    <span style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 25, lineHeight: 1 }}>
                       {posLabel(pos.role)}
                     </span>
                     <span style={{ marginTop: 4, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: '#A7A7B8' }}>
@@ -554,7 +554,7 @@ export default function FormationField({
                   style={{
           bottom: -10, transform: 'translateX(-50%)', fontSize: 12, padding: '3px 5px',
                     color: ratingColor(r), background: '#0B0B14', border: `1px solid ${ratingColor(r)}`,
-                    fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5,
+                    fontFamily: 'var(--font-game), sans-serif', whiteSpace: 'nowrap', zIndex: 5,
                   }}
                 >
                   {r.toFixed(1)}
@@ -566,7 +566,7 @@ export default function FormationField({
                   style={{
                     top: -9, right: -9, fontSize: 11, padding: '2px 3px',
                     color: '#FFF', background: '#0B0B14', border: '1px solid #FFFFFF55',
-                    fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5,
+                    fontFamily: 'var(--font-game), sans-serif', whiteSpace: 'nowrap', zIndex: 5,
                   }}
                 >
                   {g > 0 ? `⚽${g > 1 ? g : ''}` : ''}{a > 0 ? `🅰${a > 1 ? a : ''}` : ''}
@@ -583,7 +583,7 @@ export default function FormationField({
               {ratingMode && isEmergencyGoalkeeperSlot && player && (
                 <span
                   className="absolute rounded-full font-black leading-none"
-                  style={{ bottom: -9, left: -9, fontSize: 9, padding: '2px 4px', color: '#FDE68A', background: '#29200A', border: '1px solid #D4AF37', fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
+                  style={{ bottom: -9, left: -9, fontSize: 9, padding: '2px 4px', color: '#FDE68A', background: '#29200A', border: '1px solid #D4AF37', fontFamily: 'var(--font-game), sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
                 >
                   GK
                 </span>
@@ -591,7 +591,7 @@ export default function FormationField({
               {ratingMode && isVacatedSlot && (
                 <span
                   className="absolute rounded-full font-black leading-none"
-                  style={{ bottom: -9, right: -9, fontSize: 8, padding: '2px 4px', color: '#9CA3AF', background: '#11111B', border: '1px solid #4B5563', fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
+                  style={{ bottom: -9, right: -9, fontSize: 8, padding: '2px 4px', color: '#9CA3AF', background: '#11111B', border: '1px solid #4B5563', fontFamily: 'var(--font-game), sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
                 >
                   VAGA
                 </span>

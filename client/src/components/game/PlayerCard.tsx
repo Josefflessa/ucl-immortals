@@ -1108,8 +1108,8 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           {/* Topo: OVR + POS (esq) e emoji da característica (dir) — descido um tiquinho */}
           <div className="flex items-start justify-between flex-shrink-0" style={{ paddingTop: '19%', paddingLeft: '13%', paddingRight: '10%' }}>
             <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
-              <span style={{ fontFamily: 'Bebas Neue,sans-serif', color: uniq ? uniq.font : '#fff', fontSize: 18, lineHeight: 1 }}>{displayOverall}</span>
-              <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
+              <span style={{ fontFamily: 'var(--font-display), sans-serif', color: uniq ? uniq.font : '#fff', fontSize: 18, lineHeight: 1 }}>{displayOverall}</span>
+              <span style={{ fontFamily: 'var(--font-game), sans-serif', fontSize: 8, fontWeight: 800, letterSpacing: '0.05em' }}>{posLabel(player.position)}</span>
             </div>
             {variants.length > 0 && (
               <div className="flex flex-col items-center" style={{ gap: 1 }}>
@@ -1136,13 +1136,13 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
               {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
               <Crest crestId={clubCrestId} name={canonicalClubName(player.club)} size={12} className="drop-shadow-[0_1px_1px_rgba(0,0,0,.7)]" />
             </div>
-            <div className="w-full text-center truncate" style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
+            <div className="w-full text-center truncate" style={{ fontFamily: 'var(--font-game), sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
               {player.shortName.toUpperCase()}
             </div>
             {showChemistry && (
               <div className="flex gap-0.5 mt-0.5">
                 {[0, 1, 2].map(i => (
-                  <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: i < chemScore ? '#22C55E' : '#1a1a2e', boxShadow: i < chemScore ? '0 0 4px #22C55E' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
+                  <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: i < chemScore ? 'var(--ui-success)' : '#1a1a2e', boxShadow: i < chemScore ? '0 0 4px var(--ui-success)' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
                 ))}
               </div>
             )}
@@ -1201,14 +1201,14 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       <div className="absolute inset-0" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 5 }}>
         {/* ⭐ selo do nível de evolução (discreto, topo-centro) */}
         {evolved && !lite && (
-          <div className="absolute" style={{ top: '2.5%', left: '50%', transform: 'translateX(-50%)', padding: '2px 8px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.14em', whiteSpace: 'nowrap', color: '#04120a', background: 'linear-gradient(90deg,#0a7a2f,#22C55E,#0a7a2f)', border: '1px solid rgba(0,0,0,.4)', boxShadow: '0 2px 8px rgba(0,0,0,.5)', fontFamily: 'Rajdhani,sans-serif', zIndex: 6 }}>
+          <div className="absolute" style={{ top: '2.5%', left: '50%', transform: 'translateX(-50%)', padding: '2px 8px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.14em', whiteSpace: 'nowrap', color: '#04120a', background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success),#0a7a2f)', border: '1px solid rgba(0,0,0,.4)', boxShadow: '0 2px 8px rgba(0,0,0,.5)', fontFamily: 'var(--font-game), sans-serif', zIndex: 6 }}>
             ⭐ NÍVEL {evolutionLevel}
           </div>
         )}
         {/* rail: OVR → posição → bandeira → escudo do clube */}
         <div className="absolute flex flex-col items-center" style={{ left: '6%', top: '15%', width: 46, gap: 4, textShadow: '0 2px 5px rgba(0,0,0,.85)' }}>
-          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontSize: 40, lineHeight: .8 }}>{displayOverall}</span>
-          <span style={{ fontFamily: 'Rajdhani,sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
+          <span style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 40, lineHeight: .8 }}>{displayOverall}</span>
+          <span style={{ fontFamily: 'var(--font-game), sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
           <div style={{ width: 30, height: 1, background: 'rgba(247,238,202,.55)', margin: '3px 0' }} />
           {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
           <Crest crestId={clubCrestId} name={canonicalClubName(player.club)} size={22} />
@@ -1220,18 +1220,18 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           </div>
         )}
         {/* chip de raridade (mesmo estilo de hoje, sem emoji) */}
-        <div className="absolute" style={{ top: '52%', left: '50%', transform: 'translateX(-50%)', padding: '2px 11px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: theme.isPremium ? '#1f1500' : '#0a0a0a', background: theme.ribbon, border: '1px solid rgba(0,0,0,.35)', boxShadow: '0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25)', fontFamily: 'Rajdhani,sans-serif' }}>{theme.label}</div>
+        <div className="absolute" style={{ top: '52%', left: '50%', transform: 'translateX(-50%)', padding: '2px 11px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: theme.isPremium ? '#1f1500' : '#0a0a0a', background: theme.ribbon, border: '1px solid rgba(0,0,0,.35)', boxShadow: '0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25)', fontFamily: 'var(--font-game), sans-serif' }}>{theme.label}</div>
         {/* nome — sem painel; linha fina embaixo + sombra forte pra legibilidade */}
         <div className="absolute text-center" style={{ top: '57.5%', left: '12%', right: '12%', paddingBottom: 4, borderBottom: '2px solid rgba(255,255,255,.22)' }}>
-          <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: 21, color: uniq ? uniq.font : '#fff', textShadow: '0 2px 5px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
+          <span style={{ fontFamily: 'var(--font-display), sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: 21, color: uniq ? uniq.font : '#fff', textShadow: '0 2px 5px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
         </div>
         {/* 6 stats — sem painel; sombra forte */}
         <div className="absolute" style={{ top: '69%', left: '10%', right: '10%' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', fontVariantNumeric: 'tabular-nums' }}>
             {([['RIT', displayStats.pace], ['FIN', displayStats.shooting], ['PAS', displayStats.passing], ['DRI', displayStats.dribbling], ['DEF', displayStats.defending], ['FIS', displayStats.physical]] as [string, number][]).map(([k, v]) => (
               <div key={k} className="flex flex-col items-center" style={{ color: uniq ? uniq.font : '#fff', textShadow: '0 1px 3px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9)' }}>
-                <span style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 8, fontWeight: 800, opacity: .82 }}>{k}</span>
-                <span style={{ fontFamily: 'Bebas Neue,sans-serif', fontWeight: 900, fontSize: 18 }}>{v}</span>
+                <span style={{ fontFamily: 'var(--font-game), sans-serif', fontSize: 8, fontWeight: 800, opacity: .82 }}>{k}</span>
+                <span style={{ fontFamily: 'var(--font-display), sans-serif', fontWeight: 900, fontSize: 18 }}>{v}</span>
               </div>
             ))}
           </div>
@@ -1240,7 +1240,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {variants.length > 0 && (
           <div className="absolute flex flex-col items-center" style={{ top: '82.5%', left: '50%', transform: 'translateX(-50%)', gap: 3, width: 'max-content' }} title={variantDesc(player)}>
             {variants.map(v => (
-              <div key={v.key} className="inline-flex items-center" style={{ gap: 4, padding: variants.length > 1 ? '1.5px 8px' : '2.5px 10px', borderRadius: 999, fontSize: variants.length > 1 ? 8.5 : 10.5, fontWeight: 900, letterSpacing: '.1em', whiteSpace: 'nowrap', color: '#fff', background: `linear-gradient(90deg,#0008,${v.color},#0008)`, border: '1px solid rgba(0,0,0,.45)', boxShadow: `0 0 9px color-mix(in srgb,${v.color} 62%,transparent)`, textShadow: '0 1px 2px rgba(0,0,0,.9)', fontFamily: 'Rajdhani,sans-serif' }}>
+              <div key={v.key} className="inline-flex items-center" style={{ gap: 4, padding: variants.length > 1 ? '1.5px 8px' : '2.5px 10px', borderRadius: 999, fontSize: variants.length > 1 ? 8.5 : 10.5, fontWeight: 900, letterSpacing: '.1em', whiteSpace: 'nowrap', color: '#fff', background: `linear-gradient(90deg,#0008,${v.color},#0008)`, border: '1px solid rgba(0,0,0,.45)', boxShadow: `0 0 9px color-mix(in srgb,${v.color} 62%,transparent)`, textShadow: '0 1px 2px rgba(0,0,0,.9)', fontFamily: 'var(--font-game), sans-serif' }}>
                 <span>{v.icon}</span> {v.label}
               </div>
             ))}

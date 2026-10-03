@@ -2,7 +2,7 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player, FORMATIONS, DIFFICULTY_LEVELS } from '@shared/game/gameData';
-import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress } from '@shared/game/gameEngine';
+import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress } from '@shared/game/gameEngine';
 import { computeMatchPointsWithConfig, MatchPoints, lossStreakBonus, nextLossStreak } from '@shared/game/shop';
 import { buildLeagueMatchKey, buildKnockoutMatchKey, revealEligibleKoBets, settleBet } from '@shared/game/bets';
 import { applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout } from '@shared/game/discipline';
@@ -356,44 +356,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Generate bot teams
       const diffLevel = DIFFICULTY_LEVELS.find(d => d.id === state.difficulty);
       const botStrength = diffLevel?.botStrength ?? 0.72;
-      const BOT_NAMES = [
-        'Real Madrid',
-        'Manchester City',
-        'Bayern München',
-        'Paris Saint-Germain',
-        'Liverpool FC',
-        'Inter de Milão',
-        'Arsenal FC',
-        'FC Barcelona',
-        'Borussia Dortmund',
-        'Juventus FC',
-        'Atlético de Madrid',
-        'Bayer Leverkusen',
-        'AC Milan',
-        'Benfica Glorioso',
-        'Sporting CP',
-        'FC Porto',
-        'Ajax Legends',
-        'PSV Eindhoven',
-        'Feyenoord Roterdã',
-        'Aston Villa',
-        'Atalanta Bergamo',
-        'AS Monaco',
-        'Lille OSC',
-        'VfB Stuttgart',
-        'Bologna FC',
-        'Girona FC',
-        'Celtic FC',
-        'Club Brugge',
-        'Shakhtar Donetsk',
-        'Dinamo Zagreb',
-        'RB Salzburg',
-        'Sparta Praga',
-        'Young Boys Bern',
-        'Estrela Vermelha',
-        'Lazio Roma',
-      ];
-      const botTeams = BOT_NAMES.slice(0, Math.max(0, state.competitionFormat.teamCount - 1)).map(name => generateBotTeam(name, botStrength));
+
+      // Never a bot with the same name or crest as the player club.
+      const botTeams = pickBotNames(Math.max(0, state.competitionFormat.teamCount - 1), [playerTeam]).map(name => generateBotTeam(name, botStrength));
 
       const allTeams = [playerTeam, ...botTeams];
       const fixtures = state.competitionFormat.id === 'groups_knockout'

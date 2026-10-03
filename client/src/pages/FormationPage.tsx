@@ -63,11 +63,11 @@ export default function FormationPage() {
           />
 
           <div role="note" className="ui-panel ui-panel--inset mb-4 px-3 py-2.5">
-            <div className="text-xs font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="text-xs font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
               COMO LER OS INDICADORES
             </div>
-            <p className="mt-1 text-sm leading-relaxed text-pretty" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
-              Controle gera mais iniciativa, volume de jogadas e posse. Ataque torna suas chances mais perigosas. Defesa reduz o perigo das chances adversárias. Um confronto favorável concede um <b style={{ color: '#22C55E' }}>bônus temporário ao time durante a partida</b>.
+            <p className="mt-1 text-sm leading-relaxed text-pretty" style={{ color: '#A7A7B8', fontFamily: 'var(--font-game), sans-serif' }}>
+              Controle gera mais iniciativa, volume de jogadas e posse. Ataque torna suas chances mais perigosas. Defesa reduz o perigo das chances adversárias. Um confronto favorável concede um <b style={{ color: 'var(--ui-success)' }}>bônus temporário ao time durante a partida</b>.
             </p>
           </div>
 
@@ -94,8 +94,8 @@ export default function FormationPage() {
                       <span
                         className="text-2xl font-black"
                         style={{
-                          fontFamily: 'Bebas Neue, sans-serif',
-                          color: isSelected ? '#C9A84C' : '#FFFFFF',
+                          fontFamily: 'var(--font-display), sans-serif',
+                          color: isSelected ? 'var(--ui-brand)' : '#FFFFFF',
                           letterSpacing: '0.1em',
                         }}
                       >
@@ -103,13 +103,13 @@ export default function FormationPage() {
                       </span>
                       {isPreferred && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                          style={{ background: '#C9A84C22', color: '#C9A84C', border: '1px solid #C9A84C44', fontFamily: 'Rajdhani, sans-serif' }}>
+                          style={{ background: '#C9A84C22', color: 'var(--ui-brand)', border: '1px solid #C9A84C44', fontFamily: 'var(--font-game), sans-serif' }}>
                           ⭐ Preferida
                         </span>
                       )}
                       {isSelected && !isPreferred && (
                         <div className="w-4 h-4 rounded-full flex items-center justify-center text-xs"
-                          style={{ background: '#C9A84C', color: '#080810', fontWeight: 'bold' }}>✓</div>
+                          style={{ background: 'var(--ui-brand)', color: 'var(--ui-bg)', fontWeight: 'bold' }}>✓</div>
                       )}
                     </div>
 
@@ -120,9 +120,9 @@ export default function FormationPage() {
 
                     {/* Matchup info — bônus situacional de equipe, aplicado somente durante a partida */}
                     {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
-                      <div className="mt-3 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="mt-3 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                         {formation.counters.length > 0 && (
-                          <>Confronto favorável contra: <span style={{ color: '#22C55E' }}>{formation.counters.join(', ')}</span> <span style={{ color: '#22C55E' }}>· {formationAdvantageLabelForAnalysisLevel(1)}</span></>
+                          <>Confronto favorável contra: <span style={{ color: 'var(--ui-success)' }}>{formation.counters.join(', ')}</span> <span style={{ color: 'var(--ui-success)' }}>· {formationAdvantageLabelForAnalysisLevel(1)}</span></>
                         )}
                         {formation.counters.length > 0 && formation.counteredBy.length > 0 && ' · '}
                         {formation.counteredBy.length > 0 && (
@@ -159,11 +159,11 @@ export default function FormationPage() {
           {selectedFormation && (
             <Panel tone="inset" className="w-full p-4">
               <div className="mb-2 text-sm font-bold tracking-widest"
-                style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+                style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                 INDICADORES DO ESQUEMA
               </div>
               <ImpactMeter profile={formationProfile(selectedFormation.id)} />
-              <div className="mt-3 space-y-2 text-sm" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="mt-3 space-y-2 text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 <div>
                   <span className="font-bold text-[#22C55E]">Vantagem contra:</span>{' '}
                   <span className="text-[#BFC0CE]">{selectedFormation.counters.join(', ') || 'Nenhuma formação específica'}</span>

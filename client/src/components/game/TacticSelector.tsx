@@ -50,7 +50,7 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
   const discipline = disciplineEffect(active.id);
 
   return (
-    <div className="space-y-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+    <div className="space-y-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
       <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -82,7 +82,7 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
                 <span className="text-base leading-none">{tactic.icon}</span>
                 <span
                   className="text-sm font-black leading-tight text-balance"
-                  style={{ color: isActive ? '#C9A84C' : '#FFF' }}
+                  style={{ color: isActive ? 'var(--ui-brand)' : '#FFF' }}
                 >
                   {tactic.name}
                 </span>

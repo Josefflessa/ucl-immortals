@@ -60,7 +60,7 @@ export default function CrestPage() {
                 <img src={selectedDef.url} alt={selectedDef.name} referrerPolicy="no-referrer" loading="lazy"
                   className="w-12 h-12 object-contain"
                   style={{ borderRadius: selectedDef.clipToCircle ? '50%' : undefined }} />
-                <span className="text-lg font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: GOLD }}>
+                <span className="text-lg font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: GOLD }}>
                   {selectedDef.name.toUpperCase()}
                 </span>
                 <Button onClick={() => dispatch({ type: 'SET_CREST', crestId: null })} intent="ghost" className="min-h-8 px-2 text-xs">
@@ -68,7 +68,7 @@ export default function CrestPage() {
                 </Button>
               </>
             ) : (
-              <span className="text-sm" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+              <span className="text-sm" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                 Nenhum escudo selecionado (usará as iniciais do time)
               </span>
             )}
@@ -95,7 +95,7 @@ export default function CrestPage() {
                       background: active ? `${GOLD}22` : '#0F0F1A',
                       border: `1px solid ${active ? GOLD : '#1A1A2A'}`,
                       color: active ? GOLD : '#8A8A9A',
-                      fontFamily: 'Rajdhani, sans-serif',
+                      fontFamily: 'var(--font-game), sans-serif',
                     }}>
                     {g.league}
                   </Button>
@@ -138,7 +138,7 @@ export default function CrestPage() {
                     className="w-12 h-12 object-contain"
                     style={{ borderRadius: c.clipToCircle ? '50%' : undefined }} />
                   <span className="text-[12px] font-semibold text-center leading-tight truncate w-full"
-                    style={{ color: isSel ? GOLD : '#C9C9D9', fontFamily: 'Rajdhani, sans-serif' }}>
+                    style={{ color: isSel ? GOLD : '#C9C9D9', fontFamily: 'var(--font-game), sans-serif' }}>
                     {c.name}
                   </span>
                 </motion.button>
@@ -147,7 +147,7 @@ export default function CrestPage() {
           </div>
           </Panel>
           {search && shownCrests.length === 0 && (
-            <div className="text-center py-8 text-sm" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="text-center py-8 text-sm" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
               Nenhum clube encontrado para “{query}”.
             </div>
           )}

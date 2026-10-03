@@ -16,7 +16,7 @@ const TIERS = [90, 75, 60, 45].map(min => {
 
 const Chip = ({ text }: { text: string }) => (
   <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-black"
-    style={{ background: '#C9A84C22', color: '#E8C84A', border: '1px solid #C9A84C44', fontFamily: 'Rajdhani, sans-serif' }}>
+    style={{ background: '#C9A84C22', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C44', fontFamily: 'var(--font-game), sans-serif' }}>
     {text}
   </span>
 );
@@ -28,13 +28,13 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
   const activeTier = TIERS.find(t => total >= t.min);
 
   return (
-    <div className="mt-3 pt-3 border-t" style={{ borderColor: '#1A1A2A' }}>
+    <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-xs font-black tracking-widest text-gray-300" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="text-xs font-black tracking-widest text-gray-300" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
             BÔNUS GLOBAL
           </div>
-          <div className="mt-0.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="mt-0.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
             todos os titulares
           </div>
         </div>
@@ -42,7 +42,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
           type="button"
           onClick={() => setShowDetails(true)}
           className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-black uppercase tracking-wider transition-colors hover:bg-[#C9A84A18] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
-          style={{ color: '#E8C84A', borderColor: '#C9A84A66', background: '#C9A40A0D', fontFamily: 'Rajdhani, sans-serif' }}
+          style={{ color: 'var(--ui-brand-strong)', borderColor: '#C9A84A66', background: '#C9A40A0D', fontFamily: 'var(--font-game), sans-serif' }}
           aria-label="Ver faixas e efeitos do bônus de química"
         >
           <Info size={15} aria-hidden="true" />
@@ -56,7 +56,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
           {b.special > 0 && <Chip text={`✨ +${b.special} em todos`} />}
         </div>
       ) : (
-        <div className="mt-3 rounded-lg border px-3 py-2 text-sm leading-relaxed" style={{ color: '#8A8A9A', borderColor: '#24243A', background: '#0A0A14', fontFamily: 'Rajdhani, sans-serif' }}>
+        <div className="mt-3 rounded-lg border px-3 py-2 text-sm leading-relaxed" style={{ color: '#8A8A9A', borderColor: '#24243A', background: '#0A0A14', fontFamily: 'var(--font-game), sans-serif' }}>
           Química abaixo de 45 — sem bônus global. Aumente a química para liberar.
         </div>
       )}
@@ -66,7 +66,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
         onOpenChange={setShowDetails}
         size="default"
         closeLabel="Fechar bônus de química"
-        title={<span className="text-xl font-black tracking-wider text-brand-strong" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>BÔNUS DE QUÍMICA</span>}
+        title={<span className="text-xl font-black tracking-wider text-brand-strong" style={{ fontFamily: 'var(--font-display), sans-serif' }}>BÔNUS DE QUÍMICA</span>}
         subtitle="Efeitos aplicados aos 11 titulares durante a partida."
       >
         <div className="space-y-2">
@@ -77,17 +77,17 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
                 key={t.min}
                 className="rounded-lg border px-3 py-2.5"
                 style={{
-                  color: isActive ? '#E8C84A' : '#8A8A9A',
+                  color: isActive ? 'var(--ui-brand-strong)' : '#8A8A9A',
                   borderColor: isActive ? '#C9A84C88' : '#202034',
                   background: isActive ? '#C9A84C12' : '#0A0A14',
-                  fontFamily: 'Rajdhani, sans-serif',
+                  fontFamily: 'var(--font-game), sans-serif',
                 }}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-black">{t.label} de química</div>
                   {isActive && <span className="text-[12px] font-black uppercase tracking-wider">ATIVA</span>}
                 </div>
-                <div className="mt-0.5 text-xs leading-relaxed" style={{ color: isActive ? '#D8C47A' : '#6A6A7A' }}>
+                <div className="mt-0.5 text-xs leading-relaxed" style={{ color: isActive ? '#D8C47A' : 'var(--ui-text-faint)' }}>
                   +{t.pas} Passe{t.rit > 0 ? ` · +${t.rit} Ritmo` : ''}{t.special > 0 ? ` · +${t.special} em todos ✨` : ''}
                 </div>
               </div>

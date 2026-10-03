@@ -59,7 +59,7 @@ export default function CompetitionExitControl() {
           open={confirmAction === 'solo'}
           onOpenChange={open => { if (!open) setConfirmAction(null); }}
           title="Voltar ao menu?"
-          description="Sua campanha fica salva neste dispositivo. Para retomar, use CONTINUAR CAMPANHA na tela inicial."
+          description="Sua campanha fica salva neste dispositivo. Para retomar, toque em JOGAR SOLO na tela inicial."
           confirmLabel="Voltar ao menu"
           onConfirm={confirmRoomAction}
         />
