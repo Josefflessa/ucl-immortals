@@ -754,17 +754,17 @@ export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): 
   return pool.reduce((s, p) => s + eff(p as PlayerCard, 'passing') * 0.65 + eff(p as PlayerCard, 'vision') * 0.35, 0) / pool.length;
 }
 
-// Build-up edge added to the attacker's chance-creation score: midfield-control gap
-// (bounded) plus a nudge for the possession tactic. Kept modest so squad/tactic
-// quality tilts — never decides — the duel on its own.
+// Build-up edge added to the attacker's chance-creation score: midfield-control gap plus a
+// nudge for the possession tactic. Weighted (0.3) so squad/tactic quality tilts the duel, with
+// no ceiling — a better midfield always helps a little more.
 export function midfieldBuildUpEdge(atkMid: number, defMid: number, attackPlayStyle: string): number {
-  const gap = Math.max(-8, Math.min(8, (atkMid - defMid) * 0.3));
+  const gap = (atkMid - defMid) * 0.3;
   return gap + (attackPlayStyle === 'possession' ? 2 : 0);
 }
 
 // Realistic ball possession from squad strength + how the chances actually split,
-// with a tactic tilt. Compressed toward the centre so it stays believable (rarely
-// beyond ~28–72). Replaces the old hardcoded 50/50.
+// with a tactic tilt. Compressed toward the centre with a smooth curve so it stays believable
+// (approaches but never reaches 28/72): a stronger side always keeps a little more of the ball.
 export function computePossession(
   homeStrength: number, awayStrength: number,
   homeShots: number, awayShots: number,
@@ -779,8 +779,8 @@ export function computePossession(
   if (homePlayStyle === 'counter') p -= 0.04;       // a side sitting deep sees less of the ball
   if (awayPlayStyle === 'counter') p += 0.04;
   p += (homeControl - awayControl) * 0.02;           // a midfield-heavy SHAPE owns more of the ball
-  p = 0.5 + (p - 0.5) * 0.85;                        // compress toward the centre
-  return Math.round(Math.max(28, Math.min(72, p * 100)));
+  p = 0.5 + 0.22 * Math.tanh(((p - 0.5) * 0.85) / 0.22); // compress toward the centre (≈ linear near 50%)
+  return Math.round(p * 100);
 }
 
 // ── Free kick (direct) ────────────────────────────────────────────────────────

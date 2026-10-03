@@ -17,10 +17,10 @@ export type {
   ChemLinkType, ChemLink, StatBreakdown, EffectiveStats, CharSource, CharBoost,
 } from './engine/chemistry';
 export {
-  getEffectiveAttribute, GK_SAVE_EDGE, ON_TARGET_RESISTANCE, HOME_ATTR_BONUS, SECONDARY_STAT_MULT, positionFit, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_GAMES, EVOLVE_POINTS, SPECIALIZATION_LEVEL, SPECIALIZATION_UNLOCK_COST, evolvePointsBudget, getEvolutionLevel, isEvolved, evolvePointsSpent, chooseEvolveAttribute, applyEvolvePoint, specializationAttributeBonus, canChooseSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, choosePlayerSpecialization, starterPlayerIds, bumpStarterAppearances, stampMatchStartingLineups, startingIdsForResult, formationCounterBonusForAnalysisLevel, formationAdvantageLabelForAnalysisLevel, formationAdvantageColorForAnalysisLevel,
+  getEffectiveAttribute, DUEL_SCALE, FINISH_EDGE, KEEPER_DUEL_SCALE, SET_PIECE_SCALE, FREE_KICK_EDGE, HEADER_EDGE, PENALTY_EDGE, PENALTY_SCALE, ON_TARGET_RESISTANCE, HOME_ATTR_BONUS, SECONDARY_STAT_MULT, positionFit, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_GAMES, EVOLVE_POINTS, SPECIALIZATION_LEVEL, SPECIALIZATION_UNLOCK_COST, evolvePointsBudget, getEvolutionLevel, isEvolved, evolvePointsSpent, chooseEvolveAttribute, applyEvolvePoint, specializationAttributeBonus, canChooseSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, choosePlayerSpecialization, starterPlayerIds, bumpStarterAppearances, stampMatchStartingLineups, startingIdsForResult, formationCounterBonusForAnalysisLevel, formationAdvantageLabelForAnalysisLevel, formationAdvantageColorForAnalysisLevel,
 } from './engine/attributes';
 export {
-  OUTFIELD_GK_MULTIPLIER, isOutfieldGoalkeeper, goalkeeperShotStoppingRating, shotTypeForApproach, resolveOpenPlayChance, buildKeyMinutes, formationProfile, tacticBuffMultiplierForAnalysisLevel, tacticStatBonus, tacticProfile, tacticalChanceVolumeModifier, tacticalChanceDangerModifier, runMatchSimulation, freeKickGoalChance, penaltyGoalChance, simulateMatch,
+  OUTFIELD_GK_MULTIPLIER, isOutfieldGoalkeeper, goalkeeperShotStoppingRating, shotTypeForApproach, resolveOpenPlayChance, buildKeyMinutes, formationProfile, tacticBuffMultiplierForAnalysisLevel, tacticStatBonus, tacticProfile, tacticalChanceVolumeModifier, tacticalChanceDangerModifier, runMatchSimulation, freeKickGoalChance, headerGoalChance, penaltyGoalChance, simulateMatch,
 } from './engine/matchSim';
 export {
   CAPTAIN_BOOST, captainBestStatFromStarters, captainBoostFromStarters, calculateTeamStrength, getPenaltyTaker, getPenaltyOrder, simulatePenalties,

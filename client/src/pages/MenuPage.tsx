@@ -58,7 +58,7 @@ export default function MenuPage() {
     updateFriendship,
   } = useAccount();
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
-  const [soloSaveConfirm, setSoloSaveConfirm] = useState<'new' | 'discard' | null>(null);
+  const [soloSaveConfirm, setSoloSaveConfirm] = useState<'choose' | 'new' | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
@@ -572,36 +572,22 @@ export default function MenuPage() {
         <div>
           {menuMode === 'selection' && (
             <div className="mb-5 flex w-full max-w-xs flex-col gap-3 sm:mb-8">
-              {savedSoloCampaign && (
-                <div className="flex flex-col gap-1.5">
-                  <Button
-                    type="button"
-                    intent="primary"
-                    size="large"
-                    onClick={() => { void continueSoloCampaign(); }}
-                    className="w-full"
-                  >
-                    <span className="inline-flex items-center justify-center gap-2.5">
-                      <Play size={22} strokeWidth={2.5} /> CONTINUAR CAMPANHA
-                    </span>
-                  </Button>
-                  <div className="flex items-center justify-between gap-2 px-1 text-[13px] text-[var(--ui-text-muted)]">
-                    <span className="truncate">{savedSoloCampaign.teamName} · {soloCampaignStageLabel(savedSoloCampaign)}</span>
-                    <button type="button" onClick={() => setSoloSaveConfirm('discard')} className="shrink-0 font-bold underline-offset-2 hover:underline">
-                      Descartar
-                    </button>
-                  </div>
-                </div>
-              )}
               <Button
                 type="button"
-                intent={savedSoloCampaign ? 'secondary' : 'primary'}
+                intent="primary"
                 size="large"
-                onClick={() => (savedSoloCampaign ? setSoloSaveConfirm('new') : setMenuMode('solo'))}
+                onClick={() => (savedSoloCampaign ? setSoloSaveConfirm('choose') : setMenuMode('solo'))}
                 className="w-full"
               >
-                <span className="inline-flex items-center justify-center gap-2.5">
-                  <Gamepad2 size={22} strokeWidth={2.5} /> JOGAR SOLO
+                <span className="flex flex-col items-center justify-center leading-tight">
+                  <span className="inline-flex items-center justify-center gap-2.5">
+                    <Gamepad2 size={22} strokeWidth={2.5} /> JOGAR SOLO
+                  </span>
+                  {savedSoloCampaign ? (
+                    <span className="mt-0.5 max-w-full truncate text-[12px] font-semibold normal-case tracking-normal opacity-80">
+                      Campanha salva · {savedSoloCampaign.teamName}
+                    </span>
+                  ) : null}
                 </span>
               </Button>
 
@@ -647,14 +633,26 @@ export default function MenuPage() {
             confirmLabel="Começar nova"
             onConfirm={() => { setSoloSaveConfirm(null); void discardSoloCampaign().then(() => setMenuMode('solo')); }}
           />
-          <ConfirmDialog
-            open={soloSaveConfirm === 'discard'}
+          <GameModal
+            open={soloSaveConfirm === 'choose'}
             onOpenChange={open => { if (!open) setSoloSaveConfirm(null); }}
-            title="Descartar campanha salva?"
-            description="O progresso desta campanha será apagado deste dispositivo."
-            confirmLabel="Descartar"
-            onConfirm={() => { setSoloSaveConfirm(null); void discardSoloCampaign(); }}
-          />
+            title="JOGAR SOLO"
+            subtitle={savedSoloCampaign ? `Campanha salva: ${savedSoloCampaign.teamName} · ${soloCampaignStageLabel(savedSoloCampaign)}` : undefined}
+            footer={(
+              <div className="flex w-full flex-col gap-1.5 sm:flex-row sm:justify-end">
+                <Button type="button" intent="secondary" onClick={() => setSoloSaveConfirm('new')}>
+                  Nova campanha
+                </Button>
+                <Button type="button" intent="primary" onClick={() => { setSoloSaveConfirm(null); void continueSoloCampaign(); }}>
+                  <span className="inline-flex items-center gap-2"><Play size={16} strokeWidth={2.5} /> Continuar campanha</span>
+                </Button>
+              </div>
+            )}
+          >
+            <p className="text-sm text-[var(--ui-text-soft)]">
+              Continue de onde parou ou comece uma campanha nova. Começar uma nova substitui a campanha salva.
+            </p>
+          </GameModal>
 
           {menuMode === 'solo' && (
             <div

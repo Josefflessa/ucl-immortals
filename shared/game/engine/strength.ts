@@ -2,8 +2,8 @@
 
 import { Player, Coach, COACHES } from '../gameData';
 import { getPenaltyComposureBonus } from '../traits';
-import { Stadium, stadiumFor } from '../stadium';
-import { projectLevel } from '../clubProjects';
+import { Stadium } from '../stadium';
+import { projectLevel, stadiumHomeBonus } from '../clubProjects';
 import { random } from '../random';
 import { type PlayerCard, statKey, isExcludedPlayer, type Team, matchRoleForPlayer, activeGoalkeeperForTeam, type PlayerMatchStat, type PenaltyKick } from './teamModel';
 import { getChemistryBonus, computeCharacteristicBoosts } from './chemistry';
@@ -181,7 +181,12 @@ type ShootoutSide = {
   chem: { passing: number; pace: number; special: number };
   playStyle: string;
   ctx: NonNullable<Parameters<typeof getEffectiveAttribute>[5]>;
+  /** The host's stadium bonus, already scaled by SHOOTOUT_HOME_SHARE (0 away / on a neutral venue). */
+  homeBonus: number;
 };
+// Share of the stadium bonus that counts in a shootout. Nerves decide shootouts far more than the
+// venue; at full share the host won ~61% of shootouts between equal teams.
+export const SHOOTOUT_HOME_SHARE = 0.5;
 function shootoutSide(team: Team, playStyle: string, isHome: boolean, situation: { isFinal?: boolean; neutralVenue?: boolean }): ShootoutSide {
   const homeVenue = isHome && !situation.neutralVenue;
   return {
@@ -198,18 +203,18 @@ function shootoutSide(team: Team, playStyle: string, isHome: boolean, situation:
       charBoosts: computeCharacteristicBoosts(team.players),
       credits: team.credits,
       analysisLevel: projectLevel(team.clubProjects, 'analysis'),
-      ...(homeVenue ? { stadiumProjectLevel: projectLevel(team.clubProjects, 'stadium'), homeStadium: stadiumFor(team.coachId, false) } : {}),
     },
+    homeBonus: homeVenue ? stadiumHomeBonus(projectLevel(team.clubProjects, 'stadium')) * SHOOTOUT_HOME_SHARE : 0,
   };
 }
 function penaltyKickGoal(taker: PlayerCard, takerSide: ShootoutSide, gk: PlayerCard, gkSide: ShootoutSide): boolean {
   const comp = getEffectiveAttribute(taker, 'composure', takerSide.coach, takerSide.chem, takerSide.playStyle, { ...takerSide.ctx, role: matchRoleForPlayer(takerSide.team, taker) })
-    + getPenaltyComposureBonus(taker.traits) + (taker.id === takerSide.team.penaltyTaker ? 5 : 0);
+    + getPenaltyComposureBonus(taker.traits) + (taker.id === takerSide.team.penaltyTaker ? 5 : 0) + takerSide.homeBonus;
   const gkRef = goalkeeperShotStoppingRating(
     gk,
     getEffectiveAttribute(gk, 'defending', gkSide.coach, gkSide.chem, gkSide.playStyle, { ...gkSide.ctx, role: 'GK' }),
     gk.traits,
-  );
+  ) + gkSide.homeBonus;
   return random() < penaltyGoalChance(comp, gkRef);
 }
 

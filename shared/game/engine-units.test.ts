@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   getChemistryBonus, getChemistryLinks, computeCharacteristicBoosts, getEffectiveAttribute, getPlayerEffectiveStats,
-  resolveOpenPlayChance, shotTypeForApproach, GK_SAVE_EDGE, ON_TARGET_RESISTANCE,
+  resolveOpenPlayChance, shotTypeForApproach, FINISH_EDGE, KEEPER_DUEL_SCALE, ON_TARGET_RESISTANCE, penaltyGoalChance, freeKickGoalChance, headerGoalChance,
   getFreeKickTaker, getPenaltyTaker, getPenaltyOrder, activeGoalkeeperForTeam, goalkeeperShotStoppingRating, OUTFIELD_GK_MULTIPLIER, computeStandings, generateLeagueFixtures, generateRandomLeagueFixtures, buildKeyMinutes,
   matchRoleForPlayer, STANDARD_TABLE_POINTS,
   createKnockoutBracket, advanceKnockoutBracket,
@@ -25,6 +25,8 @@ import {
 } from './gameEngine';
 import { betCapPrefix } from './bets';
 import { stadiumFor } from './stadium';
+import { seededRandom, withRandomSource } from './random';
+import { edgeChance } from './engine/curves';
 import { DEFAULT_COMPETITION_FORMAT } from './competition';
 import { PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
@@ -743,26 +745,52 @@ describe('resolveOpenPlayChance — the shot duel (RNG mocked)', () => {
   const withRandoms = (seq: number[]) => { const s = vi.spyOn(Math, 'random'); seq.forEach(v => s.mockReturnValueOnce(v)); };
 
   it('defence wins the duel → no shot', () => {
-    withRandoms([0, 1]); // atk rng low, def rng high
+    withRandoms([0.999]); // duel roll above the attacker's (low) chance
     expect(resolveOpenPlayChance({ ...base, atkShooting: 30, atkPace: 30, atkDribbling: 30, defDefending: 95, defPhysical: 95 }).outcome).toBe('duel');
   });
   it('beats the defender but misses the target', () => {
-    withRandoms([1, 0, 0.999]); // atk high, def low, then target roll fails
+    withRandoms([0, 0.999]); // duel won, then target roll fails
     const r = resolveOpenPlayChance(base);
     expect(r.outcome).toBe('miss'); expect(r.onTarget).toBe(false);
   });
   it('on target and beats the keeper → goal', () => {
-    withRandoms([1, 0, 0, 0, 1]); // atk high, def low, target ok, gk low, shot high
+    withRandoms([0, 0, 0]); // duel won, on target, beats the keeper
     const r = resolveOpenPlayChance(base);
     expect(r.outcome).toBe('goal'); expect(r.onTarget).toBe(true);
   });
   it('on target but the keeper wins → save', () => {
-    withRandoms([1, 0, 0, 1, 0]); // gk high, shot low
+    withRandoms([0, 0, 0.999]); // duel won, on target, keeper wins
     expect(resolveOpenPlayChance({ ...base, atkShooting: 50 }).outcome).toBe('save');
   });
   it('exposes its tuning knobs', () => {
-    expect(GK_SAVE_EDGE).toBeGreaterThan(0);
+    expect(Number.isFinite(FINISH_EDGE)).toBe(true);
+    expect(KEEPER_DUEL_SCALE).toBeGreaterThan(0);
     expect(ON_TARGET_RESISTANCE).toBeGreaterThan(0);
+  });
+  it('a better finisher and a worse keeper both raise the chance of scoring', () => {
+    const goals = (shooting: number, keeper: number) => {
+      let n = 0;
+      withRandomSource(seededRandom(5), () => {
+        for (let i = 0; i < 4000; i++) if (resolveOpenPlayChance({ ...base, atkShooting: shooting, gkRating: keeper }).outcome === 'goal') n++;
+      });
+      return n;
+    };
+    expect(goals(95, 100)).toBeGreaterThan(goals(75, 100));
+    expect(goals(85, 90)).toBeGreaterThan(goals(85, 115));
+  });
+  it('no attribute ceiling: extra points keep helping, even far beyond 100', () => {
+    // Keeper duel and attacker-vs-defender duel are symmetric logistic curves of the edge.
+    expect(edgeChance(160 - 110 + FINISH_EDGE, KEEPER_DUEL_SCALE)).toBeGreaterThan(edgeChance(150 - 110 + FINISH_EDGE, KEEPER_DUEL_SCALE));
+    expect(edgeChance(130 - 160 + FINISH_EDGE, KEEPER_DUEL_SCALE)).toBeLessThan(edgeChance(130 - 150 + FINISH_EDGE, KEEPER_DUEL_SCALE));
+    expect(edgeChance(+10, 9)).toBeCloseTo(1 - edgeChance(-10, 9), 12);
+    expect(penaltyGoalChance(160, 105)).toBeGreaterThan(penaltyGoalChance(150, 105));
+    expect(penaltyGoalChance(95, 160)).toBeLessThan(penaltyGoalChance(95, 150));
+    expect(freeKickGoalChance(160, 160, 105)).toBeGreaterThan(freeKickGoalChance(150, 150, 105));
+    expect(headerGoalChance(160, 105)).toBeGreaterThan(headerGoalChance(150, 105));
+    expect(headerGoalChance(90, 160)).toBeLessThan(headerGoalChance(90, 150));
+    for (const p of [penaltyGoalChance(300, 50), freeKickGoalChance(300, 300, 50), headerGoalChance(300, 50)]) {
+      expect(p).toBeLessThan(1); expect(p).toBeGreaterThan(0);
+    }
   });
 });
 

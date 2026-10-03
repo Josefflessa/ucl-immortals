@@ -61,7 +61,6 @@ export default function LeaguePage() {
     : null;
   const initialCreditsSignature = useRef<string | null | undefined>(undefined);
   const [postMatchModalQueueReady, setPostMatchModalQueueReady] = useState(false);
-  const [dismissedCreditsSignature, setDismissedCreditsSignature] = useState<string | null>(null);
   useEffect(() => {
     if (initialCreditsSignature.current !== undefined) return;
     initialCreditsSignature.current = creditsSignature;
@@ -75,11 +74,9 @@ export default function LeaguePage() {
     // must be shown immediately. Online uses matchCreditsModalPending because
     // the hub also remounts after an online replay finishes.
   }, []);
-  const showCreditsModal = !postMatchModalQueueReady ? false : online
-    ? state.matchCreditsModalPending && !!state.lastMatchPoints
-    : initialCreditsSignature.current !== undefined
-      && !!state.lastMatchPoints
-      && creditsSignature !== dismissedCreditsSignature;
+  // Solo and online share the same persisted flag: the reward modal opens once per match and
+  // never again after it is closed (reload, continued campaign or page remount included).
+  const showCreditsModal = postMatchModalQueueReady && state.matchCreditsModalPending && !!state.lastMatchPoints;
 
   // A ticket on another player's match may be revealed while this player is
   // on the hub, not inside the replay. Keep that server-side credit visible
@@ -117,10 +114,7 @@ export default function LeaguePage() {
     previousBetSnapshot.current = { roomCode: state.roomCode, states: current };
   }, [online, state.bets, state.roomCode]);
 
-  const closeCreditsModal = () => {
-    if (online) dispatch({ type: 'DISMISS_MATCH_CREDITS' });
-    else if (creditsSignature) setDismissedCreditsSignature(creditsSignature);
-  };
+  const closeCreditsModal = () => dispatch({ type: 'DISMISS_MATCH_CREDITS' });
   const showMissionResolutionModal = postMatchModalQueueReady && !!state.missions.missionResolution && !showCreditsModal;
   const closeMissionResolutionModal = () => {
     if (online) dismissMissionResolutionOnline();

@@ -687,6 +687,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         missions: missionUpdate.state,
         points: nextPoints,
         lastMatchPoints: decoratedMatchPoints,
+        // Shown once on the hub; persisted so a reload or a continued campaign does not reopen it.
+        matchCreditsModalPending: Boolean(decoratedMatchPoints),
         bets: settledBets,
         discipline: disc.next,
         // ⭐ +1 jogo pros 11 titulares do jogador (progresso pra Carta Evoluída).

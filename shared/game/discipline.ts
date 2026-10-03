@@ -203,19 +203,22 @@ export function rollInjurySeverity(rng: () => number): 1 | 2 | 3 {
 // reduz) × ímpeto do jogo. Goleiro é ~0 pelo CARD_POS_MULT.
 export function yellowChance(position: string, composure: number, aggression: number): number {
   const posMult = CARD_POS_MULT[position] ?? 1;
-  const compMult = Math.max(0.4, 1.6 - composure / 80); // comp 40→1.1 · 90→0.475 (piso 0.4)
+  // comp 40→1.1 · 90→0.475 · 120→0.29 · 150→0.17: keeps falling with composure, never reaches 0.
+  const compMult = 2.15 * Math.exp(-composure / 59.5);
   return FOUL_YELLOW_BASE * posMult * compMult * aggression;
 }
 
 // Chance de lesionar o FALTADO numa falta dura — sempre positiva, maior p/ jogador de físico baixo.
 export function injuryChanceFromFoul(fouledPhysical: number, fragile = false): number {
-  const base = INJURY_FOUL_PROB * Math.max(0.5, (110 - fouledPhysical) / 60);
+  // physical 50→1 · 80→0.5 · 110→0.25: a fitter player is always a bit safer.
+  const base = INJURY_FOUL_PROB * Math.exp(-(fouledPhysical - 50) / 43.3);
   return base * (fragile ? FRAGIL_INJURY_MULTIPLIER : 1);
 }
 
 // Chance de lesão ALEATÓRIA (não-falta) por titular por jogo — quanto menor o físico, mais frágil.
 export function randomInjuryChance(physical: number, fragile = false): number {
-  const base = INJURY_RANDOM_BASE * Math.max(0.4, (110 - physical) / 55);
+  // physical 55→1 · 88→0.4 · 120→0.16: a fitter player is always a bit safer.
+  const base = INJURY_RANDOM_BASE * Math.exp(-(physical - 55) / 36);
   return base * (fragile ? FRAGIL_INJURY_MULTIPLIER : 1);
 }
 

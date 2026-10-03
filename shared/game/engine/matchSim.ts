@@ -3,13 +3,14 @@
 import { Player, Coach, COACHES, FORMATIONS, getTacticById } from '../gameData';
 import { selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc, frangoDesc, screamedDesc, deflectedDesc, woodworkDesc, penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc, freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc, cornerGoalDesc, cornerSaveDesc, cornerMissDesc, flowDesc, Approach, LastKeyCtx, foulDesc, yellowCardDesc, straightRedDesc, secondYellowDesc, injuryDesc } from '../matchNarrative';
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../traits';
-import { stadiumFor } from '../stadium';
+import { stadiumFor, type Stadium } from '../stadium';
 import { projectLevel } from '../clubProjects';
 import { yellowChance, injuryChanceFromFoul, randomInjuryChance, tacticAggression, formationAggression, CARD_POS_MULT, STRAIGHT_RED_PROB, RED_PENALTY, RED_GK_PENALTY, INJURY_DEBUFF, DANGEROUS_FOUL_CARD_MULT, THREAT_FOUL_CARD_MULT, DANGEROUS_FOUL_INJURY_MULT, compressAggression, settleFactor, SECOND_YELLOW_LENIENCY } from '../discipline';
 import { random } from '../random';
 import { type PlayerCard, setStatIds, statKey, type MatchTrigger, type MatchPlan, normalizeMatchPlan, isExcludedPlayer, type Team, matchRoleForPlayer, activeGoalkeeperForTeam, type MatchEvent, type MatchStatsDelta, type PlayerMatchStat, type PenaltyKick, type MatchResult } from './teamModel';
 import { getChemistryBonus, computeCharacteristicBoosts, teamPlaymaking, midfieldBuildUpEdge, computePossession, getFreeKickTaker, getHeaderTarget } from './chemistry';
-import { getEffectiveAttribute, GK_SAVE_EDGE, ON_TARGET_RESISTANCE, TACTICAL_INFLUENCE, MATCH_NOISE, CHANCE_VOLUME_INFLUENCE, FORMATION_ATTACK_DANGER_INFLUENCE, TACTIC_ATTACK_DANGER_INFLUENCE, FORMATION_DEFENSE_SUPPRESSION_INFLUENCE, TACTIC_DEFENSE_SUPPRESSION_INFLUENCE, formationCounterBonusForAnalysisLevel } from './attributes';
+import { edgeChance } from './curves';
+import { getEffectiveAttribute, DUEL_SCALE, FINISH_EDGE, KEEPER_DUEL_SCALE, SET_PIECE_SCALE, FREE_KICK_EDGE, HEADER_EDGE, PENALTY_EDGE, PENALTY_SCALE, ON_TARGET_RESISTANCE, TACTICAL_INFLUENCE, MATCH_NOISE, CHANCE_VOLUME_INFLUENCE, FORMATION_ATTACK_DANGER_INFLUENCE, TACTIC_ATTACK_DANGER_INFLUENCE, FORMATION_DEFENSE_SUPPRESSION_INFLUENCE, TACTIC_DEFENSE_SUPPRESSION_INFLUENCE, formationCounterBonusForAnalysisLevel } from './attributes';
 import { captainBoostForTeam, calculateTeamStrength, getPenaltyTaker, simulatePenalties } from './strength';
 
 // ── Flavour match statistics (shots/saves/corners/fouls) ──────
@@ -65,6 +66,14 @@ export function goalkeeperShotStoppingRating(
 // Momentum gained/lost by the team that scores. Lower = leads snowball less, so
 // fewer blowouts and more balanced (drawn) games.
 const GOAL_MOMENTUM_SWING = 8;
+// Momentum drifts back toward neutral (50) by this fraction every minute. Goals and flow still
+// swing it, but a side can no longer snowball for the rest of the match off a self-reinforcing
+// flow: without it, even games ended in one-sided routs far more often than real football.
+export const MOMENTUM_REVERSION = 0.1;
+// Share of the stadium bonus that counts in the territory battle (who attacks each minute).
+// The bonus always counts in full in every duel; at full share here too, home sides won ~51%
+// and away sides ~22% between equal teams (real football: ~45% / ~29%).
+export const HOME_INITIATIVE_SHARE = 0.5;
 
 // ── Open-play shot resolution ──────────────────────────────────────────────────
 // Single source of truth for the chance math of a key-minute attack.
@@ -97,17 +106,16 @@ export function resolveOpenPlayChance(p: {
   gkRating: number; // goalkeeperShotStoppingRating(gk, effective DEF, traits)
   approach: string;
 }): ChanceResult {
-  const atkScore = (p.atkShooting + p.atkPace + p.atkDribbling) / 3 + p.buildUp + random() * 40;
-  const defScore = (p.defDefending + p.defPhysical) / 2 + random() * 40;
-  if (atkScore <= defScore) return { outcome: 'duel', onTarget: false, shotType: 'normal' };
+  const atkScore = (p.atkShooting + p.atkPace + p.atkDribbling) / 3 + p.buildUp;
+  const defScore = (p.defDefending + p.defPhysical) / 2;
+  if (random() >= edgeChance(atkScore - defScore, DUEL_SCALE)) return { outcome: 'duel', onTarget: false, shotType: 'normal' };
 
   const shotType = shotTypeForApproach(p.approach);
   const targetChance = (p.atkShooting / (p.atkShooting + ON_TARGET_RESISTANCE)) * SHOT_TARGET_MOD[shotType];
   if (random() >= targetChance) return { outcome: 'miss', onTarget: false, shotType };
 
-  const gkScore = p.gkRating + GK_SAVE_EDGE + SHOT_GK_MOD[shotType] + random() * 36;
-  const shootScore = p.atkShooting + random() * 36;
-  return { outcome: shootScore > gkScore ? 'goal' : 'save', onTarget: true, shotType };
+  const finishEdge = p.atkShooting - p.gkRating + FINISH_EDGE - SHOT_GK_MOD[shotType];
+  return { outcome: random() < edgeChance(finishEdge, KEEPER_DUEL_SCALE) ? 'goal' : 'save', onTarget: true, shotType };
 }
 
 // Key-event minutes for ONE match — the clear goalscoring chances ("lances de perigo").
@@ -437,14 +445,17 @@ export function runMatchSimulation(
   const hasMatchInjury = (team: Team, player: Player) => Boolean(injuredDebuff[statKey(team.id, player.id)]);
   type StrengthByScore = { level: number; losing: number };
   const strengthFor = (team: Team, coach: Coach, chem: typeof homeChem, formBonus: number): StrengthByScore => {
-    // The host's stadium edge counts in strength too (not on a neutral final venue).
-    const venue = team === home && !neutralFinal
-      ? { homeStadium: stadiumFor(home.coachId, false), stadiumProjectLevel: projectLevel(home.clubProjects, 'stadium') }
-      : {};
-    return {
-      level: calculateTeamStrength(team, coach, chem, formBonus, disc(), { isKnockout, isFinal, isLosing: false, ...venue }),
-      losing: calculateTeamStrength(team, coach, chem, formBonus, disc(), { isKnockout, isFinal, isLosing: true, ...venue }),
+    const strength = (isLosing: boolean, venue: { homeStadium?: Stadium; stadiumProjectLevel?: number }) =>
+      calculateTeamStrength(team, coach, chem, formBonus, disc(), { isKnockout, isFinal, isLosing, ...venue });
+    // The host's stadium edge counts in full in every duel, and by HOME_INITIATIVE_SHARE in the
+    // territory battle (strength → who attacks each minute). Not on a neutral final venue.
+    if (team !== home || neutralFinal) return { level: strength(false, {}), losing: strength(true, {}) };
+    const venue = { homeStadium: stadiumFor(home.coachId, false), stadiumProjectLevel: projectLevel(home.clubProjects, 'stadium') };
+    const blend = (isLosing: boolean) => {
+      const neutral = strength(isLosing, {});
+      return neutral + (strength(isLosing, venue) - neutral) * HOME_INITIATIVE_SHARE;
     };
+    return { level: blend(false), losing: blend(true) };
   };
   let homeBaseStrength = strengthFor(home, homeCoach, homeChem, homeFormBonus);
   let awayBaseStrength = strengthFor(away, awayCoach, awayChem, awayFormBonus);
@@ -622,6 +633,8 @@ export function runMatchSimulation(
     const homeStrength = (homeGoals < awayGoals ? homeBaseStrength.losing : homeBaseStrength.level) - homeExtraPenalty;
     const awayStrength = (awayGoals < homeGoals ? awayBaseStrength.losing : awayBaseStrength.level) - awayExtraPenalty;
 
+    homeMomentum += (50 - homeMomentum) * MOMENTUM_REVERSION;
+    awayMomentum += (50 - awayMomentum) * MOMENTUM_REVERSION;
     const homeMomBonus = (homeMomentum - 50) * 0.25;
     const awayMomBonus = (awayMomentum - 50) * 0.25;
 
@@ -648,13 +661,11 @@ export function runMatchSimulation(
     // chance. ATTACK is intentionally absent here; it is applied below to make those chances
     // dangerous. Keeping the two separate makes a controlled team different from a direct one.
     const homeInitiative = homeStrength + homeMomBonus
-      + tacticalChanceVolumeModifier(homeProf.control, homeTac.control)
-      + (random() * 2 - 1) * MATCH_NOISE;
+      + tacticalChanceVolumeModifier(homeProf.control, homeTac.control);
     const awayInitiative = awayStrength + awayMomBonus
-      + tacticalChanceVolumeModifier(awayProf.control, awayTac.control)
-      + (random() * 2 - 1) * MATCH_NOISE;
+      + tacticalChanceVolumeModifier(awayProf.control, awayTac.control);
 
-    const homeAttacks = homeInitiative > awayInitiative;
+    const homeAttacks = random() < edgeChance(homeInitiative - awayInitiative, MATCH_NOISE);
     const attackTeam = homeAttacks ? home : away;
     const defendTeam = homeAttacks ? away : home;
     const attackCoach = homeAttacks ? homeCoach : awayCoach;
@@ -795,7 +806,12 @@ export function runMatchSimulation(
         const takerCtx = playerContext(attackTeam, taker, attackCtx);
         const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, attackChem, activePlayStyleFor(attackTeam), takerCtx);
         const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, attackChem, activePlayStyleFor(attackTeam), takerCtx);
-        const goalChance = freeKickGoalChance(takerShoot, takerComp);
+        const fkGkRating = goalkeeperShotStoppingRating(
+          fkGk,
+          getEffectiveAttribute(fkGk, 'defending', defendCoach, defendChem, activePlayStyleFor(defendTeam), { ...defendCtx, role: 'GK' }),
+          fkGk.traits,
+        );
+        const goalChance = freeKickGoalChance(takerShoot, takerComp, fkGkRating);
         const r = random();
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
 
@@ -872,7 +888,12 @@ export function runMatchSimulation(
           const headerCtx = playerContext(attackTeam, header, attackCtx);
           const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, attackChem, activePlayStyleFor(attackTeam), headerCtx)
             + getEffectiveAttribute(header, 'physical', attackCoach, attackChem, activePlayStyleFor(attackTeam), headerCtx)) / 2;
-          const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
+          const cgkRating = goalkeeperShotStoppingRating(
+            cgk,
+            getEffectiveAttribute(cgk, 'defending', defendCoach, defendChem, activePlayStyleFor(defendTeam), { ...defendCtx, role: 'GK' }),
+            cgk.traits,
+          );
+          const goalChance = headerGoalChance(hSkill, cgkRating);
           const r2 = random();
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
 
@@ -1308,22 +1329,30 @@ export function runMatchSimulation(
   };
 }
 
-// Direct free-kick conversion chance — scales with the taker's shooting AND composure,
-// floored (0.015) and capped (0.11) so free kicks stay rare. Exported so the balance
+// Direct free-kick conversion chance — the taker's shooting AND composure against the keeper's
+// effective shot-stopping (≈6–8% for typical takers, so free kicks stay rare). No ceiling: a
+// better taker always converts more, a better keeper always saves more. Exported so the balance
 // suite can assert composure actually moves the needle (it's too rare to sample in-sim).
-export function freeKickGoalChance(shooting: number, composure: number): number {
+export function freeKickGoalChance(shooting: number, composure: number, gkRating: number): number {
   const skill = (shooting + composure) / 2;
-  return Math.max(0.015, Math.min(0.11, (skill - 80) / 140));
+  return edgeChance(skill - gkRating + FREE_KICK_EDGE, SET_PIECE_SCALE);
+}
+
+// Corner header conversion — the aerial target's (shooting + physical) / 2 against the keeper
+// (≈8–10% for typical targets).
+export function headerGoalChance(headerSkill: number, gkRating: number): number {
+  return edgeChance(headerSkill - gkRating + HEADER_EDGE, SET_PIECE_SCALE);
 }
 
 // Penalty conversion chance — a DIFFERENCE model (taker composure vs keeper shot-stopping)
 // instead of a ratio, which used to saturate ~70% for everyone. `comp` already includes the
 // designated +5 and penalty traits (Cobrador +8, Frio na Final / Especialista +10 each), so a
-// real taker sits ≈90 (plain) to ≈120 (full specialist). Clamped to 42–94%.
+// real taker sits ≈90 (plain) to ≈120 (full specialist), and characteristics can push it further.
+// gkRef is the keeper's EFFECTIVE shot-stopping (chemistry, coach, captain, traits…), ≈100–110
+// for real keepers. A designated taker converts ≈76% and a whole shootout ≈72%, as in real
+// football; ~0.9% per point of composure or of keeper around there, with no ceiling either way.
 export function penaltyGoalChance(comp: number, gkRef: number): number {
-  // Tuned on a strong keeper (gkRef 90): the composure ladder 80/85/90/95/100/110/120 lands on
-  // 60/64/68/72/76/84/92%. ~0.8%/point of composure, ~1.1%/point of keeper rating.
-  return Math.max(0.42, Math.min(0.94, 0.79 + (comp - 90) * 0.008 - (gkRef - 80) * 0.011));
+  return edgeChance(comp - gkRef + PENALTY_EDGE, PENALTY_SCALE);
 }
 
 export function simulateMatch(

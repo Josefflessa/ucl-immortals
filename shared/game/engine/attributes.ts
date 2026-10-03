@@ -121,21 +121,36 @@ export function getEffectiveAttribute(
 // MATCH ENGINE
 // ============================================================
 
-// Balance knobs (tuned via client/src/lib/balance.test.ts to ~3.2 goals/match):
-//  - GK_SAVE_EDGE: extra edge for the keeper in the shot-vs-keeper duel.
-//  - ON_TARGET_RESISTANCE: higher = fewer shots on target (denominator of the
-//    accuracy curve atkShooting/(atkShooting + resistance)). Both raise = fewer goals.
-export const GK_SAVE_EDGE = 5;
+// Balance knobs — every contest is a logistic curve of the rating EDGE (see curves.ts): no
+// attribute ever hits a ceiling and attack/defence are symmetric. Calibrated against bots of the
+// same difficulty (the league table of a campaign): ~2.7 goals/match, ~8% 0-0, ~26% draws.
+//  - DUEL_SCALE: attacker (shooting/pace/dribbling + build-up) vs defender (defending/physical).
+//  - FINISH_EDGE / KEEPER_DUEL_SCALE: a shot on target, finisher's shooting vs the keeper's
+//    effective shot-stopping. Effective keeper ratings run ~13 above finishers' shooting (GK
+//    defending + keeper traits + buffs), so the edge offsets that gap; the scale sets how much
+//    each point of keeper or finisher is worth.
+//  - ON_TARGET_RESISTANCE: higher = fewer shots on target (accuracy curve
+//    atkShooting/(atkShooting + resistance), which keeps rising with shooting).
+//  - SET_PIECE_SCALE / FREE_KICK_EDGE / HEADER_EDGE: direct free kicks and corner headers,
+//    taker vs keeper. Flatter, so they stay rare.
+//  - PENALTY_EDGE / PENALTY_SCALE: taker composure vs keeper (≈76% for a designated taker).
+export const DUEL_SCALE = 9;
+export const FINISH_EDGE = 14;
+export const KEEPER_DUEL_SCALE = 12;
 export const ON_TARGET_RESISTANCE = 48;
+export const SET_PIECE_SCALE = 20;
+export const FREE_KICK_EDGE = -38;
+export const HEADER_EDGE = -19;
+export const PENALTY_EDGE = 33;
+export const PENALTY_SCALE = 18;
 // Global weight of FORMATION + TACTIC on results (chance volume + chance danger). 1.0 = baseline;
 // >1 makes the shape/style choice matter more (squad strength is untouched). Applied to every
 // formation/tactic scalar so the whole tactical contribution scales linearly by this factor.
 export const TACTICAL_INFLUENCE = 1.2;
-// Per-minute randomness in deciding which team attacks. Lower = team strength
-// matters more. Tuned to 20 via the harness: favorites clearly win more (champion
-// avg strength-rank ~8 of 36, vs ~18.5 random) while upsets stay common (a rank
-// ~20+ team still lifts the trophy now and then). Football should be unpredictable.
-export const MATCH_NOISE = 20;
+// Per-minute randomness in deciding which team attacks: the logistic scale of the initiative
+// edge. Lower = team strength matters more. 9 matches the spread of the old ±20 uniform noise
+// (favourites clearly win more while upsets stay common) without its hard cut-off.
+export const MATCH_NOISE = 9;
 
 // The three tactical axes have deliberately separate jobs in the match engine:
 //   - CONTROL creates more attacking sequences (initiative, shots and possession).

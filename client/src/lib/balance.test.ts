@@ -524,9 +524,10 @@ describe('balance — capitão (melhor stat → +3 pra todo o time)', () => {
     // Mesmo time e mesmo adversário; só muda a estatística do capitão. Trocar um capitão
     // de finalização por um de DEFESA deixa o time CLARAMENTE mais sólido — prova que a
     // escolha do capitão muda o time na direção da stat escolhida (efeito forte e robusto).
-    expect(c.defGoalsAgainst).toBeLessThan(c.shootGoalsAgainst - 0.15);
+    // Critério relativo (≥6% menos gols sofridos), que não depende da média de gols do motor.
+    expect(c.defGoalsAgainst).toBeLessThan(c.shootGoalsAgainst * 0.94);
     // E o capitão de finalização troca solidez por ataque: marca mais e sofre mais.
-    expect(c.shootGoalsAgainst).toBeGreaterThan(c.defGoalsAgainst);
+    expect(c.shootGoalsFor).toBeGreaterThan(c.defGoalsFor * 1.04);
   });
 });
 
@@ -616,7 +617,7 @@ describe('balance — composure decides penalties & free kicks', () => {
   });
 
   it('penalty conversion hits its targets across the whole keeper range (composure × GK)', () => {
-    const gks = [70, 75, 80, 85, 90];
+    const gks = [90, 95, 100, 105, 110]; // effective shot-stopping of real keepers
     const comps = [80, 85, 90, 95, 100, 110, 120];
     log('\n=== PÊNALTI: CONVERSÃO (compostura × goleiro) ===');
     log('  comp\\gk ' + gks.map(g => ('gk' + g).padStart(7)).join(''));
@@ -624,32 +625,33 @@ describe('balance — composure decides penalties & free kicks', () => {
       log('  ' + String(c).padEnd(7) + gks.map(g => pct(penaltyGoalChance(c, g)).padStart(7)).join(''));
     }
     log('');
-    // Targets pinned on a strong keeper (gk 90): the composure ladder 80→120 lands on
-    // 60 / 64 / 68 / 72 / 76 / 84 / 92%.
-    expect(penaltyGoalChance(80, 90)).toBeCloseTo(0.60, 2);
-    expect(penaltyGoalChance(90, 90)).toBeCloseTo(0.68, 2);
-    expect(penaltyGoalChance(100, 90)).toBeCloseTo(0.76, 2);
-    expect(penaltyGoalChance(110, 90)).toBeCloseTo(0.84, 2);
-    expect(penaltyGoalChance(120, 90)).toBeCloseTo(0.92, 2);
+    // A designated taker (≈93 effective) against a typical keeper (≈105) converts ≈76%.
+    expect(penaltyGoalChance(93, 105)).toBeCloseTo(0.76, 1);
+    // The composure ladder on a strong keeper (110) keeps rising, with no ceiling.
+    expect(penaltyGoalChance(80, 110)).toBeGreaterThan(0.5);
+    expect(penaltyGoalChance(120, 110)).toBeGreaterThan(penaltyGoalChance(100, 110) + 0.08);
+    expect(penaltyGoalChance(150, 110)).toBeGreaterThan(penaltyGoalChance(120, 110));
     // The keeper carries real weight: a great shot-stopper drags conversion down a lot.
-    expect(penaltyGoalChance(95, 70) - penaltyGoalChance(95, 90)).toBeGreaterThan(0.15);
+    expect(penaltyGoalChance(95, 90) - penaltyGoalChance(95, 110)).toBeGreaterThan(0.15);
     // Both axes monotonic — composure up ⇒ more, keeper up ⇒ less.
-    expect(penaltyGoalChance(110, 80)).toBeGreaterThan(penaltyGoalChance(80, 80));
-    expect(penaltyGoalChance(95, 75)).toBeGreaterThan(penaltyGoalChance(95, 85));
+    expect(penaltyGoalChance(110, 100)).toBeGreaterThan(penaltyGoalChance(80, 100));
+    expect(penaltyGoalChance(95, 95)).toBeGreaterThan(penaltyGoalChance(95, 105));
   });
 
   it('free-kick conversion rises with composure (same shooting)', () => {
-    const c = (comp: number) => freeKickGoalChance(90, comp);
+    const c = (comp: number) => freeKickGoalChance(90, comp, 105);
     log('\n=== COMPOSTURA NA FALTA (finalização 90) ===');
     log(`  compostura 82 → ${pct(c(82))} | 90 → ${pct(c(90))} | 99 → ${pct(c(99))}\n`);
     // monotonic in the active range — more composure, more chance
-    expect(c(82)).toBeGreaterThan(0.015);
+    expect(c(82)).toBeGreaterThan(0.01);
     expect(c(90)).toBeGreaterThan(c(82));
     expect(c(99)).toBeGreaterThan(c(90));
     // a cool taker converts free kicks far more than a nervous one (same shooting)
-    expect(freeKickGoalChance(88, 95)).toBeGreaterThan(freeKickGoalChance(88, 55) * 1.5);
-    // clamped to the design floor / ceiling so free kicks stay rare
-    expect(freeKickGoalChance(1, 1)).toBe(0.015);
-    expect(freeKickGoalChance(99, 99)).toBe(0.11);
+    expect(freeKickGoalChance(88, 95, 105)).toBeGreaterThan(freeKickGoalChance(88, 55, 105) * 1.5);
+    // typical takers against typical keepers stay rare (real football ≈6–8%)
+    expect(freeKickGoalChance(90, 90, 105)).toBeGreaterThan(0.04);
+    expect(freeKickGoalChance(90, 90, 105)).toBeLessThan(0.10);
+    // a better keeper always saves more
+    expect(freeKickGoalChance(95, 95, 120)).toBeLessThan(freeKickGoalChance(95, 95, 100));
   });
 });
