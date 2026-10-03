@@ -30,6 +30,8 @@ export interface GoalMoment {
 
 /** How long each version stays on screen (it also holds the replay clock). */
 export const GOAL_CELEBRATION_MS = { mine: 3600, against: 2800 } as const;
+/** Fade-out at the end; the page unmounts the overlay only after it. */
+export const GOAL_CELEBRATION_FADE_MS = 220;
 
 const CARDS_MOUNT_DELAY_MS = 120;
 
@@ -56,12 +58,14 @@ const KEYFRAMES = `
 @media (prefers-reduced-motion: reduce) { .goal-fx { display: none; } }
 `;
 
-export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, onSkip }: {
+export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, leaving = false, onSkip }: {
   goal: GoalMoment;
   homeTeam: Team;
   awayTeam: Team;
   /** The goal favours the viewer (or a neutral spectator is watching). */
   mine: boolean;
+  /** Fading out; the parent removes the overlay when the fade ends. */
+  leaving?: boolean;
   /** Tap to dismiss early (solo only). */
   onSkip?: () => void;
 }) {
@@ -88,9 +92,8 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, onSkip
       role="alert"
       aria-live="assertive"
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.2 } }}
-      transition={{ duration: 0.15 }}
+      animate={{ opacity: leaving ? 0 : 1 }}
+      transition={{ duration: leaving ? GOAL_CELEBRATION_FADE_MS / 1000 : 0.15, ease: 'easeOut' }}
       onClick={onSkip}
       className={`absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden px-4 ${onSkip ? 'cursor-pointer' : 'pointer-events-none'}`}
       style={{ background: `radial-gradient(70% 55% at 50% 50%, ${accent}26 0%, rgba(5,5,10,.94) 62%), rgba(5,5,10,.94)`, willChange: 'opacity' }}

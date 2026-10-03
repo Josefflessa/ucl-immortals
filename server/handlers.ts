@@ -2161,6 +2161,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
       applySeatRule(socket, io, room, player, "set_martir_targets", seat => seatRules.setMartirTargets(seat, playerId, targetIds));
     });
 
+    // 🤵 Padrinho — choose the XI teammate (godchild) who receives the +3. "" = automatic.
+    on("set_padrinho_target", ({ roomCode, playerId, targetId }: { roomCode: string; playerId: string; targetId: string }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || !player.team) return;
+      if (!isValidId(playerId) || (targetId !== "" && !isValidId(targetId))) return;
+      applySeatRule(socket, io, room, player, "set_padrinho_target", seat => seatRules.setPadrinhoTarget(seat, playerId, targetId));
+    });
+
     // ⭐ Carta Evoluída: aplicar um pacote de 6 pontos ao atributo escolhido (só carta do próprio time).
     on("set_evolve_point", ({ roomCode, playerId, attr, delta }: { roomCode: string; playerId: string; attr: any; delta: number }) => {
       const room = rooms.get(roomCode);

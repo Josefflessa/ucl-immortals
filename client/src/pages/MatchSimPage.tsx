@@ -7,7 +7,7 @@ import {
   activeGoalkeeperForTeam, setStatIds, statKey, playerMatchDiscipline, computePossession, tacticProfile,
   getTeamEffectiveStats,
 } from '@shared/game/gameEngine';
-import GoalCelebration, { GOAL_CELEBRATION_MS, type GoalMoment } from '../components/game/match/GoalCelebration';
+import GoalCelebration, { GOAL_CELEBRATION_FADE_MS, GOAL_CELEBRATION_MS, type GoalMoment } from '../components/game/match/GoalCelebration';
 import {
   selectApproach, buildUpDesc, dangerAttemptMsg, saveCelebMsg, missCelebMsg,
   Approach,
@@ -112,6 +112,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
   const [userPaused, setUserPaused] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [goalAlert, setGoalAlert] = useState<GoalMoment | null>(null);
+  // The goal overlay fades itself out and only then unmounts. Relying on an exit
+  // animation made it blink: the replay clock resumes the moment the alert clears,
+  // and those per-minute re-renders restarted the half-finished fade.
+  const [goalLeaving, setGoalLeaving] = useState(false);
   // Own ref, NOT tied to the danger-stage effect's cleanup: that effect
   // re-runs (and tears down) the instant dangerState flips stage 2 -> 3, which
   // happens synchronously right after this timer is scheduled — clearing it
@@ -119,19 +123,22 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
   // goalAlert stuck forever. This only clears on a genuinely new alert or on
   // unmount.
   const goalAlertHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showGoalAlert = (alert: GoalMoment, hideAfterMs: number) => {
+  const leaveGoalAlert = () => {
     if (goalAlertHideTimerRef.current) clearTimeout(goalAlertHideTimerRef.current);
-    setGoalAlert(alert);
+    setGoalLeaving(true);
     goalAlertHideTimerRef.current = setTimeout(() => {
       goalAlertHideTimerRef.current = null;
       setGoalAlert(null);
-    }, hideAfterMs);
+      setGoalLeaving(false);
+    }, GOAL_CELEBRATION_FADE_MS);
   };
-  const dismissGoalAlert = () => {
+  const showGoalAlert = (alert: GoalMoment, hideAfterMs: number) => {
     if (goalAlertHideTimerRef.current) clearTimeout(goalAlertHideTimerRef.current);
-    goalAlertHideTimerRef.current = null;
-    setGoalAlert(null);
+    setGoalLeaving(false);
+    setGoalAlert(alert);
+    goalAlertHideTimerRef.current = setTimeout(leaveGoalAlert, hideAfterMs);
   };
+  const dismissGoalAlert = () => { if (!goalLeaving) leaveGoalAlert(); };
   // A neutral spectator (neither side is theirs) gets the celebratory version for every goal.
   const viewerInMatch = initialHome.id === playerTeamId || initialAway.id === playerTeamId;
   const goalFavoursViewer = (teamId: string) => !viewerInMatch || teamId === playerTeamId;
@@ -503,7 +510,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     setHomeScore(replayResult.homeGoals);
     setAwayScore(replayResult.awayGoals);
     if (replayResult.playerStats) setPlayerMatchStats(replayResult.playerStats);
+    if (goalAlertHideTimerRef.current) clearTimeout(goalAlertHideTimerRef.current);
+    goalAlertHideTimerRef.current = null;
     setGoalAlert(null);
+    setGoalLeaving(false);
     if (replayResult.penaltyWinner) {
       // Skip past penalty replay too
       const kicks = replayResult.penaltyKicks ?? [];
@@ -863,18 +873,17 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     <AppShell className="h-dvh flex flex-col relative overflow-hidden select-none">
       
       {/* ── 1. GOAL SPLASH SCREEN ── */}
-      <AnimatePresence>
-        {goalAlert && (
-          <GoalCelebration
-            key={`${goalAlert.minute}-${goalAlert.homeScore}-${goalAlert.awayScore}`}
-            goal={goalAlert}
-            homeTeam={homeTeam}
-            awayTeam={awayTeam}
-            mine={goalFavoursViewer(goalAlert.teamId)}
-            onSkip={broadcastMode ? undefined : dismissGoalAlert}
-          />
-        )}
-      </AnimatePresence>
+      {goalAlert && (
+        <GoalCelebration
+          key={`${goalAlert.minute}-${goalAlert.homeScore}-${goalAlert.awayScore}`}
+          goal={goalAlert}
+          homeTeam={homeTeam}
+          awayTeam={awayTeam}
+          mine={goalFavoursViewer(goalAlert.teamId)}
+          leaving={goalLeaving}
+          onSkip={broadcastMode ? undefined : dismissGoalAlert}
+        />
+      )}
 
       {/* ── Spectator bar: watching someone else's tie → leave whenever you want ── */}
       {state.spectating && (

@@ -35,7 +35,7 @@ const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'shop_pick_pack', 'shop_turbinar', 'shop_train', 'shop_remove_variant',
   'place_bet', 'cancel_bet', 'heal_injury', 'emergency_replace_player',
   'market_sell', 'market_list', 'market_cancel', 'market_buy',
-  'player_ready', 'player_unready', 'swap_player_team', 'set_martir_targets', 'remove_player',
+  'player_ready', 'player_unready', 'swap_player_team', 'set_martir_targets', 'set_padrinho_target', 'remove_player',
   'set_evolve_point', 'unlock_player_specialization', 'choose_player_specialization', 'reset_evolve_points',
   'reroll_reinforcement', 'pick_reinforcement', 'dismiss_reinforcement', 'reroll_missions',
   'set_auto_evolve_attribute', 'accept_mission', 'remove_mission', 'dismiss_mission_resolution',

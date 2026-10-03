@@ -51,6 +51,8 @@ const DRAFT_ARROGANTE_CHANCE = 0.03; // 👑 Arrogante — +2 por gol; −1 aos 
 const DRAFT_ESTRIBADO_CHANCE = 0.03; // 💰 Estribado — +1 por cada 100 créditos disponíveis
 const DRAFT_TODOS_POR_UM_CHANCE = 0.03; // 🤝 Todos por um — só ativa quando fecha o XI
 const DRAFT_MERCENARIO_CHANCE = 0.03; // 🏆 Conquistador — +2 por missão concluída
+const DRAFT_PADRINHO_CHANCE = 0.03; // 🤵 Padrinho — +3 no afilhado; cresce com os gols dele
+const DRAFT_LAPIDADOR_CHANCE = 0.03; // 💎 Lapidador — vitória como titular lapida toda a reserva
 export const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
@@ -100,6 +102,9 @@ const ARROGANTE_TEAM_PENALTY = 1;
 export const TODOS_POR_UM_STAT_BOOST = 20;
 export const TODOS_POR_UM_CHEM_BONUS = 50;
 export const MERCENARIO_STAT_BOOST_PER_MISSION = 2;
+export const PADRINHO_AFILHADO_BOOST = 3;
+export const PADRINHO_BOOST_PER_GOAL = 1;
+export const LAPIDADOR_RESERVE_BOOST = 1;
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */
 export function prodigioStatBoost(starts: number | undefined): number {
@@ -124,6 +129,11 @@ export function arroganteStatBoost(goals: number | undefined): number {
 /** Returns the all-attribute penalty Arrogante applies to every other starter. */
 export function arroganteTeamPenalty(goals: number | undefined): number {
   return Math.floor(Math.max(0, goals ?? 0) / ARROGANTE_GOALS_PER_PENALTY) * ARROGANTE_TEAM_PENALTY;
+}
+
+/** Returns Padrinho's own permanent bonus: +1 per goal the godchild scored with both starting. */
+export function padrinhoStatBoost(goals: number | undefined): number {
+  return Math.max(0, Math.floor(goals ?? 0)) * PADRINHO_BOOST_PER_GOAL;
 }
 
 /** Returns Conquistador's all-attribute bonus from completed missions. */
@@ -267,6 +277,14 @@ function applyDraftVariant(p: Player): Player {
   // 🏆 Conquistador — começa sem missões acumuladas e cresce com o mural da campanha.
   acc += DRAFT_MERCENARIO_CHANCE;
   if (r < acc) return { ...p, mercenario: true, mercenarioMissions: 0, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 🤵 Padrinho — começa sem gols do afilhado; o afilhado é escolhido no elenco.
+  acc += DRAFT_PADRINHO_CHANCE;
+  if (r < acc) return { ...p, padrinho: true, padrinhoGoals: 0, traits: rollPlayerTraits(p.position, p.rarity) };
+
+  // 💎 Lapidador — flag pura; o bônus vai para as cartas da reserva a cada vitória.
+  acc += DRAFT_LAPIDADOR_CHANCE;
+  if (r < acc) return { ...p, lapidador: true, traits: rollPlayerTraits(p.position, p.rarity) };
 
   // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
   return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
@@ -545,7 +563,7 @@ export function drawUniquePackCard(offerIds: string[], ownedIds: string[]): Play
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(
   player: Player,
-  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario',
+  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador',
   competitionStats: { goals?: number; assists?: number; missionsCompleted?: number } = {},
 ): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata' || variant === 'fragil') {
@@ -564,12 +582,14 @@ export function applyShopVariant(
   if (variant === 'garcom') return { ...player, garcom: true, garcomAssists: Math.max(0, competitionStats.assists ?? 0), garcomMatchIds: [] };
   if (variant === 'arrogante') return { ...player, arrogante: true, arroganteGoals: Math.max(0, competitionStats.goals ?? 0), arroganteMatchIds: [] };
   if (variant === 'mercenario') return { ...player, mercenario: true, mercenarioMissions: Math.max(0, Math.floor(competitionStats.missionsCompleted ?? 0)) };
+  if (variant === 'padrinho') return { ...player, padrinho: true, padrinhoGoals: 0, padrinhoMatchIds: [] };
+  if (variant === 'lapidador') return { ...player, lapidador: true, lapidadorMatchIds: [] };
   return { ...player, [variant]: true };
 }
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario'] as const;
+const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -609,6 +629,8 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
   delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds; delete p.arrogante; delete p.arroganteGoals; delete p.arroganteMatchIds;
   delete p.mercenario; delete p.mercenarioMissions;
+  delete p.padrinho; delete p.padrinhoTarget; delete p.padrinhoGoals; delete p.padrinhoMatchIds;
+  delete p.lapidador; delete p.lapidadorMatchIds;
   return p;
 }
 
@@ -640,6 +662,8 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
   if (variant === 'garcom') { delete p.garcomAssists; delete p.garcomMatchIds; }
   if (variant === 'arrogante') { delete p.arroganteGoals; delete p.arroganteMatchIds; }
   if (variant === 'mercenario') delete p.mercenarioMissions;
+  if (variant === 'padrinho') { delete p.padrinhoTarget; delete p.padrinhoGoals; delete p.padrinhoMatchIds; }
+  if (variant === 'lapidador') delete p.lapidadorMatchIds;
   return p;
 }
 

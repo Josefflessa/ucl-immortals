@@ -183,7 +183,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
                 <div className="ui-panel__header flex items-center justify-between py-2.5">
                   <span className="text-[var(--ui-brand-strong)]">O QUE MUDA</span>
                 </div>
-                <div className="grid gap-2 p-3 sm:grid-cols-2" style={{ background: '#0d0d16', fontFamily: 'var(--font-game), sans-serif' }}>
+                <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2" style={{ background: '#0d0d16', fontFamily: 'var(--font-game), sans-serif' }}>
                   <div className="rounded-lg border border-[#24243A] bg-[#0A0A14] p-2.5">
                     <div className="text-[12px] font-black tracking-widest text-[#8A8A9A]">ANTES</div>
                     <p className="mt-1.5 text-xs leading-relaxed text-[#C9C9D5]">{primeDefinition?.normal ?? coach.specialAbility}</p>

@@ -610,3 +610,15 @@ export function setMartirTargets(seat: PlayerSeat, playerId: string, targetIds: 
   const targets = targetIds.filter((id): id is string => typeof id === 'string' && id !== playerId && starters.has(id)).slice(0, 2);
   return ok({ ...seat, team: { ...seat.team, players: mapPlayer(seat, playerId, card => ({ ...card, martirTargets: targets })) } });
 }
+
+/** Padrinho: one other starter is the godchild (empty string clears the choice → automatic). */
+export function setPadrinhoTarget(seat: PlayerSeat, playerId: string, targetId: unknown): SeatResult {
+  const source = seat.team.players.find(card => card.id === playerId);
+  if (!source?.padrinho || typeof targetId !== 'string') return fail();
+  if (targetId === '') {
+    return ok({ ...seat, team: { ...seat.team, players: mapPlayer(seat, playerId, ({ padrinhoTarget: _old, ...card }) => card) } });
+  }
+  const starters = new Set(seat.team.players.slice(0, 11).map(card => card.id));
+  if (targetId === playerId || !starters.has(targetId)) return fail();
+  return ok({ ...seat, team: { ...seat.team, players: mapPlayer(seat, playerId, card => ({ ...card, padrinhoTarget: targetId })) } });
+}

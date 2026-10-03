@@ -4,7 +4,7 @@
 import { COACHES, FORMATIONS, POS_PT, type Player } from '@shared/game/gameData';
 import {
   calculateChemistry, captainBestStatFromStarters, captainBoostFromStarters, computeCharacteristicBoosts,
-  getChemistryLinks, getPlayerEffectiveStats, goalkeeperShotStoppingRating, isOutfieldGoalkeeper, positionFit,
+  getChemistryLinks, getPlayerEffectiveStats, goalkeeperShotStoppingRating, isOutfieldGoalkeeper, padrinhoGodchildId, positionFit,
   type CharBoost, type EffectiveStats, type StatBreakdown,
 } from '@shared/game/gameEngine';
 import { TRAIT_MAP, getGoalkeeperTraitBonus, traitEffectLabel } from '@shared/game/traits';
@@ -61,6 +61,8 @@ export interface PlayerSheetModel {
   isKnockout: boolean;
   credits: number;
   playStyle: string;
+  /** 🤵 Padrinho in the XI: the starter currently receiving his +3. */
+  godchild: { id: string; name: string } | null;
 }
 
 export interface PlayerSheetInput {
@@ -162,6 +164,8 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
     { key: 'arrogante', ...variantInfo('arrogante', '👑', 'Arrogante') },
     { key: 'estribado', ...variantInfo('estribado', '💰', 'Estribado') },
     { key: 'mercenario', ...variantInfo('mercenario', '🏆', 'Conquistador') },
+    { key: 'padrinho', ...variantInfo('padrinho', '🤵', 'Padrinho') },
+    { key: 'lapidado', icon: '💎', label: 'Lapidado na reserva' },
     { key: 'pipoqueiro', ...variantInfo('pipoqueiro', '🍿', 'Pipoqueiro') },
     { key: 'char', icon: '🤝', label: 'Companheiros (características)' },
   ];
@@ -274,5 +278,10 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
     isKnockout: input.isKnockout ?? false,
     credits,
     playStyle,
+    godchild: (() => {
+      const id = isStarter && player.padrinho ? padrinhoGodchildId(input.players, player.id) : undefined;
+      const godchild = id ? input.players.find(p => p.id === id) : undefined;
+      return godchild ? { id: godchild.id, name: godchild.shortName } : null;
+    })(),
   };
 }

@@ -127,7 +127,7 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
             Quando este esquema levar vantagem sobre o adversário, esse é o grau do benefício durante a partida.
           </p>
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="rounded-lg border border-[#22C55E44] bg-[#22C55E0D] px-2.5 py-2">
             <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[#5EDB82]">Vantagem contra</div>
             <div className="mt-1"><MatchupPills ids={active.counters} tone="positive" /></div>

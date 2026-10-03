@@ -9,7 +9,7 @@ import {
   matchRoleForPlayer, STANDARD_TABLE_POINTS,
   createKnockoutBracket, advanceKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
-  PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant, stripSpecificVariant, applyMatchStatGrowth,
+  PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant, stripSpecificVariant, applyMatchStatGrowth, PADRINHO_AFILHADO_BOOST, LAPIDADOR_RESERVE_BOOST, padrinhoStatBoost,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, COLECIONADOR_PER_RESERVE,
   MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
@@ -348,6 +348,45 @@ describe('⭐ cartas evoluídas', () => {
     expect(prodigioStatBoost(1)).toBe(1);
     expect(prodigioStatBoost(2)).toBe(2);
     expect(prodigioStatBoost(5)).toBe(5);
+  });
+  it('Padrinho dá +3 ao afilhado escolhido e cresce +1 por gol dele, sem duplicar', () => {
+    const godfather = mkP({ padrinho: true, padrinhoGoals: 0 });
+    const godchild = mkP({ overall: 70 });
+    const star = mkP({ overall: 90 });
+    const xi = [godfather, godchild, star, ...Array.from({ length: 8 }, () => mkP())];
+    // No choice → the highest-overall other starter is sponsored.
+    expect(computeCharacteristicBoosts(mkTeam('T', xi).players)[star.id]?.flatAll).toBe(PADRINHO_AFILHADO_BOOST);
+    const chosen = mkTeam('T', [{ ...godfather, padrinhoTarget: godchild.id }, godchild, star, ...xi.slice(3)]);
+    const boosts = computeCharacteristicBoosts(chosen.players);
+    expect(boosts[godchild.id]?.flatAll).toBe(PADRINHO_AFILHADO_BOOST);
+    expect(boosts[star.id]).toBeUndefined();
+
+    const match = { ...result('T', 'A', 2, 0), playerStats: { [`T::${godchild.id}`]: { playerId: godchild.id, playerName: godchild.shortName, teamId: 'T', rating: 7, goals: 2, assists: 0, shots: 0, tackles: 0, saves: 0, fouls: 0, yellowCards: 0, redCards: 0, keyPasses: 0, interceptions: 0, shotsOnTarget: 0 } } };
+    const once = applyMatchStatGrowth(chosen, match, 'L1:T-A');
+    const duplicate = applyMatchStatGrowth(once, match, 'L1:T-A');
+    expect(once.players[0].padrinhoGoals).toBe(2);
+    expect(duplicate.players[0].padrinhoGoals).toBe(2);
+    expect(padrinhoStatBoost(2)).toBe(2);
+    expect(getPlayerEffectiveStats(once.players[0], 0, false, COACHES[0].id, 0, 'balanced', {}).breakdown.pace.padrinho).toBe(2);
+  });
+  it('Lapidador dá +1 permanente a toda a reserva por vitória como titular, acumula e não duplica', () => {
+    const polisher = mkP({ lapidador: true });
+    const second = mkP({ lapidador: true });
+    const reserveA = mkP();
+    const reserveB = mkP();
+    const team = mkTeam('T', [polisher, second, ...Array.from({ length: 9 }, () => mkP()), reserveA, reserveB]);
+    const win = { ...result('T', 'A', 1, 0), playerStats: {} };
+    const once = applyMatchStatGrowth(team, win, 'L1:T-A');
+    const duplicate = applyMatchStatGrowth(once, win, 'L1:T-A');
+    expect(once.players[11].lapidadoBoost).toBe(2 * LAPIDADOR_RESERVE_BOOST);
+    expect(duplicate.players[12].lapidadoBoost).toBe(2 * LAPIDADOR_RESERVE_BOOST);
+    expect(once.players[2].lapidadoBoost).toBeUndefined();
+    const loss = applyMatchStatGrowth(once, { ...result('T', 'A', 0, 1), playerStats: {} }, 'L2:T-A');
+    expect(loss.players[11].lapidadoBoost).toBe(2);
+    const reserveEffective = getPlayerEffectiveStats(once.players[11], 0, false, COACHES[0].id, 0, 'balanced', {});
+    expect(reserveEffective.breakdown.shooting.lapidado).toBe(2);
+    // The polished bonus belongs to the card, so it survives the reserve being promoted or stripped.
+    expect(stripVariant(once.players[11]).lapidadoBoost).toBe(2);
   });
   it('Goleador e Garçom acumulam estatísticas oficiais sem duplicar após repetir o resultado', () => {
     const scorer = mkP({ goleador: true, goleadorGoals: 0 });

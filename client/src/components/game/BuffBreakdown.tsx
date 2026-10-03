@@ -7,10 +7,10 @@ import {
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
   FORASTEIRO_STAT_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
   INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_STAT_PENALTY,
-  MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
+  LAPIDADOR_RESERVE_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
   PILAR_CHEM_BONUS, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST,
   TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
-  garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
+  garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, padrinhoStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
 } from '@shared/game/gameEngine';
 import { getTacticById, type Player } from '@shared/game/gameData';
 import { getCardVariants } from './PlayerCard';
@@ -83,6 +83,8 @@ function variantState(variant: Variant, model: PlayerSheetModel): { active: bool
     case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'não é o único titular com característica' : 'só vale como titular' };
     case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'divide país ou clube com outro titular' : 'só vale como titular' };
     case 'todosPorUm': return sources.some(s => s.type === 'todosPorUm') ? { active: true } : { active: false, inactiveReason: 'os 11 titulares precisam ter a característica' };
+    case 'padrinho':
+    case 'lapidador': return model.isStarter ? { active: true } : { active: false, inactiveReason: 'só vale como titular' };
     default: {
       // Characteristics that grow over time: nothing accumulated yet means no effect yet.
       const growing: Record<string, number> = {
@@ -175,6 +177,14 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
       const missions = p.mercenarioMissions ?? 0;
       return { chips: [{ text: `+${mercenarioStatBoost(missions)} EM CADA ATRIBUTO`, color: GREEN }], description: `+${MERCENARIO_STAT_BOOST_PER_MISSION} por missão concluída. Já concluiu ${missions}.` };
     }
+    case 'padrinho': {
+      const goals = p.padrinhoGoals ?? 0;
+      const chips: Chip[] = [{ text: `+${PADRINHO_AFILHADO_BOOST} EM TUDO NO AFILHADO${model.godchild ? `: ${model.godchild.name.toUpperCase()}` : ''}`, color: own }];
+      if (padrinhoStatBoost(goals) > 0) chips.push({ text: `+${padrinhoStatBoost(goals)} EM CADA ATRIBUTO NELE`, color: GREEN });
+      return { chips, description: `O afilhado ganha o bônus enquanto os dois são titulares; sem escolha, vai para o titular de maior geral. A cada gol do afilhado jogando com ele, o Padrinho ganha +1 permanente (${goals} até agora).` };
+    }
+    case 'lapidador':
+      return { chips: [{ text: `+${LAPIDADOR_RESERVE_BOOST} PERMANENTE NA RESERVA POR VITÓRIA`, color: own }], description: 'A cada vitória em que ele for titular, todos os jogadores da reserva ganham +1 em todos os atributos, para sempre. Mais de um Lapidador titular soma.' };
     default:
       return { chips: [{ text: variant.label.toUpperCase(), color: own }], description: '' };
   }
@@ -190,6 +200,7 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   colecionador: { icon: '🧩', label: 'COLECIONADOR', color: '#C084FC' },
   todosPorUm: { icon: '🤝', label: 'TODOS POR UM', color: '#4ADE80' },
   arrogante: { icon: '👑', label: 'ARROGANTE', color: '#E879F9' },
+  padrinho: { icon: '🤵', label: 'PADRINHO', color: '#C4B5FD' },
 };
 
 export default function BuffBreakdown({ model, collapsible = false }: { model: PlayerSheetModel; collapsible?: boolean }) {
@@ -197,6 +208,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
   const { eff, player, chem } = model;
   const variants = getCardVariants(player);
   const medical = Math.max(0, Math.floor(player.medicalReturnBoost ?? 0));
+  const lapidado = Math.max(0, Math.floor(player.lapidadoBoost ?? 0));
   const train = perAttr(model, 'train');
   const evolution = [...perAttr(model, 'evolve'), ...perAttr(model, 'specialization')];
   const chemPerAttr = perAttr(model, 'chem');
@@ -256,6 +268,12 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       <Row key="medical" icon="🏥" name="DEPARTAMENTO MÉDICO" color="#22D3EE">
         <Chips items={[{ text: `+${medical} EM CADA ATRIBUTO`, color: '#22D3EE' }]} />
         <Note>Bônus permanente acumulado ao voltar de lesões.</Note>
+      </Row>
+    ),
+    lapidado > 0 && (
+      <Row key="lapidado" icon="💎" name="LAPIDADO" color="#93C5FD">
+        <Chips items={[{ text: `+${lapidado} EM CADA ATRIBUTO`, color: '#93C5FD' }]} />
+        <Note>Bônus permanente recebido de Lapidadores em vitórias enquanto estava na reserva.</Note>
       </Row>
     ),
   ];

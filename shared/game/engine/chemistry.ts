@@ -5,11 +5,11 @@ import { AttrKey, getTraitAttributeBonus } from '../traits';
 import { sameClub } from '../crests';
 import { projectLevel } from '../clubProjects';
 import { random } from '../random';
-import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedPlayer, type Team, formationRoleForPlayer, matchRoleForPlayer } from './teamModel';
+import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedPlayer, type Team, formationRoleForPlayer, matchRoleForPlayer, padrinhoGodchildId } from './teamModel';
 import { getEffectiveAttribute, SECONDARY_STAT_MULT, positionFit, specializationAttributeBonus } from './attributes';
 import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
-import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, hasVariant } from './draft';
+import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant } from './draft';
 
 // Playing in the coach's preferred formation gels the side: a flat bonus to the team's
 // TOTAL chemistry, which can push it into a higher global-bonus tier (passe/ritmo/especial).
@@ -161,6 +161,8 @@ export interface StatBreakdown {
   arrogante: number;  // 👑 Arrogante — +2 em tudo por gol; −1 nos outros titulares a cada 2 gols
   estribado: number;  // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
   mercenario: number; // 🏆 Conquistador — +2 em tudo por missão concluída
+  padrinho: number; // 🤵 Padrinho — +1 permanente por gol do afilhado
+  lapidado: number; // 💎 bônus permanente recebido de Lapidadores enquanto estava na reserva
   char: number;       // 🩸❤️🪑🤝 team-effect characteristics buffing THIS player
   pipoqueiro: number; // 🍿 Pipoqueiro — +N em tudo na fase de liga, −N no mata-mata
   specialization: number; // ⭐ Especialização do nível 4 — +6 nos dois atributos da área
@@ -463,6 +465,8 @@ export function getPlayerEffectiveStats(
   const arroganteBonus = (_attr: AttrKey): number => player.arrogante ? arroganteStatBoost(player.arroganteGoals) : 0;
   const estribadoBonus = (_attr: AttrKey): number => player.estribado ? estribadoStatBoost(context?.credits) : 0;
   const mercenarioBonus = (_attr: AttrKey): number => player.mercenario ? mercenarioStatBoost(player.mercenarioMissions) : 0;
+  const padrinhoBonus = (_attr: AttrKey): number => player.padrinho ? padrinhoStatBoost(player.padrinhoGoals) : 0;
+  const lapidadoBonus = (_attr: AttrKey): number => Math.max(0, player.lapidadoBoost ?? 0);
 
   // 🩸❤️🪑🤝 Team-effect characteristics buffing THIS player.
   const charB = context?.charBoosts?.[player.id];
@@ -473,7 +477,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + mercenarioBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + mercenarioBonus(attr) + padrinhoBonus(attr) + lapidadoBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -515,6 +519,8 @@ export function getPlayerEffectiveStats(
     arrogante: arroganteBonus(attr),
     estribado: estribadoBonus(attr),
     mercenario: mercenarioBonus(attr),
+    padrinho: padrinhoBonus(attr),
+    lapidado: lapidadoBonus(attr),
     char: charBonus(attr),
     pipoqueiro: pipoqBonus(attr),
   });
@@ -578,7 +584,7 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
@@ -609,6 +615,13 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
       targets = [...targets, ...fill].slice(0, 2);
     }
     for (const id of targets) contribute(id, { type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: MARTIR_TARGET_BOOST, perStat: {} });
+  }
+  // 🤵 Padrinho — o afilhado escolhido (ou o titular de maior overall além dele) ganha +3 em tudo
+  // enquanto os dois são titulares. Vários Padrinhos podem apadrinhar o mesmo jogador (acumula).
+  for (const godfather of xi) {
+    if (!godfather.padrinho) continue;
+    const godchildId = padrinhoGodchildId(xi, godfather.id);
+    if (godchildId) contribute(godchildId, { type: 'padrinho', fromId: godfather.id, fromName: godfather.shortName, flatAll: PADRINHO_AFILHADO_BOOST, perStat: {} });
   }
   // 🪑 12º Homem — no BANCO (índice ≥11): +1 em todos os atributos a todo o XI.
   for (let i = 11; i < players.length; i++) {

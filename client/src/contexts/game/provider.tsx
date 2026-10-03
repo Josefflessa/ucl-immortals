@@ -89,6 +89,7 @@ interface GameContextType {
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
   martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
+  padrinhoTargetOnline: (playerId: string, targetId: string) => void;
   setEvolvePointOnline: (playerId: string, attr: AttrKey, delta: number) => void;
   setAutoEvolveAttributeOnline: (playerId: string, attr: AttrKey | null) => void;
   unlockSpecializationOnline: (playerId: string) => void;
@@ -647,6 +648,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const martirTargetsOnline = useCallback((playerId: string, targetIds: string[]) => {
     emitOnlineAction("set_martir_targets", { roomCode: state.roomCode, playerId, targetIds });
   }, [emitOnlineAction, state.roomCode]);
+  const padrinhoTargetOnline = useCallback((playerId: string, targetId: string) => {
+    emitOnlineAction("set_padrinho_target", { roomCode: state.roomCode, playerId, targetId });
+  }, [emitOnlineAction, state.roomCode]);
   const setEvolvePointOnline = useCallback((playerId: string, attr: AttrKey, delta: number) => {
     // Render the allocation immediately. The server remains authoritative: its
     // next room update replaces this optimistic value, and a rejected command
@@ -805,7 +809,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, ensurePlayerPackOffersOnline, shopOpenPlayerPackOnline, shopClaimPlayerPackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, tradeInviteOnline, tradeLeaveOnline, tradeAcceptInviteOnline, tradeSelectOnline, tradeReadyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
-    swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, setAutoEvolveAttributeOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
+    swapPlayerTeamOnline, martirTargetsOnline, padrinhoTargetOnline, setEvolvePointOnline, setAutoEvolveAttributeOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline, requestMatchResultOnline, acceptMissionOnline, rerollMissionsOnline, removeMissionOnline, dismissMissionResolutionOnline,
     savedSoloCampaign, continueSoloCampaign, discardSoloCampaign,
   // eslint-disable-next-line react-hooks/exhaustive-deps

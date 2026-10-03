@@ -2,6 +2,7 @@
 
 import { Player, FORMATIONS } from '../gameData';
 import { type ClubProjectsState } from '../clubProjects';
+import { LAPIDADOR_RESERVE_BOOST } from './draft';
 
 // Premium variants keep their own card IDs for inventory/UI. Cards that represent
 // a different club/era may provide historicalPlayerId so historical chemistry
@@ -380,6 +381,29 @@ export function teamLostMatch(result: MatchResult, teamId: string): boolean {
   return decidedWinner != null && decidedWinner !== teamId;
 }
 
+/** 🤵 The godchild a Padrinho sponsors in this XI: the chosen starter, or else the
+ * highest-overall other starter. Undefined when the Padrinho is not in the XI. */
+export function padrinhoGodchildId(players: (Player | undefined)[], padrinhoId: string): string | undefined {
+  const xi = players.slice(0, 11).filter((p): p is Player => !!p);
+  const godfather = xi.find(p => p.id === padrinhoId);
+  if (!godfather?.padrinho) return undefined;
+  const chosen = godfather.padrinhoTarget && godfather.padrinhoTarget !== padrinhoId
+    ? xi.find(p => p.id === godfather.padrinhoTarget)
+    : undefined;
+  return (chosen ?? xi.filter(p => p.id !== padrinhoId).sort((x, y) => y.overall - x.overall)[0])?.id;
+}
+
+/** True when a team won the match, including a knockout win on penalties. */
+export function teamWonMatch(result: MatchResult, teamId: string): boolean {
+  const isHome = result.homeTeamId === teamId;
+  if (!isHome && result.awayTeamId !== teamId) return false;
+  const goalsFor = isHome ? result.homeGoals : result.awayGoals;
+  const goalsAgainst = isHome ? result.awayGoals : result.homeGoals;
+  if (goalsFor !== goalsAgainst) return goalsFor > goalsAgainst;
+  const decidedWinner = result.penaltyWinner ?? result.winner;
+  return decidedWinner === teamId;
+}
+
 /** Apply a Resiliente stack to the cards carrying it in the match XI. Bench cards do not grow. */
 export function applyDefeatGrowth(team: Team, result: MatchResult): Team {
   if (!teamLostMatch(result, team.id)) return team;
@@ -441,6 +465,46 @@ export function applyMatchStatGrowth(team: Team, result: MatchResult, matchId = 
     }
     return next;
   });
+
+  const lineup = team.players;
+  const goalsOf = (playerId: string): number => {
+    const stat = result.playerStats?.[statKey(team.id, playerId)];
+    return Math.max(0, stat?.goals ?? 0);
+  };
+
+  // 🤵 Padrinho: +1 permanente por gol do afilhado numa partida em que os dois foram titulares.
+  for (let i = 0; i < Math.min(11, players.length); i++) {
+    const godfather = players[i];
+    if (!godfather?.padrinho) continue;
+    const receipts = Array.isArray(godfather.padrinhoMatchIds) ? godfather.padrinhoMatchIds : [];
+    if (receipts.includes(matchId)) continue;
+    const godchildId = padrinhoGodchildId(lineup, godfather.id);
+    players[i] = {
+      ...godfather,
+      padrinhoGoals: (godfather.padrinhoGoals ?? 0) + (godchildId ? goalsOf(godchildId) : 0),
+      padrinhoMatchIds: Array.from(new Set([...receipts, matchId])).slice(-64),
+    };
+    changed = true;
+  }
+
+  // 💎 Lapidador: cada Lapidador titular numa vitória lapida TODA a reserva (+1 permanente, acumula).
+  if (teamWonMatch(result, team.id)) {
+    let polishers = 0;
+    for (let i = 0; i < Math.min(11, players.length); i++) {
+      const polisher = players[i];
+      if (!polisher?.lapidador) continue;
+      const receipts = Array.isArray(polisher.lapidadorMatchIds) ? polisher.lapidadorMatchIds : [];
+      if (receipts.includes(matchId)) continue;
+      players[i] = { ...polisher, lapidadorMatchIds: Array.from(new Set([...receipts, matchId])).slice(-64) };
+      polishers++;
+    }
+    if (polishers > 0) {
+      for (let i = 11; i < players.length; i++) {
+        players[i] = { ...players[i], lapidadoBoost: (players[i].lapidadoBoost ?? 0) + polishers * LAPIDADOR_RESERVE_BOOST };
+      }
+      changed = true;
+    }
+  }
 
   return changed ? { ...team, players } : team;
 }

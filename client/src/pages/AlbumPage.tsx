@@ -176,7 +176,7 @@ function PlayerDetail({
   const catalogPath = getPlayerCatalogPath(player);
 
   return (
-    <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start">
       <div className="flex flex-col items-center md:items-start">
         {/* scale-[1.2] only stretches the paint, not the layout box — without
             this reserved space the button below sits under the card's
@@ -234,7 +234,7 @@ function PlayerDetail({
             <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--ui-text-faint)]">Atributos</h3>
             <span className="text-xs text-[var(--ui-text-muted)]">{catalogPath.country.name} · {catalogPath.league.name}</span>
           </div>
-          <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2">
             {ATTRIBUTE_LABELS.map(([key, label]) => {
               const value = player[key];
               return (
@@ -252,7 +252,7 @@ function PlayerDetail({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
             <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Clube e liga</div>
             <p className="mt-1 text-sm text-[var(--ui-text)]">
@@ -487,7 +487,7 @@ export default function AlbumPage() {
               ) : null}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_repeat(6,minmax(120px,1fr))]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_repeat(6,minmax(120px,1fr))]">
               <label htmlFor="album-search" className="min-w-0">
                 <span className="mb-1.5 block text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Buscar</span>
                 <div className="relative">

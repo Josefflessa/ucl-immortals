@@ -860,7 +860,7 @@ export default function MenuPage() {
             <p className="pt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
               Para manter a disputa igual para todos, o formato e a dificuldade são fixos:
             </p>
-            <div className="grid gap-2 pt-1 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
               <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
                 <div className="ui-kicker">FORMATO FIXO</div>
                 <div className="mt-1 text-sm font-bold text-[var(--ui-text)]">{COMPETITION_FORMAT_PRESETS[COMPETITIVE_FORMAT.id].name}</div>

@@ -211,6 +211,7 @@ export type GameAction =
   | { type: 'SWAP_PLAYER_TEAM'; indexA: number; indexB: number }
   | { type: 'SET_PLAYER_TEAM_CAPTAIN'; playerId: string }
   | { type: 'SET_PLAYER_TEAM_MARTIR_TARGETS'; playerId: string; targetIds: string[] }
+  | { type: 'SET_PLAYER_TEAM_PADRINHO_TARGET'; playerId: string; targetId: string }
   | { type: 'SET_PLAYER_TEAM_PENALTY_TAKER'; playerId: string }
   | { type: 'SET_PLAYER_TEAM_FREE_KICK_TAKER'; playerId: string }
   | { type: 'SET_PLAYER_TEAM_FORMATION'; formationId: string }

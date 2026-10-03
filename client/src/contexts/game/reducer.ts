@@ -184,6 +184,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_PLAYER_TEAM_MARTIR_TARGETS':
       return applySoloSeatRule(state, seat => seatRules.setMartirTargets(seat, action.playerId, action.targetIds));
+    case 'SET_PLAYER_TEAM_PADRINHO_TARGET':
+      return applySoloSeatRule(state, seat => seatRules.setPadrinhoTarget(seat, action.playerId, action.targetId));
 
     case 'SET_PLAYER_TEAM_PENALTY_TAKER':
       return applySoloSeatRule(state, seat => seatRules.setMatchRoles(seat, { penaltyTaker: action.playerId }));

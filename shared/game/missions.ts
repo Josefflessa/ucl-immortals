@@ -6,7 +6,7 @@
 
 import { COACHES, FORMATIONS, HISTORICAL_TRIOS, getPositionGroup } from './gameData';
 import type { MatchResult, PlayerCard, Team } from './gameEngine';
-import { calculateChemistry, positionFit } from './gameEngine';
+import { calculateChemistry, getEvolutionLevel, getTeamEffectiveStats, positionFit } from './gameEngine';
 import { sameClub } from './crests';
 
 type MissionRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -383,6 +383,41 @@ export const MISSION_CATALOG: MissionDefinition[] = [
   m('gold_legendary_core_win', 'Ouro e Lendárias', 'Vencer com pelo menos 5 titulares de raridade Ouro ou Lendária.', 'setup', 'rare', 1, 115, { kind: 'rarity_count_and_win', values: ['gold', 'legendary'], value: 5 }),
   m('elite_rarity_core_win', 'Núcleo de Elite', 'Vencer com pelo menos 4 titulares de raridade Lendária, Imortal ou Única.', 'setup', 'epic', 1, 180, { kind: 'rarity_count_and_win', values: ['legendary', 'immortal', 'unique'], value: 4 }),
   m('one_unique_win', 'Uma Joia Única', 'Vencer com exatamente 1 titular de raridade Única.', 'setup', 'rare', 1, 100, { kind: 'rarity_exact_count_and_win', values: ['unique'], value: 1 }),
+
+  // ── Leitura do jogo: placar, autoria dos gols, notas, cartões e elenco ──
+  m('draw_with_goals', 'Empate com Gols', 'Empatar uma partida marcando pelo menos 2 gols.', 'results', 'uncommon', 1, 55, { kind: 'draw_min_goals', value: 2 }),
+  m('win_conceding_two', 'Vitória Sofrida', 'Vencer uma partida sofrendo pelo menos 2 gols.', 'results', 'uncommon', 1, 60, { kind: 'win_conceding_at_least', value: 2 }),
+  m('giant_killer', 'Zebra', 'Vencer um time com geral maior que o seu.', 'results', 'rare', 1, 100, { kind: 'beat_stronger_team' }),
+  m('quick_reply', 'Resposta Rápida', 'Empatar até 10 minutos depois de sofrer um gol que te colocou atrás no placar.', 'results', 'uncommon', 1, 60, { kind: 'equalize_within', value: 10 }),
+  m('own_goal_for', 'Gol Contra a Favor', 'Vencer uma partida com um gol contra do adversário.', 'goals', 'rare', 1, 90, { kind: 'own_goal_for_and_win' }),
+  m('goal_difference_run', 'Saldo Positivo', 'Ter saldo de pelo menos +5 gols somando as próximas 3 partidas.', 'results', 'rare', 3, 110, { kind: 'goal_difference_sum' }, 5, 'accumulate'),
+  m('goals_run', 'Ataque em Série', 'Marcar 8 gols somando as próximas 3 partidas.', 'goals', 'rare', 3, 110, { kind: 'goals_sum' }, 8, 'accumulate'),
+  m('solo_goals', 'Jogada Individual', 'Marcar pelo menos 2 gols sem assistência e vencer.', 'goals', 'uncommon', 1, 60, { kind: 'unassisted_goals_and_win', value: 2 }),
+  m('team_goals', 'Futebol Coletivo', 'Vencer marcando pelo menos 2 gols, todos com assistência.', 'goals', 'rare', 1, 95, { kind: 'all_goals_assisted_and_win', value: 2 }),
+  m('goals_from_behind', 'Gols de Trás', 'Vencer marcando pelo menos 2 gols sem nenhum gol de atacante.', 'goals', 'rare', 1, 100, { kind: 'no_forward_goals_and_win', value: 2 }),
+  m('linked_goal', 'Entrosamento', 'Vencer com um gol cuja assistência veio de um companheiro do mesmo clube ou país.', 'goals', 'uncommon', 1, 55, { kind: 'linked_assist_goal_and_win' }),
+  m('historical_goal', 'Parceria Histórica', 'Marcar um gol com assistência entre dois jogadores com vínculo histórico.', 'goals', 'rare', 1, 100, { kind: 'historical_assist_goal' }),
+  m('playmaker_spread', 'Distribuidor', 'O mesmo jogador dar assistência para 2 companheiros diferentes na mesma partida.', 'goals', 'rare', 1, 95, { kind: 'assists_to_distinct_scorers', value: 2 }),
+  m('rarity_scorers', 'Gols de Raridades Diferentes', 'Vencer com gols de jogadores de pelo menos 3 raridades diferentes.', 'goals', 'rare', 1, 100, { kind: 'scorer_rarities_and_win', value: 3 }),
+  m('top_rating', 'Nota Máxima', 'Um jogador seu terminar a partida com nota 9.0 ou mais.', 'stats', 'rare', 1, 100, { kind: 'player_rating_at_least', value: 9 }),
+  m('gala_pair', 'Dupla de Gala', 'Vencer com pelo menos 2 jogadores com nota 8.0 ou mais.', 'stats', 'rare', 1, 95, { kind: 'players_rating_and_win', value: 8 }, 1),
+  m('tuned_team', 'Time Afinado', 'Vencer com todos os titulares com nota 6.5 ou mais.', 'stats', 'rare', 1, 110, { kind: 'all_starters_rating_and_win', value: 6.5 }),
+  m('flawless_backline', 'Zaga Impecável', 'Vencer com todos os defensores titulares com nota 7.0 ou mais.', 'stats', 'rare', 1, 100, { kind: 'defenders_rating_and_win', value: 7 }),
+  m('keeper_motm', 'Goleiro Decisivo', 'Vencer com o seu goleiro tendo a maior nota da partida.', 'stats', 'rare', 1, 95, { kind: 'goalkeeper_top_rating_and_win' }),
+  m('star_marked', 'Anulou o Craque', 'Vencer com o jogador de maior geral do adversário terminando com nota abaixo de 6.0.', 'stats', 'rare', 1, 100, { kind: 'opponent_star_low_rating_and_win', value: 6 }),
+  m('gala_streak', 'Sequência de Gala', 'O mesmo jogador terminar com nota 7.5 ou mais em 3 partidas seguidas.', 'stats', 'rare', 3, 120, { kind: 'player_rating_streak', value: 7.5, sequenceMode: 'same' }, 3, 'streak'),
+  m('star_decides', 'Craque Decide', 'Vencer com o titular de maior geral marcando um gol.', 'goals', 'common', 1, 35, { kind: 'top_overall_scores_and_win' }),
+  m('no_star_needed', 'Sem Depender do Craque', 'Vencer sem gol nem assistência do titular de maior geral.', 'goals', 'uncommon', 1, 60, { kind: 'win_without_top_overall' }),
+  m('scorer_streak', 'Artilheiro em Série', 'O mesmo jogador marcar em 3 partidas seguidas.', 'goals', 'rare', 3, 120, { kind: 'scorer_streak', sequenceMode: 'same' }, 3, 'streak'),
+  m('stars_score', 'Estrelas Decidem', 'Vencer com um titular Lendário, Imortal ou Único marcando um gol.', 'setup', 'uncommon', 1, 55, { kind: 'rarity_scorer_and_win', values: ['legendary', 'immortal', 'unique'] }),
+  m('base_scores', 'Base Decide', 'Vencer com um titular Bronze ou Prata marcando um gol.', 'setup', 'uncommon', 1, 60, { kind: 'rarity_scorer_and_win', values: ['bronze', 'silver'] }),
+  m('total_attack', 'Ataque Total', 'Vencer com todos os atacantes titulares marcando ou dando assistência.', 'goals', 'rare', 1, 110, { kind: 'all_forwards_contribute_and_win' }),
+  m('gamesmanship', 'Catimba', 'Vencer recebendo pelo menos 2 cartões amarelos.', 'stats', 'uncommon', 1, 55, { kind: 'own_yellows_and_win', value: 2 }),
+  m('opponent_booked', 'Adversário Pendurado', 'Vencer com o adversário recebendo pelo menos 3 cartões amarelos.', 'stats', 'uncommon', 1, 60, { kind: 'opponent_yellows_and_win', value: 3 }),
+  m('down_to_ten', 'Com Um a Menos', 'Não perder uma partida em que um jogador seu foi expulso.', 'results', 'rare', 1, 120, { kind: 'own_red_not_loss' }),
+  m('overcome_injury', 'Superação', 'Não perder uma partida em que um jogador seu se lesionou.', 'results', 'uncommon', 1, 70, { kind: 'own_injury_not_loss' }),
+  m('evolved_core', 'Elenco Evoluído', 'Vencer com pelo menos 3 titulares evoluídos.', 'setup', 'rare', 1, 90, { kind: 'evolved_starters_and_win', value: 3 }),
+  m('star_bench', 'Banco de Estrelas', 'Vencer com pelo menos 3 jogadores Lendários, Imortais ou Únicos no banco.', 'setup', 'uncommon', 1, 55, { kind: 'bench_rarity_and_win', values: ['legendary', 'immortal', 'unique'], value: 3 }),
 ];
 
 export const MISSION_MAP: Record<string, MissionDefinition> = Object.fromEntries(MISSION_CATALOG.map(definition => [definition.id, definition]));
@@ -632,6 +667,7 @@ const SPECIAL_TRAIT_KEYS: Array<keyof PlayerCard> = [
   'inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem',
   'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm',
   'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante',
+  'mercenario', 'padrinho', 'lapidador',
 ];
 
 function specialCarded(player: PlayerCard): boolean {
@@ -890,7 +926,59 @@ function historicalPairCount(context: MissionMatchContext): number {
   return pairs;
 }
 
-function ruleMatches(definition: MissionDefinition, context: MissionMatchContext): { matched: boolean; sequenceValue?: string } {
+// ── Helpers for the match-reading missions (ratings, authorship, team strength) ──
+function ratingsFor(context: MissionMatchContext, teamId: string): Map<string, number> {
+  const ratings = new Map<string, number>();
+  Object.values(context.result.playerStats ?? {}).forEach(stat => {
+    if (stat.teamId === teamId && typeof stat.rating === 'number') ratings.set(stat.playerId, stat.rating);
+  });
+  return ratings;
+}
+
+/** Average effective overall of a side's starters — the same "geral do time" the squad screen shows. */
+function startersEffectiveOverall(team: Team, starters: PlayerCard[]): number {
+  if (starters.length === 0) return 0;
+  const effective = getTeamEffectiveStats(team);
+  return Math.round(starters.reduce((sum, player) => sum + (effective[player.id]?.overall ?? player.overall), 0) / starters.length);
+}
+
+/** Highest card overall among the starters (first in lineup order on a tie). */
+function topOverallStarter(starters: PlayerCard[]): PlayerCard | undefined {
+  return starters.reduce<PlayerCard | undefined>((best, player) => !best || player.overall > best.overall ? player : best, undefined);
+}
+
+function areLinkedHistorically(first: PlayerCard, second: PlayerCard): boolean {
+  const firstIds = new Set(historicalIdentityIds(first));
+  const secondIds = new Set(historicalIdentityIds(second));
+  return (first.historicalPartners ?? []).some(id => secondIds.has(id))
+    || (second.historicalPartners ?? []).some(id => firstIds.has(id));
+}
+
+/** Equalised within `window` minutes of a goal that put the team behind. */
+function equalizedWithin(context: MissionMatchContext, window: number): boolean {
+  let own = 0;
+  let opponent = 0;
+  let behindSince: number | null = null;
+  for (const event of allGoalEvents(context)) {
+    if (event.teamId === context.teamId) own++; else opponent++;
+    if (event.teamId !== context.teamId && opponent > own) behindSince = event.minute;
+    if (event.teamId === context.teamId && own === opponent && behindSince !== null && event.minute - behindSince <= window) return true;
+    if (own >= opponent) behindSince = null;
+  }
+  return false;
+}
+
+function teamEventCount(context: MissionMatchContext, type: string, teamId: string): number {
+  return context.result.events.filter(event => event.type === type && event.teamId === teamId).length;
+}
+
+/** Keeps a "same player" streak on the player already being tracked when they still qualify. */
+function pickSequencePlayer(qualifying: string[], previous?: string): string | undefined {
+  if (previous && qualifying.includes(previous)) return previous;
+  return qualifying[0];
+}
+
+function ruleMatches(definition: MissionDefinition, context: MissionMatchContext, previous?: string): { matched: boolean; sequenceValue?: string; amount?: number } {
   const rule = definition.rule;
   if (!context.isRegulation) return { matched: false };
   const goals = goalEvents(context);
@@ -1113,6 +1201,114 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
     case 'resiliente_and_win': return { matched: context.isWin && starters.some(player => player.resiliente && (player.resilienteDefeats ?? 0) > 0) };
     case 'resiliente_comeback_win': return { matched: context.isWin && cameFromBehind(context) && starters.some(player => player.resiliente && (player.resilienteDefeats ?? 0) > 0) };
     case 'arrogante_goals_and_win': return { matched: context.isWin && starters.some(player => player.arrogante && playerGoals(player) >= (rule.value ?? 2)) };
+
+    case 'draw_min_goals': return { matched: context.isDraw && context.scoreFor >= (rule.value ?? 2) };
+    case 'win_conceding_at_least': return { matched: context.isWin && context.scoreAgainst >= (rule.value ?? 2) };
+    case 'beat_stronger_team': {
+      if (!context.isWin) return { matched: false };
+      const opponentStarters = startingPlayers(context.opponent, context.result);
+      return { matched: startersEffectiveOverall(context.opponent, opponentStarters) > startersEffectiveOverall(context.team, starters) };
+    }
+    case 'equalize_within': return { matched: equalizedWithin(context, rule.value ?? 10) };
+    case 'own_goal_for_and_win': return { matched: context.isWin && goals.some(event => !event.playerId) };
+    case 'goal_difference_sum': return { matched: true, amount: context.scoreFor - context.scoreAgainst };
+    case 'goals_sum': return { matched: true, amount: context.scoreFor };
+    case 'unassisted_goals_and_win': return { matched: context.isWin && goals.filter(event => event.playerId && !event.assisterId).length >= (rule.value ?? 2) };
+    case 'all_goals_assisted_and_win': return { matched: context.isWin && goals.length >= (rule.value ?? 2) && goals.every(event => !!event.assisterId) };
+    case 'no_forward_goals_and_win': return {
+      matched: context.isWin && goals.length >= (rule.value ?? 2) && goals.every(event => {
+        const scorer = starters.find(player => player.id === event.playerId);
+        return !scorer || getPositionGroup(scorer.position) !== 'ATT';
+      }),
+    };
+    case 'linked_assist_goal_and_win': return {
+      matched: context.isWin && goals.some(event => {
+        const scorer = starters.find(player => player.id === event.playerId);
+        const assister = starters.find(player => player.id === event.assisterId);
+        return !!scorer && !!assister && (scorer.nation === assister.nation || sameClub(scorer.club, assister.club));
+      }),
+    };
+    case 'historical_assist_goal': return {
+      matched: goals.some(event => {
+        const scorer = starters.find(player => player.id === event.playerId);
+        const assister = starters.find(player => player.id === event.assisterId);
+        return !!scorer && !!assister && areLinkedHistorically(scorer, assister);
+      }),
+    };
+    case 'assists_to_distinct_scorers': {
+      const scorersByAssister = new Map<string, Set<string>>();
+      goals.forEach(event => {
+        if (!event.assisterId || !event.playerId) return;
+        const set = scorersByAssister.get(event.assisterId) ?? new Set<string>();
+        set.add(event.playerId);
+        scorersByAssister.set(event.assisterId, set);
+      });
+      return { matched: Array.from(scorersByAssister.values()).some(set => set.size >= (rule.value ?? 2)) };
+    }
+    case 'scorer_rarities_and_win': return {
+      matched: context.isWin && new Set(starters.filter(player => playerGoals(player) > 0).map(player => player.rarity)).size >= (rule.value ?? 3),
+    };
+    case 'player_rating_at_least': {
+      const ratings = ratingsFor(context, context.teamId);
+      return { matched: starters.some(player => (ratings.get(player.id) ?? 0) >= (rule.value ?? 9)) };
+    }
+    case 'players_rating_and_win': {
+      const ratings = ratingsFor(context, context.teamId);
+      return { matched: context.isWin && starters.filter(player => (ratings.get(player.id) ?? 0) >= (rule.value ?? 8)).length >= 2 };
+    }
+    case 'all_starters_rating_and_win': {
+      const ratings = ratingsFor(context, context.teamId);
+      return { matched: context.isWin && starters.length > 0 && starters.every(player => (ratings.get(player.id) ?? 0) >= (rule.value ?? 6.5)) };
+    }
+    case 'defenders_rating_and_win': {
+      const ratings = ratingsFor(context, context.teamId);
+      const defenders = starters.filter(player => getPositionGroup(player.position) === 'DEF');
+      return { matched: context.isWin && defenders.length > 0 && defenders.every(player => (ratings.get(player.id) ?? 0) >= (rule.value ?? 7)) };
+    }
+    case 'goalkeeper_top_rating_and_win': {
+      if (!context.isWin) return { matched: false };
+      const own = ratingsFor(context, context.teamId);
+      const keeper = starters.find(player => getPositionGroup(player.position) === 'GK');
+      const keeperRating = keeper ? own.get(keeper.id) : undefined;
+      if (keeperRating === undefined) return { matched: false };
+      const everyone = [...Array.from(own.entries()), ...Array.from(ratingsFor(context, context.opponent.id).entries())];
+      return { matched: everyone.every(([id, rating]) => id === keeper!.id || rating <= keeperRating) };
+    }
+    case 'opponent_star_low_rating_and_win': {
+      if (!context.isWin) return { matched: false };
+      const star = topOverallStarter(startingPlayers(context.opponent, context.result));
+      const rating = star ? ratingsFor(context, context.opponent.id).get(star.id) : undefined;
+      return { matched: rating !== undefined && rating < (rule.value ?? 6) };
+    }
+    case 'player_rating_streak': {
+      const ratings = ratingsFor(context, context.teamId);
+      const qualifying = starters.filter(player => (ratings.get(player.id) ?? 0) >= (rule.value ?? 7.5)).map(player => player.id);
+      const chosen = pickSequencePlayer(qualifying, previous);
+      return { matched: !!chosen, sequenceValue: chosen };
+    }
+    case 'top_overall_scores_and_win': {
+      const star = topOverallStarter(starters);
+      return { matched: context.isWin && !!star && playerGoals(star) > 0 };
+    }
+    case 'win_without_top_overall': {
+      const star = topOverallStarter(starters);
+      return { matched: context.isWin && !!star && !playerHasGoalOrAssist(context, star.id) };
+    }
+    case 'scorer_streak': {
+      const chosen = pickSequencePlayer(starters.filter(player => playerGoals(player) > 0).map(player => player.id), previous);
+      return { matched: !!chosen, sequenceValue: chosen };
+    }
+    case 'rarity_scorer_and_win': return { matched: context.isWin && starters.some(player => rule.values?.includes(player.rarity) && playerGoals(player) > 0) };
+    case 'all_forwards_contribute_and_win': {
+      const forwards = starters.filter(player => getPositionGroup(player.position) === 'ATT');
+      return { matched: context.isWin && forwards.length > 0 && forwards.every(player => playerHasGoalOrAssist(context, player.id)) };
+    }
+    case 'own_yellows_and_win': return { matched: context.isWin && teamEventCount(context, 'yellow', context.teamId) >= (rule.value ?? 2) };
+    case 'opponent_yellows_and_win': return { matched: context.isWin && teamEventCount(context, 'yellow', context.opponent.id) >= (rule.value ?? 3) };
+    case 'own_red_not_loss': return { matched: (context.isWin || context.isDraw) && teamEventCount(context, 'red', context.teamId) > 0 };
+    case 'own_injury_not_loss': return { matched: (context.isWin || context.isDraw) && teamEventCount(context, 'injury', context.teamId) > 0 };
+    case 'evolved_starters_and_win': return { matched: context.isWin && starters.filter(player => getEvolutionLevel(player) > 0).length >= (rule.value ?? 3) };
+    case 'bench_rarity_and_win': return { matched: context.isWin && context.bench.filter(player => rule.values?.includes(player.rarity)).length >= (rule.value ?? 3) };
     default: return { matched: false };
   }
 }
@@ -1140,13 +1336,14 @@ export function updateMissionsAfterMatch(
   input.active.forEach(active => {
     const definition = MISSION_MAP[active.missionId];
     if (!definition) return;
-    const result = ruleMatches(definition, context);
+    const result = ruleMatches(definition, context, active.lastSequenceValue);
     let progress = active.progress;
     let sequenceValue = active.lastSequenceValue;
     if (definition.mode === 'single') {
       progress = result.matched ? 1 : 0;
     } else if (definition.mode === 'accumulate') {
-      if (result.matched) progress += 1;
+      // Most accumulate missions count matches; summing ones (saldo, gols) report an amount.
+      if (result.matched) progress += result.amount ?? 1;
     } else if (definition.mode === 'streak') {
       if (!result.matched) {
         progress = 0;

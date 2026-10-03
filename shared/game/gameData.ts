@@ -116,6 +116,13 @@ export interface Player {
   arroganteMatchIds?: string[]; // 👑 partidas já contabilizadas (idempotência online/reconexão)
   mercenario?: boolean;  // 🏆 Conquistador — +2 em tudo por missão concluída
   mercenarioMissions?: number; // 🏆 missões concluídas contabilizadas enquanto a carta carrega a característica
+  padrinho?: boolean;    // 🤵 Padrinho — o afilhado (titular escolhido) ganha +3 em tudo; +1 permanente nele por gol do afilhado
+  padrinhoTarget?: string; // 🤵 id do afilhado; vazio → o titular de maior overall além dele
+  padrinhoGoals?: number; // 🤵 gols do afilhado contabilizados com os dois titulares
+  padrinhoMatchIds?: string[]; // 🤵 partidas já contabilizadas (idempotência online/reconexão)
+  lapidador?: boolean;   // 💎 Lapidador — a cada vitória como titular, todos os reservas ganham +1 permanente em tudo
+  lapidadorMatchIds?: string[]; // 💎 partidas já contabilizadas (idempotência online/reconexão)
+  lapidadoBoost?: number; // 💎 bônus permanente recebido de Lapidadores enquanto estava na reserva (fica com a carta)
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).

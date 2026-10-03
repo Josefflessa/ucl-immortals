@@ -9,7 +9,7 @@ import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, P
 import {
   calculateChemistry, getPlayerEffectiveStats, getChemistryLinks, getEvolutionLevel,
   MAX_RESERVE_PLAYERS,
-  PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, captainBoostFromStarters,
+  PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, PADRINHO_AFILHADO_BOOST, captainBoostFromStarters,
   computeCharacteristicBoosts, evolvePointsSpent, evolvePointsBudget, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, SPECIALIZATION_LEVEL, SPECIALIZATION_UNLOCK_COST, positionFit, type EffectiveStats,
 } from '@shared/game/gameEngine';
 import { type AttrKey } from '@shared/game/traits';
@@ -46,6 +46,7 @@ interface SquadEditorProps {
   onSetFreeKickTaker: (id: string) => void;
   onSwap: (indexA: number, indexB: number) => void;
   onSetMartirTargets?: (playerId: string, targetIds: string[]) => void; // 🩸 pick the 2 buffed teammates
+  onSetPadrinhoTarget?: (playerId: string, targetId: string) => void; // 🤵 pick the godchild ("" = automatic)
   showCoachCard?: boolean;           // the manager card (default on)
   footer?: React.ReactNode;          // host-specific action (e.g. "INICIAR DRAFT")
   isKnockout?: boolean;              // 🍿 phase: drives the Pipoqueiro league(+)/knockout(−) preview
@@ -80,7 +81,7 @@ export default function SquadEditor({
   players, coachId, formationId, playStyle,
   matchPlan,
   captain, penaltyTaker, freeKickTaker,
-  onSetFormation, onSetPlayStyle, onSetMatchPlan, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets,
+  onSetFormation, onSetPlayStyle, onSetMatchPlan, onSetCaptain, onSetPenaltyTaker, onSetFreeKickTaker, onSwap, onSetMartirTargets, onSetPadrinhoTarget,
   showCoachCard = true, footer, isKnockout = false,
   availability, onHealInjury, canAffordPhysio, physioFree = false, physioCost = 150,
   coachPrime, points, analysisLevel = 1, stadiumProjectLevel = 1, wins, onEvolvePrime,
@@ -801,6 +802,34 @@ export default function SquadEditor({
                               className="text-[13px] font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
                               style={{ background: sel ? '#B91C1C33' : '#07070f', color: sel ? '#F87171' : '#9A9AAA', border: `1px solid ${sel ? '#B91C1C' : '#1A1A2A'}`, fontFamily: 'var(--font-game), sans-serif' }}>
                               {sel ? '✓ ' : ''}{o.shortName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 🤵 Padrinho — escolhe o afilhado (um titular) que recebe +3 em tudo. */}
+                {selectedPlayer.padrinho && onSetPadrinhoTarget && selectedIndex < 11 && (() => {
+                  const others = players.slice(0, 11).filter(p => p.id !== selectedPlayer.id);
+                  const chosen = others.some(o => o.id === selectedPlayer.padrinhoTarget) ? selectedPlayer.padrinhoTarget : undefined;
+                  const effective = selectedSheet?.godchild?.id;
+                  return (
+                    <div className="rounded-xl p-3" style={{ background: '#120c1f', border: '1px solid #C4B5FD44' }}>
+                      <div className="text-[13px] font-black tracking-widest" style={{ color: '#C4B5FD', fontFamily: 'var(--font-game), sans-serif' }}>🤵 AFILHADO DO PADRINHO</div>
+                      <p className="text-[13px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
+                        Escolha <b style={{ color: '#fff' }}>1 titular</b> que recebe <b style={{ color: '#C4B5FD' }}>+{PADRINHO_AFILHADO_BOOST} em todos os atributos</b>. Cada gol dele dá +1 permanente ao Padrinho.
+                        {!chosen && <> Sem escolher, vai automático para o titular de maior geral.</>}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {others.map(o => {
+                          const sel = o.id === effective;
+                          return (
+                            <button key={o.id} onClick={() => onSetPadrinhoTarget(selectedPlayer.id, o.id === chosen ? '' : o.id)}
+                              className="text-[13px] font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
+                              style={{ background: sel ? '#C4B5FD26' : '#07070f', color: sel ? '#C4B5FD' : '#9A9AAA', border: `1px solid ${sel ? '#C4B5FD' : '#1A1A2A'}`, fontFamily: 'var(--font-game), sans-serif' }}>
+                              {sel ? '✓ ' : ''}{o.shortName}{sel && !chosen ? ' (auto)' : ''}
                             </button>
                           );
                         })}

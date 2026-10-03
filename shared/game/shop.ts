@@ -166,7 +166,7 @@ export const TRAIN_ATTRS: { key: TrainAttr; label: string }[] = [
 ];
 
 // ── "Turbinar Carta" — the special variants the player can buy onto a card. ──
-export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario';
+export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador';
 export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: '+4 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: '+7 em todos os atributos, mas −12 na química geral do time.' },
@@ -191,4 +191,6 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'garcom', icon: '🎯', label: 'Garçom', color: '#38BDF8', desc: '+1 em todos os atributos a cada 2 assistências dadas. Acumula.' },
   { key: 'arrogante', icon: '👑', label: 'Arrogante', color: '#E879F9', desc: '+2 em todos os atributos por gol; a cada 2 gols, os outros titulares perdem −1 em tudo.' },
   { key: 'mercenario', icon: '🏆', label: 'Conquistador', color: '#F59E0B', desc: '+2 em todos os atributos por missão concluída. Acumula sem limite.' },
+  { key: 'padrinho', icon: '🤵', label: 'Padrinho', color: '#C4B5FD', desc: 'O afilhado (um titular que você escolhe) ganha +3 em tudo enquanto os dois jogam juntos. A cada gol do afilhado, o Padrinho ganha +1 permanente.' },
+  { key: 'lapidador', icon: '💎', label: 'Lapidador', color: '#93C5FD', desc: 'A cada vitória em que ele for titular, todos os reservas ganham +1 permanente em todos os atributos. Acumula.' },
 ];

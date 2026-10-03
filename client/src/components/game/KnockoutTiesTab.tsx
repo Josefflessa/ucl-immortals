@@ -165,7 +165,7 @@ export default function KnockoutTiesTab() {
     <>
         {/* Confrontos da fase atual */}
         {/* Desktop: ties in two columns; your own tie keeps the full width. */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {matches.map((match, i) => {
             const homeName = getTeamName(match.homeTeamId);
             const awayName = getTeamName(match.awayTeamId);
@@ -258,26 +258,6 @@ export default function KnockoutTiesTab() {
                             <div className="text-3xl sm:text-4xl font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand)' }}>
                               {match.result.homeGoals} - {match.result.awayGoals}
                             </div>
-                            {/* Placares de cada perna — grandes e rotulados */}
-                              <div className="mt-1.5 flex flex-col gap-1">
-                                <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#4338CA22', border: '1px solid #4338CA55' }}>
-                                <span className="text-[12px] sm:text-[12px] font-black tracking-widest text-indigo-300 truncate" style={{ fontFamily: 'var(--font-game), sans-serif' }}>IDA · {homeName} × {awayName}</span>
-                                <span className="text-sm sm:text-base font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#C7D2FE' }}>{l1.homeGoals}-{l1.awayGoals}</span>
-                              </div>
-                              <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#0D948822', border: '1px solid #14B8A655' }}>
-                                <span className="text-[12px] sm:text-[12px] font-black tracking-widest truncate" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#5EEAD4' }}>VOLTA · {awayName} × {homeName}</span>
-                                <span className="text-sm sm:text-base font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#99F6E4' }}>{l2.homeGoals}-{l2.awayGoals}</span>
-                              </div>
-                              {match.result.penaltyWinner && (
-                                <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#78350F22', border: '1px solid #B4530955' }}>
-                                  <span className="text-[12px] sm:text-[12px] font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#FBBF24' }}>PÊNAL</span>
-                                  <span className="text-sm sm:text-base font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FDE68A' }}>{match.result.homePenalties}-{match.result.awayPenalties}</span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-[12px] sm:text-xs mt-1.5 font-bold" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>
-                              {getTeamName(match.result.winner!)} avança
-                            </div>
                           </div>
                         )
                       ) : match.played && match.result ? (
@@ -313,6 +293,45 @@ export default function KnockoutTiesTab() {
                       </div>
                     </div>
                   </div>
+
+                  {twoLeg && l1 && l2 && match.result && !hideScore && (() => {
+                    const legs = [
+                      { key: 'ida', label: 'IDA', home: { crestId: homeCrestId, name: homeName }, away: { crestId: awayCrestId, name: awayName }, h: l1.homeGoals, a: l1.awayGoals, color: '#A5B4FC', bg: '#4338CA1F', border: '#4338CA55' },
+                      { key: 'volta', label: 'VOLTA', home: { crestId: awayCrestId, name: awayName }, away: { crestId: homeCrestId, name: homeName }, h: l2.homeGoals, a: l2.awayGoals, color: '#5EEAD4', bg: '#0D94881F', border: '#14B8A655' },
+                    ];
+                    const scoreStyle = (mine: number, theirs: number) => ({ fontFamily: 'var(--font-display), sans-serif', color: mine > theirs ? '#FFFFFF' : '#8A8A9A' });
+                    return (
+                      <div className="mx-auto mt-3 w-full max-w-[280px] space-y-1.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                        {legs.map(leg => (
+                          <div key={leg.key} className="grid grid-cols-[52px_minmax(0,1fr)] items-center rounded-lg px-2.5 py-1.5" style={{ background: leg.bg, border: `1px solid ${leg.border}` }}>
+                            <span className="text-[12px] font-black tracking-widest" style={{ color: leg.color }}>{leg.label}</span>
+                            <span className="flex items-center justify-center gap-2.5">
+                              <Crest crestId={leg.home.crestId} name={leg.home.name} size={20} />
+                              <span className="text-lg font-black leading-none tabular-nums" style={scoreStyle(leg.h, leg.a)}>{leg.h}</span>
+                              <span className="text-sm font-black text-[var(--ui-text-faint)]">×</span>
+                              <span className="text-lg font-black leading-none tabular-nums" style={scoreStyle(leg.a, leg.h)}>{leg.a}</span>
+                              <Crest crestId={leg.away.crestId} name={leg.away.name} size={20} />
+                            </span>
+                          </div>
+                        ))}
+                        {match.result.penaltyWinner && (
+                          <div className="grid grid-cols-[52px_minmax(0,1fr)] items-center rounded-lg px-2.5 py-1.5" style={{ background: '#78350F1F', border: '1px solid #B4530955' }}>
+                            <span className="text-[12px] font-black tracking-widest" style={{ color: '#FBBF24' }}>PÊN.</span>
+                            <span className="flex items-center justify-center gap-2.5">
+                              <Crest crestId={homeCrestId} name={homeName} size={20} />
+                              <span className="text-lg font-black leading-none tabular-nums" style={scoreStyle(match.result.homePenalties ?? 0, match.result.awayPenalties ?? 0)}>{match.result.homePenalties}</span>
+                              <span className="text-sm font-black text-[var(--ui-text-faint)]">×</span>
+                              <span className="text-lg font-black leading-none tabular-nums" style={scoreStyle(match.result.awayPenalties ?? 0, match.result.homePenalties ?? 0)}>{match.result.awayPenalties}</span>
+                              <Crest crestId={awayCrestId} name={awayName} size={20} />
+                            </span>
+                          </div>
+                        )}
+                        <div className="pt-0.5 text-center text-[12px] font-bold" style={{ color: 'var(--ui-success)' }}>
+                          ✓ {getTeamName(match.result.winner!)} avança
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Action buttons */}
                   <div className="mt-2 mb-4 flex gap-2 sm:gap-3 justify-center flex-wrap">

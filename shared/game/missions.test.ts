@@ -89,8 +89,8 @@ function result(overrides: Partial<MatchResult> = {}): MatchResult {
 
 describe('mission board', () => {
   it('contains the expanded catalog, rarity missions and no duplicate ids', () => {
-    expect(MISSION_CATALOG).toHaveLength(207);
-    expect(new Set(MISSION_CATALOG.map(definition => definition.id)).size).toBe(207);
+    expect(MISSION_CATALOG).toHaveLength(240);
+    expect(new Set(MISSION_CATALOG.map(definition => definition.id)).size).toBe(240);
     expect(MISSION_MAP.dominance_complete).toBeDefined();
     expect(MISSION_MAP.five_wins).toBeDefined();
     expect(MISSION_MAP.prodigy_goals_win).toBeDefined();
@@ -610,3 +610,79 @@ describe('mission board', () => {
   });
 });
 
+
+describe('match-reading missions', () => {
+  const stateFor = (missionId: string, extra: Partial<{ progress: number; matchesRemaining: number; lastSequenceValue: string }> = {}) => ({
+    version: 1 as const,
+    cycleKey: 'L1',
+    boardIds: [missionId],
+    active: [{ missionId, progress: 0, matchesRemaining: MISSION_MAP[missionId].deadline, acceptedCycleKey: 'L1', ...extra }],
+    history: [],
+    processedMatchKeys: [],
+    missionResolution: null,
+  });
+  const stat = (teamId: string, playerId: string, extra: Record<string, number> = {}) => ({
+    playerId, playerName: playerId, teamId, rating: 6.5, goals: 0, assists: 0, shots: 0, tackles: 0, saves: 0, fouls: 0,
+    yellowCards: 0, redCards: 0, keyPasses: 0, interceptions: 0, shotsOnTarget: 0, ...extra,
+  });
+  // Real cards always carry a traits list; the team-strength missions read it.
+  const card = (id: string, extra: Partial<PlayerCard> = {}) => player(id, { traits: [], ...extra });
+  const home = team('home', [
+    card('gk', { position: 'GK', rarity: 'gold' }),
+    card('cb', { position: 'CB', rarity: 'bronze', nation: 'Itália', club: 'Milan', historicalPartners: ['h1'] }),
+    card('cm', { position: 'CM', rarity: 'silver', nation: 'Brasil', club: 'Milan' }),
+    card('h1', { position: 'ST', rarity: 'legendary', overall: 95, nation: 'Brasil', historicalPartners: ['cb'] }),
+  ]);
+  const away = team('away', [card('a1', { overall: 99 }), card('a2', { overall: 98 })]);
+
+  it('completes authorship, rating and discipline missions from one match', () => {
+    const match = result({
+      homeGoals: 3,
+      awayGoals: 2,
+      events: [
+        { minute: 10, type: 'goal', description: 'gol', teamId: 'away', playerId: 'a1' },
+        { minute: 15, type: 'goal', description: 'gol', teamId: 'home', playerId: 'h1', assisterId: 'cm' },
+        { minute: 30, type: 'goal', description: 'gol', teamId: 'away', playerId: 'a1' },
+        { minute: 38, type: 'goal', description: 'gol', teamId: 'home', playerId: 'cb', assisterId: 'h1' },
+        { minute: 70, type: 'goal', description: 'gol', teamId: 'home', playerId: 'cm', assisterId: 'h1' },
+        { minute: 50, type: 'yellow', description: 'amarelo', teamId: 'home', playerId: 'cb' },
+        { minute: 60, type: 'yellow', description: 'amarelo', teamId: 'home', playerId: 'cm' },
+        { minute: 80, type: 'red', description: 'vermelho', teamId: 'home', playerId: 'cm' },
+      ],
+      playerStats: {
+        'home::gk': stat('home', 'gk', { rating: 9.2 }),
+        'home::cb': stat('home', 'cb', { rating: 8.1, goals: 1 }),
+        'home::cm': stat('home', 'cm', { rating: 7.2, goals: 1, assists: 1 }),
+        'home::h1': stat('home', 'h1', { rating: 8.4, goals: 1, assists: 2 }),
+        'away::a1': stat('away', 'a1', { rating: 5.8, goals: 2 }),
+        'away::a2': stat('away', 'a2', { rating: 6.0 }),
+      },
+    });
+    const context = createMissionMatchContext(home, away, match)!;
+    const completes = (id: string) => updateMissionsAfterMatch(stateFor(id), context, 'L1:' + id).completed;
+    for (const id of ['win_conceding_two', 'giant_killer', 'quick_reply', 'team_goals', 'linked_goal', 'historical_goal', 'playmaker_spread',
+      'rarity_scorers', 'top_rating', 'gala_pair', 'tuned_team', 'keeper_motm', 'star_marked', 'star_decides', 'stars_score', 'base_scores',
+      'total_attack', 'gamesmanship', 'down_to_ten']) {
+      expect(completes(id), id).toEqual([id]);
+    }
+    for (const id of ['draw_with_goals', 'solo_goals', 'goals_from_behind', 'no_star_needed', 'own_goal_for', 'opponent_booked', 'overcome_injury']) {
+      expect(completes(id), id).toEqual([]);
+    }
+  });
+
+  it('sums goal difference across matches and keeps the same player in a streak', () => {
+    const win = createMissionMatchContext(home, away, result({ homeGoals: 4, awayGoals: 0, playerStats: { 'home::h1': stat('home', 'h1', { goals: 1, rating: 7.6 }) } }))!;
+    const loss = createMissionMatchContext(home, away, result({ homeGoals: 0, awayGoals: 1, winner: 'away', events: [], playerStats: {} }))!;
+    const afterWin = updateMissionsAfterMatch(stateFor('goal_difference_run'), win, 'L1:a');
+    expect(afterWin.state.active[0].progress).toBe(4);
+    const afterLoss = updateMissionsAfterMatch(afterWin.state, loss, 'L2:b');
+    expect(afterLoss.state.active[0].progress).toBe(3);
+    expect(updateMissionsAfterMatch(afterLoss.state, win, 'L3:c').completed).toEqual(['goal_difference_run']);
+
+    const streak = updateMissionsAfterMatch(stateFor('scorer_streak', { progress: 2, lastSequenceValue: 'h1' }), win, 'L1:s');
+    expect(streak.completed).toEqual(['scorer_streak']);
+    const otherScorer = createMissionMatchContext(home, away, result({ playerStats: { 'home::cb': stat('home', 'cb', { goals: 1 }) } }))!;
+    const reset = updateMissionsAfterMatch(stateFor('scorer_streak', { progress: 2, lastSequenceValue: 'h1' }), otherScorer, 'L1:r');
+    expect(reset.state.active[0]).toMatchObject({ progress: 1, lastSequenceValue: 'cb' });
+  });
+});

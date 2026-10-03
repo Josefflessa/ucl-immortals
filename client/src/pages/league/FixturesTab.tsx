@@ -99,7 +99,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                     </div>
                   )}
                   {/* Desktop: the other fixtures in two columns; your own match keeps the full width. */}
-                  <div className={isGroupStage ? 'grid gap-3 p-3 lg:grid-cols-2' : 'grid gap-3 lg:grid-cols-2'}>
+                  <div className={isGroupStage ? 'grid grid-cols-1 gap-3 p-3 lg:grid-cols-2' : 'grid grid-cols-1 gap-3 lg:grid-cols-2'}>
                     {groupFixtures.map((fixture, idx) => {
               const isMyFixture = fixture.homeTeamId === localTeamId || fixture.awayTeamId === localTeamId;
 

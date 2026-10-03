@@ -6,7 +6,7 @@ import SquadEditor from './SquadEditor';
 import { medicalFreeTreatmentsPerCompetition, medicalPhysioCost, projectLevel } from '@shared/game/clubProjects';
 
 export default function LeagueSquadTab() {
-  const { state, dispatch, setMatchRolesOnline, setMatchPlanOnline, swapPlayerTeamOnline, martirTargetsOnline, healInjuryOnline, evolveCoachPrimeOnline, setEvolvePointOnline, setAutoEvolveAttributeOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline } = useGame();
+  const { state, dispatch, setMatchRolesOnline, setMatchPlanOnline, swapPlayerTeamOnline, martirTargetsOnline, padrinhoTargetOnline, healInjuryOnline, evolveCoachPrimeOnline, setEvolvePointOnline, setAutoEvolveAttributeOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline } = useGame();
   const team = state.playerTeam;
   if (!team) return null;
   const online = state.mode === 'online';
@@ -77,6 +77,9 @@ export default function LeagueSquadTab() {
       onSetMartirTargets={(playerId, targetIds) => online
         ? martirTargetsOnline(playerId, targetIds)
         : dispatch({ type: 'SET_PLAYER_TEAM_MARTIR_TARGETS', playerId, targetIds })}
+      onSetPadrinhoTarget={(playerId, targetId) => online
+        ? padrinhoTargetOnline(playerId, targetId)
+        : dispatch({ type: 'SET_PLAYER_TEAM_PADRINHO_TARGET', playerId, targetId })}
     />
   );
 }

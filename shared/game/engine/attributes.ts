@@ -7,7 +7,7 @@ import { stadiumHomeBonus } from '../clubProjects';
 import { type PlayerCard, type Team, type MatchResult } from './teamModel';
 import { getCoachModifiersForPlayer, type CharBoostMap } from './chemistry';
 import { tacticStatBonus } from './matchSim';
-import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, estribadoStatBoost, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost } from './draft';
+import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, estribadoStatBoost, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost } from './draft';
 
 // ============================================================
 // ATTRIBUTE RESOLVER
@@ -96,6 +96,9 @@ export function getEffectiveAttribute(
   base += player.arrogante ? arroganteStatBoost(player.arroganteGoals) : 0;
   base += player.estribado ? estribadoStatBoost(context?.credits) : 0;
   base += player.mercenario ? mercenarioStatBoost(player.mercenarioMissions) : 0;
+  // 🤵 Padrinho: +1 permanente por gol do afilhado · 💎 bônus recebido de Lapidadores na reserva.
+  base += player.padrinho ? padrinhoStatBoost(player.padrinhoGoals) : 0;
+  base += Math.max(0, player.lapidadoBoost ?? 0);
 
   // 🩸❤️🪑🤝 Team-effect characteristics buffing this player.
   const cb = context?.charBoosts?.[player.id];

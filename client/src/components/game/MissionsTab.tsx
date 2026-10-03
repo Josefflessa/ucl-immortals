@@ -40,7 +40,8 @@ function MissionCard({
   const definition = MISSION_MAP[missionId];
   if (!definition) return null;
   const rarity = MISSION_RARITY_META[definition.rarity];
-  const progress = active ? Math.min(definition.target, active.progress) : 0;
+  // Summing missions (e.g. goal difference) can dip below zero after a defeat.
+  const progress = active ? Math.max(0, Math.min(definition.target, active.progress)) : 0;
   const reward = missionReward(missionId, missionsProjectLevel);
   const removalCost = missionRemovalCost(missionId, missionsProjectLevel);
   const deadline = missionDeadline(missionId, missionsProjectLevel);

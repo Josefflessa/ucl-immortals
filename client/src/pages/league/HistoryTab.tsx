@@ -37,7 +37,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
               </div>
             ) : (
               /* Desktop: two columns so each result row stays readable. */
-              <div className="grid gap-2 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
               {playerResults.map((result, i) => {
                 const isHome = result.homeTeamId === playerTeam?.id;
                 const myGoals = isHome ? result.homeGoals : result.awayGoals;
@@ -122,7 +122,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
 
                   {historyPeriod?.kind === 'league' ? (
                     /* Jogos da rodada de liga escolhida */
-                    <div className="grid gap-2 lg:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                       {historyFixtures.map((fixture, idx) => {
                         const roundHidden = !isKnockout && historyPeriod.round === leagueRound && hideRoundScore;
                         const homeName = getTeamName(fixture.homeTeamId);
