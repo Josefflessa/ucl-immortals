@@ -8,7 +8,6 @@ import {
   generateBotTeam,
   generateUniquePackOffer,
   drawUniquePackCard,
-  generateUniquePackCard,
   playActiveKnockoutLeg,
 } from './gameEngine';
 import { UNIQUE_CARDS } from './gameData';
@@ -120,11 +119,12 @@ describe('competition format engine helpers', () => {
 
   it('draws one unowned Unique card and stops when the catalog is complete', () => {
     const ownedIds = UNIQUE_CARDS.slice(0, -1).map(card => card.id);
-    const lastAvailable = generateUniquePackCard(ownedIds);
+    const drawFrom = (owned: string[]) => drawUniquePackCard(generateUniquePackOffer(owned, [], UNIQUE_CARDS.length), owned);
+    const lastAvailable = drawFrom(ownedIds);
 
     expect(lastAvailable?.id).toBe(UNIQUE_CARDS[UNIQUE_CARDS.length - 1].id);
     expect(lastAvailable?.rarity).toBe('unique');
-    expect(generateUniquePackCard(UNIQUE_CARDS.map(card => card.id))).toBeNull();
+    expect(drawFrom(UNIQUE_CARDS.map(card => card.id))).toBeNull();
   });
 
   it('creates a stable-size offer and draws only from cards not yet owned', () => {

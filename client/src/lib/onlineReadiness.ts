@@ -5,19 +5,19 @@
 // one small module prevents the client and server from drifting apart on byes,
 // direct qualification, spectators and reconnects.
 
-export interface ReadinessPlayer {
+interface ReadinessPlayer {
   id: string;
   connected?: boolean;
   team?: unknown | null;
 }
 
-export interface ReadinessFixture {
+interface ReadinessFixture {
   round: number;
   homeTeamId: string;
   awayTeamId: string;
 }
 
-export interface TeamMatchDisplay {
+interface TeamMatchDisplay {
   homeTeamId: string;
   awayTeamId: string;
 }
@@ -55,12 +55,12 @@ export function isOnlineHumanMatch(
   return humanTeamIds.has(match.homeTeamId) || humanTeamIds.has(match.awayTeamId);
 }
 
-export interface ReadinessTie {
+interface ReadinessTie {
   homeTeamId: string;
   awayTeamId: string;
 }
 
-export interface KnockoutWatchTie {
+interface KnockoutWatchTie {
   isSingleLeg?: boolean;
   played?: boolean;
   result?: unknown;
@@ -105,29 +105,14 @@ export function getOnlineKnockoutParticipantIds(
  *
  * After the first leg is simulated, the bracket advances `currentLeg` to 2
  * before the replay is finished. The leg must therefore come from the watch
- * event, not from the bracket's current pointer. The fallback keeps older
- * clients working while they roll out the leg-aware payload.
+ * event, not from the bracket's current pointer.
  */
-export function knockoutLegWasPlayed(
-  tie: KnockoutWatchTie,
-  currentRound: string,
-  currentLeg: number,
-  requestedLeg?: number,
-): boolean {
-  const isSingleLeg = tie.isSingleLeg === true
-    || (currentRound === 'final' && tie.isSingleLeg === undefined);
-  if (isSingleLeg) return Boolean(tie.played && tie.result);
-
-  const leg = requestedLeg === 1 || requestedLeg === 2
-    ? requestedLeg
-    // Legacy clients sent no leg. Between ida and volta, the only played leg
-    // is leg 1; after the volta, leg 2 is the latest played leg.
-    : currentLeg === 2 && tie.leg1 && !tie.leg2 ? 1 : currentLeg;
-
-  return leg === 1 ? Boolean(tie.leg1) : leg === 2 ? Boolean(tie.leg2) : false;
+export function knockoutLegWasPlayed(tie: KnockoutWatchTie, leg: 1 | 2): boolean {
+  if (tie.isSingleLeg === true) return Boolean(tie.played && tie.result);
+  return leg === 1 ? Boolean(tie.leg1) : Boolean(tie.leg2);
 }
 
-export interface ReadinessStatus {
+interface ReadinessStatus {
   readyCount: number;
   total: number;
   allReady: boolean;

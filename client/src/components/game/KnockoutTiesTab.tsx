@@ -1,7 +1,6 @@
 // UCL Immortals — Knockout CONFRONTOS tab
 // The bracket ties + ida/volta leg controls (with online watch-gating) + result
-// modal, lifted out of the old standalone KnockoutPage so the season hub can host
-// it as a single tab alongside MEU TIME / ESTATÍSTICAS / MEUS JOGOS.
+// modal, hosted as a tab of the season hub (LeaguePage).
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -129,7 +128,7 @@ export default function KnockoutTiesTab() {
   const label = knockoutRoundLabel(round, knockoutBracket.firstRoundSize);
   const allPlayed = matches.length > 0 && matches.every(m => m.played);
   const isFinal = round === 'final';
-  const isFinalSingleLeg = isFinal && matches.every(m => m.isSingleLeg !== false);
+  const isFinalSingleLeg = isFinal && matches.every(m => m.isSingleLeg === true);
   // After the IDA is played the bracket bumps currentLeg to 2, but the ties aren't
   // resolved yet (allPlayed=false). This in-between state must ALSO gate on everyone
   // watching the ida before the host can fire the volta — otherwise the ida spoils.
@@ -177,7 +176,7 @@ export default function KnockoutTiesTab() {
             const hasHumanMatch = online && isOnlineHumanMatch(match, onlineHumanTeamIds);
             const homeIsHuman = onlineHumanTeamIds.has(match.homeTeamId);
             const awayIsHuman = onlineHumanTeamIds.has(match.awayTeamId);
-            const twoLeg = isFinal ? match.isSingleLeg === false : match.isSingleLeg !== true;
+            const twoLeg = match.isSingleLeg !== true;
             const l1 = match.leg1;
             const l2 = match.leg2;
             const watched = state.watchedKnockoutMatches;
@@ -586,7 +585,6 @@ export default function KnockoutTiesTab() {
             <BetSlipModal
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
-              cardsEnabled={state.competitionFormat?.matchSettings?.cardsEnabled !== false}
               payoutRules={bettingPayoutRulesForLevel(bettingLevel)}
               onConfirm={(submission: BetSlipSubmission) => {
                 if (online) shopPlaceBetOnline(betSlip.matchKey, submission.homeGoals, submission.awayGoals, submission.stake, betSlip.homeTeamId, betSlip.awayTeamId, submission.market, submission.selections);

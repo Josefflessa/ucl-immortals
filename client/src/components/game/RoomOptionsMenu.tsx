@@ -5,7 +5,7 @@ import { Button } from '../../design-system';
 
 export type RoomMenuAction = 'restart' | 'close' | 'leave';
 
-export interface RoomMenuPlayer {
+interface RoomMenuPlayer {
   id: string;
   name: string;
   connected?: boolean;

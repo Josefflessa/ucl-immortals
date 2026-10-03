@@ -1,15 +1,14 @@
 /**
  * matchNarrative.ts
- * Shared narration helpers used by both the local simulator (MatchSimPage)
- * and the server-side engine (gameEngine). Keeps descriptions consistent
- * and removes all duplication between the two code paths.
+ * Narration helpers shared by the match engine (gameEngine) and the replay
+ * screen (MatchSimPage), so both describe plays with the same wording.
  */
 
 export type Approach = 'cross' | 'through' | 'dribble' | 'longrange' | 'counter';
 
 // ─── Utility ────────────────────────────────────────────────────────────────
 
-export const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 // ─── Approach selection (weighted by play style) ────────────────────────────
 
@@ -39,7 +38,7 @@ export function selectApproach(playStyle: string): Approach {
 
 // ─── Score / time context suffix ────────────────────────────────────────────
 
-export function ctxSuffix(
+function ctxSuffix(
   attackerGoals: number,
   defenderGoals: number,
   minute: number,
@@ -437,7 +436,6 @@ export function flowDesc(
   defTeamName: string,
   hg: number,
   ag: number,
-  minute: number,
 ): string {
   // After a save — reference the corner / distribution
   if (last?.type === 'save') {
@@ -544,98 +542,6 @@ export function dangerAttemptMsg(approach: Approach, atk: string, def: string, g
       `⚽ ${atk} carrega no contra e arremata em direção ao gol de ${gk}...!`,
     ]);
   }
-}
-
-// ─── Stage 1 danger message (MatchSimPage dangerState) ───────────────────────
-
-export function dangerStage1Msg(
-  approach: Approach,
-  teamName: string,
-  atkName: string,
-  defName: string,
-  isGoal: boolean,
-  isSave: boolean,
-): string {
-  if (isGoal || (!isSave && approach !== 'duel' as any)) {
-    switch (approach) {
-      case 'cross': return pick([
-        `↗️ CRUZAMENTO! ${teamName.toUpperCase()} levanta na área...`,
-        `⚡ ${atkName} na segunda trave! Cruzamento perigoso de ${teamName.toUpperCase()}!`,
-      ]);
-      case 'through': return pick([
-        `🔑 PASSE EM PROFUNDIDADE! ${atkName} escapa da marcação!`,
-        `⚡ ATRÁS DA ZAGA! ${atkName} saiu livre pelo corredor...`,
-      ]);
-      case 'dribble': return pick([
-        `💨 ${atkName} ENFRENTA ${defName} NO DRIBLE! Vai conseguir?`,
-        `⚡ ENCARADA! ${atkName} parte para cima de ${defName}...`,
-      ]);
-      case 'longrange': return pick([
-        `💣 ${atkName} COM ESPAÇO FORA DA ÁREA! Vai arriscar?!`,
-        `🎯 CHUTE DE LONGE! ${atkName} avalia o ângulo...`,
-      ]);
-      case 'counter': return pick([
-        `⚡ CONTRA-ATAQUE DE ${teamName.toUpperCase()}! Velocidade total!`,
-        `🏃 TRANSIÇÃO RÁPIDA! ${atkName} lidera o contra...`,
-      ]);
-    }
-  }
-  if (isSave) {
-    return pick([
-      `🧤 CHUTE COM ENDEREÇO! ${atkName} arrisca e o goleiro se prepara...`,
-      `💥 ${atkName} FINALIZA! O goleiro tem que se virar!`,
-    ]);
-  }
-  return `🚨 OPORTUNIDADE! ${teamName.toUpperCase()} em jogada perigosa com ${atkName}...`;
-}
-
-// ─── Stage 3 celebration message ─────────────────────────────────────────────
-
-export function celebrationMsg(
-  approach: Approach,
-  teamName: string,
-  atkName: string,
-  hg: number,
-  ag: number,
-): string {
-  const score = `${hg}-${ag}`;
-  switch (approach) {
-    case 'cross': return pick([
-      `⚽ GOOOOOL! ${atkName} de cabeça! ${teamName.toUpperCase()} marca! ${score}`,
-      `⚽ GOOOOOOL! Que cabeceio de ${atkName}! ${score}`,
-      `⚽ GOOOOOL! ${atkName} subiu na área e testou firme — não deu pro goleiro! ${score}`,
-    ]);
-    case 'through': return pick([
-      `⚽ GOOOOOL! ${atkName} saiu livre e não perdoou! ${teamName.toUpperCase()} na frente! ${score}`,
-      `⚽ GOOOOOOL! Cara a cara com o goleiro — ${atkName} faz o gol! ${score}`,
-      `⚽ GOOOOOL! ${atkName} recebeu nas costas da zaga e bateu na saída do goleiro! ${score}`,
-    ]);
-    case 'dribble': return pick([
-      `⚽ GOOOOOL! ${atkName} DEIXOU O DEFENSOR NO CHÃO E MARCOU! ${score}`,
-      `⚽ GOOOOOOL! Drible espetacular de ${atkName}! ${teamName.toUpperCase()} MARCA! ${score}`,
-      `⚽ GOOOOOL! ${atkName} limpou a marcação e bateu no cantinho! ${score}`,
-    ]);
-    case 'longrange': return pick([
-      `⚽ GOOOOOL! QUE GOLAÇO DE ${atkName}! Bomba de fora da área! ${score}`,
-      `⚽ GOOOOOOL DE FORA! ${atkName} não deu chance ao goleiro! ${score}`,
-      `⚽ GOOOOOL! ${atkName} armou da intermediária e mandou no ângulo! ${score}`,
-    ]);
-    case 'counter': return pick([
-      `⚽ GOOOOOL! Contra-ataque mortal de ${teamName.toUpperCase()}! ${atkName} marca! ${score}`,
-      `⚽ GOOOOOOL EM TRANSIÇÃO! ${atkName} liquida no contra! ${score}`,
-      `⚽ GOOOOOL! Saída rápida e ${atkName} concluiu antes da defesa voltar! ${score}`,
-    ]);
-  }
-}
-
-// ─── Tackle celebration (stage 3 for non-goal suspense) ─────────────────────
-
-export function tackleCelebMsg(defName: string, atkName: string): string {
-  return pick([
-    `🛑 BLOQUEADO! ${defName} salva o time na hora certa!`,
-    `🛡️ DESARME PRIMOROSO de ${defName} sobre ${atkName}!`,
-    `💪 ${defName} vence o duelo com ${atkName} — que intervenção defensiva!`,
-  ]);
 }
 
 export function saveCelebMsg(gkName: string, atkName: string): string {

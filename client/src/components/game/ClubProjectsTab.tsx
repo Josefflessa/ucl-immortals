@@ -1,6 +1,4 @@
-// UCL Immortals — estrutura visual dos Projetos do Clube.
-// Efeitos de gameplay são ativados por etapas; esta tela já usa o contrato
-// normalizado para ficar pronta para solo, online e campanhas antigas.
+// UCL Immortals — tela dos Projetos do Clube (níveis, upgrades e Centro de Treinamento).
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
@@ -9,7 +7,6 @@ import { ConfirmDialog, GameModal } from '../../design-system';
 import PlayerCard from './PlayerCard';
 import { TRAIN_ATTRS } from '../../lib/shop';
 import type { TrainAttr } from '../../lib/shop';
-import { BET_ROUND_CAP } from '../../lib/bets';
 import {
   CLUB_PROJECT_DEFINITIONS,
   CLUB_PROJECT_LEVELS,
@@ -47,12 +44,7 @@ function formatProjectCopy(projectId: string, text: string): ReactNode {
 export default function ClubProjectsTab() {
   const { state, dispatch, upgradeClubProjectOnline, shopTrainOnline } = useGame();
   const projects = useMemo(() => normalizeClubProjects(state.playerTeam?.clubProjects), [state.playerTeam?.clubProjects]);
-  const medicalEnabled = state.competitionFormat?.matchSettings?.injuriesEnabled !== false;
-  const bettingEnabled = BET_ROUND_CAP > 0;
-  const visibleProjectDefinitions = useMemo(
-    () => CLUB_PROJECT_DEFINITIONS.filter(project => (project.id !== 'medical' || medicalEnabled) && (project.id !== 'betting' || bettingEnabled)),
-    [bettingEnabled, medicalEnabled],
-  );
+  const visibleProjectDefinitions = CLUB_PROJECT_DEFINITIONS;
   const totalLevels = visibleProjectDefinitions.reduce((sum, project) => sum + projects.levels[project.id], 0);
   const [selectedProjectId, setSelectedProjectId] = useState<ClubProjectId | null>(null);
   const selectedProject = selectedProjectId
@@ -254,7 +246,9 @@ export default function ClubProjectsTab() {
                   <div className="rounded-xl border border-[#FBBF2444] bg-[#FBBF240D] p-3 text-xs leading-relaxed text-[#D6D0BE]">
                     <div className="font-black tracking-wider text-[#FBBF24]">NÍVEL {trainingLevel}/5 · PRÓXIMO TREINO</div>
                     <div className="mt-1">
-                      O custo começa em <b className="text-white">{trainingLevel >= 2 ? 50 : 100}</b> e aumenta <b className="text-white">{trainingLevel >= 5 ? 25 : 50}</b> a cada treino no mesmo jogador. {trainingLevel === 3 ? 'O primeiro treino de cada jogador concede +4.' : trainingLevel >= 4 ? 'Todos os treinos concedem +4.' : 'Cada treino concede +3.'}
+                      O custo começa em <b className="text-white">{trainingCostForProject(trainingLevel, 0)}</b> e aumenta <b className="text-white">{trainingCostForProject(trainingLevel, 1) - trainingCostForProject(trainingLevel, 0)}</b> a cada treino no mesmo jogador. {trainingBoostForProject(trainingLevel, true) === trainingBoostForProject(trainingLevel, false)
+                        ? `Cada treino concede +${trainingBoostForProject(trainingLevel, false)}.`
+                        : `O primeiro treino de cada jogador concede +${trainingBoostForProject(trainingLevel, true)}; os seguintes, +${trainingBoostForProject(trainingLevel, false)}.`}
                     </div>
                   </div>
                   {[{ title: 'TITULARES', color: '#22C55E', players: state.playerTeam.players.slice(0, 11) }, { title: 'BANCO / RESERVAS', color: '#818CF8', players: state.playerTeam.players.slice(11) }].map(group => group.players.length === 0 ? null : (
@@ -262,7 +256,6 @@ export default function ClubProjectsTab() {
                       <div className="mb-2 text-[11px] font-black tracking-widest" style={{ color: group.color }}>{group.title}</div>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
                         {group.players.map(player => {
-                          const firstTraining = (player.trainCount ?? 0) === 0;
                           const cost = trainingCostForProject(trainingLevel, player.trainCount ?? 0);
                           const affordable = state.points >= cost;
                           return (

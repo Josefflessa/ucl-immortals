@@ -37,12 +37,8 @@ export default function TradeNegotiationModal() {
   const isHost = session.hostId === meId;
   const mySide = isHost ? session.host : session.guest;
   const theirSide = isHost ? session.guest : session.host;
-  const myPlayerIds = Array.isArray(mySide.playerIds)
-    ? mySide.playerIds
-    : mySide.playerId ? [mySide.playerId] : [];
-  const theirPlayerIds = Array.isArray(theirSide.playerIds)
-    ? theirSide.playerIds
-    : theirSide.playerId ? [theirSide.playerId] : [];
+  const myPlayerIds = mySide.playerIds;
+  const theirPlayerIds = theirSide.playerIds;
   const theirName = isHost ? session.guestName : session.hostName;
   const theirRoomPlayer = state.onlinePlayers.find(p => p.id === (isHost ? session.guestId : session.hostId));
   const theirBench = theirRoomPlayer?.team?.players.slice(11) ?? [];

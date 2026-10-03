@@ -1,8 +1,7 @@
-// UCL Immortals — estrutura base dos Projetos do Clube.
+// UCL Immortals — Projetos do Clube.
 //
-// Esta primeira etapa define o contrato de dados, a ordem editorial e a
-// normalização dos níveis. Os efeitos de gameplay entram por projeto e usam
-// fórmulas puras para manter solo e online alinhados.
+// Contrato de dados, ordem editorial, normalização dos níveis e as fórmulas
+// puras de cada efeito, compartilhadas por solo e online.
 
 export const CLUB_PROJECT_LEVELS = 5;
 
@@ -30,7 +29,7 @@ export interface ClubProjectsState {
   levels: Record<ClubProjectId, number>;
 }
 
-export interface ClubProjectDefinition {
+interface ClubProjectDefinition {
   id: ClubProjectId;
   icon: string;
   title: string;
@@ -55,7 +54,7 @@ export interface RecruitmentOfferMeta {
   minimumOverall: number;
 }
 
-export interface RecruitmentOfferConfig {
+interface RecruitmentOfferConfig {
   optionCount: number;
   selectionLimit: number;
   freeRerolls: number;
@@ -81,10 +80,6 @@ export function medicalInjuryDuration(level: number): number {
   return safeLevel >= 2 ? 2 : 3;
 }
 
-// Kept as a compatibility alias for older imports. The value is now an exact
-// duration, not merely an upper bound.
-export const medicalMaxInjuryDuration = medicalInjuryDuration;
-
 export function medicalReturnBoost(level: number): number {
   const safeLevel = validLevel(level);
   if (safeLevel >= 5) return 10;
@@ -100,7 +95,7 @@ export function bettingStakeCapBonus(level: number): number {
   return 0;
 }
 
-/** One losing ticket per betting scope can recover part of its stake. */
+/** Every losing ticket recovers this share of its stake (Central de Palpites). */
 export function bettingLossRefundPercent(level: number): number {
   const safeLevel = validLevel(level);
   if (safeLevel >= 4) return 50;
@@ -108,10 +103,10 @@ export function bettingLossRefundPercent(level: number): number {
   return 0;
 }
 
-export const TRAINING_BASE_COST = 100;
-export const TRAINING_STANDARD_STEP = 50;
-export const TRAINING_REDUCED_STEP = 25;
-export const TRAINING_BASE_BOOST = 3;
+const TRAINING_BASE_COST = 100;
+const TRAINING_STANDARD_STEP = 50;
+const TRAINING_REDUCED_STEP = 25;
+const TRAINING_BASE_BOOST = 3;
 
 /** Calculates the escalating training cost for one player. */
 export function trainingCostForProject(level: number, trainCount: number): number {
@@ -260,7 +255,7 @@ export const CLUB_PROJECT_DEFINITIONS: readonly ClubProjectDefinition[] = [
   },
 ] as const;
 
-export type SupportersVenue = 'home' | 'away' | 'neutral';
+type SupportersVenue = 'home' | 'away' | 'neutral';
 
 /** Flat home advantage supplied by the Stadium project: +3, +5, +7, +9, +11. */
 export function stadiumHomeBonus(level: number): number {
@@ -275,7 +270,7 @@ export function supportersBonusPercent(level: number, venue: SupportersVenue): n
   return (venue === 'home' ? 15 : 10) + (safeLevel - 2) * (venue === 'home' ? 10 : 5);
 }
 
-export interface ClubRewardBreakdown {
+interface ClubRewardBreakdown {
   base: number;
   supportersBonus: number;
   supportersPercent: number;
@@ -399,10 +394,7 @@ export function normalizeClubProjects(input: unknown): ClubProjectsState {
   const rawLevels = (input as { levels?: unknown }).levels;
   if (!rawLevels || typeof rawLevels !== 'object') return fallback;
 
-  const source = rawLevels as Partial<Record<ClubProjectId, unknown>> & { stadiumSupporters?: unknown };
-  // Older saves used one combined project. Carry its progress into both new
-  // modules so separating the UI never silently removes an investment.
-  const legacyStadiumSupporters = validLevel(source.stadiumSupporters);
+  const source = rawLevels as Partial<Record<ClubProjectId, unknown>>;
   return {
     levels: {
       recruitment: validLevel(source.recruitment),
@@ -410,8 +402,8 @@ export function normalizeClubProjects(input: unknown): ClubProjectsState {
       betting: validLevel(source.betting),
       medical: validLevel(source.medical),
       training: validLevel(source.training),
-      stadium: validLevel(source.stadium ?? legacyStadiumSupporters),
-      supporters: validLevel(source.supporters ?? legacyStadiumSupporters),
+      stadium: validLevel(source.stadium),
+      supporters: validLevel(source.supporters),
       missions: validLevel(source.missions),
     },
   };
@@ -426,7 +418,7 @@ export function projectUpgradeCost(nextLevel: number): number | null {
   return CLUB_PROJECT_UPGRADE_COSTS[nextLevel as keyof typeof CLUB_PROJECT_UPGRADE_COSTS] ?? null;
 }
 
-export interface ClubProjectUpgradeResult {
+interface ClubProjectUpgradeResult {
   projects: ClubProjectsState;
   cost: number;
   fromLevel: number;

@@ -303,91 +303,6 @@
     }
   }
 
-  .ui-flow-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    width: min(100%, var(--ui-content-max));
-    margin: 0 auto;
-    padding: 12px var(--ui-gutter) 0;
-  }
-
-  .ui-flow-summary {
-    display: none;
-  }
-
-  .ui-stepper {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .ui-stepper::-webkit-scrollbar {
-    display: none;
-  }
-
-  .ui-step {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    flex: 0 0 auto;
-    min-height: 32px;
-    padding: 0;
-    border: 0;
-    color: var(--ui-text-faint);
-    background: transparent;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-  }
-
-  button.ui-step { cursor: pointer; font-family: inherit; }
-  button.ui-step:disabled { cursor: default; opacity: 0.72; }
-
-  .ui-step__number {
-    display: none;
-  }
-
-  .ui-step::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border: 1px solid currentColor;
-    border-radius: 50%;
-    opacity: 0.7;
-  }
-
-  .ui-step + .ui-step::after {
-    content: "";
-    width: 16px;
-    height: 1px;
-    margin-left: 1px;
-    background: var(--ui-line);
-  }
-
-  .ui-step--done {
-    color: var(--ui-success);
-  }
-
-  .ui-step--done::before {
-    border-color: var(--ui-success);
-    background: var(--ui-success);
-  }
-
-  .ui-step--current {
-    color: var(--ui-brand-strong);
-  }
-
-  .ui-step--current::before {
-    border-color: var(--ui-brand-strong);
-    background: var(--ui-brand-strong);
-    box-shadow: 0 0 0 4px var(--ui-brand-soft);
-  }
-
   .ui-section-header {
     display: flex;
     align-items: flex-end;
@@ -898,14 +813,6 @@
 
   .ui-tab-panel { min-width: 0; }
 
-  .ui-divider {
-    width: 100%;
-    height: 1px;
-    margin: 0;
-    border: 0;
-    background: var(--ui-line-subtle);
-  }
-
   .ui-skeleton {
     min-height: 12px;
     border-radius: var(--ui-radius-sm);
@@ -932,66 +839,6 @@
 
   .ui-empty__action { margin-top: 16px; }
 
-  .ui-competition-header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
-
-  .ui-competition-header .ui-section-header { flex: 1; margin-bottom: 0; }
-  .ui-competition-header__status { flex: 0 0 auto; }
-
-  .ui-matchday-card__teams {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 18px;
-  }
-
-  .ui-matchday-card__team { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-  .ui-matchday-card__team--home { text-align: right; }
-  .ui-matchday-card__team--away { text-align: left; }
-  .ui-matchday-card__team strong { overflow: hidden; color: var(--ui-text); font-family: var(--font-display), sans-serif; font-size: 22px; font-weight: 400; letter-spacing: 0.04em; line-height: 1; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-  .ui-matchday-card__team span { color: var(--ui-text-muted); font-size: 11px; }
-  .ui-matchday-card__versus { color: var(--ui-text-faint); font-size: 10px; font-weight: 800; letter-spacing: 0.14em; }
-
-  .ui-stat-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1px;
-    overflow: hidden;
-    border: 1px solid var(--ui-line-subtle);
-    border-radius: var(--ui-radius-lg);
-    background: var(--ui-line-subtle);
-  }
-
-  .ui-stat-grid__item { min-width: 0; padding: 12px; background: var(--ui-surface-1); }
-  .ui-stat-grid__item > span { display: block; overflow: hidden; color: var(--ui-text-faint); font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-  .ui-stat-grid__item > strong { display: block; margin-top: 5px; color: var(--ui-text); font-family: var(--font-display), sans-serif; font-size: 26px; font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; }
-  .ui-stat-grid__item > small { display: block; margin-top: 5px; overflow: hidden; color: var(--ui-text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-  .ui-stat-grid__value--brand { color: var(--ui-brand-strong) !important; }
-  .ui-stat-grid__value--success { color: var(--ui-success) !important; }
-  .ui-stat-grid__value--danger { color: var(--ui-danger) !important; }
-
-  .ui-timeline { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-  .ui-timeline__item { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: start; gap: 9px; min-width: 0; padding: 10px 12px; border-left: 2px solid var(--ui-line-strong); border-radius: 0 var(--ui-radius-md) var(--ui-radius-md) 0; background: var(--ui-surface-1); }
-  .ui-timeline__item time { min-width: 30px; color: var(--ui-text-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .ui-timeline__icon { color: var(--ui-text-muted); }
-  .ui-timeline__content { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
-  .ui-timeline__content strong { color: var(--ui-text-soft); font-size: 13px; line-height: 1.3; }
-  .ui-timeline__content span { color: var(--ui-text-muted); font-size: 11px; line-height: 1.35; }
-  .ui-timeline__item--brand { border-left-color: var(--ui-brand); }
-  .ui-timeline__item--success { border-left-color: var(--ui-success); }
-  .ui-timeline__item--danger { border-left-color: var(--ui-danger); }
-  .ui-timeline__item--warning { border-left-color: var(--ui-warning); }
-  .ui-timeline__empty { padding: 28px 16px; color: var(--ui-text-muted); text-align: center; }
-
-  .ui-artifact-preview { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 12px; }
-  .ui-artifact-preview__label { color: var(--ui-text-faint); font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
-
   .ui-stack {
     display: flex;
     flex-direction: column;
@@ -1003,27 +850,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
-  }
-
-  .ui-grid-2 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .ui-grid-3 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  @media (min-width: 640px) {
-    .ui-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .ui-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-
-  @media (min-width: 1024px) {
-    .ui-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 }
 
@@ -1053,97 +879,6 @@
 }
 
 @media (max-width: 639px) {
-  .ui-flow-header {
-    display: block;
-    padding-top: 12px;
-  }
-
-  .ui-flow-summary {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 10px;
-    color: var(--ui-text-faint);
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
-  .ui-flow-summary strong {
-    overflow: hidden;
-    color: var(--ui-brand-strong);
-    font-family: var(--font-display), sans-serif;
-    font-size: 18px;
-    font-weight: 400;
-    letter-spacing: 0.07em;
-    line-height: 1;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .ui-stepper {
-    width: 100%;
-    gap: 0;
-    justify-content: stretch;
-    overflow: visible;
-  }
-
-  .ui-step {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 14px;
-    font-size: 0;
-    line-height: 0;
-  }
-
-  .ui-step__label {
-    display: none;
-  }
-
-  .ui-step::before {
-    position: absolute;
-    z-index: 2;
-    top: 2px;
-    left: 50%;
-    width: 10px;
-    height: 10px;
-    transform: translateX(-50%);
-    border-color: var(--ui-line-strong);
-    background: var(--ui-bg);
-  }
-
-  .ui-step + .ui-step::after {
-    position: absolute;
-    z-index: 1;
-    top: 6px;
-    right: 50%;
-    width: 100%;
-    height: 2px;
-    margin: 0;
-    background: var(--ui-line);
-  }
-
-  .ui-step--done::before {
-    border-color: var(--ui-success);
-    background: var(--ui-success);
-  }
-
-  .ui-step--current::before {
-    border-color: var(--ui-brand-strong);
-    background: var(--ui-brand-strong);
-    box-shadow: 0 0 0 4px var(--ui-brand-soft);
-  }
-
-  .ui-step--done + .ui-step::after {
-    background: var(--ui-success);
-  }
-
-  .ui-competition-header { display: block; }
-  .ui-competition-header__status { margin-top: 12px; }
-  .ui-matchday-card__team strong { font-size: 18px; }
   .ui-tabs { gap: 18px; }
   .ui-tab { min-height: 40px; font-size: 10px; }
 }

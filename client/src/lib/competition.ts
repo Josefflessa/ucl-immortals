@@ -1,42 +1,22 @@
 // Competition formats shared by solo mode, online rooms and the server.
-//
-// The old game only had one format (league + knockout) and persisted two
-// fields: leagueRounds and qualifiedTeams. Those fields intentionally remain
-// part of the public shape so old rooms/saves keep working.
 
-export const COMPETITION_TEAM_COUNT = 36;
+const COMPETITION_TEAM_COUNT = 36;
 export const MAX_BOT_TEAMS = COMPETITION_TEAM_COUNT - 1;
 export const MAX_ONLINE_PLAYERS = 8;
 export const MIN_COMPETITION_TEAMS = 4;
 export const MAX_COMPETITION_TEAMS = COMPETITION_TEAM_COUNT;
-export const MIN_LEAGUE_ROUNDS = 1;
-export const MAX_LEAGUE_ROUNDS = COMPETITION_TEAM_COUNT - 1;
 export const MIN_QUALIFIED_TEAMS = 16;
-export const MAX_QUALIFIED_TEAMS = 24;
+const MAX_QUALIFIED_TEAMS = 24;
 export const MIN_REINFORCEMENT_OPTIONS = 3;
 export const MAX_REINFORCEMENT_OPTIONS = 6;
 export const MAX_POINTS_PER_RULE = 1000;
 // The betting bank is a game rule, not a tournament customization.
+// Teto fixo de stake total por rodada/partida nos palpites (+ bônus da Central de Palpites).
 export const FIXED_BET_ROUND_CAP = 200;
-// Kept exported for old imports and saved-format compatibility.
-export const MIN_BET_ROUND_CAP = 0;
-export const MAX_BET_ROUND_CAP = 10000;
 
 export type CompetitionFormatId = 'league' | 'league_knockout' | 'groups_knockout' | 'knockout';
-export type ReinforcementMode = 'off' | 'round' | 'stage' | 'round_and_stage';
+type ReinforcementMode = 'off' | 'round' | 'stage' | 'round_and_stage';
 export type LeagueLegs = 1 | 2;
-
-export interface CompetitionMatchSettings {
-  injuriesEnabled: boolean;
-  cardsEnabled: boolean;
-  betRoundCap: number;
-}
-
-export const DEFAULT_MATCH_SETTINGS: CompetitionMatchSettings = {
-  injuriesEnabled: true,
-  cardsEnabled: true,
-  betRoundCap: FIXED_BET_ROUND_CAP,
-};
 
 /** Credits awarded to the player's shop balance after a completed match. */
 export interface CompetitionPointsConfig {
@@ -60,7 +40,6 @@ export interface CompetitionRewardsConfig {
 export interface CompetitionFormat {
   id: CompetitionFormatId;
   teamCount: number;
-  // Legacy-compatible league settings.
   leagueRounds: number;
   // Only used by the standalone points league. Other formats keep one leg.
   leagueLegs: LeagueLegs;
@@ -72,11 +51,10 @@ export interface CompetitionFormat {
   qualifiedPerGroup: number;
   knockoutLegs: 1 | 2;
   finalSingleLeg: boolean;
-  matchSettings: CompetitionMatchSettings;
   rewards: CompetitionRewardsConfig;
 }
 
-export interface CompetitionFormatPreset {
+interface CompetitionFormatPreset {
   id: CompetitionFormatId;
   name: string;
   shortDescription: string;
@@ -85,7 +63,7 @@ export interface CompetitionFormatPreset {
   format: CompetitionFormat;
 }
 
-export const DEFAULT_POINTS_CONFIG: CompetitionPointsConfig = {
+const DEFAULT_POINTS_CONFIG: CompetitionPointsConfig = {
   // Valores atuais: vitória/empate/derrota + saldo positivo + gols + SG.
   win: 100,
   draw: 45,
@@ -116,7 +94,6 @@ const LEAGUE_DEFAULT: CompetitionFormat = {
   qualifiedPerGroup: 0,
   knockoutLegs: 1,
   finalSingleLeg: true,
-  matchSettings: { ...DEFAULT_MATCH_SETTINGS },
   rewards: { ...DEFAULT_REWARDS_CONFIG, reinforcementUntilRound: 38, knockoutPointsEnabled: false },
 };
 
@@ -132,7 +109,6 @@ const LEAGUE_KNOCKOUT_DEFAULT: CompetitionFormat = {
   qualifiedPerGroup: 0,
   knockoutLegs: 2,
   finalSingleLeg: true,
-  matchSettings: { ...DEFAULT_MATCH_SETTINGS },
   rewards: { ...DEFAULT_REWARDS_CONFIG, reinforcement: 'round_and_stage' },
 };
 
@@ -148,7 +124,6 @@ const GROUPS_KNOCKOUT_DEFAULT: CompetitionFormat = {
   qualifiedPerGroup: 2,
   knockoutLegs: 2,
   finalSingleLeg: true,
-  matchSettings: { ...DEFAULT_MATCH_SETTINGS },
   rewards: { ...DEFAULT_REWARDS_CONFIG, reinforcement: 'round_and_stage', reinforcementUntilRound: 3 },
 };
 
@@ -164,7 +139,6 @@ const KNOCKOUT_DEFAULT: CompetitionFormat = {
   qualifiedPerGroup: 0,
   knockoutLegs: 1,
   finalSingleLeg: true,
-  matchSettings: { ...DEFAULT_MATCH_SETTINGS },
   rewards: { ...DEFAULT_REWARDS_CONFIG, reinforcement: 'stage', reinforcementUntilRound: null },
 };
 
@@ -189,10 +163,9 @@ export const COMPETITION_FORMAT_PRESETS: Record<CompetitionFormatId, Competition
   },
 };
 
-export function cloneCompetitionFormat(format: CompetitionFormat): CompetitionFormat {
+function cloneCompetitionFormat(format: CompetitionFormat): CompetitionFormat {
   return {
     ...format,
-    matchSettings: normalizeMatchSettings(format.matchSettings),
     rewards: { ...format.rewards, points: { ...format.rewards.points } },
   };
 }
@@ -227,21 +200,8 @@ function validateRewards(rewards: unknown, maxReinforcementWindow: number): stri
   return null;
 }
 
-/** Safe defaults keep rooms/saves created before match settings were introduced playable. */
-export function normalizeMatchSettings(input: unknown): CompetitionMatchSettings {
-  if (!input || typeof input !== 'object') return { ...DEFAULT_MATCH_SETTINGS };
-  const value = input as Partial<CompetitionMatchSettings>;
-  return {
-    injuriesEnabled: value.injuriesEnabled !== false,
-    cardsEnabled: value.cardsEnabled !== false,
-    // Older rooms may still carry a custom value; normalize it to the fixed
-    // game rule so the old setting cannot silently change the economy.
-    betRoundCap: FIXED_BET_ROUND_CAP,
-  };
-}
-
 /** Maximum useful value for the reinforcement window in the selected format. */
-export function reinforcementWindowLimit(format: CompetitionFormat, mode?: ReinforcementMode): number {
+function reinforcementWindowLimit(format: CompetitionFormat, mode?: ReinforcementMode): number {
   const effectiveMode = mode ?? format.rewards?.reinforcement ?? 'off';
   if (effectiveMode === 'round' || effectiveMode === 'round_and_stage') {
     if (format.id === 'groups_knockout') return Math.max(1, format.groupRounds);
@@ -258,17 +218,15 @@ export function reinforcementWindowLimit(format: CompetitionFormat, mode?: Reinf
 }
 
 /**
- * The competition screen no longer exposes reward or match-rule overrides.
- * Keep the rules canonical per preset, including for older saves and online
- * payloads that may still contain the former custom values.
+ * Rewards are fixed per preset (the competition screen does not expose them);
+ * only the reinforcement window adapts to the chosen format size.
  */
-function standardRulesForFormat(format: CompetitionFormat): Pick<CompetitionFormat, 'matchSettings' | 'rewards'> {
+function standardRulesForFormat(format: CompetitionFormat): Pick<CompetitionFormat, 'rewards'> {
   const preset = COMPETITION_FORMAT_PRESETS[format.id].format;
   const reinforcement = preset.rewards.reinforcement;
   const windowLimit = reinforcementWindowLimit(format, reinforcement);
 
   return {
-    matchSettings: { ...DEFAULT_MATCH_SETTINGS },
     rewards: {
       ...preset.rewards,
       reinforcementUntilRound: reinforcement === 'off'
@@ -283,25 +241,15 @@ function standardRulesForFormat(format: CompetitionFormat): Pick<CompetitionForm
 export function validateCompetitionFormat(value: unknown): string | null {
   if (!value || typeof value !== 'object') return 'Defina o formato da competição.';
 
-  // Rooms/saves from before the preset system only contain these two fields.
-  if (!('id' in value)) {
-    const legacy = value as { leagueRounds?: unknown; qualifiedTeams?: unknown };
-    if (!isInteger(legacy.leagueRounds)) return 'O número de rodadas deve ser um número inteiro.';
-    if (legacy.leagueRounds < MIN_LEAGUE_ROUNDS || legacy.leagueRounds > MAX_LEAGUE_ROUNDS) return `O número de rodadas deve ficar entre ${MIN_LEAGUE_ROUNDS} e ${MAX_LEAGUE_ROUNDS}.`;
-    if (!isInteger(legacy.qualifiedTeams)) return 'O número de classificados deve ser um número inteiro.';
-    if (legacy.qualifiedTeams < MIN_QUALIFIED_TEAMS || legacy.qualifiedTeams > MAX_QUALIFIED_TEAMS) return `O número de classificados deve ficar entre ${MIN_QUALIFIED_TEAMS} e ${MAX_QUALIFIED_TEAMS}.`;
-    return null;
-  }
-
   const format = value as Partial<CompetitionFormat>;
   if (!isCompetitionFormatId(format.id)) return 'Escolha um formato de competição válido.';
   if (!isInteger(format.teamCount) || format.teamCount < MIN_COMPETITION_TEAMS || format.teamCount > MAX_COMPETITION_TEAMS) return `O torneio deve ter entre ${MIN_COMPETITION_TEAMS} e ${MAX_COMPETITION_TEAMS} times.`;
   if (format.id === 'league' || format.id === 'league_knockout') {
-    const leagueLegs = format.id === 'league' && (format.leagueLegs === 2 || (format.leagueLegs === undefined && isInteger(format.leagueRounds) && format.leagueRounds > format.teamCount - 1)) ? 2 : 1;
-    const maxRounds = (format.id === 'league' ? leagueLegs : 1) * (format.teamCount - 1);
-    if (format.leagueLegs !== undefined && format.id === 'league' && format.leagueLegs !== 1 && format.leagueLegs !== 2) return 'Escolha se os pontos corridos terão turno único ou ida e volta.';
+    if (format.id === 'league' && format.leagueLegs !== 1 && format.leagueLegs !== 2) return 'Escolha se os pontos corridos terão turno único ou ida e volta.';
+    const leagueLegs = format.id === 'league' ? format.leagueLegs as LeagueLegs : 1;
+    const maxRounds = leagueLegs * (format.teamCount - 1);
     if (!isInteger(format.leagueRounds) || format.leagueRounds < 1 || format.leagueRounds > maxRounds) return `A liga deve ter entre 1 e ${maxRounds} rodadas.`;
-    if (format.id === 'league' && format.leagueLegs !== undefined && format.leagueRounds !== leagueLegs * (format.teamCount - 1)) return `A liga deve ter exatamente ${leagueLegs * (format.teamCount - 1)} rodadas nesse formato.`;
+    if (format.id === 'league' && format.leagueRounds !== maxRounds) return `A liga deve ter exatamente ${maxRounds} rodadas nesse formato.`;
   }
   if (format.id === 'league_knockout') {
     if (format.teamCount < MIN_QUALIFIED_TEAMS) return `Este formato precisa de pelo menos ${MIN_QUALIFIED_TEAMS} times para formar as oitavas.`;
@@ -318,10 +266,6 @@ export function validateCompetitionFormat(value: unknown): string | null {
   if (format.id === 'knockout' && (!isPowerOfTwo(format.teamCount) || format.teamCount > 16)) return 'O mata-mata direto deve ter 4, 8 ou 16 times.';
   if (format.knockoutLegs !== 1 && format.knockoutLegs !== 2) return 'Escolha se os confrontos terão uma ou duas partidas.';
   if (typeof format.finalSingleLeg !== 'boolean') return 'Defina o formato da final.';
-  if (format.matchSettings !== undefined) {
-    const settings = format.matchSettings as Partial<CompetitionMatchSettings>;
-    if (typeof settings.injuriesEnabled !== 'boolean' || typeof settings.cardsEnabled !== 'boolean') return 'Defina se lesões e cartões estarão ativos.';
-  }
   if (format.id === 'league' && (format.rewards?.reinforcement === 'stage' || format.rewards?.reinforcement === 'round_and_stage')) return 'Pontos corridos aceita recrutamento por rodada, não por fase.';
   if (format.id === 'knockout' && (format.rewards?.reinforcement === 'round' || format.rewards?.reinforcement === 'round_and_stage')) return 'O mata-mata direto aceita recrutamento por fase, não por rodada.';
   const rewardsError = validateRewards(format.rewards, reinforcementWindowLimit(format as CompetitionFormat));
@@ -329,37 +273,19 @@ export function validateCompetitionFormat(value: unknown): string | null {
   return null;
 }
 
-/** Safe boundary for old saves/rooms and defensive calls from the game engine. */
+/** Safe boundary for client/network input and defensive calls from the game engine. */
 export function normalizeCompetitionFormat(value: unknown): CompetitionFormat {
-  if (value && typeof value === 'object' && !('id' in value)) {
-    const legacy = value as { leagueRounds?: number; qualifiedTeams?: number };
-    if (validateCompetitionFormat(value) === null) {
-      return normalizeCompetitionFormat({
-        ...DEFAULT_COMPETITION_FORMAT,
-        leagueRounds: legacy.leagueRounds!,
-        qualifiedTeams: legacy.qualifiedTeams!,
-        rewards: {
-          ...DEFAULT_COMPETITION_FORMAT.rewards,
-          reinforcementUntilRound: legacy.leagueRounds!,
-          points: { ...DEFAULT_COMPETITION_FORMAT.rewards.points },
-        },
-      });
-    }
-  }
   if (validateCompetitionFormat(value) !== null) return cloneCompetitionFormat(DEFAULT_COMPETITION_FORMAT);
   const format = value as CompetitionFormat;
-  const inferredLeagueLegs: LeagueLegs = format.id === 'league' && format.leagueRounds > format.teamCount - 1 ? 2 : 1;
-  const leagueLegs = format.leagueLegs === 2 || format.leagueLegs === 1 ? format.leagueLegs : inferredLeagueLegs;
-  const leagueRounds = format.id === 'league' ? leagueLegs * (format.teamCount - 1) : format.leagueRounds;
-  return cloneCompetitionFormat({ ...format, leagueLegs, leagueRounds, ...standardRulesForFormat(format) });
+  return cloneCompetitionFormat({ ...format, ...standardRulesForFormat(format) });
 }
 
-export function directQualifiersFor(format: CompetitionFormat): number {
+function directQualifiersFor(format: CompetitionFormat): number {
   if (format.id !== 'league_knockout') return 0;
   return Math.max(0, 32 - format.qualifiedTeams);
 }
 
-export function playoffTeamsFor(format: CompetitionFormat): number {
+function playoffTeamsFor(format: CompetitionFormat): number {
   if (format.id !== 'league_knockout') return 0;
   return Math.max(0, format.qualifiedTeams - 16);
 }
@@ -373,18 +299,4 @@ export function competitionFormatSummary(format: CompetitionFormat): string {
   const direct = directQualifiersFor(normalized);
   const playoffs = playoffTeamsFor(normalized);
   return playoffs > 0 ? `${normalized.leagueRounds} rodadas · ${normalized.qualifiedTeams} classificados · ${direct} diretos + ${playoffs * 2} no playoff (${playoffs} ${playoffs === 1 ? 'confronto' : 'confrontos'}) · ${finalMode}` : `${normalized.leagueRounds} rodadas · ${normalized.qualifiedTeams} classificados direto às oitavas · ${finalMode}`;
-}
-
-export function competitionRewardSummary(format: CompetitionFormat): string {
-  const normalized = normalizeCompetitionFormat(format);
-  const rewards = normalized.rewards;
-  const roundName = normalized.id === 'groups_knockout' ? 'rodada de grupos' : normalized.id === 'knockout' ? 'fase' : 'rodada da liga';
-  const reinforcement = rewards.reinforcement === 'off'
-    ? 'sem recrutamento automático'
-    : rewards.reinforcement === 'round'
-      ? `1 oferta a cada ${roundName} até a ${rewards.reinforcementUntilRound ?? 'última'}`
-      : rewards.reinforcement === 'round_and_stage'
-        ? `1 oferta a cada ${roundName} até a ${rewards.reinforcementUntilRound ?? 'última'} + 1 após cada fase do mata-mata antes da final`
-        : '1 oferta ao concluir cada fase eliminatória até o limite escolhido';
-  return `${reinforcement} · ${rewards.pointsEnabled ? 'créditos da loja ativos' : 'créditos da loja desligados'}`;
 }

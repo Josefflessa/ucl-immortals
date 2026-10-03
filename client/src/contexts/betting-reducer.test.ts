@@ -56,14 +56,6 @@ describe('PLACE_BET / CANCEL_BET (escrow)', () => {
     expect(s.points).toBe(400);
     expect(s.bets[0]).toMatchObject({ market: 'builder', stake: 100, multiplier: 2.2 });
   });
-  it('bloqueia total de cartões quando a competição desabilita cartões', () => {
-    const s = gameReducer(base({ competitionFormat: { matchSettings: { cardsEnabled: false } } as any }), {
-      type: 'PLACE_BET', matchKey: 'L1:a-b', stake: 100, market: 'builder',
-      selections: [{ type: 'total_cards', operator: 'over', line: 1.5 }],
-    });
-    expect(s.bets).toHaveLength(0);
-    expect(s.points).toBe(500);
-  });
 });
 
 describe('FINISH_LEAGUE_MATCH liquida e credita os palpites', () => {

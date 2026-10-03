@@ -3,8 +3,6 @@ export {
   Badge,
   Button,
   ChoiceCard,
-  FlowHeader,
-  Divider,
   EmptyState,
   IconButton,
   Input,
@@ -20,8 +18,4 @@ export {
   StatusBanner,
   TopBar,
 } from './primitives';
-export type { FlowStep, UiIntent, UiTone } from './primitives';
-export { ArtifactPreview, CompetitionHeader, ConfirmDialog, GameModal, MatchdayCard, StatGrid, Tab, TabList, TabPanel, Tabs, Timeline } from './patterns';
-export type { ConfirmDialogProps, GameModalProps, MatchdayCardProps, StatItem, TimelineItem } from './patterns';
-export { motionTokens } from './motion';
-export type { MotionToken } from './motion';
+export { ConfirmDialog, GameModal, Tab, TabList, TabPanel, Tabs } from './patterns';

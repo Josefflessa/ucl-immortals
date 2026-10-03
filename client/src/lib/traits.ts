@@ -11,15 +11,15 @@ export type AttrKey =
   | 'pace' | 'shooting' | 'passing' | 'dribbling'
   | 'defending' | 'physical' | 'composure' | 'vision';
 
-export type TraitCondition = 'always' | 'final' | 'knockout' | 'losing';
+type TraitCondition = 'always' | 'final' | 'knockout' | 'losing';
 
-export interface TraitBoost {
+interface TraitBoost {
   attribute: AttrKey;
   value: number;
   condition?: TraitCondition; // default 'always'
 }
 
-export interface TraitDef {
+interface TraitDef {
   id: string;
   icon: string;
   flavor: string;             // short thematic description
@@ -171,7 +171,7 @@ export function getPenaltyComposureBonus(traits: string[]): number {
 // premium cards feel richer and "more than one" actually happens. Traits are drawn from
 // a pool appropriate to the player's POSITION GROUP, so a roll is always relevant
 // (a striker never lands a goalkeeper trait, a defender never a poacher's instinct).
-export type PosGroup = 'GK' | 'DEF' | 'MID' | 'ATK';
+type PosGroup = 'GK' | 'DEF' | 'MID' | 'ATK';
 
 export function positionGroup(position: string): PosGroup {
   if (position === 'GK') return 'GK';

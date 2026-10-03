@@ -3,7 +3,7 @@ import { Button } from '../../design-system';
 import type { AccountSection } from '../../contexts/GameContext';
 import { cn } from '../../lib/utils';
 
-export type AccountNavigationTab = 'home' | AccountSection;
+type AccountNavigationTab = 'home' | AccountSection;
 
 interface AccountTabBarProps {
   active: AccountNavigationTab | null;

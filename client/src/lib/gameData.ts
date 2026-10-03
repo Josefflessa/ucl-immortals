@@ -11,12 +11,13 @@ import { SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS } from './sortitoutsiMajorLeagueExpa
 import { SORTITOUTSI_1000_ADDITIONS } from './sortitoutsiThousandExpansion';
 import { SORTITOUTSI_EUROPEAN_LEGENDS } from './sortitoutsiEuropeanLegendsExpansion';
 import { FIFAINDEX_FAMOUS_ADDITIONS } from './fifaIndexFamousExpansion';
+import { rarityForBaseOverall } from './rarity';
 import { USER_SELECTED_HISTORICAL_PLAYERS } from './userSelectedHistoricalPlayers';
 import { clubIdForName } from './crests';
 import type { AttrKey } from './traits';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
-export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
+type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
 // Visual/progression level for standard cards. Unique cards intentionally do
 // not participate in the evolution track.
 export type EvolutionLevel = 0 | 1 | 2 | 3 | 4;
@@ -140,8 +141,8 @@ export interface Player {
   // depois do nível 3 e escolhem uma especialização; os níveis 1–3 continuam
   // liberando pacotes de 6 pontos.
   appearances?: number;
-  // Explicit evolution level for previews and legacy cards. New level-4
-  // unlocks are persisted through specializationUnlocked below.
+  // Explicit evolution level for previews. Level-4 unlocks are persisted
+  // through specializationUnlocked below.
   evolutionLevel?: EvolutionLevel;
   // ⭐ Desbloqueio pago do nível 4 (exclusivo de cartas Imortais; uma vez só).
   specializationUnlocked?: boolean;
@@ -195,7 +196,7 @@ export interface Formation {
   counteredBy: string[];
 }
 
-export interface HistoricalTrio {
+interface HistoricalTrio {
   id: string;
   name: string;
   description: string;
@@ -203,7 +204,7 @@ export interface HistoricalTrio {
   chemBonus: number;
 }
 
-export interface DifficultyLevel {
+interface DifficultyLevel {
   id: string;
   name: string;
   description: string;
@@ -224,42 +225,14 @@ export function getRarityColor(rarity: Rarity): string {
   }
 }
 
-export function getRarityGlow(rarity: Rarity): string {
-  switch (rarity) {
-    case 'unique': return '0 0 28px rgba(240,230,192,0.55), 0 0 56px rgba(240,230,192,0.22)';
-    case 'immortal': return '0 0 25px rgba(255,215,0,0.5), 0 0 50px rgba(255,215,0,0.2)';
-    case 'legendary': return '0 0 20px rgba(255,140,0,0.4)';
-    case 'gold': return '0 0 12px rgba(201,168,76,0.3)';
-    case 'silver': return '0 0 8px rgba(168,168,184,0.2)';
-    case 'bronze': return '0 0 6px rgba(205,127,50,0.2)';
-  }
-}
-
-// Raridade das cartas regulares: a faixa é determinada pelo overall BASE.
-// O cadastro antigo ainda mantém os rótulos escritos em cada objeto, mas a
-// regra abaixo é a única fonte de verdade no catálogo exportado. Isso evita
-// divergências como uma carta 74 ouro ou uma carta 84 prata.
-export function rarityForBaseOverall(overall: number): Exclude<Rarity, 'unique'> {
-  if (overall <= 74) return 'bronze';
-  if (overall <= 79) return 'silver';
-  if (overall <= 87) return 'gold';
-  if (overall <= 93) return 'legendary';
-  return 'immortal';
-}
-
+// Os objetos do cadastro ainda trazem um rótulo de raridade escrito à mão, mas a
+// faixa por overall (rarity.ts) é a única fonte de verdade no catálogo exportado.
 function normalizeRegularPlayerRarity<T extends { overall: number }>(player: T): T & { rarity: Exclude<Rarity, 'unique'> } {
   return { ...player, rarity: rarityForBaseOverall(player.overall) };
 }
 
 function withCanonicalClub(player: Player): Player {
   return { ...player, clubId: clubIdForName(player.club) };
-}
-
-// `CF` was the former internal code for Segundo Atacante. It is no longer a
-// playable position, but old rooms/sessions can still contain it. Normalize it
-// to the existing CA/ST role at the rules boundary instead of exposing SA again.
-export function canonicalPosition(position: string): string {
-  return position === 'CF' ? 'ST' : position;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -333,10 +306,9 @@ export const UNIQUE_CARDS: Player[] = ([
 ] as Player[]).map(withCanonicalClub);
 
 export function getPositionGroup(position: string): PositionGroup {
-  const canonical = canonicalPosition(position);
-  if (canonical === 'GK') return 'GK';
-  if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(canonical)) return 'DEF';
-  if (['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(canonical)) return 'MID';
+  if (position === 'GK') return 'GK';
+  if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(position)) return 'DEF';
+  if (['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(position)) return 'MID';
   return 'ATT';
 }
 
@@ -352,21 +324,19 @@ export const POS_PT: Record<string, string> = {
   LWB: 'AE', RWB: 'AD', CDM: 'VOL', CM: 'MC',
   CAM: 'MEI', LM: 'ME', RM: 'MD',
   LW: 'PE', RW: 'PD', ST: 'CA',
-  // Legacy saved data only: never generated for new cards and never shown as SA.
-  CF: 'CA',
 };
 
 // Secundárias PADRÃO por posição nativa (vizinhança realista). `secondaryPositions` explícito vence.
-export const SECONDARY_ADJACENCY: Record<string, string[]> = {
+const SECONDARY_ADJACENCY: Record<string, string[]> = {
   GK: [], CB: ['CDM'], LB: ['LWB', 'LM'], RB: ['RWB', 'RM'],
   LWB: ['LB', 'LM'], RWB: ['RB', 'RM'], CDM: ['CM', 'CB'], CM: ['CDM', 'CAM'],
   CAM: ['CM'], LM: ['LW', 'LWB'], RM: ['RW', 'RWB'],
   LW: ['LM'], RW: ['RM'], ST: [],
 };
 export function effectiveSecondaries(p: { position: string; secondaryPositions?: string[] }): string[] {
-  const primary = canonicalPosition(p.position);
+  const primary = p.position;
   const configured = p.secondaryPositions ?? SECONDARY_ADJACENCY[primary] ?? [];
-  return Array.from(new Set(configured.map(canonicalPosition))).filter(position => position !== primary);
+  return Array.from(new Set(configured)).filter(position => position !== primary);
 }
 
 // ============================================================
@@ -375,7 +345,7 @@ export function effectiveSecondaries(p: { position: string; secondaryPositions?:
 // The `id` MUST match the playStyle strings the engine reads in
 // gameEngine.getEffectiveAttribute / matchNarrative.selectApproach.
 // Changing an id here without updating the engine silently disables the bonus.
-export interface Tactic {
+interface Tactic {
   id: string;
   name: string;
   icon: string;
@@ -391,8 +361,6 @@ export const TACTICS: Tactic[] = [
   { id: 'defensive',      name: 'Defensivo',       icon: '🛡️', short: '+Defesa/Físico · bloco baixo', desc: 'Fecha os espaços e segura o resultado. No bloco baixo, sofre menos, mas cria pouco — a escolha clássica de quem quer controlar o jogo.' },
   { id: 'all_out_attack', name: 'Tudo pro Ataque', icon: '⚔️', short: '+Finalização/Ritmo/Drible · arriscado', desc: 'Joga com tudo no ataque. Torna as chances muito mais perigosas, mas fica aberto atrás e sofre bem mais. Para quando você precisa do gol.' },
 ];
-
-export const DEFAULT_PLAY_STYLE = 'balanced';
 
 export function getTacticById(id: string | undefined): Tactic {
   return TACTICS.find(t => t.id === id) ?? TACTICS[0];

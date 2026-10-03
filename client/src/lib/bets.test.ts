@@ -243,7 +243,7 @@ describe('proteção da Central de Palpites', () => {
       { id: 'tie', homeTeamId: 'home', awayTeamId: 'away', leg1: { homeGoals: 0, awayGoals: 1 } },
       { id: 'other', homeTeamId: 'other-home', awayTeamId: 'other-away', leg1: { homeGoals: 0, awayGoals: 1 } },
     ];
-    const result = revealEligibleKoBets([losingBet, losingBet2], ties, 'spectator', [], 25, ['Ktie:1']);
+    const result = revealEligibleKoBets([losingBet, losingBet2], ties, 'spectator', [], 25);
     expect(result.winnings).toBe(50);
     expect(result.bets[0].protectionRefund).toBe(25);
     expect(result.bets[1].protectionRefund).toBe(25);

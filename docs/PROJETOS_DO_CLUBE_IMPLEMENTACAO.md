@@ -375,7 +375,7 @@ O snapshot online deve carregar os projetos dentro do estado privado de cada
 participante. Os demais jogadores recebem apenas os dados que precisam aparecer
 na partida, nunca o saldo ou os custos privados do outro jogador.
 
-## 7. Modelo de dados proposto
+## 7. Modelo de dados
 
 ```ts
 export type ClubProjectId =

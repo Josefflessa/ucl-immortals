@@ -498,7 +498,6 @@ export default function DraftPage() {
               <FormationField
                 formation={formation}
                 players={draftedPlayers}
-                showPlayerCards
               />
             )}
             {coach && (

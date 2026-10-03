@@ -38,9 +38,9 @@ export const PROFILE_AVATARS = [
   { key: 'jp-lapin', name: 'Jean-Pierre Lapin', src: '/avatars/inazuma/jp-lapin.webp' },
 ] as const;
 
-export type ProfileAvatarKey = (typeof PROFILE_AVATARS)[number]['key'];
+type ProfileAvatarKey = (typeof PROFILE_AVATARS)[number]['key'];
 
-export function getProfileAvatar(key: string) {
+function getProfileAvatar(key: string) {
   return PROFILE_AVATARS.find(avatar => avatar.key === key);
 }
 

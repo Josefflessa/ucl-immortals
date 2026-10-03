@@ -1,7 +1,5 @@
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeProvider } from "./contexts/ThemeContext";
 import { GameProvider, useGame } from "./contexts/GameContext";
 import { AccountProvider, useAccount } from "./contexts/AccountContext";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -141,19 +139,15 @@ function GameRouter() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <Toaster />
-          <AccountProvider>
-            <GameProvider>
-              <ModalScrollLock />
-              <GameRouter />
-              <RoomInvitationPrompt />
-              <InstallPrompt />
-            </GameProvider>
-          </AccountProvider>
-        </TooltipProvider>
-      </ThemeProvider>
+      <Toaster />
+      <AccountProvider>
+        <GameProvider>
+          <ModalScrollLock />
+          <GameRouter />
+          <RoomInvitationPrompt />
+          <InstallPrompt />
+        </GameProvider>
+      </AccountProvider>
     </ErrorBoundary>
   );
 }

@@ -1,4 +1,5 @@
 import type { Player } from './gameData';
+import { rarityForBaseOverall } from './rarity';
 
 /**
  * Seleção de jogadores de elencos atuais e históricos de clubes do Brasileirão.
@@ -429,14 +430,6 @@ function overallFor(name: string): number {
   return 79;
 }
 
-function rarityForOverall(overall: number): Exclude<Player['rarity'], 'unique'> {
-  if (overall <= 74) return 'bronze';
-  if (overall <= 79) return 'silver';
-  if (overall <= 87) return 'gold';
-  if (overall <= 93) return 'legendary';
-  return 'immortal';
-}
-
 function clamp(value: number): number {
   return Math.max(1, Math.min(99, Math.round(value)));
 }
@@ -466,7 +459,7 @@ function makePlayer([name, position, club, faceId]: Entry, index: number): Playe
     nation: FOREIGN_NATIONS[name] ?? 'Brasil',
     club,
     season: '2025/26',
-    rarity: rarityForOverall(overall),
+    rarity: rarityForBaseOverall(overall),
     overall,
     pace: clamp(profiles.pace + v(1)), shooting: clamp(profiles.shooting + v(2)),
     passing: clamp(profiles.passing + v(3)), dribbling: clamp(profiles.dribbling + v(4)),

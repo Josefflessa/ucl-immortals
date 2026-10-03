@@ -17,7 +17,7 @@ function withFormation(base: Team, formationId: string, id: string): Team {
 // ============================================================
 // MATCH-LEVEL AGGREGATE
 // ============================================================
-export interface MatchAgg {
+interface MatchAgg {
   matches: number;
   totalGoals: number;
   homeGoals: number;
@@ -50,7 +50,7 @@ const emptyAgg = (): MatchAgg => ({
   shotsMin: Infinity, shotsMax: 0, foulsMin: Infinity, foulsMax: 0, cornersMin: Infinity, cornersMax: 0,
 });
 
-export function accumulate(agg: MatchAgg, r: MatchResult, homeId: string, awayId: string): void {
+function accumulate(agg: MatchAgg, r: MatchResult, homeId: string, awayId: string): void {
   agg.matches++;
   const hg = r.homeGoals, ag = r.awayGoals;
   agg.totalGoals += hg + ag;
@@ -427,12 +427,12 @@ function pctl(sorted: number[], p: number): number {
 }
 const mean = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
 
-export interface PosProfile {
+interface PosProfile {
   n: number; avgRating: number; p10: number; p50: number; p90: number; min: number; max: number;
   goals: number; assists: number; keyPasses: number; shots: number; sot: number;
   tackles: number; interceptions: number; saves: number; // all PER player-match
 }
-export interface RatingProfile {
+interface RatingProfile {
   byPos: Record<PosBucket, PosProfile>;
   overall: { n: number; avg: number; p1: number; p10: number; p25: number; p50: number; p75: number; p90: number; p99: number; min: number; max: number };
   motm: { avg: number; min: number; max: number };
@@ -641,7 +641,7 @@ export function homeAdvantageSplit(n: number, isFinal: boolean): { homeWin: numb
 // ============================================================
 // FULL SEASON — league (Swiss) + knockout, to gauge competitive integrity
 // ============================================================
-export interface SeasonResult {
+interface SeasonResult {
   championStrengthRank: number; // 1 = strongest of the 36 entrants
   totalEntrants: number;
   leagueGoalsPerGame: number;

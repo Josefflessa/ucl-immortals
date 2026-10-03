@@ -9,11 +9,11 @@ import type { MatchResult, PlayerCard, Team } from './gameEngine';
 import { calculateChemistry, positionFit } from './gameEngine';
 import { sameClub } from './crests';
 
-export type MissionRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-export type MissionBoardCategory = 'results' | 'goals' | 'stats' | 'setup' | 'special';
-export type MissionProgressMode = 'single' | 'streak' | 'accumulate';
+type MissionRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+type MissionBoardCategory = 'results' | 'goals' | 'stats' | 'setup' | 'special';
+type MissionProgressMode = 'single' | 'streak' | 'accumulate';
 
-export interface MissionRule {
+interface MissionRule {
   kind: string;
   value?: number;
   values?: string[];
@@ -21,7 +21,7 @@ export interface MissionRule {
   sequenceMode?: 'same' | 'different';
 }
 
-export interface MissionDefinition {
+interface MissionDefinition {
   id: string;
   title: string;
   description: string;
@@ -76,7 +76,7 @@ export function completedMissionCount(state: MissionState): number {
   return state.history.reduce((count, entry) => count + (entry.outcome === 'completed' ? 1 : 0), 0);
 }
 
-export interface MissionMatchContext {
+interface MissionMatchContext {
   result: MatchResult;
   team: Team;
   opponent: Team;
@@ -120,7 +120,10 @@ export const MISSION_RARITY_META: Record<MissionRarity, { label: string; color: 
   legendary: { label: 'LENDÁRIA', color: '#F0C674' },
 };
 
-export const MISSION_REMOVE_COSTS: Record<MissionRarity, number> = {
+/** Missões que podem estar ativas ao mesmo tempo no mural. */
+export const MAX_ACTIVE_MISSIONS = 2;
+
+const MISSION_REMOVE_COSTS: Record<MissionRarity, number> = {
   common: 20,
   uncommon: 40,
   rare: 75,
@@ -130,10 +133,10 @@ export const MISSION_REMOVE_COSTS: Record<MissionRarity, number> = {
 
 // Global balance adjustment applied once to each mission's base reward. It is
 // intentionally separate from the level-5 Missions Core bonus.
-export const MISSION_GLOBAL_REWARD_MULTIPLIER = 1.5;
-export const MISSION_REWARD_STEP = 5;
+const MISSION_GLOBAL_REWARD_MULTIPLIER = 1.5;
+const MISSION_REWARD_STEP = 5;
 
-export function roundMissionReward(value: number): number {
+function roundMissionReward(value: number): number {
   return Math.round(value / MISSION_REWARD_STEP) * MISSION_REWARD_STEP;
 }
 
@@ -408,10 +411,6 @@ export function newMissionSeed(scope = 'campaign'): string {
   return `${scope}:${crypto.randomUUID()}`;
 }
 
-export function missionDefinition(id: string): MissionDefinition | undefined {
-  return MISSION_MAP[id];
-}
-
 export function missionDeadline(missionId: string, missionsProjectLevel = 1): number {
   const definition = MISSION_MAP[missionId];
   if (!definition) return 0;
@@ -564,7 +563,7 @@ export function rerollMissionBoard(
 export function acceptMission(state: MissionState, missionId: string, missionsProjectLevel = 1): MissionState | null {
   const definition = MISSION_MAP[missionId];
   if (!definition || !state.boardIds.includes(missionId)) return null;
-  if (state.active.length >= 2 || state.active.some(active => active.missionId === missionId)) return null;
+  if (state.active.length >= MAX_ACTIVE_MISSIONS || state.active.some(active => active.missionId === missionId)) return null;
   if (state.history.some(history => history.missionId === missionId && history.cycleKey === state.cycleKey)) return null;
   return {
     ...state,
@@ -667,9 +666,8 @@ export function createMissionMatchContext(team: Team, opponent: Team, result: Ma
   const starters = startingPlayers(team, result);
   const starterIds = new Set(starters.map(player => player.id));
   // Results from the authoritative simulator always include these fields, but
-  // old persisted snapshots and lightweight replay fixtures may omit them.
-  // Normalize at the boundary so mission evaluation remains total and never
-  // crashes while rebuilding a legacy state.
+  // lightweight fixtures (tests, trimmed sync results) may omit them. Normalize
+  // at the boundary so mission evaluation never crashes.
   const stats = result.stats ?? {
     homePos: 0,
     awayPos: 0,
@@ -837,10 +835,6 @@ function hasLateLeadGoal(context: MissionMatchContext, minute: number): boolean 
     if (event.teamId === context.teamId && event.minute > minute && wasNotLeading && own > opponent) return true;
   }
   return false;
-}
-
-function playerWithFlag(context: MissionMatchContext, key: keyof PlayerCard): PlayerCard | undefined {
-  return context.starters.find(player => Boolean(player[key]));
 }
 
 function traitIsActive(context: MissionMatchContext, key: keyof PlayerCard): boolean {
@@ -1016,18 +1010,17 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
     case 'chemistry_range_and_win': return { matched: context.isWin && context.chemistry >= (rule.value ?? 70) && context.chemistry <= Number(rule.values?.[0] ?? 79) };
     case 'all_compatible_and_win': return { matched: context.isWin && context.starters.every(player => !player.isOOP) };
     case 'secondary_positions_and_win': {
-      // `isSecondary` is stamped by the squad/chemistry pipeline in current games;
-      // the fallback calculates it from the occupied formation role for old rooms.
+      // Secondary-position starters are derived from the occupied formation roles.
       const calculated = calculateChemistry(context.starters, context.team.coachId, formation?.positions.map(position => position.role), context.formationId);
-      const fallbackCount = formation?.positions.reduce((total, role, index) => {
+      const secondaryCount = formation?.positions.reduce((total, _position, index) => {
         const player = context.starters[index];
         return total + (player && !calculated.outOfPosition[player.id] && calculated.secondaryPos[player.id] ? 1 : 0);
       }, 0) ?? 0;
-      return { matched: context.isWin && fallbackCount >= (rule.value ?? 3) };
+      return { matched: context.isWin && secondaryCount >= (rule.value ?? 3) };
     }
     case 'coringa_secondary_and_win': {
       const calculated = calculateChemistry(context.starters, context.team.coachId, formation?.positions.map(position => position.role), context.formationId);
-      const secondaryCount = formation?.positions.reduce((total, role, index) => {
+      const secondaryCount = formation?.positions.reduce((total, _position, index) => {
         const player = context.starters[index];
         return total + (player && !player.coringa && !calculated.outOfPosition[player.id] && calculated.secondaryPos[player.id] ? 1 : 0);
       }, 0) ?? 0;
@@ -1124,7 +1117,7 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
   }
 }
 
-export interface MissionUpdateResult {
+interface MissionUpdateResult {
   state: MissionState;
   reward: number;
   completed: string[];

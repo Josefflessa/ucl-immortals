@@ -220,15 +220,15 @@ describe('negociação de troca (trade_select / trade_ready)', () => {
     const h = setup();
     const tradeId = inviteAndNegotiate(h);
     runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', {
-      roomCode: 'ABCD', tradeId, playerId: 'teamA_st0', creditsDelta: 0,
+      roomCode: 'ABCD', tradeId, playerIds: ['teamA_st0'], creditsDelta: 0,
     }));
-    expect(h.runtime.rooms.get('ABCD')!.trades[0].host.playerId).toBeNull();
+    expect(h.runtime.rooms.get('ABCD')!.trades[0].host.playerIds).toEqual([]);
 
     runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', {
-      roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 20,
+      roomCode: 'ABCD', tradeId, playerIds: ['a_bench0'], creditsDelta: 20,
     }));
     const session = h.runtime.rooms.get('ABCD')!.trades[0];
-    expect(session.host).toMatchObject({ playerId: 'a_bench0', creditsDelta: 20, ready: false });
+    expect(session.host).toMatchObject({ playerIds: ['a_bench0'], creditsDelta: 20, ready: false });
   });
 
   it('marcar Pronto exige uma escolha válida primeiro', () => {
@@ -242,12 +242,12 @@ describe('negociação de troca (trade_select / trade_ready)', () => {
   it('mudar a escolha de um lado reseta o Pronto dos DOIS', () => {
     const h = setup();
     const tradeId = inviteAndNegotiate(h);
-    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 0 }));
-    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'b_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerIds: ['a_bench0'], creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerIds: ['b_bench0'], creditsDelta: 0 }));
     runWithGameRuntime(h.runtime, () => h.alice.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
     expect(h.runtime.rooms.get('ABCD')!.trades[0].host.ready).toBe(true);
 
-    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'b_bench0', creditsDelta: 15 }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerIds: ['b_bench0'], creditsDelta: 15 }));
     const session = h.runtime.rooms.get('ABCD')!.trades[0];
     expect(session.host.ready).toBe(false);
     expect(session.guest.ready).toBe(false);
@@ -256,8 +256,8 @@ describe('negociação de troca (trade_select / trade_ready)', () => {
   it('quando os dois marcam Pronto, executa a troca atomicamente (jogadores + créditos)', () => {
     const h = setup();
     const tradeId = inviteAndNegotiate(h);
-    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 30 }));
-    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'b_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerIds: ['a_bench0'], creditsDelta: 30 }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerIds: ['b_bench0'], creditsDelta: 0 }));
     runWithGameRuntime(h.runtime, () => h.alice.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
     runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
 
@@ -295,8 +295,8 @@ describe('negociação de troca (trade_select / trade_ready)', () => {
   it('rejeita a execução se um dos dois não tem mais créditos suficientes, e destrava o Pronto pro outro tentar de novo', () => {
     const h = setup();
     const tradeId = inviteAndNegotiate(h);
-    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 500 }));
-    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'b_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerIds: ['a_bench0'], creditsDelta: 500 }));
+    runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_select', { roomCode: 'ABCD', tradeId, playerIds: ['b_bench0'], creditsDelta: 0 }));
     runWithGameRuntime(h.runtime, () => h.alice.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
     runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_ready', { roomCode: 'ABCD', tradeId }));
 
@@ -311,7 +311,7 @@ describe('negociação de troca (trade_select / trade_ready)', () => {
   it('sair da negociação a qualquer momento encerra a sessão sem trocar nada', () => {
     const h = setup();
     const tradeId = inviteAndNegotiate(h);
-    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerId: 'a_bench0', creditsDelta: 0 }));
+    runWithGameRuntime(h.runtime, () => h.alice.receive('trade_select', { roomCode: 'ABCD', tradeId, playerIds: ['a_bench0'], creditsDelta: 0 }));
     runWithGameRuntime(h.runtime, () => h.bruno.receive('trade_leave', { roomCode: 'ABCD', tradeId }));
 
     const room = h.runtime.rooms.get('ABCD')!;

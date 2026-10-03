@@ -43,11 +43,9 @@ interface TacticSelectorProps {
   value: string | undefined;
   onChange: (id: string) => void;
   analysisLevel?: number;
-  disabled?: boolean;
-  disabledHint?: string;
 }
 
-export default function TacticSelector({ value, onChange, analysisLevel = 1, disabled, disabledHint }: TacticSelectorProps) {
+export default function TacticSelector({ value, onChange, analysisLevel = 1 }: TacticSelectorProps) {
   const active = getTacticById(value);
   const discipline = disciplineEffect(active.id);
 
@@ -76,14 +74,9 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1, dis
             <ChoiceCard
               key={tactic.id}
               selected={isActive}
-              onClick={() => !disabled && onChange(tactic.id)}
-              disabled={disabled}
-              title={disabled ? disabledHint : tactic.desc}
+              onClick={() => onChange(tactic.id)}
+              title={tactic.desc}
               className="min-h-[52px] px-2.5 py-2.5"
-              style={{
-                opacity: disabled && !isActive ? 0.5 : 1,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-              }}
               >
               <div className="flex items-center gap-2">
                 <span className="text-base leading-none">{tactic.icon}</span>
@@ -117,11 +110,6 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1, dis
         </div>
       </div>
 
-      {disabled && disabledHint && (
-        <p className="mt-2 text-xs font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
-          {disabledHint}
-        </p>
-      )}
     </div>
   );
 }

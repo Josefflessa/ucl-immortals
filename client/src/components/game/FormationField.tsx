@@ -1,12 +1,11 @@
 // UCL Immortals — FormationField Component
 // Tactical field with player positions and chemistry lines
 
-import { useEffect, useId, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { motion } from 'framer-motion';
-import { Player, Formation, getRarityColor, POS_PT } from '../../lib/gameData';
-import { isPlayerInPosition, positionFit, ChemLink, ChemLinkType } from '../../lib/gameEngine';
-import PlayerCard, { getCardVariants, type PlayerCardStats } from './PlayerCard';
-import PlayerPortrait from './PlayerPortrait';
+import { Player, Formation, POS_PT } from '../../lib/gameData';
+import { positionFit, ChemLink, ChemLinkType } from '../../lib/gameEngine';
+import PlayerCard, { type PlayerCardStats } from './PlayerCard';
 import type { GameRole, RoleMetric } from './RolesSelector';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
@@ -50,7 +49,6 @@ export interface EmergencyGoalkeeperDisplay {
 interface FormationFieldProps {
   formation: Formation;
   players: (Player | undefined)[];
-  chemistryScores?: Record<string, number>;
   showChemLines?: boolean;
   chemLinks?: ChemLink[];
   onPlayerClick?: (player: Player, posIndex: number) => void;
@@ -59,10 +57,6 @@ interface FormationFieldProps {
   onPlayerLongPress?: (posIndex: number) => void;
   // Optional quick reorder for squad-management fields: drag one starter onto another.
   onPlayerDrop?: (fromIndex: number, toIndex: number) => void;
-  compact?: boolean;
-  // Card-field presentation: render the production compact PlayerCard at each
-  // position instead of the small circular token.
-  showPlayerCards?: boolean;
   // Optional team-context stats. Omit this in Draft/shop/result previews so the field
   // stays on card values; Meu Time supplies it for both starters and the bench.
   effectiveStats?: Record<string, PlayerCardStats>;
@@ -97,31 +91,14 @@ const POSITION_COLORS: Record<string, string> = {
   LW: '#EF4444', RW: '#EF4444', ST: '#EF4444',
 };
 
-const PLAYER_INITIALS: Record<string, string> = {
-  messi: 'LM', cristiano: 'CR', xavi: 'XH', iniesta: 'AI',
-  modric: 'LM', ramos: 'SR', casillas: 'IC', neuer: 'MN', buffon: 'GB',
-  pirlo: 'AP', kaka: 'KK', maldini: 'PM', drogba: 'DD', benzema: 'KB',
-  alonso: 'XA', busquets: 'SB', alves: 'DA', marcelo: 'MA', lahm: 'PL',
-  neymar: 'NJ', suarez: 'LS', ribery: 'FR', robben: 'AR', lampard: 'FL',
-  gerrard: 'SG', terry: 'JT', cech: 'PC', sneijder: 'WS', milito: 'DM',
-  zanetti: 'JZ', rooney: 'WR', giggs: 'RG', scholes: 'PS', tevez: 'CT',
-  henry: 'TH', puyol: 'CP', chiellini: 'GC', nesta: 'AN',
-  schweinsteiger: 'BS', valdes: 'VV', fabregas: 'CF', pedro: 'PR',
-  vidic: 'NV', evra: 'PE', maicon: 'MC', kompany: 'VK', silva_david: 'DS',
-  villa: 'DV', torres: 'FT',
-};
-
 export default function FormationField({
   formation,
   players,
-  chemistryScores = {},
   showChemLines = false,
   chemLinks,
   onPlayerClick,
   onPlayerLongPress,
   onPlayerDrop,
-  compact = false,
-  showPlayerCards = false,
   effectiveStats = {},
   selectedPlayerIndex = null,
   roleSelection = null,
@@ -146,7 +123,7 @@ export default function FormationField({
   const dragOverIndexRef = useRef<number | null>(null);
   const [nativeDragEnabled, setNativeDragEnabled] = useState(false);
   const ratingMode = !!ratings;
-  const canReorderPlayers = showPlayerCards && !!onPlayerDrop && !roleSelection;
+  const canReorderPlayers = !!onPlayerDrop && !roleSelection;
   const canUseNativeDrag = canReorderPlayers && nativeDragEnabled;
   // A starter gets its guide from the native drag state. A reserve is supplied
   // by SquadEditor after its long press, so the user can release the gesture
@@ -159,12 +136,11 @@ export default function FormationField({
   // Intrinsic aspect used for the SVG viewBox + token sizing maths. The field itself is now
   // FLUID: it fills its container up to maxW and keeps this aspect ratio, so it never overflows
   // on mobile (no sideways drag) and stays centred. Positions are placed in % of the field.
-  const fieldWidth = compact ? 300 : showPlayerCards ? 760 : 410;
-  const fieldHeight = compact ? 410 : showPlayerCards ? 1300 : 550;
-  const maxW = compact ? 300 : showPlayerCards ? 760 : 410;
+  const fieldWidth = 760;
+  const fieldHeight = 1300;
+  const maxW = 760;
 
   useEffect(() => {
-    if (!showPlayerCards) return;
     const node = fieldRef.current;
     if (!node) return;
     const updateWidth = () => setFieldPixelWidth(node.getBoundingClientRect().width);
@@ -173,7 +149,7 @@ export default function FormationField({
     const observer = new ResizeObserver(updateWidth);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [showPlayerCards]);
+  }, []);
 
   // HTML5 drag-and-drop is kept for mouse/trackpad input, while touch/pen uses
   // Pointer Events below. Mobile browsers do not consistently start a native
@@ -208,9 +184,7 @@ export default function FormationField({
   // Five compact cards is the tightest supported row (5-3-2). Size the same
   // card used by the TITULARES section from the rendered field width so it
   // remains readable while preserving separation on narrow screens.
-  const cardScale = showPlayerCards
-    ? Math.min(1, Math.max(0.46, fieldPixelWidth > 0 ? (fieldPixelWidth * 0.18 - 8) / FIELD_CARD_WIDTH : 0.9)) * FIELD_CARD_SIZE_MULTIPLIER
-    : 1;
+  const cardScale = Math.min(1, Math.max(0.46, fieldPixelWidth > 0 ? (fieldPixelWidth * 0.18 - 8) / FIELD_CARD_WIDTH : 0.9)) * FIELD_CARD_SIZE_MULTIPLIER;
   // Keep the native drop target exactly aligned with the visible scaled card.
   // The previous fixed wrapper was wider than the card on narrow fields, so a
   // drop on nearby grass could still be interpreted as a drop on the player.
@@ -221,16 +195,8 @@ export default function FormationField({
   // is intentionally ahead of the wingers. The small clamp keeps the outer card
   // edges inside the field, especially for the goalkeeper at 92%.
   const visualY = (y: number, positionIndex?: number) => {
-    if (!showPlayerCards) return y;
     const tunedY = positionIndex === undefined ? y : RESULT_FORMATION_Y[formation.id]?.[positionIndex] ?? y;
     return Math.min(90, Math.max(10, tunedY));
-  };
-
-  const getChemColor = (score: number) => {
-    if (score >= 3) return '#22C55E';
-    if (score >= 2) return '#EAB308';
-    if (score >= 1) return '#F97316';
-    return '#EF4444';
   };
 
   const handlePlayerDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
@@ -394,7 +360,7 @@ export default function FormationField({
           stroke="#5CAF67" strokeWidth="1.4" />
 
         {/* Center circle */}
-        <circle cx={fieldWidth / 2} cy={fieldHeight / 2} r={compact ? 35 : 45}
+        <circle cx={fieldWidth / 2} cy={fieldHeight / 2} r={45}
           fill="rgba(68, 171, 88, 0.035)" stroke="#5CAF67" strokeWidth="1.35" />
         <circle cx={fieldWidth / 2} cy={fieldHeight / 2} r="3"
           fill="#78D17C" />
@@ -459,15 +425,7 @@ export default function FormationField({
             ? undefined
             : players[index];
         const posColor = POSITION_COLORS[pos.role] || '#8A8A9A';
-        const chemScore = player ? (chemistryScores[player.id] ?? 0) : 0;
-        const rarityColor = player ? getRarityColor(player.rarity) : '#555';
-        const initials = player ? (PLAYER_INITIALS[player.id] || player.shortName.slice(0, 2).toUpperCase()) : isVacatedSlot ? '—' : '?';
-        const tokenSize = compact ? 34 : 48;
-        // Match (rating) mode: a more compact token with the rating/goals OVERLAID on the photo
-        // (not stacked below), so cards never overlap their neighbours on tight formations.
-        const photoSize = ratingMode ? (compact ? 33 : 44) : tokenSize;
 
-        const isSelected = selectedPlayerIndex === index;
         const r = player ? ratings?.[player.id] : undefined;
         const g = player ? (goalsByPlayer?.[player.id] ?? 0) : 0;
         const a = player ? (assistsByPlayer?.[player.id] ?? 0) : 0;
@@ -476,10 +434,6 @@ export default function FormationField({
         const roleMetric = roleSelection && player ? roleMetrics[player.id] : undefined;
         const isRoleSuggestion = !!roleSelection && player?.id === roleSuggestionId;
         const roleAccent = roleSelection === 'captain' ? '#3B82F6' : roleSelection === 'penalty' ? '#C9A84C' : '#22C55E';
-        // ⭐ Características do jogador (Em Alta, Lobo, Ídolo, Magnata…) — tingem a borda/glow do token
-        // (como no card) e aparecem num chip com o(s) ícone(s) no canto inferior esquerdo.
-        const variants = player ? getCardVariants(player) : [];
-        const tokenColor = variants[0]?.color ?? rarityColor;
         const positionFitType = positionGuideActive && guidedPlayer
           ? positionFit(guidedPlayer, pos.role)
           : null;
@@ -497,360 +451,156 @@ export default function FormationField({
           && index !== draggingIndex
           && player?.id !== guidedPlayer?.id;
 
-        if (showPlayerCards) {
-          return (
-            <motion.div
-              key={index}
-              className={`absolute flex items-center justify-center ${canReorderPlayers && player ? 'cursor-grab active:cursor-grabbing' : ''} ${dragOverIndex === index ? 'z-20' : ''}`}
-              data-player-slot={showPlayerCards ? index : undefined}
-              style={{
-                left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: displayedCardWidth, height: displayedCardHeight,
-                // Vertical gestures belong to the page. Reordering on touch is
-                // explicitly armed by a long press, just like the bench.
-                touchAction: canReorderPlayers && player ? 'pan-y' : undefined,
-                ...(isPositionGuideTarget ? {
-                  borderRadius: 12,
-                  boxShadow: `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`,
-                } : roleSelection && player ? {
-                  borderRadius: 12,
-                  boxShadow: isRoleSuggestion
-                    ? `0 0 0 2px ${roleAccent}, 0 0 20px ${roleAccent}CC`
-                    : `0 0 0 1px ${roleAccent}66`,
-                } : {}),
-              }}
-              transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
-              initial={disableEntryAnimation ? false : { opacity: 0, scale: 0.92 }}
-              animate={disableEntryAnimation ? undefined : { opacity: 1, scale: 1 }}
-              transition={disableEntryAnimation ? undefined : { delay: index * 0.04, duration: 0.2 }}
-              draggable={canUseNativeDrag && !!player}
-              // Use the native capture handlers because Framer Motion reserves
-              // onDragStart/onDragEnd for its own pointer-drag API.
-              onDragStartCapture={event => handlePlayerDragStart(event, index)}
-              onDragOver={event => handlePlayerDragOver(event, index)}
-              onDragLeave={event => {
-                const related = event.relatedTarget;
-                if (!(related instanceof Node) || !event.currentTarget.contains(related)) {
-                  if (dragOverIndexRef.current === index) {
-                    dragOverIndexRef.current = null;
-                    setDragOverIndex(null);
-                  }
-                }
-              }}
-              onDrop={event => handlePlayerDrop(event, index)}
-              onDragEndCapture={handlePlayerDragEnd}
-              onPointerDown={event => handlePlayerPointerDown(event, index)}
-              onPointerMove={handlePlayerPointerMove}
-              onPointerUp={handlePlayerPointerUp}
-              onPointerCancel={handlePlayerPointerCancel}
-              onClick={() => {
-                if (didDragRef.current) {
-                  didDragRef.current = false;
-                  return;
-                }
-                if (player) onPlayerClick?.(player, index);
-              }}
-              title={canReorderPlayers && player
-                ? (nativeDragEnabled ? 'Arraste sobre outro jogador para trocar' : 'Segure para escolher o jogador que será trocado')
-                : undefined}
-            >
-              <div className="relative" style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center', opacity: draggingIndex === index ? 0.52 : 1 }}>
-                {roleSelection && player && roleMetric && (
-                  <div
-                    className="absolute left-1/2 top-[-30px] z-30 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1.5 text-[10px] font-black leading-none"
-                    style={{ color: '#FFF', background: '#08080FCC', border: `1px solid ${isRoleSuggestion ? roleAccent : `${roleAccent}66`}`, fontFamily: 'Rajdhani, sans-serif' }}
-                  >
-                    {isRoleSuggestion ? '★ ' : ''}{roleMetric.primaryLabel} {roleMetric.primaryValue}
-                    {roleMetric.secondaryLabel ? ` · ${roleMetric.secondaryLabel} ${roleMetric.secondaryValue}` : ''}
-                    {roleMetric.traitLabel ? ` · ${roleMetric.traitLabel}` : ''}
-                  </div>
-                )}
-                <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
-                  {player ? (
-                    <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} />
-                  ) : (
-                    <div
-                      className="flex flex-col items-center justify-center rounded-xl"
-                      aria-label={`Posição ${posLabel(pos.role)}`}
-                      style={{
-                        width: 92,
-                        height: 146,
-                        color: posColor,
-                        background: 'linear-gradient(160deg, rgba(9, 18, 28, 0.88), rgba(9, 11, 20, 0.96))',
-                        border: `1px dashed ${posColor}99`,
-                        boxShadow: isPositionGuideTarget
-                          ? `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`
-                          : `inset 0 0 0 1px ${posColor}22, 0 4px 12px rgba(0, 0, 0, 0.22)`,
-                        fontFamily: 'Rajdhani, sans-serif',
-                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)',
-                      }}
-                    >
-                      <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 25, lineHeight: 1 }}>
-                        {posLabel(pos.role)}
-                      </span>
-                      <span style={{ marginTop: 4, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: '#A7A7B8' }}>
-                        POSIÇÃO
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Live match data stays visible after replacing the token with a card. */}
-                {ratingMode && player && r !== undefined && (
-                  <span
-                    className="absolute left-1/2 rounded font-black leading-none"
-                    style={{
-            bottom: -10, transform: 'translateX(-50%)', fontSize: 12, padding: '3px 5px',
-                      color: ratingColor(r), background: '#0B0B14', border: `1px solid ${ratingColor(r)}`,
-                      fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5,
-                    }}
-                  >
-                    {r.toFixed(1)}
-                  </span>
-                )}
-                {ratingMode && player && (g > 0 || a > 0) && (
-                  <span
-                    className="absolute rounded-full font-black leading-none"
-                    style={{
-                      top: -9, right: -9, fontSize: 11, padding: '2px 3px',
-                      color: '#FFF', background: '#0B0B14', border: '1px solid #FFFFFF55',
-                      fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5,
-                    }}
-                  >
-                    {g > 0 ? `⚽${g > 1 ? g : ''}` : ''}{a > 0 ? `🅰${a > 1 ? a : ''}` : ''}
-                  </span>
-                )}
-                {(ratingMode || showPlayerCards) && player && disc && (disc.red || disc.injury || disc.yellow > 0) && (
-                  <span
-                    className="absolute leading-none"
-                    style={{ top: -9, left: -9, fontSize: 11, whiteSpace: 'nowrap', zIndex: 5 }}
-                  >
-                    {disc.red ? '🟥' : disc.yellow > 1 ? '🟨🟨' : disc.yellow === 1 ? '🟨' : ''}{disc.injury ? '🩹' : ''}
-                  </span>
-                )}
-                {ratingMode && isEmergencyGoalkeeperSlot && player && (
-                  <span
-                    className="absolute rounded-full font-black leading-none"
-                    style={{ bottom: -9, left: -9, fontSize: 9, padding: '2px 4px', color: '#FDE68A', background: '#29200A', border: '1px solid #D4AF37', fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
-                  >
-                    GK
-                  </span>
-                )}
-                {ratingMode && isVacatedSlot && (
-                  <span
-                    className="absolute rounded-full font-black leading-none"
-                    style={{ bottom: -9, right: -9, fontSize: 8, padding: '2px 4px', color: '#9CA3AF', background: '#11111B', border: '1px solid #4B5563', fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
-                  >
-                    VAGA
-                  </span>
-                )}
-              </div>
-            </motion.div>
-          );
-        }
-
         return (
           <motion.div
             key={index}
-            className="absolute flex flex-col items-center"
-            style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: photoSize }}
-            // Centre the token on its (%) point, then layer framer's scale on top.
-            transformTemplate={(_, generated) => `translate(-50%, calc(-50% - ${compact ? 8 : 10}px)) ${generated}`}
-            initial={disableEntryAnimation ? false : { opacity: 0, scale: 0.5 }}
+            className={`absolute flex items-center justify-center ${canReorderPlayers && player ? 'cursor-grab active:cursor-grabbing' : ''} ${dragOverIndex === index ? 'z-20' : ''}`}
+            data-player-slot={index}
+            style={{
+              left: `${pos.x}%`, top: `${visualY(pos.y, index)}%`, width: displayedCardWidth, height: displayedCardHeight,
+              // Vertical gestures belong to the page. Reordering on touch is
+              // explicitly armed by a long press, just like the bench.
+              touchAction: canReorderPlayers && player ? 'pan-y' : undefined,
+              ...(isPositionGuideTarget ? {
+                borderRadius: 12,
+                boxShadow: `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`,
+              } : roleSelection && player ? {
+                borderRadius: 12,
+                boxShadow: isRoleSuggestion
+                  ? `0 0 0 2px ${roleAccent}, 0 0 20px ${roleAccent}CC`
+                  : `0 0 0 1px ${roleAccent}66`,
+              } : {}),
+            }}
+            transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
+            initial={disableEntryAnimation ? false : { opacity: 0, scale: 0.92 }}
             animate={disableEntryAnimation ? undefined : { opacity: 1, scale: 1 }}
             transition={disableEntryAnimation ? undefined : { delay: index * 0.04, duration: 0.2 }}
-            onClick={() => player && onPlayerClick?.(player, index)}
+            draggable={canUseNativeDrag && !!player}
+            // Use the native capture handlers because Framer Motion reserves
+            // onDragStart/onDragEnd for its own pointer-drag API.
+            onDragStartCapture={event => handlePlayerDragStart(event, index)}
+            onDragOver={event => handlePlayerDragOver(event, index)}
+            onDragLeave={event => {
+              const related = event.relatedTarget;
+              if (!(related instanceof Node) || !event.currentTarget.contains(related)) {
+                if (dragOverIndexRef.current === index) {
+                  dragOverIndexRef.current = null;
+                  setDragOverIndex(null);
+                }
+              }
+            }}
+            onDrop={event => handlePlayerDrop(event, index)}
+            onDragEndCapture={handlePlayerDragEnd}
+            onPointerDown={event => handlePlayerPointerDown(event, index)}
+            onPointerMove={handlePlayerPointerMove}
+            onPointerUp={handlePlayerPointerUp}
+            onPointerCancel={handlePlayerPointerCancel}
+            onClick={() => {
+              if (didDragRef.current) {
+                didDragRef.current = false;
+                return;
+              }
+              if (player) onPlayerClick?.(player, index);
+            }}
+            title={canReorderPlayers && player
+              ? (nativeDragEnabled ? 'Arraste sobre outro jogador para trocar' : 'Segure para escolher o jogador que será trocado')
+              : undefined}
           >
-            {/* Player circle (relative so the rating / goal badges can overlay it in match mode) */}
-            <div className="relative" style={{ width: photoSize, height: photoSize }}>
-              <div
-                className="rounded-full flex items-center justify-center font-bold cursor-pointer overflow-hidden w-full h-full"
-                style={{
-                  // Expulso: só a FOTO fica escurecida/cinza — os badges (nota, 🟥) seguem coloridos.
-                  opacity: sentOff ? 0.4 : 1,
-                  filter: sentOff ? 'grayscale(1)' : 'none',
-                  background: player
-                    ? `radial-gradient(circle, ${rarityColor}33 0%, #0F0F1A 100%)`
-                    : isVacatedSlot ? 'rgba(255,255,255,0.035)' : '#1A1A2A',
-                  border: isSelected ? '2px solid #FFF' : isVacatedSlot ? '1px dashed #6B7280' : `2px solid ${player ? tokenColor : '#333'}`,
-                  boxShadow: isSelected
-                    ? '0 0 12px #FFF'
-                    : variants.length > 0
-                      ? `0 0 10px ${tokenColor}99`
-                      : player && player.rarity === 'immortal'
-                        ? `0 0 12px ${rarityColor}88`
-                        : player ? `0 0 6px ${rarityColor}44` : 'none',
-                  fontSize: compact ? '10px' : '13px',
-                  color: isSelected ? '#FFF' : (player ? rarityColor : isVacatedSlot ? '#9CA3AF' : '#555'),
-                }}
-              >
+            <div className="relative" style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center', opacity: draggingIndex === index ? 0.52 : 1 }}>
+              {roleSelection && player && roleMetric && (
+                <div
+                  className="absolute left-1/2 top-[-30px] z-30 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1.5 text-[10px] font-black leading-none"
+                  style={{ color: '#FFF', background: '#08080FCC', border: `1px solid ${isRoleSuggestion ? roleAccent : `${roleAccent}66`}`, fontFamily: 'Rajdhani, sans-serif' }}
+                >
+                  {isRoleSuggestion ? '★ ' : ''}{roleMetric.primaryLabel} {roleMetric.primaryValue}
+                  {roleMetric.secondaryLabel ? ` · ${roleMetric.secondaryLabel} ${roleMetric.secondaryValue}` : ''}
+                  {roleMetric.traitLabel ? ` · ${roleMetric.traitLabel}` : ''}
+                </div>
+              )}
+              <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
                 {player ? (
-                  <PlayerPortrait
-                    playerId={player.id}
-                    photoUrl={player.photoUrl}
-                    alt={player.shortName}
-                    lowRes
-                    className="w-full h-full object-cover rounded-full"
-                    style={{ objectPosition: 'center top', scale: '1.25', transform: 'translateY(1px)' }}
-                    fallback={initials}
-                  />
-                ) : initials}
+                  <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} />
+                ) : (
+                  <div
+                    className="flex flex-col items-center justify-center rounded-xl"
+                    aria-label={`Posição ${posLabel(pos.role)}`}
+                    style={{
+                      width: 92,
+                      height: 146,
+                      color: posColor,
+                      background: 'linear-gradient(160deg, rgba(9, 18, 28, 0.88), rgba(9, 11, 20, 0.96))',
+                      border: `1px dashed ${posColor}99`,
+                      boxShadow: isPositionGuideTarget
+                        ? `0 0 0 2px ${positionGuideColor}, 0 0 14px ${positionGuideColor}99`
+                        : `inset 0 0 0 1px ${posColor}22, 0 4px 12px rgba(0, 0, 0, 0.22)`,
+                      fontFamily: 'Rajdhani, sans-serif',
+                      textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)',
+                    }}
+                  >
+                    <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 25, lineHeight: 1 }}>
+                      {posLabel(pos.role)}
+                    </span>
+                    <span style={{ marginTop: 4, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: '#A7A7B8' }}>
+                      POSIÇÃO
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {isEmergencyGoalkeeperSlot && player && (
+              {/* Live match data stays visible after replacing the token with a card. */}
+              {ratingMode && player && r !== undefined && (
                 <span
-                  className="absolute leading-none rounded-full font-black"
-                  title="Goleiro emergencial"
+                  className="absolute left-1/2 rounded font-black leading-none"
                   style={{
-                    top: -6, right: -8, fontSize: compact ? '8px' : '9px', padding: '2px 3px',
-                    color: '#FDE68A', background: '#29200A', border: '1px solid #D4AF37',
-                    fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 4,
+          bottom: -10, transform: 'translateX(-50%)', fontSize: 12, padding: '3px 5px',
+                    color: ratingColor(r), background: '#0B0B14', border: `1px solid ${ratingColor(r)}`,
+                    fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5,
                   }}
                 >
-                  🧤 GK
+                  {r.toFixed(1)}
                 </span>
               )}
-
-              {isVacatedSlot && (
+              {ratingMode && player && (g > 0 || a > 0) && (
                 <span
-                  className="absolute leading-none rounded-full font-black"
-                  title="Posição deixada pelo goleiro emergencial"
+                  className="absolute rounded-full font-black leading-none"
                   style={{
-                    top: -6, right: -12, fontSize: compact ? '7px' : '8px', padding: '2px 3px',
-                    color: '#9CA3AF', background: '#11111B', border: '1px solid #4B5563',
-                    fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 4,
+                    top: -9, right: -9, fontSize: 11, padding: '2px 3px',
+                    color: '#FFF', background: '#0B0B14', border: '1px solid #FFFFFF55',
+                    fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5,
                   }}
+                >
+                  {g > 0 ? `⚽${g > 1 ? g : ''}` : ''}{a > 0 ? `🅰${a > 1 ? a : ''}` : ''}
+                </span>
+              )}
+              {player && disc && (disc.red || disc.injury || disc.yellow > 0) && (
+                <span
+                  className="absolute leading-none"
+                  style={{ top: -9, left: -9, fontSize: 11, whiteSpace: 'nowrap', zIndex: 5 }}
+                >
+                  {disc.red ? '🟥' : disc.yellow > 1 ? '🟨🟨' : disc.yellow === 1 ? '🟨' : ''}{disc.injury ? '🩹' : ''}
+                </span>
+              )}
+              {ratingMode && isEmergencyGoalkeeperSlot && player && (
+                <span
+                  className="absolute rounded-full font-black leading-none"
+                  style={{ bottom: -9, left: -9, fontSize: 9, padding: '2px 4px', color: '#FDE68A', background: '#29200A', border: '1px solid #D4AF37', fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
+                >
+                  GK
+                </span>
+              )}
+              {ratingMode && isVacatedSlot && (
+                <span
+                  className="absolute rounded-full font-black leading-none"
+                  style={{ bottom: -9, right: -9, fontSize: 8, padding: '2px 4px', color: '#9CA3AF', background: '#11111B', border: '1px solid #4B5563', fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap', zIndex: 5 }}
                 >
                   VAGA
                 </span>
               )}
-
-              {/* Match mode — rating badge over the bottom edge, goals/assists at the top-right */}
-              {ratingMode && player && (() => {
-                const rc = r !== undefined ? ratingColor(r) : '#8A8A9A';
-                return (
-                  <>
-                    <span
-                      className="absolute left-1/2 font-black leading-none rounded"
-                      style={{
-              bottom: -7, transform: 'translateX(-50%)',
-              fontSize: compact ? '9px' : '11px', padding: '2px 4px',
-                        color: rc, background: '#0b0b14', border: `1px solid ${rc}`,
-                        fontFamily: 'Rajdhani, sans-serif', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {r !== undefined ? r.toFixed(1) : '—'}
-                    </span>
-                    {(g > 0 || a > 0) && (
-                      <span
-                        className="absolute leading-none rounded-full font-black"
-                        style={{
-                          top: -5, right: -5, fontSize: compact ? '9px' : '11px', padding: '1px 3px',
-                          background: '#0b0b14', border: '1px solid #ffffff44', whiteSpace: 'nowrap',
-                          fontFamily: 'Rajdhani, sans-serif',
-                        }}
-                      >
-                        {g > 0 ? `⚽${g > 1 ? g : ''}` : ''}{a > 0 ? `🅰${a > 1 ? a : ''}` : ''}
-                      </span>
-                    )}
-                    {/* 🟨🟥🩹 Disciplina/lesão — canto superior esquerdo */}
-                    {disc && (disc.red || disc.injury || disc.yellow > 0) && (
-                      <span className="absolute leading-none" style={{ top: -5, left: -5, fontSize: compact ? '9px' : '11px', whiteSpace: 'nowrap' }}>
-                        {disc.red ? '🟥' : disc.yellow > 1 ? '🟨🟨' : disc.yellow === 1 ? '🟨' : ''}{disc.injury ? '🩹' : ''}
-                      </span>
-                    )}
-                  </>
-                );
-              })()}
-
-              {/* ⭐ Característica(s) do jogador — chip com ícone (canto inferior esquerdo). */}
-              {variants.length > 0 && (
-                <span
-                  className="absolute leading-none rounded-full font-black flex items-center justify-center"
-                  title={variants.map(v => v.label).join(' · ')}
-                  style={{
-                    bottom: -5, left: -12, fontSize: compact ? '8.5px' : '10.5px', padding: '1.5px 3px', gap: '1px',
-                    background: '#0b0b14', border: `1px solid ${variants[0].color}`,
-                    boxShadow: `0 0 5px ${variants[0].color}77`, whiteSpace: 'nowrap', zIndex: 3,
-                  }}
-                >
-                  {variants.map(v => v.icon).join('')}
-                </span>
-              )}
             </div>
-
-            {/* Position badge — squad screens only (in a live match the position is obvious from the spot) */}
-            {!ratingMode && (
-            <div
-              className="text-center font-bold mt-0.5 flex flex-col items-center gap-0.5"
-              style={{
-                fontSize: compact ? '7px' : '8px',
-                color: posColor,
-                textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-              }}
-            >
-              <span>{posLabel(pos.role)}</span>
-              {player && player.position !== pos.role && (() => {
-                const wouldBeOOP = !isPlayerInPosition(player, pos.role);
-                // 🃏 Coringa joga em qualquer posição sem penalidade — mostra como neutro, nunca como OOP vermelho.
-                const isOOP = wouldBeOOP && !player.coringa;
-                const isCoringaOOP = wouldBeOOP && player.coringa;
-                const color = isOOP ? '#EF4444' : isCoringaOOP ? '#EF4444' : '#22C55E';
-                return (
-                  <span
-                    className="px-1 py-0.2 rounded font-extrabold"
-                    style={{
-                      fontSize: compact ? '5.5px' : '7.5px',
-                      background: `${color}22`,
-                      color,
-                      border: `1px solid ${color}44`,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {isCoringaOOP ? `🃏 ${posLabel(player.position)}` : isOOP ? `OOP: ${posLabel(player.position)}` : `${posLabel(player.position)}`}
-                  </span>
-                );
-              })()}
-            </div>
-            )}
-
-            {/* Player name */}
-            {player && (
-              <div
-                className="text-center font-semibold leading-none"
-                style={{
-                  fontSize: compact ? '6px' : '7px',
-                  color: '#CCC',
-                  textShadow: '0 1px 3px rgba(0,0,0,0.9)',
-                  maxWidth: ratingMode ? photoSize + 8 : photoSize + 18, // tighter in match mode → never overlaps a neighbour
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  marginTop: ratingMode ? (compact ? 7 : 8) : 2, // clear the overlapping rating badge
-                }}
-              >
-                {player.shortName}
-              </div>
-            )}
-            {player && !ratingMode && (
-              <div
-                className="w-1.5 h-1.5 rounded-full mt-0.5"
-                style={{ background: getChemColor(chemScore) }}
-              />
-            )}
           </motion.div>
         );
       })}
 
-      {/* In the result view the enlarged cards already identify the formation
-          through their positions; keeping this label would compete with the GK card. */}
-      {!showPlayerCards && (
-        <div
-          className="absolute bottom-2 right-2 text-xs font-bold"
-          style={{ color: '#C9A84C', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.1em' }}
-        >
-          {formation.name}
-        </div>
-      )}
       </div>
     </div>
   );

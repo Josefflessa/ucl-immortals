@@ -15,11 +15,11 @@ const AUTH_MAX_FAILURES = 5;
 export const ACCOUNT_PRESENCE_TTL_MS = 30_000;
 export const ROOM_INVITATION_TTL_MS = 60_000;
 
-export interface AccountEnv {
+interface AccountEnv {
   DB: D1Database;
 }
 
-export interface AuthenticatedAccount {
+interface AuthenticatedAccount {
   id: string;
   email: string;
   username: string;
@@ -36,7 +36,7 @@ export interface AuthenticatedAccount {
   stats: AccountStats;
 }
 
-export interface AccountStats {
+interface AccountStats {
   competitionsCompleted: number;
   titles: number;
   finishCounts: {
@@ -1096,16 +1096,6 @@ async function roomInvitationsList(env: AccountEnv, account: AuthenticatedAccoun
   return json({ invitations: rows.results });
 }
 
-async function roomInvitationDecline(env: AccountEnv, account: AuthenticatedAccount, id: string): Promise<Response> {
-  const now = Date.now();
-  const result = await env.DB.prepare(`UPDATE room_invitations
-    SET status = CASE WHEN expires_at <= ? OR created_at <= ? THEN 'expired' ELSE 'declined' END, updated_at = ?
-    WHERE id = ? AND invitee_user_id = ? AND status = 'pending'`)
-    .bind(now, now - ROOM_INVITATION_TTL_MS, now, id, account.id).run();
-  if (!result.meta.changes) return json({ error: 'room_invitation_not_found_or_expired' }, 404);
-  return json({ ok: true });
-}
-
 async function friendCreate(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
   const body = await readJson(request);
   const username = normalizeUsername(String(body?.username ?? ''));
@@ -1220,12 +1210,8 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (url.pathname === '/api/account/friends' && request.method === 'GET') return friendsList(env, account);
     if (url.pathname === '/api/account/friends' && request.method === 'POST') return friendCreate(request, env, account);
     if (url.pathname === '/api/account/room-invitations' && request.method === 'GET') return roomInvitationsList(env, account);
-    const roomInvitationMatch = url.pathname.match(/^\/api\/account\/room-invitations\/([^/]+)$/);
-    if (roomInvitationMatch && request.method === 'PATCH') {
-      const body = await readJson(request);
-      if (body?.action !== 'decline') return json({ error: 'invalid_room_invitation_action' }, 400);
-      return roomInvitationDecline(env, account, roomInvitationMatch[1]);
-    }
+    // PATCH /api/account/room-invitations/:id (accept/decline) is handled by the
+    // Worker (cloudflare-worker.ts), because it must validate against the room DO.
     const friendMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)$/);
     if (friendMatch && request.method === 'PATCH') return friendUpdate(request, env, account, friendMatch[1]);
     return json({ error: 'not_found' }, 404);

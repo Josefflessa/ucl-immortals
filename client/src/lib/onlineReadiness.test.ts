@@ -49,14 +49,13 @@ describe('online readiness participants', () => {
       isSingleLeg: false,
     };
 
-    expect(knockoutLegWasPlayed(tie, 'playoffs', 2, 1)).toBe(true);
-    expect(knockoutLegWasPlayed(tie, 'playoffs', 2)).toBe(true);
-    expect(knockoutLegWasPlayed(tie, 'playoffs', 2, 2)).toBe(false);
+    expect(knockoutLegWasPlayed(tie, 1)).toBe(true);
+    expect(knockoutLegWasPlayed(tie, 2)).toBe(false);
   });
 
   it('handles the completed return leg and single-leg final correctly', () => {
-    expect(knockoutLegWasPlayed({ leg1: {}, leg2: {}, isSingleLeg: false }, 'round16', 2, 2)).toBe(true);
-    expect(knockoutLegWasPlayed({ played: true, result: {} }, 'final', 1)).toBe(true);
+    expect(knockoutLegWasPlayed({ leg1: {}, leg2: {}, isSingleLeg: false }, 2)).toBe(true);
+    expect(knockoutLegWasPlayed({ played: true, result: {}, isSingleLeg: true }, 1)).toBe(true);
   });
 
   it('puts the local and other human matches before bot-only matches, stably', () => {

@@ -1,9 +1,9 @@
 import { useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '../../lib/gameData';
-import { arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
+import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { canonicalClubName, crestIdForClub } from '../../lib/crests';
-import { getPlayerPhotoDirectory, getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
+import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 import Crest from './Crest';
 
@@ -37,7 +37,7 @@ interface PlayerCardProps {
 
 // SoFIFA mapping — updated to latest available FIFA version per player for best photo quality
 // ver = FIFA edition year (e.g. 25 = FIFA 25, 24 = FIFA 24). Higher = better face scan quality.
-export const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
+const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   // ── IMMORTALS ──────────────────────────────────────────────────────────────
   messi: { id: 158023, ver: 16 }, // FIFA 16 — Messi no auge (Barça), combina com a carta
   cristiano: { id: 20801, ver: 15 }, // FIFA 15 — CR7 no auge (Real Madrid)
@@ -515,7 +515,7 @@ const NATION_CODES: Record<string, string> = {
 // PT-BR position abbreviations (single source of truth lives in gameData/POS_PT)
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
-export function getFlagUrl(nation: string): string | null {
+function getFlagUrl(nation: string): string | null {
   const code = NATION_CODES[nation];
   if (!code) return 'https://flagcdn.com/un.svg'; // fallback
   return `https://flagcdn.com/${code}.svg`;
@@ -523,7 +523,7 @@ export function getFlagUrl(nation: string): string | null {
 
 // Club badges are resolved centrally by crestIdForClub() from lib/crests.
 
-export function getBasePlayerId(playerId: string): string {
+function getBasePlayerId(playerId: string): string {
   // Exact match always wins — otherwise 'gabriel_jesus' would match the 'gabriel' prefix first
   // (key order) and steal Gabriel Magalhães' photo. Only fall back to a prefix for true variants
   // (e.g. 'messi_2' → 'messi'), preferring the LONGEST matching prefix.
@@ -706,10 +706,6 @@ function buildLocalPlayerUrls(playerId: string): string[] {
   ];
 }
 
-export function buildLocalPlayerUrl(playerId: string): string | null {
-  return buildLocalPlayerUrls(playerId)[0] ?? null;
-}
-
 function buildSofifaUrls(m: { id: number; ver: number }, lowRes: boolean): string[] {
   const padded = String(m.id).padStart(6, '0');
   const v = String(m.ver).padStart(2, '0'); // single-digit editions (e.g. FIFA 08) need "08", not "8"
@@ -747,11 +743,6 @@ export function buildPlayerPhotoSources(playerId: string, lowRes = false, explic
     ...buildLocalPlayerUrls(playerId),
     ...(m ? buildSofifaUrls(m, lowRes) : []),
   ]));
-}
-
-export function buildSofifaUrl(playerId: string, size: 360 | 120 = 360): string | null {
-  const sources = buildPlayerPhotoSources(playerId, size === 120);
-  return sources[0] ?? null;
 }
 
 // Per-rarity visual identity. Each tier has a DISTINCT silhouette so they never read
@@ -986,8 +977,8 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   mercenario: { color: '#F59E0B', icon: '🏆', label: 'CONQUISTADOR', treatment: 'pulse' },
 };
 const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario'] as const;
-export type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
-export function getCardVariant(player: Player): CardVariant | null {
+type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
+function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
     if ((player as unknown as Record<string, unknown>)[key]) return { key, ...VARIANT_STYLE[key] };
   }
@@ -1004,7 +995,7 @@ function variantDesc(player: Player): string {
   if (player.lobo) return `LOBO SOLITÁRIO: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : LOBO_STAT_BOOST} em cada atributo; o GER da carta já inclui este bônus, mas −12 na QUÍMICA GERAL do time`;
   if (player.coringa) return 'CORINGA: joga em qualquer posição sem penalidade de posição ou química; no gol, jogador de linha tem aptidão reduzida';
   if (player.nomade) return 'NÔMADE: conta como qualquer nação na química';
-  if (player.pilar) return 'PILAR: +12 na QUÍMICA GERAL do time';
+  if (player.pilar) return `PILAR: +${PILAR_CHEM_BONUS} na QUÍMICA GERAL do time`;
   if (player.martir) return `MÁRTIR: −6 em cada atributo nele, mas dá +${MARTIR_TARGET_BOOST} em tudo a 2 titulares`;
   if (player.idolo) return 'ÍDOLO: +2 em cada atributo aos OUTROS titulares do mesmo clube (não a ele)';
   if (player.decimoHomem) return `12º HOMEM: no banco, dá +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time`;

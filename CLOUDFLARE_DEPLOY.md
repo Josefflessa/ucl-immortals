@@ -1,28 +1,38 @@
-# Multiplayer na Cloudflare
+# Deploy na Cloudflare
 
-O frontend e o multiplayer são publicados pelo mesmo Worker. Cada sala usa uma
-Durable Object própria: o estado sobrevive a hibernações/reinícios, os sockets
-permanecem conectados durante a hibernação e os timers de draft, abandono e
-limpeza são rearmados como alarmes persistidos.
+O frontend, o multiplayer e as contas são publicados pelo mesmo Worker
+(`server/cloudflare-worker.ts`, configurado em `wrangler.jsonc`):
 
-## Primeiro deploy
+- **Assets estáticos**: `dist/public`, gerado pelo `vite build`, com fallback de SPA.
+- **Multiplayer**: cada sala é uma Durable Object `GameRoom` própria. O estado
+  sobrevive a hibernações/reinícios, os sockets permanecem conectados durante a
+  hibernação e os timers de draft, abandono e limpeza viram alarmes persistidos.
+  A Durable Object `RoomDirectory` só reserva os códigos de sala.
+- **Contas**: o D1 `ucl-immortals-prod` guarda usuários, sessões, perfis,
+  amizades, convites, presença, histórico e recordes (ver `docs/ACCOUNT_SETUP.md`).
 
-1. Entre na conta Cloudflare que já publica `ucl-immortals`:
+O endereço continua `ucl-immortals.josefflessa.workers.dev`. Não há servidor de
+backend separado: em produção o cliente fala com `/api/realtime` no mesmo host.
+
+## Publicar
+
+1. Entre na conta Cloudflare que publica `ucl-immortals`:
 
    ```powershell
    pnpm exec wrangler login
    ```
 
-2. Publique o Worker e a migração dos Durable Objects:
+2. Se houver migração nova em `migrations/`, aplique no D1 de produção:
+
+   ```powershell
+   pnpm exec wrangler d1 migrations apply ucl-immortals-prod --remote
+   ```
+
+3. Publique o Worker (o primeiro deploy também cria as Durable Objects):
 
    ```powershell
    pnpm deploy:cloudflare
    ```
-
-O nome do Worker continua `ucl-immortals`, portanto o endereço
-`ucl-immortals.josefflessa.workers.dev` continua o mesmo. O primeiro deploy
-cria os dois Durable Objects `GameRoom` e `RoomDirectory`; não é preciso criar
-um banco, serviço Render ou URL de backend separado.
 
 ## Validação antes de publicar
 
@@ -33,16 +43,10 @@ pnpm build
 pnpm exec wrangler deploy --dry-run
 ```
 
-Para testar o build Cloudflare localmente, use `pnpm dev:cloudflare`. O comando
-`pnpm dev` continua usando o Socket.IO local do Vite para não alterar o fluxo de
-desenvolvimento já existente.
+## Desenvolvimento local
 
-## Compatibilidade com o servidor Node anterior
-
-O build publicado usa WebSocket nativo por padrão. Se for necessário gerar um
-artefato para o servidor Node/Socket.IO antigo, faça o build com:
-
-```powershell
-$env:VITE_REALTIME_TRANSPORT = 'socketio'
-pnpm build
-```
+- `pnpm dev`: só a interface (Vite na porta 3000). O multiplayer usa o Socket.IO
+  embutido no Vite, com os mesmos handlers do Durable Object.
+- `pnpm dev:all`: Vite + Worker local na porta 8787 com D1 local, necessário para
+  testar contas, perfis e amizades.
+- `pnpm dev:cloudflare`: build completo servido pelo `wrangler dev`.

@@ -3,14 +3,14 @@
 // Os valores numéricos são aplicados pelo motor, na mesma habilidade especial
 // que o técnico já possui no nível normal.
 
-export interface CoachPrimeDefinition {
+interface CoachPrimeDefinition {
   name: string;
   normal: string;
   prime: string;
   condition: string;
 }
 
-export const COACH_PRIME_DEFINITIONS: Record<string, CoachPrimeDefinition> = {
+const COACH_PRIME_DEFINITIONS: Record<string, CoachPrimeDefinition> = {
   guardiola: {
     name: 'Controle Total',
     normal: 'Jogadores com Visão 80 ou mais recebem +3 em tudo.',

@@ -60,8 +60,7 @@ interface DurableCheckpoint {
  * Match rooms contain the complete bot catalog, starting lineups and replay
  * data. Keeping that JSON as one uncompressed Durable Object value makes it
  * grow quickly as rounds are played. SQLite-backed objects allow a larger
- * value than the legacy KV backend, but the room should not depend on that
- * ceiling. The envelope also leaves old uncompressed records readable.
+ * value, but the room should not depend on that ceiling.
  */
 interface CompressedStoredGameRoom {
   encoding: 'gzip-json-v1';
@@ -81,8 +80,6 @@ interface SocketAttachment {
   roomCode?: string;
   /** Socket.IO-style room membership; absent until join_room/create_room succeeds. */
   joinedRoomCode?: string;
-  /** Restores the incremental sync capability after Durable Object hibernation. */
-  supportsPatches?: boolean;
   /** Last client heartbeat observed before the object hibernated. */
   lastSeenAt?: number;
 }
@@ -95,7 +92,7 @@ interface DurableTransactionSnapshot {
   // is buffered until commit; if a handler fails, invalidating these baselines
   // is enough to force the next update to be a fresh snapshot. This avoids
   // cloning one full private room view per connected player on every action.
-  syncSessions: Array<[string, { supportsPatches: boolean }]>;
+  syncSessionIds: string[];
   timers: Array<[GameTimerKind, number]>;
 }
 
@@ -106,7 +103,7 @@ const MAX_PERSISTED_COMMAND_RECEIPTS = 256;
 const GAME_STORAGE_KEY = 'game';
 const GAME_MANIFEST_STORAGE_KEY = 'game:manifest';
 const GAME_CHUNK_STORAGE_PREFIX = 'game:chunk:';
-// Stay below both the current SQLite value ceiling and legacy KV-backed rooms.
+// Stay well below the SQLite value ceiling.
 // A round with a large replay history therefore becomes several durable values
 // instead of one increasingly fragile blob.
 const PERSISTED_GAME_CHUNK_BYTES = 96 * 1024;
@@ -193,16 +190,12 @@ async function encodeStoredGameRoom(value: StoredGameRoom): Promise<CompressedSt
   };
 }
 
-/** Read both the current compressed format and records from older deployments. */
 async function decodeStoredGameRoom(value: unknown): Promise<StoredGameRoom | null> {
-  if (isCompressedStoredGameRoom(value)) {
-    const source = new Blob([value.payload]).stream();
-    const decompressed = source.pipeThrough(new DecompressionStream('gzip'));
-    const json = await new Response(decompressed).text();
-    return JSON.parse(json) as StoredGameRoom;
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  return value as StoredGameRoom;
+  if (!isCompressedStoredGameRoom(value)) return null;
+  const source = new Blob([value.payload]).stream();
+  const decompressed = source.pipeThrough(new DecompressionStream('gzip'));
+  const json = await new Response(decompressed).text();
+  return JSON.parse(json) as StoredGameRoom;
 }
 
 function isPersistedRoom(value: unknown): value is RoomState {
@@ -217,7 +210,6 @@ function isPersistedRoom(value: unknown): value is RoomState {
     && Array.isArray(room.botTeams)
     && Array.isArray(room.leagueFixtures)
     && Array.isArray(room.leagueStandings)
-    && Array.isArray(room.leagueResults)
     && Array.isArray(room.readyPlayers)
     && room.draftState !== null
     && typeof room.draftState === 'object';
@@ -295,7 +287,6 @@ export class RoomDirectory {
 class DurableSocket implements RealtimeSocket {
   private readonly handlers = new Map<string, RealtimeEventHandler[]>();
   private joinedRoomCode: string | undefined;
-  private supportsPatches: boolean;
   private lastSeenAt: number;
   readonly accountId?: string;
 
@@ -308,7 +299,6 @@ class DurableSocket implements RealtimeSocket {
     accountId?: string,
   ) {
     this.joinedRoomCode = attachment?.joinedRoomCode;
-    this.supportsPatches = attachment?.supportsPatches === true;
     this.lastSeenAt = Number.isFinite(attachment?.lastSeenAt) ? attachment!.lastSeenAt! : Date.now();
     this.accountId = accountId ?? attachment?.accountId;
   }
@@ -366,17 +356,6 @@ class DurableSocket implements RealtimeSocket {
     if (this.joinedRoomCode) this.server.join(this.id, this.joinedRoomCode);
   }
 
-  markSupportsPatches(): void {
-    if (!this.supportsPatches) {
-      this.supportsPatches = true;
-      this.saveAttachment();
-    }
-  }
-
-  restoreCapabilities(): void {
-    if (this.supportsPatches) this.dispatch('client_capabilities', { roomUpdates: 1 });
-  }
-
   restoreJoinedRoom(roomCode: string | undefined): void {
     this.joinedRoomCode = roomCode;
     this.saveAttachment();
@@ -392,7 +371,6 @@ class DurableSocket implements RealtimeSocket {
       accountId: this.accountId,
       roomCode: this.objectRoomCode,
       joinedRoomCode: this.joinedRoomCode,
-      supportsPatches: this.supportsPatches || undefined,
       lastSeenAt: this.lastSeenAt,
     } satisfies SocketAttachment);
   }
@@ -489,7 +467,6 @@ class DurableRealtimeServer implements RealtimeServer {
     this.sockets.sockets.set(socketId, socket);
     socket.restoreMembership();
     this.connectionHandlers.forEach((handler) => handler(socket));
-    if (restored) socket.restoreCapabilities();
     if (!restored) {
       webSocket.serializeAttachment({ socketId, roomCode, accountId: socket.accountId, lastSeenAt: socket.getLastSeenAt() } satisfies SocketAttachment);
       webSocket.send(encodeRealtimeMessage({ type: 'system', event: 'connected', socketId }));
@@ -711,7 +688,6 @@ export class GameRoom {
     }
 
     if (this.serialQueueDepth >= MAX_SERIAL_QUEUE_DEPTH
-      && incoming.event !== 'client_capabilities'
       && incoming.event !== 'sync_room') {
       this.rejectOverloadedMessage(webSocket, incoming.event, incoming.payload);
       return Promise.resolve();
@@ -738,18 +714,11 @@ export class GameRoom {
         return;
       }
 
-      // Capability negotiation and explicit resync only update ephemeral
-      // socket/session state. They are deliberately kept outside the full
-      // transaction + persistence path.
-      if (incoming.event === 'client_capabilities' || incoming.event === 'sync_room') {
+      // An explicit resync only updates ephemeral socket/session state. It is
+      // deliberately kept outside the full transaction + persistence path.
+      if (incoming.event === 'sync_room') {
         runWithGameRuntime(this.runtime, () => {
           socket?.dispatch(incoming.event, incoming.payload);
-          if (incoming.event === 'client_capabilities'
-            && incoming.payload !== null
-            && typeof incoming.payload === 'object'
-            && (incoming.payload as { roomUpdates?: unknown }).roomUpdates === 1) {
-            socket?.markSupportsPatches();
-          }
         });
         return;
       }
@@ -988,12 +957,7 @@ export class GameRoom {
       roomPresent: !!room,
       room: room ? cloneRoomJson(room) : null,
       marketSeq: this.runtime.marketSeq,
-      syncSessions: Array.from(this.runtime.roomSyncSessions.entries()).map(([socketId, session]) => [
-        socketId,
-        {
-          supportsPatches: session.supportsPatches,
-        },
-      ]),
+      syncSessionIds: Array.from(this.runtime.roomSyncSessions.keys()),
       timers: Array.from(this.scheduledTimers.entries()),
     };
   }
@@ -1004,14 +968,13 @@ export class GameRoom {
     this.runtime.marketSeq = snapshot.marketSeq;
 
     this.runtime.roomSyncSessions.clear();
-    snapshot.syncSessions.forEach(([socketId, session]) => {
+    snapshot.syncSessionIds.forEach(socketId => {
       this.runtime.roomSyncSessions.set(socketId, {
         // No outbound frame escaped a rolled-back transaction because the
         // transport buffer was discarded. Drop the old baseline so the next
         // update cannot calculate a patch against a state the client never saw.
         snapshot: null,
         revision: 0,
-        supportsPatches: session.supportsPatches,
       });
     });
 
@@ -1041,10 +1004,9 @@ export class GameRoom {
 
   private async ensureInitializedFromStorage(): Promise<void> {
     if (this.initialized) return;
-    const [storedRecord, storedManifest, legacyTimers] = await Promise.all([
-      this.state.storage.get<StoredGameRoom | CompressedStoredGameRoom>(GAME_STORAGE_KEY),
+    const [storedRecord, storedManifest] = await Promise.all([
+      this.state.storage.get<CompressedStoredGameRoom>(GAME_STORAGE_KEY),
       this.state.storage.get<ChunkedStoredGameRoomManifest>(GAME_MANIFEST_STORAGE_KEY),
-      this.state.storage.get<Array<[GameTimerKind, number]>>('timers'),
     ]);
     let durableGameRecord: unknown = storedRecord;
     if (isChunkedStoredGameRoomManifest(storedManifest)) {
@@ -1097,14 +1059,6 @@ export class GameRoom {
             && Number.isSafeInteger(receipt.stateRevision))
           .slice(-MAX_PERSISTED_COMMAND_RECEIPTS)
         : [];
-      // Each played league result is already owned by its fixture. Older
-      // deployments also persisted the same full result array separately;
-      // discard that duplicate in memory so every later clone, diff and
-      // checkpoint is smaller without changing what clients can display.
-      if (stored.room.leagueResults.length > 0
-        && stored.room.leagueFixtures.some(fixture => fixture.played && !!fixture.result)) {
-        stored.room.leagueResults = [];
-      }
       this.runtime.rooms.set(this.roomCode, stored.room);
       this.runtime.marketSeq = stored.marketSeq;
       this.reservationToken = typeof stored.reservationToken === 'string'
@@ -1126,7 +1080,7 @@ export class GameRoom {
         throw new Error('Sala ativa sem estado persistido; recusando inicialização destrutiva.');
       }
     }
-    for (const [kind, at] of stored?.timers ?? legacyTimers ?? []) {
+    for (const [kind, at] of stored?.timers ?? []) {
       // Alarms are at-least-once and can be delayed during an outage. Keep an
       // overdue timer so `alarm()` executes it immediately after a wake-up
       // instead of silently losing an auto-pick/cleanup/host transfer.
@@ -1272,14 +1226,12 @@ export class GameRoom {
     }
 
     if (storedRoom) {
-      // `timers` is embedded in the same durable record as the room. Keep the
-      // legacy key untouched for older deployments; new loads prefer the
-      // embedded value, avoiding a room/timer split-brain after a crash.
+      // `timers` is embedded in the same durable record as the room, avoiding
+      // a room/timer split-brain after a crash.
       const nextAlarm = Math.min(...(storedRoom.timers ?? []).map(([, at]) => at));
       if (Number.isFinite(nextAlarm)) await this.state.storage.setAlarm(nextAlarm);
       else await this.state.storage.deleteAlarm();
     } else {
-      await this.state.storage.delete('timers');
       await this.state.storage.deleteAlarm();
     }
   }

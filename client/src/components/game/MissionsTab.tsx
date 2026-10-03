@@ -3,6 +3,7 @@ import { Clock3, LockKeyhole, RefreshCw, ScrollText, Trash2, Trophy } from 'luci
 import { useGame } from '../../contexts/GameContext';
 import { projectLevel } from '../../lib/clubProjects';
 import {
+  MAX_ACTIVE_MISSIONS,
   MISSION_MAP,
   MISSION_RARITY_META,
   canRerollMissionBoard,
@@ -113,7 +114,7 @@ function MissionCard({
             </div>
           ) : (
             <Button intent="primary" size="default" className="w-full" disabled={!canAccept} onClick={onAccept}>
-              {canAccept ? 'ACEITAR MISSÃO' : '2 MISSÕES ATIVAS'}
+              {canAccept ? 'ACEITAR MISSÃO' : `${MAX_ACTIVE_MISSIONS} MISSÕES ATIVAS`}
             </Button>
           )}
         </div>
@@ -168,7 +169,7 @@ export default function MissionsTab() {
             <div className="flex items-stretch gap-2">
               <div className="rounded-lg px-3 py-2 text-center" style={{ background: '#0B0B15', border: '1px solid #34344E' }}>
                 <div className="text-xs font-black tracking-widest" style={{ color: '#85859A', fontFamily: 'Rajdhani, sans-serif' }}>MISSÕES ATIVAS</div>
-                <div className="mt-0.5 text-3xl font-black tabular-nums" style={{ color: activeCount === 2 ? '#F0C674' : '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>{activeCount}/2</div>
+                <div className="mt-0.5 text-3xl font-black tabular-nums" style={{ color: activeCount === MAX_ACTIVE_MISSIONS ? '#F0C674' : '#FFF', fontFamily: 'Bebas Neue, sans-serif' }}>{activeCount}/{MAX_ACTIVE_MISSIONS}</div>
               </div>
               <div className="rounded-lg px-3 py-2 text-center" style={{ background: '#0B0B15', border: '1px solid #34344E' }}>
                 <div className="text-xs font-black tracking-widest" style={{ color: '#85859A', fontFamily: 'Rajdhani, sans-serif' }}>CONCLUÍDAS</div>
@@ -245,7 +246,7 @@ export default function MissionsTab() {
                   missionId={definition.id}
                   active={active}
                   resolved={resolved}
-                  canAccept={activeCount < 2 && !resolved}
+                  canAccept={activeCount < MAX_ACTIVE_MISSIONS && !resolved}
                   missionsProjectLevel={missionsProjectLevel}
                   onAccept={() => accept(definition.id)}
                   onRemove={() => setRemoveTarget(definition.id)}

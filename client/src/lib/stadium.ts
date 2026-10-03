@@ -2,18 +2,12 @@
 // O projeto Estádio é a única fonte da vantagem de casa. O nível 5 reutiliza
 // a imagem especial que antes era associada ao Técnico Prime, sem importar
 // bônus temáticos de clube ou nação.
-export type StadiumAttr = 'pace'|'shooting'|'passing'|'dribbling'|'defending'|'physical'|'vision'|'composure';
-
 export interface Stadium {
   id: string;
   name: string;
   photoUrl: string;
   homeAttrBonus: number;          // +N em TODOS os atributos, em casa
   prime?: boolean;
-  /** Legacy fields kept so old serialized rooms can still be read; never used by gameplay. */
-  themedAttrs?: [StadiumAttr, StadiumAttr];
-  themedClub?: string;
-  themedNation?: string;
   coachPhotoUrl?: string;         // foto Prime do técnico
 }
 
@@ -42,10 +36,10 @@ export function stadiumFor(coachId: string, prime: boolean): Stadium {
 
 /**
  * Resolves the stadium visual shown by the club UI. Only level 5 unlocks the
- * special stadium image associated with the selected coach. The coach Prime
- * state is intentionally ignored: it no longer changes the stadium.
+ * special stadium image associated with the selected coach (the coach Prime
+ * state does not change the stadium).
  */
-export function stadiumDisplayFor(coachId: string, _coachPrime: boolean, stadiumProjectLevel = 1): Stadium {
+export function stadiumDisplayFor(coachId: string, stadiumProjectLevel = 1): Stadium {
   if (stadiumProjectLevel < 5) return DEFAULT_STADIUM;
 
   const primeStadium = stadiumFor(coachId, true);

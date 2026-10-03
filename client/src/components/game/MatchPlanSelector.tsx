@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, IconButton, Panel, PanelBody, PanelHeader, PanelTitle } from '../../design-system';
 import { getTacticById } from '../../lib/gameData';
 import {
+  MATCH_TRIGGER_ACTIONS,
   MATCH_TRIGGER_GOAL_MARGINS,
   MATCH_TRIGGER_MINUTES,
   MAX_MATCH_TRIGGERS,
@@ -27,16 +28,10 @@ const CONDITION_LABELS: Record<MatchTriggerCondition, string> = {
   opponent_red_card: 'Adversário recebe vermelho',
 };
 
-const ACTION_LABELS: Record<MatchTriggerAction, string> = {
-  balanced: 'Equilibrado',
-  possession: 'Posse de Bola',
-  counter: 'Contra-ataque',
-  high_press: 'Pressão Alta',
-  defensive: 'Defensivo',
-  all_out_attack: 'Tudo pro Ataque',
-};
-
-const ACTION_OPTIONS = Object.keys(ACTION_LABELS) as MatchTriggerAction[];
+const ACTION_OPTIONS = MATCH_TRIGGER_ACTIONS;
+const ACTION_LABELS = Object.fromEntries(
+  ACTION_OPTIONS.map(action => [action, getTacticById(action).name]),
+) as Record<MatchTriggerAction, string>;
 const CONDITION_OPTIONS = Object.keys(CONDITION_LABELS) as MatchTriggerCondition[];
 
 function isScoreMarginCondition(condition: MatchTriggerCondition): boolean {

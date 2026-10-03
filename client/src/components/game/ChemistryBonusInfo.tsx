@@ -9,12 +9,10 @@ import { GameModal } from '../../design-system';
 
 // Bonus is applied as chemBonus.{passing,pace} * 2 in both the engine and the
 // effective-stats preview, so the real stat points are double the raw tier value.
-const TIERS = [
-  { min: 90, label: '90+', pas: 6, rit: 4, special: 5 },
-  { min: 75, label: '75+', pas: 4, rit: 2, special: 3 },
-  { min: 60, label: '60+', pas: 2, rit: 2, special: 2 },
-  { min: 45, label: '45+', pas: 2, rit: 0, special: 1 },
-];
+const TIERS = [90, 75, 60, 45].map(min => {
+  const bonus = getChemistryBonus(min);
+  return { min, label: `${min}+`, pas: bonus.passing * 2, rit: bonus.pace * 2, special: bonus.special };
+});
 
 const Chip = ({ text }: { text: string }) => (
   <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-black"

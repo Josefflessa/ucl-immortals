@@ -1,12 +1,11 @@
-// UCL Immortals — Captain & Penalty-taker selector
+// UCL Immortals — Captain, penalty-taker & free-kick-taker selector
 // Shared by the squad-review screen (after the draft) and the league "MEU TIME"
 // tab (between matches). Lets the manager choose who wears the armband and who
 // takes the penalties that occur DURING a match.
 //
 // The effect numbers below mirror the engine so the UI never lies:
 //  - Captain: the captain's single best attribute is boosted +CAPTAIN_BOOST for every
-//      teammate (gameEngine.captainBestStat / CAPTAIN_BOOST)
-//      immortal +3.5 · legendary +2.5 · others +1.5
+//      teammate (gameEngine.captainBestStat / CAPTAIN_BOOST = +3, ×2 with Capitão Nato)
 //  - Penalty taker: shoots first in the shootout and gets +5 composure as the
 //      designated taker; success scales with composure + the traits
 //      "Especialista em Decisões"/"Frio na Final" (+10 each). (gameEngine.simulatePenalties)
@@ -57,9 +56,6 @@ interface RolesSelectorProps {
   captainId: string | null | undefined;
   penaltyTakerId: string | null | undefined;
   freeKickTakerId: string | null | undefined;
-  onSetCaptain: (playerId: string) => void;
-  onSetPenaltyTaker: (playerId: string) => void;
-  onSetFreeKickTaker: (playerId: string) => void;
   onActivateRole: (role: GameRole) => void;
   activeRole?: GameRole | null;
 }
@@ -145,9 +141,6 @@ export default function RolesSelector({
   captainId,
   penaltyTakerId,
   freeKickTakerId,
-  onSetCaptain,
-  onSetPenaltyTaker,
-  onSetFreeKickTaker,
   onActivateRole,
   activeRole = null,
 }: RolesSelectorProps) {

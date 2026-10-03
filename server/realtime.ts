@@ -1,8 +1,8 @@
 /**
  * Minimal transport contract used by the online game rules.
  *
- * Socket.IO implements this contract in local/legacy Node deployments, while
- * the Cloudflare Durable Object implementation uses native WebSockets. Keeping
+ * Socket.IO implements this contract in the Vite dev server, while the
+ * Cloudflare Durable Object implementation uses native WebSockets. Keeping
  * the game handlers dependent on this small surface prevents the two
  * transports from drifting apart.
  */

@@ -1,19 +1,10 @@
 import type { Player } from './gameData';
+import { rarityForBaseOverall } from './rarity';
 
 type NewPlayer = Omit<Player, 'rarity' | 'traits'>;
 
 function player(data: NewPlayer): Player {
-  const rarity: Player['rarity'] = data.overall <= 74
-    ? 'bronze'
-    : data.overall <= 79
-      ? 'silver'
-      : data.overall <= 87
-        ? 'gold'
-        : data.overall <= 93
-          ? 'legendary'
-          : 'immortal';
-
-  return { ...data, rarity, traits: [] };
+  return { ...data, rarity: rarityForBaseOverall(data.overall), traits: [] };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGameRuntime, registerSocketHandlers, runGameTimer, runWithGameRuntime } from './handlers';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime';
+import { applyRoomPatch } from '../shared/room-sync';
 
 class FakeServer implements RealtimeServer {
   private connectionHandler: ((socket: RealtimeSocket) => void) | undefined;
@@ -66,6 +67,18 @@ class FakeSocket implements RealtimeSocket {
   receive(event: string, payload?: unknown): void {
     this.handlers.get(event)?.(payload);
   }
+}
+
+/** Rebuilds the latest room view a socket holds, exactly like the client does. */
+function latestRoomView(socket: FakeSocket): any {
+  let view: any = undefined;
+  for (const message of socket.sent) {
+    const payload = message.payload as any;
+    if ((message.event === 'room_created' || message.event === 'joined_room') && payload?.roomState) view = payload.roomState;
+    else if (message.event === 'room_snapshot') view = payload.roomState;
+    else if (message.event === 'room_patch') view = applyRoomPatch(view, payload.patch);
+  }
+  return view;
 }
 
 describe('game runtime isolation', () => {
@@ -136,9 +149,7 @@ describe('game runtime isolation', () => {
       guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno-secret' });
     });
 
-    const guestViewAtHost = host.sent
-      .filter(message => message.event === 'room_updated')
-      .at(-1)?.payload as any;
+    const guestViewAtHost = latestRoomView(host);
     const guestInHostView = guestViewAtHost.players.find((player: any) => player.name === 'Bruno');
     expect(guestInHostView.clientId).toBeUndefined();
     expect(guestInHostView.bets).toEqual([]);
@@ -220,7 +231,7 @@ describe('game runtime isolation', () => {
       && (message.payload as any)?.status === 'already_applied'
     ))).toBe(true);
 
-    const guestView = guest.sent.filter(message => message.event === 'room_updated').at(-1)?.payload as any;
+    const guestView = latestRoomView(guest);
     expect(guestView.commandReceipts).toBeUndefined();
     expect(guestView.lastCheckpoint).toBeUndefined();
   });
@@ -275,7 +286,7 @@ describe('game runtime isolation', () => {
     expect(room.hostId).toBe('player_1');
     expect(room.players.map(player => player.name)).toEqual(['Bruno']);
     expect(host.sent.some(message => message.event === 'room_left')).toBe(true);
-    const guestUpdate = guest.sent.filter(message => message.event === 'room_updated').at(-1)?.payload as any;
+    const guestUpdate = latestRoomView(guest);
     expect(guestUpdate.hostId).toBe('player_1');
   });
 
@@ -456,7 +467,7 @@ describe('game runtime isolation', () => {
     expect(room.hostId).toBe('player_1');
     expect(room.players.find(player => player.id === 'player_1')?.connected).toBe(true);
     expect(host.sent.some(message => message.event === 'command_ack' && (message.payload as any)?.status === 'applied')).toBe(true);
-    const guestUpdate = guest.sent.filter(message => message.event === 'room_updated').at(-1)?.payload as any;
+    const guestUpdate = latestRoomView(guest);
     expect(guestUpdate.hostId).toBe('player_1');
   });
 

@@ -63,7 +63,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
   const primeCoachPhotoUrl = stadiumFor(coach.id, true).coachPhotoUrl;
   // Nível 5 unlocks the Prime stadium image as the club's visual stadium;
   // it does not evolve the coach or grant the Prime thematic coach effects.
-  const displayedStadium = stadiumDisplayFor(coach.id, coachPrime, stadiumProjectLevel);
+  const displayedStadium = stadiumDisplayFor(coach.id, stadiumProjectLevel);
   const hasPrime = !!primeDefinition;
   const showButton = !!onEvolve && !coachPrime && hasPrime;
   const reportCoachPhoto = coachPrime && primeCoachPhotoUrl ? primeCoachPhotoUrl : coach.photoUrl;

@@ -27,9 +27,6 @@ interface Props {
   isLosing?: boolean;
   coachPrime?: boolean;
   analysisLevel?: number;
-  matchRating?: number;
-  matchGoals?: number;
-  matchAssists?: number;
   onClose: () => void;
 }
 
@@ -45,9 +42,6 @@ export default function PlayerDetailsModal({
   isLosing = false,
   coachPrime = false,
   analysisLevel = 1,
-  matchRating,
-  matchGoals = 0,
-  matchAssists = 0,
   onClose,
 }: Props) {
   const [zoomCard, setZoomCard] = useState(false);
@@ -234,13 +228,6 @@ export default function PlayerDetailsModal({
               </div>
             </div>
 
-            {matchRating !== undefined && (
-              <div className="grid grid-cols-3 border-t" style={{ borderColor: '#161626' }}>
-                <div className="px-3 py-2.5 text-center"><div className="text-[9px] font-bold tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>NOTA</div><div className="text-base font-black text-[#E8D080]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{matchRating.toFixed(1)}</div></div>
-                <div className="border-x px-3 py-2.5 text-center" style={{ borderColor: '#161626' }}><div className="text-[9px] font-bold tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GOLS</div><div className="text-base font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{matchGoals}</div></div>
-                <div className="px-3 py-2.5 text-center"><div className="text-[9px] font-bold tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>ASSISTÊNCIAS</div><div className="text-base font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{matchAssists}</div></div>
-              </div>
-            )}
 
             {effectiveStats.activeCoachEffects.length > 0 && (
               <div className="border-t bg-[#09090f] px-4 py-3" style={{ borderColor: '#161626' }}>

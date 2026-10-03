@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent
 import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, PLAYER_SPECIALIZATIONS, Player, POS_PT, effectiveSecondaries, type PlayerSpecialization } from '../../lib/gameData';
 import {
-  calculateChemistry, getPlayerEffectiveStats, getCoachModifiersForPlayer, getChemistryLinks, getEvolutionLevel,
+  calculateChemistry, getPlayerEffectiveStats, getChemistryLinks, getEvolutionLevel,
   MAX_RESERVE_PLAYERS,
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, captainBoostFromStarters,
   computeCharacteristicBoosts, evolvePointsSpent, evolvePointsBudget, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, SPECIALIZATION_LEVEL, SPECIALIZATION_UNLOCK_COST, positionFit, type EffectiveStats,
@@ -28,7 +28,7 @@ import BuffBreakdown from './BuffBreakdown';
 import { canonicalClubName } from '../../lib/crests';
 import { GameModal } from '../../design-system';
 
-export interface SquadEditorProps {
+interface SquadEditorProps {
   players: Player[];                 // full squad (first 11 = XI, rest = bench)
   coachId: string;
   formationId: string;
@@ -409,9 +409,6 @@ export default function SquadEditor({
         captainId={captain}
         penaltyTakerId={penaltyTaker}
         freeKickTakerId={freeKickTaker}
-        onSetCaptain={onSetCaptain}
-        onSetPenaltyTaker={onSetPenaltyTaker}
-        onSetFreeKickTaker={onSetFreeKickTaker}
         onActivateRole={activateRoleSelection}
         activeRole={activeRole}
       />
@@ -539,7 +536,6 @@ export default function SquadEditor({
             <FormationField
               formation={formation}
               players={xi}
-              showPlayerCards
               onPlayerLongPress={startStarterSwapSelection}
               // Reuse the same compact match indicators on the tactical field:
               // suspension (red), injury and accumulated yellows.
@@ -551,7 +547,6 @@ export default function SquadEditor({
                 }]),
               )}
               effectiveStats={effectiveStatsById}
-              chemistryScores={chemData.individual}
               showChemLines={!activeRole}
               chemLinks={chemLinks}
               roleSelection={activeRole}
@@ -1119,7 +1114,7 @@ export default function SquadEditor({
                       const diffLabel = preview.diff > 0 ? `+${preview.diff}` : `${preview.diff}`;
                       const variants = getCardVariants(candidate);
                       const candidateDisciplineChips = disciplineChips(candidate.id);
-                      const { fit, role, occupant } = swapFit(candidate, idx);
+                      const { fit, role } = swapFit(candidate, idx);
                       const nativeFit = fit === 'native';
                       const secFit = fit === 'secondary';
                       const fits = nativeFit || secFit;

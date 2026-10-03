@@ -5,11 +5,11 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   getChemistryBonus, getChemistryLinks, computeCharacteristicBoosts, getEffectiveAttribute, getPlayerEffectiveStats,
   resolveOpenPlayChance, shotTypeForApproach, GK_SAVE_EDGE, ON_TARGET_RESISTANCE,
-  getFreeKickTaker, getPenaltyTaker, getPenaltyOrder, activeGoalkeeperForTeam, goalkeeperShotStoppingRating, OUTFIELD_GK_MULTIPLIER, computeStandings, generateLeagueFixtures, generateRandomLeagueFixtures, simulateLeague, buildKeyMinutes,
+  getFreeKickTaker, getPenaltyTaker, getPenaltyOrder, activeGoalkeeperForTeam, goalkeeperShotStoppingRating, OUTFIELD_GK_MULTIPLIER, computeStandings, generateLeagueFixtures, generateRandomLeagueFixtures, buildKeyMinutes,
   matchRoleForPlayer, STANDARD_TABLE_POINTS,
   createKnockoutBracket, advanceKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
-  PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant, applyMatchStatGrowth,
+  PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant, stripSpecificVariant, applyMatchStatGrowth,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, COLECIONADOR_PER_RESERVE,
   MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
@@ -25,6 +25,7 @@ import {
 } from './gameEngine';
 import { betCapPrefix } from './bets';
 import { stadiumFor } from './stadium';
+import { DEFAULT_COMPETITION_FORMAT } from './competition';
 import { PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
 import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, canonicalClubName, clubIdForName, crestIdForClub, getCrest } from './crests';
@@ -293,8 +294,8 @@ describe('⭐ cartas evoluídas', () => {
   it('evolvePoints somam no getEffectiveAttribute', () => {
     const coach = COACHES[0];
     const noChem = { passing: 0, pace: 0, special: 0 };
-    const evo = getEffectiveAttribute(card(mkP({ shooting: 70, evolvePoints: { shooting: 3 } })), 'shooting', coach, 'Finalização', noChem, 'balanced', {});
-    const base = getEffectiveAttribute(card(mkP({ shooting: 70 })), 'shooting', coach, 'Finalização', noChem, 'balanced', {});
+    const evo = getEffectiveAttribute(card(mkP({ shooting: 70, evolvePoints: { shooting: 3 } })), 'shooting', coach, noChem, 'balanced', {});
+    const base = getEffectiveAttribute(card(mkP({ shooting: 70 })), 'shooting', coach, noChem, 'balanced', {});
     expect(evo - base).toBe(3);
   });
   it('bumpStarterAppearances: +1 só nos 11 titulares', () => {
@@ -368,8 +369,8 @@ describe('⭐ cartas evoluídas', () => {
     expect(GOLEADOR_GOALS_PER_BOOST).toBe(3);
     expect(GARCOM_ASSISTS_PER_BOOST).toBe(2);
     const noChem = { passing: 0, pace: 0, special: 0 };
-    const boostedShooting = getEffectiveAttribute(once.players[0], 'shooting', COACHES[0], '', noChem, 'balanced', {});
-    const baseShooting = getEffectiveAttribute(card(mkP()), 'shooting', COACHES[0], '', noChem, 'balanced', {});
+    const boostedShooting = getEffectiveAttribute(once.players[0], 'shooting', COACHES[0], noChem, 'balanced', {});
+    const baseShooting = getEffectiveAttribute(card(mkP()), 'shooting', COACHES[0], noChem, 'balanced', {});
     expect(boostedShooting - baseShooting).toBe(1);
   });
   it('Arrogante cresce por gol e penaliza somente os outros titulares, sem duplicar', () => {
@@ -409,7 +410,7 @@ describe('🏟️ vantagem de casa vem apenas do projeto Estádio', () => {
   const standard = stadiumFor('guardiola', false);
   const noChem = { passing: 0, pace: 0, special: 0 };
   const eff = (p: Player, attr: keyof Player, ctx: any) =>
-    getEffectiveAttribute(card(p), attr, coach, 'Criação', noChem, 'balanced', ctx);
+    getEffectiveAttribute(card(p), attr, coach, noChem, 'balanced', ctx);
 
   it('o estádio padrão dá +3 em qualquer atributo do mandante', () => {
     const p = mkP({ club: 'Barcelona', passing: 70, defending: 70 });
@@ -546,7 +547,7 @@ describe('char boosts flow through getEffectiveAttribute (engine = the buff)', (
     const xi = [m, t, ...rest];
     const charBoosts = computeCharacteristicBoosts(xi);
     const noChem = getChemistryBonus(0);
-    const eff = (ctx?: object) => getEffectiveAttribute(card(t), 'pace', COACHES[0], '', noChem, '__neutral__', ctx);
+    const eff = (ctx?: object) => getEffectiveAttribute(card(t), 'pace', COACHES[0], noChem, '__neutral__', ctx);
     expect(eff({ charBoosts }) - eff({})).toBe(MARTIR_TARGET_BOOST);
   });
 });
@@ -669,7 +670,7 @@ describe('🧩 Colecionador — +1 por jogador na reserva', () => {
 describe('🍿 Pipoqueiro — +6 na liga, −6 no mata-mata (o anti-Pilar)', () => {
   const noChem = getChemistryBonus(0);
   const eff = (p: Player, ctx?: object) =>
-    getEffectiveAttribute(card(p), 'pace', COACHES[0], '', noChem, '__neutral__', ctx);
+    getEffectiveAttribute(card(p), 'pace', COACHES[0], noChem, '__neutral__', ctx);
 
   it('ganha PIPOQUEIRO_LEAGUE_BOOST na fase de liga', () => {
     const plain = mkP({ id: 'a' });
@@ -865,15 +866,6 @@ describe('computeStandings — table integrity', () => {
   });
 });
 
-describe('simulateLeague — legacy convenience API', () => {
-  it('uses the shared fixture generator instead of the old eight-match cap', () => {
-    const teams = Array.from({ length: 4 }, (_, i) => mkTeam(`T${i}`, Array.from({ length: 11 }, () => mkP())));
-    const season = simulateLeague(teams, 3);
-    expect(season.results).toHaveLength(6);
-    expect(season.standings.every(entry => entry.played === 3)).toBe(true);
-  });
-});
-
 describe('generateLeagueFixtures', () => {
   it('never schedules a team against itself and pairs every team', () => {
     const teams = Array.from({ length: 6 }, (_, i) => mkTeam(`T${i}`, [mkP()]));
@@ -967,7 +959,7 @@ describe('configurable knockout qualification', () => {
     }));
 
     for (const qualifiedTeams of [16, 17, 20, 23, 24]) {
-      const bracket = createKnockoutBracket(standings, { leagueRounds: 8, qualifiedTeams });
+      const bracket = createKnockoutBracket(standings, { ...DEFAULT_COMPETITION_FORMAT, qualifiedTeams });
       expect(bracket.playoffs).toHaveLength(qualifiedTeams - 16);
       expect(bracket.round16).toHaveLength(8);
       expect(bracket.currentRound).toBe(qualifiedTeams === 16 ? 'round16' : 'playoffs');
@@ -1101,10 +1093,10 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.prodigio).toBe(true);
     expect(v.prodigioStarts).toBe(0);
     const noChem = { passing: 0, pace: 0, special: 0 };
-    const base = getEffectiveAttribute(card(src), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
-    const afterOneStart = getEffectiveAttribute(card({ ...v, prodigioStarts: 1 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
-    const afterTwoStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 2 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
-    const afterFourStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 4 }), 'pace', COACHES[0], 'Criação', noChem, 'balanced', {});
+    const base = getEffectiveAttribute(card(src), 'pace', COACHES[0], noChem, 'balanced', {});
+    const afterOneStart = getEffectiveAttribute(card({ ...v, prodigioStarts: 1 }), 'pace', COACHES[0], noChem, 'balanced', {});
+    const afterTwoStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 2 }), 'pace', COACHES[0], noChem, 'balanced', {});
+    const afterFourStarts = getEffectiveAttribute(card({ ...v, prodigioStarts: 4 }), 'pace', COACHES[0], noChem, 'balanced', {});
     expect(afterOneStart - base).toBe(1);
     expect(afterTwoStarts - base).toBe(2);
     expect(afterFourStarts - base).toBe(4);
@@ -1139,13 +1131,36 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(estribadoStatBoost(299)).toBe(2);
     expect(estribadoStatBoost(300)).toBe(3);
 
-    const base = getEffectiveAttribute(card(src), 'pace', COACHES[0], 'Criação', noChem, 'balanced', { credits: 0 });
-    const boosted = getEffectiveAttribute(card(v), 'pace', COACHES[0], 'Criação', noChem, 'balanced', { credits: 250 });
+    const base = getEffectiveAttribute(card(src), 'pace', COACHES[0], noChem, 'balanced', { credits: 0 });
+    const boosted = getEffectiveAttribute(card(v), 'pace', COACHES[0], noChem, 'balanced', { credits: 250 });
     expect(boosted - base).toBe(2);
 
     const plainStats = getPlayerEffectiveStats(src, 0, false, '', 0, '__neutral__', { credits: 0 });
     const boostedStats = getPlayerEffectiveStats(v, 0, false, '', 0, '__neutral__', { credits: 250 });
     expect(boostedStats.breakdown.pace.estribado).toBe(2);
     expect(boostedStats.overall - plainStats.overall).toBe(2);
+  });
+});
+
+describe('stripSpecificVariant — Únicas com duas características', () => {
+  it('remover o Magnata devolve os −7 e preserva a outra característica', () => {
+    const unique = UNIQUE_CARDS[0];
+    const withBoth = applyShopVariant(applyShopVariant(unique, 'lobo'), 'magnata');
+    const stripped = stripSpecificVariant(withBoth, 'magnata');
+    const loboOnly = applyShopVariant(unique, 'lobo');
+
+    expect(stripped.magnata).toBeUndefined();
+    expect(stripped.lobo).toBe(true);
+    expect(stripped.pace).toBe(loboOnly.pace);
+    expect(stripped.overall).toBe(loboOnly.overall);
+    expect(stripped.baseOverall).toBe(unique.overall);
+  });
+
+  it('remover a última característica com stat descarta o baseOverall', () => {
+    const unique = UNIQUE_CARDS[0];
+    const stripped = stripSpecificVariant(applyShopVariant(unique, 'magnata'), 'magnata');
+    expect(stripped.pace).toBe(unique.pace);
+    expect(stripped.overall).toBe(unique.overall);
+    expect(stripped.baseOverall).toBeUndefined();
   });
 });

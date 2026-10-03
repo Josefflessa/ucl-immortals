@@ -4,7 +4,7 @@
 // team-wide chemistry, the coach, the player's traits (named, with what each grants)
 // and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
 // the match engine actually uses.
-import { EffectiveStats, ChemLinkType, CharBoost, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, mercenarioStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
+import { EffectiveStats, ChemLinkType, CharBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, mercenarioStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
 import { getTacticById, Player } from '../../lib/gameData';
 import { getCardVariants } from './PlayerCard';
 
@@ -17,7 +17,7 @@ const ATTRS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physica
 type Delta = { a: string; v: number };
 
 // Individual-chemistry context: who this player connects with (and why), or why he is OOP.
-export interface ChemInfo {
+interface ChemInfo {
   oop: boolean;
   nativePos: string;      // PT label of the player's natural position
   formationPos: string;   // PT label of the slot he's filling
@@ -26,7 +26,7 @@ export interface ChemInfo {
   nextAt: number | null;  // raw pts needed for the next level (null when maxed at 3/3)
 }
 // The player's traits, each with what it grants and a short flavour line.
-export interface TraitInfo { id: string; icon: string; effect: string; flavor: string }
+interface TraitInfo { id: string; icon: string; effect: string; flavor: string }
 
 function collect(eff: EffectiveStats, pick: (b: EffectiveStats['breakdown']['pace']) => number): Delta[] {
   return ATTRS.map(a => ({ a, v: pick(eff.breakdown[a]) })).filter(x => x.v !== 0);
@@ -83,13 +83,13 @@ function specialVariantDetails({ variant, player, charBoost, isStarter, credits,
       return { chips: [
         { text: `+${LOBO_STAT_BOOST} EM CADA ATRIBUTO`, color },
         { text: '−12 QUÍMICA GERAL DO TIME', color: red },
-      ], description: `Recebe +${LOBO_STAT_BOOST} em cada atributo, já incluídos nos valores da carta, mas reduz em 12 a química geral do time.` };
+      ], description: `Recebe +${LOBO_STAT_BOOST} em cada atributo, já incluídos nos valores da carta, mas reduz em ${LOBO_CHEM_PENALTY} a química geral do time.` };
     case 'coringa':
       return { chips: [{ text: 'IMUNE A FORA-DE-POSIÇÃO', color }], description: 'Pode jogar em qualquer posição sem penalidade de posição ou de química. No gol, ainda sofre a penalidade de aptidão por ser jogador de linha.' };
     case 'nomade':
       return { chips: [{ text: 'QUALQUER NAÇÃO NA QUÍMICA', color }], description: 'Forma vínculos de química como se fosse de qualquer nação.' };
     case 'pilar':
-      return { chips: [{ text: '+12 QUÍMICA GERAL DO TIME', color }], description: 'Aumenta em 12 a química geral do time enquanto estiver na escalação.' };
+      return { chips: [{ text: `+${PILAR_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color }], description: `Aumenta em ${PILAR_CHEM_BONUS} a química geral do time enquanto estiver na escalação.` };
     case 'martir':
       return { chips: [
         { text: '−6 EM CADA ATRIBUTO', color: red },

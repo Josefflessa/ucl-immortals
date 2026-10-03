@@ -9,13 +9,13 @@ vantagem de mando e pela sua própria progressão no projeto do clube.
 
 ## Objetivo
 
-Fazer a evolução de 4 vitórias e 500 créditos valer a pena sem criar um bônus
+Fazer a evolução de 4 vitórias e 350 créditos valer a pena sem criar um bônus
 genérico ou confundir o jogador sobre a origem dos efeitos. A separação também
 deve funcionar de forma idêntica no solo e no online.
 
 ## Regras aprovadas
 
-- O Técnico Prime exige 4 vitórias na campanha e custa 500 créditos.
+- O Técnico Prime exige 4 vitórias na campanha e custa 350 créditos.
 - A compra ocorre na fase da Loja e é validada pelo servidor no online.
 - O efeito passa a valer nas partidas seguintes à compra.
 - O bônus Prime acumula com os efeitos normais do técnico.
@@ -62,7 +62,7 @@ O modal de evolução exibirá somente:
 - nome da habilidade normal e da habilidade Prime;
 - comparação objetiva do valor, como `+8 em tudo → +14 em tudo`;
 - condições de ativação;
-- requisitos de 4 vitórias e 500 créditos;
+- requisitos de 4 vitórias e 350 créditos;
 - botões Cancelar e Confirmar.
 
 Não serão exibidos estádio, vantagem em casa, clube temático, nação temática
@@ -107,5 +107,5 @@ ou qualquer outro efeito de mando nesse modal.
    com o que o jogador já conhece, em vez de criar sete sistemas paralelos.
 3. **Estádio totalmente separado** — escolhido para eliminar a sobreposição
    entre evolução do técnico e vantagem de mando.
-4. **4 vitórias e 500 créditos mantidos** — o custo será validado contra os
-   efeitos Prime fortalecidos; qualquer mudança futura deve ser deliberada.
+4. **4 vitórias e 350 créditos** — o custo atual é 350 (a proposta original era 500);
+   qualquer mudança futura deve ser deliberada.

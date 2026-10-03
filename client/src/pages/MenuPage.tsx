@@ -556,8 +556,6 @@ export default function MenuPage() {
           </p>
         </div>
 
-        {/* (troféu removido) */}
-
         {/* Dynamic Mode Forms */}
         <div>
           {menuMode === 'selection' && (

@@ -1,4 +1,5 @@
 import type { Player } from './gameData';
+import { rarityForBaseOverall } from './rarity';
 
 /**
  * Segunda leva da auditoria do catálogo: 75 jogadores novos para completar
@@ -91,17 +92,9 @@ export const SORTITOUTSI_1000_FACE_IDS: Readonly<Record<string, number>> = {
 
 type CatalogProfile = Omit<Player, 'rarity' | 'traits'>;
 
-function rarityForOverall(overall: number): Exclude<Player['rarity'], 'unique'> {
-  if (overall <= 74) return 'bronze';
-  if (overall <= 79) return 'silver';
-  if (overall <= 87) return 'gold';
-  if (overall <= 93) return 'legendary';
-  return 'immortal';
-}
-
 const catalogPlayer = (player: CatalogProfile): Player => ({
   ...player,
-  rarity: rarityForOverall(player.overall),
+  rarity: rarityForBaseOverall(player.overall),
   traits: [],
 });
 

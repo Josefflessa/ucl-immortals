@@ -5,28 +5,36 @@ import {
   MAX_POINTS_PER_RULE,
   MAX_REINFORCEMENT_OPTIONS,
   MIN_REINFORCEMENT_OPTIONS,
-  MAX_LEAGUE_ROUNDS,
   competitionFormatSummary,
   normalizeCompetitionFormat,
   validateCompetitionFormat,
 } from './competition';
 
+// League + knockout format with only the league length / qualifiers changed.
+const leagueKnockout = (leagueRounds: number, qualifiedTeams: number) => ({
+  ...DEFAULT_COMPETITION_FORMAT,
+  leagueRounds,
+  qualifiedTeams,
+  rewards: { ...DEFAULT_COMPETITION_FORMAT.rewards, reinforcementUntilRound: Math.max(1, Math.floor(leagueRounds)) },
+});
+
 describe('competition format validation', () => {
   it('accepts the default format and free valid integer values', () => {
     expect(validateCompetitionFormat(DEFAULT_COMPETITION_FORMAT)).toBeNull();
-    expect(validateCompetitionFormat({ leagueRounds: 3, qualifiedTeams: 19 })).toBeNull();
-    expect(validateCompetitionFormat({ leagueRounds: MAX_LEAGUE_ROUNDS, qualifiedTeams: 16 })).toBeNull();
+    expect(validateCompetitionFormat(leagueKnockout(3, 19))).toBeNull();
+    expect(validateCompetitionFormat(leagueKnockout(35, 16))).toBeNull();
   });
 
   it('rejects fractions, missing values and formats that cannot feed the 16-team knockout', () => {
-    expect(validateCompetitionFormat({ leagueRounds: 3.5, qualifiedTeams: 20 })).not.toBeNull();
-    expect(validateCompetitionFormat({ leagueRounds: 0, qualifiedTeams: 20 })).not.toBeNull();
-    expect(validateCompetitionFormat({ leagueRounds: 36, qualifiedTeams: 20 })).not.toBeNull();
-    expect(validateCompetitionFormat({ leagueRounds: 8, qualifiedTeams: 15 })).not.toBeNull();
-    expect(validateCompetitionFormat({ leagueRounds: 8, qualifiedTeams: 25 })).not.toBeNull();
+    expect(validateCompetitionFormat(leagueKnockout(3.5, 20))).not.toBeNull();
+    expect(validateCompetitionFormat(leagueKnockout(0, 20))).not.toBeNull();
+    expect(validateCompetitionFormat(leagueKnockout(36, 20))).not.toBeNull();
+    expect(validateCompetitionFormat(leagueKnockout(8, 15))).not.toBeNull();
+    expect(validateCompetitionFormat(leagueKnockout(8, 25))).not.toBeNull();
+    expect(validateCompetitionFormat({ leagueRounds: 5, qualifiedTeams: 20 })).not.toBeNull();
   });
 
-  it('exposes valid presets and keeps legacy rooms compatible', () => {
+  it('exposes valid presets', () => {
     for (const preset of Object.values(COMPETITION_FORMAT_PRESETS)) {
       expect(validateCompetitionFormat(preset.format)).toBeNull();
       expect(competitionFormatSummary(preset.format)).toBeTruthy();
@@ -37,10 +45,6 @@ describe('competition format validation', () => {
     expect(COMPETITION_FORMAT_PRESETS.league_knockout.format.rewards.reinforcement).toBe('round_and_stage');
     expect(COMPETITION_FORMAT_PRESETS.groups_knockout.format.rewards.reinforcement).toBe('round_and_stage');
     expect(COMPETITION_FORMAT_PRESETS.knockout.format.rewards.reinforcement).toBe('stage');
-    const legacy = normalizeCompetitionFormat({ leagueRounds: 5, qualifiedTeams: 20 });
-    expect(legacy.id).toBe('league_knockout');
-    expect(legacy.leagueRounds).toBe(5);
-    expect(legacy.qualifiedTeams).toBe(20);
   });
 
   it('keeps points league rounds tied to the selected leg format', () => {
@@ -58,11 +62,10 @@ describe('competition format validation', () => {
     expect(validateCompetitionFormat(league)).toContain('exatamente 38');
   });
 
-  it('keeps reward and match rules fixed to the selected preset', () => {
+  it('keeps reward rules fixed to the selected preset', () => {
     const preset = COMPETITION_FORMAT_PRESETS.league_knockout.format;
     const customized = {
       ...preset,
-      matchSettings: { ...preset.matchSettings, injuriesEnabled: false, cardsEnabled: false },
       rewards: {
         ...preset.rewards,
         reinforcement: 'off' as const,
@@ -72,7 +75,6 @@ describe('competition format validation', () => {
     };
 
     const normalized = normalizeCompetitionFormat(customized);
-    expect(normalized.matchSettings).toEqual(preset.matchSettings);
     expect(normalized.rewards).toEqual(preset.rewards);
   });
 

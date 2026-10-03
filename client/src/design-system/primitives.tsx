@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNo
 import * as React from 'react';
 import { cn } from '../lib/utils';
 
-export type UiTone = 'default' | 'accent' | 'inset' | 'live';
+type UiTone = 'default' | 'accent' | 'inset' | 'live';
 export type UiIntent = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'info';
 
 interface AppShellProps extends HTMLAttributes<HTMLDivElement> {
@@ -48,46 +48,6 @@ export function TopBar({ className, logoUrl = '/icons/logo_ucl.png', title = 'UC
         {right ? <div className="ui-topbar__right">{right}</div> : null}
       </div>
     </header>
-  );
-}
-
-export interface FlowStep {
-  id?: string;
-  label: string;
-  state?: 'done' | 'current' | 'upcoming';
-  disabled?: boolean;
-}
-
-export function FlowHeader({ steps, onStepClick, className, ...props }: HTMLAttributes<HTMLDivElement> & { steps: FlowStep[]; onStepClick?: (step: FlowStep, index: number) => void }) {
-  const currentIndex = Math.max(0, steps.findIndex(step => step.state === 'current'));
-  const currentStep = steps[currentIndex] ?? steps[0];
-
-  return (
-    <div className={cn('ui-flow-header', className)} {...props}>
-      <div className="ui-flow-summary" aria-live="polite">
-        <span>ETAPA {String(currentIndex + 1).padStart(2, '0')} / {String(steps.length).padStart(2, '0')}</span>
-        <strong>{currentStep?.label}</strong>
-      </div>
-      <div className="ui-stepper" aria-label="Progresso da montagem do time">
-        {steps.map((step, index) => {
-          const className = cn('ui-step', step.state === 'done' && 'ui-step--done', step.state === 'current' && 'ui-step--current');
-          const content = <><span className="ui-step__number">{String(index + 1).padStart(2, '0')}</span><span className="ui-step__label">{step.label}</span></>;
-          if (!onStepClick) return <span key={step.id ?? step.label} className={className}>{content}</span>;
-          return (
-            <button
-              key={step.id ?? step.label}
-              type="button"
-              className={className}
-              disabled={step.disabled}
-              aria-current={step.state === 'current' ? 'step' : undefined}
-              onClick={() => onStepClick(step, index)}
-            >
-              {content}
-            </button>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -139,10 +99,6 @@ export function Progress({ value, max = 100, tone = 'brand', className, ...props
       <div className={cn('ui-progress__fill', `ui-progress__fill--${tone}`)} style={{ width: `${percentage}%` }} />
     </div>
   );
-}
-
-export function Divider({ className, ...props }: HTMLAttributes<HTMLHRElement>) {
-  return <hr className={cn('ui-divider', className)} {...props} />;
 }
 
 export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

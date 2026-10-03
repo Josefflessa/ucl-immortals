@@ -3,7 +3,7 @@
 // muda quando o dono atual sai da sala de verdade — NÃO quando cai um instante. Isso
 // evita o host "pular" pra outro jogador numa queda transitória de conexão.
 
-export interface HostCandidate {
+interface HostCandidate {
   id: string;
   connected: boolean;
   kicked?: boolean;

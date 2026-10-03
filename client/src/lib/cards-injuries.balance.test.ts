@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { runMatchSimulation, setStatIds, generateBotTeam, calculateTeamStrength, getChemistryBonus } from './gameEngine';
+import { runMatchSimulation, setStatIds, generateBotTeam, calculateTeamStrength, getChemistryBonus, statKey } from './gameEngine';
 import type { PlayerMatchStat } from './gameEngine';
 import { COACHES } from './gameData';
 import { RED_PENALTY, INJURY_DEBUFF } from './discipline';
@@ -93,7 +93,7 @@ describe('hierarquia 🟥 > lesão (força)', () => {
     const chem = getChemistryBonus(t.totalChemistry);
     const full = calculateTeamStrength(t, coach, chem, 0);
     const midId = t.players[5].id;
-    const injured = calculateTeamStrength(t, coach, chem, 0, { injuredDebuff: { [midId]: INJURY_DEBUFF }, injuryDebuff: INJURY_DEBUFF });
+    const injured = calculateTeamStrength(t, coach, chem, 0, { injuredDebuff: { [statKey(t.id, midId)]: INJURY_DEBUFF }, injuryDebuff: INJURY_DEBUFF });
     expect(injured).toBeLessThan(full);                 // lesão sempre reduz
     expect(RED_PENALTY).toBeGreaterThan(full - injured); // 10 homens (penalidade) dói mais
   });

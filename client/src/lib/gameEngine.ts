@@ -2,9 +2,9 @@
 // Match simulation, chemistry calculation, draft logic
 
 import {
-  Player, Coach, Formation,
+  Player, Coach,
   PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, HISTORICAL_TRIOS, getTacticById,
-  canonicalPosition, getPositionGroup, effectiveSecondaries, PLAYER_SPECIALIZATIONS,
+  getPositionGroup, effectiveSecondaries, PLAYER_SPECIALIZATIONS,
   type Rarity, type EvolutionLevel, type PlayerSpecialization,
 } from './gameData';
 import {
@@ -32,11 +32,8 @@ import {
 } from './discipline';
 import {
   DEFAULT_COMPETITION_FORMAT,
-  DEFAULT_MATCH_SETTINGS,
   normalizeCompetitionFormat,
-  normalizeMatchSettings,
   type CompetitionFormat,
-  type CompetitionMatchSettings,
 } from './competition';
 
 // Re-export the discipline multiplier used by the UI so the selector and the match engine
@@ -107,7 +104,7 @@ export interface MatchPlan {
 export const MAX_MATCH_TRIGGERS = 3;
 export const MATCH_TRIGGER_MINUTES = [15, 30, 45, 55, 60, 65, 70, 75, 80, 85] as const;
 export const MATCH_TRIGGER_GOAL_MARGINS = [1, 2, 3, 4, 5] as const;
-export const MATCH_TRIGGER_CONDITIONS: readonly MatchTriggerCondition[] = [
+const MATCH_TRIGGER_CONDITIONS: readonly MatchTriggerCondition[] = [
   'losing', 'draw', 'winning', 'red_card', 'opponent_red_card',
 ];
 export const MATCH_TRIGGER_ACTIONS: readonly MatchTriggerAction[] = [
@@ -120,14 +117,6 @@ export const DEFAULT_MATCH_PLAN: MatchPlan = {
 
 function isMatchTriggerCondition(value: unknown): value is MatchTriggerCondition {
   return typeof value === 'string' && MATCH_TRIGGER_CONDITIONS.includes(value as MatchTriggerCondition);
-}
-
-function canonicalTriggerCondition(value: unknown): MatchTriggerCondition | null {
-  // Saves/rooms created before the compact score condition used these separate names.
-  if (value === 'losing_by' || value === 'losing_by_two') return 'losing';
-  if (value === 'winning_by' || value === 'winning_by_two') return 'winning';
-  if (value === 'scoreless') return 'draw';
-  return isMatchTriggerCondition(value) ? value : null;
 }
 
 function isScoreCondition(condition: MatchTriggerCondition): boolean {
@@ -143,7 +132,7 @@ function isMatchTriggerAction(value: unknown): value is MatchTriggerAction {
 }
 
 /**
- * Returns a safe, canonical plan for old saves/rooms and for generated bots.
+ * Returns a safe, canonical plan for client/network input and for generated bots.
  * `undefined` means "start with no automatic changes"; an explicit empty array
  * remains empty so the manager can deliberately keep automatic changes disabled.
  */
@@ -153,8 +142,8 @@ export function normalizeMatchPlan(input?: Partial<MatchPlan> | null): MatchPlan
   const triggers = raw
     .filter((trigger): trigger is Record<string, unknown> => !!trigger && typeof trigger === 'object')
     .map((trigger, index): MatchTrigger | null => {
-      const condition = canonicalTriggerCondition(trigger.condition);
-      if (!condition || !isMatchTriggerAction(trigger.action)) return null;
+      const condition = trigger.condition;
+      if (!isMatchTriggerCondition(condition) || !isMatchTriggerAction(trigger.action)) return null;
 
       const normalized: MatchTrigger = {
         id: typeof trigger.id === 'string' && trigger.id.trim() ? trigger.id.trim().slice(0, 40) : `trigger-${index + 1}`,
@@ -165,12 +154,8 @@ export function normalizeMatchPlan(input?: Partial<MatchPlan> | null): MatchPlan
         action: trigger.action,
       };
 
-      const isLegacyMarginCondition = trigger.condition === 'losing_by'
-        || trigger.condition === 'winning_by'
-        || trigger.condition === 'losing_by_two'
-        || trigger.condition === 'winning_by_two';
-      if (isScoreCondition(condition) && (isLegacyMarginCondition || trigger.margin !== undefined)) {
-        normalized.margin = normalizeGoalMargin(isLegacyMarginCondition ? (trigger.margin ?? 2) : trigger.margin);
+      if (isScoreCondition(condition) && trigger.margin !== undefined) {
+        normalized.margin = normalizeGoalMargin(trigger.margin);
       }
       return normalized;
     })
@@ -237,7 +222,7 @@ export function reservePlayerCount(team: Pick<Team, 'players'>): number {
 // The order of `team.players` is the order of the formation slots for the XI,
 // followed by the bench. Centralize this lookup so positional coach effects use
 // the role actually occupied by a card, not only its native position.
-export function formationRoleForPlayer(team: Team, player: Player): string | undefined {
+function formationRoleForPlayer(team: Team, player: Player): string | undefined {
   const index = team.players.findIndex(p => p === player || p.id === player.id);
   if (index < 0 || index >= 11) return undefined;
   return FORMATIONS.find(f => f.id === team.formationId)?.positions[index]?.role;
@@ -251,7 +236,7 @@ export function formationRoleForPlayer(team: Team, player: Player): string | und
  * this boundary in one helper prevents the simulation from mixing both ideas.
  */
 export function matchRoleForPlayer(team: Team, player: Player): string {
-  return canonicalPosition(formationRoleForPlayer(team, player) ?? player.position);
+  return formationRoleForPlayer(team, player) ?? player.position;
 }
 
 /**
@@ -444,10 +429,6 @@ export function applyDefeatGrowth(team: Team, result: MatchResult): Team {
   return changed ? { ...team, players } : team;
 }
 
-export function applyDefeatGrowthForResults(team: Team, results: MatchResult[]): Team {
-  return results.reduce((current, result) => applyDefeatGrowth(current, result), team);
-}
-
 /**
  * Credits the match's authoritative goals/assists to the cards that carry
  * Goleador/Garçom. The receipt arrays make the operation idempotent when an
@@ -495,10 +476,6 @@ export function applyMatchStatGrowth(team: Team, result: MatchResult, matchId = 
   return changed ? { ...team, players } : team;
 }
 
-export function applyMatchStatGrowthForResults(team: Team, results: MatchResult[]): Team {
-  return results.reduce((current, result) => applyMatchStatGrowth(current, result), team);
-}
-
 /**
  * Persists the campaign-wide completed-mission total on every Conquistador card.
  * Keeping the snapshot on the card makes the effect deterministic in solo,
@@ -529,7 +506,7 @@ export interface StandingsEntry {
 }
 
 /** Points that decide the tournament table, deliberately separate from shop credits. */
-export interface TablePointsConfig {
+interface TablePointsConfig {
   win: number;
   draw: number;
   loss: number;
@@ -549,14 +526,6 @@ export interface DraftState {
   formationId: string;
   coachId: string;
   neededPositions: string[];
-}
-
-// ============================================================
-// CHEMISTRY ENGINE
-// ============================================================
-// Check whether a player fits a formation position (native or secondary)
-export function isPlayerInPosition(player: Player, formationRole: string): boolean {
-  return positionFit(player, formationRole) !== 'off';
 }
 
 // Playing in the coach's preferred formation gels the side: a flat bonus to the team's
@@ -728,12 +697,12 @@ export interface EffectiveStats {
   overallMod: number; // positive or negative delta vs base
   activeCoachEffects: string[];
   // Per-source breakdown so the UI can explain WHERE each buff comes from.
-  chemMult: number;                                   // individual-chem multiplier (1.00–1.10, or OOP 0.85)
-  globalChemBonus: { passing: number; pace: number; special: number }; // team-wide bonus in stat points (special = +3 to every attr at perfect chem)
+  chemMult: number;                                   // individual-chem multiplier (1.00–1.10; OOP lives in posMult)
+  globalChemBonus: { passing: number; pace: number; special: number }; // team-wide bonus in stat points (special = +1/+2/+3/+5 to every attr by chem tier)
   breakdown: Record<'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure', StatBreakdown>;
 }
 
-export function getCoachModifiersForPlayer(
+function getCoachModifiersForPlayer(
   player: Player,
   coachId: string,
   context?: {
@@ -978,8 +947,8 @@ export function getPlayerEffectiveStats(
   // Play-style (tactic) modifiers — same rules as getEffectiveAttribute.
   const styleBonus = (attr: AttrKey): number => tacticStatBonus(playStyle, attr, context?.analysisLevel);
 
-  // Global chemistry bonus, same as the engine: +passing/+pace by tier, PLUS a flat +3
-  // to every attribute once the team hits perfect chemistry (90+, chemBonus.special).
+  // Global chemistry bonus, same as the engine: +passing/+pace by tier, PLUS a flat
+  // +1/+2/+3/+5 to every attribute by chemistry tier (45/60/75/90, chemBonus.special).
   const globalChem = (attr: AttrKey): number => {
     let v = chemBonus.special;
     if (attr === 'passing') v += chemBonus.passing * 2;
@@ -1126,7 +1095,7 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
 export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
-export type CharBoostMap = Record<string, CharBoost>;
+type CharBoostMap = Record<string, CharBoost>;
 
 export function computeCharacteristicBoosts(players: (Player | undefined)[]): CharBoostMap {
   const map: CharBoostMap = {};
@@ -1213,7 +1182,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
   return map;
 }
 
-export interface TeamEffectiveStatsOptions {
+interface TeamEffectiveStatsOptions {
   playStyle?: string;
   isKnockout?: boolean;
   isFinal?: boolean;
@@ -1279,7 +1248,7 @@ export function getTeamEffectiveStats(
 // Midfield build-up rating: passing (execution) blended with vision (the incisive idea /
 // final ball). Vision is ~35% so a true playmaker lifts chance creation noticeably, without
 // overshadowing pure passing. Feeds midfieldBuildUpEdge → the QUALITY of chances created.
-export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): number {
+function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): number {
   const xi = team.players.slice(0, 11);
   const mids = xi.filter(p => ['CM', 'CAM', 'CDM', 'LM', 'RM'].includes(matchRoleForPlayer(team, p)));
   const pool = mids.length > 0 ? mids : xi;
@@ -1291,7 +1260,7 @@ export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): 
   const captainBoost = captainBoostForTeam(team) ?? undefined;
   const charBoosts = computeCharacteristicBoosts(team.players);
   const eff = (p: PlayerCard, attr: 'passing' | 'vision') =>
-    getEffectiveAttribute(p, attr, coach, 'Criação', chemBonus, playStyleOverride ?? 'balanced', {
+    getEffectiveAttribute(p, attr, coach, chemBonus, playStyleOverride ?? 'balanced', {
       captainBoost,
       charBoosts,
       coachPrime: team.coachPrime,
@@ -1305,7 +1274,7 @@ export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): 
 // Build-up edge added to the attacker's chance-creation score: midfield-control gap
 // (bounded) plus a nudge for the possession tactic. Kept modest so squad/tactic
 // quality tilts — never decides — the duel on its own.
-export function midfieldBuildUpEdge(atkMid: number, defMid: number, attackPlayStyle: string): number {
+function midfieldBuildUpEdge(atkMid: number, defMid: number, attackPlayStyle: string): number {
   const gap = Math.max(-8, Math.min(8, (atkMid - defMid) * 0.3));
   return gap + (attackPlayStyle === 'possession' ? 2 : 0);
 }
@@ -1359,7 +1328,7 @@ export function getFreeKickTaker(team: Team, excludedIds?: ReadonlySet<string>):
 // Who gets on the end of a corner — a WEIGHTED RANDOM pick, not a fixed player.
 // Strong/tall players (CBs, strikers) and heading specialists go up far more often,
 // but a corner is a scramble, so it genuinely varies who heads it each time.
-export function getHeaderTarget(team: Team, excludedIds?: ReadonlySet<string>): PlayerCard {
+function getHeaderTarget(team: Team, excludedIds?: ReadonlySet<string>): PlayerCard {
   const xi = team.players.slice(0, 11);
   const available = xi.filter(p => !isExcludedPlayer(team, p, excludedIds));
   const active = available.length > 0 ? available : xi;
@@ -1388,7 +1357,6 @@ export function getEffectiveAttribute(
   player: PlayerCard,
   attribute: keyof Player,
   coach: Coach,
-  phase: string,
   chemBonus: { passing: number; pace: number; special: number },
   playStyle: string,
   context?: {
@@ -1422,9 +1390,8 @@ export function getEffectiveAttribute(
   // Chemistry global bonus (passing & pace)
   if (attribute === 'passing') base += chemBonus.passing * 2;
   if (attribute === 'pace') base += chemBonus.pace * 2;
-  // Perfect team chemistry (90+): a flat +3 to EVERY attribute, for every starter — the
-  // reward for a fully gelled XI. Lives here so it flows through both the match engine and
-  // the modal (replaces the old flat +5 on team strength, which was an invisible team-only buff).
+  // Team chemistry tier: a flat +1/+2/+3/+5 to EVERY attribute (45/60/75/90), for every
+  // starter. Lives here so it flows through both the match engine and the modal.
   base += chemBonus.special;
 
   // Coach bonuses (using the new unified modifiers function)
@@ -1433,7 +1400,7 @@ export function getEffectiveAttribute(
     isFinal: context?.isFinal,
     isLosing: context?.isLosing,
     coachPrime: context?.coachPrime,
-    role: canonicalPosition(context?.role ?? player.position),
+    role: context?.role ?? player.position,
   });
 
   const mod = modifiers[attribute as keyof typeof modifiers] as number || 0;
@@ -1504,12 +1471,12 @@ export const ON_TARGET_RESISTANCE = 48;
 // Global weight of FORMATION + TACTIC on results (chance volume + chance danger). 1.0 = baseline;
 // >1 makes the shape/style choice matter more (squad strength is untouched). Applied to every
 // formation/tactic scalar so the whole tactical contribution scales linearly by this factor.
-export const TACTICAL_INFLUENCE = 1.2;
+const TACTICAL_INFLUENCE = 1.2;
 // Per-minute randomness in deciding which team attacks. Lower = team strength
 // matters more. Tuned to 20 via the harness: favorites clearly win more (champion
 // avg strength-rank ~8 of 36, vs ~18.5 random) while upsets stay common (a rank
 // ~20+ team still lifts the trophy now and then). Football should be unpredictable.
-export const MATCH_NOISE = 20;
+const MATCH_NOISE = 20;
 
 // The three tactical axes have deliberately separate jobs in the match engine:
 //   - CONTROL creates more attacking sequences (initiative, shots and possession).
@@ -1517,39 +1484,27 @@ export const MATCH_NOISE = 20;
 //   - DEFENSE reduces the danger of the chances the opponent creates.
 // These are named knobs so the rules remain auditable and balance changes do not silently mix
 // volume with chance quality.
-export const CHANCE_VOLUME_INFLUENCE = 2;
-export const FORMATION_ATTACK_DANGER_INFLUENCE = 1.6;
-export const TACTIC_ATTACK_DANGER_INFLUENCE = 1.6;
-export const FORMATION_DEFENSE_SUPPRESSION_INFLUENCE = 3.6;
-export const TACTIC_DEFENSE_SUPPRESSION_INFLUENCE = 2.2;
+const CHANCE_VOLUME_INFLUENCE = 2;
+const FORMATION_ATTACK_DANGER_INFLUENCE = 1.6;
+const TACTIC_ATTACK_DANGER_INFLUENCE = 1.6;
+const FORMATION_DEFENSE_SUPPRESSION_INFLUENCE = 3.6;
+const TACTIC_DEFENSE_SUPPRESSION_INFLUENCE = 2.2;
 
-// Home advantage: the host enjoys a small territorial edge (crowd, familiarity, no travel).
-// Modelado como +3 no nível 1 em TODOS os atributos do mandante — e como a força do time é a média dos
-// overalls efetivos, esse bônus desloca a força na mesma escala, então é aplicado
-// como +4 direto na força. É omitido quando `neutralFinal` é true: na final de jogo único o campo
-// é neutro; na final ida e volta cada equipe conserva o mando de uma partida.
+// Home advantage fallback: +3 em TODOS os atributos dos titulares do mandante, usado só quando
+// nenhum nível de Estádio é informado. Na partida o valor vem de stadiumHomeBonus(nível do
+// projeto Estádio) = +3/+5/+7/+9/+11, aplicado por atributo (não entra na força). É omitido
+// quando `neutralFinal` é true: na final de jogo único o campo é neutro.
 export const HOME_ATTR_BONUS = 3;
 
 // Jogar numa posição SECUNDÁRIA custa −5% (× 0.95) — entre a nativa (0%) e o fora-de-posição (−15%).
 export const SECONDARY_STAT_MULT = 0.95;
-export type PosFit = 'native' | 'secondary' | 'off';
+type PosFit = 'native' | 'secondary' | 'off';
 export function positionFit(player: { position: string; secondaryPositions?: string[]; coringa?: boolean }, role: string): PosFit {
   if (player.coringa) return 'native';                       // 🃏 imune
-  const primary = canonicalPosition(player.position);
-  const canonicalRole = canonicalPosition(role);
-  if (primary === canonicalRole) return 'native';
-  if (effectiveSecondaries(player).includes(canonicalRole)) return 'secondary';
+  if (player.position === role) return 'native';
+  if (effectiveSecondaries(player).includes(role)) return 'secondary';
   return 'off';
 }
-
-// Compatibilidade de export para consumidores antigos. Estes valores não
-// participam mais do motor; os bônus de mando vêm exclusivamente do projeto.
-/** @deprecated O Estádio Prime não usa mais este bônus. */
-export const PRIME_HOME_ATTR_BONUS = 6;
-/** @deprecated Bônus temático removido da regra atual. */
-export const PRIME_THEMED_BONUS = 3;
-/** @deprecated Bônus temático removido da regra atual. */
-export const PRIME_THEMED_CLUB_BONUS = 6;
 
 // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3.
 // Cartas Imortais chegam ao nível 4 com um desbloqueio único de créditos e
@@ -1560,11 +1515,11 @@ export const PRIME_THEMED_CLUB_BONUS = 6;
 export const EVOLVE_LEVEL_THRESHOLDS = [0, 4, 8, 12, 12] as const;
 export const EVOLVE_GAMES = EVOLVE_LEVEL_THRESHOLDS[1];
 export const EVOLVE_POINTS = 6;
-export const EVOLVE_POINT_LEVELS = 3;
+const EVOLVE_POINT_LEVELS = 3;
 const EVOLVE_ATTRIBUTE_KEYS: readonly AttrKey[] = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'];
 const EVOLVE_ATTRIBUTE_KEY_SET = new Set<string>(EVOLVE_ATTRIBUTE_KEYS);
 export const SPECIALIZATION_LEVEL = 4;
-export const SPECIALIZATION_POINTS = 6;
+const SPECIALIZATION_POINTS = 6;
 export const SPECIALIZATION_UNLOCK_COST = 200;
 
 export function evolvePointsBudget(level: number): number {
@@ -1722,8 +1677,8 @@ export function startingIdsForResult(result: MatchResult, teamId: string, fallba
 //   level 5 → +7 (strong advantage)
 // Keeping this mapping here makes solo and online simulations use the same rule and preserves
 // level 1 behaviour for legacy teams that do not have clubProjects yet.
-export const FORMATION_COUNTER_BONUSES = [3, 3, 5, 5, 7] as const;
-export const FORMATION_COUNTER_BONUS = FORMATION_COUNTER_BONUSES[0];
+const FORMATION_COUNTER_BONUSES = [3, 3, 5, 5, 7] as const;
+const FORMATION_COUNTER_BONUS = FORMATION_COUNTER_BONUSES[0];
 
 export function formationCounterBonusForAnalysisLevel(level: number): number {
   if (!Number.isFinite(level)) return FORMATION_COUNTER_BONUS;
@@ -1731,10 +1686,10 @@ export function formationCounterBonusForAnalysisLevel(level: number): number {
   return FORMATION_COUNTER_BONUSES[Math.min(safeLevel, FORMATION_COUNTER_BONUSES.length) - 1];
 }
 
-export type FormationAdvantageTier = 'light' | 'clear' | 'strong';
+type FormationAdvantageTier = 'light' | 'clear' | 'strong';
 
 /** User-facing formation matchup label. Internal strength values stay in the engine. */
-export function formationAdvantageTierForAnalysisLevel(level: number): FormationAdvantageTier {
+function formationAdvantageTierForAnalysisLevel(level: number): FormationAdvantageTier {
   if (Number.isFinite(level) && Math.floor(level) >= 5) return 'strong';
   if (Number.isFinite(level) && Math.floor(level) >= 3) return 'clear';
   return 'light';
@@ -1759,15 +1714,16 @@ export function formationAdvantageColorForAnalysisLevel(level: number): string {
 }
 
 // ── Flavour match statistics (shots/saves/corners/fouls) ──────
-// These populate the box-score WITHOUT ever changing the score. They are
+// These mostly populate the box-score; a foul can still become a penalty or a
+// direct free kick and a corner can become a header chance (each may score). They are
 // per-minute probabilistic and scaled by a per-match tempo/aggression roll, so
 // every match looks different (a one-sided thrashing, a scrappy foul-fest, a
 // quiet game with few corners) instead of fixed averages.
 const FLAVOR_SHOT_RATE = 0.20;  // base chance the attacking side takes an extra attempt this minute
 const FLAVOR_FOUL_RATE = 0.24;  // base chance of a foul this minute
-export const FREE_KICK_CHANCE = 0.10; // fraction of fouls that are dangerous → a direct free kick
-export const PENALTY_FOUL_CHANCE = 0.15; // fraction of dangerous fouls judged inside the box → penalty
-export const CORNER_CHANCE = 0.14;    // fraction of corners that produce a header chance
+const FREE_KICK_CHANCE = 0.10; // fraction of fouls that are dangerous → a direct free kick
+const PENALTY_FOUL_CHANCE = 0.15; // fraction of dangerous fouls judged inside the box → penalty
+const CORNER_CHANCE = 0.14;    // fraction of corners that produce a header chance
 // A goalkeeper is a specialized role. Coringa removes the normal out-of-position
 // penalty, but it does not teach a defender or midfielder how to keep goal. Their
 // DEF still helps, at a reduced role-specific efficiency, while FIS/RIT and the other
@@ -1780,14 +1736,14 @@ export function isOutfieldGoalkeeper(
   role?: string,
 ): boolean {
   return !!role
-    && canonicalPosition(role) === 'GK'
-    && canonicalPosition(player.position) !== 'GK';
+    && role === 'GK'
+    && player.position !== 'GK';
 }
 
 // Applies the goalkeeper aptitude rule exactly once to the effective DEF. Keeping
 // this helper shared by the detail view, team-strength calculation and save model
 // prevents the UI and match engine from drifting apart or double-penalizing cards.
-export function goalkeeperAptitudeDefending(
+function goalkeeperAptitudeDefending(
   player: Pick<Player, 'position'>,
   effectiveDefending: number,
   role?: string,
@@ -1802,20 +1758,19 @@ export function goalkeeperShotStoppingRating(
   effectiveDefending: number,
   traits: string[],
 ): number {
-  const isNaturalGoalkeeper = canonicalPosition(player.position) === 'GK';
+  const isNaturalGoalkeeper = player.position === 'GK';
   const roleDefending = goalkeeperAptitudeDefending(player, effectiveDefending, 'GK');
   const specialistBonus = isNaturalGoalkeeper ? getGoalkeeperTraitBonus(traits) : 0;
   return Math.max(1, roleDefending + specialistBonus);
 }
 // Momentum gained/lost by the team that scores. Lower = leads snowball less, so
 // fewer blowouts and more balanced (drawn) games.
-export const GOAL_MOMENTUM_SWING = 8;
+const GOAL_MOMENTUM_SWING = 8;
 
-// ── Open-play shot resolution (SHARED by the engine and the live sim) ──────────
-// This is the single source of truth for the chance math, so the two run loops can
-// never drift. Each side still builds its own events/messages/stats from the result.
-export type ShotType = 'normal' | 'header' | 'long_range' | 'one_on_one' | 'first_time';
-export interface ChanceResult {
+// ── Open-play shot resolution ──────────────────────────────────────────────────
+// Single source of truth for the chance math of a key-minute attack.
+type ShotType = 'normal' | 'header' | 'long_range' | 'one_on_one' | 'first_time';
+interface ChanceResult {
   outcome: 'goal' | 'save' | 'miss' | 'duel';
   onTarget: boolean;
   shotType: ShotType;
@@ -1840,7 +1795,7 @@ const SHOT_GK_MOD:     Record<ShotType, number> = { normal: 0, header: 1,    lon
 export function resolveOpenPlayChance(p: {
   atkShooting: number; atkPace: number; atkDribbling: number;
   defDefending: number; defPhysical: number; buildUp: number;
-  gkRating: number; // gk.defending + getGoalkeeperTraitBonus(gk.traits)
+  gkRating: number; // goalkeeperShotStoppingRating(gk, effective DEF, traits)
   approach: string;
 }): ChanceResult {
   const atkScore = (p.atkShooting + p.atkPace + p.atkDribbling) / 3 + p.buildUp + Math.random() * 40;
@@ -1860,7 +1815,7 @@ export function resolveOpenPlayChance(p: {
 // Jittered so every game has its own rhythm, but with a guaranteed MINIMUM SPACING so chances
 // never land back-to-back (the old ±45% jitter let two fire within a minute of each other, which
 // made matches feel like a chance every other minute). Fewer, better-spaced chances → a calmer,
-// more realistic pace. Shared by the engine and the live sim.
+// more realistic pace.
 export function buildKeyMinutes(isKnockout: boolean): number[] {
   const cap = isKnockout ? 120 : 90;
   const target = isKnockout ? 17 : 13;            // clear (open-play) chances per match
@@ -1881,7 +1836,7 @@ export function buildKeyMinutes(isKnockout: boolean): number[] {
 // Tactical fingerprint derived from a formation's SHAPE (how many defenders/
 // midfielders/forwards/wide players it fields), normalised around a balanced 4-4-2.
 // Small numbers on purpose — the formation TILTS the game, it never decides it.
-export interface FormationProfile { attack: number; defense: number; control: number; cross: number; }
+interface FormationProfile { attack: number; defense: number; control: number; cross: number; }
 
 // Each shape's tactical fingerprint, tuned to its identity as a trade-off: attack
 // (danger of the team's own chances) is paired with defense (suppression of opponent chance danger),
@@ -1988,7 +1943,7 @@ export function tacticalChanceDangerModifier(args: {
 function pickWeightedAttacker(players: PlayerCard[], roleForPlayer: (player: PlayerCard) => string = p => p.position): PlayerCard {
   const weighted: { player: PlayerCard; weight: number }[] = players.map(p => {
     let weight = 1;
-    const position = canonicalPosition(roleForPlayer(p));
+    const position = roleForPlayer(p);
     if (position === 'ST') weight = 5;
     else if (position === 'LW' || position === 'RW') weight = 3;
     else if (position === 'CAM' || position === 'LM' || position === 'RM') weight = 2;
@@ -2003,7 +1958,7 @@ function pickWeightedAttacker(players: PlayerCard[], roleForPlayer: (player: Pla
   return players[players.length - 1];
 }
 
-export function pickWeightedAssister(
+function pickWeightedAssister(
   team: Team,
   scorerId: string,
   playerStats?: Record<string, PlayerMatchStat>,
@@ -2065,9 +2020,7 @@ export function runMatchSimulation(
   isFinal: boolean = false,
   decideWinner: boolean = true, // when false, skip end-of-match bonuses/winner logic
   neutralFinal: boolean = isFinal,
-  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
 ): MatchResult {
-  const settings = normalizeMatchSettings(matchSettings);
   const events = [...initialEvents];
   let homeGoals = initialHomeGoals;
   let awayGoals = initialAwayGoals;
@@ -2128,12 +2081,6 @@ export function runMatchSimulation(
 
   const matchStats = { ...initialStats };
 
-  const fergusonActive = (team: Team, goals: number, oppGoals: number) =>
-    team.coachId === 'ferguson' && goals < oppGoals;
-
-  const zidaneBonus = (team: Team) =>
-    team.coachId === 'zidane' && (isKnockout || isFinal) ? (isFinal ? 10 : 7) : 0;
-
   const KEY_MINUTES = buildKeyMinutes(isKnockout);
 
   // Global danger cooldown: a dead-ball danger (free kick / corner header) never fires within
@@ -2155,9 +2102,9 @@ export function runMatchSimulation(
   // 📉 Ímpeto COMPRIMIDO só para cartão/lesão → aproxima pico e vale sem mudar tempo/gols.
   const cardAggression = compressAggression(matchAggression);
 
-  // Base team strength is CONSTANT across the match (squad, chemistry, coach, captain…), so
-  // compute it ONCE here instead of every minute. Only the score-dependent Ferguson swing and
-  // the host edge are applied per-minute below.
+  // Team strength only changes with discipline events (red cards, injuries) and with the score
+  // (coach/trait bonuses "while losing"). It is cached for both score states and recomputed only
+  // on discipline events. The host edge is per-attribute (via the stadium) and stays out of it.
   // 🩹🟥 Estado disciplinar da partida: força base MUTÁVEL (recomputada por evento).
   const sentOff = new Set<string>();                 // teamId::playerId removidos (🟥) → time joga com 10
   const injuredDebuff: Record<string, number> = {};  // teamId::playerId → jogador lesionado (capengando)
@@ -2189,11 +2136,16 @@ export function runMatchSimulation(
   const disc = () => ({ sentOff, injuredDebuff, injuryDebuff: INJURY_DEBUFF });
   const isSentOff = (team: Team, player: Player) => isExcludedPlayer(team, player, sentOff);
   const hasMatchInjury = (team: Team, player: Player) => Boolean(injuredDebuff[statKey(team.id, player.id)]);
-  let homeBaseStrength = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus, disc()) + zidaneBonus(home);
-  let awayBaseStrength = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus, disc()) + zidaneBonus(away);
+  type StrengthByScore = { level: number; losing: number };
+  const strengthFor = (team: Team, coach: Coach, chem: typeof homeChem, formBonus: number): StrengthByScore => ({
+    level: calculateTeamStrength(team, coach, chem, formBonus, disc(), { isKnockout, isFinal, isLosing: false }),
+    losing: calculateTeamStrength(team, coach, chem, formBonus, disc(), { isKnockout, isFinal, isLosing: true }),
+  });
+  let homeBaseStrength = strengthFor(home, homeCoach, homeChem, homeFormBonus);
+  let awayBaseStrength = strengthFor(away, awayCoach, awayChem, awayFormBonus);
   const recomputeStrength = () => {
-    homeBaseStrength = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus, disc()) + zidaneBonus(home);
-    awayBaseStrength = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus, disc()) + zidaneBonus(away);
+    homeBaseStrength = strengthFor(home, homeCoach, homeChem, homeFormBonus);
+    awayBaseStrength = strengthFor(away, awayCoach, awayChem, awayFormBonus);
   };
   const matchStatFor = (p: Player, team: Team): PlayerMatchStat | undefined =>
     playerStats[(p as PlayerCard).statId ?? statKey(team.id, p.id)];
@@ -2328,22 +2280,17 @@ export function runMatchSimulation(
     const isKeyEventMinute = KEY_MINUTES.includes(minute);
 
     // 🩹 Lesão ALEATÓRIA (sem falta): prob. por titular por jogo diluída pelos minutos, por físico.
-    if (settings.injuriesEnabled) {
-      for (const [team, side] of [[home, 'h'], [away, 'a']] as [Team, string][]) {
-        for (const p of team.players.slice(0, 11)) {
-          if (hasMatchInjury(team, p) || isSentOff(team, p)) continue;
-          if (Math.random() < randomInjuryChance(p.physical ?? 70, Boolean(p.fragil)) / span) { applyInjury(p, team, minute); break; }
-        }
-        void side;
+    for (const team of [home, away]) {
+      for (const p of team.players.slice(0, 11)) {
+        if (hasMatchInjury(team, p) || isSentOff(team, p)) continue;
+        if (Math.random() < randomInjuryChance(p.physical ?? 70, Boolean(p.fragil)) / span) { applyInjury(p, team, minute); break; }
       }
     }
 
     // Vantagem de casa NÃO entra mais como bônus de força aqui: é carimbada por atributo em cada
     // titular do mandante (ver getEffectiveAttribute + homeStadium), então já flui pelos duelos.
-    const homeStrength = homeBaseStrength - homeExtraPenalty +
-      (fergusonActive(home, homeGoals, awayGoals) ? 10 : 0);
-    const awayStrength = awayBaseStrength - awayExtraPenalty +
-      (fergusonActive(away, awayGoals, homeGoals) ? 10 : 0);
+    const homeStrength = (homeGoals < awayGoals ? homeBaseStrength.losing : homeBaseStrength.level) - homeExtraPenalty;
+    const awayStrength = (awayGoals < homeGoals ? awayBaseStrength.losing : awayBaseStrength.level) - awayExtraPenalty;
 
     const homeMomBonus = (homeMomentum - 50) * 0.25;
     const awayMomBonus = (awayMomentum - 50) * 0.25;
@@ -2431,24 +2378,22 @@ export function runMatchSimulation(
         // than from an unrelated luck event later in the match.
         penaltyFoul = Boolean(fouled && dangerousFoul && Math.random() < PENALTY_FOUL_CHANCE);
         // tAgg = tática × formação × periculosidade × "juiz acalma" (settle) — sem o ímpeto cru.
-        if (settings.cardsEnabled) {
-          const tAgg = tacticAggression(activePlayStyleFor(defendTeam)) * formationAggression(defendTeam.formationId) * dangerCardMult * settleFactor(totalCards);
-          if (Math.random() < STRAIGHT_RED_PROB * tAgg) {
-            applySendOff(fouler, defendTeam, 'red', minute);
-          } else {
-            // 🟨 Já amarelado? O juiz pensa mais antes do 2º amarelo (que expulsa) → chance cai um pouco.
-            const foulerKey = statKey(defendTeam.id, fouler.id);
-            const already = bookings.get(foulerKey) ?? 0;
-            const bookedLeniency = already >= 1 ? SECOND_YELLOW_LENIENCY : 1;
-            if (Math.random() < yellowChance(matchRoleForPlayer(defendTeam, fouler), fouler.composure ?? 65, cardAggression) * tAgg * bookedLeniency) {
-              if (already >= 1) applySendOff(fouler, defendTeam, 'second-yellow', minute);
-              else { bookings.set(foulerKey, already + 1); pushYellow(fouler, defendTeam, minute, dangerousFoul || cutThreat); }
-            }
+        const tAgg = tacticAggression(activePlayStyleFor(defendTeam)) * formationAggression(defendTeam.formationId) * dangerCardMult * settleFactor(totalCards);
+        if (Math.random() < STRAIGHT_RED_PROB * tAgg) {
+          applySendOff(fouler, defendTeam, 'red', minute);
+        } else {
+          // 🟨 Já amarelado? O juiz pensa mais antes do 2º amarelo (que expulsa) → chance cai um pouco.
+          const foulerKey = statKey(defendTeam.id, fouler.id);
+          const already = bookings.get(foulerKey) ?? 0;
+          const bookedLeniency = already >= 1 ? SECOND_YELLOW_LENIENCY : 1;
+          if (Math.random() < yellowChance(matchRoleForPlayer(defendTeam, fouler), fouler.composure ?? 65, cardAggression) * tAgg * bookedLeniency) {
+            if (already >= 1) applySendOff(fouler, defendTeam, 'second-yellow', minute);
+            else { bookings.set(foulerKey, already + 1); pushYellow(fouler, defendTeam, minute, dangerousFoul || cutThreat); }
           }
         }
       }
       // 🩹 Lesão do FALTADO (lado atacante) — falta dura machuca mais, ponderada pelo físico.
-      if (settings.injuriesEnabled && fouled && Math.random() < injuryChanceFromFoul(fouled.physical ?? 70, Boolean(fouled.fragil)) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
+      if (fouled && Math.random() < injuryChanceFromFoul(fouled.physical ?? 70, Boolean(fouled.fragil)) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
         applyInjury(fouled, attackTeam, minute);
       }
 
@@ -2462,11 +2407,11 @@ export function runMatchSimulation(
         const penaltyGk = penaltyGkInfo.player;
         const penaltyTakerCtx = playerContext(attackTeam, penaltyTaker, attackCtx);
         const penaltyGkCtx = { ...defendCtx, role: 'GK' };
-        const penComp = getEffectiveAttribute(penaltyTaker, 'composure', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), penaltyTakerCtx)
+        const penComp = getEffectiveAttribute(penaltyTaker, 'composure', attackCoach, attackChem, activePlayStyleFor(attackTeam), penaltyTakerCtx)
           + getPenaltyComposureBonus(penaltyTaker.traits) + (penaltyTaker.id === attackTeam.penaltyTaker ? 5 : 0);
         const penGkRef = goalkeeperShotStoppingRating(
           penaltyGk,
-          getEffectiveAttribute(penaltyGk, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), penaltyGkCtx),
+          getEffectiveAttribute(penaltyGk, 'defending', defendCoach, defendChem, activePlayStyleFor(defendTeam), penaltyGkCtx),
           penaltyGk.traits,
         );
         const isPenGoal = Math.random() < penaltyGoalChance(penComp, penGkRef);
@@ -2518,8 +2463,8 @@ export function runMatchSimulation(
         const fkGk = activeGoalkeeper(defendTeam).player;
         const taker = getFreeKickTaker(attackTeam, sentOff);
         const takerCtx = playerContext(attackTeam, taker, attackCtx);
-        const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), takerCtx);
-        const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), takerCtx);
+        const takerShoot = getEffectiveAttribute(taker, 'shooting', attackCoach, attackChem, activePlayStyleFor(attackTeam), takerCtx);
+        const takerComp = getEffectiveAttribute(taker, 'composure', attackCoach, attackChem, activePlayStyleFor(attackTeam), takerCtx);
         const goalChance = freeKickGoalChance(takerShoot, takerComp);
         const r = Math.random();
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
@@ -2554,7 +2499,8 @@ export function runMatchSimulation(
         }
       }
     }
-    // An extra attempt by the side on top this minute (off-target / corner / saved — never a goal).
+    // An extra attempt by the side on top this minute (off-target / corner / saved). A corner
+    // can still turn into a header chance below.
     if (Math.random() < FLAVOR_SHOT_RATE * matchTempo) {
       const extraShotDelta: MatchStatsDelta = {
         homeShots: homeAttacks ? 1 : 0,
@@ -2594,8 +2540,8 @@ export function runMatchSimulation(
           const cgk = activeGoalkeeper(defendTeam).player;
           const header = getHeaderTarget(attackTeam, sentOff);
           const headerCtx = playerContext(attackTeam, header, attackCtx);
-          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), headerCtx)
-            + getEffectiveAttribute(header, 'physical', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), headerCtx)) / 2;
+          const hSkill = (getEffectiveAttribute(header, 'shooting', attackCoach, attackChem, activePlayStyleFor(attackTeam), headerCtx)
+            + getEffectiveAttribute(header, 'physical', attackCoach, attackChem, activePlayStyleFor(attackTeam), headerCtx)) / 2;
           const goalChance = Math.max(0.04, Math.min(0.20, (hSkill - 74) / 95));
           const r2 = Math.random();
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
@@ -2754,11 +2700,11 @@ export function runMatchSimulation(
         const attackerCtx = playerContext(attackTeam, attacker, attackCtx);
         const defenderCtx = playerContext(defendTeam, defender, defendCtx);
         const gkCtx = { ...defendCtx, role: 'GK' };
-        const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, 'Finalização', attackChem, activePlayStyleFor(attackTeam), attackerCtx);
-        const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, 'Criação', attackChem, activePlayStyleFor(attackTeam), attackerCtx);
-        const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, 'Criação', attackChem, activePlayStyleFor(attackTeam), attackerCtx);
-        const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), defenderCtx);
-        const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), defenderCtx);
+        const atkShooting = getEffectiveAttribute(attacker, 'shooting', attackCoach, attackChem, activePlayStyleFor(attackTeam), attackerCtx);
+        const atkPace = getEffectiveAttribute(attacker, 'pace', attackCoach, attackChem, activePlayStyleFor(attackTeam), attackerCtx);
+        const atkDribbling = getEffectiveAttribute(attacker, 'dribbling', attackCoach, attackChem, activePlayStyleFor(attackTeam), attackerCtx);
+        const defDefending = getEffectiveAttribute(defender, 'defending', defendCoach, defendChem, activePlayStyleFor(defendTeam), defenderCtx);
+        const defPhysical = getEffectiveAttribute(defender, 'physical', defendCoach, defendChem, activePlayStyleFor(defendTeam), defenderCtx);
 
         // Trait effects are already baked into the effective attributes above
         // (see getEffectiveAttribute + trait catalog), so no extra bonuses here.
@@ -2781,7 +2727,7 @@ export function runMatchSimulation(
           atkShooting, atkPace, atkDribbling, defDefending, defPhysical, buildUp,
           gkRating: goalkeeperShotStoppingRating(
             gk,
-            getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', defendChem, activePlayStyleFor(defendTeam), gkCtx),
+            getEffectiveAttribute(gk, 'defending', defendCoach, defendChem, activePlayStyleFor(defendTeam), gkCtx),
             gk.traits,
           ),
           approach,
@@ -2905,7 +2851,6 @@ export function runMatchSimulation(
           dTeam.name,
           homeGoals,
           awayGoals,
-          minute,
         );
 
         events.push({
@@ -3035,9 +2980,7 @@ export function freeKickGoalChance(shooting: number, composure: number): number 
 // Penalty conversion chance — a DIFFERENCE model (taker composure vs keeper shot-stopping)
 // instead of a ratio, which used to saturate ~70% for everyone. `comp` already includes the
 // designated +5 and penalty traits (Cobrador +8, Frio na Final / Especialista +10 each), so a
-// real taker sits ≈90 (plain) to ≈120 (full specialist) — the curve is centred on 100 (a good
-// designated taker, ~62%) and moves ~1.2%/point of composure and ~1.1%/point of keeper rating,
-// so even a 110 taker keeps differentiating instead of pinning the ceiling. Clamped to stay sane.
+// real taker sits ≈90 (plain) to ≈120 (full specialist). Clamped to 42–94%.
 export function penaltyGoalChance(comp: number, gkRef: number): number {
   // Tuned on a strong keeper (gkRef 90): the composure ladder 80/85/90/95/100/110/120 lands on
   // 60/64/68/72/76/84/92%. ~0.8%/point of composure, ~1.1%/point of keeper rating.
@@ -3051,7 +2994,6 @@ export function simulateMatch(
   isFinal: boolean = false,
   resolveKnockoutTie: boolean = true,
   neutralFinal: boolean = isFinal,
-  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
 ): MatchResult {
   setStatIds(home, away);
   const playerStats: Record<string, PlayerMatchStat> = {};
@@ -3099,11 +3041,11 @@ export function simulateMatch(
   // Phase 1: run 90 minutes WITHOUT deciding the winner yet (no penalties, no bonuses).
   // Keep the real phase context here. Two-legged ties pass resolveKnockoutTie=false so
   // a draw in the return leg can still be compared against the aggregate before ET.
-  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, isKnockout, isFinal, false, neutralFinal, matchSettings);
+  const r90 = runMatchSimulation(home, away, 0, 90, 0, 0, [], initialStats, playerStats, isKnockout, isFinal, false, neutralFinal);
 
   if (isKnockout && resolveKnockoutTie && r90.homeGoals === r90.awayGoals) {
     // Tied at 90 → extra time (90→120). Winner determination + penalties handled inside.
-    const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true, neutralFinal, matchSettings);
+    const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true, neutralFinal);
     rET.durationMinutes = 120;
     return rET;
   }
@@ -3160,117 +3102,12 @@ export function simulateMatch(
   return r90;
 }
 
-export function simulateRemainingMatch(
-  home: Team,
-  away: Team,
-  currentMinute: number,
-  currentHomeGoals: number,
-  currentAwayGoals: number,
-  existingEvents: MatchEvent[],
-  existingStats: MatchResult['stats'],
-  isKnockout: boolean = false,
-  isFinal: boolean = false,
-  neutralFinal: boolean = isFinal,
-  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
-): MatchResult {
-  setStatIds(home, away);
-  const playerStats: Record<string, PlayerMatchStat> = {};
-
-  const initStatsForTeam = (team: Team) => {
-    team.players.slice(0, 11).forEach(p => {
-      playerStats[p.statId!] = {
-        playerId: p.id,
-        playerName: p.shortName,
-        teamId: team.id,
-        rating: 6.4,
-        goals: 0,
-        assists: 0,
-        shots: 0,
-        tackles: 0,
-        saves: 0,
-        fouls: 0,
-        yellowCards: 0,
-        redCards: 0,
-        keyPasses: 0,
-        interceptions: 0,
-        shotsOnTarget: 0,
-      };
-    });
-  };
-  initStatsForTeam(home);
-  initStatsForTeam(away);
-
-  // Stat keys for an event's actor (on e.teamId) and its opponent (the other team).
-  const otherTeam = (teamId?: string) => (teamId === home.id ? away.id : home.id);
-  const actorKey = (e: MatchEvent, id?: string) => (e.teamId && id ? statKey(e.teamId, id) : undefined);
-  const oppKey = (e: MatchEvent, id?: string) => (id ? statKey(otherTeam(e.teamId), id) : undefined);
-
-  // Parse existing events to pre-fill stats
-  existingEvents.forEach(e => {
-    if (e.type === 'goal') {
-      const sk = actorKey(e, e.playerId);
-      if (sk && playerStats[sk]) { playerStats[sk].goals++; playerStats[sk].rating += 1.4; }
-      const ak = actorKey(e, e.assisterId);
-      if (ak && playerStats[ak]) { playerStats[ak].assists++; playerStats[ak].rating += 0.8; }
-      const gk = oppKey(e, e.opponentId); // goalkeeper is on the opposing team
-      if (gk && playerStats[gk]) playerStats[gk].rating -= 0.4;
-    } else if (e.type === 'save') {
-      const sk = actorKey(e, e.playerId);
-      if (sk && playerStats[sk]) { playerStats[sk].saves++; playerStats[sk].rating += 0.4; }
-      const ok = oppKey(e, e.opponentId);
-      if (ok && playerStats[ok]) playerStats[ok].rating -= 0.1;
-    } else if (e.type === 'miss') {
-      const sk = actorKey(e, e.playerId);
-      if (sk && playerStats[sk]) { playerStats[sk].shots++; playerStats[sk].rating -= 0.15; }
-    } else if (e.type === 'duel') {
-      const sk = actorKey(e, e.playerId);
-      if (sk && playerStats[sk]) { playerStats[sk].tackles++; playerStats[sk].rating += 0.35; }
-      const ok = oppKey(e, e.opponentId);
-      if (ok && playerStats[ok]) playerStats[ok].rating -= 0.15;
-    } else if (e.type === 'yellow') {
-      const sk = actorKey(e, e.playerId);
-      if (sk && playerStats[sk]) { playerStats[sk].yellowCards++; playerStats[sk].rating -= 0.5; }
-    } else if (e.type === 'red') {
-      const sk = actorKey(e, e.playerId);
-      if (sk && playerStats[sk]) { playerStats[sk].redCards++; playerStats[sk].rating -= 1.5; }
-    } else if (e.type === 'foul') {
-      const sk = actorKey(e, e.playerId);
-      if (sk && playerStats[sk]) { playerStats[sk].fouls++; playerStats[sk].rating -= 0.1; }
-    } else if (e.type === 'injury') {
-      const sk = actorKey(e, e.playerId);
-      if (sk && playerStats[sk]) playerStats[sk].rating -= 0.3;
-    }
-  });
-
-  const finalMin = isKnockout ? 120 : 90;
-
-  return runMatchSimulation(
-    home,
-    away,
-    currentMinute,
-    finalMin,
-    currentHomeGoals,
-    currentAwayGoals,
-    existingEvents,
-    existingStats,
-    playerStats,
-    isKnockout,
-    isFinal,
-    true,
-    neutralFinal,
-    matchSettings,
-  );
-}
-
 // The captain's single strongest attribute is amplified by CAPTAIN_BOOST for EVERY
 // teammate — so naming a captain is a tactical choice (which team-wide stat do you want
 // lifted?), not just "give the armband to your best card". A bot (no captain set)
 // defaults to its best player's strongest stat so it isn't shortchanged.
 export const CAPTAIN_BOOST = 3;
 const CAPTAIN_STATS: (keyof Player)[] = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'];
-export function captainBestStat(team: Team): keyof Player | null {
-  return captainBestStatFromStarters(team.players.slice(0, 11), team.captain);
-}
 
 // Same rule as captainBestStat, but takes the starters + captain id directly so the squad
 // UI (which holds a plain Player list, not a Team) can reuse the EXACT engine logic.
@@ -3293,7 +3130,7 @@ export function captainBoostFromStarters(starters: Player[], captainId?: string)
   return { stat: stat as string, amount: CAPTAIN_BOOST * (cap?.capitaoNato ? 2 : 1) };
 }
 // Mesmo bônus, a partir de um Team (usado pelo motor e pelo display).
-export function captainBoostForTeam(team: Team): { stat: string; amount: number } | null {
+function captainBoostForTeam(team: Team): { stat: string; amount: number } | null {
   return captainBoostFromStarters(team.players.slice(0, 11), team.captain);
 }
 
@@ -3305,6 +3142,9 @@ export function calculateTeamStrength(
   // 🩹🟥 Disciplina in-match (opcional): jogadores expulsos SAEM da média (10 homens) e lesionados
   // entram com −injuryDebuff em cada atributo. Sem `disc`, comportamento idêntico ao original.
   disc?: { sentOff?: Set<string>; injuredDebuff?: Record<string, number>; injuryDebuff?: number },
+  // Match situation. Every conditional bonus that applies in a duel (coach in the knockout/final
+  // or while losing, traits, Pipoqueiro) applies to team strength too — one rule for both.
+  situation?: { isKnockout?: boolean; isFinal?: boolean; isLosing?: boolean },
 ): number {
   let starters = team.players.slice(0, 11) as PlayerCard[];
   if (disc?.sentOff && disc.sentOff.size > 0) starters = starters.filter(p => !isExcludedPlayer(team, p, disc.sentOff));
@@ -3315,23 +3155,24 @@ export function calculateTeamStrength(
   const charBoosts = computeCharacteristicBoosts(team.players);
   const avgStrength = starters.reduce((sum, p) => {
     // Strength is built from the EFFECTIVE attributes (not raw): individual + global chemistry,
-    // the coach, traits, the captain and perfect-chem are all folded in via getEffectiveAttribute,
-    // so a buff that helps in a duel also helps win territory. TACTIC is deliberately excluded
+    // the coach, traits, the captain, characteristics and the match situation are all folded in
+    // via getEffectiveAttribute, so a buff that helps in a duel also helps win territory. TACTIC is deliberately excluded
     // (the '__neutral__' play-style yields no tactic bonus — NOT 'balanced', which now carries its
     // own +2 buff) — tactics already shape chance volume + chance danger, so letting them tilt strength
     // too would double-count them and distort each tactic's risk/reward.
-    // Accept the canonical team-scoped key and the legacy player-only key used by older
-    // callers/tests. The scoped key always wins, so identical cards in opposing teams cannot
-    // accidentally share an injury state.
-    const injuryMarker = disc?.injuredDebuff?.[statKey(team.id, p.id)] ?? disc?.injuredDebuff?.[p.id];
+    // Team-scoped key, so identical cards in opposing teams never share an injury state.
+    const injuryMarker = disc?.injuredDebuff?.[statKey(team.id, p.id)];
     const debuff = injuryMarker ? (disc?.injuryDebuff ?? 0) : 0; // lesionado joga capengando
     const role = matchRoleForPlayer(team, p);
-    const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, '', chemBonus, '__neutral__', {
+    const v = (s: keyof Player) => getEffectiveAttribute(p, s, coach, chemBonus, '__neutral__', {
       captainBoost,
       charBoosts,
       role,
       coachPrime: team.coachPrime,
       credits: team.credits,
+      isKnockout: situation?.isKnockout,
+      isFinal: situation?.isFinal,
+      isLosing: situation?.isLosing,
     }) - debuff;
     // GKs are evaluated on shot-stopping attributes (defending + physical), not the outfield
     // blend that low shooting/dribbling would distort. Outfielders use the six core stats PLUS
@@ -3410,7 +3251,6 @@ export function getPenaltyOrder(
   const keepers = active.filter(p => matchRoleForPlayer(team, p) === 'GK');
   const sorted = [...outfield].sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting));
   const isSpecialist = (p: PlayerCard) => p.traits.includes('Cobrador de Pênaltis');
-  const specialistKeepers = keepers.filter(isSpecialist).sort((a, b) => (b.composure + b.shooting) - (a.composure + a.shooting));
   const designated = team.penaltyTaker
     ? active.find(p => p.id === team.penaltyTaker && (matchRoleForPlayer(team, p) !== 'GK' || isSpecialist(p)))
     : undefined;
@@ -3434,11 +3274,11 @@ type PenCtx = {
   emergencyGoalkeeper?: boolean;
 };
 function penaltyKickGoal(taker: PlayerCard, takerCtx: PenCtx, gk: PlayerCard, gkCtx: PenCtx, designatedTakerId: string): boolean {
-  const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, 'Finalização', takerCtx.chem, takerCtx.playStyle, { coachPrime: takerCtx.coachPrime, analysisLevel: takerCtx.analysisLevel, credits: takerCtx.credits })
+  const comp = getEffectiveAttribute(taker, 'composure', takerCtx.coach, takerCtx.chem, takerCtx.playStyle, { coachPrime: takerCtx.coachPrime, analysisLevel: takerCtx.analysisLevel, credits: takerCtx.credits })
     + getPenaltyComposureBonus(taker.traits) + (taker.id === designatedTakerId ? 5 : 0);
   const gkRef = goalkeeperShotStoppingRating(
     gk,
-    getEffectiveAttribute(gk, 'defending', gkCtx.coach, 'Defesa', gkCtx.chem, gkCtx.playStyle, {
+    getEffectiveAttribute(gk, 'defending', gkCtx.coach, gkCtx.chem, gkCtx.playStyle, {
       credits: gkCtx.credits,
       analysisLevel: gkCtx.analysisLevel,
       coachPrime: gkCtx.coachPrime,
@@ -3542,7 +3382,7 @@ const DRAFT_OPTIONS_COUNT = 6;
 // count inside each bucket does not dilute the configured tier chance; it only
 // decides which card is selected within that tier. If a tier has no eligible
 // cards left, the remaining tiers are naturally renormalized.
-export type DraftRarity = Exclude<Rarity, 'unique'>;
+type DraftRarity = Exclude<Rarity, 'unique'>;
 export const DRAFT_RARITY_CHANCES: Readonly<Record<DraftRarity, number>> = {
   bronze: 0.14,
   silver: 0.44,
@@ -3622,7 +3462,7 @@ export const GOLEADOR_GOALS_PER_BOOST = 3;
 export const GARCOM_ASSISTS_PER_BOOST = 2;
 export const ARROGANTE_GOALS_PER_PENALTY = 2;
 export const ARROGANTE_STAT_BOOST_PER_GOAL = 2;
-export const ARROGANTE_TEAM_PENALTY = 1;
+const ARROGANTE_TEAM_PENALTY = 1;
 export const TODOS_POR_UM_STAT_BOOST = 20;
 export const TODOS_POR_UM_CHEM_BONUS = 50;
 export const MERCENARIO_STAT_BOOST_PER_MISSION = 2;
@@ -4002,24 +3842,15 @@ export function drawPlayerPackCard(
   return { ...pool[Math.floor(Math.random() * pool.length)] };
 }
 
-// Legacy elite pack kept for compatibility with older saved/online sessions.
-// It is no longer exposed by the Shop UI; new purchases use exact rarity packs.
-const STAR_PACK_MIN_OVERALL = 88;
-export function generateStarPackOptions(ownedIds: string[]): Player[] {
-  let pool = PLAYERS.filter(p => !ownedIds.includes(p.id) && p.overall >= STAR_PACK_MIN_OVERALL);
-  if (pool.length < 3) pool = PLAYERS.filter(p => !ownedIds.includes(p.id)).sort((a, b) => b.overall - a.overall);
-  return shuffleWithRarityWeight(pool).slice(0, 3).map(p => ({ ...p }));
-}
-
 // "Caça-Talentos": até 4 jogadores que têm a posição escolhida como PRINCIPAL,
 // que o time ainda não possui e com overall mínimo de 84. Não usar secundárias
 // aqui é intencional: o pacote serve para reforçar exatamente a vaga procurada.
 export const SCOUT_MIN_OVERALL = 84;
 export function generateScoutOptions(position: string, ownedIds: string[]): Player[] {
-  const requestedPosition = canonicalPosition(position);
+  const requestedPosition = position;
   const pool = PLAYERS.filter(p =>
     !ownedIds.includes(p.id)
-    && canonicalPosition(p.position) === requestedPosition
+    && p.position === requestedPosition
     && p.overall >= SCOUT_MIN_OVERALL);
   return shuffleWithRarityWeight(pool).slice(0, 4).map(p => ({ ...p }));
 }
@@ -4027,7 +3858,7 @@ export function generateScoutOptions(position: string, ownedIds: string[]): Play
 // "Pacote Único": oferta rotativa de quatro cartas especiais.
 // A oferta é criada uma vez por rodada e fica estável até a próxima rodada.
 // O sorteio continua sendo feito pelo motor/servidor, nunca por uma escolha do cliente.
-export const UNIQUE_PACK_OFFER_SIZE = 4;
+const UNIQUE_PACK_OFFER_SIZE = 4;
 
 export function buildUniquePackRoundKey(
   phase: 'league' | 'knockout',
@@ -4071,12 +3902,6 @@ export function drawUniquePackCard(offerIds: string[], ownedIds: string[]): Play
   return { ...pool[Math.floor(Math.random() * pool.length)] };
 }
 
-// Backwards-compatible helper for callers/tests that need one random card from
-// the full unowned catalog instead of a persisted round offer.
-export function generateUniquePackCard(ownedIds: string[]): Player | null {
-  return drawUniquePackCard(generateUniquePackOffer(ownedIds, [], UNIQUE_CARDS.length), ownedIds);
-}
-
 // "Turbinar Carta": apply a chosen special variant to an owned player. Mirrors applyDraftVariant
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(
@@ -4114,7 +3939,7 @@ export function variantCount(p: Player): number {
   return VARIANT_FLAGS.filter(f => (p as unknown as Record<string, unknown>)[f]).length;
 }
 // ⭐ Cartas Únicas podem ter DUAS características (o diferencial delas); as demais, só uma.
-export function maxVariantsFor(p: Player): number {
+function maxVariantsFor(p: Player): number {
   return p.rarity === 'unique' ? 2 : 1;
 }
 export function canAddVariant(p: Player): boolean {
@@ -4149,10 +3974,11 @@ export function stripVariant<T extends Player>(player: T): T {
 }
 
 // Loja "Remover Característica" quando a carta tem DUAS (só Únicas): remove APENAS a escolhida,
-// preservando a outra. Reverte o efeito de stat da variante baked que sai (Em Alta/Lobo somaram,
-// Mártir subtraiu) e só descarta o baseOverall se não sobrar nenhuma outra variante baked.
+// preservando a outra. Reverte o efeito de stat da variante baked que sai (Em Alta/Lobo/Frágil
+// somaram, Mártir/Magnata subtraíram) e só descarta o baseOverall se não sobrar outra variante baked.
 const BAKED_DELTA: Partial<Record<VariantFlag, number>> = {
   inForm: INFORM_STAT_BOOST, lobo: LOBO_STAT_BOOST, martir: -MARTIR_STAT_PENALTY, fragil: FRAGIL_STAT_BOOST,
+  magnata: -MAGNATA_STAT_PENALTY,
 };
 export function stripSpecificVariant<T extends Player>(player: T, variant: VariantFlag): T {
   const p: T = { ...player };
@@ -4164,7 +3990,7 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
     p.vision = clampStat(p.vision - d); p.composure = clampStat(p.composure - d);
     p.overall = clampStat(p.overall - d);
     // baseOverall só faz sentido enquanto AINDA houver alguma variante baked ativa
-    const otherBaked = (['inForm', 'lobo', 'martir', 'fragil'] as const).some(k => k !== variant && p[k]);
+    const otherBaked = (['inForm', 'lobo', 'martir', 'fragil', 'magnata'] as const).some(k => k !== variant && p[k]);
     if (!otherBaked) delete p.baseOverall;
   }
   delete (p as unknown as Record<string, unknown>)[variant];
@@ -4202,7 +4028,7 @@ export function getNeededPositions(
 // formações ofensivas puxam táticas de ataque, defensivas puxam retranca/contra-ataque, e um bot
 // mais forte joga mais assertivo (posse/pressão) enquanto o mais fraco senta mais atrás. Sorteio
 // PONDERADO — então continua variado, sem virar regra fixa. 'balanced' mantém um peso-base sólido.
-export function pickBotTactic(formationId: string, difficulty: number): string {
+function pickBotTactic(formationId: string, difficulty: number): string {
   const prof = formationProfile(formationId);
   const lean = prof.attack - prof.defense;   // >0 = formação ofensiva · <0 = formação defensiva
   const d = Math.max(0, Math.min(1, difficulty)); // 0.45 fácil … 0.97 difícil
@@ -4226,7 +4052,7 @@ export function pickBotTactic(formationId: string, difficulty: number): string {
 
 // 🎚️ Perfil de dificuldade: um `botStrength` (0.45 bronze … 0.97 imortal) vira VÁRIOS botões que
 // deixam o bot mais forte E mais inteligente por nível. Puro/testável. (ver spec dificuldade-multidimensional)
-export function difficultyProfile(strength: number) {
+function difficultyProfile(strength: number) {
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
   // Os botStrength dos 5 níveis têm espaçamento DESIGUAL → uma fórmula linear neles dá passos desiguais.
   // Mapeia strength → "tier" 0..1 UNIFORME entre os níveis (0=Bronze … 1=Imortal) pra a dificuldade
@@ -4331,7 +4157,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   const formationRoles = formation.positions.map(p => p.role);
   const chemData = calculateChemistry(starters, coach.id, formationRoles, formation.id);
 
-  const playerCards: PlayerCard[] = selected.map((p, idx) => ({
+  const playerCards: PlayerCard[] = selected.map(p => ({
     ...p,
     traits: rollPlayerTraits(p.position, p.rarity), // random traits, like every card
     chemistryScore: chemData.individual[p.id] ?? 1,
@@ -4354,37 +4180,6 @@ export function generateBotTeam(name: string, difficulty: number): Team {
 }
 
 // ============================================================
-// LEAGUE SIMULATION
-// ============================================================
-/**
- * Legacy convenience API used by older callers outside the reducer.
- *
- * The live game uses round-by-round fixtures, but this helper must still obey
- * the same fixture generator instead of carrying the old hardcoded eight-match
- * approximation. The optional round count keeps it useful for tools/tests.
- */
-export function simulateLeague(teams: Team[], requestedRounds = Math.max(0, teams.length - 1)): {
-  standings: StandingsEntry[];
-  results: MatchResult[];
-} {
-  if (teams.length < 2 || requestedRounds <= 0) {
-    return { standings: computeStandings(teams, []), results: [] };
-  }
-
-  const fixtures = generateLeagueFixtures(teams, requestedRounds).map(fixture => {
-    const home = teams.find(team => team.id === fixture.homeTeamId);
-    const away = teams.find(team => team.id === fixture.awayTeamId);
-    if (!home || !away) return fixture;
-    return { ...fixture, played: true, result: simulateMatch(home, away) };
-  });
-  const playedFixtures = fixtures.filter((fixture): fixture is LeagueFixture & { result: MatchResult } => fixture.played && !!fixture.result);
-  return {
-    standings: computeStandings(teams, playedFixtures),
-    results: playedFixtures.map(fixture => fixture.result),
-  };
-}
-
-// ============================================================
 // IMMORTAL REPORT
 // ============================================================
 export interface ImmortalReport {
@@ -4398,57 +4193,13 @@ export interface ImmortalReport {
   totalGoals: number;
 }
 
-export interface TopScorerEntry {
-  playerId: string;
-  playerName: string;
-  teamName: string;
-  teamId: string;
-  goals: number;
-}
-
-export function computeSeasonTopScorers(
-  results: MatchResult[],
-  teams: Team[],
-): TopScorerEntry[] {
-  const goalCount: Record<string, { goals: number; teamId: string }> = {};
-
-  for (const result of results) {
-    for (const event of result.events) {
-      if (event.type === 'goal' && event.playerId) {
-        if (!goalCount[event.playerId]) {
-          goalCount[event.playerId] = { goals: 0, teamId: event.teamId };
-        }
-        goalCount[event.playerId].goals++;
-        goalCount[event.playerId].teamId = event.teamId;
-      }
-    }
-  }
-
-  const entries: TopScorerEntry[] = [];
-  for (const [playerId, data] of Object.entries(goalCount)) {
-    const team = teams.find(t => t.id === data.teamId);
-    const player = team?.players.find(p => p.id === playerId);
-    if (player && team) {
-      entries.push({
-        playerId,
-        playerName: player.shortName,
-        teamName: team.name,
-        teamId: data.teamId,
-        goals: data.goals,
-      });
-    }
-  }
-
-  return entries.sort((a, b) => b.goals - a.goals);
-}
-
 export function rebuildTeamChemistry(team: Team): Team {
   const formation = FORMATIONS.find(f => f.id === team.formationId);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
   const starters = team.players.slice(0, 11);
   const chemData = calculateChemistry(starters, team.coachId, formationRoles, team.formationId);
 
-  const updatedPlayers = team.players.map((p, idx) => ({
+  const updatedPlayers = team.players.map(p => ({
     ...p,
     chemistryScore: chemData.individual[p.id] ?? 1,
     isOOP: chemData.outOfPosition[p.id] ?? false,
@@ -4532,7 +4283,7 @@ export interface LeagueFixture {
   groupId?: number;
 }
 
-export type ScheduleRng = () => number;
+type ScheduleRng = () => number;
 
 interface LeaguePairing {
   round: number;
@@ -4541,7 +4292,7 @@ interface LeaguePairing {
 }
 
 /** Fisher–Yates used only when a new competition draw is created. */
-export function shuffleTeamsForDraw<T>(teams: T[], rng: ScheduleRng = Math.random): T[] {
+function shuffleTeamsForDraw<T>(teams: T[], rng: ScheduleRng = Math.random): T[] {
   const shuffled = [...teams];
   for (let index = shuffled.length - 1; index > 0; index--) {
     const raw = Number(rng());
@@ -4713,7 +4464,7 @@ function generateLeagueFixturesFromOrder(teams: Team[], requestedRounds: number,
   return [...firstFixtures, ...returnFixtures];
 }
 
-/** Deterministic generator retained for legacy tools and saved-session tests. */
+/** Deterministic (unshuffled) schedule — used by tests that need a fixed draw. */
 export function generateLeagueFixtures(teams: Team[], requestedRounds = DEFAULT_COMPETITION_FORMAT.leagueRounds): LeagueFixture[] {
   return generateLeagueFixturesFromOrder(teams, requestedRounds, () => 0);
 }
@@ -4810,7 +4561,7 @@ export function computeStandings(
   });
 }
 
-export interface GroupStandingsTable {
+interface GroupStandingsTable {
   groupId: number;
   entries: StandingsEntry[];
 }
@@ -5066,12 +4817,12 @@ function emptyMatchStats(): MatchResult['stats'] {
 // Simulates the SECOND leg of a two-legged tie. `homeB` hosts the return leg (the
 // first-leg away side); `awayA` is the first-leg home side. Extra time and the
 // shootout are decided on AGGREGATE, never on the single leg.
-export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult, isFinal = false, neutralFinal = false, matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS): {
+function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult, isFinal = false, neutralFinal = false): {
   leg2: MatchResult; tieWinner: string; aggA: number; aggB: number;
 } {
   // 90-minute return leg (draws allowed). It still uses knockout modifiers;
   // only the aggregate decides whether ET/penalties are necessary.
-  let leg2 = simulateMatch(homeB, awayA, true, isFinal, false, neutralFinal, matchSettings);
+  let leg2 = simulateMatch(homeB, awayA, true, isFinal, false, neutralFinal);
   // Team A was first-leg HOME / second-leg AWAY; team B was first-leg AWAY / second-leg HOME.
   let aggA = leg1.homeGoals + leg2.awayGoals;
   let aggB = leg1.awayGoals + leg2.homeGoals;
@@ -5081,7 +4832,7 @@ export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult, i
     leg2 = runMatchSimulation(
       homeB, awayA, 90, 120,
       leg2.homeGoals, leg2.awayGoals, leg2.events, leg2.stats,
-      leg2.playerStats ?? {}, true, isFinal, false, neutralFinal, matchSettings
+      leg2.playerStats ?? {}, true, isFinal, false, neutralFinal
     );
     leg2.durationMinutes = 120;
     aggA = leg1.homeGoals + leg2.awayGoals;
@@ -5113,33 +4864,29 @@ export function simulateSecondLeg(homeB: Team, awayA: Team, leg1: MatchResult, i
 
 // Simulates ONE tie's current leg. Two-legged: leg 1 = 90', leg 2 = aggregate
 // decider (sets result + played). A single-leg tie: 120' + penalties.
-export function simulateKnockoutTieLeg(
+function simulateKnockoutTieLeg(
   tie: any,
   currentLeg: number,
   isFinalRound: boolean,
-  resolve: (id: string) => Team | undefined,
-  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
+  resolve: (id: string) => Team | undefined
 ): void {
   const home = resolve(tie.homeTeamId);
   const away = resolve(tie.awayTeamId);
   if (!home || !away) return;
 
-  // Old saved brackets did not store `isSingleLeg` on the final. Keep those
-  // saves single-leg, while an explicit false enables a two-legged final.
-  const isSingleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
-  if (isSingleLeg) {
+  if (tie.isSingleLeg === true) {
     if (tie.played) return;
-    tie.result = simulateMatch(home, away, true, true, true, true, matchSettings);
+    tie.result = simulateMatch(home, away, true, true, true, true);
     tie.played = true;
     return;
   }
 
   if (currentLeg === 1) {
     if (tie.leg1) return;
-    tie.leg1 = simulateMatch(home, away, true, isFinalRound, false, !isFinalRound, matchSettings); // 90', durationMinutes = 90
+    tie.leg1 = simulateMatch(home, away, true, isFinalRound, false, !isFinalRound); // 90', durationMinutes = 90
   } else {
     if (tie.leg2) return;
-    const sl = simulateSecondLeg(away, home, tie.leg1, isFinalRound, false, matchSettings); // return leg: B home, A away
+    const sl = simulateSecondLeg(away, home, tie.leg1, isFinalRound, false); // return leg: B home, A away
     tie.leg2 = sl.leg2;
     tie.result = {
       homeTeamId: tie.homeTeamId,
@@ -5158,15 +4905,14 @@ export function simulateKnockoutTieLeg(
 // pointer 1 → 2 for two-legged rounds.
 export function playActiveKnockoutLeg(
   bracket: KnockoutBracket,
-  resolve: (id: string) => Team | undefined,
-  matchSettings: CompetitionMatchSettings = DEFAULT_MATCH_SETTINGS,
+  resolve: (id: string) => Team | undefined
 ): void {
   const isFinalRound = bracket.currentRound === 'final';
   const ties = getActiveKnockoutMatches(bracket);
   for (const tie of ties) {
-    simulateKnockoutTieLeg(tie, bracket.currentLeg, isFinalRound, resolve, matchSettings);
+    simulateKnockoutTieLeg(tie, bracket.currentLeg, isFinalRound, resolve);
   }
-  if (bracket.currentLeg === 1 && ties.some(tie => isFinalRound ? tie.isSingleLeg === false : tie.isSingleLeg !== true)) {
+  if (bracket.currentLeg === 1 && ties.some(tie => tie.isSingleLeg !== true)) {
     bracket.currentLeg = 2;
   }
 }

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import { useTeams } from '../hooks/useTeams';
-import { FORMATIONS, COACHES, getRarityColor, getRarityGlow, POS_PT, type Player } from '../lib/gameData';
+import { FORMATIONS, COACHES, type Player } from '../lib/gameData';
 import {
   calculateChemistry,
   getAllPlayedMatchResults,
@@ -608,7 +608,6 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             <div className="px-5 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
               <span className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>FICHA DA CAMPANHA</span>
             </div>
-            {/* Formação, tática e geral já aparecem no cabeçalho acima. */}
             <div className="grid grid-cols-2 sm:grid-cols-4 border-t" style={{ borderColor: '#1A1A2A' }}>
               {[
                 { l: 'SALDO DE GOLS', v: `${goalDiff > 0 ? '+' : ''}${goalDiff}`, c: goalDiff >= 0 ? '#22C55E' : '#EF4444' },
@@ -753,10 +752,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <FormationField
                   formation={formation}
                   players={starters}
-                  chemistryScores={chemData.individual}
                   showChemLines
                   chemLinks={getChemistryLinks(starters, playerTeam.coachId)}
-                  showPlayerCards
                   effectiveStats={effectiveStatsById}
                   onPlayerClick={historyEntry ? undefined : (player, positionIndex) => setSelectedPlayer({ player, positionIndex })}
                 />

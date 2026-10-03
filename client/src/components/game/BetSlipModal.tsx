@@ -51,7 +51,7 @@ function formatGoalLine(line: number): string {
   return line.toString().replace('.', ',');
 }
 
-function selectionLabel(selection: BetBuilderSelection, homeName: string, awayName: string): string {
+function selectionLabel(selection: BetBuilderSelection): string {
   if (selection.type === 'exact_score') return `Placar ${selection.homeGoals}-${selection.awayGoals}`;
   if (selection.type === 'outcome') return selection.value === 'home' ? 'Casa vence' : selection.value === 'away' ? 'Fora vence' : 'Empate';
   if (selection.type === 'total_goals') return `${selection.operator === 'over' ? 'Mais de' : 'Menos de'} ${formatGoalLine(selection.line)} gols`;
@@ -74,13 +74,12 @@ function Choice({ label, active, onClick, disabled = false }: { label: string; a
   );
 }
 
-export default function BetSlipModal({ homeName, awayName, existing, remainingCap, points, cardsEnabled, payoutRules, onConfirm, onCancelBet, onClose }: {
+export default function BetSlipModal({ homeName, awayName, existing, remainingCap, points, payoutRules, onConfirm, onCancelBet, onClose }: {
   homeName: string;
   awayName: string;
   existing?: Bet;
   remainingCap: number;
   points: number;
-  cardsEnabled: boolean;
   payoutRules?: BetPayoutRules;
   onConfirm: (submission: BetSlipSubmission) => void;
   onCancelBet?: () => void;
@@ -230,24 +229,22 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
                 </select>
               </div>
 
-              {cardsEnabled && (
-                <div>
-                  <div className="mb-1.5 text-[10px] font-black tracking-widest text-[var(--ui-text-faint)]">TOTAL DE CARTÕES</div>
-                  <select value={totalCardsSelection ? `${totalCardsSelection.operator}:${totalCardsSelection.line}` : ''}
-                    onChange={event => updateTotalCards(event.target.value)} disabled={!canAddMarket('total_cards')}
-                    className="ui-input w-full cursor-pointer text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                    <option value="">Não selecionar</option>
-                    <optgroup label="Mais de">
-                      {BET_TOTAL_CARDS_LINES.map(line => <option key={`over-cards-${line}`} value={`over:${line}`}>Mais de {formatGoalLine(line)} cartões</option>)}
-                    </optgroup>
-                    <optgroup label="Menos de">
-                      {BET_TOTAL_CARDS_LINES.map(line => <option key={`under-cards-${line}`} value={`under:${line}`}>Menos de {formatGoalLine(line)} cartões</option>)}
-                    </optgroup>
-                  </select>
-                  <div className="mt-1 text-[10px] text-[var(--ui-text-faint)]">Amarelos e vermelhos da partida.</div>
-                </div>
-              )}
+              <div>
+                <div className="mb-1.5 text-[10px] font-black tracking-widest text-[var(--ui-text-faint)]">TOTAL DE CARTÕES</div>
+                <select value={totalCardsSelection ? `${totalCardsSelection.operator}:${totalCardsSelection.line}` : ''}
+                  onChange={event => updateTotalCards(event.target.value)} disabled={!canAddMarket('total_cards')}
+                  className="ui-input w-full cursor-pointer text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <option value="">Não selecionar</option>
+                  <optgroup label="Mais de">
+                    {BET_TOTAL_CARDS_LINES.map(line => <option key={`over-cards-${line}`} value={`over:${line}`}>Mais de {formatGoalLine(line)} cartões</option>)}
+                  </optgroup>
+                  <optgroup label="Menos de">
+                    {BET_TOTAL_CARDS_LINES.map(line => <option key={`under-cards-${line}`} value={`under:${line}`}>Menos de {formatGoalLine(line)} cartões</option>)}
+                  </optgroup>
+                </select>
+                <div className="mt-1 text-[10px] text-[var(--ui-text-faint)]">Amarelos e vermelhos da partida.</div>
+              </div>
 
               <div>
                 <div className="mb-1.5 text-[10px] font-black tracking-widest text-[var(--ui-text-faint)]">AMBAS MARCAM</div>
@@ -265,7 +262,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
             </div>
             <div className="text-[11px] leading-relaxed text-[var(--ui-text-muted)]">
               {selections.length > 0
-                ? selections.map(selection => selectionLabel(selection, homeName, awayName)).join('  +  ')
+                ? selections.map(selection => selectionLabel(selection)).join('  +  ')
                 : 'Marque pelo menos uma condição acima.'}
             </div>
             {selections.length > 0 && builderMultiplier == null && (

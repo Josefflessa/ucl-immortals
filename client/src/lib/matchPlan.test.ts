@@ -59,14 +59,7 @@ describe('plano de jogo', () => {
     });
     expect(validateMatchPlan({ triggers: [{
       id: 'legacy-plan', condition: 'losing_by_two', minute: 55, action: 'counter',
-    }] })).toEqual({
-      triggers: [{ id: 'legacy-plan', condition: 'losing', margin: 2, minute: 55, action: 'counter' }],
-    });
-    expect(validateMatchPlan({ triggers: [{
-      id: 'scoreless-plan', condition: 'scoreless', minute: 60, action: 'balanced',
-    }] })).toEqual({
-      triggers: [{ id: 'scoreless-plan', condition: 'draw', minute: 60, action: 'balanced' }],
-    });
+    }] })).toBeNull();
     expect(validateMatchPlan({ triggers: [{
       id: 'red-plan', condition: 'opponent_red_card', minute: 45, action: 'possession',
     }] })).toEqual({

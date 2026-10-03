@@ -113,7 +113,7 @@ export default function ShopTab() {
   useEffect(() => {
     if (!pendingPackKind) return;
     setSelPlayerId(null);
-    setActive(pendingPackKind === 'scout' ? 'scout' : 'playerPacks');
+    setActive('scout');
   }, [pendingPackKind, pendingPackOptionIds]);
 
   // A troca de jogador/modal sempre começa pela primeira página. Isso evita
@@ -130,7 +130,7 @@ export default function ShopTab() {
   const claimPlayerPack = () => online ? shopClaimPlayerPackOnline() : dispatch({ type: 'SHOP_CLAIM_PLAYER_PACK' });
   const claimUniquePack = () => online ? shopClaimUniquePackOnline() : dispatch({ type: 'SHOP_CLAIM_UNIQUE_PACK' });
   // 🛒 Pacote: COBRA ao abrir (open) → guarda; a escolha (pick) é grátis. Impede re-sortear de graça.
-  const openPack = (kind: 'star' | 'scout' | PlayerPackRarity, options: Player[], position?: string) => online ? shopOpenPackOnline(kind, position) : dispatch({ type: 'SHOP_OPEN_PACK', kind, options });
+  const openScoutPack = (options: Player[], position: string) => online ? shopOpenPackOnline(position) : dispatch({ type: 'SHOP_OPEN_PACK', options });
   const pickPack = (player: Player) => online ? shopPickPackOnline(player) : dispatch({ type: 'SHOP_PICK_PACK', player });
   const buyTurbinar = (playerId: string, variant: ShopVariant) => online ? shopTurbinarOnline(playerId, variant) : dispatch({ type: 'SHOP_TURBINAR', playerId, variant });
   const removeVariant = (playerId: string, variantKey?: VariantFlag) => online ? shopRemoveVariantOnline(playerId, variantKey) : dispatch({ type: 'SHOP_REMOVE_VARIANT', playerId, variantKey });
@@ -211,7 +211,7 @@ export default function ShopTab() {
   const pickScoutPosition = (pos: string) => {
     if (points < SHOP_COSTS.scout) return;
     askConfirm('Caça-Talentos', `Abrir o Caça-Talentos de ${POS_PT[pos] ?? pos} por 💰 ${SHOP_COSTS.scout}? (posição principal, overall ${SCOUT_MIN_OVERALL}+)`, () => {
-      openPack('scout', generateScoutOptions(pos, ownedIds), pos); // COBRA ao abrir
+      openScoutPack(generateScoutOptions(pos, ownedIds), pos); // COBRA ao abrir
     });
   };
 

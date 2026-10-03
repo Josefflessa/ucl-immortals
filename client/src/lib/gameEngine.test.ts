@@ -38,8 +38,8 @@ describe('Conquistador', () => {
 
     const plain = asCard({ ...outfield, traits: [] });
     const mercenario = asCard(applyShopVariant(plain, 'mercenario', { missionsCompleted: 7 }));
-    const base = getEffectiveAttribute(plain, 'pace', coach, '', noChem, '__neutral__');
-    const boosted = getEffectiveAttribute(mercenario, 'pace', coach, '', noChem, '__neutral__');
+    const base = getEffectiveAttribute(plain, 'pace', coach, noChem, '__neutral__');
+    const boosted = getEffectiveAttribute(mercenario, 'pace', coach, noChem, '__neutral__');
 
     expect(mercenario.mercenarioMissions).toBe(7);
     expect(boosted - base).toBe(14);
@@ -155,32 +155,32 @@ describe('getEffectiveAttribute', () => {
   it('applies a trait bonus to the matching attribute (isolated)', () => {
     const without = asCard(outfield, { traits: [] });
     const withTrait = asCard(outfield, { traits: ['Finalizador'] }); // +6 shooting
-    const a = getEffectiveAttribute(without, 'shooting', coach, '', noChem, 'balanced');
-    const b = getEffectiveAttribute(withTrait, 'shooting', coach, '', noChem, 'balanced');
+    const a = getEffectiveAttribute(without, 'shooting', coach, noChem, 'balanced');
+    const b = getEffectiveAttribute(withTrait, 'shooting', coach, noChem, 'balanced');
     expect(b - a).toBe(6);
   });
 
   it('applies the play-style bonus (vs a neutral baseline)', () => {
     const card = asCard(outfield, { traits: [] });
     // Neutral baseline (no tactic) — an unknown play-style hits the default (zero) branch.
-    const neutral = getEffectiveAttribute(card, 'defending', coach, '', noChem, '__neutral__');
-    const defensive = getEffectiveAttribute(card, 'defending', coach, '', noChem, 'defensive');
-    const balanced = getEffectiveAttribute(card, 'defending', coach, '', noChem, 'balanced');
+    const neutral = getEffectiveAttribute(card, 'defending', coach, noChem, '__neutral__');
+    const defensive = getEffectiveAttribute(card, 'defending', coach, noChem, 'defensive');
+    const balanced = getEffectiveAttribute(card, 'defending', coach, noChem, 'balanced');
     expect(defensive - neutral).toBe(8);  // the defensive tactic adds +8 defending
     expect(balanced - neutral).toBe(2);   // balanced is a real choice now: +2 to every core stat
   });
 
   it('applies conditional traits only with the right context', () => {
     const card = asCard(outfield, { traits: ['Frio na Final'] }); // +8 shooting only in the final
-    const normal = getEffectiveAttribute(card, 'shooting', coach, '', noChem, 'balanced');
-    const final = getEffectiveAttribute(card, 'shooting', coach, '', noChem, 'balanced', { isFinal: true });
+    const normal = getEffectiveAttribute(card, 'shooting', coach, noChem, 'balanced');
+    const final = getEffectiveAttribute(card, 'shooting', coach, noChem, 'balanced', { isFinal: true });
     expect(final - normal).toBe(8);
   });
 
   it('uses the real formation role for positional coach bonuses', () => {
     const player = asCard({ ...outfield, position: 'CM', vision: 70, passing: 70, traits: [] });
-    const forward = getEffectiveAttribute(player, 'passing', coach, '', noChem, '__neutral__', { role: 'ST' });
-    const midfielder = getEffectiveAttribute(player, 'passing', coach, '', noChem, '__neutral__', { role: 'CM' });
+    const forward = getEffectiveAttribute(player, 'passing', coach, noChem, '__neutral__', { role: 'ST' });
+    const midfielder = getEffectiveAttribute(player, 'passing', coach, noChem, '__neutral__', { role: 'CM' });
     expect(midfielder - forward).toBe(5); // DNA Guardiola: +5 Passe nos meio-campistas
   });
 });
@@ -198,7 +198,6 @@ describe('Técnico Prime', () => {
       asCard(player),
       attribute,
       selectedCoach,
-      '',
       noChemistry,
       '__neutral__',
       context,
@@ -262,8 +261,8 @@ describe('Resiliente', () => {
 
     const plain = asCard({ ...outfield, traits: [] });
     const grown = asCard({ ...outfield, traits: [], resiliente: true, resilienteDefeats: 3 });
-    const base = getEffectiveAttribute(plain, 'pace', coach, '', noChem, '__neutral__');
-    const effective = getEffectiveAttribute(grown, 'pace', coach, '', noChem, '__neutral__');
+    const base = getEffectiveAttribute(plain, 'pace', coach, noChem, '__neutral__');
+    const effective = getEffectiveAttribute(grown, 'pace', coach, noChem, '__neutral__');
     expect(effective - base).toBe(RESILIENTE_DEFEAT_BOOST * 3);
     expect(getPlayerEffectiveStats(grown, 0, false, coach.id, 0, '__neutral__').breakdown.pace.resiliente)
       .toBe(RESILIENTE_DEFEAT_BOOST * 3);
@@ -296,7 +295,7 @@ describe('getPlayerEffectiveStats mirrors the engine (display = simulation)', ()
     const card = asCard(player, { chemistryScore: chemScore });
 
     (['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'] as const).forEach(attr => {
-      expect(eff[attr]).toBe(getEffectiveAttribute(card, attr, coach, '', chem, playStyle));
+      expect(eff[attr]).toBe(getEffectiveAttribute(card, attr, coach, chem, playStyle));
     });
   });
 

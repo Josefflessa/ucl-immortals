@@ -53,7 +53,7 @@ export interface CompetitionHistoryEntry {
   completed_at: number;
 }
 
-export interface CompetitionHistoryPage {
+interface CompetitionHistoryPage {
   history: CompetitionHistoryEntry[];
   page: number;
   pageSize: number;

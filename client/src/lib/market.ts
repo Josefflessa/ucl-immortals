@@ -30,14 +30,8 @@ export type TradeSessionStatus = 'invite' | 'negotiating';
 
 export interface TradeSessionSide {
   playerIds: string[];      // jogadores do PRÓPRIO banco que esse lado está oferecendo
-  /** Compatibilidade com sessões antigas e consumidores que exibem o primeiro jogador. */
-  playerId: string | null;
   creditsDelta: number;     // créditos que esse lado adiciona à oferta (sempre ≥ 0)
   ready: boolean;           // marcou "Pronto" com a escolha atual
-}
-
-export function emptyTradeSide(): TradeSessionSide {
-  return { playerIds: [], playerId: null, creditsDelta: 0, ready: false };
 }
 
 export interface TradeSession {

@@ -35,7 +35,11 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
   const participants = humanTeams(room).filter(({ player }) => !!player.accountId);
   if (participants.length === 0) return;
 
-  const results = getAllPlayedMatchResults(room.leagueResults, room.knockoutBracket);
+  // League results live on their fixtures; knockout legs live in the bracket.
+  const leagueResults = room.leagueFixtures
+    .filter(fixture => fixture.played && !!fixture.result)
+    .map(fixture => fixture.result!);
+  const results = getAllPlayedMatchResults(leagueResults, room.knockoutBracket);
   const allTeams = [...humanTeams(room).map(({ team }) => team), ...room.botTeams];
   const allSeasonRows = allTeams.flatMap(team => team.players.map(card => ({
     card,
@@ -184,9 +188,9 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       },
     };
     const statements = [env.DB.prepare(`INSERT INTO competition_history
-      (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, report_json, source_key, completed_at)
-      VALUES (?, ?, 'online', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(historyId, accountId, room.difficulty, room.competitionFormat.id, team.name, team.crestId ?? null, team.coachId ?? null, champion ? 1 : 0, placementFor(room, team.id), JSON.stringify(report), sourceKey, now)
+      (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, competition_points, report_json, source_key, completed_at)
+      VALUES (?, ?, 'online', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(historyId, accountId, room.difficulty, room.competitionFormat.id, team.name, team.crestId ?? null, team.coachId ?? null, champion ? 1 : 0, placementFor(room, team.id), competitionPoints, JSON.stringify(report), sourceKey, now)
     ];
 
     const username = usernames.get(accountId) ?? player.name;

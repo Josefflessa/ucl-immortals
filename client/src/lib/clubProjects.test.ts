@@ -174,8 +174,4 @@ describe('estrutura dos Projetos do Clube', () => {
       total: 145,
     });
   });
-
-  it('migra o projeto combinado antigo para Estádio e Torcida', () => {
-    expect(normalizeClubProjects({ levels: { stadiumSupporters: 4 } }).levels).toMatchObject({ stadium: 4, supporters: 4 });
-  });
 });

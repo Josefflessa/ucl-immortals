@@ -1,5 +1,5 @@
 /**
- * Small JSON patch implementation shared by the Socket.io server and client.
+ * Small JSON patch implementation shared by the realtime server and client.
  *
  * The room state only contains JSON-compatible values. Keeping this protocol
  * deliberately small makes it easy to validate, test and fall back to a full
@@ -16,7 +16,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Clone exactly what Socket.io will serialize (undefined properties omitted). */
+/** Clone exactly what the JSON transport will serialize (undefined properties omitted). */
 export function cloneRoomJson<T>(value: T): T {
   const serialized = JSON.stringify(value);
   if (serialized === undefined) {

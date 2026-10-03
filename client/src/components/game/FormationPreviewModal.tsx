@@ -38,7 +38,7 @@ export default function FormationPreviewModal({ formation, open, onOpenChange }:
     >
       {formation ? (
         <div className="mx-auto w-full max-w-[420px]">
-          <FormationField formation={formation} players={[]} showPlayerCards />
+          <FormationField formation={formation} players={[]} />
         </div>
       ) : null}
     </GameModal>

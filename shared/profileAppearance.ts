@@ -9,7 +9,7 @@ export const PROFILE_AVATAR_BACKGROUNDS = [
   { key: 'rose', label: 'Rosa', color: '#693d56' },
 ] as const;
 
-export type ProfileAvatarBackgroundKey = (typeof PROFILE_AVATAR_BACKGROUNDS)[number]['key'];
+type ProfileAvatarBackgroundKey = (typeof PROFILE_AVATAR_BACKGROUNDS)[number]['key'];
 
 export const DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY: ProfileAvatarBackgroundKey = 'graphite';
 

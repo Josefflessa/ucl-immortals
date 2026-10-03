@@ -3,13 +3,13 @@
 // de probabilidade e a lógica de TEMPORADA (aplicar consequências + resolver escalação).
 import type { MatchEvent, Team, PlayerCard } from './gameEngine';
 import { rebuildTeamChemistry } from './gameEngine';
-import { canonicalPosition, FORMATIONS, PLAYERS } from './gameData';
+import { FORMATIONS, PLAYERS } from './gameData';
 import type { Player } from './gameData';
 
 export interface PlayerAvailability { yellows: number; banned: number; injured: number }
 export type DisciplineMap = Record<string, PlayerAvailability>; // key = `${teamId}:${playerId}`
 // Item de resumo para os avisos ("Fulano suspenso 1j / Ciclano lesão 2j").
-export interface DisciplineEntry { teamId: string; playerId: string; playerName: string; games: number; kind: 'ban' | 'injury' }
+interface DisciplineEntry { teamId: string; playerId: string; playerName: string; games: number; kind: 'ban' | 'injury' }
 
 const MEDICAL_BOOST_ATTRIBUTES = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'] as const;
 
@@ -25,7 +25,7 @@ export function unavailableStarters(team: { id: string; players: { id: string; s
   return team.players.slice(0, 11).filter(p => !isAvailable(m, team.id, p.id));
 }
 
-export interface EmergencyReplacementTarget {
+interface EmergencyReplacementTarget {
   starterId: string;
   starterName: string;
   position: string;
@@ -126,19 +126,18 @@ export function applyMedicalReturnBoost(team: Team, playerId: string, amount: nu
 }
 
 // ── Constantes de balanço (re-tunáveis) ──
-export const YELLOW_ACCUM_THRESHOLD = 3;   // 3 amarelos acumulados = 1 jogo suspenso
+const YELLOW_ACCUM_THRESHOLD = 3;   // 3 amarelos acumulados = 1 jogo suspenso
 export const INJURY_DEBUFF = 12;           // −N em cada atributo do lesionado (resto do jogo)
 export const RED_PENALTY = 15;             // força a menos por jogar com 10 (jogar com um a menos DÓI)
 export const RED_GK_PENALTY = 24;          // goleiro expulso → jogador de linha no gol (bem pior)
-export const INJURY_SEVERITY_WEIGHTS: [1 | 2 | 3, number][] = [[1, 0.6], [2, 0.3], [3, 0.1]];
-export const PHYSIO_COST = 150;            // 🏥 Fisioterapia: −1 jogo de lesão
+const INJURY_SEVERITY_WEIGHTS: [1 | 2 | 3, number][] = [[1, 0.6], [2, 0.3], [3, 0.1]];
 
 // Multiplicador de risco de cartão por posição (goleiro ~0; atacante baixo; zaga/volante alto).
 export const CARD_POS_MULT: Record<string, number> = {
   GK: 0.03, ST: 0.6, LW: 0.7, RW: 0.7, CAM: 0.9, LM: 0.9, RM: 0.9,
   CM: 1.1, CDM: 1.35, LB: 1.15, RB: 1.15, CB: 1.3,
 };
-export const FOUL_YELLOW_BASE = 0.11;      // prob. base de um amarelo por falta (× posição × ímpeto × compostura × tática) → alvo ~1.5 🟨/jogo
+const FOUL_YELLOW_BASE = 0.11;      // prob. base de um amarelo por falta (× posição × ímpeto × compostura × tática) → alvo ~1.5 🟨/jogo
 export const STRAIGHT_RED_PROB = 0.0007;   // prob. de 🟥 direto por falta (× tática) → alvo baixo (resto vem de 2º amarelo)
 
 // 🔗 Ligação com os LANCES DE PERIGO: uma falta que vira cobrança perigosa (falta dura) ou que corta
@@ -152,8 +151,8 @@ export const DANGEROUS_FOUL_INJURY_MULT = 1.5; // falta dura também machuca mai
 //   (0 = ímpeto não afeta cartão · 1 = afeta cheio). Menor = menos jogos extremos.
 // - SETTLE: a cada cartão já mostrado, o árbitro "acalma" um pouco (reduz a chance dos próximos),
 //   cortando a cauda de jogos com muitos cartões.
-export const CARD_AGGR_COMPRESS = 0.45;
-export const CARD_SETTLE = 0.14;
+const CARD_AGGR_COMPRESS = 0.45;
+const CARD_SETTLE = 0.14;
 // LENIÊNCIA no 2º amarelo: se o faltador JÁ está amarelado, o juiz pensa mais antes de dar o
 // segundo (que expulsa) — como na vida real. Reduz a chance do cartão em 20% NESSE caso (só p/
 // quem já tem amarelo; quem ainda não foi amarelado segue com a chance normal).
@@ -163,7 +162,7 @@ export const settleFactor = (cardsSoFar: number): number => 1 / (1 + cardsSoFar 
 
 // Fator de agressividade por ESTILO/TÁTICA — modula a chance de cartão do time que marca.
 // Pressão alta e marcação sob pressão faltam mais; posse/ataque total faltam menos.
-export const TACTIC_AGGRESSION: Record<string, number> = {
+const TACTIC_AGGRESSION: Record<string, number> = {
   high_press: 1.35, defensive: 1.15, counter: 1.05, balanced: 1.0, all_out_attack: 0.85, possession: 0.8,
 };
 export const tacticAggression = (playStyle: string): number => TACTIC_AGGRESSION[playStyle] ?? 1;
@@ -171,10 +170,10 @@ export const tacticAggression = (playStyle: string): number => TACTIC_AGGRESSION
 // Fator de agressividade por FORMAÇÃO — derivado do tamanho da LINHA DE FUNDO (CB/LB/RB). Bloco baixo
 // (5 atrás) comete mais falta tática; formação de 3 zagueiros, menos. Alavanca SECUNDÁRIA (a tática
 // é o motor principal). Fácil de calibrar: mexa em STEP (força) e MIN/MAX (teto). Neutro em 4 atrás.
-export const FORMATION_AGGR_BASE = 1.0;    // 4 defensores na linha = neutro
-export const FORMATION_AGGR_STEP = 0.12;   // por defensor da linha de fundo acima/abaixo de 4
-export const FORMATION_AGGR_MIN = 0.85;
-export const FORMATION_AGGR_MAX = 1.25;
+const FORMATION_AGGR_BASE = 1.0;    // 4 defensores na linha = neutro
+const FORMATION_AGGR_STEP = 0.12;   // por defensor da linha de fundo acima/abaixo de 4
+const FORMATION_AGGR_MIN = 0.85;
+const FORMATION_AGGR_MAX = 1.25;
 const BACKLINE_ROLES = new Set(['CB', 'LB', 'RB']);
 export function formationAggression(formationId: string): number {
   const f = FORMATIONS.find(x => x.id === formationId);
@@ -183,8 +182,8 @@ export function formationAggression(formationId: string): number {
   const raw = FORMATION_AGGR_BASE + FORMATION_AGGR_STEP * (defCount - 4);
   return Math.max(FORMATION_AGGR_MIN, Math.min(FORMATION_AGGR_MAX, raw));
 }
-export const INJURY_FOUL_PROB = 0.00528;   // prob. de lesionar o faltado numa falta dura → ~0.08 lesão/jogo (raras)
-export const INJURY_RANDOM_BASE = 0.00085; // base de lesão aleatória por titular por jogo (× frag. física)
+const INJURY_FOUL_PROB = 0.00528;   // prob. de lesionar o faltado numa falta dura → ~0.08 lesão/jogo (raras)
+const INJURY_RANDOM_BASE = 0.00085; // base de lesão aleatória por titular por jogo (× frag. física)
 // 🩹 Frágil — risco alto de lesão. O multiplicador é aplicado tanto às lesões aleatórias
 // quanto às causadas por falta; a descrição da característica não expõe esse número.
 export const FRAGIL_INJURY_MULTIPLIER = 75;
@@ -202,7 +201,7 @@ export function rollInjurySeverity(rng: () => number): 1 | 2 | 3 {
 // Chance de amarelo numa falta: posição (zaga/volante faltam mais) × cabeça fria (compostura alta
 // reduz) × ímpeto do jogo. Goleiro é ~0 pelo CARD_POS_MULT.
 export function yellowChance(position: string, composure: number, aggression: number): number {
-  const posMult = CARD_POS_MULT[canonicalPosition(position)] ?? 1;
+  const posMult = CARD_POS_MULT[position] ?? 1;
   const compMult = Math.max(0.4, 1.6 - composure / 80); // comp 40→1.1 · 90→0.475 (piso 0.4)
   return FOUL_YELLOW_BASE * posMult * compMult * aggression;
 }
@@ -227,8 +226,8 @@ interface MatchLike { homeTeamId: string; awayTeamId: string; events: MatchEvent
 // jogaram (cumpriu 1 jogo); 2) aplica as consequências deste jogo (então 🟥 hoje = fora do PRÓXIMO).
 // `injurySeverityRng` é injetável nos testes (default Math.random). Quando
 // `injuryDurationForTeam` retorna 1–3, a duração é determinística e esse RNG
-// não participa da duração da lesão. O valor 0 mantém o modo legado aleatório
-// para chamadas genéricas fora de uma competição com Departamento Médico.
+// não participa da duração da lesão. O valor 0 (padrão) sorteia a duração
+// (1/2/3 jogos) para chamadas fora de uma competição com Departamento Médico.
 export function applyMatchDiscipline(
   prev: DisciplineMap,
   playedTeamIds: string[],

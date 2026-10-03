@@ -1,8 +1,8 @@
 {
-  // Config do Cloudflare Workers para servir o frontend estático (SPA).
-  // O `npx vite build` gera os arquivos em dist/public; o `npx wrangler deploy`
-  // publica essa pasta. "single-page-application" faz todas as rotas caírem
-  // no index.html (necessário pro roteamento client-side do React).
+  // Worker único: serve o frontend (dist/public, gerado pelo vite build), o
+  // multiplayer (Durable Objects GameRoom/RoomDirectory) e as contas (D1).
+  // "single-page-application" faz as rotas desconhecidas caírem no index.html.
+  // Deploy: ver CLOUDFLARE_DEPLOY.md.
   "name": "ucl-immortals",
   "main": "server/cloudflare-worker.ts",
   "compatibility_date": "2026-07-01",

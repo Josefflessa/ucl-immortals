@@ -25,7 +25,7 @@ const FLUSH_INTERVAL_MS = 25;
 // Gameplay commands are queued only when the caller provides a commandId. The
 // server persists that ID and makes retries idempotent, so a response lost during
 // a brief disconnect cannot duplicate a purchase or a phase transition.
-const QUEUEABLE_EVENTS = new Set(['client_capabilities', 'create_room', 'join_room', 'sync_room']);
+const QUEUEABLE_EVENTS = new Set(['create_room', 'join_room', 'sync_room']);
 const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'start_setup', 'submit_setup', 'draft_pick', 'draft_veto', 'submit_squad_review',
   'set_match_roles', 'set_match_plan', 'play_round', 'advance_round',
@@ -38,6 +38,8 @@ const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'player_ready', 'player_unready', 'swap_player_team', 'set_martir_targets', 'remove_player',
   'set_evolve_point', 'unlock_player_specialization', 'choose_player_specialization', 'reset_evolve_points',
   'reroll_reinforcement', 'pick_reinforcement', 'dismiss_reinforcement', 'reroll_missions',
+  'set_auto_evolve_attribute', 'accept_mission', 'remove_mission', 'dismiss_mission_resolution',
+  'transfer_host', 'trade_invite', 'trade_leave', 'trade_accept_invite', 'trade_select', 'trade_ready',
 ]);
 
 function hasCommandId(payload: unknown): boolean {

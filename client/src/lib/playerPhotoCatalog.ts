@@ -21,8 +21,6 @@ function filenameSlug(value: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
-const PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(player => [player.id, player]));
-
 const PLAYER_PHOTO_DIRECTORY_BY_ID: Record<string, string> = Object.fromEntries(
   PLAYERS.map(player => {
     const { country, league, club } = getPlayerCatalogPath(player);
@@ -30,7 +28,7 @@ const PLAYER_PHOTO_DIRECTORY_BY_ID: Record<string, string> = Object.fromEntries(
   }),
 );
 
-export const PLAYER_PHOTO_FILENAME_BY_ID: Record<string, string> = Object.fromEntries(
+const PLAYER_PHOTO_FILENAME_BY_ID: Record<string, string> = Object.fromEntries(
   PLAYERS.map(player => {
     const { club } = getPlayerCatalogPath(player);
     return [player.id, `${filenameSlug(player.shortName)}_${filenameSlug(club.name)}.webp`];

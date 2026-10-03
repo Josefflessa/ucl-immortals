@@ -3,31 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shirt, Eye, Play, Pause, SkipForward } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import {
-  Team, MatchResult, MatchEvent, MatchStatsDelta,
-  getEffectiveAttribute, getChemistryBonus,
-  PlayerCard as EnginePlayerCard, PlayerMatchStat,
-  getPenaltyOrder, activeGoalkeeperForTeam, matchRoleForPlayer, setStatIds, statKey, penaltyGoalChance, goalkeeperShotStoppingRating,
-  captainBoostForTeam, computeCharacteristicBoosts, playerMatchDiscipline,
+  Team, MatchResult, MatchEvent, MatchStatsDelta, PlayerMatchStat,
+  activeGoalkeeperForTeam, setStatIds, statKey, playerMatchDiscipline,
 } from '../lib/gameEngine';
-
-// Captain leadership context: their best stat is lifted for the whole side (🗣️ Capitão Nato dobra).
-const captainBoostCtx = (team: Team) => captainBoostForTeam(team) ?? undefined;
-// 🩸❤️🪑 Team-effect characteristics (Mártir/Ídolo/12º Homem) — per-player boosts for this side.
-const charBoostsCtx = (team: Team) => computeCharacteristicBoosts(team.players);
-import { getPenaltyComposureBonus } from '../lib/traits';
 import {
   selectApproach, buildUpDesc, dangerAttemptMsg, saveCelebMsg, missCelebMsg,
   Approach,
 } from '../lib/matchNarrative';
-import { COACHES, FORMATIONS, getRarityColor, POS_PT } from '../lib/gameData';
-import PlayerCard from '../components/game/PlayerCard';
 import { preloadPlayerPhotos } from '../components/game/PlayerPortrait';
-import PlayerPortrait from '../components/game/PlayerPortrait';
 import MatchFieldView from '../components/game/MatchFieldView';
 import Crest from '../components/game/Crest';
 import { AppShell, Button, GameModal } from '../design-system';
 
-const posLabel = (pos: string) => POS_PT[pos] ?? pos;
+// One in-game minute every 222ms (about 20s for 90 minutes).
+const TICK_MS = 222;
 
 // Event descriptions already start with an emoji (⚽ GOL!, 🧤 DEFENDEU!…). The feed
 // also renders a type-icon badge next to them, so strip the leading emoji from the
@@ -48,34 +37,31 @@ function tacticAtMinute(team: Team, matchEvents: MatchEvent[], currentMinute: nu
 }
 
 
+// The screen only replays a result already computed by the engine (solo) or
+// the server (online); without one there is nothing to show. The guard lives in
+// this wrapper so the replay component always calls its hooks unconditionally.
 export default function MatchSimPage() {
+  const { state } = useGame();
+  const { currentMatchTeams, currentMatchResult } = state;
+  if (!currentMatchTeams || !currentMatchResult) return null;
+  return <MatchReplay teams={currentMatchTeams} replayResult={currentMatchResult} />;
+}
+
+function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResult: MatchResult }) {
   const {
     state,
     dispatch,
     notifyMatchWatchedOnline,
   } = useGame();
-  const { currentMatchTeams, activeKnockoutMatch } = state;
-
-  if (!currentMatchTeams) return null;
-  const [initialHome, initialAway] = currentMatchTeams;
+  const { activeKnockoutMatch } = state;
+  const [initialHome, initialAway] = teams;
 
   const playerTeamId = state.playerTeam?.id;
   const isPlayerHome = initialHome.id === playerTeamId;
 
-  // REPLAY MODE: when a pre-computed authoritative result is set, we do NOT
-  // simulate locally — we replay its event timeline so the final score and stats
-  // are identical on every device. Used by ONLINE matches and by ALL knockout
-  // ties (online + solo, since two-legged aggregate ties are engine-decided).
-  const replayResult = state.currentMatchResult;
-  const isReplay = !!replayResult;
-
   // Two-legged context (for the aggregate banner during a second leg).
   const legNumber = activeKnockoutMatch?.leg;
   const firstLeg = activeKnockoutMatch?.firstLeg;
-
-  // Local-sim control flag (kept for compatibility): always true now, except we
-  // gate the local simulation clock off entirely while replaying.
-  const isSimulatorHost = true;
 
   // Online keeps the synchronized live-broadcast behavior, while solo still
   // allows pausing/skipping.
@@ -84,9 +70,9 @@ export default function MatchSimPage() {
   const isKnockout = !!activeKnockoutMatch;
   const isFinal = activeKnockoutMatch?.round === 'final';
 
-  // 1. Stateful teams to track substitutions, cards
-  const [homeTeam, setHomeTeam] = useState<Team>(() => ({ ...initialHome }));
-  const [awayTeam, setAwayTeam] = useState<Team>(() => ({ ...initialAway }));
+  // 1. Teams are fixed for the whole match (there are no substitutions).
+  const [homeTeam] = useState<Team>(() => ({ ...initialHome }));
+  const [awayTeam] = useState<Team>(() => ({ ...initialAway }));
 
   const matchPortraitIds = useMemo(
     () => [...initialHome.players.slice(0, 11), ...initialAway.players.slice(0, 11)].map(player => player.id),
@@ -129,51 +115,10 @@ export default function MatchSimPage() {
     // Stamp per-instance stat keys so a player who happens to be on BOTH teams
     // (the pool is smaller than 36×11) gets separate stats per side.
     setStatIds(initialHome, initialAway);
-    // In replay mode, show the authoritative final ratings from the server result
-    // (already keyed by teamId::playerId by the engine).
-    if (isReplay && replayResult?.playerStats) {
-      return { ...replayResult.playerStats };
-    }
-    const initial: Record<string, PlayerMatchStat> = {};
-    const initStatsForTeam = (team: Team) => {
-      team.players.slice(0, 11).forEach(p => {
-        initial[p.statId!] = {
-          playerId: p.id,
-          playerName: p.shortName,
-          teamId: team.id,
-          rating: 6.4,
-          goals: 0,
-          assists: 0,
-          shots: 0,
-          tackles: 0,
-          saves: 0,
-          fouls: 0,
-          yellowCards: 0,
-          redCards: 0,
-          keyPasses: 0,
-          interceptions: 0,
-          shotsOnTarget: 0,
-        };
-      });
-    };
-    initStatsForTeam(initialHome);
-    initStatsForTeam(initialAway);
-    return initial;
+    // Final ratings from the authoritative result (already keyed by teamId::playerId).
+    return { ...replayResult.playerStats };
   });
 
-  const adjustPlayerStat = (playerId: string, callback: (stat: PlayerMatchStat) => void) => {
-    setPlayerMatchStats(prev => {
-      const current = prev[playerId];
-      if (!current) return prev;
-      const copy = { ...current };
-      callback(copy);
-      copy.rating = Math.min(10.0, Math.max(3.0, copy.rating));
-      copy.rating = parseFloat(copy.rating.toFixed(1));
-      return { ...prev, [playerId]: copy };
-    });
-  };
-
-  // Substitutions removed — apenas 11 titulares
   const [squadModal, setSquadModal] = useState<'mine' | 'opponent' | null>(null);
 
   // Suspense-based Key Attack Danger state
@@ -189,10 +134,7 @@ export default function MatchSimPage() {
     gkName?: string;
   } | null>(null);
 
-  const pendingGoalResult = useRef<any>(null);
   const pendingReplayGoals = useRef<any>(null); // buffered goal events for replay danger sequence
-  const keyMinutesRef = useRef<number[] | null>(null); // jittered key-event minutes for THIS match
-  const lastDangerMinRef = useRef<number>(-10); // last minute a danger sequence fired → enforces the cooldown
 
   // Interactive Penalty Shootout state
   const [penaltyMode, setPenaltyMode] = useState(false);
@@ -207,103 +149,14 @@ export default function MatchSimPage() {
   // Team currently stepping up (build-up phase) — drives the overlay's "a cobrar" glow.
   const [penaltyKickPending, setPenaltyKickPending] = useState<string | null>(null);
 
-  // Stats accumulator (progressive)
-  const [stats, setStats] = useState<MatchResult['stats']>({
-    homePos: 50, awayPos: 50,
-    homeShots: 0, awayShots: 0,
-    homeShotsOnTarget: 0, awayShotsOnTarget: 0,
-    homeFouls: 0, awayFouls: 0,
-    homeSaves: 0, awaySaves: 0,
-    homeCorners: 0, awayCorners: 0,
-  });
-
   const myTeam = isPlayerHome ? homeTeam : awayTeam;
   const oppTeam = isPlayerHome ? awayTeam : homeTeam;
 
-  // NOTE: Spectator mode and match event streaming have been removed.
-  // Each player now simulates their own match independently.
-
-  const renderSquadRow = (p: EnginePlayerCard, rating: number, goals = 0, assists = 0) => {
-    const rColor = rating >= 8.5 ? '#d4af37' : rating >= 7.5 ? '#22c55e' : rating <= 5.3 ? '#ef4444' : '#ffffff';
-    const ringColor = getRarityColor(p.rarity);
-    // 🟨🟥🩹 Disciplina/lesão deste jogador NESTE jogo, POR INSTÂNCIA (time+jogador via statId)
-    // pra não pintar cartão fantasma da cópia do mesmo id no outro time. (renderSquadRow hoje
-    // não é usada, mas fica alinhada ao helper caso volte a ser.)
-    const { yellow: yc, red: isRed, injury: isInjured } = playerMatchDiscipline(events, p.statId?.split('::')[0] ?? '', p.id);
-    return (
-      <div
-        key={p.id}
-        className="flex items-center justify-between p-2 rounded-xl border"
-        style={{ background: '#08080f', borderColor: '#171725' }}
-      >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          {/* Player photo with rarity ring */}
-          <div
-            className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
-            style={{ background: '#10101d', border: `1.5px solid ${ringColor}` }}
-          >
-            <PlayerPortrait
-              playerId={p.id}
-              photoUrl={p.photoUrl}
-              alt={p.shortName}
-              lowRes
-              className="w-full h-full object-cover"
-              style={{ objectPosition: 'center top', scale: '1.25' }}
-              fallback={<span className="text-[10px] font-black" style={{ color: ringColor, fontFamily: 'Rajdhani, sans-serif' }}>{posLabel(p.position)}</span>}
-            />
-          </div>
-          <span className="text-[10px] font-black w-6 text-center rounded px-1 flex-shrink-0" style={{ background: '#171725', color: '#c9a84c', fontFamily: 'Rajdhani, sans-serif' }}>
-            {posLabel(p.position)}
-          </span>
-          <span className="text-sm font-bold text-white truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-            {p.shortName}
-          </span>
-          {/* Goal / assist markers */}
-          {goals > 0 && (
-            <span className="text-[11px] flex-shrink-0" title={`${goals} gol(s)`}>
-              {goals > 1 ? `⚽×${goals}` : '⚽'}
-            </span>
-          )}
-          {assists > 0 && (
-            <span className="text-[10px] flex-shrink-0 font-black" style={{ color: '#60a5fa', fontFamily: 'Rajdhani, sans-serif' }} title={`${assists} assistência(s)`}>
-              {assists > 1 ? `🅰×${assists}` : '🅰'}
-            </span>
-          )}
-          {/* 🟨🟥🩹 Cartões e lesão */}
-          {isRed && <span className="text-[11px] flex-shrink-0" title="Expulso">🟥</span>}
-          {!isRed && yc > 0 && <span className="text-[11px] flex-shrink-0" title={`${yc} amarelo(s)`}>{yc > 1 ? '🟨🟨' : '🟨'}</span>}
-          {isInjured && <span className="text-[11px] flex-shrink-0" title="Lesionado (limitado)">🩹</span>}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-sm font-black px-2 py-0.5 rounded-lg border text-center min-w-[36px]" style={{ background: '#1a1a2e', color: rColor, borderColor: '#1f1f3b', fontFamily: 'Rajdhani, sans-serif' }}>
-            {rating.toFixed(1)}
-          </span>
-        </div>
-      </div>
-    );
-  };
-
-
   const eventFeedRef = useRef<HTMLDivElement>(null);
 
-  // One in-game minute every 222ms (about 20s for 90 minutes).
-  const getTickDuration = () => {
-    return 222;
-  };
-
-
-
-  // Helper helper to adjust stats
-  const incrementStat = (key: keyof MatchResult['stats']) => {
-    setStats(prev => ({ ...prev, [key]: prev[key] + 1 }));
-  };
-
-
-  // 4. Suspense / Danger sequence state runner (drives stages 1→2→3 for BOTH the
-  // local sim and the online replay — stage 2 branches per mode below). This must
-  // run in replay mode too; otherwise an online danger sequence freezes at stage 1.
+  // 4. Suspense / Danger sequence state runner: drives stages 1→2→3 of every shot
+  // (build-up → attempt → reveal). Stage 2 applies the buffered replay goal events.
   useEffect(() => {
-    if (state.mode === 'online' && !isSimulatorHost) return;
     if (!dangerState) return;
 
     if (dangerState.stage === 1) {
@@ -323,7 +176,7 @@ export default function MatchSimPage() {
     if (dangerState.stage === 2) {
       const timer = setTimeout(() => {
         // Replay mode: apply the buffered goal events from pendingReplayGoals
-        if (isReplay && pendingReplayGoals.current) {
+        if (pendingReplayGoals.current) {
           const rg = pendingReplayGoals.current;
           setHomeScore(s => s + rg.homeGoalDelta);
           setAwayScore(s => s + rg.awayGoalDelta);
@@ -338,50 +191,8 @@ export default function MatchSimPage() {
           pendingReplayGoals.current = null;
           return;
         }
-
-        const result = pendingGoalResult.current;
-        if (result) {
-          // Apply pre-simulated scores
-          const newHomeScore = homeScore + result.homeScoreDelta;
-          const newAwayScore = awayScore + result.awayScoreDelta;
-          setHomeScore(newHomeScore);
-          setAwayScore(newAwayScore);
-
-          // Trigger Goal alert
-          if (result.goalAlert) {
-            showGoalAlert(result.goalAlert, 3000);
-          }
-
-          // Apply pre-simulated player stats
-          result.playerStatUpdates.forEach((update: any) => {
-            adjustPlayerStat(update.statKey, update.updateFn);
-          });
-
-          // Apply pre-simulated team stats
-          result.statIncrements.forEach((key: any) => {
-            incrementStat(key);
-          });
-
-          // Add pre-simulated events
-          setEvents(prev => [...prev, ...result.eventsToPush]);
-
-          // Shift momentum
-          setMomentum(prev => {
-            const nextMom = Math.min(100, Math.max(0, prev + result.momentumShift));
-            setMomentumHistory(hist => [...hist, nextMom]);
-            return nextMom;
-          });
-
-          // Transition to stage 3
-          setDangerState(prev => prev ? {
-            ...prev,
-            stage: 3,
-            message: result.messageStage3
-          } : null);
-        } else {
-          setDangerState(null);
-          setIsPlaying(true);
-        }
+        setDangerState(null);
+        setIsPlaying(true);
       }, 1500);
 
       return () => clearTimeout(timer);
@@ -390,9 +201,8 @@ export default function MatchSimPage() {
     if (dangerState.stage === 3) {
       const timer = setTimeout(() => {
         setDangerState(null);
-        pendingGoalResult.current = null;
         pendingReplayGoals.current = null;
-        setIsPlaying(true); // Resume simulation clock (or replay clock)
+        setIsPlaying(true); // Resume the replay clock
       }, 1500);
       return () => clearTimeout(timer);
     }
@@ -402,8 +212,7 @@ export default function MatchSimPage() {
   // Reveals each event at its minute and rebuilds the score from goal events, so
   // the replay ends exactly on the server's score on every device.
   useEffect(() => {
-    if (!isReplay || !replayResult) return;
-    // Pause during danger sequence (goals trigger the same 3-stage suspense as local sim)
+    // Pause during the 3-stage danger sequence
     if (!isPlaying || isFinished || penaltyMode || goalAlert || dangerState) return;
 
     // The result carries its own duration (90 or 120) — a first leg never goes to
@@ -434,9 +243,6 @@ export default function MatchSimPage() {
 
       const evs = replayResult.events.filter(e => e.minute === nextMin);
       if (evs.length > 0) {
-        // Separate goal events from non-goal events. Non-goal events (yellow cards,
-        // saves, etc.) are shown immediately. Goal events trigger the 3-stage danger
-        // play sequence so knockouts get the same suspense as the local sim.
         // Shot outcomes (goal / save / miss) get the 3-stage suspense — you should
         // NOT know if it's a goal until the reveal. Everything else (build-up, duels,
         // fouls, cards) shows immediately.
@@ -526,10 +332,10 @@ export default function MatchSimPage() {
       } else {
         setMomentumHistory(h => [...h, momentum]);
       }
-    }, getTickDuration());
+    }, TICK_MS);
 
     return () => clearTimeout(timer);
-  }, [isReplay, replayResult, isPlaying, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, homeTeam, awayTeam, momentum, events]);
+  }, [replayResult, isPlaying, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, homeTeam, awayTeam, momentum, events]);
 
   // Scroll live events feed to bottom automatically
   useEffect(() => {
@@ -540,7 +346,7 @@ export default function MatchSimPage() {
 
   // 4c. Replay penalty kick-by-kick auto-narration
   useEffect(() => {
-    if (!penaltyMode || !isReplay || !replayResult || penaltyReplayIdx < 0 || penaltyWinner) return;
+    if (!penaltyMode || penaltyReplayIdx < 0 || penaltyWinner) return;
     const kicks = replayResult.penaltyKicks;
     if (!kicks || kicks.length === 0) {
       // No kick data — fallback to instant reveal
@@ -600,250 +406,56 @@ export default function MatchSimPage() {
     }, 1900));
 
     return () => timers.forEach(clearTimeout);
-  }, [penaltyMode, isReplay, replayResult, penaltyReplayIdx, penaltyWinner, homeTeam, awayTeam, isKnockout]);
-
-  // 5. Interactive Penalty Shootout Handler
-  const handleTakePenalty = () => {
-    const currentKick = penaltiesHome.length + penaltiesAway.length;
-    const isHomeTurn = penaltiesHome.length === penaltiesAway.length;
-
-    const attackTeam = isHomeTurn ? homeTeam : awayTeam;
-    const defendTeam = isHomeTurn ? awayTeam : homeTeam;
-
-    const order = getPenaltyOrder(attackTeam, undefined, playerMatchStats);
-    const takerIdx = Math.floor(currentKick / 2);
-    const taker = order[takerIdx % order.length];
-    const gkInfo = activeGoalkeeperForTeam(defendTeam, undefined, playerMatchStats);
-    const gk = gkInfo.player;
-
-    const attackCoach = COACHES.find(c => c.id === attackTeam.coachId)!;
-    const defendCoach = COACHES.find(c => c.id === defendTeam.coachId)!;
-    // Same model as the engine/auto shootout: EFFECTIVE composure (+ traits + designated bonus)
-    // vs the keeper's EFFECTIVE shot-stopping.
-    const composure = getEffectiveAttribute(taker, 'composure', attackCoach, 'Finalização', getChemistryBonus(attackTeam.totalChemistry), attackTeam.playStyle ?? 'balanced', { coachPrime: attackTeam.coachPrime, credits: attackTeam.credits })
-      + getPenaltyComposureBonus(taker.traits) + (taker.id === attackTeam.penaltyTaker ? 5 : 0);
-    const gkReflexes = goalkeeperShotStoppingRating(
-      gk,
-      getEffectiveAttribute(gk, 'defending', defendCoach, 'Defesa', getChemistryBonus(defendTeam.totalChemistry), defendTeam.playStyle ?? 'balanced', { coachPrime: defendTeam.coachPrime, role: 'GK', credits: defendTeam.credits }),
-      gk.traits,
-    );
-    const isGoal = Math.random() < penaltyGoalChance(composure, gkReflexes);
-
-    let desc = "";
-    if (isGoal) {
-      desc = `🎯 CONVERTEU! ${taker.shortName} cobra com categoria na bochecha da rede!`;
-    } else {
-      desc = Math.random() < 0.5
-        ? `🧤 DEFENDEU! O goleiro voa para o canto e espalma o chute de ${taker.shortName}!`
-        : `❌ PARA FORA! ${taker.shortName} sente a pressão e isola o pênalti por cima!`;
-    }
-
-    const comment = `${attackTeam.name} (${taker.shortName}) vs ${defendTeam.name} (${gk.shortName}):\n${desc}`;
-    setPenaltyCommentary(comment);
-
-    const nextHomePens = [...penaltiesHome];
-    const nextAwayPens = [...penaltiesAway];
-    let nextHomeScore = penaltyHomeScore;
-    let nextAwayScore = penaltyAwayScore;
-
-    if (isHomeTurn) {
-      nextHomePens.push(isGoal);
-      if (isGoal) nextHomeScore = penaltyHomeScore + 1;
-      setPenaltiesHome(nextHomePens);
-      setPenaltyHomeScore(nextHomeScore);
-    } else {
-      nextAwayPens.push(isGoal);
-      if (isGoal) nextAwayScore = penaltyAwayScore + 1;
-      setPenaltiesAway(nextAwayPens);
-      setPenaltyAwayScore(nextAwayScore);
-    }
-
-    // Check if resolved
-    const hKicks = isHomeTurn ? nextHomePens.length : penaltiesHome.length;
-    const aKicks = isHomeTurn ? penaltiesAway.length : nextAwayPens.length;
-    const hScore = isHomeTurn ? nextHomeScore : penaltyHomeScore;
-    const aScore = isHomeTurn ? penaltyAwayScore : nextAwayScore;
-
-    const hRem = 5 - hKicks;
-    const aRem = 5 - aKicks;
-
-    let ended = false;
-    let winner = null;
-
-    if (hKicks >= 3 || aKicks >= 3) {
-      if (hScore > aScore + aRem) {
-        ended = true;
-        winner = homeTeam.id;
-      } else if (aScore > hScore + hRem) {
-        ended = true;
-        winner = awayTeam.id;
-      }
-    }
-
-    if (hKicks === 5 && aKicks === 5 && !ended) {
-      if (hScore > aScore) {
-        ended = true;
-        winner = homeTeam.id;
-      } else if (aScore > hScore) {
-        ended = true;
-        winner = awayTeam.id;
-      }
-    } else if (hKicks > 5 && aKicks === hKicks && !ended) {
-      if (hScore !== aScore) {
-        ended = true;
-        winner = hScore > aScore ? homeTeam.id : awayTeam.id;
-      }
-    }
-
-    if (ended && winner) {
-      setPenaltyWinner(winner);
-      setIsFinished(true);
-
-      const finalPensEvent: MatchEvent = {
-        minute: 120,
-        type: 'penalty',
-        description: `🎯 DISPUTA DE PÊNALTIS FINALIZADA! ${homeTeam.name} ${hScore}-${aScore} ${awayTeam.name}. Vencedor: ${winner === homeTeam.id ? homeTeam.name : awayTeam.name}`,
-        teamId: winner,
-      };
-      setEvents(prev => [...prev, finalPensEvent]);
-    }
-  };
+  }, [penaltyMode, replayResult, penaltyReplayIdx, penaltyWinner, homeTeam, awayTeam, isKnockout]);
 
   const handleSkip = () => {
-    // REPLAY: jump straight to the authoritative final state.
-    if (isReplay && replayResult) {
-      // If already in penalty replay mode, skip to final shootout result immediately.
-      if (penaltyMode && penaltyReplayIdx >= 0 && replayResult.penaltyKicks) {
-        const kicks = replayResult.penaltyKicks;
-        const homeKicks = kicks.filter(k => k.teamId === homeTeam.id).map(k => k.isGoal);
-        const awayKicks = kicks.filter(k => k.teamId === awayTeam.id).map(k => k.isGoal);
-        setPenaltiesHome(homeKicks);
-        setPenaltiesAway(awayKicks);
-        setPenaltyWinner(replayResult.penaltyWinner!);
-        setPenaltyHomeScore(replayResult.homePenalties ?? 0);
-        setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
-        setPenaltyReplayIdx(-1);
-        return;
-      }
-      setMinute(replayResult.durationMinutes ?? (isKnockout ? 120 : 90));
-      setEvents(replayResult.events);
-      setHomeScore(replayResult.homeGoals);
-      setAwayScore(replayResult.awayGoals);
-      setStats(replayResult.stats);
-      if (replayResult.playerStats) setPlayerMatchStats(replayResult.playerStats);
-      setGoalAlert(null);
-      if (replayResult.penaltyWinner) {
-        // Skip past penalty replay too
-        const kicks = replayResult.penaltyKicks ?? [];
-        setPenaltiesHome(kicks.filter(k => k.teamId === homeTeam.id).map(k => k.isGoal));
-        setPenaltiesAway(kicks.filter(k => k.teamId === awayTeam.id).map(k => k.isGoal));
-        setPenaltyWinner(replayResult.penaltyWinner);
-        setPenaltyHomeScore(replayResult.homePenalties ?? 0);
-        setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
-        setPenaltyMode(true);
-        setPenaltyReplayIdx(-1);
-        setIsPlaying(false);
-      } else {
-        setIsFinished(true);
-        setIsPlaying(false);
-      }
+    // Jump straight to the authoritative final state.
+    // If already in penalty replay mode, skip to final shootout result immediately.
+    if (penaltyMode && penaltyReplayIdx >= 0 && replayResult.penaltyKicks) {
+      const kicks = replayResult.penaltyKicks;
+      const homeKicks = kicks.filter(k => k.teamId === homeTeam.id).map(k => k.isGoal);
+      const awayKicks = kicks.filter(k => k.teamId === awayTeam.id).map(k => k.isGoal);
+      setPenaltiesHome(homeKicks);
+      setPenaltiesAway(awayKicks);
+      setPenaltyWinner(replayResult.penaltyWinner!);
+      setPenaltyHomeScore(replayResult.homePenalties ?? 0);
+      setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+      setPenaltyReplayIdx(-1);
       return;
     }
-    // Solo (liga e mata-mata) e online são sempre replay de um resultado do motor,
-    // então não há mais simulação local aqui — o botão PULAR só existe no replay.
+    setMinute(replayResult.durationMinutes ?? (isKnockout ? 120 : 90));
+    setEvents(replayResult.events);
+    setHomeScore(replayResult.homeGoals);
+    setAwayScore(replayResult.awayGoals);
+    if (replayResult.playerStats) setPlayerMatchStats(replayResult.playerStats);
+    setGoalAlert(null);
+    if (replayResult.penaltyWinner) {
+      // Skip past penalty replay too
+      const kicks = replayResult.penaltyKicks ?? [];
+      setPenaltiesHome(kicks.filter(k => k.teamId === homeTeam.id).map(k => k.isGoal));
+      setPenaltiesAway(kicks.filter(k => k.teamId === awayTeam.id).map(k => k.isGoal));
+      setPenaltyWinner(replayResult.penaltyWinner);
+      setPenaltyHomeScore(replayResult.homePenalties ?? 0);
+      setPenaltyAwayScore(replayResult.awayPenalties ?? 0);
+      setPenaltyMode(true);
+      setPenaltyReplayIdx(-1);
+      setIsPlaying(false);
+    } else {
+      setIsFinished(true);
+      setIsPlaying(false);
+    }
   };
 
   const handleFinish = () => {
     // The motor result is authoritative. The screen is only a replay, so never
     // rebuild a second result from progressive UI state (which can have different
     // stats and uses player ids instead of per-team statIds).
-    if (replayResult) {
-      if (activeKnockoutMatch) {
-        if (state.mode === 'online' && !state.spectating) notifyMatchWatchedOnline('knockout', activeKnockoutMatch);
-        dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: replayResult });
-      } else {
-        if (state.mode === 'online') notifyMatchWatchedOnline('league');
-        dispatch({ type: 'FINISH_LEAGUE_MATCH', result: replayResult });
-      }
-      return;
-    }
-
-    // Defensive fallback for an invalid/legacy entry without a precomputed result.
-    const allPlayers = [...homeTeam.players, ...awayTeam.players];
-
-    // Compute clean sheet and match outcome modifiers just before finishing
-    const updatedStats = { ...playerMatchStats };
-    const homeGoals = homeScore;
-    const awayGoals = awayScore;
-    const winner = penaltyWinner || (homeGoals > awayGoals ? homeTeam.id : awayGoals > homeGoals ? awayTeam.id : null);
-
-    if (awayGoals === 0) {
-      homeTeam.players.slice(0, 11).forEach(p => {
-        if (updatedStats[p.id]) {
-          const role = matchRoleForPlayer(homeTeam, p);
-          if (role === 'GK') updatedStats[p.id].rating += 0.8;
-          else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(role)) updatedStats[p.id].rating += 0.4;
-        }
-      });
-    }
-    if (homeGoals === 0) {
-      awayTeam.players.slice(0, 11).forEach(p => {
-        if (updatedStats[p.id]) {
-          const role = matchRoleForPlayer(awayTeam, p);
-          if (role === 'GK') updatedStats[p.id].rating += 0.8;
-          else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(role)) updatedStats[p.id].rating += 0.4;
-        }
-      });
-    }
-
-    if (winner === homeTeam.id) {
-      homeTeam.players.slice(0, 11).forEach(p => { if (updatedStats[p.id]) updatedStats[p.id].rating += 0.3; });
-      awayTeam.players.slice(0, 11).forEach(p => { if (updatedStats[p.id]) updatedStats[p.id].rating -= 0.2; });
-    } else if (winner === awayTeam.id) {
-      awayTeam.players.slice(0, 11).forEach(p => { if (updatedStats[p.id]) updatedStats[p.id].rating += 0.3; });
-      homeTeam.players.slice(0, 11).forEach(p => { if (updatedStats[p.id]) updatedStats[p.id].rating -= 0.2; });
-    }
-
-    // Clamp and round final ratings
-    allPlayers.forEach(p => {
-      if (updatedStats[p.id]) {
-        const finalR = Math.min(10.0, Math.max(3.0, updatedStats[p.id].rating));
-        updatedStats[p.id].rating = parseFloat(finalR.toFixed(1));
-      }
-    });
-
-    const sorted = [...allPlayers].sort((a, b) => {
-      const rA = updatedStats[a.statId!]?.rating ?? 6.0;
-      const rB = updatedStats[b.statId!]?.rating ?? 6.0;
-      return rB - rA;
-    });
-    const mvpId = sorted[0]?.id || 'messi';
-
-    const finalResult: MatchResult = {
-      homeTeamId: homeTeam.id,
-      awayTeamId: awayTeam.id,
-      homeGoals: homeScore,
-      awayGoals: awayScore,
-      events: events,
-      winner: winner,
-      penaltyWinner: penaltyWinner || undefined,
-      homePenalties: penaltyWinner ? penaltyHomeScore : undefined,
-      awayPenalties: penaltyWinner ? penaltyAwayScore : undefined,
-      mvp: mvpId,
-      stats: getProgressiveStats(),
-      playerStats: updatedStats,
-    };
-
-    // Legacy non-replay fallback. Normal campaign flows return above with the
-    // exact MatchResult produced by the engine.
     if (activeKnockoutMatch) {
-      // Spectators (eliminated players watching someone else's tie) must NOT notify the
-      // advance-gate — they aren't participants in this round.
       if (state.mode === 'online' && !state.spectating) notifyMatchWatchedOnline('knockout', activeKnockoutMatch);
-      dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: finalResult });
+      dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: replayResult });
     } else {
       if (state.mode === 'online') notifyMatchWatchedOnline('league');
-      dispatch({ type: 'FINISH_LEAGUE_MATCH', result: finalResult });
+      dispatch({ type: 'FINISH_LEAGUE_MATCH', result: replayResult });
     }
   };
 
@@ -853,40 +465,8 @@ export default function MatchSimPage() {
   const handleExitSpectator = () => {
     dispatch({
       type: 'FINISH_KNOCKOUT_MATCH',
-      result: replayResult ?? { homeTeamId: homeTeam.id, awayTeamId: awayTeam.id, homeGoals: homeScore, awayGoals: awayScore, events, winner: null, stats: getProgressiveStats() },
+      result: replayResult,
     });
-  };
-
-  // Helper helper to get progressive stats with ball possession
-  const getProgressiveStats = () => {
-    const getMidfielderPassing = (t: Team) => {
-      const mids = t.players.slice(0, 11).filter(p => ['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(p.position));
-      if (mids.length === 0) return 75;
-      return mids.reduce((sum, p) => sum + p.passing, 0) / mids.length;
-    };
-    const homeMidPass = getMidfielderPassing(homeTeam);
-    const awayMidPass = getMidfielderPassing(awayTeam);
-    const baseHomePos = Math.min(65, Math.max(35, Math.round((homeMidPass / (homeMidPass + awayMidPass)) * 100)));
-
-    // Fluctuates possession dynamically based on current momentum and minute ticks for realism
-    const momentumEffect = (momentum - 50) * 0.12; // up to +-6%
-    const tickSeed = Math.sin(minute * 0.8) * 2.2; // organic oscillation
-    let currentHomePos = Math.round(baseHomePos + momentumEffect + tickSeed);
-
-    const duelEvents = events.filter(e => e.type === 'duel');
-    if (duelEvents.length > 0) {
-      const homeWins = duelEvents.filter(e => e.teamId === homeTeam.id).length;
-      const deviation = (homeWins / duelEvents.length - 0.5) * 12;
-      currentHomePos = Math.round(currentHomePos + deviation);
-    }
-
-    currentHomePos = Math.min(78, Math.max(22, currentHomePos));
-
-    return {
-      ...stats,
-      homePos: currentHomePos,
-      awayPos: 100 - currentHomePos,
-    };
   };
 
   // REPLAY: rebuild live player ratings + team stats progressively from the
@@ -894,8 +474,6 @@ export default function MatchSimPage() {
   // final from the kickoff. Deterministic (same events => same numbers on every
   // device), and we snap to the authoritative result at the final whistle.
   const replayProgress = useMemo(() => {
-    if (!isReplay || !replayResult) return null;
-
     const ps: Record<string, PlayerMatchStat> = {};
     const initTeam = (team: Team) => {
       team.players.slice(0, 11).forEach(p => {
@@ -950,14 +528,6 @@ export default function MatchSimPage() {
         // the shot belongs to the attacking (other) team
         if (isHome) { panel.homeSaves++; panel.awayShots++; panel.awayShotsOnTarget++; }
         else { panel.awaySaves++; panel.homeShots++; panel.homeShotsOnTarget++; }
-        // Legacy results encoded corners only in the prose. New results have a
-        // dedicated corner event; keep this fallback without double-counting them.
-        const legacyCorner = e.description?.includes('Escanteio') && !events.some(corner =>
-          corner.type === 'corner'
-          && corner.minute === e.minute
-          && corner.teamId === otherOf(e.teamId)
-        );
-        if (legacyCorner) { if (isHome) panel.awayCorners++; else panel.homeCorners++; }
       } else if (e.type === 'miss') {
         if (ak && ps[ak]) { ps[ak].shots++; ps[ak].rating -= 0.15; }
         if (isHome) panel.homeShots++; else panel.awayShots++;
@@ -987,23 +557,21 @@ export default function MatchSimPage() {
     panel.awayPos = 100 - panel.homePos;
 
     return { ps, panel };
-  }, [isReplay, replayResult, events, homeTeam, awayTeam]);
+  }, [replayResult, events, homeTeam, awayTeam]);
 
   // During a replay the panel/ratings build up live; at the whistle we use the
   // authoritative server values (already stored in playerMatchStats for replays).
-  const currentStats = isReplay
-    ? (isFinished || penaltyMode ? (replayResult?.stats ?? getProgressiveStats()) : (replayProgress?.panel ?? replayResult?.stats ?? getProgressiveStats()))
-    : getProgressiveStats();
+  const currentStats = isFinished || penaltyMode ? replayResult.stats : replayProgress.panel;
 
   const getDisplayRating = (playerId: string): number => {
-    if (isReplay && !isFinished && !penaltyMode && replayProgress) {
+    if (!isFinished && !penaltyMode) {
       return replayProgress.ps[playerId]?.rating ?? 6.0;
     }
     return playerMatchStats[playerId]?.rating ?? 6.0;
   };
 
   const getDisplayStat = (playerId: string): PlayerMatchStat | undefined => {
-    if (isReplay && !isFinished && !penaltyMode && replayProgress) return replayProgress.ps[playerId];
+    if (!isFinished && !penaltyMode) return replayProgress.ps[playerId];
     return playerMatchStats[playerId];
   };
 
@@ -1676,21 +1244,10 @@ export default function MatchSimPage() {
                       CONCLUIR →
                     </Button>
                   </motion.div>
-                ) : isReplay ? (
+                ) : (
                   <div className="inline-flex items-center gap-2 text-sm font-bold text-yellow-500/70" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" /> A DISPUTA ESTÁ SENDO DECIDIDA...
                   </div>
-                ) : (
-                  <Button
-                    type="button"
-                    intent="primary"
-                    size="large"
-                    onClick={handleTakePenalty}
-                    disabled={state.mode === 'online' && !isSimulatorHost}
-                    className="px-8"
-                  >
-                    {(penaltiesHome.length === penaltiesAway.length) ? 'COBRAR PÊNALTI' : 'DEFENDER PÊNALTI'}
-                  </Button>
                 )}
               </div>
         </GameModal>
@@ -1715,7 +1272,7 @@ export default function MatchSimPage() {
             type="button"
             intent={isPlaying ? 'danger' : 'success'}
             onClick={() => setIsPlaying(!isPlaying)}
-            disabled={isFinished || penaltyMode || (state.mode === 'online' && !isSimulatorHost)}
+            disabled={isFinished || penaltyMode}
             className="px-5 sm:px-6"
           >
             <span className="inline-flex items-center gap-1.5">

@@ -11,7 +11,7 @@ export interface CrestDef {
   /** Some legacy crest files include an opaque square around the circular badge. */
   clipToCircle?: boolean;
 }
-export interface CrestGroup { league: string; crests: CrestDef[]; }
+interface CrestGroup { league: string; crests: CrestDef[]; }
 
 export const CREST_CATALOG: CrestGroup[] = [
   {
@@ -232,7 +232,7 @@ export const CRESTS_BY_ID: Record<string, CrestDef> = Object.fromEntries(
 
 export const ALL_CRESTS: CrestDef[] = CREST_CATALOG.flatMap(g => g.crests);
 
-export const normalizeClubName = (value: string): string => value
+const normalizeClubName = (value: string): string => value
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
   .toLowerCase()
@@ -307,10 +307,6 @@ export function crestIdForClub(club: string | undefined | null): string | null {
 
 export function getCrest(id: string | undefined | null): CrestDef | null {
   return id ? (CRESTS_BY_ID[id] ?? null) : null;
-}
-
-export function crestUrl(id: string | undefined | null): string | null {
-  return getCrest(id)?.url ?? null;
 }
 
 // Maps the built-in bot team display names to a matching crest id, so bots show a real

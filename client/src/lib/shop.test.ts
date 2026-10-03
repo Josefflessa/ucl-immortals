@@ -16,7 +16,6 @@ describe('Pacotes de jogador por raridade', () => {
     expect(playerPackCost('legendary')).toBe(300);
     expect(playerPackCost('immortal')).toBe(450);
     expect(playerPackCost('unique')).toBe(750);
-    expect(SHOP_COSTS.starPack).toBe(350); // legado preservado para saves antigos, sem card na Loja.
   });
 });
 

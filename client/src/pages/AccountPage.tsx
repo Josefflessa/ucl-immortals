@@ -23,8 +23,6 @@ import {
   PageContainer,
   Panel,
   PanelBody,
-  PanelHeader,
-  PanelTitle,
   SectionHeader,
   Skeleton,
   StatusBanner,

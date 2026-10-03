@@ -5,10 +5,8 @@ import {
   generateDraftOptions,
   getNeededPositions,
   generateBotTeam,
-  generatePlayerPackOptions,
   generatePlayerPackOffer,
   drawPlayerPackCard,
-  generateStarPackOptions,
   generateScoutOptions,
   generateUniquePackOffer,
   drawUniquePackCard,
@@ -48,8 +46,8 @@ import {
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
 import { ALL_CRESTS } from "../client/src/lib/crests.js";
 import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS, lossStreakBonus, nextLossStreak, isRegularPlayerPackRarity } from "../client/src/lib/shop.js";
-import type { PlayerPackRarity, RegularPlayerPackRarity } from "../client/src/lib/shop.js";
-import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, createBet, settleBet, bettingPayoutRulesForLevel, BET_ROUND_CAP } from "../client/src/lib/bets.js";
+import type { RegularPlayerPackRarity } from "../client/src/lib/shop.js";
+import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, createBet, settleBet, bettingPayoutRulesForLevel, BET_ROUND_CAP } from "../client/src/lib/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../client/src/lib/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
@@ -127,7 +125,7 @@ export interface RoomPlayer {
   reinforcementOffer?: RecruitmentOfferMeta | null;
   reinforcementEventCount: number;
   medicalFreeTreatmentsUsed: number;
-  pendingPack: { kind: 'star' | 'scout' | PlayerPackRarity; options: Player[] } | null; // 🛒 pacote JÁ PAGO na abertura (escolha grátis)
+  pendingPack: { kind: 'scout'; options: Player[] } | null; // 🛒 Caça-Talentos JÁ PAGO na abertura (escolha grátis)
   pendingPackReveal: { kind: RegularPlayerPackRarity; card: Player } | null;
   pendingUniquePack: Player | null; // ⭐ pacote Único já pago, aguardando revelação
   uniquePackOfferIds?: string[]; // ⭐ quatro cartas visíveis da rodada (privado por jogador)
@@ -135,7 +133,6 @@ export interface RoomPlayer {
   playerPackOfferIds?: Partial<Record<RegularPlayerPackRarity, string[]>>;
   playerPackOfferRoundKeys?: Partial<Record<RegularPlayerPackRarity, string | null>>;
   bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação da partida-alvo)
-  betProtectionUsedKeys: string[];    // uma devolução por rodada/perna
   pendingMatchPoints?: number;        // pontos da própria partida calculados, aguardando seu replay/revelação
   missions?: MissionState;            // mural privado de missões do jogador
 }
@@ -173,7 +170,6 @@ export interface RoomState {
   botTeams: Team[];
   leagueFixtures: LeagueFixture[];
   leagueStandings: StandingsEntry[];
-  leagueResults: MatchResult[];
   /** Compact public aggregate used by the online season statistics tab. */
   seasonPlayerStats?: Record<string, PlayerSeasonStats>;
   leagueRound: number;
@@ -210,7 +206,6 @@ export interface RoomState {
 interface RoomSyncSession {
   snapshot: unknown | null;
   revision: number;
-  supportsPatches: boolean;
 }
 
 export interface RuntimeMutation {
@@ -233,7 +228,7 @@ export interface GameTimerScheduler {
 }
 
 export interface GameRuntime {
-  /** A Durable Object owns exactly one code; omitted for the Node server. */
+  /** A Durable Object owns exactly one code; omitted for the Vite dev server. */
   roomCode?: string;
   rooms: Map<string, RoomState>;
   marketSeq: number;
@@ -321,14 +316,14 @@ export function runWithGameRuntime<T>(runtime: GameRuntime, callback: () => T): 
 function getRoomSyncSession(socket: RealtimeSocket): RoomSyncSession {
   const existing = roomSyncSessions.get(socket.id);
   if (existing) return existing;
-  const created: RoomSyncSession = { snapshot: null, revision: 0, supportsPatches: false };
+  const created: RoomSyncSession = { snapshot: null, revision: 0 };
   roomSyncSessions.set(socket.id, created);
   return created;
 }
 
 function rememberInitialRoomSnapshot(socket: RealtimeSocket, room: RoomState): { roomState: RoomState; syncRevision: number } {
   const session = getRoomSyncSession(socket);
-  session.snapshot = roomViewForSocket(room, socket.id, session.supportsPatches);
+  session.snapshot = roomViewForSocket(room, socket.id);
   session.revision = 0;
   return { roomState: session.snapshot as RoomState, syncRevision: session.revision };
 }
@@ -359,11 +354,6 @@ interface RoomUpdateOptions {
   excludeSocketId?: string;
 }
 
-/**
- * Send the smallest safe representation of the current room to each target.
- * New clients receive a versioned patch stream; old clients continue to get
- * room_updated snapshots for backwards compatibility during deployment.
- */
 function jsonByteLength(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
@@ -392,7 +382,6 @@ function trimMatchResultForSync(result: MatchResult): MatchResult {
 type SeasonPlayerStatsCache = {
   revision: number;
   leagueFixtures: LeagueFixture[];
-  leagueResults: MatchResult[];
   knockoutBracket: KnockoutBracket | null;
   teamRefs: Array<Team | null>;
   value: Record<string, PlayerSeasonStats>;
@@ -413,14 +402,13 @@ function buildSeasonPlayerStats(room: RoomState): Record<string, PlayerSeasonSta
   if (cached
     && cached.revision === revision
     && cached.leagueFixtures === room.leagueFixtures
-    && cached.leagueResults === room.leagueResults
     && cached.knockoutBracket === room.knockoutBracket
     && cached.teamRefs.length === teamRefs.length
     && cached.teamRefs.every((team, index) => team === teamRefs[index])) {
     return cached.value;
   }
 
-  const results = getAllPlayedMatchResults(authoritativeLeagueResults(room), room.knockoutBracket);
+  const results = getAllPlayedMatchResults(leagueResultsFromFixtures(room), room.knockoutBracket);
   const teams = teamRefs.filter((team): team is Team => !!team);
   const summary: Record<string, PlayerSeasonStats> = {};
 
@@ -434,7 +422,6 @@ function buildSeasonPlayerStats(room: RoomState): Record<string, PlayerSeasonSta
   seasonPlayerStatsCaches.set(room, {
     revision,
     leagueFixtures: room.leagueFixtures,
-    leagueResults: room.leagueResults,
     knockoutBracket: room.knockoutBracket,
     teamRefs,
     value: summary,
@@ -448,23 +435,13 @@ function buildSeasonPlayerStats(room: RoomState): Record<string, PlayerSeasonSta
  * pending packs and bets are private. Build a per-socket view before calculating
  * patches so those fields never cross the wire to another participant.
  */
-function roomViewForSocket(room: RoomState, socketId: string, compactHistory = false): RoomState {
+function roomViewForSocket(room: RoomState, socketId: string): RoomState {
   const viewer = room.players.find(player => player.socketId === socketId);
   const view = cloneRoomJson(room);
   // Old fixtures may be compacted below, but the season leaderboard still
   // needs their goals/assists/ratings. Send only the small cumulative read
   // model instead of the bulky historical event timelines.
   view.seasonPlayerStats = buildSeasonPlayerStats(room);
-  // Every league fixture already owns its authoritative result. Keeping a
-  // second full copy in leagueResults made the room and every sync/diff grow
-  // twice as fast. New clients derive leagueResults from the fixtures; legacy
-  // clients still receive the derived array for compatibility.
-  const fixtureResults = view.leagueFixtures
-    .filter(fixture => fixture.played && !!fixture.result)
-    .map(fixture => fixture.result!);
-  view.leagueResults = compactHistory
-    ? []
-    : fixtureResults.length > 0 ? fixtureResults : view.leagueResults;
   // A bygone round's fixtures never change again — trim their heavy fields so
   // a long competition doesn't keep re-shipping every past match's full
   // event log and player stats on every unrelated room update. The current
@@ -503,7 +480,6 @@ function roomViewForSocket(room: RoomState, socketId: string, compactHistory = f
       playerPackOfferIds: {},
       playerPackOfferRoundKeys: {},
       bets: [],
-      betProtectionUsedKeys: [],
       pendingMatchPoints: undefined,
       missions: undefined,
       // Shop balance is private; the public opponent team still carries the
@@ -545,14 +521,8 @@ function emitRoomUpdate(io: RealtimeServer, room: RoomState, options: RoomUpdate
     if (!target) continue;
 
     const session = getRoomSyncSession(target);
-    const nextSnapshot = roomViewForSocket(room, socketId, session.supportsPatches);
+    const nextSnapshot = roomViewForSocket(room, socketId);
     const nextSnapshotBytes = jsonByteLength(nextSnapshot);
-
-    if (!session.supportsPatches) {
-      target.emit('room_updated', nextSnapshot);
-      session.snapshot = nextSnapshot;
-      continue;
-    }
 
     if (session.snapshot == null) {
       session.snapshot = nextSnapshot;
@@ -816,16 +786,11 @@ export function roomMutationDigest(room: RoomState): string {
   });
 }
 
-/**
- * League fixtures are the canonical owner of a played match result. Older
- * rooms also persisted a duplicate leagueResults array, so keep a fallback
- * while they are being migrated but never create that duplicate again.
- */
-function authoritativeLeagueResults(room: RoomState): MatchResult[] {
-  const fixtureResults = room.leagueFixtures
+/** League fixtures are the only owner of a played league match result. */
+function leagueResultsFromFixtures(room: Pick<RoomState, 'leagueFixtures'>): MatchResult[] {
+  return room.leagueFixtures
     .filter(fixture => fixture.played && !!fixture.result)
     .map(fixture => fixture.result!);
-  return fixtureResults.length > 0 ? fixtureResults : room.leagueResults;
 }
 
 function rememberCommand(room: RoomState, event: string, commandId: string): void {
@@ -1017,9 +982,8 @@ function knockoutLegAlreadyPlayed(room: RoomState): boolean {
   if (!bracket) return false;
   const ties = getActiveKnockoutMatches(bracket) as any[];
   if (ties.length === 0) return false;
-  const isFinal = bracket.currentRound === 'final';
   return ties.every(tie => {
-    const singleLeg = tie.isSingleLeg === true || (isFinal && tie.isSingleLeg === undefined);
+    const singleLeg = tie.isSingleLeg === true;
     if (singleLeg) return Boolean(tie.played && tie.result);
     return bracket.currentLeg === 1 ? Boolean(tie.leg1) : Boolean(tie.leg2);
   });
@@ -1100,7 +1064,7 @@ function currentKnockoutMatchForPlayer(room: RoomState, player: RoomPlayer): { t
   const leg = room.watchedKnockoutLegKey?.round === room.knockoutBracket.currentRound
     ? room.watchedKnockoutLegKey.leg
     : room.knockoutBracket.currentLeg;
-  const singleLeg = tie.isSingleLeg === true || (room.knockoutBracket.currentRound === 'final' && tie.isSingleLeg === undefined);
+  const singleLeg = tie.isSingleLeg === true;
   const result = singleLeg ? tie.result : leg === 2 ? tie.leg2 : tie.leg1;
   return result ? { tie, leg, result } : null;
 }
@@ -1153,7 +1117,7 @@ function revealBotOnlyKnockoutMatches(room: RoomState, leg: number): void {
   const humanTeamIds = new Set(room.players.map(player => player.team?.id).filter((id): id is string => !!id));
   (getActiveKnockoutMatches(room.knockoutBracket) as any[]).forEach(tie => {
     if (humanTeamIds.has(tie.homeTeamId) || humanTeamIds.has(tie.awayTeamId)) return;
-    const singleLeg = tie.isSingleLeg === true || (room.knockoutBracket!.currentRound === 'final' && tie.isSingleLeg === undefined);
+    const singleLeg = tie.isSingleLeg === true;
     const result = singleLeg ? tie.result : leg === 2 ? tie.leg2 : tie.leg1;
     if (result) revealKnockoutMatch(room, tie, leg, result);
   });
@@ -1477,10 +1441,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
           return;
         }
 
-        // These events only negotiate the wire format or request a fresh
-        // authoritative snapshot. They must never pay the price of cloning,
-        // diffing, and persisting the complete room state.
-        const readOnlyEvent = event === 'client_capabilities' || event === 'sync_room';
+        // A resync only requests a fresh authoritative snapshot. It must never
+        // pay the price of cloning, diffing, and persisting the complete room state.
+        const readOnlyEvent = event === 'sync_room';
         if (readOnlyEvent) {
           try {
             handler(payload);
@@ -1536,7 +1499,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
               return;
             }
           }
-          if (previousRoom && event !== 'client_capabilities' && event !== 'sync_room') {
+          if (previousRoom && event !== 'sync_room') {
             bumpRoomRevision(previousRoom);
           }
           handler(payload);
@@ -1592,13 +1555,6 @@ export function registerSocketHandlers(io: RealtimeServer) {
         }
       });
     };
-
-    // Clients that understand the incremental protocol opt in explicitly.
-    // Until then, the legacy full-snapshot event remains available so a
-    // rolling deploy never strands an older browser tab.
-    on("client_capabilities", ({ roomUpdates }: { roomUpdates?: unknown }) => {
-      if (roomUpdates === 1) getRoomSyncSession(socket).supportsPatches = true;
-    });
 
     // A patch gap is never guessed through. The client asks for the current
     // authoritative state and resumes the patch stream from that revision.
@@ -1705,14 +1661,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
             playerPackOfferIds: {},
             playerPackOfferRoundKeys: {},
             bets: [],
-            betProtectionUsedKeys: [],
             missions: createMissionState(newMissionSeed(`${roomCode}:player_0`), 'L1')
           }
         ],
         botTeams: [],
         leagueFixtures: [],
         leagueStandings: [],
-        leagueResults: [],
         leagueRound: 1,
         knockoutBracket: null,
         champion: null,
@@ -1794,41 +1748,13 @@ export function registerSocketHandlers(io: RealtimeServer) {
         return;
       }
 
-      // Check if player name already exists (Reconnect Scenario)
+      // Reconnection is identified only by the persistent clientId above. A name
+      // match here is a different person, so it can never take over that seat.
       const existingPlayer = room.players.find(p => p.name.toLowerCase() === normalizedPlayerName.toLowerCase());
       if (existingPlayer) {
-        if (existingPlayer.kicked) {
-          socket.emit("error_message", "Você foi removido desta sala pelo anfitrião.");
-          return;
-        }
-        // Only treat a name match as a RECONNECT if that player is actually offline. If they're
-        // still connected, this is a different person with a clashing name — reject it, otherwise
-        // they'd hijack the original player's seat (steal their socket/team).
-        if (existingPlayer.connected) {
-          socket.emit("error_message", "Já existe um jogador com esse nome nesta sala. Escolha outro nome.");
-          return;
-        }
-        // A name match is only a legacy fallback for rooms created before the
-        // persistent client identity existed. Once a clientId is stored, a
-        // different browser cannot hijack that seat by typing the same name.
-        if (existingPlayer.clientId && existingPlayer.clientId !== clientId) {
-          socket.emit("error_message", "Esta vaga pertence a outro dispositivo. Reconecte pelo mesmo navegador.");
-          return;
-        }
-        existingPlayer.socketId = socket.id;
-        existingPlayer.accountId = socket.accountId;
-        existingPlayer.connected = true;
-        if (clientId) existingPlayer.clientId = clientId; // adota a identidade p/ reconexões futuras
-        cancelRoomCleanup(code);
-        scheduleRoomWatchdog(io, room);
-        if (existingPlayer.id === room.hostId) cancelHostGrace(code); // só o host que voltou cancela a transferência
-        recomputeHost(room);
-        socket.join(code);
-        emitInitialRoom(socket, "joined_room", { roomCode: code, player: existingPlayer }, room);
-        emitRoomUpdate(io, room, { excludeSocketId: socket.id });
-        // A reconnected player may have been the one we were waiting on for a pick.
-        if (room.phase === 'draft') { autoPickDisconnected(io, room); scheduleDraftTurnTimer(io, room); }
-        console.log(`Player reconnected: ${normalizedPlayerName} to ${code}`);
+        socket.emit("error_message", existingPlayer.kicked
+          ? "Você foi removido desta sala pelo anfitrião."
+          : "Já existe um jogador com esse nome nesta sala. Escolha outro nome.");
         return;
       }
 
@@ -1875,7 +1801,6 @@ export function registerSocketHandlers(io: RealtimeServer) {
         playerPackOfferIds: {},
         playerPackOfferRoundKeys: {},
         bets: [],
-        betProtectionUsedKeys: [],
         missions: createMissionState(newMissionSeed(`${code}:player_${room.players.length}`), 'L1')
       };
 
@@ -2350,7 +2275,6 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room || !isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || !['recruitment', 'analysis', 'betting', 'medical', 'training', 'stadium', 'supporters', 'missions'].includes(projectId)) return;
-      if (projectId === 'medical' && room.competitionFormat.matchSettings?.injuriesEnabled === false) return;
 
       const project = projectId as 'recruitment' | 'analysis' | 'betting' | 'medical' | 'training' | 'stadium' | 'supporters' | 'missions';
       const upgrade = purchaseClubProjectUpgrade(player.team.clubProjects, project, player.points);
@@ -2542,31 +2466,20 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // 🛒 Abrir pacote: COBRA aqui e guarda as opções → impede re-sortear de graça.
     // The server rolls from its own catalog. The client sends only the scout position;
     // client-provided card objects/options are deliberately ignored.
-    on("shop_open_pack", ({ roomCode, kind, position }: { roomCode: string; kind: 'star' | 'scout' | PlayerPackRarity; position?: string }) => {
+    on("shop_open_pack", ({ roomCode, position }: { roomCode: string; position?: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || player.pendingPack || player.pendingUniquePack || player.pendingPackReveal) return;              // um pacote pendente por vez
-      const isRarityPack = isRegularPlayerPackRarity(kind);
-      if (kind !== 'star' && kind !== 'scout' && !isRarityPack) return;
-      if (kind === 'scout' && (!isValidId(position) || !VALID_POSITION_IDS.has(position))) return;
+      if (!isValidId(position) || !VALID_POSITION_IDS.has(position)) return;
       const ownedIds = player.team.players.map(p => p.id);
-      const options = kind === 'star'
-        ? generateStarPackOptions(ownedIds)
-        : kind === 'scout'
-          ? generateScoutOptions(position!, ownedIds)
-          : generatePlayerPackOptions(kind, ownedIds);
+      const options = generateScoutOptions(position, ownedIds);
       if (options.length === 0 || options.some(option => !PLAYERS.some(base => base.id === option.id))) return;
-      const cost = kind === 'star'
-        ? SHOP_COSTS.starPack
-        : kind === 'scout'
-          ? SHOP_COSTS.scout
-          : SHOP_COSTS.playerPack[kind];
+      const cost = SHOP_COSTS.scout;
       if (player.points < cost) return;
-      if (kind === 'star' && options.some(o => o.overall < 88)) return;       // pacote do craque = 88+
       player.points -= cost;
-      player.pendingPack = { kind, options: options.map(option => ({ ...option })) };
+      player.pendingPack = { kind: 'scout', options: options.map(option => ({ ...option })) };
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
     });
 
@@ -2616,7 +2529,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         ...getPlayerSeasonStats(
           target.id,
           player.team.id,
-          getAllPlayedMatchResults(authoritativeLeagueResults(room), room.knockoutBracket),
+          getAllPlayedMatchResults(leagueResultsFromFixtures(room), room.knockoutBracket),
         ),
         missionsCompleted: completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
       };
@@ -2705,12 +2618,6 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const bettingLevel = projectLevel(player.team?.clubProjects, 'betting');
       const betCap = BET_ROUND_CAP + bettingStakeCapBonus(bettingLevel);
       if (!canPlaceStake(player.bets, prefix, matchKey, stake, betCap)) return;
-      // A disciplina da competição é a fonte de verdade para os mercados de
-      // cartões. Revalidar no servidor impede que um cliente alterado crie uma
-      // aposta que a partida não tem como liquidar.
-      if (market === 'builder'
-        && room.competitionFormat.matchSettings?.cardsEnabled === false
-        && builderUsesTotalCards(selections)) return;
       // The canonical builder parser also calculates and locks its multiplier.
       // The client never gets to choose odds or bypass the minimum/unique-market rules.
       const bet = createBet({
@@ -2747,7 +2654,6 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("heal_injury", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (room.competitionFormat.matchSettings?.injuriesEnabled === false) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team || !isValidId(playerId)) return;
       if (!player.team.players.some(teamPlayer => teamPlayer.id === playerId)) return;
@@ -2914,8 +2820,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         hostId: host.id, hostName: host.name,
         guestId: guest.id, guestName: guest.name,
         status: 'invite',
-        host: { playerIds: [], playerId: null, creditsDelta: 0, ready: false },
-        guest: { playerIds: [], playerId: null, creditsDelta: 0, ready: false },
+        host: { playerIds: [], creditsDelta: 0, ready: false },
+        guest: { playerIds: [], creditsDelta: 0, ready: false },
       });
       emitTradeStateUpdate(io, room);
     });
@@ -2953,8 +2859,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
     // 🔄 Troca online — ESCOLHER (define/atualiza sua oferta: jogador do PRÓPRIO banco + créditos).
     // Muda a escolha de qualquer lado sempre reseta o "Pronto" dos DOIS, já que os termos mudaram.
-    on("trade_select", ({ roomCode, tradeId, playerId, playerIds, creditsDelta }:
-      { roomCode: string; tradeId: string; playerId?: string | null; playerIds?: string[]; creditsDelta: number }) => {
+    on("trade_select", ({ roomCode, tradeId, playerIds, creditsDelta }:
+      { roomCode: string; tradeId: string; playerIds?: string[]; creditsDelta: number }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (!Array.isArray(room.trades)) room.trades = [];
@@ -2963,13 +2869,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!me || !session || session.status !== 'negotiating') return;
       const mine = session.hostId === me.id ? session.host : session.guestId === me.id ? session.guest : null;
       if (!mine || !me.team) return;
-      const requestedIds = Array.isArray(playerIds)
-        ? playerIds
-        : playerId ? [playerId] : [];
+      const requestedIds = Array.isArray(playerIds) ? playerIds : [];
       const selectedIds = Array.from(new Set(requestedIds.filter(id => typeof id === 'string' && id.length > 0)));
       if (selectedIds.some(id => me.team!.players.findIndex(p => p.id === id) < 11)) return; // só reservas (índice ≥ 11)
       mine.playerIds = selectedIds;
-      mine.playerId = selectedIds[0] ?? null;
       const safeCreditsDelta = Number.isSafeInteger(creditsDelta) && creditsDelta >= 0 ? creditsDelta : 0;
       mine.creditsDelta = safeCreditsDelta;
       session.host.ready = false;
@@ -2988,10 +2891,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!me || !session || session.status !== 'negotiating') return;
       const mine = session.hostId === me.id ? session.host : session.guestId === me.id ? session.guest : null;
       if (!mine) return;
-      const minePlayerIds = Array.isArray(mine.playerIds)
-        ? mine.playerIds
-        : mine.playerId ? [mine.playerId] : [];
-      if (minePlayerIds.length === 0) {
+      if (mine.playerIds.length === 0) {
         socket.emit('action_error', { event: 'trade_ready', message: 'Escolha pelo menos um jogador do seu banco antes de marcar Pronto.' });
         return;
       }
@@ -3008,12 +2908,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         socket.emit('action_error', { event: 'trade_ready', message: 'Essa negociação não é mais válida.' });
         return;
       }
-      const hostPlayerIds = Array.isArray(session.host.playerIds)
-        ? session.host.playerIds
-        : session.host.playerId ? [session.host.playerId] : [];
-      const guestPlayerIds = Array.isArray(session.guest.playerIds)
-        ? session.guest.playerIds
-        : session.guest.playerId ? [session.guest.playerId] : [];
+      const hostPlayerIds = session.host.playerIds;
+      const guestPlayerIds = session.guest.playerIds;
       if (hostPlayerIds.length === 0 || guestPlayerIds.length === 0 || hostPlayerIds.length !== guestPlayerIds.length) {
         session.host.ready = false;
         session.guest.ready = false;
@@ -3314,7 +3210,6 @@ export function registerSocketHandlers(io: RealtimeServer) {
             false,
             true,
             false,
-            room.competitionFormat.matchSettings,
           );
           const authoritativeResult = stampMatchStartingLineups(result, resolvedHome, resolvedAway);
           const matchKey = buildLeagueMatchKey(f.round, f.homeTeamId, f.awayTeamId);
@@ -3327,10 +3222,6 @@ export function registerSocketHandlers(io: RealtimeServer) {
       });
 
       if (simulatedAny) {
-        // The result is already stored on its fixture. Clearing this legacy
-        // duplicate keeps long competitions from carrying two full copies of
-        // every event timeline and player-stat map.
-        room.leagueResults = [];
         // 🟨🟥🩹 Aplica a disciplina da rodada (todos os times que jogaram).
         const roundFx = room.leagueFixtures.filter(f => f.round === room.leagueRound && f.result);
         const roundTeamIds = Array.from(new Set(roundFx.flatMap(f => [f.homeTeamId, f.awayTeamId])));
@@ -3514,8 +3405,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
       }
 
       // Rewards are released per player as soon as their own replay is
-      // revealed. Keep this fallback for reconnects and older clients that may
-      // have reached the advance gate before their final room patch arrived.
+      // revealed. Keep this fallback for players who reconnected and reached the
+      // advance gate before their final room patch arrived.
       releaseAllLeagueMatchRewards(room);
 
       const stageRounds = room.competitionFormat.id === 'groups_knockout' ? room.competitionFormat.groupRounds : room.competitionFormat.leagueRounds;
@@ -3623,9 +3514,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const legPlayed = room.knockoutBracket.currentLeg;
 
       // Plays the current leg (ida or volta) of every tie in the active round.
-      // Knockout results live in the bracket only — they are NOT pushed into
-      // leagueResults (season stats read the legs directly from the bracket).
-      playActiveKnockoutLeg(room.knockoutBracket, resolve as any, room.competitionFormat.matchSettings);
+      // Knockout results live in the bracket only (season stats read the legs
+      // directly from the bracket).
+      playActiveKnockoutLeg(room.knockoutBracket, resolve as any);
       // Reset watch confirmations for this new leg
       room.watchedKnockoutLegPlayers = [];
       room.watchedKnockoutLegKey = { round: room.knockoutBracket.currentRound, leg: legPlayed };
@@ -3635,7 +3526,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       {
         const active = getActiveKnockoutMatches(room.knockoutBracket) as any[];
         const legResults = active.map((tie: any) => {
-          const singleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
+          const singleLeg = tie.isSingleLeg === true;
           const result = singleLeg ? tie.result : legPlayed === 2 ? tie.leg2 : tie.leg1;
           if (!result) return null;
           const stamped = stampMatchStartingLineups(
@@ -3894,12 +3785,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
           : room.knockoutBracket.currentLeg === 2 && tie?.leg1 && !tie.leg2 ? 1 : room.knockoutBracket.currentLeg;
         const requestedLeg = leg === 1 || leg === 2 ? leg : expectedLeg;
         if (requestedLeg !== expectedLeg) return;
-        const isPlayedLeg = tie && knockoutLegWasPlayed(
-          tie,
-          room.knockoutBracket.currentRound,
-          room.knockoutBracket.currentLeg,
-          requestedLeg,
-        );
+        const isPlayedLeg = tie && knockoutLegWasPlayed(tie, requestedLeg as 1 | 2);
         if (!participantIds.includes(player.id) || !playerIsInTie || !isPlayedLeg) return;
         if (!room.watchedKnockoutLegPlayers.includes(player.id)) {
           room.watchedKnockoutLegPlayers.push(player.id);
@@ -3956,14 +3842,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
         p.playerPackOfferIds = {};
         p.playerPackOfferRoundKeys = {};
         p.bets = [];
-        p.betProtectionUsedKeys = [];
         p.pendingMatchPoints = undefined;
         p.missions = createMissionState(newMissionSeed(`${room.code}:${p.id}`), 'L1');
       });
       room.botTeams = [];
       room.leagueFixtures = [];
       room.leagueStandings = [];
-      room.leagueResults = [];
       room.leagueRound = 1;
       room.knockoutBracket = null;
       room.champion = null;

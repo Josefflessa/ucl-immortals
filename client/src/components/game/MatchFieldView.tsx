@@ -151,7 +151,6 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
       <FormationField
         formation={formation}
         players={starters}
-        showPlayerCards
         ratings={ratings}
         goalsByPlayer={goalsByPlayer}
         assistsByPlayer={assistsByPlayer}

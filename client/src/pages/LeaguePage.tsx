@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Goal, Footprints, Star, Hand, Swords, UserPlus, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
-import { computeSeasonTopScorers, getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, statKey, PlayerSeasonStats } from '../lib/gameEngine';
+import { getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, statKey } from '../lib/gameEngine';
 import ClubHubTab from '../components/game/ClubHubTab';
 import MarketTab from '../components/game/MarketTab';
 import ShopTab from '../components/game/ShopTab';
@@ -425,8 +425,7 @@ export default function LeaguePage() {
   const koHumans = state.mode === 'online' ? state.onlinePlayers.filter(p => koParticipantIds.includes(p.id)) : [];
   const koAllWatched = koHumans.length === 0 || koHumans.every(p => state.onlineWatchedPlayers.includes(p.id));
   const koHasPlayedResult = koMatches.some((match: any) => {
-    const singleLeg = match.isSingleLeg === true
-      || (state.knockoutBracket?.currentRound === 'final' && match.isSingleLeg === undefined);
+    const singleLeg = match.isSingleLeg === true;
     if (singleLeg) return !!match.played && !!match.result;
     // After the first leg the bracket points to leg 2, but the first-leg
     // result is precisely what remains hidden until everyone watches it.
@@ -581,8 +580,8 @@ export default function LeaguePage() {
     if (!myTie) return;
     const watched = state.watchedKnockoutMatches;
 
-    // Single-leg tie (including legacy saved finals without an explicit setting).
-    const isSingleLegTie = myTie.isSingleLeg === true || (round === 'final' && myTie.isSingleLeg !== false);
+    // Single-leg tie.
+    const isSingleLegTie = myTie.isSingleLeg === true;
     if (isSingleLegTie) {
       if (myTie.played && myTie.result && !watched.includes(myTie.id)) {
         const home = getTeamById(myTie.homeTeamId);
@@ -869,7 +868,6 @@ export default function LeaguePage() {
                   <div className={isGroupStage ? 'space-y-3 p-3' : 'space-y-3'}>
                     {groupFixtures.map((fixture, idx) => {
               const isMyFixture = fixture.homeTeamId === localTeamId || fixture.awayTeamId === localTeamId;
-              const isPlayer = fixture.homeTeamId === playerTeam?.id || fixture.awayTeamId === playerTeam?.id;
 
               const isHomeHuman = state.mode === 'online'
                 ? state.onlinePlayers.some(p => p.id === fixture.homeTeamId)
@@ -1577,7 +1575,7 @@ export default function LeaguePage() {
                 </div>
               ) : (
                 <>
-                  {/* Seletor de período: rodadas da liga (R1-8) + fases do mata-mata */}
+                  {/* Seletor de período: rodadas da liga + fases do mata-mata */}
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                     {historyPeriods.map(p => {
                       const isActive = p.key === historyKey;
@@ -1872,7 +1870,6 @@ export default function LeaguePage() {
             <BetSlipModal
               homeName={betSlip.homeName} awayName={betSlip.awayName} existing={myBet}
               remainingCap={capLeft} points={state.points}
-              cardsEnabled={state.competitionFormat?.matchSettings?.cardsEnabled !== false}
               payoutRules={bettingPayoutRulesForLevel(bettingLevel)}
               onConfirm={(submission: BetSlipSubmission) => {
                 if (online) shopPlaceBetOnline(betSlip.matchKey, submission.homeGoals, submission.awayGoals, submission.stake, betSlip.homeTeamId, betSlip.awayTeamId, submission.market, submission.selections);

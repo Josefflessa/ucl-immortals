@@ -16,8 +16,6 @@ describe('estádios Prime', () => {
     expect(et.name).toBe('Etihad');
     expect(et.homeAttrBonus).toBe(11);
     expect(et.prime).toBe(true);
-    expect(et.themedAttrs).toBeUndefined();
-    expect(et.themedClub).toBeUndefined();
   });
   it('tem os 7 técnicos e uma foto Prime para o catálogo visual', () => {
     for (const id of ['guardiola', 'klopp', 'ancelotti', 'mourinho', 'zidane', 'ferguson', 'luis_enrique']) {
@@ -25,15 +23,13 @@ describe('estádios Prime', () => {
       expect(s.homeAttrBonus).toBe(11);
       expect(s.prime).toBe(true);
       expect(s.coachPhotoUrl).toMatch(/^\/coaches\/prime\//);
-      expect(s.themedClub || s.themedNation).toBeFalsy();
     }
   });
   it('nível 5 usa a foto do estádio Prime sem ativar os buffs temáticos do técnico', () => {
-    const displayed = stadiumDisplayFor('guardiola', false, 5);
+    const displayed = stadiumDisplayFor('guardiola', 5);
     expect(displayed.name).toBe('Etihad');
     expect(displayed.photoUrl).toBe('/stadiums/etihad.webp');
     expect(displayed.homeAttrBonus).toBe(11);
     expect(displayed.prime).toBe(true);
-    expect(displayed.themedAttrs).toBeUndefined();
   });
 });

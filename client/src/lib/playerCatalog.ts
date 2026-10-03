@@ -1,14 +1,14 @@
 import { PLAYERS, UNIQUE_CARDS, type Player } from './gameData';
 import { clubIdForName } from './crests';
-import { CLUB_CATALOG, CLUBS_BY_ID, type ClubCatalogEntry } from './clubCatalog';
+import { CLUBS_BY_ID, type ClubCatalogEntry } from './clubCatalog';
 
 export type CatalogPlayer = Player & { isUnique: boolean };
 
-export interface CatalogClub extends ClubCatalogEntry {
+interface CatalogClub extends ClubCatalogEntry {
   players: CatalogPlayer[];
 }
 
-export interface CatalogLeague {
+interface CatalogLeague {
   id: string;
   name: string;
   countryId: string;
@@ -17,14 +17,14 @@ export interface CatalogLeague {
   playerCount: number;
 }
 
-export interface CatalogCountry {
+interface CatalogCountry {
   id: string;
   name: string;
   leagues: CatalogLeague[];
   playerCount: number;
 }
 
-export interface PlayerCatalog {
+interface PlayerCatalog {
   players: CatalogPlayer[];
   countries: CatalogCountry[];
   clubs: CatalogClub[];
@@ -144,8 +144,3 @@ export function getPlayerCatalogPath(player: Pick<Player, 'club' | 'clubId'>): {
   if (!country) throw new Error(`País "${club.countryId}" não possui a liga "${league.id}" no catálogo.`);
   return { country, league, club };
 }
-
-// Mantém uma verificação explícita contra clubes do catálogo de escudos que
-// ainda não receberam jogadores. Eles continuam válidos para a tela de escudos,
-// mas não aparecem indevidamente como categorias vazias no catálogo de cartas.
-export const UNUSED_CATALOG_CLUBS = CLUB_CATALOG.filter(club => !PLAYER_CATALOG.clubs.some(playerClub => playerClub.id === club.id));

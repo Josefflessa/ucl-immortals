@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { buildPlayerPhotoSources } from './PlayerCard';
 
-export interface PlayerPortraitProps {
+interface PlayerPortraitProps {
   playerId: string;
   alt?: string;
   className?: string;
@@ -19,7 +19,7 @@ export interface PlayerPortraitProps {
  * Local portraits are always attempted first; a failed asset walks the same
  * local/SoFIFA chain used by the full card instead of leaving a broken image.
  */
-export function PlayerPortrait({
+function PlayerPortrait({
   playerId,
   alt = '',
   className,

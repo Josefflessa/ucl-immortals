@@ -4,13 +4,13 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import {
-  Player, Coach, Formation, COACHES, FORMATIONS, PLAYERS,
+  Player, FORMATIONS, PLAYERS,
   DIFFICULTY_LEVELS,
 } from '../lib/gameData';
 import {
   Team, PlayerCard, MatchResult, StandingsEntry, DraftState, ImmortalReport,
   calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier,
-  generateBotTeam, simulateLeague, simulateMatch, generateImmortalReport,
+  generateBotTeam, simulateMatch, generateImmortalReport,
   LeagueFixture, generateRandomLeagueFixtures, computeStandings, rebuildTeamChemistry,
   generateRandomGroupFixtures, computeGroupQualifiedStandings,
   getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket,
@@ -21,14 +21,14 @@ import {
   draftSlotIndex,
   advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant,
   bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
-  getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, SPECIALIZATION_UNLOCK_COST, applyDefeatGrowth, applyDefeatGrowthForResults,
+  getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, SPECIALIZATION_UNLOCK_COST, applyDefeatGrowth,
   applyMercenarioProgress,
 } from '../lib/gameEngine';
 import type { MatchPlan, VariantFlag, PlayerSeasonStats } from '../lib/gameEngine';
 import type { AttrKey } from '../lib/traits';
 import type { PlayerSpecialization } from '../lib/gameData';
-import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, lossStreakBonus, nextLossStreak, type PlayerPackRarity, type RegularPlayerPackRarity } from '../lib/shop';
-import { Bet, BetBuilderSelection, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, builderUsesTotalCards, canPlaceStake, betCapPrefix, createBet, revealEligibleKoBets, settleBet, BET_ROUND_CAP, bettingPayoutRulesForLevel } from '../lib/bets';
+import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, lossStreakBonus, nextLossStreak, type RegularPlayerPackRarity } from '../lib/shop';
+import { Bet, BetBuilderSelection, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, betCapPrefix, createBet, revealEligibleKoBets, settleBet, BET_ROUND_CAP, bettingPayoutRulesForLevel } from '../lib/bets';
 import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, healInjury, applyEmergencyReplacement } from '../lib/discipline';
 import {
   createInitialClubProjects,
@@ -97,7 +97,7 @@ export type AccountSection = 'profile' | 'history' | 'records' | 'friends';
 // ============================================================
 export interface RoomPlayer {
   socketId: string;
-  connected?: boolean; // sincronizado do servidor; ausente em estados locais antigos
+  connected: boolean; // sincronizado do servidor
   kicked?: boolean; // removido pelo anfitrião; não pode reconectar nesta sala
   id: string; // e.g. "player_0"
   name: string;
@@ -116,7 +116,6 @@ export interface RoomPlayer {
   reinforcementOffer?: RecruitmentOfferMeta | null;
   reinforcementEventCount?: number;
   medicalFreeTreatmentsUsed?: number;
-  betProtectionUsedKeys?: string[];
   lastMatchPoints?: MatchPoints | null;
   uniquePackOfferIds?: string[];
   uniquePackOfferRoundKey?: string | null;
@@ -143,7 +142,6 @@ export interface GameState {
   leagueFixtures: LeagueFixture[];
   knockoutBracket: KnockoutBracket | null;
   activeKnockoutMatch: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } } | null;
-  currentMatch: MatchResult | null;
   currentMatchTeams: [Team, Team] | null;
   // Online: authoritative result (from server) being watched as a replay
   currentMatchResult: MatchResult | null;
@@ -169,10 +167,9 @@ export interface GameState {
   // Online replays finish by remounting the league hub. Keep the reward marked
   // as pending until the player explicitly closes its credits modal.
   matchCreditsModalPending: boolean;
-  knockoutPointsPopup: MatchPoints | null; // legacy transient KO value kept for state compatibility
   // 🛒 Pacote da loja JÁ PAGO na abertura: fica guardado até você
   // escolher 1 → impede re-sortear de graça abrindo/fechando o modal. A escolha em si é grátis.
-  pendingPack: { kind: 'star' | 'scout' | PlayerPackRarity; options: Player[] } | null;
+  pendingPack: { kind: 'scout'; options: Player[] } | null;
   pendingPackReveal: { kind: RegularPlayerPackRarity; card: Player } | null;
   // ⭐ Pacote Único já pago: carta sorteada, aguardando a animação/revelação.
   pendingUniquePack: Player | null;
@@ -184,15 +181,11 @@ export interface GameState {
   playerPackOfferRoundKeys: Partial<Record<RegularPlayerPackRarity, string | null>>;
   // 🎯 Palpites (apostas de pontos). Escrow já debitado ao apostar; crédito só na revelação.
   bets: Bet[];
-  // One losing bet can receive the Central de Palpites refund per round/leg.
-  betProtectionUsedKeys: string[];
   // 🟨🟥🩹 Disciplina & lesões — disponibilidade por jogador (todos os times), carrega entre jogos.
   discipline: DisciplineMap;
   // 🏥 Usos gratuitos de Fisioterapia consumidos nesta competição.
   medicalFreeTreatmentsUsed: number;
   missions: MissionState;
-  // One-shot post-match presentation event. The source of truth lives inside
-  // missions so it can be synchronized privately for the online player.
 
   // Online Multiplayer fields
   onlineSetupIntent: 'create' | null;
@@ -205,7 +198,6 @@ export interface GameState {
   draftOrder: string[];
   draftTurnIndex: number;
   draftHistory: any[];
-  alreadyDraftedIds: string[];
   // Online sync: which league round / knockout matches the local player has
   // already watched, so we only auto-open each replay once.
   lastWatchedRound: number;
@@ -270,7 +262,6 @@ export type GameAction =
   | { type: 'START_DRAFT' }
   | { type: 'DRAFT_PLAYER'; player: Player }
   | { type: 'VETO_DRAFT' }
-  | { type: 'FINISH_DRAFT' }
   | { type: 'SET_CAPTAIN'; playerId: string }
   | { type: 'SET_PENALTY_TAKER'; playerId: string }
   | { type: 'SET_FREE_KICK_TAKER'; playerId: string }
@@ -297,7 +288,7 @@ export type GameAction =
   | { type: 'ENSURE_PLAYER_PACK_OFFERS' } // cria as ofertas de raridade visíveis da rodada
   | { type: 'SHOP_OPEN_PLAYER_PACK'; rarity: RegularPlayerPackRarity }
   | { type: 'SHOP_CLAIM_PLAYER_PACK' }
-  | { type: 'SHOP_OPEN_PACK'; kind: 'star' | 'scout' | PlayerPackRarity; options: Player[] } // COBRA ao abrir; guarda as opções
+  | { type: 'SHOP_OPEN_PACK'; options: Player[] } // Caça-Talentos: COBRA ao abrir; guarda as opções
   | { type: 'SHOP_PICK_PACK'; player: Player } // escolhe 1 do pacote já pago (grátis) → banco
   | { type: 'SHOP_TURBINAR'; playerId: string; variant: ShopVariant }
   | { type: 'SHOP_REMOVE_VARIANT'; playerId: string; variantKey?: VariantFlag }
@@ -313,20 +304,15 @@ export type GameAction =
   | { type: 'DISMISS_MISSION_RESOLUTION' }
   | { type: 'SELL_PLAYER'; playerId: string }
   | { type: 'START_LEAGUE'; missionSeed: string }
-  | { type: 'SIMULATE_LEAGUE' }
   | { type: 'START_KNOCKOUT' }
   | { type: 'PLAY_LEAGUE_MATCH'; homeTeamId: string; awayTeamId: string }
   | { type: 'FINISH_LEAGUE_MATCH'; result: MatchResult }
-  | { type: 'SIMULATE_BOT_MATCHES' }
   | { type: 'ADVANCE_LEAGUE_ROUND' }
   | { type: 'PLAY_KNOCKOUT_LEG' }
   | { type: 'ADVANCE_KNOCKOUT' }
   | { type: 'FINISH_KNOCKOUT_MATCH'; result: MatchResult }
-  | { type: 'DISMISS_KO_POINTS' }
   | { type: 'DISMISS_MATCH_CREDITS' }
-  | { type: 'SET_CURRENT_MATCH'; result: MatchResult; teams: [Team, Team] }
   | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } }; spectator?: boolean }
-  | { type: 'CLEAR_CURRENT_MATCH' }
   | { type: 'FINISH_ELIMINATED_CAMPAIGN' }
   | { type: 'FINISH_GAME'; champion: string }
   | { type: 'RESET_GAME' }
@@ -356,7 +342,6 @@ const initialState: GameState = {
   leagueFixtures: [],
   knockoutBracket: null,
   activeKnockoutMatch: null,
-  currentMatch: null,
   currentMatchTeams: null,
   currentMatchResult: null,
   report: null,
@@ -376,7 +361,6 @@ const initialState: GameState = {
   points: 0,
   lastMatchPoints: null,
   matchCreditsModalPending: false,
-  knockoutPointsPopup: null,
   pendingPack: null,
   pendingPackReveal: null,
   pendingUniquePack: null,
@@ -385,7 +369,6 @@ const initialState: GameState = {
   playerPackOfferIds: {},
   playerPackOfferRoundKeys: {},
   bets: [],
-  betProtectionUsedKeys: [],
   discipline: {},
   medicalFreeTreatmentsUsed: 0,
   missions: createMissionState('solo', 'L1'),
@@ -401,7 +384,6 @@ const initialState: GameState = {
   draftOrder: [],
   draftTurnIndex: 0,
   draftHistory: [],
-  alreadyDraftedIds: [],
   lastWatchedRound: 0,
   watchedKnockoutMatches: [],
   spectating: false,
@@ -436,10 +418,8 @@ function localMissionSeed(state: Pick<GameState, 'mode' | 'playerName' | 'roomCo
 }
 
 /**
- * The server keeps league results on their fixtures so the live room does not
- * carry two copies of every replay timeline. Legacy snapshots may still send
- * the old array, so prefer it when present and otherwise derive it lazily.
- * Reuse the previous derived array when the fixture reference did not change
+ * The server keeps league results only on their fixtures, so derive the flat
+ * list lazily. Reuse the previous derived array when the fixture reference did not change
  * (for example, a ready/shop patch), avoiding another full-history scan.
  */
 function onlineLeagueResults(
@@ -447,8 +427,6 @@ function onlineLeagueResults(
   previousFixtures: LeagueFixture[],
   previousResults: MatchResult[],
 ): MatchResult[] {
-  const supplied = Array.isArray(roomState.leagueResults) ? roomState.leagueResults : [];
-  if (supplied.length > 0) return supplied;
   const fixtures = Array.isArray(roomState.leagueFixtures) ? roomState.leagueFixtures : [];
   if (fixtures === previousFixtures) return previousResults;
   return fixtures
@@ -530,7 +508,6 @@ function finishEliminatedSoloCampaign(state: GameState): GameState {
           const team = teamById.get(teamId);
           return team ? resolveAvailableLineup(team, state.discipline).team : undefined;
         },
-        format.matchSettings,
       );
       champion = advanceKnockoutBracket(bracket);
     }
@@ -552,7 +529,6 @@ function finishEliminatedSoloCampaign(state: GameState): GameState {
     report,
     phase: 'report',
     activeKnockoutMatch: null,
-    currentMatch: null,
     currentMatchTeams: null,
     currentMatchResult: null,
     spectating: false,
@@ -682,10 +658,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           vetoesLeft: state.draftState.vetoesLeft - 1,
         },
       };
-    }
-
-    case 'FINISH_DRAFT': {
-      return { ...state, phase: 'squad_review' };
     }
 
     case 'SWAP_PLAYERS': {
@@ -841,7 +813,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // competition has started. Keep this guarded because an online client
       // may replay an optimistic click after a reconnect.
       if (!state.playerTeam || (state.phase !== 'league' && state.phase !== 'knockout')) return state;
-      if (action.projectId === 'medical' && state.competitionFormat?.matchSettings?.injuriesEnabled === false) return state;
       const previousProjectLevel = projectLevel(state.playerTeam.clubProjects, action.projectId);
       const upgrade = purchaseClubProjectUpgrade(state.playerTeam.clubProjects, action.projectId, state.points);
       if (!upgrade) return state;
@@ -858,7 +829,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    // ── SHOP (solo league) ──────────────────────────────────────────────
+    // ── SHOP (solo; no online o servidor aplica e devolve o estado) ─────
     case 'SHOP_CHANGE_COACH': {
       if (!state.playerTeam) return state;
       const cost = SHOP_COSTS.changeCoach;
@@ -1048,13 +1019,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SHOP_OPEN_PACK': {
       // COBRA ao abrir o pacote (impede re-sortear de graça). Guarda as opções até a escolha.
       if (!state.playerTeam || state.pendingPack || state.pendingUniquePack || state.pendingPackReveal) return state; // um pacote pendente por vez
-      const cost = action.kind === 'star'
-        ? SHOP_COSTS.starPack
-        : action.kind === 'scout'
-          ? SHOP_COSTS.scout
-          : SHOP_COSTS.playerPack[action.kind];
+      const cost = SHOP_COSTS.scout;
       if (state.points < cost) return state;
-      return { ...state, points: state.points - cost, pendingPack: { kind: action.kind, options: action.options } };
+      return { ...state, points: state.points - cost, pendingPack: { kind: 'scout', options: action.options } };
     }
 
     case 'SHOP_PICK_PACK': {
@@ -1164,12 +1131,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'PLACE_BET': {
       // 🎯 Aposta (escrow): debita o stake AGORA. Editar o mesmo jogo ajusta pela diferença.
       if (!state.playerTeam || action.stake <= 0) return state;
-      // O mercado de cartões só existe quando a disciplina foi habilitada no
-      // formato desta competição. A mesma regra é aplicada pelo servidor no
-      // online; aqui evitamos uma UI/estado local divergente no solo.
-      if (action.market === 'builder'
-        && state.competitionFormat?.matchSettings?.cardsEnabled === false
-        && builderUsesTotalCards(action.selections)) return state;
       // Teto por rodada de liga (Lr:) ou POR PARTIDA no mata-mata (o próprio matchKey) —
       // igual o servidor. Antes usava 'K' genérico, que somava TODOS os jogos do KO num
       // teto só (aposta na 2ª partida sumia calada depois de 200 no total).
@@ -1209,7 +1170,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // 🏥 O nível 1 concede um uso gratuito por competição; usos seguintes
       // continuam disponíveis na loja pelo preço normal.
       if (!state.playerTeam) return state;
-      if (state.competitionFormat?.matchSettings?.injuriesEnabled === false) return state;
       const key = `${state.playerTeam.id}:${action.playerId}`;
       const availability = state.discipline[key];
       if (!availability || availability.injured <= 0) return state;
@@ -1407,7 +1367,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           reinforcementEventCount: 0,
           missions,
           discipline: resetYellowsForKnockout(state.discipline),
-          betProtectionUsedKeys: [],
         };
       }
 
@@ -1425,54 +1384,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         reinforcementEventCount: 0,
         missions,
         medicalFreeTreatmentsUsed: 0,
-        betProtectionUsedKeys: [],
-      };
-    }
-
-    case 'SIMULATE_LEAGUE': {
-      if (!state.playerTeam) return state;
-      // Deprecated, but keep as fallback to instantly simulate remaining rounds
-      const allTeams = [{ ...state.playerTeam, credits: state.points }, ...state.botTeams];
-      const newlySimulatedResults: Array<{ fixture: LeagueFixture; result: MatchResult }> = [];
-      const updatedFixtures = state.leagueFixtures.map(f => {
-        if (f.played) return f;
-        const home = allTeams.find(t => t.id === f.homeTeamId)!;
-        const away = allTeams.find(t => t.id === f.awayTeamId)!;
-        const rHome = resolveAvailableLineup(home, state.discipline).team;
-        const rAway = resolveAvailableLineup(away, state.discipline).team;
-        const result = stampMatchStartingLineups(
-          simulateMatch(rHome, rAway, false, false, true, false, state.competitionFormat?.matchSettings),
-          rHome,
-          rAway,
-        );
-        const playedFixture = { ...f, played: true, result };
-        newlySimulatedResults.push({ fixture: playedFixture, result });
-        return playedFixture;
-      });
-      const standings = computeStandings(allTeams, updatedFixtures);
-      const results = updatedFixtures.map(f => f.result!).filter(Boolean);
-      let playerTeam = applyDefeatGrowthForResults(state.playerTeam, newlySimulatedResults.map(item => item.result));
-      // Even the legacy instant-simulation path must use the captured XI and a
-      // stable match key, otherwise a retry could silently skip or duplicate evolution.
-      for (const item of newlySimulatedResults) {
-        if (item.fixture.homeTeamId !== playerTeam.id && item.fixture.awayTeamId !== playerTeam.id) continue;
-        playerTeam = bumpStarterAppearances(
-          playerTeam,
-          startingIdsForResult(item.result, playerTeam.id, playerTeam),
-          buildLeagueMatchKey(item.fixture.round, item.fixture.homeTeamId, item.fixture.awayTeamId),
-        );
-      }
-      const botTeams = state.botTeams.map(team => applyDefeatGrowthForResults(team, newlySimulatedResults.map(item => item.result)));
-      return {
-        ...state,
-        playerTeam,
-        botTeams,
-        leagueFixtures: updatedFixtures,
-        leagueStandings: standings,
-        leagueResults: results,
-        leagueRound: state.competitionFormat.id === 'groups_knockout'
-          ? state.competitionFormat.groupRounds
-          : state.competitionFormat.leagueRounds,
       };
     }
 
@@ -1515,7 +1426,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const currentMatchResult = state.mode === 'online'
         ? state.currentMatchResult
         : stampMatchStartingLineups(
-            simulateMatch(rHome, rAway, false, false, true, false, state.competitionFormat?.matchSettings),
+            simulateMatch(rHome, rAway, false, false, true, false),
             rHome,
             rAway,
           );
@@ -1523,7 +1434,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         phase: 'match_sim',
-        currentMatch: null,
         currentMatchTeams: [rHome, rAway],
         currentMatchResult,
       };
@@ -1537,7 +1447,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return {
           ...state,
           phase: 'league',
-          currentMatch: null,
           currentMatchTeams: null,
           currentMatchResult: null,
         };
@@ -1574,7 +1483,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           const home = resolveAvailableLineup(allTeams.find(t => t.id === f.homeTeamId)!, state.discipline).team;
           const away = resolveAvailableLineup(allTeams.find(t => t.id === f.awayTeamId)!, state.discipline).team;
           const result = stampMatchStartingLineups(
-            simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings),
+            simulateMatch(home, away, false, false, true, false),
             home,
             away,
           );
@@ -1712,7 +1621,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         leagueFixtures: allFixtures,
         leagueStandings: standings,
         leagueResults: results,
-        currentMatch: null,
         currentMatchTeams: null,
         currentMatchResult: null,
         reinforcementOptions: recruitmentOffer?.options ?? state.reinforcementOptions,
@@ -1726,41 +1634,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         // ⭐ +1 jogo pros 11 titulares do jogador (progresso pra Carta Evoluída).
         playerTeam: { ...applyMercenarioProgress(recoveredPlayerTeam, completedMissionCount(missionUpdate.state)), credits: nextPoints, lossStreak: updatedLossStreak },
         botTeams: updatedBotTeams,
-      };
-    }
-
-    case 'SIMULATE_BOT_MATCHES': {
-      if (!state.playerTeam) return state;
-      const allTeams = [{ ...state.playerTeam, credits: state.points }, ...state.botTeams];
-      const newlySimulatedResults: MatchResult[] = [];
-      const allFixtures = state.leagueFixtures.map(f => {
-        if (f.round === state.leagueRound && !f.played) {
-          const home = allTeams.find(t => t.id === f.homeTeamId)!;
-          const away = allTeams.find(t => t.id === f.awayTeamId)!;
-          const result = simulateMatch(home, away, false, false, true, false, state.competitionFormat?.matchSettings);
-          newlySimulatedResults.push(result);
-          return { ...f, played: true, result };
-        }
-        return f;
-      });
-      const standings = computeStandings(allTeams, allFixtures);
-      // Collect ALL played results across all rounds to preserve stats
-      const results = allFixtures.map(f => f.result!).filter(Boolean);
-      const playerTeam = newlySimulatedResults.reduce(
-        (team, result) => applyMatchStatGrowth(applyDefeatGrowth(team, result), result),
-        state.playerTeam,
-      );
-      const botTeams = state.botTeams.map(team => newlySimulatedResults.reduce(
-        (current, result) => applyMatchStatGrowth(applyDefeatGrowth(current, result), result),
-        team,
-      ));
-      return {
-        ...state,
-        playerTeam,
-        botTeams,
-        leagueFixtures: allFixtures,
-        leagueStandings: standings,
-        leagueResults: results,
       };
     }
 
@@ -1816,9 +1689,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const allTeams = [state.playerTeam, ...state.botTeams];
       const activeBefore = getActiveKnockoutMatches(state.knockoutBracket) as any[];
       const legNum = state.knockoutBracket.currentLeg;
-      const isFinalRoundBefore = state.knockoutBracket.currentRound === 'final';
       const legAlreadyPlayed = activeBefore.length > 0 && activeBefore.every(tie => {
-        const singleLeg = tie.isSingleLeg === true || (isFinalRoundBefore && tie.isSingleLeg === undefined);
+        const singleLeg = tie.isSingleLeg === true;
         return singleLeg
           ? Boolean(tie.played && tie.result)
           : legNum === 2 ? Boolean(tie.leg2) : Boolean(tie.leg1);
@@ -1839,11 +1711,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         resolvedTeams.set(id, resolved);
         return resolved;
       };
-      playActiveKnockoutLeg(bracket as any, resolveFn as any, state.competitionFormat?.matchSettings);
+      playActiveKnockoutLeg(bracket as any, resolveFn as any);
       // Aplica a disciplina da PERNA recém-jogada (times da rodada ativa).
       const active = getActiveKnockoutMatches(bracket) as any[];
       const legResults = active.map(tie => {
-        const singleLeg = tie.isSingleLeg === true || (isFinalRound && tie.isSingleLeg === undefined);
+        const singleLeg = tie.isSingleLeg === true;
         const result = singleLeg ? tie.result : legNum === 2 ? tie.leg2 : tie.leg1;
         if (!result) return null;
         const stamped = stampMatchStartingLineups(
@@ -1904,7 +1776,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         state.playerTeam.id,
         state.watchedKnockoutMatches,
         bettingLossRefundPercent(bettingLevel),
-        state.betProtectionUsedKeys,
       );
       // ⭐ +1 jogo pros 11 titulares do jogador (a perna que ele acabou de disputar).
       const stageNumber = state.competitionFormat?.id === 'knockout'
@@ -1931,7 +1802,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         playerTeam,
         botTeams,
         bets: revealed.bets,
-        betProtectionUsedKeys: revealed.protectionUsedKeys,
         points: state.points + revealed.winnings,
         reinforcementOptions: clearRecruitmentOffer ? null : recruitmentOffer?.options ?? state.reinforcementOptions,
         reinforcementOffer: clearRecruitmentOffer ? null : recruitmentOffer?.offer ?? state.reinforcementOffer,
@@ -1971,7 +1841,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // a leg only returns to the bracket. The leg was marked watched on open.
       // Award shop points for the player's OWN leg (ida & volta) — but NOT the final (the season
       // is over after it, nothing left to spend on) and NOT while spectating someone else's tie.
-      // No reinforcement in the knockout (that's league-only). The client computes the points in
+      // Recruitment in the knockout is offered per stage in PLAY_KNOCKOUT_LEG. The client computes the points in
       // both modes to drive the post-match popup; SOLO also credits the balance here, while ONLINE
       // credits it server-side (play_knockout_round) to stay authoritative.
       const isFinal = state.knockoutBracket?.currentRound === 'final';
@@ -2023,7 +1893,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // próprio recém-assistido E qualquer confronto alheio (placar já visível). (No online o
       // servidor credita no gate de "todos assistiram a perna".)
       let koBets = state.bets;
-      let betProtectionUsedKeys = state.betProtectionUsedKeys;
       if (state.mode !== 'online' && state.knockoutBracket) {
         const b = state.knockoutBracket as any;
         const koTies = [
@@ -2031,8 +1900,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ...b.quarterFinals, ...b.semiFinals, ...(b.final ? [b.final] : []),
         ];
         // Finishing the participant's own solo replay is itself proof that this
-        // leg was watched. This also keeps old/minimal states without the local
-        // watched array backwards-compatible.
+        // leg was watched.
         const watchedLegKeys = [...(state.watchedKnockoutMatches ?? [])];
         if (action.result) {
           const resultTeams = new Set([action.result.homeTeamId, action.result.awayTeamId]);
@@ -2047,11 +1915,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           state.playerTeam?.id ?? '',
           watchedLegKeys,
           bettingLossRefundPercent(bettingLevel),
-          state.betProtectionUsedKeys,
         );
         koBets = revealed.bets;
         points += revealed.winnings;
-        betProtectionUsedKeys = revealed.protectionUsedKeys;
       }
 
       let missions = state.missions ?? createMissionState('solo', 'L1');
@@ -2105,27 +1971,20 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         phase: 'knockout',
         spectating: false,
         activeKnockoutMatch: null,
-        currentMatch: null,
         currentMatchTeams: null,
         currentMatchResult: null,
         missions,
         points,
         playerTeam: playerTeamAfterStreak,
         lastMatchPoints: popup ?? state.lastMatchPoints,
-        knockoutPointsPopup: popup,
         bets: koBets,
-        betProtectionUsedKeys,
       };
     }
 
-    case 'DISMISS_KO_POINTS':
-      return { ...state, knockoutPointsPopup: null };
 
     case 'DISMISS_MATCH_CREDITS':
       return { ...state, matchCreditsModalPending: false };
 
-    case 'SET_CURRENT_MATCH':
-      return { ...state, currentMatch: action.result, currentMatchTeams: action.teams };
 
     case 'WATCH_ONLINE_MATCH': {
       // Open the match-sim screen in replay mode, driven by the authoritative
@@ -2141,7 +2000,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         spectating: !!action.spectator,
         currentMatchTeams: action.teams,
         currentMatchResult: action.result,
-        currentMatch: null,
         matchCreditsModalPending: state.mode === 'online' && !action.spectator
           ? true
           : state.matchCreditsModalPending,
@@ -2157,8 +2015,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case 'CLEAR_CURRENT_MATCH':
-      return { ...state, currentMatch: null, currentMatchTeams: null, currentMatchResult: null };
 
     case 'FINISH_GAME':
       return { ...state, champion: action.champion, phase: 'report' };
@@ -2267,7 +2123,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         draftOrder: roomState.draftState?.draftOrder || [],
         draftTurnIndex: roomState.draftState?.turnIndex || 0,
         draftHistory: roomState.draftState?.history || [],
-        alreadyDraftedIds: roomState.draftState?.alreadyDraftedIds || [],
         onlineWatchedPlayers: roomState.phase === 'league'
           ? (roomState.watchedRoundPlayers || [])
           : (roomState.watchedKnockoutLegPlayers || []),
@@ -2293,7 +2148,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         playerPackOfferIds: me ? (me.playerPackOfferIds ?? {}) : state.playerPackOfferIds,
         playerPackOfferRoundKeys: me ? (me.playerPackOfferRoundKeys ?? {}) : state.playerPackOfferRoundKeys,
         bets: me ? (me.bets ?? []) : state.bets,
-        betProtectionUsedKeys: me ? (me.betProtectionUsedKeys ?? []) : state.betProtectionUsedKeys,
         discipline: roomState.discipline ?? state.discipline,
         medicalFreeTreatmentsUsed: me
           ? (me.medicalFreeTreatmentsUsed ?? state.medicalFreeTreatmentsUsed)
@@ -2384,9 +2238,6 @@ interface GameContextType {
   dispatch: React.Dispatch<GameAction>;
   // Helpers
   getTeamById: (id: string) => Team | undefined;
-  getPlayerById: (id: string) => Player | undefined;
-  getCoachById: (id: string) => Coach | undefined;
-  getFormationById: (id: string) => Formation | undefined;
   
   // Online Multiplayer Socket emitters
   createRoom: (creatorName: string, competitionFormat: CompetitionFormat, difficulty?: string) => void;
@@ -2409,7 +2260,6 @@ interface GameContextType {
   removePlayerOnline: (targetPlayerId: string) => void;
   leaveRoomOnline: () => void;
   closeRoomOnline: () => void;
-  disconnectOnline: () => void;
   // Each player emits this when they finish watching their match replay. A
   // knockout replay identifies the exact tie/leg so ida remains confirmable
   // after the bracket pointer has advanced to the volta.
@@ -2422,7 +2272,7 @@ interface GameContextType {
   ensurePlayerPackOffersOnline: () => void;
   shopOpenPlayerPackOnline: (rarity: RegularPlayerPackRarity) => void;
   shopClaimPlayerPackOnline: () => void;
-  shopOpenPackOnline: (kind: 'star' | 'scout' | PlayerPackRarity, position?: string) => void;
+  shopOpenPackOnline: (position: string) => void;
   shopPickPackOnline: (player: Player) => void;
   shopTurbinarOnline: (playerId: string, variant: ShopVariant) => void;
   shopRemoveVariantOnline: (playerId: string, variantKey?: VariantFlag) => void;
@@ -2462,10 +2312,9 @@ interface GameContextType {
 const GameContext = createContext<GameContextType | null>(null);
 
 // Production builds use the Durable Object endpoint on the same Cloudflare
-// hostname. Keeping Socket.IO for Vite development (or an explicit legacy
-// override) preserves the existing local development workflow.
+// hostname. `pnpm dev` uses the Socket.IO server embedded in Vite.
 function usesDurableRealtime(): boolean {
-  return !import.meta.env.DEV && import.meta.env.VITE_REALTIME_TRANSPORT !== 'socketio';
+  return !import.meta.env.DEV;
 }
 
 // Exported separately to avoid HMR incompatibility
@@ -2546,7 +2395,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     // Cloudflare; não há host externo de backend para configurar.
     const socketInstance: RealtimeClientSocket = durableRealtime
       ? new DurableRealtimeSocket(roomCode!)
-      : io(import.meta.env.VITE_SOCKET_URL || undefined, {
+      : io({
         transports: ['websocket', 'polling'],
         autoConnect: true,
       }) as unknown as RealtimeClientSocket;
@@ -2585,11 +2434,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         ? roomState.stateRevision as number
         : null;
       const currentRevision = authoritativeRoomRevisionRef.current;
-      // Once a versioned state has been accepted, an unversioned legacy frame
-      // can only be older data from a rolling connection and must not overwrite it.
-      if (incomingRevision === null && currentRevision !== null) return false;
-      if (incomingRevision !== null && currentRevision !== null && incomingRevision < currentRevision) return false;
-      if (incomingRevision !== null) authoritativeRoomRevisionRef.current = incomingRevision;
+      // Every server frame is versioned; never let an older revision overwrite a newer one.
+      if (incomingRevision === null) return false;
+      if (currentRevision !== null && incomingRevision < currentRevision) return false;
+      authoritativeRoomRevisionRef.current = incomingRevision;
       return true;
     };
 
@@ -2605,9 +2453,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on("connect", () => {
       if (!isCurrentSocket()) return;
       console.log("Socket connected to server:", socketInstance.id);
-      // Opt into incremental room updates. The server still supports the
-      // legacy full-snapshot event for older clients during a rolling deploy.
-      socketInstance.emit("client_capabilities", { roomUpdates: 1 });
       if (hasConnectedOnce) {
         const roomCode = getStorageItem(STORAGE_KEYS.roomCode);
         const playerName = getStorageItem(STORAGE_KEYS.playerName);
@@ -2678,17 +2523,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on("command_ack", ({ status }: { status?: string }) => {
       if (!isCurrentSocket()) return;
       if (status === 'rejected') requestRoomSync();
-    });
-
-    socketInstance.on("room_updated", (roomState: any) => {
-      if (!acceptRoomState(roomState)) return;
-      // Legacy server / legacy browser compatibility. A full update is also a
-      // valid recovery point, but without a revision we wait for a snapshot
-      // before applying any subsequent patch.
-      onlineRoomRef.current = roomState;
-      onlineSyncRevisionRef.current = null;
-      syncRequestPendingRef.current = false;
-      dispatch({ type: 'SET_ONLINE_STATE', roomState, socketId: socketInstance.id || "" });
     });
 
     socketInstance.on("room_snapshot", ({ roomState, syncRevision }: { roomState?: any; syncRevision?: number }) => {
@@ -2927,10 +2761,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("shop_change_coach", { roomCode: state.roomCode, coachId });
   }, [emitOnlineAction, state.roomCode]);
   const upgradeClubProjectOnline = useCallback((projectId: ClubProjectId) => {
-    if (projectId === 'medical' && state.competitionFormat?.matchSettings?.injuriesEnabled === false) return;
     dispatch({ type: 'UPGRADE_CLUB_PROJECT', projectId });
     emitOnlineAction("upgrade_club_project", { roomCode: state.roomCode, projectId });
-  }, [dispatch, emitOnlineAction, state.competitionFormat?.matchSettings?.injuriesEnabled, state.roomCode]);
+  }, [dispatch, emitOnlineAction, state.roomCode]);
   const evolveCoachPrimeOnline = useCallback(() => {
     emitOnlineAction("evolve_coach_prime", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
@@ -2953,8 +2786,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const shopClaimPlayerPackOnline = useCallback(() => {
     emitOnlineAction("shop_claim_player_pack", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
-  const shopOpenPackOnline = useCallback((kind: 'star' | 'scout' | PlayerPackRarity, position?: string) => {
-    emitOnlineAction("shop_open_pack", { roomCode: state.roomCode, kind, position });
+  const shopOpenPackOnline = useCallback((position: string) => {
+    emitOnlineAction("shop_open_pack", { roomCode: state.roomCode, position });
   }, [emitOnlineAction, state.roomCode]);
   const shopPickPackOnline = useCallback((player: Player) => {
     emitOnlineAction("shop_pick_pack", { roomCode: state.roomCode, playerId: player.id });
@@ -2975,9 +2808,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("cancel_bet", { roomCode: state.roomCode, matchKey });
   }, [emitOnlineAction, state.roomCode]);
   const healInjuryOnline = useCallback((playerId: string) => {
-    if (state.competitionFormat?.matchSettings?.injuriesEnabled === false) return;
     emitOnlineAction("heal_injury", { roomCode: state.roomCode, playerId });
-  }, [emitOnlineAction, state.competitionFormat?.matchSettings?.injuriesEnabled, state.roomCode]);
+  }, [emitOnlineAction, state.roomCode]);
   const emergencyReplaceOnline = useCallback((starterId: string, playerId: string) => {
     emitOnlineAction("emergency_replace_player", { roomCode: state.roomCode, starterId, playerId });
   }, [emitOnlineAction, state.roomCode]);
@@ -3107,18 +2939,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
   }, [state.roomCode]);
 
-  const disconnectOnline = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
-    socketRoomCodeRef.current = null;
-    authoritativeRoomRevisionRef.current = null;
-    clearPendingMatchResultRequests();
-    removeStorageItem(STORAGE_KEYS.playerName);
-    removeStorageItem(STORAGE_KEYS.roomCode);
-    dispatch({ type: 'DISCONNECT_ONLINE' });
-  }, [clearPendingMatchResultRequests]);
 
   const getTeamById = useCallback((id: string) => {
     if (state.mode === 'online') {
@@ -3129,17 +2949,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return state.botTeams.find(t => t.id === id);
   }, [state.playerTeam, state.botTeams, state.onlinePlayers, state.mode]);
 
-  const getPlayerById = useCallback((id: string) => {
-    return PLAYERS.find(p => p.id === id);
-  }, []);
-
-  const getCoachById = useCallback((id: string) => {
-    return COACHES.find(c => c.id === id);
-  }, []);
-
-  const getFormationById = useCallback((id: string) => {
-    return FORMATIONS.find(f => f.id === id);
-  }, []);
 
   // Auto reconnect to room if details exist in localStorage on mount.
   // Guard against double-joining: only reconnect when no socket is active yet.
@@ -3154,11 +2963,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [joinRoom]);
 
   const contextValue = useMemo(() => ({
-    state, dispatch, getTeamById, getPlayerById, getCoachById, getFormationById,
+    state, dispatch, getTeamById,
     createRoom, joinRoom, startSetupOnline, submitSetupOnline,
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline, setMatchPlanOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
-    restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, disconnectOnline, notifyMatchWatchedOnline,
+    restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, notifyMatchWatchedOnline,
     shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, ensurePlayerPackOffersOnline, shopOpenPlayerPackOnline, shopClaimPlayerPackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, tradeInviteOnline, tradeLeaveOnline, tradeAcceptInviteOnline, tradeSelectOnline, tradeReadyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, setEvolvePointOnline, setAutoEvolveAttributeOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline, requestMatchResultOnline, acceptMissionOnline, rerollMissionsOnline, removeMissionOnline, dismissMissionResolutionOnline,

@@ -1,19 +1,19 @@
 /** Native WebSocket envelope shared by the browser and the Durable Object. */
 export const MAX_REALTIME_MESSAGE_BYTES = 256 * 1024;
 
-export interface RealtimeEventMessage {
+interface RealtimeEventMessage {
   type: 'event';
   event: string;
   payload?: unknown;
 }
 
-export interface RealtimeConnectedMessage {
+interface RealtimeConnectedMessage {
   type: 'system';
   event: 'connected';
   socketId: string;
 }
 
-export type RealtimeServerMessage = RealtimeEventMessage | RealtimeConnectedMessage;
+type RealtimeServerMessage = RealtimeEventMessage | RealtimeConnectedMessage;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

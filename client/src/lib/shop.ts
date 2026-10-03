@@ -24,12 +24,12 @@ export const PLAYER_PACK_META: Record<PlayerPackRarity, {
 };
 
 // ── Points earned per league match (performance-based, with catch-up for losses) ──
-export const WIN_PTS = 100;
-export const DRAW_PTS = 45;
-export const LOSS_PTS = 15;          // even a loss pays a little so you're never stuck
-export const GD_PTS = 12;            // per goal of POSITIVE margin
-export const GOAL_PTS = 3;           // per goal scored (rewards attacking)
-export const CLEAN_SHEET_PTS = 20;   // not conceding
+const WIN_PTS = 100;
+const DRAW_PTS = 45;
+const LOSS_PTS = 15;          // even a loss pays a little so you're never stuck
+const GD_PTS = 12;            // per goal of POSITIVE margin
+const GOAL_PTS = 3;           // per goal scored (rewards attacking)
+const CLEAN_SHEET_PTS = 20;   // not conceding
 
 export interface MatchPoints {
   /** Stable match identity used to acknowledge the reward exactly once in the UI. */
@@ -115,19 +115,16 @@ export const SHOP_COSTS = {
     immortal: 450,
     unique: 750,
   } satisfies Record<PlayerPackRarity, number>,
-  // Compatibilidade com saves/clients antigos. A oferta não aparece mais na Loja.
-  starPack: 350,
   scout: 220,
   removeVariant: 150, // 🧹 remove a característica de um jogador (pra poder aplicar outra)
   uniqueCard: 750,    // ⭐ Pacote Único (oferta de 4 cartas por rodada; sorteia uma, raridade Única, overall 99)
-  physio: 150,        // 🏥 Fisioterapia — reduz 1 jogo de lesão de um jogador
 } as const;
 
 export function playerPackCost(rarity: PlayerPackRarity): number {
   return SHOP_COSTS.playerPack[rarity];
 }
 
-export function isPlayerPackRarity(value: unknown): value is PlayerPackRarity {
+function isPlayerPackRarity(value: unknown): value is PlayerPackRarity {
   return typeof value === 'string' && (PLAYER_PACK_RARITIES as readonly string[]).includes(value);
 }
 
@@ -144,7 +141,7 @@ export function canEvolvePrime(wins: number, points: number): boolean {
 
 // 🏪 Mercado (venda solo): quanto o jogador recebe ao vender uma RESERVA, por raridade.
 // Calibrado modesto vs. ganho por partida (~100-150 pts) pra recompensar sem virar farm.
-export const SELL_VALUES: Record<string, number> = {
+const SELL_VALUES: Record<string, number> = {
   bronze: 30,
   silver: 60,
   gold: 100,
@@ -154,15 +151,6 @@ export const SELL_VALUES: Record<string, number> = {
 };
 export function sellValue(rarity: string): number {
   return SELL_VALUES[rarity] ?? SELL_VALUES.bronze;
-}
-
-// ── Training attributes and legacy level-1 constants. The user-facing flow now
-// lives in Centro de Treinamento; project-specific formulas are in clubProjects.ts. ──
-export const TRAIN_BOOST = 3;
-export const TRAIN_BASE_COST = 100;
-export const TRAIN_COST_STEP = 50;
-export function trainCost(trainCount: number): number {
-  return TRAIN_BASE_COST + TRAIN_COST_STEP * Math.max(0, trainCount);
 }
 
 export type TrainAttr = 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure';

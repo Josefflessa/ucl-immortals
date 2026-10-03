@@ -3,11 +3,11 @@
 // A regra de crédito diferido (só creditar na revelação) vive nos reducers/handlers,
 // não aqui — este módulo só CALCULA se ganhou e quanto.
 
-import { DEFAULT_MATCH_SETTINGS } from './competition';
+import { FIXED_BET_ROUND_CAP } from './competition';
 
 export const BET_OUTCOME_MULT = 1.5;  // acertar V/E/D
 export const BET_EXACT_MULT = 2.5;    // acertar o placar exato
-export const BET_ROUND_CAP = DEFAULT_MATCH_SETTINGS.betRoundCap; // teto padrão de stake TOTAL por rodada
+export const BET_ROUND_CAP = FIXED_BET_ROUND_CAP; // teto padrão de stake TOTAL por rodada
 export const BET_MAX_GOALS = 15;      // teto do stepper de placar (0..15 por lado)
 
 export interface BetPayoutRules {
@@ -38,7 +38,7 @@ export function bettingPayoutRulesForLevel(level: number): BetPayoutRules {
 // sem transformar uma stake pequena em uma fonte desproporcional de pontos.
 export const BET_BUILDER_MIN_SELECTIONS = 1;
 export const BET_BUILDER_MAX_SELECTIONS = 4;
-export const BET_BUILDER_CORRELATION_DISCOUNT = {
+const BET_BUILDER_CORRELATION_DISCOUNT = {
   1: 1,
   2: 0.72,
   3: 0.58,
@@ -48,7 +48,7 @@ export const BET_BUILDER_CORRELATION_DISCOUNT = {
 // válida e não redundante nunca pode virar "grátis" por causa dele. Esse
 // acréscimo mínimo é uma regra de balanceamento do jogo, não uma odd de casa
 // real: mantém a leitura intuitiva de que um mercado adicional aumenta o prêmio.
-export const BET_BUILDER_MIN_ADDITIONAL_MULTIPLIER = 0.2;
+const BET_BUILDER_MIN_ADDITIONAL_MULTIPLIER = 0.2;
 export const BET_BUILDER_MAX_MULTIPLIER = 3.5;
 export const BET_TOTAL_GOALS_LINES = [0.5, 1.5, 2.5, 3.5, 4.5] as const;
 export type BetTotalGoalsLine = typeof BET_TOTAL_GOALS_LINES[number];
@@ -77,7 +77,7 @@ export type BetBuilderSelection =
   | { type: 'total_cards'; operator: 'over' | 'under'; line: BetTotalCardsLine }
   | { type: 'both_score'; value: boolean };
 
-export type BetDraft = {
+type BetDraft = {
   matchKey: string;
   homeTeamId?: string;
   awayTeamId?: string;
@@ -92,16 +92,13 @@ export type BetDraft = {
 export interface Bet {
   matchKey: string;      // id estável da partida (ver builders abaixo)
   // The score is stored from the perspective of the actual home/away teams of
-  // that leg. These ids were added after the first version of betting so old
-  // saved bets remain valid without them.
+  // that leg (a return leg swaps them; settleBet re-orients when needed).
   homeTeamId?: string;
   awayTeamId?: string;
   homeGoals: number;     // placar palpitado (perspectiva do mando da partida)
   awayGoals: number;
   stake: number;
-  // `market` is optional for backwards compatibility with old solo saves and
-  // rooms created before bet builder support. Missing means the original score bet.
-  market?: BetMarket;
+  market: BetMarket;
   selections?: BetBuilderSelection[];
   // Stored when the ticket is created so future balance changes cannot alter an
   // already placed bet's return. The server always calculates this value itself.
@@ -170,7 +167,7 @@ export function normalizeBuilderSelections(value: unknown): BetBuilderSelection[
   return new Set(parsed.map(selection => selection.type)).size === parsed.length ? parsed : null;
 }
 
-export function builderSelectionMultiplier(selection: BetBuilderSelection, payoutRules: BetPayoutRules = DEFAULT_BET_PAYOUT_RULES): number {
+function builderSelectionMultiplier(selection: BetBuilderSelection, payoutRules: BetPayoutRules = DEFAULT_BET_PAYOUT_RULES): number {
   if (selection.type === 'exact_score') return payoutRules.exactMultiplier;
   if (selection.type === 'outcome') return payoutRules.outcomeMultiplier;
   if (selection.type === 'total_goals') return BET_TOTAL_GOALS_MULTIPLIERS[selection.operator][selection.line];
@@ -228,16 +225,11 @@ function selectionImplies(source: BetBuilderSelection, target: BetBuilderSelecti
 }
 
 /** Returns the number of yellow/red card events, or null for an unavailable result. */
-export function countMatchCards(events: unknown): number | null {
+function countMatchCards(events: unknown): number | null {
   if (!Array.isArray(events)) return null;
   return events.reduce((total, event) => (
     isRecord(event) && (event.type === 'yellow' || event.type === 'red') ? total + 1 : total
   ), 0);
-}
-
-/** Used by both solo and the authoritative server to gate the card market. */
-export function builderUsesTotalCards(selections: unknown): boolean {
-  return normalizeBuilderSelections(selections)?.some(selection => selection.type === 'total_cards') ?? false;
 }
 
 function selectionsUsedForPricing(selections: BetBuilderSelection[]): BetBuilderSelection[] {
@@ -310,8 +302,7 @@ export function createBet(draft: BetDraft): Bet | null {
     matchKey: draft.matchKey,
     homeTeamId: draft.homeTeamId,
     awayTeamId: draft.awayTeamId,
-    // Builder tickets do not use a score. Keep the legacy fields populated so
-    // old readers and serializers remain safe.
+    // Builder tickets do not use a score; the score fields stay zeroed.
     homeGoals: 0,
     awayGoals: 0,
     stake: draft.stake,
@@ -375,7 +366,7 @@ export function settleBet(
   if (bet.market === 'builder') {
     const selections = normalizeBuilderSelections(bet.selections);
     const multiplier = selections ? (bet.multiplier ?? calculateBuilderMultiplier(selections, payoutRules.builderMaxMultiplier, payoutRules)) : null;
-    // A malformed legacy/network ticket must fail closed and never credit points.
+    // A malformed network ticket must fail closed and never credit points.
     if (!selections || multiplier == null) return { won: false, tier: 'miss', payout: 0 };
     const effectiveHomeGoals = reversed ? result.awayGoals : result.homeGoals;
     const effectiveAwayGoals = reversed ? result.homeGoals : result.awayGoals;
@@ -427,13 +418,8 @@ export function betCapPrefix(matchKey: string, leagueRound: number): string {
   return matchKey.startsWith('K') ? matchKey : `L${leagueRound}:`;
 }
 
-/** One protection use per league round, or per knockout leg. */
-export function betProtectionScope(matchKey: string, leagueRound: number): string {
-  return matchKey.startsWith('K') ? matchKey : `L${leagueRound}`;
-}
-
 // Estrutura mínima de um confronto de mata-mata que o reveal precisa conhecer.
-export interface KoTieLike {
+interface KoTieLike {
   id: string;
   homeTeamId: string;
   awayTeamId: string;
@@ -454,8 +440,7 @@ export function revealEligibleKoBets(
   playerTeamId: string,
   watchedLegKeys: string[] = [],
   protectionPercent = 0,
-  protectionUsedKeys: string[] = [],
-): { bets: Bet[]; winnings: number; protectionUsedKeys: string[] } {
+): { bets: Bet[]; winnings: number } {
   let winnings = 0;
   const out = bets.map(bet => {
     if (bet.revealed || !bet.matchKey.startsWith('K')) return bet;
@@ -483,7 +468,5 @@ export function revealEligibleKoBets(
       protectionRefund,
     };
   });
-  // Mantém o campo legado para compatibilidade com estados antigos; a proteção
-  // agora é aplicada individualmente a cada aposta perdida.
-  return { bets: out, winnings, protectionUsedKeys };
+  return { bets: out, winnings };
 }

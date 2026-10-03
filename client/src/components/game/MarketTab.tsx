@@ -1,6 +1,7 @@
-// UCL Immortals — Aba "Mercado", com duas sub-abas:
+// UCL Immortals — Aba "Mercado", com três sub-abas:
 //  • VENDER   — vende reservas PRA BANCA por valor fixo (sellValue). Solo e online.
 //  • ANUNCIAR — anuncia reservas pros outros jogadores da sala (P2P, escrow). Só online.
+//  • TROCAR   — negociação direta de reservas (+ créditos) com outro jogador. Só online.
 import { useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
 import { sellValue } from '../../lib/shop';
