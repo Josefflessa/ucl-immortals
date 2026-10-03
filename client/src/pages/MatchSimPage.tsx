@@ -5,7 +5,9 @@ import { useGame } from '../contexts/GameContext';
 import {
   Team, MatchResult, MatchEvent, MatchStatsDelta, PlayerMatchStat,
   activeGoalkeeperForTeam, setStatIds, statKey, playerMatchDiscipline, computePossession, tacticProfile,
+  getTeamEffectiveStats,
 } from '@shared/game/gameEngine';
+import GoalCelebration, { GOAL_CELEBRATION_MS, type GoalMoment } from '../components/game/match/GoalCelebration';
 import {
   selectApproach, buildUpDesc, dangerAttemptMsg, saveCelebMsg, missCelebMsg,
   Approach,
@@ -23,6 +25,22 @@ const TICK_MS = 222;
 // text to avoid showing it twice (e.g. "⚽ ⚽ GOL CONTRA!").
 const stripLeadingEmoji = (s: string) =>
   s.replace(/^[\s☀-➿⬀-⯿️‍\uD800-\uDFFF]+/, '');
+
+// Scoreboard digit: pops in gold when it changes (a goal), then settles back to white.
+function ScoreNumber({ value }: { value: number }) {
+  return (
+    <motion.div
+      key={value}
+      initial={value > 0 ? { scale: 1.6, color: '#FFD700' } : false}
+      animate={{ scale: 1, color: '#FFFFFF' }}
+      transition={{ type: 'spring', stiffness: 300, damping: 14, color: { duration: 1.2 } }}
+      className="font-black tabular-nums"
+      style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 'clamp(2rem, 8vw, 3.75rem)' }}
+    >
+      {value}
+    </motion.div>
+  );
+}
 
 // A trigger changes only the in-match mentalidade. The Team object stays immutable,
 // so post-match screens can keep showing the manager's configured starting tactic.
@@ -88,9 +106,12 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [momentum, setMomentum] = useState(50); // 0 (away dominance) to 100 (home dominance)
   const [momentumHistory, setMomentumHistory] = useState<number[]>([50]);
+  // isPlaying is the replay's own clock gate (it stops during each chance's
+  // suspense); userPaused is the manager's Pausar button and wins over it.
   const [isPlaying, setIsPlaying] = useState(true);
+  const [userPaused, setUserPaused] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
-  const [goalAlert, setGoalAlert] = useState<{ teamName: string; scorer: string } | null>(null);
+  const [goalAlert, setGoalAlert] = useState<GoalMoment | null>(null);
   // Own ref, NOT tied to the danger-stage effect's cleanup: that effect
   // re-runs (and tears down) the instant dangerState flips stage 2 -> 3, which
   // happens synchronously right after this timer is scheduled — clearing it
@@ -98,7 +119,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
   // goalAlert stuck forever. This only clears on a genuinely new alert or on
   // unmount.
   const goalAlertHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showGoalAlert = (alert: { teamName: string; scorer: string }, hideAfterMs: number) => {
+  const showGoalAlert = (alert: GoalMoment, hideAfterMs: number) => {
     if (goalAlertHideTimerRef.current) clearTimeout(goalAlertHideTimerRef.current);
     setGoalAlert(alert);
     goalAlertHideTimerRef.current = setTimeout(() => {
@@ -106,6 +127,14 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       setGoalAlert(null);
     }, hideAfterMs);
   };
+  const dismissGoalAlert = () => {
+    if (goalAlertHideTimerRef.current) clearTimeout(goalAlertHideTimerRef.current);
+    goalAlertHideTimerRef.current = null;
+    setGoalAlert(null);
+  };
+  // A neutral spectator (neither side is theirs) gets the celebratory version for every goal.
+  const viewerInMatch = initialHome.id === playerTeamId || initialAway.id === playerTeamId;
+  const goalFavoursViewer = (teamId: string) => !viewerInMatch || teamId === playerTeamId;
   useEffect(() => () => {
     if (goalAlertHideTimerRef.current) clearTimeout(goalAlertHideTimerRef.current);
   }, []);
@@ -151,13 +180,23 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
   const myTeam = isPlayerHome ? homeTeam : awayTeam;
   const oppTeam = isPlayerHome ? awayTeam : homeTeam;
+  // Same colours as the MEU TIME / ADVERSÁRIO buttons: gold is always the viewer's
+  // side, indigo the opponent's (a neutral spectator sees the home side in gold).
+  const homeIsMine = isPlayerHome || !viewerInMatch;
+  const sideColors = {
+    home: homeIsMine ? '#ffd700' : '#6366f1',
+    away: homeIsMine ? '#6366f1' : '#ffd700',
+    homeText: homeIsMine ? '#fde047' : '#a5b4fc',
+    awayText: homeIsMine ? '#a5b4fc' : '#fde047',
+  };
 
   const eventFeedRef = useRef<HTMLDivElement>(null);
 
   // 4. Suspense / Danger sequence state runner: drives stages 1→2→3 of every shot
   // (build-up → attempt → reveal). Stage 2 applies the buffered replay goal events.
   useEffect(() => {
-    if (!dangerState) return;
+    // Paused mid-chance: the sequence holds and resumes its current stage on Continuar.
+    if (!dangerState || userPaused) return;
 
     if (dangerState.stage === 1) {
       const timer = setTimeout(() => {
@@ -181,7 +220,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           setHomeScore(s => s + rg.homeGoalDelta);
           setAwayScore(s => s + rg.awayGoalDelta);
           setEvents(prev => [...prev, ...rg.goalEvents]);
-          showGoalAlert(rg.goalAlert, 2500);
+          if (rg.goalAlert) {
+            showGoalAlert(rg.goalAlert, goalFavoursViewer(rg.goalAlert.teamId) ? GOAL_CELEBRATION_MS.mine : GOAL_CELEBRATION_MS.against);
+          }
           setMomentum(m => {
             const next = Math.min(100, Math.max(0, m + rg.momentumShift));
             setMomentumHistory(h => [...h, next]);
@@ -206,14 +247,14 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [dangerState]);
+  }, [dangerState, userPaused]);
 
   // 4b. REPLAY clock — steps through the server's authoritative event timeline.
   // Reveals each event at its minute and rebuilds the score from goal events, so
   // the replay ends exactly on the server's score on every device.
   useEffect(() => {
     // Pause during the 3-stage danger sequence
-    if (!isPlaying || isFinished || penaltyMode || goalAlert || dangerState) return;
+    if (!isPlaying || userPaused || isFinished || penaltyMode || goalAlert || dangerState) return;
 
     // The result carries its own duration (90 or 120) — a first leg never goes to
     // extra time; a second leg / single tie may. Penalties are signalled by the
@@ -302,11 +343,44 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               ? `🔥 GOOOOL! ${attackerName} balança as redes! ${atkTeam.name.toUpperCase()} MARCA!`
               : isSaveOutcome ? saveCelebMsg(gkName, attackerName) : missCelebMsg(attackerName);
 
+          // The goal moment: scorer (the defender on an own goal), assist and both
+          // cards with the effective stats they have at this minute.
+          let goalMoment: GoalMoment | null = null;
+          const goalEv = [...shotEvs].reverse().find(e => e.type === 'goal');
+          if (goalEv) {
+            const scorerTeam = isOwnGoal ? defTeam : atkTeam;
+            const scorerId = isOwnGoal ? goalEv.opponentId : goalEv.playerId;
+            const scorer = scorerTeam.players.find(p => p.id === scorerId);
+            const assister = !isOwnGoal && goalEv.assisterId ? atkTeam.players.find(p => p.id === goalEv.assisterId) : undefined;
+            const statsFor = (team: Team) => getTeamEffectiveStats(team, {
+              playStyle: tacticAtMinute(team, [...events, ...otherEvs], nextMin),
+              isKnockout,
+              isFinal,
+            });
+            const scorerStats = scorer ? statsFor(scorerTeam)[scorer.id] : undefined;
+            const assisterStats = assister ? statsFor(atkTeam)[assister.id] : undefined;
+            const previousGoals = events.filter(e => e.type === 'goal' && (isOwnGoal
+              ? !e.playerId && e.opponentId === scorerId
+              : e.teamId === atkTeam.id && e.playerId === scorerId)).length;
+            goalMoment = {
+              teamId: atkTeam.id,
+              minute: nextMin,
+              scorer,
+              scorerStats,
+              assister,
+              assisterStats,
+              ownGoal: isOwnGoal,
+              scorerGoalCount: previousGoals + 1,
+              homeScore: homeScore + homeDelta,
+              awayScore: awayScore + awayDelta,
+            };
+          }
+
           pendingReplayGoals.current = {
             goalEvents: shotEvs,
             homeGoalDelta: homeDelta,
             awayGoalDelta: awayDelta,
-            goalAlert: isGoalOutcome ? { teamName: atkTeam.name, scorer: attackerName } : null,
+            goalAlert: goalMoment,
             momentumShift,
             messageStage3,
           };
@@ -335,7 +409,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     }, TICK_MS);
 
     return () => clearTimeout(timer);
-  }, [replayResult, isPlaying, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, homeTeam, awayTeam, momentum, events]);
+  }, [replayResult, isPlaying, userPaused, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, isFinal, homeTeam, awayTeam, momentum, events, homeScore, awayScore]);
 
   // Scroll live events feed to bottom automatically
   useEffect(() => {
@@ -423,6 +497,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       setPenaltyReplayIdx(-1);
       return;
     }
+    setUserPaused(false);
     setMinute(replayResult.durationMinutes ?? (isKnockout ? 120 : 90));
     setEvents(replayResult.events);
     setHomeScore(replayResult.homeGoals);
@@ -580,6 +655,18 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     return playerMatchStats[playerId];
   };
 
+  // Best-rated starter of either side, from the authoritative final ratings.
+  const manOfTheMatch = useMemo(() => {
+    let best: { name: string; rating: number; team: string } | null = null;
+    for (const team of [homeTeam, awayTeam]) {
+      for (const p of team.players.slice(0, 11)) {
+        const rating = replayResult.playerStats?.[p.statId!]?.rating;
+        if (rating !== undefined && (!best || rating > best.rating)) best = { name: p.shortName, rating, team: team.name };
+      }
+    }
+    return best;
+  }, [replayResult, homeTeam, awayTeam]);
+
   // Internal stat events keep the live panel exact but should never replace the
   // human-readable broadcast headline.
   const latestEvent = [...events].reverse().find(event => event.type !== 'stat');
@@ -646,18 +733,18 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
             <defs>
               <linearGradient id="momentumLineGrad" x1="0" y1="0" x2="0" y2="60" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#ffd700" />
-                <stop offset="47%" stopColor="#ffd700" />
+                <stop offset="0%" stopColor={sideColors.home} />
+                <stop offset="47%" stopColor={sideColors.home} />
                 <stop offset="50%" stopColor="#8a8a9a" />
-                <stop offset="53%" stopColor="#6366f1" />
-                <stop offset="100%" stopColor="#6366f1" />
+                <stop offset="53%" stopColor={sideColors.away} />
+                <stop offset="100%" stopColor={sideColors.away} />
               </linearGradient>
               <linearGradient id="momentumAreaGrad" x1="0" y1="0" x2="0" y2="60" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#ffd700" stopOpacity="0.25" />
-                <stop offset="45%" stopColor="#ffd700" stopOpacity="0.03" />
+                <stop offset="0%" stopColor={sideColors.home} stopOpacity="0.25" />
+                <stop offset="45%" stopColor={sideColors.home} stopOpacity="0.03" />
                 <stop offset="50%" stopColor="#07070d" stopOpacity="0" />
-                <stop offset="55%" stopColor="#6366f1" stopOpacity="0.03" />
-                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.25" />
+                <stop offset="55%" stopColor={sideColors.away} stopOpacity="0.03" />
+                <stop offset="100%" stopColor={sideColors.away} stopOpacity="0.25" />
               </linearGradient>
             </defs>
 
@@ -668,7 +755,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               if (!p) return null;
               return (
                 <g key={idx}>
-                  <circle cx={p.x} cy={p.y} r="4.5" fill="#ffd700" stroke="#05050a" strokeWidth="1.2" />
+                  <circle cx={p.x} cy={p.y} r="4.5" fill={g.teamId === homeTeam.id ? sideColors.home : sideColors.away} stroke="#05050a" strokeWidth="1.2" />
                   <text x={p.x} y={p.y - 7} fontSize="9" textAnchor="middle" className="select-none pointer-events-none">⚽</text>
                 </g>
               );
@@ -676,273 +763,16 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           </svg>
         </div>
         <div className="flex justify-between mt-2 text-[12px] font-black" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-          <span style={{ color: '#ffd700' }}>▲ DOMINÂNCIA: {homeTeam.name.toUpperCase()}</span>
-          <span style={{ color: '#6366f1' }}>▼ DOMINÂNCIA: {awayTeam.name.toUpperCase()}</span>
+          <span style={{ color: sideColors.home }}>▲ DOMINÂNCIA: {homeTeam.name.toUpperCase()}</span>
+          <span style={{ color: sideColors.away }}>▼ DOMINÂNCIA: {awayTeam.name.toUpperCase()}</span>
         </div>
       </div>
     );
   };
 
-  return (
-    <AppShell className="h-dvh flex flex-col relative overflow-hidden select-none">
-      
-      {/* ── 1. GOAL SPLASH SCREEN ── */}
-      <AnimatePresence>
-        {goalAlert && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute inset-0 z-50 flex flex-col items-center justify-center pointer-events-none"
-            style={{ background: 'rgba(0, 0, 0, 0.92)' }}
-          >
-            <motion.h1
-              animate={{ scale: [1, 1.18, 1] }}
-              transition={{ repeat: Infinity, duration: 1.1 }}
-              className="text-8xl font-black text-center tracking-wider text-yellow-500 mb-2"
-              style={{ fontFamily: 'var(--font-display), sans-serif', textShadow: '0 0 50px rgba(234, 179, 8, 0.95)' }}
-            >
-              GOOOOOL!
-            </motion.h1>
-            <p className="text-3xl text-white font-bold tracking-widest text-center" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-              {goalAlert.teamName.toUpperCase()}
-            </p>
-            <p className="text-2xl text-yellow-400 font-extrabold text-center mt-3 animate-pulse" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-              ⭐ {goalAlert.scorer.toUpperCase()}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Spectator bar: watching someone else's tie → leave whenever you want ── */}
-      {state.spectating && (
-        <div className="ui-topbar flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 relative z-20">
-          <span className="inline-flex items-center gap-1.5 text-[13px] font-bold tracking-wider" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
-            👁️ Assistindo como espectador
-          </span>
-          <Button
-            type="button"
-            intent="ghost"
-            onClick={handleExitSpectator}
-            className="min-h-8 border border-[var(--ui-line-subtle)] px-3 text-xs"
-          >
-            ✕ SAIR DO JOGO
-          </Button>
-        </div>
-      )}
-
-      {/* ── 2. SCOREBOARD HEADER ── */}
-      <div className="flex-shrink-0 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] relative z-10">
-        <div className="py-3 px-3 sm:py-4 sm:px-6">
-          <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
-            {/* Home team metadata */}
-            <div className="flex-1 text-right pr-2 sm:pr-6 min-w-0">
-              <div className="flex items-center justify-end gap-2 min-w-0">
-                <h2 className="font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
-                  {homeTeam.name.toUpperCase()}
-                </h2>
-                <Crest crestId={homeTeam.crestId} name={homeTeam.name} size={30} />
-              </div>
-              <span className="text-[12px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: 'var(--ui-brand)' }}>
-                {homeTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
-              </span>
-            </div>
-
-            {/* Core Scoreboard Widgets */}
-            <div className="flex items-center gap-2 sm:gap-6 flex-shrink-0">
-              <div className="font-black text-white tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 'clamp(2rem, 8vw, 3.75rem)' }}>
-                {homeScore}
-              </div>
-
-              <div className="flex flex-col items-center justify-center px-2 sm:px-6 py-1 sm:py-2 rounded-xl border" style={{ background: '#0e0e1a', borderColor: '#1f1f35' }}>
-                <span className="text-[12px] sm:text-[12px] font-black text-yellow-500 tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  {minute >= 90 && penaltyMode ? 'PÊNALTIS' : isKnockout && minute > 90 ? 'PRORRG.' : 'MIN'}
-                </span>
-                <span className="font-black text-white leading-none mt-0.5" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 'clamp(1.5rem, 6vw, 2.5rem)' }}>
-                  {minute}'
-                </span>
-              </div>
-
-              <div className="font-black text-white tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 'clamp(2rem, 8vw, 3.75rem)' }}>
-                {awayScore}
-              </div>
-            </div>
-
-            {/* Away team metadata */}
-            <div className="flex-1 text-left pl-2 sm:pl-6 min-w-0">
-              <div className="flex items-center justify-start gap-2 min-w-0">
-                <Crest crestId={awayTeam.crestId} name={awayTeam.name} size={30} />
-                <h2 className="font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
-                  {awayTeam.name.toUpperCase()}
-                </h2>
-              </div>
-              <span className="text-[12px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: 'var(--ui-brand)' }}>
-                {awayTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── GOAL TICKER ── Classic broadcaster-style goal list */}
-        {(() => {
-          const homeGoals = events.filter(e => e.type === 'goal' && e.teamId === homeTeam.id);
-          const awayGoals = events.filter(e => e.type === 'goal' && e.teamId === awayTeam.id);
-          if (homeGoals.length === 0 && awayGoals.length === 0) return null;
-          return (
-            <div className="border-t px-3 sm:px-6 py-1.5 flex items-start justify-center gap-4 sm:gap-8 max-w-6xl mx-auto" style={{ borderColor: '#1a1a2e' }}>
-              {/* Home goals */}
-              <div className="flex-1 flex flex-wrap justify-end gap-x-2 sm:gap-x-3 gap-y-0.5">
-                {homeGoals.map((g, i) => {
-                  const ogName = g.opponentId ? [...homeTeam.players, ...awayTeam.players].find(p => p.id === g.opponentId)?.shortName : null;
-                  const scorer = g.playerId
-                    ? homeTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
-                    : ogName ? `${ogName} (Contra)` : 'Gol Contra'; // sem playerId ⇒ gol contra (autor = opponentId)
-                  return (
-                    <span key={i} className="text-[12px] sm:text-[13px] font-bold text-yellow-300 whitespace-nowrap" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                      ⚽ {scorer} {g.minute}'
-                    </span>
-                  );
-                })}
-              </div>
-
-              {/* Divider */}
-              <div className="w-px self-stretch" style={{ background: '#1f1f35' }} />
-
-              {/* Away goals */}
-              <div className="flex-1 flex flex-wrap justify-start gap-x-2 sm:gap-x-3 gap-y-0.5">
-                {awayGoals.map((g, i) => {
-                  const ogName = g.opponentId ? [...homeTeam.players, ...awayTeam.players].find(p => p.id === g.opponentId)?.shortName : null;
-                  const scorer = g.playerId
-                    ? awayTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
-                    : ogName ? `${ogName} (Contra)` : 'Gol Contra'; // sem playerId ⇒ gol contra (autor = opponentId)
-                  return (
-                    <span key={i} className="text-[12px] sm:text-[13px] font-bold text-indigo-300 whitespace-nowrap" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                      ⚽ {scorer} {g.minute}'
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* ── 2b. SECOND-LEG AGGREGATE BANNER ── */}
-      {legNumber === 2 && firstLeg && (
-        <div className="flex-shrink-0 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 sm:px-6 py-1.5 flex items-center justify-center gap-3 relative z-10">
-          <span className="text-[12px] sm:text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
-            JOGO DE VOLTA
-          </span>
-          <span className="text-[12px] sm:text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
-            AGREGADO:
-          </span>
-          <span className="text-sm sm:text-base font-black tabular-nums" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-display), sans-serif' }}>
-            {homeTeam.name.split(' ')[0].toUpperCase()} {homeScore + firstLeg.home} - {awayScore + firstLeg.away} {awayTeam.name.split(' ')[0].toUpperCase()}
-          </span>
-          <span className="hidden sm:inline text-[12px] text-gray-600" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-            (1ª mão {firstLeg.home}-{firstLeg.away})
-          </span>
-        </div>
-      )}
-
-      {/* ── 3. MAIN SIMULATION INTERFACE ── */}
-      <div className="flex-1 min-h-0 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden relative z-10">
-        
-        {/* LEFT COLUMN: live feed */}
-        <div className="lg:col-span-2 flex flex-col min-h-[360px] sm:min-h-[500px] lg:min-h-0 lg:h-full rounded-2xl overflow-hidden border flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
-          
-          {/* Live broadcast commentary banner */}
-          <div className="p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: '#171725' }}>
-            <span className="text-[12px] sm:text-[12px] font-black text-yellow-500 tracking-widest uppercase mb-0.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-              AO VIVO
-            </span>
-            <div className="flex items-center gap-2 sm:gap-3">
-              <span className="text-sm sm:text-base font-bold text-yellow-500 tabular-nums min-w-[28px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                {minute}'
-              </span>
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={latestEvent ? latestEvent.description : 'start'}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="text-sm sm:text-base font-extrabold text-white leading-tight uppercase break-words"
-                  style={{ fontFamily: 'var(--font-game), sans-serif' }}
-                >
-                  {latestEvent ? latestEvent.description : 'Árbitro posiciona a bola. Arquibancadas cantam forte!'}
-                </motion.p>
-              </AnimatePresence>
-            </div>
-          </div>
-
-          {/* Live Suspense Danger / Threat Meter Overlay */}
-          <AnimatePresence>
-            {dangerState && (() => {
-              // Colour-code the threat by side: GREEN = your team is attacking (your
-              // chance), RED = the opponent is attacking your goal (defend!).
-              const dangerForMe = dangerState.teamId === myTeam.id;
-              const accent = dangerForMe ? '#22C55E' : '#EF4444';
-              const label = dangerForMe ? '⚔️ CHANCE DO SEU TIME!' : '🛡️ PERIGO NO SEU GOL!';
-              const bar = dangerForMe
-                ? 'linear-gradient(90deg,#15803d,#4ade80,#22c55e)'
-                : 'linear-gradient(90deg,#a16207,#facc15,#ef4444)';
-              return (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="border-b p-2.5 sm:p-3.5 flex flex-col flex-shrink-0 relative"
-                style={{ background: `${accent}1a`, borderColor: `${accent}4d` }}
-              >
-                <div className="absolute inset-0 animate-pulse" style={{ background: `${accent}0d` }} />
-                <div className="flex items-center justify-between mb-1.5 z-10">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full animate-ping" style={{ background: accent }} />
-                    <span className="text-[12px] sm:text-xs font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: accent }}>
-                      {label}
-                    </span>
-                  </div>
-                  <span className="text-[12px] font-black" style={{ fontFamily: 'var(--font-game), sans-serif', color: accent }}>
-                    ETAPA {dangerState.stage}/3
-                  </span>
-                </div>
-
-                {/* Threat bar — colour reflects who the chance favours */}
-                <div className="h-2 w-full rounded-full overflow-hidden mb-2 z-10" style={{ background: '#00000055' }}>
-                  <motion.div
-                    className="h-full"
-                    style={{ background: bar }}
-                    initial={{ width: '0%' }}
-                    animate={{ width: dangerState.stage === 1 ? '35%' : dangerState.stage === 2 ? '70%' : '100%' }}
-                    transition={{ duration: 0.8 }}
-                  />
-                </div>
-
-                <p className="text-xs sm:text-sm font-black text-white uppercase tracking-wide leading-tight z-10" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  {dangerState.message}
-                </p>
-              </motion.div>
-              );
-            })()}
-          </AnimatePresence>
-
-          <div className="px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#171725', background: '#08080f' }}>
-            <span className="text-[12px] sm:text-[12px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-              TRANSMISSÃO DE LANCES
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-              <span className="text-[12px] font-black text-red-500 tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif' }}>AO VIVO</span>
-            </div>
-          </div>
-
-          {/* FIXED HEIGHT TIMELINE FEED */}
-          <div
-            ref={eventFeedRef}
-            className="flex-1 min-h-0 basis-0 overflow-y-auto overflow-x-hidden p-3 sm:p-5 space-y-2.5 sm:space-y-3.5 scroll-smooth"
-            style={{ background: '#08080f' }}
-          >
-            {events.filter(event => ['goal', 'penalty', 'tactic', 'yellow', 'red', 'injury'].includes(event.type)).length === 0 ? (
+  // The feed only changes when a new event lands; keep it out of the per-minute re-render.
+  const feedContent = useMemo(() => (
+            events.filter(event => ['goal', 'penalty', 'tactic', 'yellow', 'red', 'injury'].includes(event.type)).length === 0 ? (
               <div className="h-full flex items-center justify-center flex-col text-center text-gray-500 py-8" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 <span className="text-5xl sm:text-6xl mb-3 animate-bounce">⚽</span>
                 <span className="text-sm sm:text-base font-bold text-white tracking-wide">ÁRBITRO APITA O INÍCIO!</span>
@@ -1026,7 +856,272 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                     </motion.div>
                   );
                 })
+            )
+  ), [events, playerTeamId, homeTeam, awayTeam]);
+
+  return (
+    <AppShell className="h-dvh flex flex-col relative overflow-hidden select-none">
+      
+      {/* ── 1. GOAL SPLASH SCREEN ── */}
+      <AnimatePresence>
+        {goalAlert && (
+          <GoalCelebration
+            key={`${goalAlert.minute}-${goalAlert.homeScore}-${goalAlert.awayScore}`}
+            goal={goalAlert}
+            homeTeam={homeTeam}
+            awayTeam={awayTeam}
+            mine={goalFavoursViewer(goalAlert.teamId)}
+            onSkip={broadcastMode ? undefined : dismissGoalAlert}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Spectator bar: watching someone else's tie → leave whenever you want ── */}
+      {state.spectating && (
+        <div className="ui-topbar flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 relative z-20">
+          <span className="inline-flex items-center gap-1.5 text-[13px] font-bold tracking-wider" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
+            👁️ Assistindo como espectador
+          </span>
+          <Button
+            type="button"
+            intent="ghost"
+            onClick={handleExitSpectator}
+            className="min-h-8 border border-[var(--ui-line-subtle)] px-3 text-xs"
+          >
+            ✕ SAIR DO JOGO
+          </Button>
+        </div>
+      )}
+
+      {/* ── 2. SCOREBOARD HEADER ── */}
+      <div className="flex-shrink-0 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] relative z-10">
+        <div className="py-3 px-3 sm:py-4 sm:px-6">
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
+            {/* Home team metadata */}
+            <div className="flex-1 text-right pr-2 sm:pr-6 min-w-0">
+              <div className="flex items-center justify-end gap-2 min-w-0">
+                <h2 className="font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
+                  {homeTeam.name.toUpperCase()}
+                </h2>
+                <Crest crestId={homeTeam.crestId} name={homeTeam.name} size={30} />
+              </div>
+              <span className="text-[12px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: homeTeam.id === playerTeamId ? 'var(--ui-brand)' : 'var(--ui-info)' }}>
+                {homeTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
+              </span>
+            </div>
+
+            {/* Core Scoreboard Widgets */}
+            <div className="flex items-center gap-2 sm:gap-6 flex-shrink-0">
+              <ScoreNumber value={homeScore} />
+
+              <div className="flex flex-col items-center justify-center px-2 sm:px-6 py-1 sm:py-2 rounded-xl border" style={{ background: '#0e0e1a', borderColor: isFinished ? '#c9a84c66' : '#1f1f35' }}>
+                <span className="text-[12px] sm:text-[12px] font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: userPaused && !isFinished ? 'var(--ui-info)' : '#eab308' }}>
+                  {isFinished ? 'FIM' : penaltyMode ? 'PÊNALTIS' : userPaused ? 'PAUSADO' : isKnockout && minute > 90 ? 'PRORRG.' : 'MIN'}
+                </span>
+                <span className="font-black text-white leading-none mt-0.5" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 'clamp(1.5rem, 6vw, 2.5rem)' }}>
+                  {minute}'
+                </span>
+              </div>
+
+              <ScoreNumber value={awayScore} />
+            </div>
+
+            {/* Away team metadata */}
+            <div className="flex-1 text-left pl-2 sm:pl-6 min-w-0">
+              <div className="flex items-center justify-start gap-2 min-w-0">
+                <Crest crestId={awayTeam.crestId} name={awayTeam.name} size={30} />
+                <h2 className="font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
+                  {awayTeam.name.toUpperCase()}
+                </h2>
+              </div>
+              <span className="text-[12px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: awayTeam.id === playerTeamId ? 'var(--ui-brand)' : 'var(--ui-info)' }}>
+                {awayTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── GOAL TICKER ── Classic broadcaster-style goal list */}
+        {(() => {
+          const homeGoals = events.filter(e => e.type === 'goal' && e.teamId === homeTeam.id);
+          const awayGoals = events.filter(e => e.type === 'goal' && e.teamId === awayTeam.id);
+          if (homeGoals.length === 0 && awayGoals.length === 0) return null;
+          // One entry per scorer with all of their minutes ("Cristiano 6', 40', 85'").
+          const byScorer = (goals: MatchEvent[], team: Team) => {
+            const rows = new Map<string, number[]>();
+            for (const g of goals) {
+              const ogName = g.opponentId ? [...homeTeam.players, ...awayTeam.players].find(p => p.id === g.opponentId)?.shortName : null;
+              const scorer = g.playerId
+                ? team.players.find(p => p.id === g.playerId)?.shortName ?? '?'
+                : ogName ? `${ogName} (Contra)` : 'Gol Contra'; // sem playerId ⇒ gol contra (autor = opponentId)
+              rows.set(scorer, [...(rows.get(scorer) ?? []), g.minute]);
+            }
+            return Array.from(rows.entries());
+          };
+          return (
+            <div className="border-t px-3 sm:px-6 py-1.5 flex items-start justify-center gap-4 sm:gap-8 max-w-6xl mx-auto" style={{ borderColor: '#1a1a2e' }}>
+              {/* Home goals */}
+              <div className="flex-1 flex flex-wrap justify-end gap-x-2 sm:gap-x-3 gap-y-0.5">
+                {byScorer(homeGoals, homeTeam).map(([scorer, minutes]) => (
+                  <span key={scorer} className="text-[12px] sm:text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: sideColors.homeText }}>
+                    ⚽ {scorer} {minutes.map(m => `${m}'`).join(', ')}
+                  </span>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div className="w-px self-stretch" style={{ background: '#1f1f35' }} />
+
+              {/* Away goals */}
+              <div className="flex-1 flex flex-wrap justify-start gap-x-2 sm:gap-x-3 gap-y-0.5">
+                {byScorer(awayGoals, awayTeam).map(([scorer, minutes]) => (
+                  <span key={scorer} className="text-[12px] sm:text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: sideColors.awayText }}>
+                    ⚽ {scorer} {minutes.map(m => `${m}'`).join(', ')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── 2b. SECOND-LEG AGGREGATE BANNER ── */}
+      {legNumber === 2 && firstLeg && (
+        <div className="flex-shrink-0 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 sm:px-6 py-1.5 flex items-center justify-center gap-3 relative z-10">
+          <span className="text-[12px] sm:text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
+            JOGO DE VOLTA
+          </span>
+          <span className="text-[12px] sm:text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
+            AGREGADO:
+          </span>
+          <span className="text-sm sm:text-base font-black tabular-nums" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-display), sans-serif' }}>
+            {homeTeam.name.split(' ')[0].toUpperCase()} {homeScore + firstLeg.home} - {awayScore + firstLeg.away} {awayTeam.name.split(' ')[0].toUpperCase()}
+          </span>
+          <span className="hidden sm:inline text-[12px] text-gray-600" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+            (1ª mão {firstLeg.home}-{firstLeg.away})
+          </span>
+        </div>
+      )}
+
+      {/* ── 3. MAIN SIMULATION INTERFACE ── */}
+      <div className="match-scroll flex-1 min-h-0 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden relative z-10">
+        
+        {/* LEFT COLUMN: live feed */}
+        <div className="lg:col-span-2 flex flex-col min-h-[360px] sm:min-h-[500px] lg:min-h-0 lg:h-full rounded-2xl overflow-hidden border flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
+          
+          {/* Live broadcast commentary banner */}
+          <div className="p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: '#171725' }}>
+            <span className="text-[12px] sm:text-[12px] font-black tracking-widest uppercase mb-0.5" style={{ fontFamily: 'var(--font-game), sans-serif', color: isFinished ? 'var(--ui-text-soft)' : '#eab308' }}>
+              {isFinished ? 'FIM DE JOGO' : userPaused ? 'PAUSADO' : 'AO VIVO'}
+            </span>
+            {isFinished ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                <span className="text-sm sm:text-base font-extrabold uppercase text-white">
+                  {homeScore > awayScore ? `Vitória do ${homeTeam.name}` : awayScore > homeScore ? `Vitória do ${awayTeam.name}` : 'Empate'} · {homeScore} × {awayScore}
+                </span>
+                {manOfTheMatch && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] sm:text-[13px] font-black" style={{ background: 'rgba(201,168,76,.14)', color: 'var(--ui-brand)', border: '1px solid rgba(201,168,76,.35)' }}>
+                    ⭐ MELHOR EM CAMPO: {manOfTheMatch.name.toUpperCase()} · {manOfTheMatch.rating.toFixed(1)}
+                    <span className="font-bold text-[var(--ui-text-muted)]">({manOfTheMatch.team})</span>
+                  </span>
+                )}
+              </div>
+            ) : (
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="text-sm sm:text-base font-bold text-yellow-500 tabular-nums min-w-[28px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                {minute}'
+              </span>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={latestEvent ? latestEvent.description : 'start'}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="text-sm sm:text-base font-extrabold text-white leading-tight uppercase break-words"
+                  style={{ fontFamily: 'var(--font-game), sans-serif' }}
+                >
+                  {latestEvent ? latestEvent.description : 'Árbitro posiciona a bola. Arquibancadas cantam forte!'}
+                </motion.p>
+              </AnimatePresence>
+            </div>
             )}
+          </div>
+
+          {/* Live Suspense Danger / Threat Meter Overlay */}
+          <AnimatePresence>
+            {dangerState && (() => {
+              // Colour-code the threat by side: GREEN = your team is attacking (your
+              // chance), RED = the opponent is attacking your goal (defend!).
+              const dangerForMe = dangerState.teamId === myTeam.id;
+              const accent = dangerForMe ? '#22C55E' : '#EF4444';
+              const label = dangerForMe ? '⚔️ CHANCE DO SEU TIME!' : '🛡️ PERIGO NO SEU GOL!';
+              const bar = dangerForMe
+                ? 'linear-gradient(90deg,#15803d,#4ade80,#22c55e)'
+                : 'linear-gradient(90deg,#a16207,#facc15,#ef4444)';
+              return (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="border-b p-2.5 sm:p-3.5 flex flex-col flex-shrink-0 relative"
+                style={{ background: `${accent}1a`, borderColor: `${accent}4d` }}
+              >
+                <div className="absolute inset-0 animate-pulse" style={{ background: `${accent}0d` }} />
+                <div className="flex items-center justify-between mb-1.5 z-10">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full animate-ping" style={{ background: accent }} />
+                    <span className="text-[12px] sm:text-xs font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: accent }}>
+                      {label}
+                    </span>
+                  </div>
+                  <span className="flex items-center gap-1" aria-label={`Lance ${dangerState.stage} de 3`}>
+                    {[1, 2, 3].map(step => (
+                      <span key={step} className="h-2 w-2 rounded-full transition-colors"
+                        style={{ background: step <= dangerState.stage ? accent : 'transparent', border: `1px solid ${accent}` }} />
+                    ))}
+                  </span>
+                </div>
+
+                {/* Threat bar — colour reflects who the chance favours */}
+                <div className="h-2 w-full rounded-full overflow-hidden mb-2 z-10" style={{ background: '#00000055' }}>
+                  <motion.div
+                    className="h-full"
+                    style={{ background: bar }}
+                    initial={{ width: '0%' }}
+                    animate={{ width: dangerState.stage === 1 ? '35%' : dangerState.stage === 2 ? '70%' : '100%' }}
+                    transition={{ duration: 0.8 }}
+                  />
+                </div>
+
+                <p className="text-xs sm:text-sm font-black text-white uppercase tracking-wide leading-tight z-10" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                  {dangerState.message}
+                </p>
+              </motion.div>
+              );
+            })()}
+          </AnimatePresence>
+
+          <div className="px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#171725', background: '#08080f' }}>
+            <span className="text-[12px] sm:text-[12px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+              TRANSMISSÃO DE LANCES
+            </span>
+            {isFinished ? (
+              <span className="text-[12px] font-black tracking-widest text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>ENCERRADA</span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${userPaused ? 'bg-sky-500' : 'bg-red-600 animate-pulse'}`} />
+                <span className="text-[12px] font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: userPaused ? 'var(--ui-info)' : '#ef4444' }}>{userPaused ? 'PAUSADO' : 'AO VIVO'}</span>
+              </div>
+            )}
+          </div>
+
+          {/* FIXED HEIGHT TIMELINE FEED */}
+          <div
+            ref={eventFeedRef}
+            className="match-scroll flex-1 min-h-0 basis-0 overflow-y-auto overflow-x-hidden p-3 sm:p-5 space-y-2.5 sm:space-y-3.5 scroll-smooth"
+            style={{ background: '#08080f' }}
+          >
+            {feedContent}
           </div>
         </div>
 
@@ -1069,7 +1164,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             {renderMomentumChart()}
             <div className="bg-[#0b0b14] border border-[#171725] rounded-2xl p-3 flex flex-col">
               <span className="text-[12px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                ESTATÍSTICAS (AO VIVO)
+                {isFinished ? 'ESTATÍSTICAS' : 'ESTATÍSTICAS (AO VIVO)'}
               </span>
               <div className="space-y-2">
                 {[
@@ -1085,13 +1180,13 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                   return (
                     <div key={i} className="space-y-0.5">
                       <div className="flex justify-between text-[12px] font-bold text-gray-300" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                        <span style={{ color: '#ffd700' }}>{s.homeVal}</span>
+                        <span style={{ color: sideColors.home }}>{s.homeVal}</span>
                         <span className="text-gray-500 text-[12px] tracking-wider uppercase">{s.label}</span>
-                        <span style={{ color: '#6366f1' }}>{s.awayVal}</span>
+                        <span style={{ color: sideColors.away }}>{s.awayVal}</span>
                       </div>
                       <div className="h-1 rounded-full overflow-hidden flex" style={{ background: '#141426' }}>
-                        <div className="h-full bg-yellow-500 transition-all duration-300" style={{ width: `${hPct}%` }} />
-                        <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${100 - hPct}%` }} />
+                        <div className="h-full transition-all duration-300" style={{ width: `${hPct}%`, background: sideColors.home }} />
+                        <div className="h-full transition-all duration-300" style={{ width: `${100 - hPct}%`, background: sideColors.away }} />
                       </div>
                     </div>
                   );
@@ -1259,7 +1354,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       )}
 
       {/* ── 6. FOOTER CONTROL CENTER ── */}
-      <div className="ui-topbar py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-row flex-wrap items-center justify-center sm:justify-between gap-2 sm:gap-4 z-10 flex-shrink-0">
+      <div className="ui-topbar py-3 px-3 sm:py-4 sm:px-6 border-t flex flex-row items-center justify-between gap-2 sm:gap-4 z-10 flex-shrink-0">
         
         {/* Online shows the live indicator; solo keeps pause/simulate controls. */}
         {broadcastMode ? (
@@ -1272,20 +1367,20 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             )}
           </div>
         ) : (
-        <div className="flex items-center gap-2 sm:gap-3 w-auto justify-center sm:justify-start">
-          <Button
-            type="button"
-            intent={isPlaying ? 'danger' : 'success'}
-            onClick={() => setIsPlaying(!isPlaying)}
-            disabled={isFinished || penaltyMode}
-            className="px-5 sm:px-6"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {isPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
-              {isPlaying ? 'PAUSAR' : 'SIMULAR'}
-            </span>
-          </Button>
-
+        <div className="flex items-center gap-2 sm:gap-3 w-auto justify-start">
+          {!isFinished && !penaltyMode && (
+            <Button
+              type="button"
+              intent={userPaused ? 'success' : 'secondary'}
+              onClick={() => setUserPaused(paused => !paused)}
+              className="px-5 sm:px-6"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {userPaused ? <Play size={15} fill="currentColor" /> : <Pause size={15} fill="currentColor" />}
+                {userPaused ? 'CONTINUAR' : 'PAUSAR'}
+              </span>
+            </Button>
+          )}
         </div>
         )}
 
@@ -1302,7 +1397,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             </Button>
           )}
 
-          {isFinished ? (
+          {isFinished && (
             <Button
               type="button"
               intent="primary"
@@ -1312,35 +1407,23 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             >
               CONCLUIR →
             </Button>
-          ) : (
-            <button
-              disabled
-              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-black text-base sm:text-lg tracking-widest opacity-40 cursor-not-allowed"
-              style={{
-                fontFamily: 'var(--font-display), sans-serif',
-                background: 'var(--ui-surface-3)',
-                color: '#555',
-              }}
-            >
-              {penaltyMode ? 'PÊNALTIS' : 'JOGANDO...'}
-            </button>
           )}
         </div>
       </div>
 
       {/* Ticker styling override for custom thin scrolls */}
       <style>{`
-        ::-webkit-scrollbar {
+        .match-scroll::-webkit-scrollbar {
           width: 5px;
         }
-        ::-webkit-scrollbar-track {
+        .match-scroll::-webkit-scrollbar-track {
           background: rgba(255,255,255,0.01);
         }
-        ::-webkit-scrollbar-thumb {
+        .match-scroll::-webkit-scrollbar-thumb {
           background: rgba(255,255,255,0.12);
           border-radius: 4px;
         }
-        ::-webkit-scrollbar-thumb:hover {
+        .match-scroll::-webkit-scrollbar-thumb:hover {
           background: rgba(255,255,255,0.22);
         }
       `}</style>
