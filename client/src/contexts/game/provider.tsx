@@ -760,9 +760,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (accountLoading) return;
     let cancelled = false;
-    loadSoloSave<GameState>().then(save => {
+    loadSoloSave<GameState>(accountId).then(save => {
       if (cancelled) return;
-      setSavedSoloCampaign(save && save.accountId === accountId ? savedCampaignSummary(save.state, save.savedAt) : null);
+      setSavedSoloCampaign(save ? savedCampaignSummary(save.state, save.savedAt) : null);
     });
     return () => { cancelled = true; };
   }, [accountId, accountLoading]);
@@ -781,16 +781,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [state, accountId, accountLoading]);
 
   const continueSoloCampaign = useCallback(async () => {
-    const save = await loadSoloSave<GameState>();
-    if (!save || save.accountId !== accountId) { setSavedSoloCampaign(null); return; }
+    const save = await loadSoloSave<GameState>(accountId);
+    if (!save) { setSavedSoloCampaign(null); return; }
     dispatch({ type: 'RESTORE_SOLO_CAMPAIGN', state: save.state });
   }, [accountId]);
 
   const discardSoloCampaign = useCallback(async () => {
     discardedSaveRef.current = true;
     setSavedSoloCampaign(null);
-    await clearSoloSave();
-  }, []);
+    await clearSoloSave(accountId);
+  }, [accountId]);
 
   useEffect(() => {
     if (socketRef.current) return;

@@ -15,7 +15,11 @@ export interface SoloSave<State = unknown> {
 
 const DB_NAME = 'ucl-immortals';
 const STORE = 'solo';
-const KEY = 'campaign';
+// One slot per owner (guest or each account) so starting a campaign in one
+// profile never overwrites another profile's campaign on the same device.
+// Saves written before the split live under the single legacy key.
+const LEGACY_KEY = 'campaign';
+const slotKey = (accountId: string | null) => `campaign:${accountId ?? 'guest'}`;
 
 function openDb(): Promise<IDBDatabase | null> {
   return new Promise(resolve => {
@@ -50,17 +54,30 @@ async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStor
   });
 }
 
-export async function loadSoloSave<State>(): Promise<SoloSave<State> | null> {
-  const save = await withStore<SoloSave<State>>('readonly', store => store.get(KEY));
-  if (!save || save.version !== SOLO_SAVE_VERSION || !save.state || typeof save.state !== 'object') return null;
-  return save;
+function isUsableSave<State>(save: SoloSave<State> | null): save is SoloSave<State> {
+  return !!save && save.version === SOLO_SAVE_VERSION && !!save.state && typeof save.state === 'object';
+}
+
+/** The campaign saved on this device for this owner (null = guest), or null. */
+export async function loadSoloSave<State>(accountId: string | null): Promise<SoloSave<State> | null> {
+  const save = await withStore<SoloSave<State>>('readonly', store => store.get(slotKey(accountId)));
+  if (isUsableSave(save) && save.accountId === accountId) return save;
+
+  // One-time move of a pre-split save into its owner's slot. A legacy save that
+  // belongs to someone else stays where it is until that owner loads it.
+  const legacy = await withStore<SoloSave<State>>('readonly', store => store.get(LEGACY_KEY));
+  if (!isUsableSave(legacy) || legacy.accountId !== accountId) return null;
+  await withStore('readwrite', store => store.put(legacy, slotKey(accountId)));
+  await withStore('readwrite', store => store.delete(LEGACY_KEY));
+  return legacy;
 }
 
 export async function writeSoloSave<State>(state: State, accountId: string | null): Promise<void> {
   const save: SoloSave<State> = { version: SOLO_SAVE_VERSION, savedAt: Date.now(), accountId, state };
-  await withStore('readwrite', store => store.put(save, KEY));
+  await withStore('readwrite', store => store.put(save, slotKey(accountId)));
 }
 
-export async function clearSoloSave(): Promise<void> {
-  await withStore('readwrite', store => store.delete(KEY));
+/** Deletes only this owner's campaign; other profiles' saves are untouched. */
+export async function clearSoloSave(accountId: string | null): Promise<void> {
+  await withStore('readwrite', store => store.delete(slotKey(accountId)));
 }
