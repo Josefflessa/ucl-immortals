@@ -1,213 +1,188 @@
-// UCL Immortals — explains WHERE a player's stat buffs come from.
-// The detail modal shows the net delta per stat, but not its sources. This breaks
-// the uplift into: individual chemistry (a multiplier + WHY, via the connection web),
-// team-wide chemistry, the coach, the player's traits (named, with what each grants)
-// and the tactic — data-driven from EffectiveStats.breakdown so it always matches what
-// the match engine actually uses.
-import { EffectiveStats, ChemLinkType, CharBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, ARROGANTE_GOALS_PER_PENALTY, arroganteStatBoost, arroganteTeamPenalty, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, estribadoStatBoost, garcomStatBoost, goleadorStatBoost, isOutfieldGoalkeeper, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
-import { getTacticById, Player } from '@shared/game/gameData';
+// UCL Immortals — explains WHERE a player's numbers come from, grouped as the player thinks
+// about them: what belongs to the CARD, what comes from the TEAM (chemistry, captain, coach,
+// tactic, teammates) and what only switches on DURING A MATCH. Everything is read from the
+// player-sheet model, which is computed by the same engine functions the match uses.
+import { useState } from 'react';
+import {
+  ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
+  FORASTEIRO_STAT_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
+  INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_STAT_PENALTY,
+  MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
+  PILAR_CHEM_BONUS, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST,
+  TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
+  garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
+} from '@shared/game/gameEngine';
+import { getTacticById, type Player } from '@shared/game/gameData';
 import { getCardVariants } from './PlayerCard';
+import { ATTR_SHORT, SHEET_ATTRS, type PlayerSheetModel } from './player-sheet/playerSheetModel';
 
-const ATTR_PT: Record<string, string> = {
-  pace: 'RIT', shooting: 'FIN', passing: 'PAS', dribbling: 'DRI', defending: 'DEF', physical: 'FIS',
-  vision: 'VIS', composure: 'CMP',
-};
-const ATTRS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'] as const;
+const GREEN = '#22C55E';
+const RED = '#EF4444';
+const MUTED = '#6A6A7A';
+const FONT = { fontFamily: 'var(--font-game), sans-serif' } as const;
 
-type Delta = { a: string; v: number };
+type Chip = { text: string; color: string; dim?: boolean };
 
-// Individual-chemistry context: who this player connects with (and why), or why he is OOP.
-interface ChemInfo {
-  oop: boolean;
-  nativePos: string;      // PT label of the player's natural position
-  formationPos: string;   // PT label of the slot he's filling
-  links: { type: ChemLinkType; label: string; color: string; names: string[] }[];
-  rawPts: number;         // raw link points (the chem LEVEL is round(rawPts / 3))
-  nextAt: number | null;  // raw pts needed for the next level (null when maxed at 3/3)
-}
-// The player's traits, each with what it grants and a short flavour line.
-interface TraitInfo { id: string; icon: string; effect: string; flavor: string }
-
-function collect(eff: EffectiveStats, pick: (b: EffectiveStats['breakdown']['pace']) => number): Delta[] {
-  return ATTRS.map(a => ({ a, v: pick(eff.breakdown[a]) })).filter(x => x.v !== 0);
-}
-
-function Chip({ text, color }: { text: string; color: string }) {
+function ChipView({ text, color, dim }: Chip) {
   return (
-    <span className="text-[13px] leading-tight font-black px-2 py-1 rounded-md"
-      style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'var(--font-game), sans-serif' }}>
+    <span className="rounded-md px-2 py-1 text-[13px] font-black leading-tight"
+      style={{ background: `${color}22`, color, border: `1px solid ${color}44`, opacity: dim ? 0.45 : 1, ...FONT }}>
       {text}
     </span>
   );
 }
 
-function Row({ icon, name, color, children }: { icon: string; name: string; color: string; children: React.ReactNode }) {
+function Chips({ items }: { items: Chip[] }) {
+  if (items.length === 0) return null;
+  return <div className="flex flex-wrap gap-1">{items.map((c, i) => <ChipView key={i} {...c} />)}</div>;
+}
+
+function Note({ children }: { children: React.ReactNode }) {
+  return <div className="mt-1 text-[12px] leading-snug text-[var(--ui-text-muted)]" style={FONT}>{children}</div>;
+}
+
+function Row({ icon, name, color, children }: { icon: string; name: string; color: string; children?: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2.5 py-2.5">
-      <span className="text-sm flex-shrink-0">{icon}</span>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-black tracking-wider" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>{name}</div>
-        <div className="mt-0.5">{children}</div>
+      <span className="flex-shrink-0 text-sm" aria-hidden="true">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-black tracking-wider" style={{ color, ...FONT }}>{name}</div>
+        {children ? <div className="mt-1">{children}</div> : null}
       </div>
     </div>
   );
 }
 
-type VariantEffectChip = { text: string; color: string };
-
-function specialVariantDetails({ variant, player, charBoost, isStarter, credits, inactive }: {
-  variant: ReturnType<typeof getCardVariants>[number];
-  player: Player;
-  charBoost?: CharBoost;
-  isStarter?: boolean;
-  credits?: number;
-  inactive: boolean;
-}): { chips: VariantEffectChip[]; description: string } {
-  const green = '#22C55E';
-  const red = '#EF4444';
-  const color = variant.color === '#FFFFFF' ? '#E5E7EB' : variant.color;
-  const prodigioStarts = player.prodigioStarts ?? 0;
-  const goleadorGoals = player.goleadorGoals ?? 0;
-  const garcomAssists = player.garcomAssists ?? 0;
-  const arroganteGoals = player.arroganteGoals ?? 0;
-  const arroganteBoost = arroganteStatBoost(arroganteGoals);
-  const arrogantePenalty = arroganteTeamPenalty(arroganteGoals);
-  const mercenarioMissions = player.mercenarioMissions ?? 0;
-  const currentCredits = Math.max(0, credits ?? 0);
-  const colecionadorBoost = charBoost?.sources.find(source => source.type === 'colecionador')?.flatAll;
-
-  switch (variant.key) {
-    case 'inForm':
-      return { chips: [{ text: `+${INFORM_STAT_BOOST} EM CADA ATRIBUTO`, color }], description: `A carta recebe +${INFORM_STAT_BOOST} em cada atributo; esse bônus já está incluído no geral e nos atributos impressos.` };
-    case 'lobo':
-      return { chips: [
-        { text: `+${LOBO_STAT_BOOST} EM CADA ATRIBUTO`, color },
-        { text: '−12 QUÍMICA GERAL DO TIME', color: red },
-      ], description: `Recebe +${LOBO_STAT_BOOST} em cada atributo, já incluídos nos valores da carta, mas reduz em ${LOBO_CHEM_PENALTY} a química geral do time.` };
-    case 'coringa':
-      return { chips: [{ text: 'IMUNE A FORA-DE-POSIÇÃO', color }], description: 'Pode jogar em qualquer posição sem penalidade de posição ou de química. No gol, ainda sofre a penalidade de aptidão por ser jogador de linha.' };
-    case 'nomade':
-      return { chips: [{ text: 'QUALQUER NAÇÃO NA QUÍMICA', color }], description: 'Forma vínculos de química como se fosse de qualquer nação.' };
-    case 'pilar':
-      return { chips: [{ text: `+${PILAR_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color }], description: `Aumenta em ${PILAR_CHEM_BONUS} a química geral do time enquanto estiver na escalação.` };
-    case 'martir':
-      return { chips: [
-        { text: '−6 EM CADA ATRIBUTO', color: red },
-        { text: `+${MARTIR_TARGET_BOOST} EM TUDO A 2 TITULARES`, color: green },
-      ], description: `Sacrifica 6 em cada atributo e concede +${MARTIR_TARGET_BOOST} em tudo a dois titulares escolhidos.` };
-    case 'idolo':
-      return { chips: [{ text: '+2 EM TUDO AOS OUTROS DO MESMO CLUBE', color: green }], description: 'Concede +2 em cada atributo aos outros titulares do mesmo clube; o próprio Ídolo não recebe esse bônus.' };
-    case 'decimoHomem':
-      return {
-        chips: [inactive
-          ? { text: 'SEM EFEITO — PRECISA ESTAR NO BANCO', color: red }
-          : { text: `+${DECIMO_HOMEM_STAT_BOOST} EM TUDO AO TIME (NO BANCO)`, color: green }],
-        description: `Só funciona no banco: concede +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time.`,
-      };
-    case 'pipoqueiro':
-      return { chips: [
-        { text: `+${PIPOQUEIRO_LEAGUE_BOOST} EM TUDO NA FASE DE LIGA`, color: green },
-        { text: `−${PIPOQUEIRO_KO_PENALTY} EM TUDO NO MATA-MATA`, color: red },
-      ], description: `Recebe +${PIPOQUEIRO_LEAGUE_BOOST} em cada atributo na fase de liga e −${PIPOQUEIRO_KO_PENALTY} no mata-mata.` };
-    case 'noe':
-      return {
-        chips: inactive
-          ? [{ text: isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — NÃO É O ÚNICO C/ CARACTERÍSTICA', color: red }]
-          : [
-            { text: `+${NOE_STAT_BOOST} EM TUDO`, color: green },
-            { text: `+${NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color },
-          ],
-        description: `Só funciona enquanto for o único titular com característica: recebe +${NOE_STAT_BOOST} em tudo e dá +${NOE_CHEM_BONUS} de química geral ao time.`,
-      };
-    case 'forasteiro':
-      return {
-        chips: inactive
-          ? [{ text: isStarter === false ? 'SEM EFEITO — SÓ VALE COMO TITULAR' : 'SEM EFEITO — COMPARTILHA PAÍS OU CLUBE', color: red }]
-          : [{ text: '+8 EM TUDO', color: green }],
-        description: 'Recebe +8 em cada atributo quando é o único titular do seu país e do seu clube.'
-      };
-    case 'colecionador':
-      return {
-        chips: colecionadorBoost === undefined ? [] : [{ text: `+${colecionadorBoost} EM TUDO`, color }],
-        description: 'Ganha +1 em cada atributo por jogador que estiver na reserva.',
-      };
-    case 'estribado':
-      return { chips: [{ text: `+${estribadoStatBoost(currentCredits)} EM CADA ATRIBUTO (${currentCredits} CRÉDITOS · 1 A CADA ${ESTRIBADO_CREDITS_PER_BOOST})`, color }], description: `A cada ${ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis, ganha +1 em cada atributo. Saldo atual: ${currentCredits} créditos.` };
-    case 'todosPorUm':
-      return {
-        chips: inactive
-          ? [{ text: 'SEM EFEITO — OS 11 TITULARES PRECISAM TER', color: red }]
-          : [{ text: `+${TODOS_POR_UM_STAT_BOOST} EM TUDO · +${TODOS_POR_UM_CHEM_BONUS} QUÍMICA GERAL`, color: green }],
-        description: `Só funciona quando os 11 titulares têm a característica: todos recebem +${TODOS_POR_UM_STAT_BOOST} em tudo e o time ganha +${TODOS_POR_UM_CHEM_BONUS} de química geral.`,
-      };
-    case 'capitaoNato':
-      return { chips: [{ text: 'BÔNUS DE CAPITÃO DOBRADO (SE FOR O CAPITÃO)', color: '#F97316' }], description: 'Se for escolhido como capitão, dobra o bônus de capitão que concede a todo o time.' };
-    case 'magnata':
-      return { chips: [
-        { text: 'CRÉDITOS DA PARTIDA ×1,5 (TITULAR)', color: green },
-        { text: '−7 EM TUDO', color: red },
-      ], description: 'Como titular, multiplica por 1,5 os créditos da partida; em troca, perde 7 em cada atributo.' };
-    case 'fragil':
-      return { chips: [
-        { text: `+${FRAGIL_STAT_BOOST} EM TUDO`, color: '#F59E0B' },
-        { text: 'RISCO DE LESÃO MUITO MAIOR', color: red },
-      ], description: `Recebe +${FRAGIL_STAT_BOOST} em todos os atributos, mas fica muito mais sujeito a lesões.` };
-    case 'prodigio': {
-      const boost = prodigioStatBoost(prodigioStarts);
-      return { chips: [{ text: `+${boost} EM CADA ATRIBUTO (${prodigioStarts} TITULARIDADE${prodigioStarts === 1 ? '' : 'S'} · 1 A CADA ${PRODIGIO_STARTS_PER_BOOST})`, color: '#FDE047' }], description: `Ganha +1 em todos os atributos a cada ${PRODIGIO_STARTS_PER_BOOST} titularidades. Já acumulou ${prodigioStarts}; bônus atual: +${boost}.` };
-    }
-    case 'resiliente': {
-      const defeats = player.resilienteDefeats ?? 0;
-      return { chips: [{ text: `+${defeats * RESILIENTE_DEFEAT_BOOST} EM CADA ATRIBUTO (${defeats} DERROTA${defeats === 1 ? '' : 'S'} COMO TITULAR)`, color: '#FB7185' }], description: `Ganha +${RESILIENTE_DEFEAT_BOOST} em todos os atributos a cada derrota do time enquanto for titular. Acumulado: ${defeats} derrota${defeats === 1 ? '' : 's'}.` };
-    }
-    case 'goleador': {
-      const boost = goleadorStatBoost(goleadorGoals);
-      return { chips: [{ text: `+${boost} EM CADA ATRIBUTO (${goleadorGoals} GOL${goleadorGoals === 1 ? '' : 'S'} · 1 A CADA ${GOLEADOR_GOALS_PER_BOOST})`, color: '#F97316' }], description: `Ganha +1 em todos os atributos a cada ${GOLEADOR_GOALS_PER_BOOST} gols. Já marcou ${goleadorGoals}; bônus atual: +${boost}.` };
-    }
-    case 'garcom': {
-      const boost = garcomStatBoost(garcomAssists);
-      return { chips: [{ text: `+${boost} EM CADA ATRIBUTO (${garcomAssists} ASSISTÊNCIA${garcomAssists === 1 ? '' : 'S'} · 1 A CADA ${GARCOM_ASSISTS_PER_BOOST})`, color: '#38BDF8' }], description: `Ganha +1 em todos os atributos a cada ${GARCOM_ASSISTS_PER_BOOST} assistências. Já deu ${garcomAssists}; bônus atual: +${boost}.` };
-    }
-    case 'arrogante':
-      return { chips: [{ text: `+${arroganteBoost} EM TUDO · −${arrogantePenalty} NOS OUTROS (${arroganteGoals} GOL${arroganteGoals === 1 ? '' : 'S'} · 1 PENALIDADE A CADA ${ARROGANTE_GOALS_PER_PENALTY})`, color: '#E879F9' }], description: `Ganha +2 em tudo por gol. A cada ${ARROGANTE_GOALS_PER_PENALTY} gols, os outros titulares perdem −1 em tudo. Já marcou ${arroganteGoals}; bônus próprio +${arroganteBoost}, penalidade atual −${arrogantePenalty}.` };
-    case 'mercenario': {
-      const boost = mercenarioStatBoost(mercenarioMissions);
-      return { chips: [{ text: `+${boost} EM CADA ATRIBUTO (${mercenarioMissions} ${mercenarioMissions === 1 ? 'MISSÃO' : 'MISSÕES'} · +${MERCENARIO_STAT_BOOST_PER_MISSION} POR MISSÃO)`, color: '#F59E0B' }], description: `Ganha +${MERCENARIO_STAT_BOOST_PER_MISSION} em todos os atributos por missão concluída. Já concluiu ${mercenarioMissions} ${mercenarioMissions === 1 ? 'missão' : 'missões'}; bônus atual: +${boost}.` };
-    }
-    default:
-      return { chips: [], description: '' };
-  }
-}
-
-function SpecialVariantRow({ variant, player, charBoost, isStarter, credits }: {
-  variant: ReturnType<typeof getCardVariants>[number];
-  player: Player;
-  charBoost?: CharBoost;
-  isStarter?: boolean;
-  credits?: number;
-}) {
-  const inactive = variant.key === 'decimoHomem' ? isStarter === true
-    : variant.key === 'noe' ? !charBoost?.sources.some(source => source.type === 'noe')
-      : variant.key === 'forasteiro' ? !charBoost?.sources.some(source => source.type === 'forasteiro')
-        : variant.key === 'todosPorUm' ? !charBoost?.sources.some(source => source.type === 'todosPorUm')
-          : false;
-  const title = variant.key === 'decimoHomem' ? `${variant.label} ${inactive ? '(INATIVO — ESTÁ JOGANDO)' : '(ATIVO — NO BANCO)'}`
-    : ['noe', 'forasteiro', 'todosPorUm'].includes(variant.key) ? `${variant.label} ${inactive ? '(INATIVO)' : '(ATIVO)'}`
-      : variant.label;
-  const color = inactive ? '#6A6A7A' : (variant.color === '#FFFFFF' ? '#E5E7EB' : variant.color);
-  const details = specialVariantDetails({ variant, player, charBoost, isStarter, credits, inactive });
-
+function Group({ title, hint, children }: { title: string; hint: string; children: React.ReactNode[] }) {
+  const rows = children.filter(Boolean);
+  if (rows.length === 0) return null;
   return (
-    <Row icon={variant.icon} name={title} color={color}>
-      {details.chips.length > 0 && <div className="flex flex-wrap gap-1">{details.chips.map((chip, index) => <Chip key={`${variant.key}-${index}`} text={chip.text} color={chip.color} />)}</div>}
-      {details.description && <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{details.description}</div>}
-    </Row>
+    <section className="pt-2">
+      <div className="flex items-baseline justify-between gap-2 border-b pb-1.5" style={{ borderColor: '#1c1c2c' }}>
+        <h4 className="text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-soft)]" style={FONT}>{title}</h4>
+        <span className="text-right text-[12px] text-[var(--ui-text-faint)]" style={FONT}>{hint}</span>
+      </div>
+      <div className="divide-y" style={{ borderColor: '#141422' }}>{rows}</div>
+    </section>
   );
 }
 
-// Visual por tipo de característica de time (fonte do bônus).
+const perAttr = (model: PlayerSheetModel, key: keyof StatBreakdown) =>
+  SHEET_ATTRS.map(a => ({ a, v: model.eff.breakdown[a][key] as number })).filter(x => x.v !== 0);
+const attrChips = (list: { a: (typeof SHEET_ATTRS)[number]; v: number }[], color: string): Chip[] =>
+  list.map(({ a, v }) => ({ text: `${v > 0 ? '+' : ''}${v} ${ATTR_SHORT[a]}`, color: v < 0 ? RED : color }));
+
+// ── Card characteristics ─────────────────────────────────────────────────────
+
+type Variant = ReturnType<typeof getCardVariants>[number];
+
+function variantState(variant: Variant, model: PlayerSheetModel): { active: boolean; inactiveReason?: string } {
+  const sources = model.charBoost?.sources ?? [];
+  switch (variant.key) {
+    case 'decimoHomem': return model.isStarter ? { active: false, inactiveReason: 'precisa estar no banco' } : { active: true };
+    case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'não é o único titular com característica' : 'só vale como titular' };
+    case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'divide país ou clube com outro titular' : 'só vale como titular' };
+    case 'todosPorUm': return sources.some(s => s.type === 'todosPorUm') ? { active: true } : { active: false, inactiveReason: 'os 11 titulares precisam ter a característica' };
+    default: {
+      // Characteristics that grow over time: nothing accumulated yet means no effect yet.
+      const growing: Record<string, number> = {
+        estribado: estribadoStatBoost(model.credits),
+        prodigio: prodigioStatBoost(model.player.prodigioStarts ?? 0),
+        resiliente: (model.player.resilienteDefeats ?? 0) * RESILIENTE_DEFEAT_BOOST,
+        goleador: goleadorStatBoost(model.player.goleadorGoals ?? 0),
+        garcom: garcomStatBoost(model.player.garcomAssists ?? 0),
+        arrogante: arroganteStatBoost(model.player.arroganteGoals ?? 0),
+        mercenario: mercenarioStatBoost(model.player.mercenarioMissions ?? 0),
+        colecionador: sources.find(s => s.type === 'colecionador')?.flatAll ?? 0,
+      };
+      return variant.key in growing && growing[variant.key] <= 0 ? { active: false, inactiveReason: 'ainda sem bônus acumulado' } : { active: true };
+    }
+  }
+}
+
+function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: CharBoost): { chips: Chip[]; description: string } {
+  const p: Player = model.player;
+  const own = variant.color === '#FFFFFF' ? '#E5E7EB' : variant.color;
+  switch (variant.key) {
+    case 'inForm':
+      return { chips: [{ text: `+${INFORM_STAT_BOOST} EM CADA ATRIBUTO`, color: GREEN }], description: `Já incluído nos valores impressos da carta.` };
+    case 'lobo':
+      return { chips: [{ text: `+${LOBO_STAT_BOOST} EM CADA ATRIBUTO`, color: GREEN }, { text: `−${LOBO_CHEM_PENALTY} QUÍMICA GERAL DO TIME`, color: RED }], description: `O bônus próprio já está nos valores da carta; em troca, o time perde ${LOBO_CHEM_PENALTY} de química geral.` };
+    case 'coringa':
+      return { chips: [{ text: 'SEM PENALIDADE DE POSIÇÃO', color: GREEN }], description: `Joga em qualquer posição sem perder atributos nem química. No gol, um jogador de linha ainda defende com ${Math.round(OUTFIELD_GK_MULTIPLIER * 100)}% da Defesa.` };
+    case 'nomade':
+      return { chips: [{ text: 'VALE COMO QUALQUER NAÇÃO', color: GREEN }], description: 'Forma vínculo de nação com qualquer titular com quem ainda não tenha vínculo.' };
+    case 'pilar':
+      return { chips: [{ text: `+${PILAR_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Enquanto estiver no XI, a química geral do time sobe ${PILAR_CHEM_BONUS}.` };
+    case 'martir':
+      return { chips: [{ text: `−${MARTIR_STAT_PENALTY} EM CADA ATRIBUTO`, color: RED }, { text: `+${MARTIR_TARGET_BOOST} EM TUDO A 2 TITULARES`, color: GREEN }], description: `A perda própria já está nos valores da carta; os 2 escolhidos recebem +${MARTIR_TARGET_BOOST} em tudo.` };
+    case 'idolo':
+      return { chips: [{ text: `+${IDOLO_STAT_BOOST} EM TUDO AOS COLEGAS DO MESMO CLUBE`, color: GREEN }], description: 'Vale para os outros titulares do mesmo clube; o próprio Ídolo não recebe.' };
+    case 'decimoHomem':
+      return { chips: [{ text: `+${DECIMO_HOMEM_STAT_BOOST} EM TUDO AO TIME`, color: GREEN }], description: 'Só funciona no banco: todo o XI recebe o bônus.' };
+    case 'pipoqueiro': {
+      const ko = model.isKnockout;
+      return {
+        chips: [
+          { text: `+${PIPOQUEIRO_LEAGUE_BOOST} EM TUDO NA LIGA${!ko ? ' · AGORA' : ''}`, color: GREEN, dim: ko },
+          { text: `−${PIPOQUEIRO_KO_PENALTY} EM TUDO NO MATA-MATA${ko ? ' · AGORA' : ''}`, color: RED, dim: !ko },
+        ],
+        description: ko ? `Está no mata-mata: vale a penalidade de −${PIPOQUEIRO_KO_PENALTY}.` : `Está na fase de liga: vale o bônus de +${PIPOQUEIRO_LEAGUE_BOOST}. No mata-mata vira −${PIPOQUEIRO_KO_PENALTY}.`,
+      };
+    }
+    case 'noe':
+      return { chips: [{ text: `+${NOE_STAT_BOOST} EM TUDO`, color: GREEN }, { text: `+${NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: 'Só funciona enquanto for o único titular com característica.' };
+    case 'forasteiro':
+      return { chips: [{ text: `+${FORASTEIRO_STAT_BOOST} EM TUDO`, color: GREEN }], description: 'Só funciona quando é o único titular do seu país e do seu clube.' };
+    case 'colecionador': {
+      const boost = charBoost?.sources.find(s => s.type === 'colecionador')?.flatAll;
+      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO`, color: GREEN }], description: 'Ganha +1 em cada atributo por jogador na reserva.' };
+    }
+    case 'estribado':
+      return { chips: [{ text: `+${estribadoStatBoost(model.credits)} EM CADA ATRIBUTO`, color: GREEN }], description: `+1 em cada atributo a cada ${ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis. Saldo atual: ${model.credits} créditos.` };
+    case 'todosPorUm':
+      return { chips: [{ text: `+${TODOS_POR_UM_STAT_BOOST} EM TUDO · +${TODOS_POR_UM_CHEM_BONUS} QUÍMICA GERAL`, color: GREEN }], description: 'Só funciona quando os 11 titulares têm a característica.' };
+    case 'capitaoNato':
+      return { chips: [{ text: 'BÔNUS DE CAPITÃO DOBRADO', color: GREEN }], description: 'Vale quando ele é o capitão: o bônus que o capitão dá ao time inteiro dobra.' };
+    case 'magnata':
+      return { chips: [{ text: `CRÉDITOS DA PARTIDA ×${String(MAGNATA_POINT_MULT).replace('.', ',')}`, color: GREEN }, { text: `−${MAGNATA_STAT_PENALTY} EM TUDO`, color: RED }], description: 'Como titular, multiplica os créditos da partida; a perda própria já está nos valores da carta.' };
+    case 'fragil':
+      return { chips: [{ text: `+${FRAGIL_STAT_BOOST} EM TUDO`, color: GREEN }, { text: 'RISCO DE LESÃO MUITO MAIOR', color: RED }], description: 'O bônus já está nos valores da carta.' };
+    case 'prodigio': {
+      const starts = p.prodigioStarts ?? 0;
+      return { chips: [{ text: `+${prodigioStatBoost(starts)} EM CADA ATRIBUTO`, color: GREEN }], description: `+1 a cada ${PRODIGIO_STARTS_PER_BOOST} titularidade${PRODIGIO_STARTS_PER_BOOST === 1 ? '' : 's'}. Acumulou ${starts}.` };
+    }
+    case 'resiliente': {
+      const defeats = p.resilienteDefeats ?? 0;
+      return { chips: [{ text: `+${defeats * RESILIENTE_DEFEAT_BOOST} EM CADA ATRIBUTO`, color: GREEN }], description: `+${RESILIENTE_DEFEAT_BOOST} a cada derrota do time com ele titular. Acumulou ${defeats}.` };
+    }
+    case 'goleador': {
+      const goals = p.goleadorGoals ?? 0;
+      return { chips: [{ text: `+${goleadorStatBoost(goals)} EM CADA ATRIBUTO`, color: GREEN }], description: `+1 a cada ${GOLEADOR_GOALS_PER_BOOST} gols. Já marcou ${goals}.` };
+    }
+    case 'garcom': {
+      const assists = p.garcomAssists ?? 0;
+      return { chips: [{ text: `+${garcomStatBoost(assists)} EM CADA ATRIBUTO`, color: GREEN }], description: `+1 a cada ${GARCOM_ASSISTS_PER_BOOST} assistências. Já deu ${assists}.` };
+    }
+    case 'arrogante': {
+      const goals = p.arroganteGoals ?? 0;
+      return {
+        chips: [{ text: `+${arroganteStatBoost(goals)} EM TUDO`, color: GREEN }, ...(arroganteTeamPenalty(goals) > 0 ? [{ text: `−${arroganteTeamPenalty(goals)} AOS OUTROS TITULARES`, color: RED }] : [])],
+        description: `+${ARROGANTE_STAT_BOOST_PER_GOAL} em tudo por gol; a cada ${ARROGANTE_GOALS_PER_PENALTY} gols os outros titulares perdem 1. Já marcou ${goals}.`,
+      };
+    }
+    case 'mercenario': {
+      const missions = p.mercenarioMissions ?? 0;
+      return { chips: [{ text: `+${mercenarioStatBoost(missions)} EM CADA ATRIBUTO`, color: GREEN }], description: `+${MERCENARIO_STAT_BOOST_PER_MISSION} por missão concluída. Já concluiu ${missions}.` };
+    }
+    default:
+      return { chips: [{ text: variant.label.toUpperCase(), color: own }], description: '' };
+  }
+}
+
+// Team-effect characteristics received FROM teammates.
 const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> = {
-  martir: { icon: '🩸', label: 'MÁRTIR', color: '#B91C1C' },
+  martir: { icon: '🩸', label: 'MÁRTIR', color: '#F87171' },
   idolo: { icon: '❤️', label: 'ÍDOLO', color: '#F59E0B' },
   decimoHomem: { icon: '🪑', label: '12º HOMEM', color: '#14B8A6' },
   noe: { icon: '🛟', label: 'NOÉ', color: '#22D3EE' },
@@ -217,251 +192,201 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   arrogante: { icon: '👑', label: 'ARROGANTE', color: '#E879F9' },
 };
 
-export default function BuffBreakdown({ eff, chem, traits, player, charBoost, isStarter, formationRole, credits, playStyle }: { eff: EffectiveStats; chem?: ChemInfo; traits?: TraitInfo[]; player?: Player; charBoost?: CharBoost; isStarter?: boolean; formationRole?: string; credits?: number; playStyle?: string }) {
-  const chemNet = ATTRS.reduce((s, a) => s + eff.breakdown[a].chem, 0);
-  const coach = collect(eff, b => b.coach);
-  const traitDeltas = collect(eff, b => b.trait);
-  const tactic = collect(eff, b => b.tactic);
-  const captain = collect(eff, b => b.captain);
-  const train = collect(eff, b => b.train);
-  const evolve = collect(eff, b => b.evolve);
-  const specialization = collect(eff, b => b.specialization);
-  const evolution = [...evolve, ...specialization];
-  const position = collect(eff, b => b.position);
-  const char = collect(eff, b => b.char);
-  const medicalReturnBoost = Math.max(0, Math.floor(player?.medicalReturnBoost ?? 0));
-  // A carta especial própria já é explicada no bloco especial acima. Aqui ficam apenas
-  // características especiais que deram um bônus a este jogador.
-  const receivedCharSources = (charBoost?.sources ?? []).filter(source => !source.self && source.fromId !== player?.id);
-  const hasGlobal = eff.globalChemBonus.passing > 0 || eff.globalChemBonus.pace > 0 || eff.globalChemBonus.special > 0;
-  const showChem = chemNet !== 0 || !!chem;
-  const showTraits = (traits && traits.length > 0) || traitDeltas.length > 0;
-  // Uma carta Única pode ter duas características; cada uma recebe sua própria linha e explicação.
-  const variants = player ? getCardVariants(player) : [];
-  const isOutfieldInGoal = !!player && isOutfieldGoalkeeper(player, formationRole);
-  const goalkeeperDefDelta = eff.breakdown.defending.goalkeeper;
-  const goalkeeperDefBefore = eff.defending - goalkeeperDefDelta;
-  const goalkeeperDefLoss = Math.max(0, goalkeeperDefBefore - eff.defending);
-  const positionColor = eff.isOOP ? '#EF4444' : '#EAB308';
-  const positionLabel = eff.isOOP ? 'FORA DE POSIÇÃO · −15%' : '2ª POSIÇÃO · −5%';
-  const activeTactic = getTacticById(playStyle);
-  // Named coach effects (e.g. "Visão de Jogo: +3 Geral") are ALREADY folded into the
-  // per-stat TREINADOR chips below — caption them so the bonus never reads as doubled.
-  const activeCoach = eff.activeCoachEffects ?? [];
-  const showCaptain = captain.length > 0;
-  const anything = showChem || hasGlobal || coach.length > 0 || showTraits || tactic.length > 0 || showCaptain || train.length > 0 || evolution.length > 0 || position.length > 0 || char.length > 0 || variants.length > 0 || medicalReturnBoost > 0 || isOutfieldInGoal;
+export default function BuffBreakdown({ model, collapsible = false }: { model: PlayerSheetModel; collapsible?: boolean }) {
+  const [open, setOpen] = useState(() => !collapsible || (typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches));
+  const { eff, player, chem } = model;
+  const variants = getCardVariants(player);
+  const medical = Math.max(0, Math.floor(player.medicalReturnBoost ?? 0));
+  const train = perAttr(model, 'train');
+  const evolution = [...perAttr(model, 'evolve'), ...perAttr(model, 'specialization')];
+  const chemPerAttr = perAttr(model, 'chem');
+  const coach = perAttr(model, 'coach');
+  const tactic = perAttr(model, 'tactic');
+  const captain = perAttr(model, 'captain');
+  const position = perAttr(model, 'position');
+  const goalkeeper = eff.breakdown.defending.goalkeeper;
+  const teammateSources = (model.charBoost?.sources ?? []).filter(s => !s.self && s.fromId !== player.id);
+  const global = eff.globalChemBonus;
+  const hasGlobal = global.passing > 0 || global.pace > 0 || global.special > 0;
+  const tacticName = getTacticById(model.playStyle).name;
 
-  const chips = (list: Delta[], color: string) =>
-    list.map(({ a, v }) => <Chip key={a} text={`${v > 0 ? '+' : ''}${v} ${ATTR_PT[a]}`} color={color} />);
-  const chemColor = chem?.oop || chemNet < 0 ? '#EF4444' : '#22C55E';
+  const cardRows = [
+    ...variants.map(variant => {
+      const state = variantState(variant, model);
+      const details = variantDetails(variant, model, model.charBoost);
+      const color = state.active ? (variant.color === '#FFFFFF' ? '#E5E7EB' : variant.color) : MUTED;
+      return (
+        <Row key={`v-${variant.key}`} icon={variant.icon} color={color}
+          name={`${variant.label.toUpperCase()}${state.active ? '' : state.inactiveReason === 'ainda sem bônus acumulado' ? ' · SEM BÔNUS AINDA' : ' · SEM EFEITO AGORA'}`}>
+          <Chips items={details.chips.map(c => (state.active ? c : { ...c, dim: true }))} />
+          <Note>{state.active || state.inactiveReason === 'ainda sem bônus acumulado' ? details.description : `Inativo: ${state.inactiveReason}. ${details.description}`}</Note>
+        </Row>
+      );
+    }),
+    model.traits.length > 0 && (
+      <Row key="traits" icon="🎨" name="ESTILOS DE JOGO" color="#A78BFA">
+        <div className="space-y-1.5">
+          {model.traits.map(t => (
+            <div key={t.id} className="flex items-start gap-1.5">
+              <span className="mt-0.5 flex-shrink-0 text-xs leading-none" aria-hidden="true">{t.icon}</span>
+              <div className="min-w-0 text-[12px]" style={FONT}>
+                <span className="font-black text-white">{t.id}</span>
+                {t.effect && <span className="font-bold text-[#A78BFA]"> — {t.effect}</span>}
+                {t.keeperOnly && <span className="text-[var(--ui-text-muted)]"> (vale na defesa de chutes, não muda o atributo DEF)</span>}
+                {t.flavor && <div className="text-[var(--ui-text-muted)]">{t.flavor}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Row>
+    ),
+    evolution.length > 0 && (
+      <Row key="evolution" icon="🆙" name="EVOLUÇÃO" color={GREEN}>
+        <Chips items={attrChips(evolution, GREEN)} />
+        <Note>Pontos de evolução e especialização aplicados nesta carta.</Note>
+      </Row>
+    ),
+    train.length > 0 && (
+      <Row key="train" icon="💪" name="TREINO (LOJA)" color="#34D399">
+        <Chips items={attrChips(train, '#34D399')} />
+        <Note>Melhoria permanente comprada na loja.</Note>
+      </Row>
+    ),
+    medical > 0 && (
+      <Row key="medical" icon="🏥" name="DEPARTAMENTO MÉDICO" color="#22D3EE">
+        <Chips items={[{ text: `+${medical} EM CADA ATRIBUTO`, color: '#22D3EE' }]} />
+        <Note>Bônus permanente acumulado ao voltar de lesões.</Note>
+      </Row>
+    ),
+  ];
+
+  const teamRows = [
+    chem && (
+      <Row key="chem" icon="🔗" color={chem.oop ? RED : GREEN}
+        name={`QUÍMICA INDIVIDUAL ${chem.score}/3 · ×${chem.multiplier.toFixed(2)}${chem.oop ? ' · FORA DE POSIÇÃO' : ''}`}>
+        {chemPerAttr.length > 0 && <Chips items={attrChips(chemPerAttr, GREEN)} />}
+        {chem.oop ? (
+          <Note>Joga como <b>{chem.formationPos}</b>, mas é <b>{chem.nativePos}</b>: a química individual zera. Troque por alguém da posição.</Note>
+        ) : chem.groups.length > 0 ? (
+          <>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {chem.groups.map(g => (
+                <span key={g.key} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-bold"
+                  style={{ color: g.color, background: `${g.color}1A`, border: `1px solid ${g.color}44`, ...FONT }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: g.color }} />
+                  {g.label} (+{g.points}{g.key === 'coachBond' ? '' : ' cada'}): {g.names.join(', ')}
+                </span>
+              ))}
+            </div>
+            <Note>
+              Soma <b className="text-[var(--ui-text-soft)]">{chem.rawPoints} pt{chem.rawPoints === 1 ? '' : 's'}</b>
+              {chem.nextAt == null ? ' — química individual máxima.' : chem.rawPoints < chem.nextAt
+                ? <> — faltam <b className="text-[var(--ui-brand-strong)]">{chem.nextAt - chem.rawPoints}</b> para o próximo nível.</>
+                : ' — suficiente para o nível atual.'}
+            </Note>
+          </>
+        ) : (
+          <Note>Na posição certa, mas sem vínculos (clube, nação, técnico ou dupla) com os titulares.</Note>
+        )}
+      </Row>
+    ),
+    hasGlobal && (
+      <Row key="global" icon="⭐" name="QUÍMICA DO TIME" color="#C9A84C">
+        <Chips items={[
+          ...(global.passing > 0 ? [{ text: `+${global.passing} PAS`, color: '#C9A84C' }] : []),
+          ...(global.pace > 0 ? [{ text: `+${global.pace} RIT`, color: '#C9A84C' }] : []),
+          ...(global.special > 0 ? [{ text: `+${global.special} EM TODOS`, color: '#C9A84C' }] : []),
+        ]} />
+        <Note>Bônus da química geral do time, igual para todos os titulares.</Note>
+      </Row>
+    ),
+    captain.length > 0 && model.captain && (
+      <Row key="captain" icon="👑" name={`CAPITÃO: ${model.captain.name.toUpperCase()}${model.captain.auto ? ' (AUTOMÁTICO)' : ''}`} color="#3B82F6">
+        <Chips items={attrChips(captain, '#3B82F6')} />
+        <Note>
+          {model.captain.isThisPlayer ? 'Ele é o capitão: ' : ''}a melhor estatística do capitão ({model.captain.stat}) vale +{model.captain.amount} para todo o time.
+          {model.captain.auto ? ' Nenhum capitão foi escolhido, então o jogo usa o titular de maior geral. Escolha em Funções de jogo.' : ''}
+        </Note>
+      </Row>
+    ),
+    (coach.length > 0 || eff.activeCoachEffects.length > 0) && (
+      <Row key="coach" icon="🎓" name={`TREINADOR${model.coachName ? `: ${model.coachName.toUpperCase()}` : ''}`} color="#E8C84A">
+        <Chips items={attrChips(coach, '#E8C84A')} />
+        {eff.activeCoachEffects.length > 0 && <Note>Ativo agora: {eff.activeCoachEffects.join(' · ')}</Note>}
+      </Row>
+    ),
+    tactic.length > 0 && (
+      <Row key="tactic" icon="📋" name={`TÁTICA: ${tacticName.toUpperCase()}`} color="#4FC3F7">
+        <Chips items={attrChips(tactic, '#4FC3F7')} />
+      </Row>
+    ),
+    position.length > 0 && (
+      <Row key="position" icon="🔁" name={eff.isOOP ? 'FORA DE POSIÇÃO · −15%' : 'POSIÇÃO SECUNDÁRIA · −5%'} color={eff.isOOP ? RED : '#EAB308'}>
+        <Chips items={attrChips(position, eff.isOOP ? RED : '#EAB308')} />
+        <Note>Penalidade nos atributos por jogar fora da posição de origem.</Note>
+      </Row>
+    ),
+    model.outfieldInGoal && (
+      <Row key="gk" icon="🧤" name="JOGADOR DE LINHA NO GOL" color="#F59E0B">
+        <Chips items={[{ text: `${goalkeeper} DEF`, color: '#F59E0B' }]} />
+        <Note>Jogadores de linha aproveitam {Math.round(OUTFIELD_GK_MULTIPLIER * 100)}% da Defesa no gol.</Note>
+      </Row>
+    ),
+    ...teammateSources.map((src, i) => {
+      const vis = TEAMCHAR[src.type];
+      return (
+        <Row key={`mate-${i}`} icon={vis.icon} name={`${vis.label} — DE ${src.fromName.toUpperCase()}`} color={vis.color}>
+          <Chips items={[
+            ...(src.flatAll !== 0 ? [{ text: `${src.flatAll > 0 ? '+' : ''}${src.flatAll} EM CADA ATRIBUTO`, color: src.flatAll < 0 ? RED : vis.color }] : []),
+            ...Object.entries(src.perStat as Record<string, number>).map(([k, v]) => ({ text: `+${v} ${ATTR_SHORT[k as keyof typeof ATTR_SHORT] ?? k}`, color: vis.color })),
+          ]} />
+        </Row>
+      );
+    }),
+  ];
+
+  const matchRows = [
+    ...model.situations.map(s => (
+      <Row key={`sit-${s.label}`} icon="⏱️" name={s.label.toUpperCase()} color="#FBBF24">
+        <Chips items={s.effects.map(e => ({ text: e, color: '#FBBF24' }))} />
+        <Note>Nessa situação o geral efetivo vai a <b className="text-[var(--ui-text-soft)]">{s.overall}</b>.</Note>
+      </Row>
+    )),
+    model.homeBonus > 0 && (
+      <Row key="home" icon="🏟️" name="JOGANDO EM CASA" color="#60A5FA">
+        <Chips items={[{ text: `+${model.homeBonus} EM CADA ATRIBUTO`, color: '#60A5FA' }]} />
+        <Note>Vale nos lances das partidas em casa (projeto Estádio). A final em jogo único é em campo neutro.</Note>
+      </Row>
+    ),
+    model.keeper && (
+      <Row key="keeper" icon="🧤" name={`DEFESA DE CHUTES: ${model.keeper.rating}`} color="#22D3EE">
+        <Note>
+          É o valor usado contra finalizações e pênaltis: DEF {eff.defending}
+          {model.keeper.traitBonus > 0 ? <> + <b className="text-[var(--ui-text-soft)]">{model.keeper.traitBonus}</b> dos estilos de goleiro</> : null}.
+        </Note>
+      </Row>
+    ),
+  ];
+
+  const total = [...cardRows, ...teamRows, ...matchRows].filter(Boolean).length;
 
   return (
-    <div className="px-4 py-3 border-t" style={{ borderColor: '#161626', background: '#09090f' }}>
-      <div className="text-xs font-black text-gray-400 tracking-widest mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-        🧬 DE ONDE VEM O BÔNUS
-      </div>
-      {!anything ? (
-        <div className="text-sm text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-          Sem modificadores ativos — atributos no valor base.
-        </div>
+    <div className="border-t px-4 py-3" style={{ borderColor: '#161626', background: '#09090f' }}>
+      <button type="button" onClick={() => collapsible && setOpen(v => !v)} disabled={!collapsible}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 text-left disabled:cursor-default">
+        <span className="text-xs font-black tracking-widest text-[var(--ui-text-soft)]" style={FONT}>🧬 DE ONDE VEM CADA BÔNUS</span>
+        {collapsible && <span className="text-[12px] font-bold text-[var(--ui-text-muted)]" style={FONT}>{open ? 'Ocultar ▴' : `Ver ${total} fonte${total === 1 ? '' : 's'} ▾`}</span>}
+      </button>
+      {open && (total === 0 ? (
+        <div className="mt-2 text-sm text-[var(--ui-text-muted)]" style={FONT}>Sem modificadores ativos — atributos no valor da carta.</div>
       ) : (
-        <div className="divide-y" style={{ borderColor: '#141422' }}>
-          {variants.map(variant => player && <SpecialVariantRow key={variant.key} variant={variant} player={player} charBoost={charBoost} isStarter={isStarter} credits={credits} />)}
-
-          {medicalReturnBoost > 0 && (
-            <Row icon="🏥" name="DEPARTAMENTO MÉDICO" color="#22D3EE">
-              <div className="flex flex-wrap gap-1">
-                <Chip text={`+${medicalReturnBoost} EM CADA ATRIBUTO`} color="#22D3EE" />
-              </div>
-              <div className="mt-1 text-[12px] text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                Bônus permanente acumulado ao voltar de lesões. Já está incorporado aos atributos e ao geral da carta.
-              </div>
-            </Row>
-          )}
-
-          {/* INDIVIDUAL CHEMISTRY — the multiplier AND why (connections / out-of-position) */}
-          {showChem && (
-            <Row icon="🔗" color={chemColor}
-              name={`QUÍMICA INDIVIDUAL (${eff.chemScore}/3)${chem?.oop ? ' · FORA DE POSIÇÃO' : ''}`}>
-              <div className="flex flex-wrap gap-1">
-                <Chip text={`×${eff.chemMult.toFixed(2)}`} color={chemColor} />
-                {chemNet !== 0 && <Chip text={`${chemNet > 0 ? '+' : ''}${chemNet} no total`} color={chemColor} />}
-              </div>
-              {chem?.oop ? (
-                <div className="text-[12px] leading-snug mt-1.5 rounded-md px-2 py-1.5" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#FCA5A5', background: '#EF444415', border: '1px solid #EF444433' }}>
-                  Joga como <b>{chem.formationPos}</b>, mas é <b>{chem.nativePos}</b> de origem → a química zera e ele perde rendimento. Troque por alguém da posição.
-                </div>
-              ) : chem && chem.links.length > 0 ? (
-                <>
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {chem.links.map(l => (
-                      <span key={l.type} className="inline-flex items-center gap-1 text-[12px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ fontFamily: 'var(--font-game), sans-serif', color: l.color, background: `${l.color}1A`, border: `1px solid ${l.color}44` }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: l.color }} />
-                        {l.label}: {l.names.join(', ')}
-                      </span>
-                    ))}
-                  </div>
-                  {chem.nextAt != null && (
-                    <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                      Vínculos somam <b style={{ color: 'var(--ui-text-soft)' }}>{chem.rawPts} pt{chem.rawPts === 1 ? '' : 's'}</b>
-                      {chem.rawPts < chem.nextAt
-                        ? <> — faltam <b style={{ color: 'var(--ui-brand-strong)' }}>{chem.nextAt - chem.rawPts}</b> pra subir 1 nível de química.</>
-                        : <> — suficiente pro nível atual.</>}
-                    </div>
-                  )}
-                </>
-              ) : chem ? (
-                <div className="text-[12px] text-gray-500 mt-1.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  Na posição certa, mas sem vínculos (clube/nação/técnico) com os titulares.
-                </div>
-              ) : null}
-            </Row>
-          )}
-
-          {isOutfieldInGoal && (
-            <Row icon="🧤" name="APTIDÃO NO GOL" color="#F59E0B">
-              <div className="flex flex-wrap gap-1">
-                <Chip text={`−30% DEF = −${goalkeeperDefLoss} DEF`} color="#F59E0B" />
-              </div>
-              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                Jogadores de linha aproveitam 70% da Defesa para defender. O valor exibido já inclui o ajuste.
-              </div>
-            </Row>
-          )}
-
-          {hasGlobal && (
-            <Row icon="⭐" name="QUÍMICA DO TIME (global)" color="#C9A84C">
-              <div className="flex flex-wrap gap-1">
-                {eff.globalChemBonus.passing > 0 && <Chip text={`+${eff.globalChemBonus.passing} PAS`} color="#C9A84C" />}
-                {eff.globalChemBonus.pace > 0 && <Chip text={`+${eff.globalChemBonus.pace} RIT`} color="#C9A84C" />}
-                {eff.globalChemBonus.special > 0 && <Chip text={`✨ +${eff.globalChemBonus.special} EM TODOS`} color="#C9A84C" />}
-              </div>
-              {eff.globalChemBonus.special > 0 && (
-                <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  Bônus de química do time: <b style={{ color: 'var(--ui-brand-strong)' }}>+{eff.globalChemBonus.special} em todos os atributos</b> de todos os titulares (sobe a cada marco, +5 na química perfeita).
-                </div>
-              )}
-            </Row>
-          )}
-
-          {/* CAPTAIN — the armband lifts the captain's single best stat by +3 for the WHOLE
-              team (the captain included). Applied by the engine but never surfaced as a delta
-              before, so without this row it was an invisible buff. */}
-          {showCaptain && (
-            <Row icon="👑" name="CAPITÃO" color="#3B82F6">
-              <div className="flex flex-wrap gap-1">{chips(captain, '#3B82F6')}</div>
-              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                A melhor estatística do capitão vira <b style={{ color: '#93C5FD' }}>+{captain[0]?.v ?? 3}</b> pra todo o time — inclusive pra ele.
-              </div>
-            </Row>
-          )}
-
-          {coach.length > 0 && (
-            <Row icon="🎯" name="TREINADOR" color="#E8C84A">
-              <div className="flex flex-wrap gap-1">{chips(coach, '#E8C84A')}</div>
-              {activeCoach.length > 0 && (
-                <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  Já inclui: {activeCoach.join(' · ')}
-                </div>
-              )}
-            </Row>
-          )}
-
-          {/* TRAITS — each one named, with what it grants and a flavour line */}
-          {showTraits && (
-            <Row icon="🎯" name="ESTILOS DE JOGO" color="#A78BFA">
-              {traits && traits.length > 0 ? (
-                <div className="space-y-1">
-                  {traits.map(t => (
-                    <div key={t.id} className="flex items-start gap-1.5">
-                      <span className="text-xs flex-shrink-0 leading-none mt-0.5">{t.icon}</span>
-                      <div className="min-w-0">
-                        <span className="text-[12px] font-black text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{t.id}</span>
-                        {t.effect && <span className="text-[12px] font-bold" style={{ color: '#A78BFA', fontFamily: 'var(--font-game), sans-serif' }}> — {t.effect}</span>}
-                        {t.flavor && <div className="text-[12px] text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{t.flavor}</div>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1">{chips(traitDeltas, '#A78BFA')}</div>
-              )}
-            </Row>
-          )}
-
-          {tactic.length > 0 && (
-            <Row icon="📋" name={`TÁTICA (${activeTactic.name.toUpperCase()})`} color="#4FC3F7">
-              <div className="flex flex-wrap gap-1">{chips(tactic, '#4FC3F7')}</div>
-            </Row>
-          )}
-
-          {/* TREINO — permanent per-attribute boost bought in the shop. Stacks with no cap and
-              already flows into the effective overall (it's a delta like any other buff). */}
-          {train.length > 0 && (
-            <Row icon="💪" name="TREINO (LOJA)" color="#34D399">
-              <div className="flex flex-wrap gap-1">{chips(train, '#34D399')}</div>
-              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                Melhoria permanente comprada na loja — soma direto no atributo (sem teto) e reflete no geral.
-              </div>
-            </Row>
-          )}
-
-          {/* ⭐ EVOLUÇÃO — bônus aplicado aos atributos escolhidos. */}
-          {evolution.length > 0 && (
-            <Row icon="⭐" name="EVOLUÇÃO" color="#22C55E">
-              <div className="flex flex-wrap gap-1">{chips(evolution, '#22C55E')}</div>
-              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                Bônus de evolução aplicados aos atributos escolhidos — soma direto nos atributos e reflete no geral.
-              </div>
-            </Row>
-          )}
-
-          {/* As características da própria carta já aparecem no bloco especial acima. */}
-
-          {/* 🔁 POSIÇÃO — penalidade por jogar fora da nativa (química fica intacta). */}
-          {position.length > 0 && (
-            <Row icon="🔁" name={positionLabel} color={positionColor}>
-              <div className="flex flex-wrap items-center gap-1">{chips(position, positionColor)}</div>
-              <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                A penalidade acima é aplicada aos atributos da carta. A química não é afetada.
-              </div>
-            </Row>
-          )}
-
-          {/* 🩸❤️🪑👑 Bônus recebido de características especiais de companheiros. */}
-          {/* Uma linha específica por fonte — sem repetir a característica do próprio jogador. */}
-          {receivedCharSources.length > 0
-            ? receivedCharSources.map((src, i) => {
-              const vis = TEAMCHAR[src.type];
-              return (
-                <Row key={i} icon={vis.icon} name={src.self ? `${vis.label} (ATIVO)` : `${vis.label} — de ${src.fromName}`} color={vis.color}>
-                  <div className="flex flex-wrap gap-1">
-                    {src.flatAll !== 0 && <Chip text={`${src.flatAll > 0 ? '+' : ''}${src.flatAll} EM CADA ATRIBUTO`} color={src.flatAll < 0 ? '#EF4444' : vis.color} />}
-                    {Object.entries(src.perStat as Record<string, number>).map(([k, v]) => (
-                      <Chip key={k} text={`+${v} ${ATTR_PT[k] ?? k.toUpperCase()}`} color={vis.color} />
-                    ))}
-                  </div>
-                  <div className="text-[12px] text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                    {src.type === 'martir' ? `Sacrifício do ${src.fromName} (Mártir): +${MARTIR_TARGET_BOOST} em tudo pra você.`
-                      : src.type === 'idolo' ? `${src.fromName} (Ídolo) do mesmo clube: +2 em cada atributo.`
-                        : src.type === 'noe' ? `Noé ATIVO: é o único titular com característica → +${NOE_STAT_BOOST} em tudo (e +${NOE_CHEM_BONUS} na química geral do time).`
-                          : src.type === 'forasteiro' ? 'Forasteiro ATIVO: único do seu país e clube no XI → +8 em tudo.'
-                            : src.type === 'colecionador' ? `${src.fromName} (Colecionador): +1 por jogador na reserva → +${src.flatAll} em tudo.`
-                              : src.type === 'arrogante' ? `${src.fromName} (Arrogante): a cada ${ARROGANTE_GOALS_PER_PENALTY} gols dele, os outros titulares perdem −1 em tudo.`
-                                : src.type === 'todosPorUm' ? `Todos por um ATIVO: os 11 titulares têm a característica → +${TODOS_POR_UM_STAT_BOOST} em tudo e +${TODOS_POR_UM_CHEM_BONUS} na química geral.`
-                                  : `${src.fromName} (12º Homem) no banco: +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos.`}
-                  </div>
-                </Row>
-              );
-            })
-            : char.length > 0 && variants.length === 0 && (
-              <Row icon="🤝" name="CARACTERÍSTICA DO TIME" color="#F472B6">
-                <div className="flex flex-wrap gap-1">{chips(char, '#F472B6')}</div>
-              </Row>
-            )}
+        <div className="mt-1 space-y-2">
+          <Group title="DA CARTA" hint="vale em qualquer time">{cardRows}</Group>
+          <Group title="DO TIME" hint="química, capitão, técnico, tática">{teamRows}</Group>
+          <Group title="SÓ NA PARTIDA" hint="situações do jogo">{matchRows}</Group>
         </div>
-      )}
+      ))}
     </div>
   );
 }

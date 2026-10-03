@@ -51,10 +51,10 @@ const DRAFT_ARROGANTE_CHANCE = 0.03; // 👑 Arrogante — +2 por gol; −1 aos 
 const DRAFT_ESTRIBADO_CHANCE = 0.03; // 💰 Estribado — +1 por cada 100 créditos disponíveis
 const DRAFT_TODOS_POR_UM_CHANCE = 0.03; // 🤝 Todos por um — só ativa quando fecha o XI
 const DRAFT_MERCENARIO_CHANCE = 0.03; // 🏆 Conquistador — +2 por missão concluída
-const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
+export const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
-const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
+export const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
 export const FRAGIL_STAT_BOOST = 7;  // 🩹 Frágil: +7 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida por isto (não empilha: 1+ magnatas → 1 só).
 export const MAGNATA_POINT_MULT = 1.5;
@@ -73,6 +73,8 @@ export const NOE_STAT_BOOST = 20;
 export const NOE_CHEM_BONUS = 50;
 // 🧳 Forasteiro — o anti-química: +8 em tudo quando é o ÚNICO titular do seu país E do seu clube.
 export const FORASTEIRO_STAT_BOOST = 8;
+/** ❤️ Ídolo: +N em cada atributo para os outros titulares do mesmo clube. */
+export const IDOLO_STAT_BOOST = 2;
 // 🧩 Colecionador — +1 em todos os atributos por jogador que estiver na reserva.
 export const COLECIONADOR_PER_RESERVE = 1;
 // 💰 Estribado — +1 em todos os atributos a cada 100 créditos disponíveis.

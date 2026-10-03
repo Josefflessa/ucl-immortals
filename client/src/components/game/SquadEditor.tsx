@@ -12,7 +12,7 @@ import {
   PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, captainBoostFromStarters,
   computeCharacteristicBoosts, evolvePointsSpent, evolvePointsBudget, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, SPECIALIZATION_LEVEL, SPECIALIZATION_UNLOCK_COST, positionFit, type EffectiveStats,
 } from '@shared/game/gameEngine';
-import { TRAIT_MAP, traitEffectLabel, type AttrKey } from '@shared/game/traits';
+import { type AttrKey } from '@shared/game/traits';
 import type { MatchPlan } from '@shared/game/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from './FormationField';
 import CoachStadiumPanel from './CoachStadiumPanel';
@@ -24,8 +24,8 @@ import TacticSelector from './TacticSelector';
 import MatchPlanSelector from './MatchPlanSelector';
 import FormationSelector from './FormationSelector';
 import ChemistryBonusInfo from './ChemistryBonusInfo';
-import BuffBreakdown from './BuffBreakdown';
-import { canonicalClubName } from '@shared/game/crests';
+import PlayerSheet from './player-sheet/PlayerSheet';
+import { buildPlayerSheet } from './player-sheet/playerSheetModel';
 import { squadEffectiveStats } from '../../lib/squadEffectiveStats';
 import { GameModal } from '../../design-system';
 
@@ -191,9 +191,21 @@ export default function SquadEditor({
   };
 
   const selectedPlayer = selectedIndex !== null ? players[selectedIndex] : null;
-  const selectedChemScore = selectedPlayer ? (chemData.individual[selectedPlayer.id] ?? 0) : 0;
-  const selectedIsOOP = selectedPlayer ? (chemData.outOfPosition[selectedPlayer.id] ?? false) : false;
-  const selectedIsSecondary = selectedPlayer ? (chemData.secondaryPos[selectedPlayer.id] ?? false) : false;
+  // The sheet (numbers, sources, explanations) comes from the same model as the report modal.
+  const selectedSheet = useMemo(() => (selectedPlayer && selectedIndex !== null ? buildPlayerSheet({
+    player: selectedPlayer,
+    players,
+    index: selectedIndex,
+    coachId,
+    formationId,
+    playStyle,
+    captainId: captain,
+    isKnockout,
+    coachPrime,
+    analysisLevel,
+    stadiumProjectLevel,
+    credits: points,
+  }) : null), [selectedPlayer, selectedIndex, players, coachId, formationId, playStyle, captain, isKnockout, coachPrime, analysisLevel, stadiumProjectLevel, points]);
 
   const clearBenchHoldTimer = () => {
     if (benchHoldTimerRef.current !== null) {
@@ -695,24 +707,25 @@ export default function SquadEditor({
 
       {footer}
 
-      {/* Premium Player Modal */}
+      {/* Player sheet + management (swap, evolution, Mártir, physio) */}
       <>
-        {selectedIndex !== null && selectedPlayer && (
+        {selectedIndex !== null && selectedPlayer && selectedSheet && (
           <GameModal
             open
             onOpenChange={open => { if (!open) setSelectedIndex(null); }}
             size="wide"
-            title="GERENCIAR POSIÇÃO"
-            subtitle={<>Trocar posição de <span className="font-extrabold text-primary">{selectedPlayer.shortName}</span></>}
+            className="lg:w-[min(100%,1180px)]"
+            title="FICHA DO JOGADOR"
+            subtitle={<><span className="font-extrabold text-primary">{selectedPlayer.shortName}</span> · {selectedSheet.isStarter ? `titular · ${POS_PT[selectedSheet.formationRole] ?? selectedSheet.formationRole}` : 'reserva'}</>}
             headerExtra={
               <button onClick={() => setZoomCard(true)} title="Ver card em tela cheia" aria-label="Ver card ampliado"
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-lg transition-colors hover:bg-white/10 focus:outline-none"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-lg transition-colors hover:bg-white/10"
                 style={{ border: '1px solid #2E2E42', color: '#C9C9D5' }}>🔍</button>
             }
             footer={
               <button onClick={() => setSelectedIndex(null)}
-                className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg text-sm font-black text-gray-300 hover:text-white hover:bg-white/5 transition-colors focus:outline-none whitespace-nowrap"
-                style={{ fontFamily: 'var(--font-game), sans-serif', border: '1px solid #2E2E42' }}>Cancelar</button>
+                className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg text-sm font-black text-gray-300 hover:text-white hover:bg-white/5 transition-colors whitespace-nowrap"
+                style={{ fontFamily: 'var(--font-game), sans-serif', border: '1px solid #2E2E42' }}>FECHAR</button>
             }
             bodyClassName="relative !p-0"
             bodyStyle={{
@@ -724,15 +737,13 @@ export default function SquadEditor({
               backgroundAttachment: 'scroll',
             }}
           >
-            {/* O body do modal recebe a textura: ela fica fixa no viewport rolável
-                entre o cabeçalho e o rodapé, sem acompanhar o scroll do conteúdo. */}
             <div className="relative z-10 space-y-5 p-[18px]">
               {/* 🟨🟥🩹 Faixa compacta de disponibilidade — só aparece quando o jogador tem alguma pendência. */}
               {(() => {
                 const a = availability?.[selectedPlayer.id];
                 if (!a || (a.banned === 0 && a.injured === 0 && a.yellows === 0)) return null;
                 return (
-                  <div className="relative z-10 flex flex-shrink-0 flex-col items-stretch gap-3 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
+                  <div className="flex flex-col items-stretch gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
                     <div className="min-w-0 text-xs font-bold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: a.banned > 0 ? '#FCA5A5' : a.injured > 0 ? '#FCD34D' : 'var(--ui-warning)' }}>
                       {a.banned > 0 ? `🟥 Suspenso — fora de ${a.banned} jogo(s)` : a.injured > 0 ? `🩹 Lesionado — fora de ${a.injured} jogo(s)` : `🟨 ${a.yellows} amarelo(s) acumulado(s)`}
                     </div>
@@ -759,147 +770,13 @@ export default function SquadEditor({
                 );
               })()}
 
-              <div className="space-y-5">
-                {(() => {
-                  const isStarter = selectedIndex < 11;
-                  const posIdx = isStarter ? selectedIndex : -1;
-                  const formationRole = isStarter ? (formationRoles[posIdx] ?? selectedPlayer.position) : selectedPlayer.position;
-                  const eff = getPlayerEffectiveStats(selectedPlayer, selectedChemScore, selectedIsOOP, coachId, chemData.total, playStyle, { captainBoost: isStarter ? captainBoost : undefined, charBoosts, isKnockout, coachPrime, analysisLevel, role: formationRole, isSecondary: selectedIsSecondary, credits: points });
-                  const medicalReturnBoost = Math.max(0, Math.floor(selectedPlayer.medicalReturnBoost ?? 0));
-                  const originalOverall = Math.max(1, (selectedPlayer.baseOverall ?? selectedPlayer.overall) - medicalReturnBoost);
-                  // Variants and medical returns are baked into selectedPlayer.*. Undo both
-                  // for the baseline so the displayed deltas include each permanent gain once.
-                  const cardVariantDelta = selectedPlayer.baseOverall !== undefined
-                    ? selectedPlayer.overall - selectedPlayer.baseOverall
-                    : 0;
-                  const effectiveOverallDelta = eff.overall - originalOverall;
-                  const originalStat = (value: number) => Math.max(1, value - cardVariantDelta - medicalReturnBoost);
-                  const chemDots = [0, 1, 2].map(i => i < eff.chemScore);
-                  const linkLabels: Record<string, string> = { club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica' };
-                  const selLinks = posIdx >= 0
-                    ? chemLinks.filter(l => l.aIndex === posIdx || l.bIndex === posIdx).map(l => ({ player: xi[l.aIndex === posIdx ? l.bIndex : l.aIndex], type: l.type }))
-                    : [];
-                  const linksByType = (['club', 'nation', 'coach', 'partner'] as const)
-                    .map(t => ({ t, names: selLinks.filter(l => l.type === t).map(l => l.player?.shortName).filter(Boolean) as string[] }))
-                    .filter(g => g.names.length > 0);
-                  const LINK_PTS: Record<string, number> = { club: 2, nation: 1, coach: 2, partner: 1 };
-                  const chemRawPts = selectedIsOOP ? 0
-                    : selLinks.reduce((s, l) => s + (LINK_PTS[l.type] ?? 0), 0) + ((selectedPlayer.historicalCoaches ?? []).includes(coachId) ? 1 : 0);
-                  const chemThresholds = [2, 5, 8];
-                  const chemNextAt = eff.chemScore >= 3 ? null : chemThresholds[eff.chemScore];
-                  const chemInfo = {
-                    oop: selectedIsOOP,
-                    nativePos: POS_PT[selectedPlayer.position] ?? selectedPlayer.position,
-                    formationPos: POS_PT[formationRole] ?? formationRole,
-                    links: linksByType.map(({ t, names }) => ({ type: t, label: linkLabels[t], color: CHEM_LINK_COLOR[t], names })),
-                    rawPts: chemRawPts, nextAt: chemNextAt,
-                  };
-                  const traitInfos = (selectedPlayer.traits ?? []).filter(tid => TRAIT_MAP[tid]).map(tid => {
-                    const def = TRAIT_MAP[tid];
-                    return { id: tid, icon: def?.icon ?? '✨', effect: traitEffectLabel(tid), flavor: def?.flavor ?? '' };
-                  });
-                  const statRows = [
-                    { label: 'RIT', base: originalStat(selectedPlayer.pace), eff: eff.pace },
-                    { label: 'FIN', base: originalStat(selectedPlayer.shooting), eff: eff.shooting },
-                    { label: 'PAS', base: originalStat(selectedPlayer.passing), eff: eff.passing },
-                    { label: 'DRI', base: originalStat(selectedPlayer.dribbling), eff: eff.dribbling },
-                    { label: 'DEF', base: originalStat(selectedPlayer.defending), eff: eff.defending },
-                    { label: 'FIS', base: originalStat(selectedPlayer.physical), eff: eff.physical },
-                    { label: 'VIS', base: originalStat(selectedPlayer.vision), eff: eff.vision },
-                    { label: 'CMP', base: originalStat(selectedPlayer.composure), eff: eff.composure },
-                  ];
-                  return (
-                    <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(7,7,15,.78)', border: `1px solid ${getRarityColor(selectedPlayer.rarity)}22` }}>
-                      <div className="flex items-center gap-4 p-4">
-                        <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#10101d', border: `2px solid ${getRarityColor(selectedPlayer.rarity)}` }}>
-                          <PlayerPortrait
-                            playerId={selectedPlayer.id}
-                            photoUrl={selectedPlayer.photoUrl}
-                            alt={selectedPlayer.shortName}
-                            className="w-full h-full object-cover"
-                            style={{ objectPosition: 'center top', scale: '1.2' }}
-                            fallback={<span className="text-2xl" style={{ color: getRarityColor(selectedPlayer.rarity) }}>⚽</span>}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                            <span className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#1c1c2e', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-                              {POS_PT[formationRole] ?? formationRole}
-                            </span>
-                            {selectedIsOOP && (
-                              <span className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#EF444422', color: 'var(--ui-danger)', border: '1px solid #EF444444', fontFamily: 'var(--font-game), sans-serif' }}>⚠️ FORA DE POSIÇÃO</span>
-                            )}
-                            {selectedIsSecondary && (
-                              <span className="whitespace-nowrap text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', fontFamily: 'var(--font-game), sans-serif' }}>🔁 2ª POSIÇÃO · −5%</span>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xl font-black uppercase truncate" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{selectedPlayer.shortName}</div>
-                            {getEvolutionLevel(selectedPlayer) > 0 && (
-                              <span className="mt-1 inline-flex max-w-full items-center justify-center text-center text-[12px] font-black px-2 py-0.5 rounded leading-none" style={{ background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success))', color: '#04120a', letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(selectedPlayer)}</span>
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-400 truncate" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{canonicalClubName(selectedPlayer.club)} · {selectedPlayer.nation}</div>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{eff.overall}</div>
-                          {effectiveOverallDelta !== 0 && <div className="text-xs font-bold" style={{ color: effectiveOverallDelta > 0 ? 'var(--ui-success)' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>({effectiveOverallDelta > 0 ? '+' : ''}{effectiveOverallDelta})</div>}
-                          <div className="text-[12px] text-gray-500 mt-0.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>GERAL EFETIVO</div>
-                          <div className="mt-1 text-[12px] font-bold leading-tight" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>BASE ORIGINAL {originalOverall}</div>
-                        </div>
-                      </div>
 
-                      <div className="grid grid-cols-4 border-t" style={{ borderColor: '#161626' }}>
-                        {statRows.map(({ label, base, eff: effVal }, i) => {
-                          const delta = effVal - base;
-                          const statColor = delta > 0 ? '#22C55E' : delta < 0 ? '#EF4444' : '#E8D080';
-                          const rightEdge = (i + 1) % 4 === 0;
-                          const firstRow = i < 4;
-                          return (
-                            <div key={label} className={`flex flex-col items-center py-3 ${rightEdge ? '' : 'border-r'} ${firstRow ? 'border-b' : ''}`} style={{ borderColor: '#161626' }}>
-                              <span className="text-[12px] font-bold text-gray-600 tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{label}</span>
-                              <span className="text-lg font-black" style={{ fontFamily: 'var(--font-game), sans-serif', color: statColor }}>{effVal}</span>
-                              {delta !== 0 && <span className="text-[12px] font-bold" style={{ color: statColor, fontFamily: 'var(--font-game), sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: '#161626' }}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[12px] text-gray-500 font-bold tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA INDIVIDUAL</span>
-                          <div className="flex gap-1">
-                            {chemDots.map((filled, i) => (
-                              <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: filled ? 'var(--ui-success)' : '#1a1a2e', boxShadow: filled ? '0 0 5px var(--ui-success)' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />
-                            ))}
-                          </div>
-                          <span className="text-[12px] font-black text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{eff.chemScore}/3</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          <span className="text-[12px] text-gray-500 font-bold tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>JOGA EM:</span>
-                          <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#1c1c2e', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{POS_PT[selectedPlayer.position] ?? selectedPlayer.position}</span>
-                          {effectiveSecondaries(selectedPlayer).map(pos => (
-                            <span key={pos} className="text-[12px] font-bold px-1.5 py-0.5 rounded" style={{ background: '#12121c', color: 'var(--ui-text-muted)', border: '1px solid var(--ui-line)', fontFamily: 'var(--font-game), sans-serif' }}>{POS_PT[pos] ?? pos}</span>
-                          ))}
-                        </div>
-                      </div>
-
-                      {eff.activeCoachEffects.length > 0 && (
-                        <div className="px-4 py-3 border-t" style={{ borderColor: '#161626', background: '#09090f' }}>
-                          <div className="text-[12px] font-black text-yellow-400 tracking-widest mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>⚡ BÔNUS ATIVO DO TREINADOR</div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {eff.activeCoachEffects.map((effect, ei) => (
-                              <span key={ei} className="text-[12px] font-black px-2 py-0.5 rounded" style={{ background: '#C9A84C22', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C44', fontFamily: 'var(--font-game), sans-serif' }}>{effect}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <BuffBreakdown eff={eff} chem={isStarter ? chemInfo : undefined} traits={traitInfos} player={selectedPlayer} charBoost={charBoosts[selectedPlayer.id]} isStarter={isStarter} formationRole={isStarter ? formationRole : undefined} credits={points} playStyle={playStyle} />
-                    </div>
-                  );
-                })()}
-
+              {/* Desktop: the sheet on the left (kept in view), the actions on the right. */}
+              <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
+                <div className="lg:sticky lg:top-0">
+                  <PlayerSheet model={selectedSheet} collapsibleBreakdown />
+                </div>
+                <div className="min-w-0 space-y-5">
                 {/* 🩸 Mártir — pick the 2 XI teammates who get +5 (in-league only; post-draft uses auto). */}
                 {selectedPlayer.martir && onSetMartirTargets && selectedIndex < 11 && (() => {
                   const others = players.slice(0, 11).filter(p => p.id !== selectedPlayer.id);
@@ -1086,14 +963,16 @@ export default function SquadEditor({
                     // - Reserva selecionada → o SELECIONADO entra no slot do titular candidato.
                     const starterSel = selectedIndex !== null && selectedIndex < 11;
                     const headerRole = starterSel ? (formationRoles[selectedIndex!] ?? null) : null;
-                    const swapFit = (candidate: Player, idx: number): { fit: 'native' | 'secondary' | 'off' | null; role: string | null; occupant: Player } => {
+                    const swapFit = (candidate: Player, idx: number): { fit: 'native' | 'secondary' | 'off' | null; role: string | null; occupant: Player; coringaInGoal: boolean } => {
                       const role = starterSel ? (formationRoles[selectedIndex!] ?? null) : (idx < 11 ? (formationRoles[idx] ?? null) : null);
                       const occupant = starterSel ? candidate : selectedPlayer!;
-                      return { fit: role ? positionFit(occupant, role) : null, role, occupant };
+                      // A Coringa has no position penalty, but an outfielder in goal still defends with 70%.
+                      const coringaInGoal = role === 'GK' && !!occupant.coringa && occupant.position !== 'GK';
+                      return { fit: role ? positionFit(occupant, role) : null, role, occupant, coringaInGoal };
                     };
                     const fitRank = (c: Player, idx: number) => {
-                      const f = swapFit(c, idx).fit;
-                      return f === 'native' ? 2 : f === 'secondary' ? 1 : 0;
+                      const { fit: f, coringaInGoal } = swapFit(c, idx);
+                      return coringaInGoal ? 1 : f === 'native' ? 2 : f === 'secondary' ? 1 : 0;
                     };
 
                     const renderCandidate = (candidate: Player, idx: number) => {
@@ -1102,9 +981,9 @@ export default function SquadEditor({
                       const diffLabel = preview.diff > 0 ? `+${preview.diff}` : `${preview.diff}`;
                       const variants = getCardVariants(candidate);
                       const candidateDisciplineChips = disciplineChips(candidate.id);
-                      const { fit, role } = swapFit(candidate, idx);
-                      const nativeFit = fit === 'native';
-                      const secFit = fit === 'secondary';
+                      const { fit, role, coringaInGoal } = swapFit(candidate, idx);
+                      const nativeFit = fit === 'native' && !coringaInGoal;
+                      const secFit = fit === 'secondary' || coringaInGoal;
                       const fits = nativeFit || secFit;
                       const borderCol = role ? (nativeFit ? '#22C55E66' : secFit ? '#F59E0B66' : '#EF444455') : '#161626';
                       const bgCol = role ? (nativeFit ? '#08120b' : secFit ? '#141008' : '#120a0a') : '#07070f';
@@ -1153,13 +1032,13 @@ export default function SquadEditor({
                             {role && (
                               <div className="mt-1">
                                 {nativeFit && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#0a7a2f', color: '#eafff0', fontFamily: 'var(--font-game), sans-serif' }}>✓ ENCAIXA NA VAGA{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
-                                {secFit && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'var(--font-game), sans-serif' }}>🔁 COBRE A VAGA (2ª pos · −5%){starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
+                                {secFit && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'var(--font-game), sans-serif' }}>{coringaInGoal ? '🃏 CORINGA NO GOL · DEFENDE COM 70%' : '🔁 COBRE A VAGA (2ª pos · −5%)'}{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
                                 {!fits && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a0a0a', color: 'var(--ui-danger)', border: '1px solid #EF444455', fontFamily: 'var(--font-game), sans-serif' }}>⚠️ FORA DE POSIÇÃO{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
                               </div>
                             )}
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <div className="text-[12px] text-gray-500 font-bold" style={{ fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA</div>
+                            <div className="text-[12px] text-gray-500 font-bold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA<br />DO TIME</div>
                             <div className="text-xs font-black" style={{ color: diffColor, fontFamily: 'var(--font-game), sans-serif' }}>{preview.total} <span className="text-[12px] font-bold">({diffLabel})</span></div>
                           </div>
                         </div>
@@ -1170,13 +1049,18 @@ export default function SquadEditor({
                     const sortFit = (a: { c: Player; i: number }, b: { c: Player; i: number }) => fitRank(b.c, b.i) - fitRank(a.c, a.i) || b.c.overall - a.c.overall;
                     const starters = players.map((c, i) => ({ c, i })).filter(({ i }) => i < 11 && i !== selectedIndex).sort(sortFit);
                     const bench = players.map((c, i) => ({ c, i })).filter(({ i }) => i >= 11 && i !== selectedIndex).sort(sortFit);
-                    const Section = ({ title, color, items }: { title: string; color: string; items: { c: Player; i: number }[] }) =>
-                      items.length === 0 ? null : (
+                    const fitsSlot = ({ c, i }: { c: Player; i: number }) => fitRank(c, i) > 0;
+                    const Section = ({ title, color, items }: { title: string; color: string; items: { c: Player; i: number }[] }) => {
+                      if (items.length === 0) return null;
+                      return (
                         <div className="space-y-2">
                           <div className="text-[12px] font-black tracking-widest" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>{title}</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{items.map(({ c, i }) => renderCandidate(c, i))}</div>
                         </div>
                       );
+                    };
+                    // Nobody fits (e.g. a keeper slot with no backup keeper): warn that any swap plays out of position.
+                    const noneFits = [...starters, ...bench].every(item => !fitsSlot(item));
                     return (
                       <>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1186,12 +1070,24 @@ export default function SquadEditor({
                           )}
                         </div>
                         <div className="space-y-4">
-                          <Section title="TITULARES" color="#22C55E" items={starters} />
-                          <Section title="🪑 RESERVAS / BANCO" color="#818CF8" items={bench} />
+                          {noneFits && starters.length + bench.length > 0 && <div className="rounded-lg px-3 py-2 text-[12px] text-[#F59E0B]" style={{ background: '#F59E0B12', border: '1px solid #F59E0B44', fontFamily: 'var(--font-game), sans-serif' }}>⚠️ Ninguém do elenco joga nesta posição. Qualquer troca aqui deixa o substituto fora de posição.</div>}
+                          {/* A starter is usually replaced from the bench, so the bench comes first. */}
+                          {starterSel ? (
+                            <>
+                              <Section title="🪑 RESERVAS / BANCO" color="#818CF8" items={bench} />
+                              <Section title="TITULARES (TROCA DE POSIÇÃO)" color="#22C55E" items={starters} />
+                            </>
+                          ) : (
+                            <>
+                              <Section title="TITULARES" color="#22C55E" items={starters} />
+                              <Section title="🪑 RESERVAS / BANCO" color="#818CF8" items={bench} />
+                            </>
+                          )}
                         </div>
                       </>
                     );
                   })()}
+                </div>
                 </div>
               </div>
             </div>

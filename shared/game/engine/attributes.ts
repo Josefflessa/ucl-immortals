@@ -193,7 +193,7 @@ const EVOLVE_POINT_LEVELS = 3;
 const EVOLVE_ATTRIBUTE_KEYS: readonly AttrKey[] = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'];
 const EVOLVE_ATTRIBUTE_KEY_SET = new Set<string>(EVOLVE_ATTRIBUTE_KEYS);
 export const SPECIALIZATION_LEVEL = 4;
-const SPECIALIZATION_POINTS = 6;
+export const SPECIALIZATION_POINTS = 6;
 export const SPECIALIZATION_UNLOCK_COST = 200;
 
 export function evolvePointsBudget(level: number): number {

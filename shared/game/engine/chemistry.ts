@@ -9,7 +9,7 @@ import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedP
 import { getEffectiveAttribute, SECONDARY_STAT_MULT, positionFit, specializationAttributeBonus } from './attributes';
 import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
-import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, hasVariant } from './draft';
+import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, hasVariant } from './draft';
 
 // Playing in the coach's preferred formation gels the side: a flat bonus to the team's
 // TOTAL chemistry, which can push it into a higher global-bonus tier (passe/ritmo/especial).
@@ -162,6 +162,7 @@ export interface StatBreakdown {
   estribado: number;  // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
   mercenario: number; // 🏆 Conquistador — +2 em tudo por missão concluída
   char: number;       // 🩸❤️🪑🤝 team-effect characteristics buffing THIS player
+  pipoqueiro: number; // 🍿 Pipoqueiro — +N em tudo na fase de liga, −N no mata-mata
   specialization: number; // ⭐ Especialização do nível 4 — +6 nos dois atributos da área
 }
 
@@ -515,6 +516,7 @@ export function getPlayerEffectiveStats(
     estribado: estribadoBonus(attr),
     mercenario: mercenarioBonus(attr),
     char: charBonus(attr),
+    pipoqueiro: pipoqBonus(attr),
   });
 
   // Effective overall = base overall + the MEAN change across ALL EIGHT attributes (the six
@@ -595,7 +597,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
   // inspira os companheiros de clube, não a si mesmo).
   for (const idol of xi) {
     if (!idol.idolo) continue;
-    for (const mate of xi) if (mate.id !== idol.id && sameClub(mate.club, idol.club)) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: 2, perStat: {} });
+    for (const mate of xi) if (mate.id !== idol.id && sameClub(mate.club, idol.club)) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: IDOLO_STAT_BOOST, perStat: {} });
   }
   // 🩸 Mártir — +5 em tudo aos 2 titulares escolhidos (ou 2 maiores overalls além dele). Acumulável.
   for (const m of xi) {
