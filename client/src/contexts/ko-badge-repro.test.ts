@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { gameReducer } from './GameContext';
 import type { GameState } from './GameContext';
-import { buildKnockoutMatchKey } from '../lib/bets';
-import { createMissionState, missionCycleKey } from '../lib/missions';
+import { buildKnockoutMatchKey } from '@shared/game/bets';
+import { createMissionState, missionCycleKey } from '@shared/game/missions';
 
 const base = (over: Partial<GameState> = {}): GameState => ({
   ...({} as GameState),
@@ -14,6 +14,7 @@ const base = (over: Partial<GameState> = {}): GameState => ({
   leagueFixtures: [] as any,
   watchedKnockoutMatches: [],
   bets: [],
+  missions: createMissionState('solo:me', 'L1'),
   ...over,
 });
 

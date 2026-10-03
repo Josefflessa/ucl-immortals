@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildKnockoutMatchKey } from '../lib/bets';
-import { getActiveKnockoutMatches } from '../lib/gameEngine';
+import { buildKnockoutMatchKey } from '@shared/game/bets';
+import { getActiveKnockoutMatches } from '@shared/game/gameEngine';
 
 // Faithful replica of KnockoutTiesTab display logic (online).
 function evalTab(state: any) {

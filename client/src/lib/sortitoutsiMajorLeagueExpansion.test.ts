@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PLAYERS } from './gameData';
+import { PLAYERS } from '@shared/game/gameData';
 import { getClubCatalog } from './clubCatalog';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from './playerPhotoCatalog';
-import { SORTITOUTSI_FACE_IDS, SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS } from './sortitoutsiMajorLeagueExpansion';
+import { SORTITOUTSI_FACE_IDS, SORTITOUTSI_MAJOR_LEAGUE_ADDITIONS } from '@shared/game/players/sortitoutsiMajorLeagueExpansion';
 
 describe('expansão de jogadores pesquisada no Sortitoutsi', () => {
   it('não contém ids repetidos e todos os retratos estão identificados pela face de origem', () => {

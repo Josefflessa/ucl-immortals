@@ -4,10 +4,10 @@
 // validates the cost. Solo and online league flows share the same presentation.
 import { useEffect, useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import { COACHES, PLAYERS, POS_PT, Player, UNIQUE_CARDS } from '../../lib/gameData';
-import { buildUniquePackRoundKey, generateScoutOptions, SCOUT_MIN_OVERALL, hasVariant, canAddVariant, variantCount } from '../../lib/gameEngine';
-import type { VariantFlag } from '../../lib/gameEngine';
-import { PLAYER_PACK_META, PLAYER_PACK_RARITIES, SHOP_COSTS, TURBINAR_VARIANTS, ShopVariant, type PlayerPackRarity, type RegularPlayerPackRarity, playerPackCost } from '../../lib/shop';
+import { COACHES, PLAYERS, POS_PT, Player, UNIQUE_CARDS } from '@shared/game/gameData';
+import { buildUniquePackRoundKey, SCOUT_MIN_OVERALL, hasVariant, canAddVariant, variantCount } from '@shared/game/gameEngine';
+import type { VariantFlag } from '@shared/game/gameEngine';
+import { PLAYER_PACK_META, PLAYER_PACK_RARITIES, SHOP_COSTS, TURBINAR_VARIANTS, ShopVariant, type PlayerPackRarity, type RegularPlayerPackRarity, playerPackCost } from '@shared/game/shop';
 import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
 import UniquePackOpening from './UniquePackOpening';
 import { Button, GameModal } from '../../design-system';
@@ -44,18 +44,18 @@ function VariantPagination({ page, pageCount, onPageChange }: { page: number; pa
         type="button"
         onClick={() => onPageChange(Math.max(0, page - 1))}
         disabled={page === 0}
-        className="rounded-md px-2.5 py-1.5 text-[10px] font-black tracking-wider disabled:opacity-30"
+        className="rounded-md px-2.5 py-1.5 text-[12px] font-black tracking-wider disabled:opacity-30"
         style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'Rajdhani, sans-serif' }}>
         ← ANTERIOR
       </button>
-      <span className="text-[10px] font-black tracking-widest text-center" style={{ color: '#A9A9BA', fontFamily: 'Rajdhani, sans-serif' }}>
+      <span className="text-[12px] font-black tracking-widest text-center" style={{ color: '#A9A9BA', fontFamily: 'Rajdhani, sans-serif' }}>
         PÁGINA {page + 1}/{pageCount}
       </span>
       <button
         type="button"
         onClick={() => onPageChange(Math.min(pageCount - 1, page + 1))}
         disabled={page === pageCount - 1}
-        className="rounded-md px-2.5 py-1.5 text-[10px] font-black tracking-wider disabled:opacity-30"
+        className="rounded-md px-2.5 py-1.5 text-[12px] font-black tracking-wider disabled:opacity-30"
         style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'Rajdhani, sans-serif' }}>
         PRÓXIMA →
       </button>
@@ -130,7 +130,7 @@ export default function ShopTab() {
   const claimPlayerPack = () => online ? shopClaimPlayerPackOnline() : dispatch({ type: 'SHOP_CLAIM_PLAYER_PACK' });
   const claimUniquePack = () => online ? shopClaimUniquePackOnline() : dispatch({ type: 'SHOP_CLAIM_UNIQUE_PACK' });
   // 🛒 Pacote: COBRA ao abrir (open) → guarda; a escolha (pick) é grátis. Impede re-sortear de graça.
-  const openScoutPack = (options: Player[], position: string) => online ? shopOpenPackOnline(position) : dispatch({ type: 'SHOP_OPEN_PACK', options });
+  const openScoutPack = (position: string) => online ? shopOpenPackOnline(position) : dispatch({ type: 'SHOP_OPEN_PACK', position });
   const pickPack = (player: Player) => online ? shopPickPackOnline(player) : dispatch({ type: 'SHOP_PICK_PACK', player });
   const buyTurbinar = (playerId: string, variant: ShopVariant) => online ? shopTurbinarOnline(playerId, variant) : dispatch({ type: 'SHOP_TURBINAR', playerId, variant });
   const removeVariant = (playerId: string, variantKey?: VariantFlag) => online ? shopRemoveVariantOnline(playerId, variantKey) : dispatch({ type: 'SHOP_REMOVE_VARIANT', playerId, variantKey });
@@ -211,7 +211,7 @@ export default function ShopTab() {
   const pickScoutPosition = (pos: string) => {
     if (points < SHOP_COSTS.scout) return;
     askConfirm('Caça-Talentos', `Abrir o Caça-Talentos de ${POS_PT[pos] ?? pos} por 💰 ${SHOP_COSTS.scout}? (posição principal, overall ${SCOUT_MIN_OVERALL}+)`, () => {
-      openScoutPack(generateScoutOptions(pos, ownedIds), pos); // COBRA ao abrir
+      openScoutPack(pos); // COBRA ao abrir
     });
   };
 
@@ -261,15 +261,15 @@ export default function ShopTab() {
                    )}
                  </div>
                  <div className="text-base font-black tracking-wide" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{item.name}</div>
-                 <div className="text-[11px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{item.desc}</div>
-                 {!affordable && item.id !== 'turbinar' && <div className="text-[10px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes</div>}
+                 <div className="text-[13px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{item.desc}</div>
+                 {!affordable && item.id !== 'turbinar' && <div className="text-[12px] mt-1 font-bold" style={{ color: '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>Créditos insuficientes</div>}
                </button>
                {item.id === 'turbinar' && (
                  <button
                    type="button"
                    aria-label="Ver características especiais"
                    onClick={() => { setSelPlayerId(null); setVariantPage(0); setTurbinarView('catalog'); setActive('turbinar'); }}
-                   className="absolute bottom-3 right-3 flex h-7 items-center justify-center rounded-full px-2.5 text-[10px] font-black tracking-wider transition-transform hover:scale-105 active:scale-95"
+                   className="absolute bottom-3 right-3 flex h-7 items-center justify-center rounded-full px-2.5 text-[12px] font-black tracking-wider transition-transform hover:scale-105 active:scale-95"
                    style={{ color: '#E8C84A', background: '#E8C84A18', border: '1px solid #E8C84A66' }}
                  >
                    ⓘ LISTA
@@ -418,7 +418,7 @@ export default function ShopTab() {
                           </button>
                         </>
                       )}
-                      <div className="mt-3 rounded-lg px-3 py-2 text-[11px]" style={{ background: '#F0C67412', border: '1px solid #F0C67433', color: '#CFCFE0', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="mt-3 rounded-lg px-3 py-2 text-[13px]" style={{ background: '#F0C67412', border: '1px solid #F0C67433', color: '#CFCFE0', fontFamily: 'Rajdhani, sans-serif' }}>
                         A carta revelada entra no banco e não altera seus titulares. Jogadores adquiridos continuam marcados na oferta até a próxima rodada.
                       </div>
                     </div>
@@ -431,13 +431,13 @@ export default function ShopTab() {
                     <p className="text-xs mb-3" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>Escolha o novo técnico (−{SHOP_COSTS.changeCoach} créditos):</p>
                     {COACHES.filter(c => c.id !== team.coachId).map(c => (
                       <button key={c.id} onClick={() => askConfirm('Trocar Técnico', `Trocar o comandante para ${c.name} por 💰 ${SHOP_COSTS.changeCoach}?`, () => { buyCoach(c.id); close(); })}
-                        className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all hover:border-[#C9A84C]/60 active:scale-[0.99]"
+                        className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all hover:border-primary/60 active:scale-[0.99]"
                         style={{ background: '#07070f', border: '1px solid #1A1A2A' }}>
                         {c.photoUrl && <img src={c.photoUrl} alt={c.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" style={{ objectPosition: 'center top', border: '1px solid #C9A84C44' }} />}
                         <div className="min-w-0">
                           <div className="text-base font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{c.name}</div>
-                          <div className="text-[11px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{c.philosophy}</div>
-                          <div className="text-[10px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{c.effect}</div>
+                          <div className="text-[13px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{c.philosophy}</div>
+                          <div className="text-[12px] mt-0.5 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{c.effect}</div>
                         </div>
                       </button>
                     ))}
@@ -508,7 +508,7 @@ export default function ShopTab() {
                       <div className="space-y-3">
                         {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
-                            <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
+                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
                             <div className="flex flex-wrap gap-2">
                               {g.list.map(p => (
                                 <button key={p.id} onClick={() => { if (canAddVariant(p)) { setSelPlayerId(p.id); setVariantPage(0); } }} disabled={!canAddVariant(p)}
@@ -521,7 +521,7 @@ export default function ShopTab() {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[10px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Uma característica por carta — as <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter <b>duas</b>. Quem já atingiu o limite fica desabilitado.</p>
+                      <p className="text-[12px] mt-2" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>Uma característica por carta — as <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter <b>duas</b>. Quem já atingiu o limite fica desabilitado.</p>
                     </div>
                   ) : (
                     <div>
@@ -569,7 +569,7 @@ export default function ShopTab() {
                       <div className="space-y-3">
                         {groups.map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
-                            <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
+                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'Rajdhani, sans-serif' }}>{g.t}</div>
                             <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
                               {g.list.map(p => {
                                 const vs = getCardVariants(p);
@@ -581,7 +581,7 @@ export default function ShopTab() {
                                         const vc = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
                                         return (
                                           <button key={v.key} onClick={() => askConfirm('Remover Característica', `Remover ${v.label} de ${p.shortName} por 💰 ${SHOP_COSTS.removeVariant}?`, () => { removeVariant(p.id, v.key as VariantFlag); close(); })}
-                                            className="text-[10px] font-black px-2 py-0.5 rounded-full transition-transform hover:scale-[1.08] active:scale-95"
+                                            className="text-[12px] font-black px-2 py-0.5 rounded-full transition-transform hover:scale-[1.08] active:scale-95"
                                             title={`Remover ${v.label}`}
                                             style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}55`, fontFamily: 'Rajdhani, sans-serif' }}>
                                             🧹 {v.icon} {v.label}

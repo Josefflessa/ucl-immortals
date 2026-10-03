@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
-import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '../lib/gameData';
+import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 export default function SetupPage() {
@@ -101,11 +101,11 @@ export default function SetupPage() {
                       <span className="font-black tracking-wider" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 20, color: isSelected ? color : '#FFFFFF' }}>
                         {diff.name.toUpperCase()}
                       </span>
-                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded leading-none" style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.06em' }}>
+                      <span className="text-[11px] font-black px-1.5 py-0.5 rounded leading-none" style={{ background: `${color}22`, color, border: `1px solid ${color}44`, fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.06em' }}>
                         NÍVEL {level}
                       </span>
                     </div>
-                    <p className="text-[11px] mt-0.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <p className="text-[13px] mt-0.5 leading-snug" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                       {diff.description}
                     </p>
                     {/* Medidor visual do nível selecionado */}

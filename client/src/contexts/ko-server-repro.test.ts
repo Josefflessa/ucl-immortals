@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { settleBet, buildKnockoutMatchKey } from '../lib/bets';
-import { getActiveKnockoutMatches } from '../lib/gameEngine';
+import { settleBet, buildKnockoutMatchKey } from '@shared/game/bets';
+import { getActiveKnockoutMatches } from '@shared/game/gameEngine';
 
 // ---- verbatim copies of the server functions (server/handlers.ts) ----
 function knockoutWatchStatus(room: any): { allWatched: boolean; waiting: string[] } {

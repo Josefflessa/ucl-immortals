@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
-import { COACHES } from '../lib/gameData';
+import { COACHES } from '@shared/game/gameData';
 import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 const COACH_ICONS: Record<string, string> = {

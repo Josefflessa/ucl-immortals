@@ -4,7 +4,7 @@
 // full tier table, highlighting the tier the team is currently in.
 import { useState } from 'react';
 import { Info } from 'lucide-react';
-import { getChemistryBonus } from '../../lib/gameEngine';
+import { getChemistryBonus } from '@shared/game/gameEngine';
 import { GameModal } from '../../design-system';
 
 // Bonus is applied as chemBonus.{passing,pace} * 2 in both the engine and the
@@ -34,14 +34,14 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
           <div className="text-xs font-black tracking-widest text-gray-300" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
             BÔNUS GLOBAL
           </div>
-          <div className="mt-0.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="mt-0.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
             todos os titulares
           </div>
         </div>
         <button
           type="button"
           onClick={() => setShowDetails(true)}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wider transition-colors hover:bg-[#C9A84A18] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8C84A]"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-black uppercase tracking-wider transition-colors hover:bg-[#C9A84A18] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
           style={{ color: '#E8C84A', borderColor: '#C9A84A66', background: '#C9A40A0D', fontFamily: 'Rajdhani, sans-serif' }}
           aria-label="Ver faixas e efeitos do bônus de química"
         >
@@ -66,7 +66,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
         onOpenChange={setShowDetails}
         size="default"
         closeLabel="Fechar bônus de química"
-        title={<span className="text-xl font-black tracking-wider text-[#E8C84A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>BÔNUS DE QUÍMICA</span>}
+        title={<span className="text-xl font-black tracking-wider text-brand-strong" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>BÔNUS DE QUÍMICA</span>}
         subtitle="Efeitos aplicados aos 11 titulares durante a partida."
       >
         <div className="space-y-2">
@@ -85,7 +85,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-black">{t.label} de química</div>
-                  {isActive && <span className="text-[10px] font-black uppercase tracking-wider">ATIVA</span>}
+                  {isActive && <span className="text-[12px] font-black uppercase tracking-wider">ATIVA</span>}
                 </div>
                 <div className="mt-0.5 text-xs leading-relaxed" style={{ color: isActive ? '#D8C47A' : '#6A6A7A' }}>
                   +{t.pas} Passe{t.rit > 0 ? ` · +${t.rit} Ritmo` : ''}{t.special > 0 ? ` · +${t.special} em todos ✨` : ''}

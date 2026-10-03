@@ -1,5 +1,5 @@
 import { Info } from 'lucide-react';
-import type { Formation } from '../../lib/gameData';
+import type { Formation } from '@shared/game/gameData';
 import { GameModal, IconButton } from '../../design-system';
 import FormationField from './FormationField';
 

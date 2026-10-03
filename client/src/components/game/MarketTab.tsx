@@ -4,8 +4,8 @@
 //  • TROCAR   — negociação direta de reservas (+ créditos) com outro jogador. Só online.
 import { useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import { sellValue } from '../../lib/shop';
-import { marketMinPrice } from '../../lib/market';
+import { sellValue } from '@shared/game/shop';
+import { marketMinPrice } from '@shared/game/market';
 import PlayerCard from './PlayerCard';
 import { Button, GameModal } from '../../design-system';
 
@@ -60,7 +60,7 @@ export default function MarketTab() {
       {view === 'sell' && (
         <>
           <div className="text-sm leading-relaxed text-[var(--ui-text-muted)]">
-            Venda reservas pra banca por um valor fixo. Pra vender um titular, mande-o pro banco no MEU TIME.
+            Venda reservas pra banca por um valor fixo. Pra vender um titular, mande-o pro banco em MEU CLUBE.
           </div>
           {bench.length === 0 ? (
             <div className="ui-empty">
@@ -73,7 +73,7 @@ export default function MarketTab() {
                   <PlayerCard player={p} compact lite />
                   <button
                     onClick={() => setConfirmId(p.id)}
-                    className="ui-btn ui-btn--danger min-h-8 px-3 text-[11px]"
+                    className="ui-btn ui-btn--danger min-h-8 px-3 text-[13px]"
                   >
                     Vender · 💰{sellValue(p.rarity)}
                   </button>
@@ -101,7 +101,7 @@ export default function MarketTab() {
                     <PlayerCard player={p} compact lite />
                     <button
                       onClick={() => { setPriceInput(marketMinPrice(p)); setListFor(p.id); }}
-                      className="ui-btn ui-btn--info min-h-8 px-3 text-[11px]"
+                      className="ui-btn ui-btn--info min-h-8 px-3 text-[13px]"
                     >
                       Anunciar
                     </button>
@@ -133,7 +133,7 @@ export default function MarketTab() {
                       {mine ? (
                         <button
                           onClick={() => marketCancelOnline(li.id)}
-                          className="ui-btn ui-btn--secondary min-h-8 px-3 text-[11px]"
+                          className="ui-btn ui-btn--secondary min-h-8 px-3 text-[13px]"
                         >
                           Cancelar
                         </button>
@@ -141,7 +141,7 @@ export default function MarketTab() {
                         <button
                           disabled={cantAfford || alreadyOwn}
                           onClick={() => marketBuyOnline(li.id)}
-                          className="ui-btn ui-btn--info min-h-8 px-3 text-[11px]"
+                          className="ui-btn ui-btn--info min-h-8 px-3 text-[13px]"
                           title={alreadyOwn ? 'Você já tem esse jogador' : cantAfford ? 'Créditos insuficientes' : undefined}
                         >
                           Comprar
@@ -190,7 +190,7 @@ export default function MarketTab() {
               )}
               <button
                 onClick={() => tradeLeaveOnline(mySession.id)}
-                className="ui-btn ui-btn--secondary mt-3 min-h-8 px-4 text-[11px]"
+                className="ui-btn ui-btn--secondary mt-3 min-h-8 px-4 text-[13px]"
               >
                 {mySession.status === 'invite' && mySession.hostId === meId ? 'Cancelar convite' : 'Sair da negociação'}
               </button>
@@ -206,7 +206,7 @@ export default function MarketTab() {
                     <button
                       key={p.id}
                       onClick={() => tradeInviteOnline(p.id)}
-                      className="ui-btn ui-btn--secondary min-h-8 px-3 text-[11px]"
+                      className="ui-btn ui-btn--secondary min-h-8 px-3 text-[13px]"
                     >
                       {p.name}
                     </button>

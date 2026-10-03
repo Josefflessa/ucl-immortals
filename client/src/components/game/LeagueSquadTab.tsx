@@ -3,7 +3,7 @@
 // (or online sync) to the editor's callbacks. All the UI lives in SquadEditor.
 import { useGame } from '../../contexts/GameContext';
 import SquadEditor from './SquadEditor';
-import { medicalFreeTreatmentsPerCompetition, medicalPhysioCost, projectLevel } from '../../lib/clubProjects';
+import { medicalFreeTreatmentsPerCompetition, medicalPhysioCost, projectLevel } from '@shared/game/clubProjects';
 
 export default function LeagueSquadTab() {
   const { state, dispatch, setMatchRolesOnline, setMatchPlanOnline, swapPlayerTeamOnline, martirTargetsOnline, healInjuryOnline, evolveCoachPrimeOnline, setEvolvePointOnline, setAutoEvolveAttributeOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline } = useGame();

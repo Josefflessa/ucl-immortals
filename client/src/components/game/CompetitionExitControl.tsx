@@ -58,9 +58,9 @@ export default function CompetitionExitControl() {
         <ConfirmDialog
           open={confirmAction === 'solo'}
           onOpenChange={open => { if (!open) setConfirmAction(null); }}
-          title="Sair do jogo?"
-          description="Você perderá o progresso desta temporada e voltará para a tela inicial."
-          confirmLabel="Sair do jogo"
+          title="Voltar ao menu?"
+          description="Sua campanha fica salva neste dispositivo. Para retomar, use CONTINUAR CAMPANHA na tela inicial."
+          confirmLabel="Voltar ao menu"
           onConfirm={confirmRoomAction}
         />
       </>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FORMATIONS, POS_PT, type Player, effectiveSecondaries, getRarityColor } from '../../lib/gameData';
+import { FORMATIONS, POS_PT, type Player, effectiveSecondaries, getRarityColor } from '@shared/game/gameData';
 import {
   calculateChemistry,
   captainBoostFromStarters,
@@ -9,8 +9,8 @@ import {
   getEvolutionLevel,
   positionFit,
   type Team,
-} from '../../lib/gameEngine';
-import { TRAIT_MAP, traitEffectLabel } from '../../lib/traits';
+} from '@shared/game/gameEngine';
+import { TRAIT_MAP, traitEffectLabel } from '@shared/game/traits';
 import { CHEM_LINK_COLOR } from './FormationField';
 import BuffBreakdown from './BuffBreakdown';
 import PlayerCard, { cardTexture, UNIQUE_STYLE } from './PlayerCard';
@@ -139,7 +139,7 @@ export default function PlayerDetailsModal({
         onOpenChange={open => { if (!open) onClose(); }}
         size="wide"
         title="DETALHES DO JOGADOR"
-        subtitle={<>Visualização de <span className="font-extrabold text-[#C9A84C]">{player.shortName}</span></>}
+        subtitle={<>Visualização de <span className="font-extrabold text-primary">{player.shortName}</span></>}
         headerExtra={(
           <button
             onClick={() => setZoomCard(true)}
@@ -185,19 +185,19 @@ export default function PlayerDetailsModal({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                  <span className="rounded bg-[#1c1c2e] px-2 py-0.5 text-[10px] font-black text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[formationRole] ?? formationRole}</span>
-                  {isOutOfPosition && <span className="rounded border border-[#EF444444] bg-[#EF444422] px-2 py-0.5 text-[9px] font-black text-[#EF4444]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO</span>}
-                  {isSecondary && <span className="whitespace-nowrap rounded border border-[#F59E0B55] bg-[#F59E0B22] px-2 py-0.5 text-[9px] font-black text-[#F59E0B]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −5%</span>}
+                  <span className="rounded bg-[#1c1c2e] px-2 py-0.5 text-[12px] font-black text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[formationRole] ?? formationRole}</span>
+                  {isOutOfPosition && <span className="rounded border border-[#EF444444] bg-[#EF444422] px-2 py-0.5 text-[11px] font-black text-[#EF4444]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⚠️ FORA DE POSIÇÃO</span>}
+                  {isSecondary && <span className="whitespace-nowrap rounded border border-[#F59E0B55] bg-[#F59E0B22] px-2 py-0.5 text-[11px] font-black text-[#F59E0B]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>🔁 2ª POSIÇÃO · −5%</span>}
                 </div>
                 <div className="truncate text-xl font-black uppercase text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{player.shortName}</div>
-                {getEvolutionLevel(player) > 0 && <span className="mt-1 inline-flex items-center justify-center rounded bg-gradient-to-r from-[#0a7a2f] to-[#22C55E] px-2 py-0.5 text-center text-[9px] font-black leading-none text-[#04120a]" style={{ letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(player)}</span>}
+                {getEvolutionLevel(player) > 0 && <span className="mt-1 inline-flex items-center justify-center rounded bg-gradient-to-r from-[#0a7a2f] to-[#22C55E] px-2 py-0.5 text-center text-[11px] font-black leading-none text-[#04120a]" style={{ letterSpacing: '0.06em' }}>⭐ NÍVEL {getEvolutionLevel(player)}</span>}
                 <div className="truncate text-xs text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{player.club} · {player.nation}</div>
               </div>
               <div className="flex-shrink-0 text-right">
                 <div className="text-3xl font-black text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{effectiveStats.overall}</div>
                 {effectiveOverallDelta !== 0 && <div className="text-xs font-bold" style={{ color: effectiveOverallDelta > 0 ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>({effectiveOverallDelta > 0 ? '+' : ''}{effectiveOverallDelta})</div>}
-                <div className="text-[9px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GERAL EFETIVO</div>
-                <div className="mt-1 text-[8px] font-bold leading-tight text-[#8A8A9A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>BASE ORIGINAL {originalOverall}</div>
+                <div className="text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>GERAL EFETIVO</div>
+                <div className="mt-1 text-[10px] font-bold leading-tight text-[#8A8A9A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>BASE ORIGINAL {originalOverall}</div>
               </div>
             </div>
 
@@ -207,9 +207,9 @@ export default function PlayerDetailsModal({
                 const color = delta > 0 ? '#22C55E' : delta < 0 ? '#EF4444' : '#E8D080';
                 return (
                   <div key={label} className={`flex flex-col items-center py-3 ${((index + 1) % 4 === 0) ? '' : 'border-r'} ${index < 4 ? 'border-b' : ''}`} style={{ borderColor: '#161626' }}>
-                    <span className="text-[9px] font-bold tracking-wider text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
+                    <span className="text-[11px] font-bold tracking-wider text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{label}</span>
                     <span className="text-lg font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color }}>{value}</span>
-                    {delta !== 0 && <span className="text-[9px] font-bold" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
+                    {delta !== 0 && <span className="text-[11px] font-bold" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{delta > 0 ? '+' : ''}{delta}</span>}
                   </div>
                 );
               })}
@@ -217,22 +217,22 @@ export default function PlayerDetailsModal({
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3" style={{ borderColor: '#161626' }}>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA INDIVIDUAL</span>
+                <span className="text-[11px] font-bold tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA INDIVIDUAL</span>
                 <div className="flex gap-1">{chemDots.map((filled, index) => <div key={index} style={{ width: 10, height: 10, borderRadius: '50%', background: filled ? '#22C55E' : '#1a1a2e', boxShadow: filled ? '0 0 5px #22C55E' : 'none', border: '1px solid rgba(255,255,255,.1)' }} />)}</div>
-                <span className="text-[10px] font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{effectiveStats.chemScore}/3</span>
+                <span className="text-[12px] font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{effectiveStats.chemScore}/3</span>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <span className="text-[9px] font-bold tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>JOGA EM:</span>
-                <span className="rounded bg-[#1c1c2e] px-1.5 py-0.5 text-[9px] font-black text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[player.position] ?? player.position}</span>
-                {effectiveSecondaries(player).map(position => <span key={position} className="rounded border border-[#2a2a3a] bg-[#12121c] px-1.5 py-0.5 text-[9px] font-bold text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[position] ?? position}</span>)}
+                <span className="text-[11px] font-bold tracking-wider text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>JOGA EM:</span>
+                <span className="rounded bg-[#1c1c2e] px-1.5 py-0.5 text-[11px] font-black text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[player.position] ?? player.position}</span>
+                {effectiveSecondaries(player).map(position => <span key={position} className="rounded border border-[#2a2a3a] bg-[#12121c] px-1.5 py-0.5 text-[11px] font-bold text-[#9A9AAA]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{POS_PT[position] ?? position}</span>)}
               </div>
             </div>
 
 
             {effectiveStats.activeCoachEffects.length > 0 && (
               <div className="border-t bg-[#09090f] px-4 py-3" style={{ borderColor: '#161626' }}>
-                <div className="mb-2 text-[9px] font-black tracking-widest text-yellow-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⚡ BÔNUS ATIVO DO TREINADOR</div>
-                <div className="flex flex-wrap gap-1.5">{effectiveStats.activeCoachEffects.map((effect, index) => <span key={index} className="rounded border border-[#C9A84C44] bg-[#C9A84C22] px-2 py-0.5 text-[9px] font-black text-[#E8C84A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{effect}</span>)}</div>
+                <div className="mb-2 text-[11px] font-black tracking-widest text-yellow-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⚡ BÔNUS ATIVO DO TREINADOR</div>
+                <div className="flex flex-wrap gap-1.5">{effectiveStats.activeCoachEffects.map((effect, index) => <span key={index} className="rounded border border-primary/27 bg-primary/13 px-2 py-0.5 text-[11px] font-black text-brand-strong" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{effect}</span>)}</div>
               </div>
             )}
 

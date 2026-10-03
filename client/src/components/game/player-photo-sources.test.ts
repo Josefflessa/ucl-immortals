@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildPlayerPhotoSources, UNIQUE_STYLE } from './PlayerCard';
-import { PLAYERS } from '../../lib/gameData';
+import { PLAYERS } from '@shared/game/gameData';
 import { getPlayerPhotoFilename, LOCAL_PLAYER_PHOTO_ROOT } from '../../lib/playerPhotoCatalog';
 
 describe('fontes de foto dos jogadores', () => {

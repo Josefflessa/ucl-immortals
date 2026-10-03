@@ -12,6 +12,7 @@
     "dev:all": "node scripts/dev-local.mjs",
     "deploy:cloudflare": "pnpm build && wrangler deploy",
     "check": "tsc --noEmit",
+    "catalog": "tsx scripts/catalog.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write ."

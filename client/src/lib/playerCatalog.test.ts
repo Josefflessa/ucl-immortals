@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLAYERS, UNIQUE_CARDS } from './gameData';
+import { PLAYERS, UNIQUE_CARDS } from '@shared/game/gameData';
 import { CLUB_CATALOG, CLUBS_BY_ID } from './clubCatalog';
 import { buildPlayerCatalog, getPlayerCatalogPath, PLAYER_CATALOG } from './playerCatalog';
 

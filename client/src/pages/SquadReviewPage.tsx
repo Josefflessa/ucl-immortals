@@ -3,8 +3,8 @@
 // plus the post-draft chrome: header and the "iniciar competição" action. Wiring uses the
 // draft-phase state + actions; online mode submits the lineup instead of starting locally.
 import { useGame } from '../contexts/GameContext';
-import { Player } from '../lib/gameData';
-import { newMissionSeed } from '../lib/missions';
+import { Player } from '@shared/game/gameData';
+import { newMissionSeed } from '@shared/game/missions';
 import SquadEditor from '../components/game/SquadEditor';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';

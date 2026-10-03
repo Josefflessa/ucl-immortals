@@ -1,4 +1,4 @@
-import { CREST_CATALOG, type CrestDef } from './crests';
+import { CREST_CATALOG, type CrestDef } from '@shared/game/crests';
 
 /**
  * Organização competitiva dos clubes usados pelo catálogo de jogadores.

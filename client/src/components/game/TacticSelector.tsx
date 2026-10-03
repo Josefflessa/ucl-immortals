@@ -2,8 +2,8 @@
 // Mantém a organização da formação: opções compactas e uma leitura detalhada
 // apenas para a tática atualmente selecionada.
 
-import { TACTICS, getTacticById } from '../../lib/gameData';
-import { tacticAggression, tacticProfile, tacticStatBonus } from '../../lib/gameEngine';
+import { TACTICS, getTacticById } from '@shared/game/gameData';
+import { tacticAggression, tacticProfile, tacticStatBonus } from '@shared/game/gameEngine';
 import { ChoiceCard } from '../../design-system';
 import ImpactMeter from './ImpactMeter';
 
@@ -54,7 +54,7 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
       <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Mentalidade atual</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Mentalidade atual</div>
             <div className="mt-0.5 flex items-center gap-1.5 font-display text-xl leading-none tracking-wide text-[var(--ui-brand-strong)]">
               <span aria-hidden="true">{active.icon}</span>{active.name}
             </div>
@@ -66,7 +66,7 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
       </div>
 
       <div>
-        <div className="mb-1.5 px-0.5 text-[11px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Escolha a mentalidade</div>
+        <div className="mb-1.5 px-0.5 text-[13px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Escolha a mentalidade</div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {TACTICS.map(tactic => {
           const isActive = active.id === tactic.id;
@@ -95,14 +95,14 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
 
       <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 py-3 text-sm">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Impacto no jogo</span>
+          <span className="text-[13px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Impacto no jogo</span>
           <span className="font-display text-base tracking-wide text-[var(--ui-brand-strong)]">{active.icon} {active.name}</span>
         </div>
         <div className="text-xs leading-snug text-[var(--ui-text-muted)]">{active.desc}</div>
         <div className="mt-2 rounded-lg border border-[#22C55E33] bg-[#22C55E0D] px-2.5 py-2 text-xs leading-snug text-[#58D37B]">
           <b>Bônus:</b> {formatTacticBuffs(active.id, analysisLevel)}
         </div>
-        <div className="mt-2 text-[11px] leading-snug" style={{ color: discipline.color }}>
+        <div className="mt-2 text-[13px] leading-snug" style={{ color: discipline.color }}>
           <b>Disciplina:</b> {discipline.label.toLowerCase()} · {discipline.detail}.
         </div>
         <div className="mt-2">

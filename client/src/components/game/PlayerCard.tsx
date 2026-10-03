@@ -1,8 +1,8 @@
 import { useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
-import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '../../lib/gameData';
-import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '../../lib/gameEngine';
-import { canonicalClubName, crestIdForClub } from '../../lib/crests';
+import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
+import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
+import { canonicalClubName, crestIdForClub } from '@shared/game/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
 import Crest from './Crest';

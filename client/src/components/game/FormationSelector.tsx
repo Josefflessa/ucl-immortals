@@ -4,8 +4,8 @@
 // derived from formationProfile so the UI matches the actual engine behaviour.
 
 import { useState } from 'react';
-import { FORMATIONS } from '../../lib/gameData';
-import { formationAdvantageColorForAnalysisLevel, formationAdvantageLabelForAnalysisLevel, formationProfile } from '../../lib/gameEngine';
+import { FORMATIONS } from '@shared/game/gameData';
+import { formationAdvantageColorForAnalysisLevel, formationAdvantageLabelForAnalysisLevel, formationProfile } from '@shared/game/gameEngine';
 import ImpactMeter from './ImpactMeter';
 import { ChoiceCard } from '../../design-system';
 import FormationPreviewModal, { FormationInfoButton } from './FormationPreviewModal';
@@ -28,7 +28,7 @@ function profileTags(id: string): Tag[] {
 }
 
 const Chip = ({ tag }: { tag: Tag }) => (
-  <span className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-black"
+  <span className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[12px] font-black"
     style={{ background: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}44`, fontFamily: 'Rajdhani, sans-serif' }}>
     {tag.label}
   </span>
@@ -73,7 +73,7 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
       <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Formação atual</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Formação atual</div>
             <div className="mt-0.5 font-display text-xl leading-none tracking-wide text-[var(--ui-brand-strong)]">{active.name}</div>
           </div>
         </div>
@@ -84,8 +84,8 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
 
       <div>
         <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
-          <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Escolha a formação</span>
-          <span className="text-[10px] font-bold text-[var(--ui-text-faint)]">ⓘ Ver posições</span>
+          <span className="text-[13px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Escolha a formação</span>
+          <span className="text-[12px] font-bold text-[var(--ui-text-faint)]">ⓘ Ver posições</span>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {FORMATIONS.map((f) => {
@@ -114,30 +114,30 @@ export default function FormationSelector({ value, onChange, analysisLevel = 1 }
 
       <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 py-3">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Impacto no jogo</span>
+          <span className="text-[13px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Impacto no jogo</span>
           <span className="font-display text-base tracking-wide text-[var(--ui-brand-strong)]">{active.name}</span>
         </div>
         <ImpactMeter profile={formationProfile(active.id)} />
         <div className="mt-3 rounded-lg border border-[#60A5FA44] bg-[#60A5FA0D] px-2.5 py-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8DBBFF]">Bônus por vantagem na formação</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[#8DBBFF]">Bônus por vantagem na formação</span>
             <span className="text-xs font-black" style={{ color: formationAdvantageColorForAnalysisLevel(analysisLevel) }}>{matchupLabel}</span>
           </div>
-          <p className="mt-1 text-[10px] leading-snug text-[var(--ui-text-faint)]">
+          <p className="mt-1 text-[12px] leading-snug text-[var(--ui-text-faint)]">
             Quando este esquema levar vantagem sobre o adversário, esse é o grau do benefício durante a partida.
           </p>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="rounded-lg border border-[#22C55E44] bg-[#22C55E0D] px-2.5 py-2">
-            <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[#5EDB82]">Vantagem contra</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.12em] text-[#5EDB82]">Vantagem contra</div>
             <div className="mt-1"><MatchupPills ids={active.counters} tone="positive" /></div>
           </div>
           <div className="rounded-lg border border-[#F9731644] bg-[#F973160D] px-2.5 py-2">
-            <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[#FB9A62]">Desvantagem contra</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.12em] text-[#FB9A62]">Desvantagem contra</div>
             <div className="mt-1"><MatchupPills ids={active.counteredBy} tone="negative" /></div>
           </div>
         </div>
-        <p className="mt-2 text-[10px] leading-snug text-[var(--ui-text-faint)]">
+        <p className="mt-2 text-[12px] leading-snug text-[var(--ui-text-faint)]">
           A vantagem só aparece quando o adversário usa uma formação listada acima; contra as demais, o confronto fica equilibrado.
         </p>
       </div>

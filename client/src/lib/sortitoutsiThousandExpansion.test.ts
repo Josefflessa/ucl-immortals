@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PLAYERS } from './gameData';
+import { PLAYERS } from '@shared/game/gameData';
 import { getClubCatalog } from './clubCatalog';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from './playerPhotoCatalog';
-import { SORTITOUTSI_1000_ADDITIONS, SORTITOUTSI_1000_FACE_IDS } from './sortitoutsiThousandExpansion';
+import { SORTITOUTSI_1000_ADDITIONS, SORTITOUTSI_1000_FACE_IDS } from '@shared/game/players/sortitoutsiThousandExpansion';
 
 const normalizeName = (value: string) => value
   .normalize('NFD')
@@ -50,8 +50,8 @@ describe('lote de fechamento do catálogo de jogadores', () => {
     }
   });
 
-  it('fecha o catálogo em 1.632 e mantém cada carta antiga ligada a clube e retrato locais', () => {
-    expect(PLAYERS).toHaveLength(1632);
+  it('fecha o catálogo em 1.631 e mantém cada carta antiga ligada a clube e retrato locais', () => {
+    expect(PLAYERS).toHaveLength(1631);
 
     for (const player of SORTITOUTSI_1000_ADDITIONS) {
       const catalogPlayer = PLAYERS.find(candidate => candidate.id === player.id);

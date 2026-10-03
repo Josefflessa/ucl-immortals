@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, IconButton, Panel, PanelBody, PanelHeader, PanelTitle } from '../../design-system';
-import { getTacticById } from '../../lib/gameData';
+import { getTacticById } from '@shared/game/gameData';
 import {
   MATCH_TRIGGER_ACTIONS,
   MATCH_TRIGGER_GOAL_MARGINS,
@@ -11,7 +11,7 @@ import {
   type MatchTrigger,
   type MatchTriggerAction,
   type MatchTriggerCondition,
-} from '../../lib/gameEngine';
+} from '@shared/game/gameEngine';
 import { cn } from '../../lib/utils';
 
 interface MatchPlanSelectorProps {
@@ -140,7 +140,7 @@ export default function MatchPlanSelector({ value, onChange, playStyle }: MatchP
             {plan.triggers.map((trigger, index) => (
               <div key={trigger.id} className="rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] p-3">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--ui-brand-strong)]">
+                  <span className="text-[13px] font-bold uppercase tracking-[0.14em] text-[var(--ui-brand-strong)]">
                     Gatilho {index + 1}
                   </span>
                   <IconButton

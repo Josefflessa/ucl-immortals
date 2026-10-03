@@ -3,8 +3,8 @@
 // out on the pitch (formation), each card showing its live rating + goals/assists, plus the
 // coach and key info (tactic, formation, chemistry, average rating). Fully responsive.
 
-import { FORMATIONS, COACHES, getTacticById } from '../../lib/gameData';
-import { activeGoalkeeperForTeam, calculateChemistry, getTeamEffectiveStats, matchRoleForPlayer, type Team } from '../../lib/gameEngine';
+import { FORMATIONS, COACHES, getTacticById } from '@shared/game/gameData';
+import { activeGoalkeeperForTeam, calculateChemistry, getTeamEffectiveStats, matchRoleForPlayer, type Team } from '@shared/game/gameEngine';
 import FormationField, { type EmergencyGoalkeeperDisplay } from './FormationField';
 
 interface MatchFieldViewProps {
@@ -29,8 +29,8 @@ function Chip({ icon, label, value, color }: { icon: string; label: string; valu
     >
       <span className="text-sm flex-shrink-0">{icon}</span>
       <div className="min-w-0">
-        <div className="text-[8px] font-bold uppercase tracking-wider truncate" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>{label}</div>
-        <div className="text-[11px] font-black leading-tight truncate" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{value}</div>
+        <div className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>{label}</div>
+        <div className="text-[13px] font-black leading-tight truncate" style={{ color, fontFamily: 'Rajdhani, sans-serif' }}>{value}</div>
       </div>
     </div>
   );
@@ -106,12 +106,12 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
             <div className="w-[66px] h-[66px] rounded-lg flex items-center justify-center flex-shrink-0 text-2xl" style={{ background: '#14142a', border: `2px solid ${accent}55` }}>🎓</div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>Técnico</div>
+            <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'Rajdhani, sans-serif' }}>Técnico</div>
             <div className="text-sm font-black leading-tight truncate" style={{ color: '#FFF', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.04em' }}>
               {coach?.name ?? '—'}
             </div>
             {coach?.philosophy && (
-              <div className="text-[10px] font-bold truncate" style={{ color: accent, fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
+              <div className="text-[12px] font-bold truncate" style={{ color: accent, fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
             )}
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
         </div>
 
         {motm && (
-          <div className="mt-2 text-[10px] font-bold" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="mt-2 text-[12px] font-bold" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
             👑 Melhor em campo: <b style={{ color: '#d4af37' }}>{motm.name}</b> ({motm.r.toFixed(1)})
           </div>
         )}
@@ -138,12 +138,12 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
           role="status"
           style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.28)' }}
         >
-          <div className="flex items-center gap-2 text-[11px] font-black" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="flex items-center gap-2 text-[13px] font-black" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
             <span>🟥 {originalGoalkeeper.shortName} foi expulso</span>
             <span style={{ color: '#6B7280' }}>•</span>
             <span style={{ color: '#FDE68A' }}>🧤 {activeGoalkeeper.player.shortName} assumiu o gol</span>
           </div>
-          <div className="mt-0.5 text-[10px]" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="mt-0.5 text-[12px]" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>
             O time segue com 10 jogadores e o goleiro emergencial tem aptidão reduzida para defender.
           </div>
         </div>

@@ -5,11 +5,6 @@ import {
   generateDraftOptions,
   getNeededPositions,
   generateBotTeam,
-  generatePlayerPackOffer,
-  drawPlayerPackCard,
-  generateScoutOptions,
-  generateUniquePackOffer,
-  drawUniquePackCard,
   buildUniquePackRoundKey,
   generateRandomLeagueFixtures,
   generateRandomGroupFixtures,
@@ -25,10 +20,9 @@ import {
   getAllPlayedMatchResults, getPlayerSeasonStats,
   normalizeMatchPlan,
   validateMatchPlan,
-  rebuildTeamChemistry,
-  applyShopVariant, hasVariant, canAddVariant, stripVariant, stripSpecificVariant, magnataPointMultiplier,
+  magnataPointMultiplier,
   bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
-  getEvolutionLevel, isEvolved, applyEvolvePoint, evolvePointsBudget, choosePlayerSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, SPECIALIZATION_UNLOCK_COST, EVOLVE_POINTS, applyDefeatGrowth,
+  EVOLVE_POINTS, applyDefeatGrowth,
   applyMercenarioProgress,
   draftSlotIndex,
   MAX_RESERVE_PLAYERS, reservePlayerCount,
@@ -41,61 +35,50 @@ import {
   StandingsEntry,
   KnockoutBracket,
   PlayerSeasonStats,
-} from "../client/src/lib/gameEngine.js";
+} from "../shared/game/gameEngine.js";
 
-import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, PLAYERS, POSITION_GROUPS, TACTICS, Player, UNIQUE_CARDS } from "../client/src/lib/gameData.js";
-import { ALL_CRESTS } from "../client/src/lib/crests.js";
-import { computeMatchPointsWithConfig, MatchPoints, SHOP_COSTS, ShopVariant, TrainAttr, sellValue, canEvolvePrime, PRIME_COST, TRAIN_ATTRS, TURBINAR_VARIANTS, lossStreakBonus, nextLossStreak, isRegularPlayerPackRarity } from "../client/src/lib/shop.js";
-import type { RegularPlayerPackRarity } from "../client/src/lib/shop.js";
-import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, canPlaceStake, createBet, settleBet, bettingPayoutRulesForLevel, BET_ROUND_CAP } from "../client/src/lib/bets.js";
-import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../client/src/lib/onlineReadiness.js";
+import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, POSITION_GROUPS, TACTICS, Player } from "../shared/game/gameData.js";
+import { ALL_CRESTS } from "../shared/game/crests.js";
+import * as seatRules from "../shared/game/seatRules.js";
+import { computeMatchPointsWithConfig, MatchPoints, ShopVariant, TrainAttr, TRAIN_ATTRS, TURBINAR_VARIANTS, lossStreakBonus, nextLossStreak, isRegularPlayerPackRarity } from "../shared/game/shop.js";
+import type { RegularPlayerPackRarity } from "../shared/game/shop.js";
+import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, settleBet } from "../shared/game/bets.js";
+import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../shared/game/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
-import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, healInjury, unavailableStarters, getEmergencyReplacementTarget, applyEmergencyReplacement } from "../client/src/lib/discipline.js";
-import { MarketListing, marketMinPrice, TradeSession } from "../client/src/lib/market.js";
+import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, unavailableStarters } from "../shared/game/discipline.js";
+import { MarketListing, marketMinPrice, TradeSession } from "../shared/game/market.js";
 import {
   createInitialClubProjects,
   createRecruitmentOfferMeta,
   getRecruitmentOfferConfig,
   medicalInjuryDuration,
-  medicalPhysioCost,
   medicalReturnBoost,
-  medicalFreeTreatmentsPerCompetition,
   bettingLossRefundPercent,
-  bettingStakeCapBonus,
-  trainingBoostForProject,
-  trainingCostForProject,
   projectLevel,
   calculateClubReward,
-  projectUpgradeCost,
-  purchaseClubProjectUpgrade,
-} from "../client/src/lib/clubProjects.js";
-import type { RecruitmentEventKind, RecruitmentOfferMeta } from "../client/src/lib/clubProjects.js";
+  CLUB_PROJECT_ORDER,
+} from "../shared/game/clubProjects.js";
+import type { ClubProjectId, RecruitmentEventKind, RecruitmentOfferMeta } from "../shared/game/clubProjects.js";
 import { DRAFT_TURN_SECONDS } from "../shared/const.js";
 import {
   DEFAULT_COMPETITION_FORMAT,
   MAX_ONLINE_PLAYERS,
   normalizeCompetitionFormat,
   validateCompetitionFormat,
-} from "../client/src/lib/competition.js";
-import type { CompetitionFormat } from "../client/src/lib/competition.js";
+} from "../shared/game/competition.js";
+import type { CompetitionFormat } from "../shared/game/competition.js";
 import {
-  acceptMission,
-  extendActiveMissionDeadlines,
-  rerollMissionBoard,
   createMissionMatchContext,
   createMissionState,
   newMissionSeed,
   missionCycleKey,
-  missionRemovalCost,
   normalizeMissionState,
-  removeMission,
   rotateMissionBoard,
   updateMissionsAfterMatch,
   completedMissionCount,
-  dismissMissionResolution,
-} from "../client/src/lib/missions.js";
-import type { MissionState } from "../client/src/lib/missions.js";
+} from "../shared/game/missions.js";
+import type { MissionState } from "../shared/game/missions.js";
 
 export interface RoomPlayer {
   socketId: string;
@@ -105,7 +88,7 @@ export interface RoomPlayer {
   kicked?: boolean; // removido pelo host; o assento ativo não pode voltar por reconexão
   id: string;
   name: string;
-  crestId?: string | null; // selected club crest (see client/src/lib/crests)
+  crestId?: string | null; // selected club crest (see shared/game/crests)
   coachId: string;
     coachPrime: boolean; // Técnico Prime: assinatura especial do treinador
   formationId: string;
@@ -641,53 +624,99 @@ function uniquePackRoundKeyForRoom(room: RoomState): string | null {
  * regenerated just because the shop was closed or the socket reconnected.
  */
 function ensureUniquePackOffer(room: RoomState, player: RoomPlayer): void {
-  if (!player.team || !isShopPhase(room)) return;
-  const roundKey = uniquePackRoundKeyForRoom(room);
-  if (!roundKey) return;
-
-  const ownedIds = player.team.players.map(card => card.id);
-  const excludedIds = player.pendingUniquePack ? [player.pendingUniquePack.id] : [];
-  const storedIds = player.uniquePackOfferIds;
-  const validStoredIds = Array.isArray(storedIds)
-    && storedIds.every(id => UNIQUE_CARDS.some(card => card.id === id));
-  const hasAnyUnexcludedCard = UNIQUE_CARDS.some(card => !new Set([...ownedIds, ...excludedIds]).has(card.id));
-
-  // An empty array is also a valid persisted offer when the catalog is already
-  // complete. Otherwise, an absent/legacy empty value must be initialized.
-  if (
-    player.uniquePackOfferRoundKey === roundKey
-    && validStoredIds
-    && (storedIds!.length > 0 || !hasAnyUnexcludedCard)
-  ) {
-    return;
-  }
-
-  player.uniquePackOfferIds = generateUniquePackOffer(ownedIds, excludedIds);
-  player.uniquePackOfferRoundKey = roundKey;
+  if (!player.team) return;
+  commitSeat(player, seatRules.ensureUniquePackOffer(seatOf(player), seatContext(room)));
 }
-
-const REGULAR_PLAYER_PACK_RARITIES: RegularPlayerPackRarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal'];
 
 /** Materializes the four-card offer for every regular rarity once per round. */
 function ensurePlayerPackOffers(room: RoomState, player: RoomPlayer): void {
-  if (!player.team || !isShopPhase(room)) return;
-  const roundKey = uniquePackRoundKeyForRoom(room);
-  if (!roundKey) return;
-  const ownedIds = player.team.players.map(card => card.id);
-  const ids = { ...(player.playerPackOfferIds ?? {}) };
-  const keys = { ...(player.playerPackOfferRoundKeys ?? {}) };
+  if (!player.team) return;
+  commitSeat(player, seatRules.ensurePlayerPackOffers(seatOf(player), seatContext(room)));
+}
 
-  for (const rarity of REGULAR_PLAYER_PACK_RARITIES) {
-    const stored = ids[rarity];
-    const validStored = Array.isArray(stored)
-      && stored.every(id => PLAYERS.some(card => card.id === id && card.rarity === rarity));
-    if (keys[rarity] === roundKey && validStored) continue;
-    ids[rarity] = generatePlayerPackOffer(rarity, ownedIds);
-    keys[rarity] = roundKey;
+// ── Player seat (shared solo/online rules, see shared/game/seatRules.ts) ──
+
+function seatOf(player: RoomPlayer): seatRules.PlayerSeat {
+  return {
+    team: player.team!,
+    points: player.points,
+    missions: player.missions,
+    bets: player.bets,
+    medicalFreeTreatmentsUsed: player.medicalFreeTreatmentsUsed,
+    reinforcementOptions: player.reinforcementOptions,
+    reinforcementOffer: player.reinforcementOffer,
+    pendingPack: player.pendingPack,
+    pendingPackReveal: player.pendingPackReveal,
+    pendingUniquePack: player.pendingUniquePack,
+    uniquePackOfferIds: player.uniquePackOfferIds,
+    uniquePackOfferRoundKey: player.uniquePackOfferRoundKey,
+    playerPackOfferIds: player.playerPackOfferIds,
+    playerPackOfferRoundKeys: player.playerPackOfferRoundKeys,
+  };
+}
+
+function commitSeat(player: RoomPlayer, seat: seatRules.PlayerSeat): void {
+  // The seat-level fields mirror the team (they seed later team rebuilds).
+  player.team = seat.team;
+  player.coachId = seat.team.coachId;
+  player.coachPrime = !!seat.team.coachPrime;
+  player.formationId = seat.team.formationId;
+  player.playStyle = seat.team.playStyle ?? player.playStyle;
+  player.matchPlan = seat.team.matchPlan ?? player.matchPlan;
+  player.captain = seat.team.captain ?? null;
+  player.penaltyTaker = seat.team.penaltyTaker ?? null;
+  player.freeKickTaker = seat.team.freeKickTaker ?? null;
+  player.reinforcementOptions = seat.reinforcementOptions ?? null;
+  player.reinforcementOffer = seat.reinforcementOffer ?? null;
+  player.points = seat.points;
+  player.missions = seat.missions;
+  player.bets = seat.bets ?? player.bets;
+  player.medicalFreeTreatmentsUsed = seat.medicalFreeTreatmentsUsed ?? player.medicalFreeTreatmentsUsed;
+  player.pendingPack = seat.pendingPack;
+  player.pendingPackReveal = seat.pendingPackReveal;
+  player.pendingUniquePack = seat.pendingUniquePack;
+  player.uniquePackOfferIds = seat.uniquePackOfferIds;
+  player.uniquePackOfferRoundKey = seat.uniquePackOfferRoundKey;
+  player.playerPackOfferIds = seat.playerPackOfferIds;
+  player.playerPackOfferRoundKeys = seat.playerPackOfferRoundKeys;
+}
+
+function missionBoardOf(room: RoomState, player: RoomPlayer): seatRules.MissionBoardContext {
+  return { seed: `${room.code}:${player.id}`, cycle: seatRules.currentMissionCycle(room) };
+}
+
+function seatContext(room: RoomState): seatRules.SeatContext {
+  return { shopOpen: isShopPhase(room), roundKey: uniquePackRoundKeyForRoom(room) };
+}
+
+/**
+ * Applies a shared seat rule for one player. A rejected rule with a message is
+ * reported and the player receives a fresh snapshot (it also corrects a stale
+ * balance on the browser). Changes that touch the lineup invalidate "ready".
+ */
+function applySeatRule(
+  socket: RealtimeSocket,
+  io: RealtimeServer,
+  room: RoomState,
+  player: RoomPlayer,
+  event: string,
+  rule: (seat: seatRules.PlayerSeat) => seatRules.SeatResult | seatRules.DisciplineResult,
+  options: { readyChange?: boolean; broadcast?: boolean } = {},
+): boolean {
+  const result = rule(seatOf(player));
+  if (!result.ok) {
+    if (result.error) {
+      socket.emit("action_error", { event, message: result.error });
+      emitRoomSnapshot(socket, room);
+    }
+    return false;
   }
-
-  player.playerPackOfferIds = ids;
-  player.playerPackOfferRoundKeys = keys;
+  commitSeat(player, result.seat);
+  if ('discipline' in result) room.discipline = result.discipline;
+  if (options.readyChange !== false) invalidateReady(room, player.id);
+  emitRoomUpdate(io, room, options.broadcast ? {} : { onlySocketId: socket.id });
+  if (options.readyChange !== false) emitReadyState(io, room);
+  return true;
 }
 
 function createRecruitmentOffer(
@@ -2081,38 +2110,29 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (playStyle != null && (!isValidId(playStyle) || !VALID_TACTIC_IDS.has(playStyle))) return;
       if (formationId != null && (!isValidId(formationId) || !VALID_FORMATION_IDS.has(formationId))) return;
       if (!isValidOptionalId(captain) || !isValidOptionalId(penaltyTaker) || !isValidOptionalId(freeKickTaker)) return;
-      const starters = player.team?.players.slice(0, 11) ?? player.draftedPlayers.slice(0, 11).filter((p): p is Player => !!p).map(p => ({ ...p, chemistryScore: 0, isOOP: false } as PlayerCard));
-      const canonicalCaptain = captain == null ? null : canonicalRoleId(captain, starters);
-      const canonicalPenaltyTaker = penaltyTaker == null ? null : canonicalRoleId(penaltyTaker, starters, p => p.position !== 'GK');
-      const canonicalFreeKickTaker = freeKickTaker == null ? null : canonicalRoleId(freeKickTaker, starters, p => p.position !== 'GK');
-      if ((captain != null && !canonicalCaptain) || (penaltyTaker != null && !canonicalPenaltyTaker) || (freeKickTaker != null && !canonicalFreeKickTaker)) return;
+      const roles = { captain: captain ?? null, penaltyTaker: penaltyTaker ?? null, freeKickTaker: freeKickTaker ?? null };
 
-      player.captain = canonicalCaptain;
-      player.penaltyTaker = canonicalPenaltyTaker;
-      player.freeKickTaker = canonicalFreeKickTaker;
+      if (player.team) {
+        applySeatRule(socket, io, room, player, "set_match_roles", seat => {
+          let result = seatRules.setMatchRoles(seat, roles);
+          if (result.ok && playStyle) result = seatRules.setPlayStyle(result.seat, playStyle);
+          if (result.ok && formationId) result = seatRules.setFormation(result.seat, formationId);
+          return result;
+        });
+        return;
+      }
+
+      // Squad review: the team does not exist yet, so the roles are kept on the
+      // seat and applied when it is built.
+      const starters = player.draftedPlayers.slice(0, 11).filter((p): p is Player => !!p);
+      const pick = (value: string | null, outfieldOnly: boolean) => (value == null ? null : seatRules.roleHolder(value, starters, outfieldOnly));
+      const canonical = { captain: pick(roles.captain, false), penaltyTaker: pick(roles.penaltyTaker, true), freeKickTaker: pick(roles.freeKickTaker, true) };
+      if ((roles.captain != null && !canonical.captain) || (roles.penaltyTaker != null && !canonical.penaltyTaker) || (roles.freeKickTaker != null && !canonical.freeKickTaker)) return;
+      player.captain = canonical.captain;
+      player.penaltyTaker = canonical.penaltyTaker;
+      player.freeKickTaker = canonical.freeKickTaker;
       if (playStyle) player.playStyle = playStyle;
       if (formationId) player.formationId = formationId;
-      if (player.team) {
-        player.team.captain = canonicalCaptain ?? undefined;
-        player.team.penaltyTaker = canonicalPenaltyTaker ?? undefined;
-        player.team.freeKickTaker = canonicalFreeKickTaker ?? undefined;
-        if (playStyle) player.team.playStyle = playStyle;
-        // Changing formation between matches re-maps roles → recompute chemistry / OOP
-        // server-side so the authoritative simulation uses the new shape.
-        if (formationId && player.team.formationId !== formationId) {
-          player.team.formationId = formationId;
-          const formation = FORMATIONS.find(f => f.id === formationId);
-          const roles = formation?.positions.map(pos => pos.role) ?? [];
-          const starters = player.team.players.slice(0, 11);
-          const chemData = calculateChemistry(starters, player.team.coachId, roles, formationId);
-          player.team.players = player.team.players.map((pl, idx) => ({
-            ...pl,
-            chemistryScore: chemData.individual[pl.id] ?? 1,
-            isOOP: idx < 11 ? (chemData.outOfPosition[pl.id] ?? false) : false,
-          }));
-          player.team.totalChemistry = chemData.total;
-        }
-      }
       invalidateReady(room, player.id);
       emitRoomUpdate(io, room, { onlySocketId: socket.id });
       emitReadyState(io, room);
@@ -2123,18 +2143,12 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // one-shot triggers into the authoritative simulation.
     on("set_match_plan", ({ roomCode, matchPlan }) => {
       const room = rooms.get(roomCode);
-      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.connected || !player.team) return;
-      const canonicalMatchPlan = validateMatchPlan(matchPlan);
-      if (!canonicalMatchPlan) return;
-
-      player.matchPlan = canonicalMatchPlan;
-      player.team.matchPlan = canonicalMatchPlan;
-      // Editing a plan after pressing "Estou pronto" invalidates that confirmation. This
-      // prevents a player from changing instructions while the host is resolving the round.
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room);
+      if (!player || !player.team) return;
+      if (!player.connected || !isShopPhase(room)) return;
+      // Editing the plan after "Estou pronto" invalidates that confirmation.
+      applySeatRule(socket, io, room, player, "set_match_plan", seat => seatRules.setMatchPlan(seat, matchPlan), { broadcast: true });
     });
 
     // Swap two players in this player's squad (bench ↔ starter, or reorder the XI). Mirrors the
@@ -2145,32 +2159,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
-      const players = [...player.team.players];
-      if (indexA < 0 || indexB < 0 || indexA >= players.length || indexB >= players.length || indexA === indexB) return;
-      const tmp = players[indexA]; players[indexA] = players[indexB]; players[indexB] = tmp;
-
-      const starters = players.slice(0, 11);
-      let captain = player.team.captain;
-      let penaltyTaker = player.team.penaltyTaker;
-      let freeKickTaker = player.team.freeKickTaker;
-      if (captain && !starters.some(p => p.id === captain)) captain = undefined;
-      if (penaltyTaker && !starters.some(p => p.id === penaltyTaker)) penaltyTaker = undefined;
-      if (freeKickTaker && !starters.some(p => p.id === freeKickTaker)) freeKickTaker = undefined;
-
-      player.team = rebuildTeamChemistry({ ...player.team, players, captain, penaltyTaker, freeKickTaker });
-      // Keep the RoomPlayer role fields in sync (they seed future set_match_roles / rebuilds).
-      player.captain = captain ?? null;
-      player.penaltyTaker = penaltyTaker ?? null;
-      player.freeKickTaker = freeKickTaker ?? null;
-      // ✅ Mudou a escalação → precisa reconfirmar "Estou pronto".
-      const wasReady = room.readyPlayers.includes(player.id);
-      invalidateReady(room, player.id);
-      if (wasReady) {
-        emitRoomUpdate(io, room);
-      } else {
-        emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      }
-      if (wasReady) emitReadyState(io, room);
+      // A new lineup is public and invalidates "Estou pronto".
+      applySeatRule(socket, io, room, player, "swap_player_team", seat => seatRules.swapLineup(seat, indexA, indexB), { broadcast: true });
     });
 
     // 🩸 Mártir — set which (up to 2) XI teammates receive the +3. Validated against the CURRENT XI.
@@ -2179,15 +2169,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
-      if (!isValidId(playerId) || !Array.isArray(targetIds)) return;
-      const source = player.team.players.find(p => p.id === playerId);
-      if (!source?.martir) return;
-      const starterIds = new Set(player.team.players.slice(0, 11).map(p => p.id));
-      const valid = (targetIds || []).filter(id => id !== playerId && starterIds.has(id)).slice(0, 2);
-      player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, martirTargets: valid } : p);
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      if (!isValidId(playerId)) return;
+      applySeatRule(socket, io, room, player, "set_martir_targets", seat => seatRules.setMartirTargets(seat, playerId, targetIds));
     });
 
     // ⭐ Carta Evoluída: aplicar um pacote de 6 pontos ao atributo escolhido (só carta do próprio time).
@@ -2197,14 +2180,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr) || !Number.isInteger(delta) || delta !== EVOLVE_POINTS) return;
-      player.team.players = player.team.players.map(p => {
-        if (p.id !== playerId || !isEvolved(p)) return p;
-        const unlockedPoints = evolvePointsBudget(getEvolutionLevel(p));
-        return { ...p, evolvePoints: applyEvolvePoint(p.evolvePoints ?? {}, attr, delta, unlockedPoints) };
-      });
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      applySeatRule(socket, io, room, player, "set_evolve_point", seat => seatRules.setEvolvePoint(seat, playerId, attr, delta));
     });
     on("set_auto_evolve_attribute", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: any }) => {
       const room = rooms.get(roomCode);
@@ -2212,34 +2188,15 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || (attr !== null && !VALID_TRAIN_ATTRS.has(attr))) return;
-      let changed = false;
-      player.team.players = player.team.players.map(p => {
-        if (p.id !== playerId || p.rarity === 'unique' || p.autoEvolveAttribute === (attr ?? undefined)) return p;
-        changed = true;
-        return { ...p, autoEvolveAttribute: attr ?? undefined };
-      });
-      if (!changed) return;
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      applySeatRule(socket, io, room, player, "set_auto_evolve_attribute", seat => seatRules.setAutoEvolveAttribute(seat, playerId, attr));
     });
     on("unlock_player_specialization", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !isValidId(playerId) || player.points < SPECIALIZATION_UNLOCK_COST) return;
-      let unlocked = false;
-      const players = player.team.players.map(p => {
-        if (p.id !== playerId || !canUnlockSpecialization(p)) return p;
-        unlocked = true;
-        return unlockPlayerSpecialization(p);
-      });
-      if (!unlocked) return;
-      player.points -= SPECIALIZATION_UNLOCK_COST;
-      player.team = { ...player.team, credits: player.points, players };
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      if (!player || !player.team) return;
+      if (!isValidId(playerId)) return;
+      applySeatRule(socket, io, room, player, "unlock_player_specialization", seat => seatRules.unlockSpecialization(seat, playerId));
     });
     on("choose_player_specialization", ({ roomCode, playerId, specialization }: { roomCode: string; playerId: string; specialization: any }) => {
       const room = rooms.get(roomCode);
@@ -2247,22 +2204,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || !['finalizador', 'maestro', 'motor', 'muralha'].includes(specialization)) return;
-      player.team.players = player.team.players.map(p => p.id === playerId
-        ? choosePlayerSpecialization(p, specialization)
-        : p);
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      applySeatRule(socket, io, room, player, "choose_player_specialization", seat => seatRules.chooseSpecialization(seat, playerId, specialization));
     });
     on("reset_evolve_points", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
-      player.team.players = player.team.players.map(p => p.id === playerId ? { ...p, evolvePoints: {} } : p);
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      applySeatRule(socket, io, room, player, "reset_evolve_points", seat => seatRules.resetEvolvePoints(seat, playerId));
     });
 
     // ============================================================
@@ -2272,75 +2221,29 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // ============================================================
     on("upgrade_club_project", ({ roomCode, projectId }: { roomCode: string; projectId: string }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isShopPhase(room)) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !['recruitment', 'analysis', 'betting', 'medical', 'training', 'stadium', 'supporters', 'missions'].includes(projectId)) return;
-
-      const project = projectId as 'recruitment' | 'analysis' | 'betting' | 'medical' | 'training' | 'stadium' | 'supporters' | 'missions';
-      const upgrade = purchaseClubProjectUpgrade(player.team.clubProjects, project, player.points);
-      if (!upgrade) {
-        const currentLevel = projectLevel(player.team.clubProjects, project);
-        const cost = projectUpgradeCost(currentLevel + 1);
-        if (!cost) return;
-        socket.emit("action_error", { event: "upgrade_club_project", message: `Saldo insuficiente: você tem ${player.points} créditos e precisa de ${cost}.` });
-        emitRoomSnapshot(socket, room);
-        return;
-      }
-
-      player.points = upgrade.remainingCredits;
-      player.team = {
-        ...player.team,
-        credits: player.points,
-        clubProjects: upgrade.projects,
-      };
-      if (project === 'missions') {
-        const cycle = room.phase === 'knockout'
-          ? missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg)
-          : missionCycleKey('league', room.leagueRound);
-        const currentMissions = normalizeMissionState(
-          player.missions,
-          `${room.code}:${player.id}`,
-          cycle,
-        );
-        player.missions = extendActiveMissionDeadlines(currentMissions, upgrade.fromLevel, upgrade.toLevel);
-      }
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      if (!player || !player.team) return;
+      if (!(CLUB_PROJECT_ORDER as readonly string[]).includes(projectId)) return;
+      applySeatRule(socket, io, room, player, "upgrade_club_project", seat => seatRules.upgradeClubProject(seat, seatContext(room), projectId as ClubProjectId));
     });
 
     on("shop_change_coach", ({ roomCode, coachId }: { roomCode: string; coachId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(coachId) || !VALID_COACH_IDS.has(coachId)) return;
-      const cost = SHOP_COSTS.changeCoach;
-      if (player.points < cost || player.team.coachId === coachId) return;
-      player.points -= cost;
-      player.coachId = coachId;
-      player.team.coachId = coachId;
-      player.team = rebuildTeamChemistry(player.team);
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      applySeatRule(socket, io, room, player, "shop_change_coach", seat => seatRules.changeCoach(seat, seatContext(room), coachId));
     });
 
     on("evolve_coach_prime", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || player.coachPrime) return;
+      if (!player || !player.team) return;
       const wins = room.leagueStandings.find(s => s.teamId === player.team!.id)?.won ?? 0;
-      if (!canEvolvePrime(wins, player.points)) return;
-      player.points -= PRIME_COST;
-      player.coachPrime = true;
-      player.team.coachPrime = true;
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      applySeatRule(socket, io, room, player, "evolve_coach_prime", seat => seatRules.evolveCoachPrime(seat, seatContext(room), wins));
     });
 
     // ⭐ Pacote Único — cobra na abertura, sorteia no servidor e guarda o resultado
@@ -2348,63 +2251,25 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_open_unique_pack", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || player.pendingUniquePack || player.pendingPack || player.pendingPackReveal) return;
-      if (room.phase !== 'league' && room.phase !== 'knockout') return;
-      ensureUniquePackOffer(room, player);
-      const cost = SHOP_COSTS.uniqueCard;
-      if (player.points < cost) {
-        socket.emit("action_error", { event: "shop_open_unique_pack", message: `Saldo insuficiente: você tem ${player.points} pontos e precisa de ${cost}.` });
-        // A rejected purchase is also a recovery point. This corrects a stale
-        // balance on the browser without changing any authoritative progress.
-        emitRoomSnapshot(socket, room);
-        return;
-      }
-      const chosen = drawUniquePackCard(
-        player.uniquePackOfferIds ?? [],
-        player.team.players.map(p => p.id),
-      );
-      if (!chosen) {
-        socket.emit("action_error", { event: "shop_open_unique_pack", message: "Você já possui todas as Cartas Únicas desta oferta." });
-        return;
-      }
-      player.points -= cost;
-      player.pendingUniquePack = { ...chosen };
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      if (!player || !player.team) return;
+      applySeatRule(socket, io, room, player, "shop_open_unique_pack", seat => seatRules.openUniquePack(seat, seatContext(room)), { readyChange: false });
     });
 
     // ⭐ Revelar a carta já sorteada: valida novamente no catálogo autoritativo.
     on("shop_claim_unique_pack", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !player.pendingUniquePack) return;
-      const pending = player.pendingUniquePack;
-      const canonical = UNIQUE_CARDS.find(card => card.id === pending.id);
-      if (!canonical || player.team.players.some(card => card.id === canonical.id)) {
-        socket.emit("action_error", { event: "shop_claim_unique_pack", message: "Não foi possível adicionar esta Carta Única." });
-        emitRoomUpdate(io, room, { onlySocketId: socket.id });
-        return;
-      }
-      const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
-      // Só consumimos o pacote depois que a carta passou pela validação final.
-      // Assim, um estado inconsistente não faz o jogador perder uma compra já paga.
-      player.pendingUniquePack = null;
-      player.team = applyMercenarioProgress(
-        { ...player.team, players: [...player.team.players, card] },
-        completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
-      );
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      if (!player || !player.team) return;
+      if (!isShopPhase(room)) return;
+      applySeatRule(socket, io, room, player, "shop_claim_unique_pack", seatRules.claimUniquePack);
     });
 
     // 📦 Ofertas regulares — quatro cartas por raridade, estáveis durante a rodada.
     on("shop_ensure_player_pack_offers", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isShopPhase(room)) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       ensurePlayerPackOffers(room, player);
@@ -2414,53 +2279,21 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // 📦 Abrir pacote regular: cobra aqui, sorteia no servidor e reserva o resultado.
     on("shop_open_player_pack", ({ roomCode, rarity }: { roomCode: string; rarity: RegularPlayerPackRarity }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isShopPhase(room)) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || player.pendingUniquePack || player.pendingPack || player.pendingPackReveal) return;
+      if (!player || !player.team) return;
       if (!isRegularPlayerPackRarity(rarity)) return;
-      ensurePlayerPackOffers(room, player);
-      const cost = SHOP_COSTS.playerPack[rarity];
-      if (player.points < cost) {
-        socket.emit("action_error", { event: "shop_open_player_pack", message: `Saldo insuficiente: você tem ${player.points} pontos e precisa de ${cost}.` });
-        emitRoomSnapshot(socket, room);
-        return;
-      }
-      const chosen = drawPlayerPackCard(
-        player.playerPackOfferIds?.[rarity] ?? [],
-        rarity,
-        player.team.players.map(card => card.id),
-      );
-      if (!chosen) {
-        socket.emit("action_error", { event: "shop_open_player_pack", message: "Você já possui todas as cartas disponíveis desta oferta." });
-        return;
-      }
-      player.points -= cost;
-      player.pendingPackReveal = { kind: rarity, card: { ...chosen } };
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      applySeatRule(socket, io, room, player, "shop_open_player_pack", seat => seatRules.openPlayerPack(seat, seatContext(room), rarity), { readyChange: false });
     });
 
     // 📦 Adicionar a carta revelada ao banco, sem nova cobrança.
     on("shop_claim_player_pack", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
-      if (!room || !isShopPhase(room)) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !player.pendingPackReveal) return;
-      const pending = player.pendingPackReveal;
-      const canonical = PLAYERS.find(card => card.id === pending.card.id && card.rarity === pending.kind);
-      if (!canonical || player.team.players.some(card => card.id === canonical.id)) {
-        socket.emit("action_error", { event: "shop_claim_player_pack", message: "Não foi possível adicionar esta carta ao banco." });
-        emitRoomUpdate(io, room, { onlySocketId: socket.id });
-        return;
-      }
-      player.pendingPackReveal = null;
-      const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
-      player.team = applyMercenarioProgress(
-        { ...player.team, players: [...player.team.players, card] },
-        completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
-      );
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      if (!player || !player.team) return;
+      if (!isShopPhase(room)) return;
+      applySeatRule(socket, io, room, player, "shop_claim_player_pack", seatRules.claimPlayerPack);
     });
 
     // 🛒 Abrir pacote: COBRA aqui e guarda as opções → impede re-sortear de graça.
@@ -2469,97 +2302,41 @@ export function registerSocketHandlers(io: RealtimeServer) {
     on("shop_open_pack", ({ roomCode, position }: { roomCode: string; position?: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || player.pendingPack || player.pendingUniquePack || player.pendingPackReveal) return;              // um pacote pendente por vez
+      if (!player || !player.team) return;
       if (!isValidId(position) || !VALID_POSITION_IDS.has(position)) return;
-      const ownedIds = player.team.players.map(p => p.id);
-      const options = generateScoutOptions(position, ownedIds);
-      if (options.length === 0 || options.some(option => !PLAYERS.some(base => base.id === option.id))) return;
-      const cost = SHOP_COSTS.scout;
-      if (player.points < cost) return;
-      player.points -= cost;
-      player.pendingPack = { kind: 'scout', options: options.map(option => ({ ...option })) };
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      applySeatRule(socket, io, room, player, "shop_open_pack", seat => seatRules.openScoutPack(seat, seatContext(room), position), { readyChange: false });
     });
 
     // 🛒 Escolher 1 do pacote JÁ PAGO (sem cobrar de novo) → banco.
     on("shop_pick_pack", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !player.pendingPack || !isValidId(playerId)) return;
-      const valid = player.pendingPack.options.some(o => o.id === playerId)
-        && !player.team.players.some(p => p.id === playerId);
-      const chosen = PLAYERS.find(p => p.id === playerId);
-      // A stale tab or a malformed request must never consume a pack that was
-      // already paid for. Keep it pending so the player can reconnect and pick
-      // again from the authoritative offer.
-      if (!valid || !chosen) {
-        socket.emit("action_error", { event: "shop_pick_pack", message: "Essa opção não está mais disponível. O pacote continua reservado para você." });
-        emitRoomSnapshot(socket, room);
-        return;
-      }
-      player.pendingPack = null;
-      const card: PlayerCard = { ...chosen, chemistryScore: 0, isOOP: false };
-      player.team = applyMercenarioProgress(
-        { ...player.team, players: [...player.team.players, card] },
-        completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
-      );
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      if (!player || !player.team) return;
+      if (!isShopPhase(room) || !isValidId(playerId)) return;
+      applySeatRule(socket, io, room, player, "shop_pick_pack", seat => seatRules.pickScoutPack(seat, playerId));
     });
 
     on("shop_turbinar", ({ roomCode, playerId, variant }: { roomCode: string; playerId: string; variant: ShopVariant }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || !VALID_VARIANTS.has(variant)) return;
-      const cost = SHOP_COSTS.turbinar;
-      const target = player.team.players.find(p => p.id === playerId);
-      if (!target || player.points < cost) return;
-      if (!canAddVariant(target)) return; // 1 por carta (Únicas: até 2)
-      // A característica usa o histórico da competição inteira, inclusive
-      // partidas disputadas antes da compra no meio da temporada.
-      const competitionStats = {
-        ...getPlayerSeasonStats(
-          target.id,
-          player.team.id,
-          getAllPlayedMatchResults(leagueResultsFromFixtures(room), room.knockoutBracket),
-        ),
-        missionsCompleted: completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
-      };
-      player.points -= cost;
-      player.team.players = player.team.players.map(p =>
-        p.id === playerId ? ({ ...applyShopVariant(p, variant, competitionStats), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
-      player.team = rebuildTeamChemistry(player.team);
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      // A characteristic follows the whole competition, including matches played before the purchase.
+      const competitionStats = getPlayerSeasonStats(playerId, player.team.id, getAllPlayedMatchResults(leagueResultsFromFixtures(room), room.knockoutBracket));
+      applySeatRule(socket, io, room, player, "shop_turbinar", seat => seatRules.turbinar(seat, seatContext(room), playerId, variant, competitionStats));
     });
 
     // 🧹 Remove a card's characteristic (so a new one can be applied via Turbinar).
     on("shop_remove_variant", ({ roomCode, playerId, variantKey }: { roomCode: string; playerId: string; variantKey?: VariantFlag }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || (variantKey != null && !VALID_VARIANTS.has(variantKey))) return;
-      const cost = SHOP_COSTS.removeVariant;
-      const target = player.team.players.find(p => p.id === playerId);
-      if (!target || player.points < cost || !hasVariant(target)) return;
-      player.points -= cost;
-      player.team.players = player.team.players.map(p =>
-        p.id === playerId ? ({ ...(variantKey ? stripSpecificVariant(p, variantKey) : stripVariant(p)), chemistryScore: p.chemistryScore, isOOP: p.isOOP } as PlayerCard) : p);
-      player.team = rebuildTeamChemistry(player.team);
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      applySeatRule(socket, io, room, player, "shop_remove_variant", seat => seatRules.removeVariant(seat, seatContext(room), playerId, variantKey));
     });
 
     // 🎯 PALPITE — apostar/editar. Escrow debitado na hora; validado no servidor (fundos, teto,
@@ -2578,75 +2355,20 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.connected) return;
-      if (typeof matchKey !== 'string' || matchKey.length === 0 || matchKey.length > 160
-        || !Number.isSafeInteger(stake) || stake <= 0) return;
-
-      // A partida-alvo tem que existir, ser da rodada/perna ativa e ainda NÃO ter sido jogada.
-      let prefix: string;
-      let actualHomeTeamId: string | undefined;
-      let actualAwayTeamId: string | undefined;
-      if (room.phase === 'league') {
-        const fx = room.leagueFixtures.find(f => buildLeagueMatchKey(f.round, f.homeTeamId, f.awayTeamId) === matchKey);
-        if (!fx || fx.round !== room.leagueRound || fx.played) return;
-        prefix = `L${room.leagueRound}:`;
-        actualHomeTeamId = fx.homeTeamId;
-        actualAwayTeamId = fx.awayTeamId;
-      } else if (room.phase === 'knockout' && room.knockoutBracket) {
-        const leg = room.knockoutBracket.currentLeg;
-        const active = getActiveKnockoutMatches(room.knockoutBracket) as any[];
-        const tie = active.find(m => buildKnockoutMatchKey(m.id, leg) === matchKey);
-        const legPlayed = tie && (leg === 2 ? !!tie.leg2 : !!(tie.leg1 || tie.result));
-        if (!tie || legPlayed) return;
-        prefix = matchKey; // por jogo: teto próprio de cada partida (ida/volta independentes)
-        actualHomeTeamId = leg === 2 ? tie.awayTeamId : tie.homeTeamId;
-        actualAwayTeamId = leg === 2 ? tie.homeTeamId : tie.awayTeamId;
-      } else {
-        return;
-      }
-
-      // The client sends the IDs that label the score selectors. Validate them
-      // against the authoritative fixture and always store the server's order;
-      // this makes a return-leg bet immune to home/away inversion or stale UI.
-      if ((homeTeamId != null && homeTeamId !== actualHomeTeamId)
-        || (awayTeamId != null && awayTeamId !== actualAwayTeamId)) return;
-
-      const existing = player.bets.find(b => b.matchKey === matchKey);
-      if (existing?.settled) return;
-      const escrowDelta = stake - (existing?.stake ?? 0);
-      if (escrowDelta > player.points) return;
-      const bettingLevel = projectLevel(player.team?.clubProjects, 'betting');
-      const betCap = BET_ROUND_CAP + bettingStakeCapBonus(bettingLevel);
-      if (!canPlaceStake(player.bets, prefix, matchKey, stake, betCap)) return;
-      // The canonical builder parser also calculates and locks its multiplier.
-      // The client never gets to choose odds or bypass the minimum/unique-market rules.
-      const bet = createBet({
-        matchKey,
-        homeTeamId: actualHomeTeamId,
-        awayTeamId: actualAwayTeamId,
-        homeGoals,
-        awayGoals,
-        stake,
-        market,
-        selections,
-        payoutRules: bettingPayoutRulesForLevel(bettingLevel),
-      });
-      if (!bet) return;
-      player.bets = existing ? player.bets.map(b => b.matchKey === matchKey ? bet : b) : [...player.bets, bet];
-      player.points -= escrowDelta;
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      if (!player || !player.connected || !player.team) return;
+      if (typeof matchKey !== 'string' || matchKey.length === 0 || matchKey.length > 160) return;
+      const target = seatRules.resolveBetTarget(matchKey, room);
+      applySeatRule(socket, io, room, player, "place_bet",
+        seat => seatRules.placeBet(seat, matchKey, target, { homeTeamId, awayTeamId, homeGoals, awayGoals, stake, market, selections }),
+        { readyChange: false });
     });
 
     on("cancel_bet", ({ roomCode, matchKey }: { roomCode: string; matchKey: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player) return;
-      const existing = player.bets.find(b => b.matchKey === matchKey);
-      if (!existing || existing.settled) return;
-      player.points += existing.stake;
-      player.bets = player.bets.filter(b => b.matchKey !== matchKey);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      if (!player || !player.team) return;
+      applySeatRule(socket, io, room, player, "cancel_bet", seat => seatRules.cancelBet(seat, matchKey), { readyChange: false });
     });
 
     // 🏥 Fisioterapia — 1 uso gratuito por competição no nível 1 do Médico;
@@ -2655,76 +2377,28 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !isValidId(playerId)) return;
-      if (!player.team.players.some(teamPlayer => teamPlayer.id === playerId)) return;
-      const key = `${player.team.id}:${playerId}`;
-      if (!room.discipline[key] || room.discipline[key].injured <= 0) return;
-      const freeLimit = medicalFreeTreatmentsPerCompetition(projectLevel(player.team.clubProjects, 'medical'));
-      const freeTreatmentsUsed = player.medicalFreeTreatmentsUsed ?? 0;
-      const freeAvailable = freeTreatmentsUsed < freeLimit;
-      const cost = freeAvailable
-        ? 0
-        : medicalPhysioCost(projectLevel(player.team.clubProjects, 'medical'));
-      if (player.points < cost) return;
-      player.points -= cost;
-      if (freeAvailable) player.medicalFreeTreatmentsUsed = freeTreatmentsUsed + 1;
-      const previousInjury = room.discipline[key].injured;
-      room.discipline = healInjury(room.discipline, player.team.id, playerId);
-      if (previousInjury > 0 && room.discipline[key]?.injured === 0) {
-        player.team = applyMedicalReturnBoost(
-          player.team,
-          playerId,
-          medicalReturnBoost(projectLevel(player.team.clubProjects, 'medical')),
-        );
-      }
-      player.team = { ...player.team, credits: player.points };
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      if (!player || !player.team) return;
+      if (!isValidId(playerId)) return;
+      applySeatRule(socket, io, room, player, "heal_injury", seat => seatRules.treatInjury(seat, room.discipline, playerId));
     });
 
     on("shop_train", ({ roomCode, playerId, attr }: { roomCode: string; playerId: string; attr: TrainAttr }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId) || !VALID_TRAIN_ATTRS.has(attr)) return;
-      const target = player.team.players.find(p => p.id === playerId);
-      if (!target) return;
-      const trainingLevel = projectLevel(player.team.clubProjects, 'training');
-      const firstTrainingForPlayer = (target.trainCount ?? 0) === 0;
-      const cost = trainingCostForProject(trainingLevel, target.trainCount ?? 0);
-      const boost = trainingBoostForProject(trainingLevel, firstTrainingForPlayer);
-      if (player.points < cost) return;
-      player.points -= cost;
-      player.team.players = player.team.players.map(p => {
-        if (p.id !== playerId) return p;
-        const boosts = { ...(p.trainBoosts ?? {}) };
-        boosts[attr] = (boosts[attr] ?? 0) + boost;
-        return { ...p, trainBoosts: boosts, trainCount: (p.trainCount ?? 0) + 1 };
-      });
-      player.team.credits = player.points;
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
-      emitReadyState(io, room);
+      applySeatRule(socket, io, room, player, "shop_train", seat => seatRules.train(seat, seatContext(room), playerId, attr));
     });
 
     // 🏪 Mercado — VENDER uma reserva PRA BANCA por valor fixo (igual o solo). Só pontos + banco mudam.
     on("market_sell", ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
-      if (!isShopPhase(room)) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
-      const idx = player.team.players.findIndex(p => p.id === playerId);
-      if (idx < 11) return; // só reserva (índice ≥ 11)
-      const sold = player.team.players[idx];
-      player.team.players = player.team.players.filter((_, i) => i !== idx);
-      delete room.discipline[`${player.team.id}:${playerId}`];
-      player.points += sellValue(sold.rarity);
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room);
+      if (!isValidId(playerId)) return;
+      applySeatRule(socket, io, room, player, "market_sell", seat => seatRules.sellReserve(seat, seatContext(room), room.discipline, playerId), { broadcast: true });
     });
 
     // 🏪 Mercado online — ANUNCIAR uma reserva (escrow: sai do banco do vendedor).
@@ -2960,63 +2634,27 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      const offer = player?.reinforcementOffer;
-      const rerollsRemaining = (offer?.freeRerolls ?? 0) - (offer?.rerollsUsed ?? 0);
-      if (!player || !player.team || !canPlayerRecruit(room, player) || rerollsRemaining <= 0 || !player.reinforcementOptions?.length) return;
-      const ownedIds = player.team.players.map(p => p.id);
-      player.reinforcementOptions = generateDraftOptions(
-        [],
-        ownedIds,
-        player.reinforcementOptions.length,
-        offer?.minimumOverall ?? 0,
-      );
-      player.reinforcementOffer = { ...offer!, rerollsUsed: (offer?.rerollsUsed ?? 0) + 1 };
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      if (!player || !player.team) return;
+      applySeatRule(socket, io, room, player, "reroll_reinforcement", seat => seatRules.rerollReinforcement(seat, canPlayerRecruit(room, player)), { readyChange: false });
     });
 
     // Recruitment Centre offer: the client submits only an id; the server
     // validates the canonical card and keeps multi-selection atomic.
     on("pick_reinforcement", ({ roomCode, player: chosen }: { roomCode: string; player: Player }) => {
       const room = rooms.get(roomCode);
-      if (!room || !chosen) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || !canPlayerRecruit(room, player)) return;
-      // The client sends the selected id for convenience, but never gets to
-      // submit the card's stats/traits. Rebuild it from the server catalog.
-      const offered = player.reinforcementOptions?.find(o => o.id === chosen.id);
-      const canonical = offered && PLAYERS.find(option => option.id === offered.id);
-      if (!canonical || player.team.players.some(p => p.id === canonical.id)) {
-        socket.emit("action_error", { event: "pick_reinforcement", message: "Essa carta não está mais disponível. Sua escolha continua reservada." });
-        emitRoomSnapshot(socket, room);
-        return;
-      }
-      const card: PlayerCard = { ...canonical, chemistryScore: 0, isOOP: false };
-      player.team = applyMercenarioProgress(
-        { ...player.team, players: [...player.team.players, card] },
-        completedMissionCount(player.missions ?? createMissionState(`${room.code}:${player.id}`, 'L1')),
-      );
-      invalidateReady(room, player.id);
-      const offer = player.reinforcementOffer;
-      const selectionsMade = (offer?.selectionsMade ?? 0) + 1;
-      const selectionLimit = Math.max(1, offer?.selectionLimit ?? 1);
-      if (selectionsMade >= selectionLimit) {
-        player.reinforcementOptions = null;
-        player.reinforcementOffer = null;
-      } else {
-        player.reinforcementOptions = player.reinforcementOptions!.filter(option => option.id !== canonical.id);
-        player.reinforcementOffer = offer ? { ...offer, selectionsMade } : null;
-      }
-      emitRoomUpdate(io, room, { onlySocketId: socket.id }); // only this player's own bench changed
+      if (!player || !player.team) return;
+      if (!chosen || !isValidId(chosen.id)) return;
+      applySeatRule(socket, io, room, player, "pick_reinforcement", seat => seatRules.pickReinforcement(seat, canPlayerRecruit(room, player), chosen.id));
     });
 
     on("dismiss_reinforcement", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player) return;
-      player.reinforcementOptions = null;
-      player.reinforcementOffer = null;
-      emitRoomUpdate(io, room, { onlySocketId: socket.id }); // only this player's own state changed
+      if (!player || !player.team) return;
+      applySeatRule(socket, io, room, player, "dismiss_reinforcement", seatRules.dismissReinforcement, { readyChange: false });
     });
 
     // 🆘 Contratação emergencial — quando não há reserva disponível para cobrir uma
@@ -3027,23 +2665,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
-
-      const target = getEmergencyReplacementTarget(player.team, room.discipline);
-      const chosen = PLAYERS.find(p => p.id === playerId);
-      if (!target || target.starterId !== starterId || !chosen || !target.options.some(option => option.id === chosen.id)) {
-        socket.emit("action_error", { event: "emergency_replace_player", message: "Essa contratação emergencial não está disponível." });
-        return;
-      }
-
-      const updatedTeam = applyEmergencyReplacement(player.team, room.discipline, starterId, chosen);
-      if (!updatedTeam) {
-        socket.emit("action_error", { event: "emergency_replace_player", message: "Não foi possível atualizar a escalação." });
-        return;
-      }
-
-      player.team = updatedTeam;
-      invalidateReady(room, player.id);
-      emitRoomUpdate(io, room);
+      if (!isValidId(starterId) || !isValidId(playerId)) return;
+      // The lineup is public: every player sees the new XI.
+      applySeatRule(socket, io, room, player, "emergency_replace_player", seat => seatRules.emergencyReplace(seat, room.discipline, starterId, playerId), { broadcast: true });
     });
 
     // ============================================================
@@ -3051,84 +2675,37 @@ export function registerSocketHandlers(io: RealtimeServer) {
     // ============================================================
     on("accept_mission", ({ roomCode, missionId }: { roomCode: string; missionId: string }) => {
       const room = rooms.get(roomCode);
-      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || typeof missionId !== 'string') return;
-      const cycle = room.phase === 'knockout'
-        ? missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg)
-        : missionCycleKey('league', room.leagueRound);
-      const board = rotateMissionBoard(
-        normalizeMissionState(player.missions, `${room.code}:${player.id}`, cycle),
-        `${room.code}:${player.id}`,
-        cycle,
-      );
-      const next = acceptMission(board, missionId, projectLevel(player.team.clubProjects, 'missions'));
-      if (!next) {
-        socket.emit('action_error', { event: 'accept_mission', message: 'Essa missão não está disponível ou você já possui duas missões ativas.' });
-        return;
-      }
-      player.missions = next;
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      if (!player || !player.team) return;
+      if (typeof missionId !== 'string') return;
+      applySeatRule(socket, io, room, player, "accept_mission", seat => seatRules.acceptMissionOnBoard(seat, seatContext(room), missionBoardOf(room, player), missionId), { readyChange: false });
     });
 
     on("reroll_missions", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
-      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
-      const cycle = room.phase === 'knockout'
-        ? missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg)
-        : missionCycleKey('league', room.leagueRound);
-      const board = rotateMissionBoard(
-        normalizeMissionState(player.missions, `${room.code}:${player.id}`, cycle),
-        `${room.code}:${player.id}`,
-        cycle,
-      );
-      const next = rerollMissionBoard(
-        board,
-        `${room.code}:${player.id}`,
-        projectLevel(player.team.clubProjects, 'missions'),
-      );
-      if (!next) {
-        socket.emit('action_error', { event: 'reroll_missions', message: 'A atualização gratuita deste mural já foi usada ou o projeto ainda não está no nível necessário.' });
-        return;
-      }
-      player.missions = next;
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      applySeatRule(socket, io, room, player, "reroll_missions", seat => seatRules.rerollMissions(seat, seatContext(room), missionBoardOf(room, player)), { readyChange: false });
     });
 
     on("remove_mission", ({ roomCode, missionId }: { roomCode: string; missionId: string }) => {
       const room = rooms.get(roomCode);
-      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player || !player.team || typeof missionId !== 'string') return;
-      const currentMissions = normalizeMissionState(
-        player.missions,
-        `${room.code}:${player.id}`,
-        room.phase === 'knockout'
-          ? missionCycleKey('knockout', room.leagueRound, room.knockoutBracket?.currentRound, room.knockoutBracket?.currentLeg)
-          : missionCycleKey('league', room.leagueRound),
-      );
-      const missionsLevel = projectLevel(player.team.clubProjects, 'missions');
-      const removed = removeMission(currentMissions, missionId, player.points, missionsLevel);
-      if (!removed) {
-        const cost = missionRemovalCost(missionId, missionsLevel);
-        socket.emit('action_error', { event: 'remove_mission', message: Number.isFinite(cost) ? `Você precisa de ${cost} créditos para remover essa missão.` : 'Essa missão não está ativa.' });
-        return;
-      }
-      player.points -= removed.cost;
-      player.missions = removed.state;
-      syncTeamCredits(player);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      if (!player || !player.team) return;
+      if (typeof missionId !== 'string') return;
+      applySeatRule(socket, io, room, player, "remove_mission", seat => seatRules.removeActiveMission(seat, seatContext(room), missionBoardOf(room, player), missionId), { readyChange: false });
     });
 
     on("dismiss_mission_resolution", ({ roomCode }: { roomCode: string }) => {
       const room = rooms.get(roomCode);
-      if (!room || (room.phase !== 'league' && room.phase !== 'knockout')) return;
+      if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
-      if (!player?.missions) return;
-      player.missions = dismissMissionResolution(player.missions);
-      emitRoomUpdate(io, room, { onlySocketId: socket.id });
+      if (!player || !player.team) return;
+      if (!isShopPhase(room)) return;
+      applySeatRule(socket, io, room, player, "dismiss_mission_resolution", seatRules.dismissMissionResult, { readyChange: false });
     });
 
     // ============================================================

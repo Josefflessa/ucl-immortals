@@ -6,14 +6,14 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame, KnockoutMatch } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
-import { MAX_RESERVE_PLAYERS, MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel, reservePlayerCount } from '../../lib/gameEngine';
+import { MAX_RESERVE_PLAYERS, MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel, reservePlayerCount } from '@shared/game/gameEngine';
 import MatchDetailsModal from './MatchDetailsModal';
 import Crest from './Crest';
 import BetSlipModal, { type BetSlipSubmission } from './BetSlipModal';
-import { buildKnockoutMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, bettingPayoutRulesForLevel } from '../../lib/bets';
-import { bettingStakeCapBonus, projectLevel } from '../../lib/clubProjects';
-import { unavailableStarters } from '../../lib/discipline';
-import { getOnlineKnockoutParticipantIds, getReadinessStatus, isOnlineHumanMatch, sortMatchesForOnlineDisplay } from '../../lib/onlineReadiness';
+import { buildKnockoutMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, bettingPayoutRulesForLevel } from '@shared/game/bets';
+import { bettingStakeCapBonus, projectLevel } from '@shared/game/clubProjects';
+import { unavailableStarters } from '@shared/game/discipline';
+import { getOnlineKnockoutParticipantIds, getReadinessStatus, isOnlineHumanMatch, sortMatchesForOnlineDisplay } from '@shared/game/onlineReadiness';
 import { GameModal } from '../../design-system';
 
 export default function KnockoutTiesTab() {
@@ -155,7 +155,7 @@ export default function KnockoutTiesTab() {
       <div className="text-sm font-bold animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#C9A84C' }}>
         ⏳ AGUARDANDO {knockoutWaitingCount} JOGADOR{knockoutWaitingCount !== 1 ? 'ES' : ''} ASSISTIREM {waitingLegLabel}...
       </div>
-      <div className="mt-1 text-[11px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+      <div className="mt-1 text-[13px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
         ({humanPlayersInBracket.length - knockoutWaitingCount}/{humanPlayersInBracket.length} concluídos)
       </div>
     </div>
@@ -245,36 +245,36 @@ export default function KnockoutTiesTab() {
                           <div className="text-xl sm:text-2xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#555' }}>VS</div>
                         ) : !l2 || !match.result ? (
                           <div>
-                            <div className="inline-block text-[10px] font-black tracking-widest text-indigo-300 rounded px-2 py-0.5 mb-0.5" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#4338CA33', border: '1px solid #4338CA66' }}>JOGO DE IDA</div>
+                            <div className="inline-block text-[12px] font-black tracking-widest text-indigo-300 rounded px-2 py-0.5 mb-0.5" style={{ fontFamily: 'Rajdhani, sans-serif', background: '#4338CA33', border: '1px solid #4338CA66' }}>JOGO DE IDA</div>
                             <div className="text-3xl sm:text-4xl font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
                               {l1.homeGoals} - {l1.awayGoals}
                             </div>
-                            <div className="text-[9px] sm:text-[10px] font-bold text-gray-400 mt-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⏳ aguardando a volta</div>
+                            <div className="text-[11px] sm:text-[12px] font-bold text-gray-400 mt-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>⏳ aguardando a volta</div>
                           </div>
                         ) : (
                           <div>
-                            <div className="text-[8px] font-black tracking-[0.2em] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>AGREGADO</div>
+                            <div className="text-[10px] font-black tracking-[0.2em] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>AGREGADO</div>
                             <div className="text-3xl sm:text-4xl font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>
                               {match.result.homeGoals} - {match.result.awayGoals}
                             </div>
                             {/* Placares de cada perna — grandes e rotulados */}
                               <div className="mt-1.5 flex flex-col gap-1">
                                 <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#4338CA22', border: '1px solid #4338CA55' }}>
-                                <span className="text-[8px] sm:text-[9px] font-black tracking-widest text-indigo-300 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>IDA · {homeName} × {awayName}</span>
+                                <span className="text-[10px] sm:text-[11px] font-black tracking-widest text-indigo-300 truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>IDA · {homeName} × {awayName}</span>
                                 <span className="text-sm sm:text-base font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C7D2FE' }}>{l1.homeGoals}-{l1.awayGoals}</span>
                               </div>
                               <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#0D948822', border: '1px solid #14B8A655' }}>
-                                <span className="text-[8px] sm:text-[9px] font-black tracking-widest truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#5EEAD4' }}>VOLTA · {awayName} × {homeName}</span>
+                                <span className="text-[10px] sm:text-[11px] font-black tracking-widest truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#5EEAD4' }}>VOLTA · {awayName} × {homeName}</span>
                                 <span className="text-sm sm:text-base font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#99F6E4' }}>{l2.homeGoals}-{l2.awayGoals}</span>
                               </div>
                               {match.result.penaltyWinner && (
                                 <div className="flex items-center justify-between rounded px-2 py-0.5" style={{ background: '#78350F22', border: '1px solid #B4530955' }}>
-                                  <span className="text-[8px] sm:text-[9px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#FBBF24' }}>PÊNAL</span>
+                                  <span className="text-[10px] sm:text-[11px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#FBBF24' }}>PÊNAL</span>
                                   <span className="text-sm sm:text-base font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FDE68A' }}>{match.result.homePenalties}-{match.result.awayPenalties}</span>
                                 </div>
                               )}
                             </div>
-                            <div className="text-[10px] sm:text-xs mt-1.5 font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div className="text-[12px] sm:text-xs mt-1.5 font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
                               {getTeamName(match.result.winner!)} avança
                             </div>
                           </div>
@@ -285,11 +285,11 @@ export default function KnockoutTiesTab() {
                             {match.result.homeGoals} - {match.result.awayGoals}
                           </div>
                           {match.result.penaltyWinner && (
-                            <div className="text-[10px] sm:text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div className="text-[12px] sm:text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                               ({match.result.homePenalties}-{match.result.awayPenalties} pen)
                             </div>
                           )}
-                          <div className="text-[10px] sm:text-xs mt-1 font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
+                          <div className="text-[12px] sm:text-xs mt-1 font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
                             {getTeamName(match.result.winner!)} avança
                           </div>
                         </div>
@@ -401,12 +401,12 @@ export default function KnockoutTiesTab() {
                     const legWord = isSingleLegTie ? '' : (legNum === 2 ? 'volta' : 'ida');
                     const badge = (b: Bet | undefined, word: string) => {
                       if (!b || !b.settled) return null;
-                      if (hideScore || !b.revealed) return <div key={word} className="text-[10px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>🎯 palpite {word} em andamento</div>;
+                      if (hideScore || !b.revealed) return <div key={word} className="text-[12px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>🎯 palpite {word} em andamento</div>;
                       const txt = b.tier === 'exact' ? `✅ Palpite ${word}: placar exato (+${b.payout})`
                         : b.tier === 'outcome' ? `✅ Palpite ${word}: resultado certo (+${b.payout})`
                         : b.tier === 'builder' ? `✅ Aposta ${word}: certa (+${b.payout})`
                           : `❌ Palpite ${word} perdido (−${b.stake})${(b.protectionRefund ?? 0) > 0 ? ` · devolução +${b.protectionRefund}` : ''}`;
-                      return <div key={word} className="text-[11px] font-black" style={{ color: b.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
+                      return <div key={word} className="text-[13px] font-black" style={{ color: b.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
                     };
                     return (
                       <div className="mb-3 flex flex-col items-center gap-1">
@@ -418,7 +418,7 @@ export default function KnockoutTiesTab() {
                             homeTeamId: betHomeId,
                             awayTeamId: betAwayId,
                           })}
-                            className="px-3 py-1 rounded-lg text-[11px] font-black tracking-wider transition-transform hover:scale-[1.03]"
+                            className="px-3 py-1 rounded-lg text-[13px] font-black tracking-wider transition-transform hover:scale-[1.03]"
                             style={{ fontFamily: 'Rajdhani, sans-serif', background: myActiveBet ? '#C9A84C22' : '#0F0F1A', color: '#E8C84A', border: '1px solid #C9A84C55' }}>
                             {myActiveBet ? `🎯 ${myActiveBet.market === 'builder' ? 'Aposta' : 'Palpite'} ${legWord}: ${describeBet(myActiveBet)} · ${myActiveBet.stake} (editar)` : `🎯 Palpitar ${legWord}`}
                           </button>
@@ -451,8 +451,8 @@ export default function KnockoutTiesTab() {
               <>
                 {/* SOLO: aviso se o próprio time tem indisponível (modal ao clicar em jogar). */}
                 {state.mode !== 'online' && myUnavailableKO.length > 0 && (
-                  <div className="mb-3 rounded-lg px-3 py-2 text-[11px] font-bold" style={{ background: '#241010', border: '1px solid #EF444466', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
-                    🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU TIME.
+                  <div className="mb-3 rounded-lg px-3 py-2 text-[13px] font-bold" style={{ background: '#241010', border: '1px solid #EF444466', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                    🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU CLUBE.
                   </div>
                 )}
                 {/* ONLINE: só quem disputa um confronto confirma "Estou pronto". */}
@@ -470,7 +470,7 @@ export default function KnockoutTiesTab() {
                   )
                 )}
                 {state.mode === 'online' && totalReadyKO > 0 && (
-                  <div className="mb-2 text-[11px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: allReadyKO ? '#22C55E' : '#C9A84C' }}>
+                  <div className="mb-2 text-[13px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: allReadyKO ? '#22C55E' : '#C9A84C' }}>
                     {readyCountKO}/{totalReadyKO} PRONTO{totalReadyKO !== 1 ? 'S' : ''}
                   </div>
                 )}
@@ -487,7 +487,7 @@ export default function KnockoutTiesTab() {
                 >
                   {playLabel}
                 </button>
-                <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="mt-2 text-[13px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {state.mode === 'online' && !allReadyKO
                     ? 'Todos os participantes do confronto precisam confirmar que estão prontos.'
                     : isFinalSingleLeg ? 'A grande final é em jogo único, em campo neutro.'
@@ -521,8 +521,8 @@ export default function KnockoutTiesTab() {
                 /* ✅ Não-host com tie: confirma "Estou pronto" (só com escalação válida). */
                 <>
                   {myUnavailableKO.length > 0 && (
-                    <div className="mb-3 rounded-lg px-3 py-2 text-[11px] font-bold" style={{ background: '#241010', border: '1px solid #EF444466', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
-                      🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU TIME.
+                    <div className="mb-3 rounded-lg px-3 py-2 text-[13px] font-bold" style={{ background: '#241010', border: '1px solid #EF444466', color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>
+                      🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU CLUBE.
                     </div>
                   )}
                   {iAmReadyKO ? (
@@ -536,7 +536,7 @@ export default function KnockoutTiesTab() {
                       ✅ ESTOU PRONTO
                     </button>
                   )}
-                  <div className="mt-2 text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                  <div className="mt-2 text-[13px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
                     {readyCountKO}/{totalReadyKO} pronto{totalReadyKO !== 1 ? 's' : ''} · o anfitrião inicia quando todos confirmarem.
                   </div>
                 </>
@@ -552,7 +552,7 @@ export default function KnockoutTiesTab() {
             )
           )}
           {state.advanceBlocked && state.advanceBlocked.length > 0 && (
-            <div className="mt-2 text-center text-[11px] font-bold text-yellow-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="mt-2 text-center text-[13px] font-bold text-yellow-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
               ⏳ Aguardando assistirem: {state.advanceBlocked.join(', ')}
             </div>
           )}
@@ -633,7 +633,7 @@ export default function KnockoutTiesTab() {
             ) : (
               <p className="text-[13px] leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
                 Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.names.join(', ')}</b>.<br />
-                Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar.
+                Substitua na aba <b style={{ color: '#C9A84C' }}>MEU CLUBE</b> antes de jogar.
               </p>
             )}
           </div>

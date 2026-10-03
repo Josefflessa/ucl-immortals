@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
-import { CREST_CATALOG, ALL_CRESTS, getCrest } from '../lib/crests';
+import { CREST_CATALOG, ALL_CRESTS, getCrest } from '@shared/game/crests';
 import { AppShell, Button, Input, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 const GOLD = '#C9A84C';
 
@@ -137,7 +137,7 @@ export default function CrestPage() {
                   <img src={c.url} alt={c.name} referrerPolicy="no-referrer" loading="lazy" decoding="async"
                     className="w-12 h-12 object-contain"
                     style={{ borderRadius: c.clipToCircle ? '50%' : undefined }} />
-                  <span className="text-[10px] font-semibold text-center leading-tight truncate w-full"
+                  <span className="text-[12px] font-semibold text-center leading-tight truncate w-full"
                     style={{ color: isSel ? GOLD : '#C9C9D9', fontFamily: 'Rajdhani, sans-serif' }}>
                     {c.name}
                   </span>

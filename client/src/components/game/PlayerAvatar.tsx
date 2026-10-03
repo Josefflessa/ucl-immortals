@@ -6,7 +6,7 @@
 import { memo } from 'react';
 import PlayerPortrait from './PlayerPortrait';
 import { buildPlayerPhotoSources } from './PlayerCard';
-import { getRarityColor } from '../../lib/gameData';
+import { getRarityColor } from '@shared/game/gameData';
 
 interface PlayerAvatarProps {
   playerId: string;

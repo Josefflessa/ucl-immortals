@@ -1,6 +1,6 @@
-import { isCompetitionFormatId, type CompetitionFormatId } from './competition';
-import type { ImmortalReport, Team } from './gameEngine';
-import type { Player } from './gameData';
+import { isCompetitionFormatId, type CompetitionFormatId } from '@shared/game/competition';
+import type { ImmortalReport, Team } from '@shared/game/gameEngine';
+import type { Player } from '@shared/game/gameData';
 
 export interface HistoryMatchSnapshot {
   homeTeamId: string;

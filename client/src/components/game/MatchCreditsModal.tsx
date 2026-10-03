@@ -1,4 +1,4 @@
-import type { MatchPoints } from '../../lib/shop';
+import type { MatchPoints } from '@shared/game/shop';
 import { Button, GameModal } from '../../design-system';
 
 interface MatchCreditsModalProps {
@@ -35,13 +35,7 @@ export default function MatchCreditsModal({ points, onClose }: MatchCreditsModal
     >
         <div className="px-5 pt-5 pb-5 sm:px-7">
           <div
-            className="text-center text-xs font-black tracking-[0.18em]"
-            style={{ color: '#34D399', fontFamily: 'Rajdhani, sans-serif' }}
-          >
-            💰 CRÉDITOS DA PARTIDA
-          </div>
-          <div
-            className="mt-3 text-center text-7xl font-black leading-none sm:text-8xl"
+            className="text-center text-7xl font-black leading-none sm:text-8xl"
             style={{ color: '#34D399', fontFamily: 'Bebas Neue, sans-serif' }}
           >
             +{points.total}
@@ -54,7 +48,7 @@ export default function MatchCreditsModal({ points, onClose }: MatchCreditsModal
           </div>
 
           <div className="mt-5 overflow-hidden rounded-xl border border-white/10" style={{ background: '#0B0B14' }}>
-            <div className="border-b border-white/10 px-4 py-2.5 text-[11px] font-black tracking-[0.16em]" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="border-b border-white/10 px-4 py-2.5 text-[13px] font-black tracking-[0.16em]" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
               COMPOSIÇÃO DA RECOMPENSA
             </div>
             <div>

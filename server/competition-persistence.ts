@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats } from '../client/src/lib/gameEngine.js';
-import { competitionRankingPoints } from '../client/src/lib/competitionRanking.js';
-import type { MatchResult, PlayerCard, Team } from '../client/src/lib/gameEngine.js';
+import { generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats } from '../shared/game/gameEngine.js';
+import { competitionRankingPoints } from '../shared/game/competitionRanking.js';
+import type { MatchResult, PlayerCard, Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
 import type { RoomPlayer, RoomState } from './handlers.js';
 

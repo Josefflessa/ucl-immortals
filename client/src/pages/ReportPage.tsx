@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import { useTeams } from '../hooks/useTeams';
-import { FORMATIONS, COACHES, type Player } from '../lib/gameData';
+import { FORMATIONS, COACHES, type Player } from '@shared/game/gameData';
 import {
   calculateChemistry,
   getAllPlayedMatchResults,
@@ -15,10 +15,10 @@ import {
   getTeamEffectiveStats,
   getChemistryLinks,
   type EffectiveStats,
-} from '../lib/gameEngine';
+} from '@shared/game/gameEngine';
 import FormationField, { CHEM_LINK_COLOR } from '../components/game/FormationField';
 import CoachStadiumPanel from '../components/game/CoachStadiumPanel';
-import { projectLevel } from '../lib/clubProjects';
+import { projectLevel } from '@shared/game/clubProjects';
 import Crest from '../components/game/Crest';
 import PlayerCard from '../components/game/PlayerCard';
 import PlayerAvatar from '../components/game/PlayerAvatar';
@@ -26,7 +26,7 @@ import PlayerDetailsModal from '../components/game/PlayerDetailsModal';
 import { AppShell, Button, PageContainer, TopBar } from '../design-system';
 import type { CompetitionHistoryEntry } from '../contexts/AccountContext';
 import { getCompetitionHistorySnapshot, type CompetitionHistorySnapshot } from '../lib/historySnapshot';
-import { competitionRankingPoints } from '../lib/competitionRanking';
+import { competitionRankingPoints } from '@shared/game/competitionRanking';
 
 type SavedEffectiveCardStats = Pick<EffectiveStats,
   'overall' | 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure'>;
@@ -92,7 +92,7 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
         <section aria-label="Resumo da competição" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {summary.map(([label, value]) => <div key={label} className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-4 text-center">
             <div className="font-display text-3xl leading-none text-[var(--ui-brand-strong)]">{value ?? '—'}</div>
-            <div className="mt-1 text-[10px] font-bold tracking-widest text-[var(--ui-text-faint)]">{label}</div>
+            <div className="mt-1 text-[12px] font-bold tracking-widest text-[var(--ui-text-faint)]">{label}</div>
           </div>)}
         </section>
         <p className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-4 py-3 text-sm text-[var(--ui-text-muted)]">
@@ -107,7 +107,7 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
 }
 
 export default function ReportPage({ historyEntry, historySnapshot: providedSnapshot, onHistoryBack }: ReportPageProps = {}) {
-  const { state, dispatch, leaveRoomOnline } = useGame();
+  const { state, dispatch, leaveRoomOnline, discardSoloCampaign } = useGame();
   const { account, saveHistory, markCompetitionCompleted } = useAccount();
   const historySnapshot = providedSnapshot ?? (historyEntry ? getCompetitionHistorySnapshot(historyEntry.report) : null);
   const { localTeamId: liveTeamId, allTeams: allTeamsForStats } = useTeams();
@@ -154,6 +154,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     // next authoritative update would immediately restore the old competition.
     if (state.mode === 'online' && state.roomCode) {
       leaveRoomOnline();
+    } else {
+      // The solo campaign is over; its autosave is no longer resumable.
+      void discardSoloCampaign();
     }
     dispatch({ type: 'RESET_GAME' });
   };
@@ -563,7 +566,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
                 >
                   <div className="text-2xl font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: s.color }}>{s.value}</div>
-                  <div className="text-[10px] font-bold tracking-widest mt-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{s.label}</div>
+                  <div className="text-[12px] font-bold tracking-widest mt-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{s.label}</div>
                 </motion.div>
               ))}
             </motion.div>
@@ -579,7 +582,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             className="rounded-xl px-5 py-4"
             style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
           >
-            <div className="text-[10px] font-black tracking-widest mb-3" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>DESEMPENHO GERAL</div>
+            <div className="text-[12px] font-black tracking-widest mb-3" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>DESEMPENHO GERAL</div>
             <div className="h-2.5 rounded-full overflow-hidden flex gap-0.5">
               {wins > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(wins / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.3, duration: 0.7 }} style={{ background: '#22C55E' }} />}
               {draws > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(draws / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.5, duration: 0.5 }} style={{ background: '#EAB308' }} />}
@@ -606,7 +609,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
           >
             <div className="px-5 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-              <span className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>FICHA DA CAMPANHA</span>
+              <span className="text-[12px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>FICHA DA CAMPANHA</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 border-t" style={{ borderColor: '#1A1A2A' }}>
               {[
@@ -617,7 +620,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               ].map(m => (
                 <div key={m.l} className="px-4 py-3 border-r" style={{ borderColor: '#1A1A2A' }}>
                   <div className="text-lg font-black leading-none" style={{ color: m.c, fontFamily: 'Bebas Neue, sans-serif' }}>{m.v}</div>
-                  <div className="text-[9px] font-bold tracking-widest mt-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{m.l}</div>
+                  <div className="text-[11px] font-bold tracking-widest mt-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>{m.l}</div>
                 </div>
               ))}
             </div>
@@ -634,20 +637,20 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}
           >
             <div className="px-5 py-3 border-b" style={{ borderColor: '#1A1A2A' }}>
-              <span className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>DESTAQUES DA TEMPORADA</span>
+              <span className="text-[12px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>DESTAQUES DA TEMPORADA</span>
             </div>
             <div className="divide-y" style={{ borderColor: '#1A1A2A' }}>
               {topScorer && (
                 <div className="flex items-center gap-4 px-5 py-4">
                   <HighlightPortrait player={topScorer.pl} color="#C9A84C" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>ARTILHEIRO</div>
+                    <div className="text-[12px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>ARTILHEIRO</div>
                     <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topScorer.pl.shortName}</div>
                     <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{topScorer.team.name}</div>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#C9A84C' }}>{topScorer.stats.goals}</div>
-                    <div className="text-[10px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>gols</div>
+                    <div className="text-[12px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>gols</div>
                   </div>
                 </div>
               )}
@@ -655,13 +658,13 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="flex items-center gap-4 px-5 py-4">
                   <HighlightPortrait player={topRating.pl} color="#22C55E" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>MELHOR NOTA MÉDIA</div>
+                    <div className="text-[12px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>MELHOR NOTA MÉDIA</div>
                     <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topRating.pl.shortName}</div>
                     <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{topRating.team.name} · {topRating.stats.played} jogos</div>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#22C55E' }}>{topRating.stats.ratingAvg.toFixed(1)}</div>
-                    <div className="text-[10px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>nota</div>
+                    <div className="text-[12px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>nota</div>
                   </div>
                 </div>
               )}
@@ -669,13 +672,13 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="flex items-center gap-4 px-5 py-4">
                   <HighlightPortrait player={topAssister.pl} color="#4FC3F7" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>REI DAS ASSISTÊNCIAS</div>
+                    <div className="text-[12px] font-bold tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>REI DAS ASSISTÊNCIAS</div>
                     <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>{topAssister.pl.shortName}</div>
                     <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{topAssister.team.name}</div>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="text-3xl font-black" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#4FC3F7' }}>{topAssister.stats.assists}</div>
-                    <div className="text-[10px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>assist.</div>
+                    <div className="text-[12px]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>assist.</div>
                   </div>
                 </div>
               )}
@@ -683,7 +686,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="flex items-start gap-4 px-5 py-4">
                   <div className="text-2xl">⚡</div>
                   <div>
-                    <div className="text-[10px] font-bold tracking-widest mb-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
+                    <div className="text-[12px] font-bold tracking-widest mb-1" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
                     {report.historicalRecreations.map(trio => (
                       <div key={trio} className="text-sm font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{trio}</div>
                     ))}
@@ -727,20 +730,20 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     className="flex-shrink-0 drop-shadow-[0_0_10px_rgba(201,168,76,0.25)]"
                   />
                   <div className="min-w-0">
-                    <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>ESCALAÇÃO FINAL</div>
+                    <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>ESCALAÇÃO FINAL</div>
                     <div className="truncate text-base font-black" style={{ color: '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>{playerTeam.name}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   {chemData && (
                     <div className="flex items-baseline gap-2 whitespace-nowrap">
-                      <span className="text-[9px] font-black tracking-widest" style={{ color: '#7A8A7F', fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA</span>
+                      <span className="text-[11px] font-black tracking-widest" style={{ color: '#7A8A7F', fontFamily: 'Rajdhani, sans-serif' }}>QUÍMICA</span>
                       <strong className="text-xl leading-none" style={{ color: '#22C55E', fontFamily: 'Bebas Neue, sans-serif' }}>{chemData.total}%</strong>
                     </div>
                   )}
                   <div className="h-5 w-px" style={{ background: '#2A2A3A' }} />
                   <div className="flex items-baseline gap-2 whitespace-nowrap">
-                    <span className="text-[9px] font-black tracking-widest" style={{ color: '#8A8290', fontFamily: 'Rajdhani, sans-serif' }}>GERAL DO TIME</span>
+                    <span className="text-[11px] font-black tracking-widest" style={{ color: '#8A8290', fontFamily: 'Rajdhani, sans-serif' }}>GERAL DO TIME</span>
                     <strong className="text-xl leading-none" style={{ color: '#E8C84A', fontFamily: 'Bebas Neue, sans-serif' }}>{teamOverall ?? '—'}</strong>
                   </div>
                 </div>
@@ -771,7 +774,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                       return (
                         <div key={t} className="flex items-center gap-1.5" style={{ opacity: n === 0 ? 0.4 : 1 }}>
                           <span className="inline-block w-4 h-0.5 rounded" style={{ background: CHEM_LINK_COLOR[t] }} />
-                          <span className="text-[10px] font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{l} <b style={{ color: '#C9C9D5' }}>({n})</b></span>
+                          <span className="text-[12px] font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>{l} <b style={{ color: '#C9C9D5' }}>({n})</b></span>
                         </div>
                       );
                     });

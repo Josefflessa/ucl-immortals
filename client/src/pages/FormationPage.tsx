@@ -3,8 +3,8 @@
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
-import { FORMATIONS, COACHES } from '../lib/gameData';
-import { formationAdvantageLabelForAnalysisLevel, formationProfile } from '../lib/gameEngine';
+import { FORMATIONS, COACHES } from '@shared/game/gameData';
+import { formationAdvantageLabelForAnalysisLevel, formationProfile } from '@shared/game/gameEngine';
 import FormationField from '../components/game/FormationField';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';

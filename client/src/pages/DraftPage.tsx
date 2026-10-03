@@ -8,8 +8,8 @@ import PlayerPortrait from '../components/game/PlayerPortrait';
 import FormationField from '../components/game/FormationField';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { Ban } from 'lucide-react';
-import { FORMATIONS, COACHES, Player, POS_PT } from '../lib/gameData';
-import { getTraitInfo, traitEffectLabel } from '../lib/traits';
+import { FORMATIONS, COACHES, Player, POS_PT } from '@shared/game/gameData';
+import { getTraitInfo, traitEffectLabel } from '@shared/game/traits';
 import { DRAFT_TURN_SECONDS } from '@shared/const';
 import { AppShell, Button, Panel, PanelHeader, PanelTitle, Progress, TopBar } from '../design-system';
 
@@ -135,13 +135,13 @@ const DraftOptions = memo(function DraftOptions({
         const visibleTraits = sel.traits.filter(t => getTraitInfo(t));
         return (
           <div className="mx-auto mb-3 max-w-md rounded-xl px-3 py-2.5" style={{ background: '#0F0F1A', border: '1px solid #1A1A2A' }}>
-            <div className="text-[10px] font-black tracking-widest mb-2" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
               {sel.shortName.toUpperCase()}
             </div>
             {/* Vision & composure — hidden attributes (vision drives possession/playmaking and
                 the Guardiola trigger ≥80; composure drives penalties/clutch), shown here so the
                 pick can be weighed without bloating the card. */}
-            <div className="flex items-center gap-4 mb-2 text-[11px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <div className="flex items-center gap-4 mb-2 text-[13px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
               <span className="inline-flex items-center gap-1.5 text-gray-400" title="Visão: peso de armação — influencia quem controla a posse e dispara habilidades como a do Guardiola (Visão ≥ 80).">
                 👁️ Visão <b className="text-white">{sel.vision}</b>
               </span>
@@ -151,13 +151,13 @@ const DraftOptions = memo(function DraftOptions({
             </div>
             {visibleTraits.length > 0 && (
             <>
-            <div className="text-[9px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>🎯 ESTILOS DE JOGO</div>
+            <div className="text-[11px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>🎯 ESTILOS DE JOGO</div>
             <div className="flex flex-col gap-1">
               {visibleTraits.map(t => {
                 const info = getTraitInfo(t);
                 const isRolled = t === sel.rolledTrait;
                 return (
-                  <div key={t} className="flex items-baseline gap-1.5 text-[11px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <div key={t} className="flex items-baseline gap-1.5 text-[13px]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     <span className="flex-shrink-0">{info?.icon ?? '⭐'}</span>
                     <span className="font-black flex-shrink-0" style={{ color: isRolled ? '#E8C84A' : '#FFF' }}>{isRolled ? `${t} (extra)` : t}</span>
                     <span style={{ color: '#C9A84C' }}>{traitEffectLabel(t) || 'sem efeito direto'}</span>
@@ -281,7 +281,7 @@ export default function DraftPage() {
     if (!isOnline) return null;
     return (
       <div className="ui-panel ui-panel--inset mb-4 p-3">
-        <div className="text-[10px] font-black text-[#C9A84C] tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        <div className="text-[12px] font-black text-primary tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
           FILA DE ESCOLHAS (SNAKE DRAFT)
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -301,13 +301,13 @@ export default function DraftPage() {
                   boxShadow: isCurrent ? '0 0 10px rgba(201,168,76,0.3)' : 'none'
                 }}
               >
-                <span className="text-[9px] opacity-75 font-normal uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-[11px] opacity-75 font-normal uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   R{turnRound}
                 </span>
                 <span style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {player?.name}
                 </span>
-                {isCurrent && <span className="text-[9px] animate-pulse">●</span>}
+                {isCurrent && <span className="text-[11px] animate-pulse">●</span>}
               </div>
             );
           })}
@@ -325,7 +325,7 @@ export default function DraftPage() {
     if (!isOnline || state.draftHistory.length === 0) return null;
     return (
       <div className="ui-panel ui-panel--inset flex h-[280px] flex-col p-4">
-        <div className="text-xs font-black text-[#C9A84C] tracking-widest uppercase mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        <div className="text-xs font-black text-primary tracking-widest uppercase mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
           ESCOLHAS DA RODADA ({state.draftHistory.length})
         </div>
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
@@ -350,7 +350,7 @@ export default function DraftPage() {
                 })()}
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[#C9A84C] font-bold block truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-primary font-bold block truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {pick.teamName}
                 </span>
                 <span className="text-white font-extrabold block truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
@@ -358,10 +358,10 @@ export default function DraftPage() {
                 </span>
               </div>
               <div className="text-right flex-shrink-0 ml-2">
-                <span className="text-[9px] bg-yellow-500/10 text-yellow-500 px-1.5 py-0.2 rounded font-black block" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                <span className="text-[11px] bg-yellow-500/10 text-yellow-500 px-1.5 py-0.2 rounded font-black block" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
                   {posLabel(pick.position)}
                 </span>
-                <span className="text-[10px] text-gray-500 font-bold block" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-[12px] text-gray-500 font-bold block" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   GER {pick.overall}
                 </span>
               </div>
@@ -460,7 +460,7 @@ export default function DraftPage() {
                         <div className="text-xs font-black tracking-widest mb-1" style={{ color: '#22D3EE', fontFamily: 'Rajdhani, sans-serif' }}>
                           🪑 RESERVA — BANCO
                         </div>
-                        <div className="text-[11px] font-bold" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
+                        <div className="text-[13px] font-bold" style={{ color: '#8A9BA0', fontFamily: 'Rajdhani, sans-serif' }}>
                           Escolha qualquer jogador para o banco.
                         </div>
                       </>
@@ -502,7 +502,7 @@ export default function DraftPage() {
             )}
             {coach && (
               <div className="rounded-xl p-3 bg-[#08080f] border border-[#1A1A2A]">
-                <div className="text-xs font-bold mb-1 text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TREINADOR</div>
+                <div className="text-xs font-bold mb-1 text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>TREINADOR</div>
                 <div className="text-sm font-black text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>{coach.name}</div>
                 <div className="text-xs mt-1 text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
               </div>

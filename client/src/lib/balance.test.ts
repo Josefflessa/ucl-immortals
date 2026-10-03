@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import {
   generateBotTeam, freeKickGoalChance, penaltyGoalChance, formationProfile,
   tacticalChanceVolumeModifier, tacticalChanceDangerModifier, computePossession,
-} from './gameEngine';
-import { TACTICS, FORMATIONS, COACHES } from './gameData';
+} from '@shared/game/gameEngine';
+import { TACTICS, FORMATIONS, COACHES } from '@shared/game/gameData';
 
 // ── Deterministic RNG for the statistical tests ────────────────────────────────
 // The engine uses Math.random directly (42 call sites). Left un-seeded, these

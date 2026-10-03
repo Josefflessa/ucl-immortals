@@ -1,5 +1,5 @@
 import { DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, isProfileAvatarBackgroundKey } from '../shared/profileAppearance';
-import { getTeamEffectiveStats, type Team } from '../client/src/lib/gameEngine.js';
+import { getTeamEffectiveStats, type Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
 
 const SESSION_COOKIE = 'ucl_session';

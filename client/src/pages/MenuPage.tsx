@@ -3,13 +3,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Check, Gamepad2, Info, Trophy, Plus, LogIn, LogOut, LibraryBig, Send, UserRound, Users, X } from 'lucide-react';
+import { Bell, Check, Gamepad2, Info, Play, Trophy, Plus, LogIn, LogOut, LibraryBig, Send, UserRound, Users, X } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import AccountTabBar from '../components/account/AccountTabBar';
-import { useGame } from '../contexts/GameContext';
+import { useGame, type SavedSoloCampaign } from '../contexts/GameContext';
 import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
-import { DIFFICULTY_LEVELS } from '../lib/gameData';
-import { COMPETITION_FORMAT_PRESETS, competitionFormatSummary, createCompetitionFormat } from '../lib/competition';
+import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
+import { COMPETITION_FORMAT_PRESETS, competitionFormatSummary, createCompetitionFormat } from '@shared/game/competition';
 import { cn } from '../lib/utils';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, IconButton, Input, Panel, StatusBanner } from '../design-system';
 
@@ -25,6 +25,14 @@ function friendIdentity(friendship: FriendshipEntry, accountId: string | undefin
   return { username: friendship.requester_username, displayName: friendship.requester_display_name, avatarKey: friendship.requester_avatar_key };
 }
 
+function soloCampaignStageLabel(save: SavedSoloCampaign): string {
+  if (save.phase === 'league') return `Rodada ${save.leagueRound}`;
+  if (save.phase === 'knockout') return 'Mata-mata';
+  if (save.phase === 'match_sim') return 'Partida em andamento';
+  if (save.phase === 'report') return 'Relatório final';
+  return 'Montando o elenco';
+}
+
 export default function MenuPage() {
   const {
     state,
@@ -37,6 +45,9 @@ export default function MenuPage() {
     restartRoomOnline,
     transferHostOnline,
     removePlayerOnline,
+    savedSoloCampaign,
+    continueSoloCampaign,
+    discardSoloCampaign,
   } = useGame();
   const {
     account,
@@ -47,6 +58,7 @@ export default function MenuPage() {
     updateFriendship,
   } = useAccount();
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
+  const [soloSaveConfirm, setSoloSaveConfirm] = useState<'new' | 'discard' | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
@@ -232,7 +244,7 @@ export default function MenuPage() {
           {/* Logo */}
           <div className="flex items-center gap-3 mb-6">
             <img src={LOGO_URL} alt="UCL Logo" className="w-10 h-10 object-contain" />
-            <h2 className="text-2xl font-black tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+            <h2 className="text-2xl font-black tracking-widest text-primary" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
               LOBBY MULTIPLAYER
             </h2>
           </div>
@@ -287,7 +299,7 @@ export default function MenuPage() {
 
             {/* Players List */}
             <div className="my-4">
-              <span className="text-xs font-bold text-[#C9A84C] tracking-widest block uppercase mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <span className="text-xs font-bold text-primary tracking-widest block uppercase mb-3" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 JOGADORES CONECTADOS ({state.onlinePlayers.length})
               </span>
               <div className="space-y-2">
@@ -298,11 +310,11 @@ export default function MenuPage() {
                     style={{ background: '#08080f', borderColor: '#171725' }}
                   >
                     <span className="font-bold text-white text-sm" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                      {p.name} {p.socketId === state.socketId && <span className="text-xs text-[#C9A84C] font-normal">(Você)</span>}
+                      {p.name} {p.socketId === state.socketId && <span className="text-xs text-primary font-normal">(Você)</span>}
                     </span>
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      <span className="text-[10px] text-green-500 font-bold uppercase tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      <span className="text-[12px] text-green-500 font-bold uppercase tracking-wider" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                         {p.id === state.onlineHostId ? 'ANFITRIÃO' : 'PRONTO'}
                       </span>
                     </div>
@@ -313,15 +325,15 @@ export default function MenuPage() {
 
             {/* Host Options */}
             <div className="mt-4 pt-4 border-t" style={{ borderColor: '#1A1A2A' }}>
-              <span className="text-xs font-bold text-[#C9A84C] tracking-widest block uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <span className="text-xs font-bold text-primary tracking-widest block uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 FORMATO DA COMPETIÇÃO
               </span>
-              <p className="mt-1 text-[11px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <p className="mt-1 text-[13px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 {competitionFormatSummary(state.competitionFormat)}
               </p>
               <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border px-3 py-2" style={{ background: '#08080f', borderColor: '#171725' }}>
-                <span className="text-[10px] font-bold tracking-widest text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>DIFICULDADE DOS BOTS</span>
-                <span className="text-xs font-black uppercase tracking-wider text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{difficultyName}</span>
+                <span className="text-[12px] font-bold tracking-widest text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>DIFICULDADE DOS BOTS</span>
+                <span className="text-xs font-black uppercase tracking-wider text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{difficultyName}</span>
               </div>
             </div>
 
@@ -425,7 +437,7 @@ export default function MenuPage() {
                         <div className="truncate text-sm font-semibold text-[var(--ui-text)]">{friend.displayName}</div>
                         <div className="truncate text-xs text-[var(--ui-text-muted)]">@{friend.username}</div>
                         <div className={cn(
-                          'mt-1 text-[10px] font-bold uppercase tracking-wider',
+                          'mt-1 text-[12px] font-bold uppercase tracking-wider',
                           friendship.is_available ? 'text-emerald-400' : 'text-[var(--ui-text-muted)]',
                         )}>
                           {friendship.is_available ? 'DISPONÍVEL' : friendship.is_busy ? 'OCUPADO' : 'OFFLINE'}
@@ -475,7 +487,7 @@ export default function MenuPage() {
             >
               <Bell size={19} aria-hidden="true" />
               {incomingFriendRequestCount > 0 ? (
-                <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-danger)] px-1 text-[9px] font-bold leading-none tabular-nums text-white">
+                <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-danger)] px-1 text-[11px] font-bold leading-none tabular-nums text-white">
                   {incomingFriendRequestCount > 9 ? '9+' : incomingFriendRequestCount}
                 </span>
               ) : null}
@@ -501,7 +513,7 @@ export default function MenuPage() {
         <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-between gap-2 sm:inset-x-6 sm:top-6">
           {!accountLoading ? (
             <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-bg)]/90 py-1 pl-3 pr-1.5 shadow-lg">
-              <span className="text-[10px] font-bold tracking-[0.12em] text-[var(--ui-text-soft)] min-[400px]:tracking-[0.08em]">
+              <span className="text-[12px] font-bold tracking-[0.12em] text-[var(--ui-text-soft)] min-[400px]:tracking-[0.08em]">
                 <span className="min-[400px]:hidden">LIVRE</span>
                 <span className="hidden min-[400px]:inline">MODO LIVRE</span>
               </span>
@@ -521,7 +533,7 @@ export default function MenuPage() {
               intent="ghost"
               disabled={accountLoading}
               onClick={() => dispatch({ type: 'SET_PHASE', phase: 'account' })}
-              className="w-20 min-h-9 justify-center border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 px-1 text-[10px] min-[380px]:w-24 min-[380px]:px-2 min-[380px]:text-xs"
+              className="w-20 min-h-9 justify-center border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 px-1 text-[12px] min-[380px]:w-24 min-[380px]:px-2 min-[380px]:text-xs"
             >
               <UserRound size={15} aria-hidden="true" /> ENTRAR
             </Button>
@@ -560,11 +572,32 @@ export default function MenuPage() {
         <div>
           {menuMode === 'selection' && (
             <div className="mb-5 flex w-full max-w-xs flex-col gap-3 sm:mb-8">
+              {savedSoloCampaign && (
+                <div className="flex flex-col gap-1.5">
+                  <Button
+                    type="button"
+                    intent="primary"
+                    size="large"
+                    onClick={() => { void continueSoloCampaign(); }}
+                    className="w-full"
+                  >
+                    <span className="inline-flex items-center justify-center gap-2.5">
+                      <Play size={22} strokeWidth={2.5} /> CONTINUAR CAMPANHA
+                    </span>
+                  </Button>
+                  <div className="flex items-center justify-between gap-2 px-1 text-[13px] text-[var(--ui-text-muted)]">
+                    <span className="truncate">{savedSoloCampaign.teamName} · {soloCampaignStageLabel(savedSoloCampaign)}</span>
+                    <button type="button" onClick={() => setSoloSaveConfirm('discard')} className="shrink-0 font-bold underline-offset-2 hover:underline">
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+              )}
               <Button
                 type="button"
-                intent="primary"
+                intent={savedSoloCampaign ? 'secondary' : 'primary'}
                 size="large"
-                onClick={() => setMenuMode('solo')}
+                onClick={() => (savedSoloCampaign ? setSoloSaveConfirm('new') : setMenuMode('solo'))}
                 className="w-full"
               >
                 <span className="inline-flex items-center justify-center gap-2.5">
@@ -606,12 +639,29 @@ export default function MenuPage() {
             </div>
           )}
 
+          <ConfirmDialog
+            open={soloSaveConfirm === 'new'}
+            onOpenChange={open => { if (!open) setSoloSaveConfirm(null); }}
+            title="Começar nova campanha?"
+            description={`A campanha salva${savedSoloCampaign ? ` (${savedSoloCampaign.teamName})` : ''} será substituída pela nova.`}
+            confirmLabel="Começar nova"
+            onConfirm={() => { setSoloSaveConfirm(null); void discardSoloCampaign().then(() => setMenuMode('solo')); }}
+          />
+          <ConfirmDialog
+            open={soloSaveConfirm === 'discard'}
+            onOpenChange={open => { if (!open) setSoloSaveConfirm(null); }}
+            title="Descartar campanha salva?"
+            description="O progresso desta campanha será apagado deste dispositivo."
+            confirmLabel="Descartar"
+            onConfirm={() => { setSoloSaveConfirm(null); void discardSoloCampaign(); }}
+          />
+
           {menuMode === 'solo' && (
             <div
               className="w-full max-w-xs space-y-4"
             >
               <div>
-                <label className="block text-xs font-bold mb-2 tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   NOME DO SEU TIME
                 </label>
                 <Input
@@ -654,7 +704,7 @@ export default function MenuPage() {
               className="w-full max-w-xs space-y-4"
             >
               <div>
-                <label className="block text-xs font-bold mb-2 tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   NOME DO SEU TIME
                 </label>
                 <Input
@@ -671,14 +721,14 @@ export default function MenuPage() {
               {!account ? (
                 <Panel tone="inset" className="space-y-3 p-3">
                   <div>
-                    <div className="text-xs font-bold tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <div className="text-xs font-bold tracking-widest text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       CONFIGURAÇÃO DA PARTIDA
                     </div>
-                    <p className="mt-1 text-[11px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <p className="mt-1 text-[13px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       Ao criar uma sala, você define o formato e a dificuldade nas próximas telas. Depois, o código reúne todos na mesma competição.
                     </p>
                   </div>
-                  <p className="text-[10px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <p className="text-[12px] leading-relaxed text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     Para entrar em uma sala existente, basta informar o código — as configurações vêm do anfitrião.
                   </p>
                 </Panel>
@@ -724,7 +774,7 @@ export default function MenuPage() {
             >
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold mb-1 tracking-widest text-[#C9A84C]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <label className="block text-xs font-bold mb-1 tracking-widest text-primary" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     CÓDIGO DA SALA (4 LETRAS)
                   </label>
                   <Input
@@ -765,7 +815,7 @@ export default function MenuPage() {
 
       <footer className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4" style={{ bottom: account ? 'calc(5rem + env(safe-area-inset-bottom))' : '1rem' }}>
         <span
-          className="text-[10px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
+          className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
           style={{ fontFamily: 'Rajdhani, sans-serif' }}
         >
           by J.Lessa

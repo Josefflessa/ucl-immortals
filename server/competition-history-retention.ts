@@ -1,4 +1,4 @@
-import { getTeamEffectiveStats, type Team } from '../client/src/lib/gameEngine.js';
+import { getTeamEffectiveStats, type Team } from '../shared/game/gameEngine.js';
 
 /** Keep compact history rows permanently while retaining only recent full reports. */
 export async function retainRecentCompetitionSnapshots(db: D1Database, userId: string): Promise<void> {

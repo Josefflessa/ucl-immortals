@@ -6,7 +6,7 @@ import {
   Team, MatchResult, simulateMatch, simulatePenalties, generateBotTeam,
   generateLeagueFixtures, computeStandings, createKnockoutBracket,
   playActiveKnockoutLeg, advanceKnockoutBracket,
-} from './gameEngine';
+} from '@shared/game/gameEngine';
 // Same squad, only the formation id changes — so formationImpact measures the
 // tactical PROFILE of the shape in isolation (attack/defense/control/width), without
 // the roster-fit / out-of-position confound (that is what chemistryImpact covers).

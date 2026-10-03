@@ -12,8 +12,8 @@
 
 import { useState } from 'react';
 import { Info } from 'lucide-react';
-import { CAPTAIN_BOOST, captainBestStatFromStarters, type EffectiveStats } from '../../lib/gameEngine';
-import type { Player } from '../../lib/gameData';
+import { CAPTAIN_BOOST, captainBestStatFromStarters, type EffectiveStats } from '@shared/game/gameEngine';
+import type { Player } from '@shared/game/gameData';
 import PlayerPortrait from './PlayerPortrait';
 import { IconButton } from '../../design-system';
 
@@ -200,7 +200,7 @@ export default function RolesSelector({
                 style={{ color: card.color }}
                 title={`Escolher ${card.label.toLowerCase()} no campo`}
               >
-                <span className="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-[10px] font-black uppercase tracking-[0.02em] sm:gap-1 sm:text-[11px] sm:tracking-[0.08em]">
+                <span className="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-[12px] font-black uppercase tracking-[0.02em] sm:gap-1 sm:text-[13px] sm:tracking-[0.08em]">
                   <span aria-hidden="true">{card.icon}</span>
                   <span>{card.label}</span>
                 </span>
@@ -215,7 +215,7 @@ export default function RolesSelector({
                           loading="lazy"
                           className="h-full w-full object-cover"
                           style={{ objectPosition: 'center top' }}
-                          fallback={<span className="flex h-full w-full items-center justify-center text-[10px]">⚽</span>}
+                          fallback={<span className="flex h-full w-full items-center justify-center text-[12px]">⚽</span>}
                         />
                       </span>
                       <span className="truncate">{card.player.shortName}</span>

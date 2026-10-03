@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Player } from '../lib/gameData';
+import type { Player } from '@shared/game/gameData';
 
 export interface AccountStats {
   competitionsCompleted: number;

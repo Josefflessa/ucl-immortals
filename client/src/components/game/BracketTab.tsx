@@ -10,7 +10,7 @@
 import { Check } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
-import { knockoutRoundLabel } from '../../lib/gameEngine';
+import { knockoutRoundLabel } from '@shared/game/gameEngine';
 
 type Tie = {
   id: string;
@@ -70,7 +70,7 @@ export default function BracketTab() {
     const me = isMe(teamId);
     return (
       <div className="flex items-center justify-between gap-2 px-2 py-1">
-        <span className="font-ui flex items-center gap-1 truncate text-[11px] font-bold leading-tight"
+        <span className="font-ui flex items-center gap-1 truncate text-[13px] font-bold leading-tight"
           style={{
             fontFamily: 'Rajdhani, sans-serif',
             color: me ? '#C9A84C' : isWinner ? '#E6E6EE' : name ? '#9A9AAA' : '#55556A',

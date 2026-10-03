@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Goal, Footprints, Star, Hand, Swords, UserPlus, AlertTriangle } from 'lucide-react';
 import { useGame, KnockoutMatch } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
-import { getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, statKey } from '../lib/gameEngine';
+import { getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, statKey } from '@shared/game/gameEngine';
 import ClubHubTab from '../components/game/ClubHubTab';
 import MarketTab from '../components/game/MarketTab';
 import ShopTab from '../components/game/ShopTab';
@@ -25,14 +25,14 @@ import TradeInviteModal from '../components/game/TradeInviteModal';
 import TradeNegotiationModal from '../components/game/TradeNegotiationModal';
 import BetSlipModal, { type BetSlipSubmission } from '../components/game/BetSlipModal';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
-import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, bettingPayoutRulesForLevel } from '../lib/bets';
-import { bettingStakeCapBonus, projectLevel } from '../lib/clubProjects';
-import { getEmergencyReplacementTarget, unavailableStarters } from '../lib/discipline';
-import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus, sortMatchesForOnlineDisplay } from '../lib/onlineReadiness';
-import { MAX_RESERVE_PLAYERS, reservePlayerCount } from '../lib/gameEngine';
-import type { MatchResult, Team } from '../lib/gameEngine';
-import type { Player } from '../lib/gameData';
-import { POS_PT } from '../lib/gameData';
+import { buildLeagueMatchKey, describeBet, roundStakeUsed, BET_ROUND_CAP, Bet, bettingPayoutRulesForLevel } from '@shared/game/bets';
+import { bettingStakeCapBonus, projectLevel } from '@shared/game/clubProjects';
+import { getEmergencyReplacementTarget, unavailableStarters } from '@shared/game/discipline';
+import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, getReadinessStatus, sortMatchesForOnlineDisplay } from '@shared/game/onlineReadiness';
+import { MAX_RESERVE_PLAYERS, reservePlayerCount } from '@shared/game/gameEngine';
+import type { MatchResult, Team } from '@shared/game/gameEngine';
+import type { Player } from '@shared/game/gameData';
+import { POS_PT } from '@shared/game/gameData';
 import { AppShell, Button, GameModal, PageContainer, StatusBanner, Tab, TabList, Tabs, TopBar } from '../design-system';
 const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
@@ -802,7 +802,7 @@ export default function LeaguePage() {
               const blocking = outs.some(p => inXI.has(p.id));
               return (
                 <div className="rounded-xl px-4 py-3 mb-1" style={{ background: blocking ? '#241010' : '#1a0e0e', border: `1px solid ${blocking ? '#EF444488' : '#7f1d1d66'}` }}>
-                  <div className="text-[11px] font-black tracking-widest mb-2" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ DESFALQUES</div>
+                  <div className="text-[13px] font-black tracking-widest mb-2" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>⚠️ DESFALQUES</div>
                   <div className="flex flex-col gap-1.5">
                     {outs.map(p => {
                       const a = state.discipline[`${playerTeam.id}:${p.id}`];
@@ -814,12 +814,12 @@ export default function LeaguePage() {
                         <div key={p.id} className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm leading-none">{suspended ? '🟥' : '🩹'}</span>
                           <span className="text-[12px] font-bold" style={{ color: isIn ? '#FCA5A5' : '#C8B0B0', fontFamily: 'Rajdhani, sans-serif' }}>{p.shortName}</span>
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider" style={{ background: suspended ? '#EF444422' : '#3B82F622', color: suspended ? '#F87171' : '#93C5FD', fontFamily: 'Rajdhani, sans-serif' }}>
+                          <span className="text-[11px] font-black px-1.5 py-0.5 rounded tracking-wider" style={{ background: suspended ? '#EF444422' : '#3B82F622', color: suspended ? '#F87171' : '#93C5FD', fontFamily: 'Rajdhani, sans-serif' }}>
                             {suspended ? 'SUSPENSO' : 'LESIONADO'}
                           </span>
-                          <span className="text-[11px] font-semibold" style={{ color: '#9A8080', fontFamily: 'Rajdhani, sans-serif' }}>fora por <b style={{ color: '#C8B0B0' }}>{gamesTxt}</b></span>
+                          <span className="text-[13px] font-semibold" style={{ color: '#9A8080', fontFamily: 'Rajdhani, sans-serif' }}>fora por <b style={{ color: '#C8B0B0' }}>{gamesTxt}</b></span>
                           {isIn && (
-                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider" style={{ background: '#EF4444', color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <span className="text-[11px] font-black px-1.5 py-0.5 rounded tracking-wider" style={{ background: '#EF4444', color: '#fff', fontFamily: 'Rajdhani, sans-serif' }}>
                               ⚠ ESCALADO — TROQUE
                             </span>
                           )}
@@ -827,8 +827,8 @@ export default function LeaguePage() {
                       );
                     })}
                   </div>
-                  <div className="text-[10px] mt-2 pt-2 font-bold" style={{ color: blocking ? '#FCA5A5' : '#8A6A6A', borderTop: '1px solid #ffffff0d', fontFamily: 'Rajdhani, sans-serif' }}>
-                    {blocking ? '🚫 Você não pode jogar com um indisponível no XI — substitua na aba MEU TIME.' : '✓ Todos no banco — tudo certo. Só não escale indisponíveis no XI.'}
+                  <div className="text-[12px] mt-2 pt-2 font-bold" style={{ color: blocking ? '#FCA5A5' : '#8A6A6A', borderTop: '1px solid #ffffff0d', fontFamily: 'Rajdhani, sans-serif' }}>
+                    {blocking ? '🚫 Você não pode jogar com um indisponível no XI — substitua na aba MEU CLUBE.' : '✓ Todos no banco — tudo certo. Só não escale indisponíveis no XI.'}
                   </div>
                 </div>
               );
@@ -836,7 +836,7 @@ export default function LeaguePage() {
 
             {reserveLimitExceeded && (
               <div className="rounded-xl px-4 py-3 mb-1" style={{ background: '#241010', border: '1px solid #EF444488' }}>
-                <div className="text-[11px] font-black tracking-widest mb-1" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>🚫 BANCO ACIMA DO LIMITE</div>
+                <div className="text-[13px] font-black tracking-widest mb-1" style={{ color: '#FCA5A5', fontFamily: 'Rajdhani, sans-serif' }}>🚫 BANCO ACIMA DO LIMITE</div>
                 <div className="text-[12px] font-bold" style={{ color: '#E8C4C4', fontFamily: 'Rajdhani, sans-serif' }}>
                   Seu banco tem {reserveCount}/{MAX_RESERVE_PLAYERS} reservas. Venda ou remova jogadores na aba MERCADO para liberar a partida.
                 </div>
@@ -860,9 +860,9 @@ export default function LeaguePage() {
                         <span className="text-sm font-black tracking-widest" style={{ color: isMyGroup ? '#E8C84A' : '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>
                           GRUPO {groupLabel}
                         </span>
-                        {isMyGroup && <span className="rounded-full border border-[#C9A84C55] bg-[#C9A84C1A] px-2 py-0.5 text-[9px] font-black tracking-wider text-[#E8C84A]">SEU GRUPO</span>}
+                        {isMyGroup && <span className="rounded-full border border-primary/33 bg-primary/10 px-2 py-0.5 text-[11px] font-black tracking-wider text-brand-strong">SEU GRUPO</span>}
                       </div>
-                      <span className="text-[10px] font-bold text-[var(--ui-text-faint)]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{groupFixtures.length} jogos</span>
+                      <span className="text-[12px] font-bold text-[var(--ui-text-faint)]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{groupFixtures.length} jogos</span>
                     </div>
                   )}
                   <div className={isGroupStage ? 'space-y-3 p-3' : 'space-y-3'}>
@@ -909,7 +909,7 @@ export default function LeaguePage() {
                         </span>
                         {fixture.result.playerStats && (
                           <button onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
-                            className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
+                            className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[11px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                             style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                             🔍 Detalhes
                           </button>
@@ -940,13 +940,13 @@ export default function LeaguePage() {
                     if (fixture.played) {
                       if (!myBet) return null;
                       if (hideRoundScore || !myBet.revealed) {
-                        return <div className="mt-2 text-center text-[10px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>🎯 palpite em andamento</div>;
+                        return <div className="mt-2 text-center text-[12px] font-bold" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>🎯 palpite em andamento</div>;
                       }
                       const txt = myBet.tier === 'exact' ? `✅ Palpite: placar exato (+${myBet.payout})`
                         : myBet.tier === 'outcome' ? `✅ Palpite: resultado certo (+${myBet.payout})`
                           : myBet.tier === 'builder' ? `✅ Aposta certa (+${myBet.payout})`
                           : `❌ Palpite perdido (−${myBet.stake})${(myBet.protectionRefund ?? 0) > 0 ? ` · devolução +${myBet.protectionRefund}` : ''}`;
-                      return <div className="mt-2 text-center text-[11px] font-black" style={{ color: myBet.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
+                      return <div className="mt-2 text-center text-[13px] font-black" style={{ color: myBet.won ? '#22C55E' : '#EF4444', fontFamily: 'Rajdhani, sans-serif' }}>{txt}</div>;
                     }
                     return (
                       <div className="mt-2 text-center">
@@ -957,7 +957,7 @@ export default function LeaguePage() {
                           homeTeamId: fixture.homeTeamId,
                           awayTeamId: fixture.awayTeamId,
                         })}
-                          className="px-3 py-1 rounded-lg text-[11px] font-black tracking-wider transition-transform hover:scale-[1.03]"
+                          className="px-3 py-1 rounded-lg text-[13px] font-black tracking-wider transition-transform hover:scale-[1.03]"
                           style={{ fontFamily: 'Rajdhani, sans-serif', background: myBet ? '#C9A84C22' : '#0F0F1A', color: '#E8C84A', border: '1px solid #C9A84C55' }}>
                           {myBet ? `🎯 ${myBet.market === 'builder' ? 'Aposta' : 'Palpite'}: ${describeBet(myBet)} · ${myBet.stake} (editar)` : '🎯 Palpitar'}
                         </button>
@@ -996,12 +996,12 @@ export default function LeaguePage() {
                         </button>
                       ))}
                       {!isActiveLeagueParticipant && totalReady > 0 && (
-                        <div className="mb-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                        <div className="mb-2 text-[13px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                           Você não disputa esta rodada; o anfitrião inicia quando os participantes confirmarem.
                         </div>
                       )}
                       {totalReady > 0 && (
-                        <div className="mb-2 text-[11px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: allReady ? '#22C55E' : '#C9A84C' }}>
+                        <div className="mb-2 text-[13px] font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: allReady ? '#22C55E' : '#C9A84C' }}>
                           {readyCount}/{totalReady} PRONTO{totalReady !== 1 ? 'S' : ''}
                         </div>
                       )}
@@ -1018,7 +1018,7 @@ export default function LeaguePage() {
                       >
                         ▶ JOGAR RODADA {leagueRound}
                       </button>
-                      <div className="mt-2 text-[11px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="mt-2 text-[13px] font-bold text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                         {allReady
                           ? 'Todas as partidas começam ao mesmo tempo para todos.'
                           : 'Todos os participantes com partida precisam confirmar que estão prontos.'}
@@ -1029,7 +1029,7 @@ export default function LeaguePage() {
                       <div className="text-sm font-bold animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#C9A84C' }}>
                         ⏳ AGUARDANDO {waitingForCount} JOGADOR{waitingForCount !== 1 ? 'ES' : ''} VEREM O RESULTADO...
                       </div>
-                      <div className="mt-1 text-[11px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="mt-1 text-[13px] text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                         ({humanPlayersWithMatch.length - waitingForCount}/{humanPlayersWithMatch.length} concluídos)
                       </div>
                     </div>
@@ -1078,12 +1078,12 @@ export default function LeaguePage() {
                           ✅ ESTOU PRONTO
                         </button>
                       )}
-                      <div className="mt-2 text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                      <div className="mt-2 text-[13px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
                         {readyCount}/{totalReady} pronto{totalReady !== 1 ? 's' : ''} · o anfitrião inicia quando todos confirmarem.
                       </div>
                     </> : <>
                       {totalReady > 0 && (
-                        <div className="mb-2 text-[11px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+                        <div className="mb-2 text-[13px] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
                           {readyCount}/{totalReady} participantes prontos.
                         </div>
                       )}
@@ -1098,7 +1098,7 @@ export default function LeaguePage() {
                   )
                 )}
                 {state.advanceBlocked && state.advanceBlocked.length > 0 && (
-                  <div className="mt-2 text-center text-[11px] font-bold text-yellow-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <div className="mt-2 text-center text-[13px] font-bold text-yellow-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     ⏳ Aguardando assistirem: {state.advanceBlocked.join(', ')}
                   </div>
                 )}
@@ -1169,7 +1169,7 @@ export default function LeaguePage() {
               <div className="space-y-3 p-3 sm:p-4">
                 <div className="flex items-end justify-between gap-3 px-1">
                   <div>
-                    <div className="text-[10px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <div className="text-[12px] font-black tracking-widest" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>
                       CLASSIFICAÇÃO POR GRUPO
                     </div>
                     <div className="mt-1 text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
@@ -1177,7 +1177,7 @@ export default function LeaguePage() {
                     </div>
                   </div>
                   {playerGroupLabel && (
-                    <span className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black tracking-wider" style={{ background: '#C9A84C1A', color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>
+                    <span className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-black tracking-wider" style={{ background: '#C9A84C1A', color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>
                       SEU GRUPO: {playerGroupLabel}
                     </span>
                   )}
@@ -1192,13 +1192,13 @@ export default function LeaguePage() {
                           <span className="text-sm font-black tracking-widest" style={{ color: group.groupId === playerGroup?.groupId ? '#E8C84A' : '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>
                             GRUPO {groupLabel}
                           </span>
-                          <span className="text-[10px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                          <span className="text-[12px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                             {state.competitionFormat.qualifiedPerGroup} avançam
                           </span>
                         </div>
                         <div className="grid gap-0 px-3 py-2 sm:px-4" style={{ gridTemplateColumns: '1.5rem 1fr 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem', borderBottom: '1px solid #1A1A2A' }}>
                           {['#', 'Time', 'J', 'V', 'E', 'D', 'GF', 'GA', 'PTS'].map(h => (
-                            <div key={`${group.groupId}-${h}`} className="text-center text-[10px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div key={`${group.groupId}-${h}`} className="text-center text-[12px] font-bold" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                               {h}
                             </div>
                           ))}
@@ -1230,7 +1230,7 @@ export default function LeaguePage() {
                                 </span>
                               </div>
                               {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (
-                                <div key={vi} className="text-center text-[10px] sm:text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+                                <div key={vi} className="text-center text-[12px] sm:text-xs" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                                   {val}
                                 </div>
                               ))}
@@ -1255,7 +1255,7 @@ export default function LeaguePage() {
                 borderBottom: '1px solid #1A1A2A',
               }}>
               {['#', 'Time', 'J', 'V', 'E', 'D', 'GF', 'GA', 'PTS'].map(h => (
-                <div key={h} className="text-[10px] sm:text-xs font-bold text-center"
+                <div key={h} className="text-[12px] sm:text-xs font-bold text-center"
                   style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                   {h}
                 </div>
@@ -1307,7 +1307,7 @@ export default function LeaguePage() {
                     </span>
                   </div>
                   {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (
-                    <div key={vi} className="text-center text-[10px] sm:text-xs"
+                    <div key={vi} className="text-center text-[12px] sm:text-xs"
                       style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
                       {val}
                     </div>
@@ -1348,7 +1348,7 @@ export default function LeaguePage() {
                   <Tab
                     key={id}
                     value={id}
-                    className="text-[10px] sm:text-xs"
+                    className="text-[12px] sm:text-xs"
                   >
                     <span className="inline-flex items-center gap-1.5"><Icon size={13} /> {label}</span>
                   </Tab>
@@ -1361,7 +1361,7 @@ export default function LeaguePage() {
             <div key={statsSubTab} className="rounded-xl overflow-hidden border border-[#1A1A2A]" style={{ background: '#0F0F1A' }}>
               {/* Header label */}
               <div className="px-4 py-3 border-b border-[#1A1A2A] bg-[#0A0A12] flex justify-between items-center">
-                <span className="text-[10px] font-black tracking-widest text-[#6A6A7A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-[12px] font-black tracking-widest text-[#6A6A7A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {statsSubTab === 'goals' && 'ARTILHARIA DO CAMPEONATO'}
                   {statsSubTab === 'assists' && 'LÍDERES EM ASSISTÊNCIAS'}
                   {statsSubTab === 'ratings' && 'MELHORES NOTAS DA TEMPORADA (MÍN. 1 JOGO)'}
@@ -1442,17 +1442,17 @@ export default function LeaguePage() {
                           {/* Player details */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[8px] font-black px-1.5 py-0.2 rounded text-white" style={{ background: '#222', fontFamily: 'Rajdhani, sans-serif' }}>
+                              <span className="text-[10px] font-black px-1.5 py-0.2 rounded text-white" style={{ background: '#222', fontFamily: 'Rajdhani, sans-serif' }}>
                                 {POS_PT[player.position] ?? player.position}
                               </span>
-                              <span className="text-[9px] text-[#8A8A9A] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                              <span className="text-[11px] text-[#8A8A9A] font-bold" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                                 GER {player.overall}
                               </span>
                             </div>
                             <div className="text-sm font-black text-white truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                               {player.shortName}
                             </div>
-                            <div className="text-[10px] text-[#6A6A7A] font-semibold truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div className="text-[12px] text-[#6A6A7A] font-semibold truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                               {player.teamName} · <span className="text-[#8A8A9A]">{player.stats.played} {player.stats.played === 1 ? 'jogo' : 'jogos'}</span>
                             </div>
                           </div>
@@ -1465,7 +1465,7 @@ export default function LeaguePage() {
                             }}>
                               {metricVal}
                             </div>
-                            <div className="text-[8px] font-black text-gray-500 tracking-wider uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                            <div className="text-[10px] font-black text-gray-500 tracking-wider uppercase" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                               {metricLabel}
                             </div>
                           </div>
@@ -1511,7 +1511,7 @@ export default function LeaguePage() {
             </div>
             {playerResults.length === 0 ? (
               <div className="py-8 text-center text-xs text-gray-500" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
-                Nenhum jogo disputado ainda na Fase de Liga.
+                Nenhum jogo disputado ainda.
               </div>
             ) : (
               playerResults.map((result, i) => {
@@ -1541,7 +1541,7 @@ export default function LeaguePage() {
                     <Crest crestId={oppCrest} name={oppName} size={30} />
                     {/* adversário + mando */}
                     <div className="flex-1 min-w-0">
-                      <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                         {isHome ? '🏠 Em casa' : '✈️ Fora'}
                       </div>
                       <div className="text-sm font-black truncate" style={{ color: '#FFFFFF', fontFamily: 'Rajdhani, sans-serif' }}>
@@ -1555,7 +1555,7 @@ export default function LeaguePage() {
                       </div>
                       {result.playerStats && (
                         <button onClick={() => openMatchDetails(result)}
-                          className="h-7 min-h-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
+                          className="h-7 min-h-0 px-2 py-0.5 rounded-md text-[11px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                           style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                           🔍 Detalhes
                         </button>
@@ -1618,7 +1618,7 @@ export default function LeaguePage() {
                                   </span>
                                   {fixture.result.playerStats && (
                                     <button onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
-                                      className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
+                                      className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[11px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                                       style={{ background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' }}>
                                       🔍 Detalhes
                                     </button>
@@ -1648,7 +1648,7 @@ export default function LeaguePage() {
                         const isPlayer = tie.homeTeamId === playerTeam?.id || tie.awayTeamId === playerTeam?.id;
                         const single = !!tie.isSingleLeg;
                         const l1 = tie.leg1, l2 = tie.leg2;
-                        const detBtn = 'px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all hover:brightness-125';
+                        const detBtn = 'px-2.5 py-1 rounded-md text-[12px] font-black uppercase tracking-wider transition-all hover:brightness-125';
                         const detStyle = { background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'Rajdhani, sans-serif' } as const;
                         return (
                           <div key={idx} className="p-3 rounded-xl"
@@ -1685,7 +1685,7 @@ export default function LeaguePage() {
                                   </>
                                 )}
                                 {tie.result?.winner && (
-                                  <span className="text-[10px] font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
+                                  <span className="text-[12px] font-bold" style={{ color: '#22C55E', fontFamily: 'Rajdhani, sans-serif' }}>
                                     {getTeamName(tie.result.winner)} avança{tie.result.penaltyWinner ? ` · pên ${tie.result.homePenalties}-${tie.result.awayPenalties}` : ''}
                                   </span>
                                 )}
@@ -1729,7 +1729,7 @@ export default function LeaguePage() {
           }
           footer={
             <div className="flex w-full items-center justify-between">
-              <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+              <span className="text-[13px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                 A rodada continua bloqueada até ajustar o XI.
               </span>
               <Button intent="ghost" className="ml-auto" onClick={() => setEmergencySelection(null)}>
@@ -1739,10 +1739,10 @@ export default function LeaguePage() {
           }
         >
               <div className="ui-panel ui-panel--inset flex-shrink-0 border-[#F59E0B]/35 bg-[#F59E0B]/[0.07] px-4 py-3">
-                <div className="text-[11px] font-black tracking-widest" style={{ color: '#FBBF24', fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="text-[13px] font-black tracking-widest" style={{ color: '#FBBF24', fontFamily: 'Rajdhani, sans-serif' }}>
                   ESCOLHA GRATUITA · PRATA OU BRONZE
                 </div>
-                <div className="text-[11px] mt-1" style={{ color: '#A9A9B8', fontFamily: 'Rajdhani, sans-serif' }}>
+                <div className="text-[13px] mt-1" style={{ color: '#A9A9B8', fontFamily: 'Rajdhani, sans-serif' }}>
                   O escolhido entra direto no time titular, substitui o indisponível e mantém o valor de venda normal da sua raridade.
                 </div>
               </div>
@@ -1792,7 +1792,7 @@ export default function LeaguePage() {
                   <UserPlus size={20} style={{ color: '#E8C84A' }} />
                 </div>
                 <div className="min-w-0">
-                  <div className="mb-1 text-[10px] font-black tracking-[0.16em]" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
+                  <div className="mb-1 text-[12px] font-black tracking-[0.16em]" style={{ color: '#A7A7B8', fontFamily: 'Rajdhani, sans-serif' }}>
                     CENTRO DE RECRUTAMENTO · NÍVEL {recruitmentLevel}
                   </div>
                   <h3 className="text-xl sm:text-2xl font-black tracking-widest leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#E8C84A' }}>
@@ -1809,7 +1809,7 @@ export default function LeaguePage() {
             }
             footer={
               <div className="flex w-full items-center justify-between">
-                <span className="text-[11px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-[13px] hidden sm:inline" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                   👆 Toque em um card para contratar · {recruitmentSelectionsRemaining} escolha{recruitmentSelectionsRemaining === 1 ? '' : 's'} restante{recruitmentSelectionsRemaining === 1 ? '' : 's'}
                 </span>
                 <div className="flex items-center gap-2 ml-auto">
@@ -1918,7 +1918,7 @@ export default function LeaguePage() {
               ) : (
                 <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'Rajdhani, sans-serif' }}>
                   Você tem jogador(es) <b style={{ color: '#FCA5A5' }}>suspenso(s)/lesionado(s)</b> no time titular: <b style={{ color: '#FFF' }}>{lineupWarning.names.join(', ')}</b>.<br />
-                  Substitua na aba <b style={{ color: '#C9A84C' }}>MEU TIME</b> antes de jogar a rodada.
+                  Substitua na aba <b style={{ color: '#C9A84C' }}>MEU CLUBE</b> antes de jogar a rodada.
                 </p>
               )}
         </GameModal>

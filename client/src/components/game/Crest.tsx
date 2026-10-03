@@ -2,7 +2,7 @@
 // Renders the Wikimedia crest for a given crestId; if the id is unknown OR the image fails
 // to load, it falls back to a colored initials badge so nothing ever shows a broken image.
 import { memo, useState } from 'react';
-import { getCrest } from '../../lib/crests';
+import { getCrest } from '@shared/game/crests';
 
 interface CrestProps {
   crestId?: string | null;

@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PLAYERS } from './gameData';
-import { FIFAINDEX_FAMOUS_ADDITIONS } from './fifaIndexFamousExpansion';
+import { PLAYERS } from '@shared/game/gameData';
+import { FIFAINDEX_FAMOUS_ADDITIONS } from '@shared/game/players/fifaIndexFamousExpansion';
 import { buildPlayerCatalog } from './playerCatalog';
 
 const normalize = (value: string) => value

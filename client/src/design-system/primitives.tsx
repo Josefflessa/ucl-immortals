@@ -130,7 +130,7 @@ export function StatusBanner({ tone = 'default', title, children, className, ...
 export function Metric({ label, value, detail, tone = 'default', className, ...props }: HTMLAttributes<HTMLDivElement> & { label: string; value: ReactNode; detail?: ReactNode; tone?: 'default' | 'brand' | 'success' | 'danger' }) {
   return (
     <div className={cn('ui-panel ui-panel--inset p-3', className)} {...props}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">{label}</div>
+      <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">{label}</div>
       <div className={cn('mt-1 font-display text-3xl leading-none text-[var(--ui-text)]', tone === 'brand' && 'text-[var(--ui-brand-strong)]', tone === 'success' && 'text-[var(--ui-success)]', tone === 'danger' && 'text-[var(--ui-danger)]')}>{value}</div>
       {detail ? <div className="mt-1 text-xs text-[var(--ui-text-muted)]">{detail}</div> : null}
     </div>

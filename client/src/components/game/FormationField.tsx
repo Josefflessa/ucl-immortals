@@ -3,8 +3,8 @@
 
 import { useEffect, useId, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { motion } from 'framer-motion';
-import { Player, Formation, POS_PT } from '../../lib/gameData';
-import { positionFit, ChemLink, ChemLinkType } from '../../lib/gameEngine';
+import { Player, Formation, POS_PT } from '@shared/game/gameData';
+import { positionFit, ChemLink, ChemLinkType } from '@shared/game/gameEngine';
 import PlayerCard, { type PlayerCardStats } from './PlayerCard';
 import type { GameRole, RoleMetric } from './RolesSelector';
 
@@ -509,7 +509,7 @@ export default function FormationField({
             <div className="relative" style={{ width: FIELD_CARD_WIDTH, height: FIELD_CARD_HEIGHT, transform: `scale(${cardScale})`, transformOrigin: 'center center', opacity: draggingIndex === index ? 0.52 : 1 }}>
               {roleSelection && player && roleMetric && (
                 <div
-                  className="absolute left-1/2 top-[-30px] z-30 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1.5 text-[10px] font-black leading-none"
+                  className="absolute left-1/2 top-[-30px] z-30 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1.5 text-[12px] font-black leading-none"
                   style={{ color: '#FFF', background: '#08080FCC', border: `1px solid ${isRoleSuggestion ? roleAccent : `${roleAccent}66`}`, fontFamily: 'Rajdhani, sans-serif' }}
                 >
                   {isRoleSuggestion ? '★ ' : ''}{roleMetric.primaryLabel} {roleMetric.primaryValue}

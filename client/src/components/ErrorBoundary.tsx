@@ -31,7 +31,7 @@ class ErrorBoundary extends Component<Props, State> {
               className="text-destructive mb-6 flex-shrink-0"
             />
 
-            <h2 className="text-xl mb-4">An unexpected error occurred.</h2>
+            <h2 className="text-xl mb-4">Ocorreu um erro inesperado.</h2>
 
             <div className="ui-panel ui-panel--inset mb-6 w-full overflow-auto p-4 text-left">
               <pre className="whitespace-break-spaces text-sm text-[var(--ui-text-muted)]">
@@ -43,7 +43,7 @@ class ErrorBoundary extends Component<Props, State> {
               onClick={() => window.location.reload()}
             >
               <RotateCcw size={16} />
-              Reload Page
+              Recarregar página
             </Button>
           </Panel>
         </AppShell>

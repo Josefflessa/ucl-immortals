@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createGameRuntime, registerSocketHandlers, runWithGameRuntime, type RoomState } from './handlers';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime';
-import type { Player } from '../client/src/lib/gameData';
-import type { PlayerCard, Team } from '../client/src/lib/gameEngine';
+import type { Player } from '../shared/game/gameData';
+import type { PlayerCard, Team } from '../shared/game/gameEngine';
 import type { RoomPlayer } from '../client/src/contexts/GameContext';
-import { createCompetitionFormat } from '../client/src/lib/competition';
+import { createCompetitionFormat } from '../shared/game/competition';
 
 // ── Minimal fake transport, mirroring the harness in game-runtime.test.ts ──
 class FakeServer implements RealtimeServer {

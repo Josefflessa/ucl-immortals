@@ -1,5 +1,5 @@
-import { PLAYERS, UNIQUE_CARDS, type Player } from './gameData';
-import { clubIdForName } from './crests';
+import { PLAYERS, UNIQUE_CARDS, type Player } from '@shared/game/gameData';
+import { clubIdForName } from '@shared/game/crests';
 import { CLUBS_BY_ID, type ClubCatalogEntry } from './clubCatalog';
 
 export type CatalogPlayer = Player & { isUnique: boolean };

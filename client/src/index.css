@@ -16,6 +16,7 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-brand-strong: var(--ui-brand-strong);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -130,23 +131,20 @@ html {
   color: var(--ui-brand-ink);
 }
 
-/* Readability guardrails
- *
- * A few legacy gameplay panels still use fixed pixel utilities for compact
- * labels. Keep those labels visually consistent with the newer panels by
- * giving the smallest sizes a modest optical lift. This is intentionally
- * limited to 8–11px utilities; normal text and responsive Tailwind sizes are
- * left alone.
- */
-@layer utilities {
-  .text-\[8px\] { font-size: 10px; }
-  .text-\[9px\] { font-size: 11px; }
-  .text-\[10px\] { font-size: 12px; }
-  .text-\[11px\] { font-size: 13px; }
+/* Horizontal chip rows / tab strips: scroll without a visible bar. */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
 
-  @media (min-width: 640px) {
-    .sm\:text-\[9px\] { font-size: 11px; }
-    .sm\:text-\[10px\] { font-size: 12px; }
-    .sm\:text-\[11px\] { font-size: 13px; }
-  }
+/* Long side lists: keep a slim, unobtrusive bar. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-line-strong) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
 }

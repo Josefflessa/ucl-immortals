@@ -5,7 +5,7 @@ import { memo } from 'react';
 import { useGame } from '../../contexts/GameContext';
 import PlayerCard from './PlayerCard';
 import { Button, GameModal } from '../../design-system';
-import type { Player } from '../../lib/gameData';
+import type { Player } from '@shared/game/gameData';
 
 // Room updates clone the authoritative state. Keep unchanged trade cards from
 // recalculating when only the other side's offer or ready flag changes.

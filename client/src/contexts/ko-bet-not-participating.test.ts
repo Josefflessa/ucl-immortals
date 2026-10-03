@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { revealEligibleKoBets, type Bet } from '../lib/bets';
+import { revealEligibleKoBets, type Bet } from '@shared/game/bets';
 
 // Cenário do usuário: apostar num confronto de mata-mata que ele NÃO joga (ex.: foi
 // direto pras oitavas, apostou no playoff). O resultado do palpite nunca aparecia porque

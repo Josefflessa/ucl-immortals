@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { gameReducer } from './GameContext';
-import { settleBet, buildKnockoutMatchKey } from '../lib/bets';
-import { getActiveKnockoutMatches } from '../lib/gameEngine';
+import { settleBet, buildKnockoutMatchKey } from '@shared/game/bets';
+import { getActiveKnockoutMatches } from '@shared/game/gameEngine';
 
 // ---- server functions (verbatim) ----
 function knockoutWatchStatus(room: any) {

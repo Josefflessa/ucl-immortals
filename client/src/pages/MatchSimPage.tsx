@@ -4,12 +4,12 @@ import { Shirt, Eye, Play, Pause, SkipForward } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import {
   Team, MatchResult, MatchEvent, MatchStatsDelta, PlayerMatchStat,
-  activeGoalkeeperForTeam, setStatIds, statKey, playerMatchDiscipline,
-} from '../lib/gameEngine';
+  activeGoalkeeperForTeam, setStatIds, statKey, playerMatchDiscipline, computePossession, tacticProfile,
+} from '@shared/game/gameEngine';
 import {
   selectApproach, buildUpDesc, dangerAttemptMsg, saveCelebMsg, missCelebMsg,
   Approach,
-} from '../lib/matchNarrative';
+} from '@shared/game/matchNarrative';
 import { preloadPlayerPhotos } from '../components/game/PlayerPortrait';
 import MatchFieldView from '../components/game/MatchFieldView';
 import Crest from '../components/game/Crest';
@@ -486,10 +486,8 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     };
     initTeam(homeTeam);
     initTeam(awayTeam);
-    // Event ids → per-team stat keys (actor is on e.teamId; opponent on the other).
-    const otherOf = (teamId?: string) => (teamId === replayResult.homeTeamId ? replayResult.awayTeamId : replayResult.homeTeamId);
+    // Event ids → per-team stat keys (the actor is on e.teamId).
     const aKey = (e: MatchEvent, id?: string) => (e.teamId && id ? statKey(e.teamId, id) : undefined);
-    const oKey = (e: MatchEvent, id?: string) => (id ? statKey(otherOf(e.teamId), id) : undefined);
 
     const panel = {
       homePos: 50, awayPos: 50, homeShots: 0, awayShots: 0,
@@ -508,7 +506,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       const isHome = e.teamId === homeId;
       const ak = aKey(e, e.playerId);
       const asK = aKey(e, e.assisterId);
-      const ok = oKey(e, e.opponentId);
+      // Ratings move exactly as the engine moved them during this event's minute.
+      for (const [key, delta] of Object.entries(e.ratingDelta ?? {})) {
+        if (ps[key]) ps[key].rating += delta;
+      }
       if (e.type === 'stat') {
         // These are authoritative box-score changes that intentionally have no
         // player-facing shot/save narration.
@@ -518,30 +519,25 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
         // is the defending goalkeeper's team.
         if (isHome) panel.homeCorners++; else panel.awayCorners++;
       } else if (e.type === 'goal') {
-        if (ak && ps[ak]) { ps[ak].goals++; ps[ak].rating += 1.4; }
-        if (asK && ps[asK]) { ps[asK].assists++; ps[asK].rating += 0.8; }
-        if (ok && ps[ok]) ps[ok].rating -= 0.4;
+        if (ak && ps[ak]) ps[ak].goals++;
+        if (asK && ps[asK]) ps[asK].assists++;
         if (isHome) { panel.homeShots++; panel.homeShotsOnTarget++; } else { panel.awayShots++; panel.awayShotsOnTarget++; }
       } else if (e.type === 'save') {
-        if (ak && ps[ak]) { ps[ak].saves++; ps[ak].rating += 0.4; }
-        if (ok && ps[ok]) ps[ok].rating -= 0.1;
+        if (ak && ps[ak]) ps[ak].saves++;
         // the shot belongs to the attacking (other) team
         if (isHome) { panel.homeSaves++; panel.awayShots++; panel.awayShotsOnTarget++; }
         else { panel.awaySaves++; panel.homeShots++; panel.homeShotsOnTarget++; }
       } else if (e.type === 'miss') {
-        if (ak && ps[ak]) { ps[ak].shots++; ps[ak].rating -= 0.15; }
+        if (ak && ps[ak]) ps[ak].shots++;
         if (isHome) panel.homeShots++; else panel.awayShots++;
       } else if (e.type === 'duel') {
-        if (ak && ps[ak]) { ps[ak].tackles++; ps[ak].rating += 0.35; }
-        if (ok && ps[ok]) ps[ok].rating -= 0.15;
+        if (ak && ps[ak]) ps[ak].tackles++;
       } else if (e.type === 'yellow') {
-        if (ak && ps[ak]) { ps[ak].yellowCards++; ps[ak].rating -= 0.5; }
+        if (ak && ps[ak]) ps[ak].yellowCards++;
       } else if (e.type === 'red') {
-        if (ak && ps[ak]) { ps[ak].redCards++; ps[ak].rating -= 1.5; }
-      } else if (e.type === 'injury') {
-        if (ak && ps[ak]) ps[ak].rating -= 0.3;
+        if (ak && ps[ak]) ps[ak].redCards++;
       } else if (e.type === 'foul') {
-        if (ak && ps[ak]) { ps[ak].fouls++; ps[ak].rating -= 0.1; }
+        if (ak && ps[ak]) ps[ak].fouls++;
         if (isHome) panel.homeFouls++; else panel.awayFouls++;
       }
     }
@@ -550,14 +546,23 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       s.rating = parseFloat(Math.min(10, Math.max(3, s.rating)).toFixed(1));
     });
 
-    const totalShots = panel.homeShots + panel.awayShots;
-    panel.homePos = totalShots > 0
-      ? Math.min(70, Math.max(30, Math.round(50 + ((panel.homeShots - panel.awayShots) / totalShots) * 18)))
-      : 50;
+    // Same formula as the engine's final possession, fed with the live shots and the
+    // tactic active at this minute — so it converges on the final value at the whistle.
+    const model = replayResult.possessionModel;
+    if (model) {
+      const homeTactic = tacticAtMinute(homeTeam, events, minute);
+      const awayTactic = tacticAtMinute(awayTeam, events, minute);
+      panel.homePos = computePossession(
+        model.homeStrength, model.awayStrength, panel.homeShots, panel.awayShots,
+        homeTactic, awayTactic,
+        model.homeShapeControl + tacticProfile(homeTactic).control,
+        model.awayShapeControl + tacticProfile(awayTactic).control,
+      );
+    }
     panel.awayPos = 100 - panel.homePos;
 
     return { ps, panel };
-  }, [replayResult, events, homeTeam, awayTeam]);
+  }, [replayResult, events, homeTeam, awayTeam, minute]);
 
   // During a replay the panel/ratings build up live; at the whistle we use the
   // authoritative server values (already stored in playerMatchStats for replays).
@@ -624,7 +629,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
     return (
       <div className="bg-[#0e0e1a] border border-[#1f1f35] rounded-xl p-3 flex flex-col flex-shrink-0">
-        <span className="text-[10px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        <span className="text-[12px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
           MOMENTUM
         </span>
         <div className="relative w-full h-[60px] bg-[#07070d] rounded-lg border border-[#141426] p-1 overflow-hidden">
@@ -670,7 +675,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             })}
           </svg>
         </div>
-        <div className="flex justify-between mt-2 text-[9px] font-black" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        <div className="flex justify-between mt-2 text-[11px] font-black" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
           <span style={{ color: '#ffd700' }}>▲ DOMINÂNCIA: {homeTeam.name.toUpperCase()}</span>
           <span style={{ color: '#6366f1' }}>▼ DOMINÂNCIA: {awayTeam.name.toUpperCase()}</span>
         </div>
@@ -712,7 +717,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       {/* ── Spectator bar: watching someone else's tie → leave whenever you want ── */}
       {state.spectating && (
         <div className="ui-topbar flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 relative z-20">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
+          <span className="inline-flex items-center gap-1.5 text-[13px] font-bold tracking-wider" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
             👁️ Assistindo como espectador
           </span>
           <Button
@@ -738,7 +743,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                 </h2>
                 <Crest crestId={homeTeam.crestId} name={homeTeam.name} size={30} />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#c9a84c' }}>
+              <span className="text-[12px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#c9a84c' }}>
                 {homeTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
               </span>
             </div>
@@ -750,7 +755,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               </div>
 
               <div className="flex flex-col items-center justify-center px-2 sm:px-6 py-1 sm:py-2 rounded-xl border" style={{ background: '#0e0e1a', borderColor: '#1f1f35' }}>
-                <span className="text-[8px] sm:text-[9px] font-black text-yellow-500 tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                <span className="text-[10px] sm:text-[11px] font-black text-yellow-500 tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {minute >= 90 && penaltyMode ? 'PÊNALTIS' : isKnockout && minute > 90 ? 'PRORRG.' : 'MIN'}
                 </span>
                 <span className="font-black text-white leading-none mt-0.5" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(1.5rem, 6vw, 2.5rem)' }}>
@@ -771,7 +776,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                   {awayTeam.name.toUpperCase()}
                 </h2>
               </div>
-              <span className="text-[10px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#c9a84c' }}>
+              <span className="text-[12px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#c9a84c' }}>
                 {awayTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
               </span>
             </div>
@@ -793,7 +798,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                     ? homeTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
                     : ogName ? `${ogName} (Contra)` : 'Gol Contra'; // sem playerId ⇒ gol contra (autor = opponentId)
                   return (
-                    <span key={i} className="text-[10px] sm:text-[11px] font-bold text-yellow-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <span key={i} className="text-[12px] sm:text-[13px] font-bold text-yellow-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       ⚽ {scorer} {g.minute}'
                     </span>
                   );
@@ -811,7 +816,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                     ? awayTeam.players.find(p => p.id === g.playerId)?.shortName ?? '?'
                     : ogName ? `${ogName} (Contra)` : 'Gol Contra'; // sem playerId ⇒ gol contra (autor = opponentId)
                   return (
-                    <span key={i} className="text-[10px] sm:text-[11px] font-bold text-indigo-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    <span key={i} className="text-[12px] sm:text-[13px] font-bold text-indigo-300 whitespace-nowrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                       ⚽ {scorer} {g.minute}'
                     </span>
                   );
@@ -825,16 +830,16 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       {/* ── 2b. SECOND-LEG AGGREGATE BANNER ── */}
       {legNumber === 2 && firstLeg && (
         <div className="flex-shrink-0 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 sm:px-6 py-1.5 flex items-center justify-center gap-3 relative z-10">
-          <span className="text-[9px] sm:text-[10px] font-black tracking-widest" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
+          <span className="text-[11px] sm:text-[12px] font-black tracking-widest" style={{ color: '#818CF8', fontFamily: 'Rajdhani, sans-serif' }}>
             JOGO DE VOLTA
           </span>
-          <span className="text-[10px] sm:text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
+          <span className="text-[12px] sm:text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'Rajdhani, sans-serif' }}>
             AGREGADO:
           </span>
           <span className="text-sm sm:text-base font-black tabular-nums" style={{ color: '#C9A84C', fontFamily: 'Bebas Neue, sans-serif' }}>
             {homeTeam.name.split(' ')[0].toUpperCase()} {homeScore + firstLeg.home} - {awayScore + firstLeg.away} {awayTeam.name.split(' ')[0].toUpperCase()}
           </span>
-          <span className="hidden sm:inline text-[9px] text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+          <span className="hidden sm:inline text-[11px] text-gray-600" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
             (1ª mão {firstLeg.home}-{firstLeg.away})
           </span>
         </div>
@@ -848,7 +853,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           
           {/* Live broadcast commentary banner */}
           <div className="p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: '#171725' }}>
-            <span className="text-[9px] sm:text-[10px] font-black text-yellow-500 tracking-widest uppercase mb-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <span className="text-[11px] sm:text-[12px] font-black text-yellow-500 tracking-widest uppercase mb-0.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
               AO VIVO
             </span>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -893,11 +898,11 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                 <div className="flex items-center justify-between mb-1.5 z-10">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full animate-ping" style={{ background: accent }} />
-                    <span className="text-[10px] sm:text-xs font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: accent }}>
+                    <span className="text-[12px] sm:text-xs font-black tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif', color: accent }}>
                       {label}
                     </span>
                   </div>
-                  <span className="text-[10px] font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color: accent }}>
+                  <span className="text-[12px] font-black" style={{ fontFamily: 'Rajdhani, sans-serif', color: accent }}>
                     ETAPA {dangerState.stage}/3
                   </span>
                 </div>
@@ -922,12 +927,12 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           </AnimatePresence>
 
           <div className="px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#171725', background: '#08080f' }}>
-            <span className="text-[9px] sm:text-[10px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+            <span className="text-[11px] sm:text-[12px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
               TRANSMISSÃO DE LANCES
             </span>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-              <span className="text-[9px] font-black text-red-500 tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif' }}>AO VIVO</span>
+              <span className="text-[11px] font-black text-red-500 tracking-widest" style={{ fontFamily: 'Rajdhani, sans-serif' }}>AO VIVO</span>
             </div>
           </div>
 
@@ -1004,7 +1009,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                         </p>
                         {/* Team label badge */}
                         <span
-                          className="text-[9px] font-black tracking-widest uppercase mt-0.5 inline-block px-1.5 py-0.5 rounded"
+                          className="text-[11px] font-black tracking-widest uppercase mt-0.5 inline-block px-1.5 py-0.5 rounded"
                           style={{
                             fontFamily: 'Rajdhani, sans-serif',
                             color: accentColor,
@@ -1039,7 +1044,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               }}
             >
               <span className="inline-flex items-center justify-center gap-1.5"><Shirt size={15} /> MEU TIME</span>
-              <span className="block text-[9px] sm:text-[10px] font-bold mt-1 truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+              <span className="block text-[11px] sm:text-[12px] font-bold mt-1 truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
                 {myTeam.name}
               </span>
             </button>
@@ -1054,7 +1059,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               }}
             >
               <span className="inline-flex items-center justify-center gap-1.5"><Eye size={15} /> ADVERSÁRIO</span>
-              <span className="block text-[9px] sm:text-[10px] font-bold mt-1 truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
+              <span className="block text-[11px] sm:text-[12px] font-bold mt-1 truncate" style={{ fontFamily: 'Rajdhani, sans-serif', color: '#8A8A9A' }}>
                 {oppTeam.name}
               </span>
             </button>
@@ -1063,7 +1068,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           <div className="flex-shrink-0 space-y-3">
             {renderMomentumChart()}
             <div className="bg-[#0b0b14] border border-[#171725] rounded-2xl p-3 flex flex-col">
-              <span className="text-[10px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+              <span className="text-[12px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                 ESTATÍSTICAS (AO VIVO)
               </span>
               <div className="space-y-2">
@@ -1079,9 +1084,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                   const hPct = (s.homeVal / total) * 100;
                   return (
                     <div key={i} className="space-y-0.5">
-                      <div className="flex justify-between text-[10px] font-bold text-gray-300" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                      <div className="flex justify-between text-[12px] font-bold text-gray-300" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                         <span style={{ color: '#ffd700' }}>{s.homeVal}</span>
-                        <span className="text-gray-500 text-[8px] tracking-wider uppercase">{s.label}</span>
+                        <span className="text-gray-500 text-[10px] tracking-wider uppercase">{s.label}</span>
                         <span style={{ color: '#6366f1' }}>{s.awayVal}</span>
                       </div>
                       <div className="h-1 rounded-full overflow-hidden flex" style={{ background: '#141426' }}>
@@ -1102,7 +1107,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
         <GameModal
           open
           onOpenChange={next => { if (!next) setSquadModal(null); }}
-          className={squadModal === 'mine' ? 'max-w-lg !bg-[#0b0b14] !border-[#c9a84c55] !rounded-2xl' : 'max-w-lg !bg-[#0b0b14] !border-[#6366f155] !rounded-2xl'}
+          className={squadModal === 'mine' ? 'max-w-lg !bg-[#0b0b14] !border-primary/33 !rounded-2xl' : 'max-w-lg !bg-[#0b0b14] !border-[#6366f155] !rounded-2xl'}
           bodyClassName="min-h-0 flex-1 overflow-y-auto pr-1"
           title={
             <h3 className="text-xl font-black tracking-widest uppercase" style={{
@@ -1167,7 +1172,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               <div className="px-6 py-4 text-center" style={{ background: 'linear-gradient(135deg,#1c1636,#0f0f1e)', borderBottom: '1px solid rgba(255,215,0,0.18)' }}>
                 <div className="inline-flex items-center gap-2 mb-1.5">
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-[10px] sm:text-[11px] font-black tracking-[0.22em] text-red-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  <span className="text-[12px] sm:text-[13px] font-black tracking-[0.22em] text-red-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                     AO VIVO · DECISÃO POR PÊNALTIS
                   </span>
                 </div>
@@ -1185,7 +1190,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                         <div className="text-4xl sm:text-5xl font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#fff' }}>
                           {penaltyHomeScore}<span className="text-gray-600 mx-1.5 sm:mx-2">-</span>{penaltyAwayScore}
                         </div>
-                        <div className="text-[9px] font-bold tracking-widest text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>PLACAR</div>
+                        <div className="text-[11px] font-bold tracking-widest text-gray-500 mt-1" style={{ fontFamily: 'Rajdhani, sans-serif' }}>PLACAR</div>
                       </div>
                     );
                     const shooting = penaltyKickPending === col.team.id;
@@ -1197,7 +1202,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                           {col.team.name.toUpperCase()}
                         </h3>
                         <div className="h-3.5">
-                          {shooting && <div className="text-[9px] font-black tracking-widest text-yellow-500 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>▼ COBRANDO</div>}
+                          {shooting && <div className="text-[11px] font-black tracking-widest text-yellow-500 animate-pulse" style={{ fontFamily: 'Rajdhani, sans-serif' }}>▼ COBRANDO</div>}
                         </div>
                         <div className="flex gap-1 justify-center mt-1.5 flex-wrap">
                           {Array.from({ length: slots }).map((_, i) => {

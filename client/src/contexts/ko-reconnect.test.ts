@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { gameReducer } from './GameContext';
-import { buildKnockoutMatchKey } from '../lib/bets';
-import { getActiveKnockoutMatches } from '../lib/gameEngine';
+import { buildKnockoutMatchKey } from '@shared/game/bets';
+import { getActiveKnockoutMatches } from '@shared/game/gameEngine';
 
 function evalBadge(state: any) {
   const kb = state.knockoutBracket;

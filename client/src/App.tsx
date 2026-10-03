@@ -1,24 +1,56 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { GameProvider, useGame } from "./contexts/GameContext";
 import { AccountProvider, useAccount } from "./contexts/AccountContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
-import AlbumPage from "./pages/AlbumPage";
-import SetupPage from "./pages/SetupPage";
-import TournamentFormatPage from "./pages/TournamentFormatPage";
-import CrestPage from "./pages/CrestPage";
-import CoachPage from "./pages/CoachPage";
-import FormationPage from "./pages/FormationPage";
-import DraftPage from "./pages/DraftPage";
-import SquadReviewPage from "./pages/SquadReviewPage";
-import LeaguePage from "./pages/LeaguePage";
-import ReportPage from "./pages/ReportPage";
-import MatchSimPage from "./pages/MatchSimPage";
-import AccountPage from "./pages/AccountPage";
-import { createCompetitionFormat } from "./lib/competition";
+import { createCompetitionFormat } from "@shared/game/competition";
 import RoomInvitationPrompt from "./components/account/RoomInvitationPrompt";
+
+// Only the menu ships in the initial download; every other screen is a separate
+// chunk. They are prefetched while the player is on the menu, so moving on to the
+// next step does not wait on the network.
+const pageLoaders = {
+  album: () => import("./pages/AlbumPage"),
+  setup: () => import("./pages/SetupPage"),
+  format: () => import("./pages/TournamentFormatPage"),
+  crest: () => import("./pages/CrestPage"),
+  coach: () => import("./pages/CoachPage"),
+  formation: () => import("./pages/FormationPage"),
+  draft: () => import("./pages/DraftPage"),
+  squadReview: () => import("./pages/SquadReviewPage"),
+  league: () => import("./pages/LeaguePage"),
+  report: () => import("./pages/ReportPage"),
+  matchSim: () => import("./pages/MatchSimPage"),
+  account: () => import("./pages/AccountPage"),
+};
+const AlbumPage = lazy(pageLoaders.album);
+const SetupPage = lazy(pageLoaders.setup);
+const TournamentFormatPage = lazy(pageLoaders.format);
+const CrestPage = lazy(pageLoaders.crest);
+const CoachPage = lazy(pageLoaders.coach);
+const FormationPage = lazy(pageLoaders.formation);
+const DraftPage = lazy(pageLoaders.draft);
+const SquadReviewPage = lazy(pageLoaders.squadReview);
+const LeaguePage = lazy(pageLoaders.league);
+const ReportPage = lazy(pageLoaders.report);
+const MatchSimPage = lazy(pageLoaders.matchSim);
+const AccountPage = lazy(pageLoaders.account);
+
+function usePrefetchPages() {
+  useEffect(() => {
+    const prefetch = () => Object.values(pageLoaders).forEach(load => { load().catch(() => {}); });
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (idle) idle(prefetch);
+    else window.setTimeout(prefetch, 1500);
+  }, []);
+}
+
+// Shown only while a screen's chunk is still downloading (rare after the prefetch).
+function PageLoading() {
+  return <div className="min-h-screen bg-background" aria-busy="true" />;
+}
 // Pré-carrega a moldura + texturas das cartas uma vez (cacheia; evita "flash" na primeira carta).
 ['card-frame', 'bg-bronze', 'bg-prata', 'bg-ouro', 'bg-lendario', 'bg-imortal'].forEach((n) => {
   const img = new Image();
@@ -93,6 +125,7 @@ function ModalScrollLock() {
 function GameRouter() {
   const { state, dispatch } = useGame();
   const { account } = useAccount();
+  usePrefetchPages();
   const accountOnLegacySetup = !!account && (state.phase === 'format' || state.phase === 'setup');
 
   // Cada "página" é uma fase (state.phase). Ao trocar de fase, a janela mantinha o
@@ -115,7 +148,11 @@ function GameRouter() {
   // immediately instead of briefly rendering controls that no longer apply.
   if (accountOnLegacySetup) return <MenuPage />;
 
-  switch (state.phase) {
+  return <Suspense fallback={<PageLoading />}>{renderPhase(state.phase)}</Suspense>;
+}
+
+function renderPhase(phase: string) {
+  switch (phase) {
     case 'menu':
     case 'lobby': return <MenuPage />;
     case 'account': return <AccountPage />;

@@ -1,5 +1,5 @@
-import { Coach, Formation } from '../../lib/gameData';
-import { PREFERRED_FORMATION_CHEM_BONUS } from '../../lib/gameEngine';
+import { Coach, Formation } from '@shared/game/gameData';
+import { PREFERRED_FORMATION_CHEM_BONUS } from '@shared/game/gameEngine';
 import { coachPrimeDefinition } from '../../lib/coachPrime';
 
 interface CoachCardProps {
@@ -21,8 +21,8 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
     <div className={bare ? '' : 'rounded-xl overflow-hidden'} style={bare ? undefined : { background: '#0F0F1A', border: `1px solid ${isPrime ? '#C9A84C55' : '#1A1A2A'}` }}>
       {showHeader && (
         <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: '#1A1A2A', background: '#0A0A12' }}>
-          <span className="text-[10px] font-black tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>🎓 TÉCNICO</span>
-          <span className="text-[9px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>COMANDO DO TIME</span>
+          <span className="text-[12px] font-black tracking-widest" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>🎓 TÉCNICO</span>
+          <span className="text-[11px] font-bold tracking-wider" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>COMANDO DO TIME</span>
         </div>
       )}
       <div className="p-4 flex gap-3.5">
@@ -37,24 +37,24 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
           <div className="flex items-center gap-2 flex-wrap">
             <div className="text-lg font-black leading-none" style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFF' }}>{coach.name}</div>
             {isPrime && (
-              <span className="text-[9px] font-black px-1.5 py-0.5 rounded leading-none" style={{ background: 'linear-gradient(90deg, #C9A84C, #E8C84A)', color: '#0A0A12', fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.1em' }}>PRIME</span>
+              <span className="text-[11px] font-black px-1.5 py-0.5 rounded leading-none" style={{ background: 'linear-gradient(90deg, #C9A84C, #E8C84A)', color: '#0A0A12', fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.1em' }}>PRIME</span>
             )}
           </div>
-          <div className="text-[11px] font-bold mt-0.5" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
-          <div className="text-[11px] mt-1 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{coach.description}</div>
+          <div className="text-[13px] font-bold mt-0.5" style={{ color: '#C9A84C', fontFamily: 'Rajdhani, sans-serif' }}>{coach.philosophy}</div>
+          <div className="text-[13px] mt-1 leading-snug" style={{ color: '#9A9AAA', fontFamily: 'Rajdhani, sans-serif' }}>{coach.description}</div>
         </div>
       </div>
       <div className="px-4 pb-4 space-y-2">
         <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #1A1A2A' }}>
-          <div className="text-[9px] font-black tracking-widest mb-1" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>⚡ EFEITO NO ELENCO</div>
-          <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{coach.effect}</div>
+          <div className="text-[11px] font-black tracking-widest mb-1" style={{ color: '#E8C84A', fontFamily: 'Rajdhani, sans-serif' }}>⚡ EFEITO NO ELENCO</div>
+          <div className="text-[13px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{coach.effect}</div>
         </div>
         <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #2A2A4A' }}>
-          <div className="text-[9px] font-black tracking-widest mb-1" style={{ color: isPrime ? '#E8C84A' : '#A78BFA', fontFamily: 'Rajdhani, sans-serif' }}>✨ HABILIDADE{isPrime ? ' PRIME' : ''}: {abilityName?.toUpperCase()}</div>
-          <div className="text-[11px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{abilityDescription}</div>
+          <div className="text-[11px] font-black tracking-widest mb-1" style={{ color: isPrime ? '#E8C84A' : '#A78BFA', fontFamily: 'Rajdhani, sans-serif' }}>✨ HABILIDADE{isPrime ? ' PRIME' : ''}: {abilityName?.toUpperCase()}</div>
+          <div className="text-[13px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'Rajdhani, sans-serif' }}>{abilityDescription}</div>
         </div>
         {coach.preferredFormation && (
-          <div className="flex items-center gap-2 text-[10px] pt-0.5 flex-wrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+          <div className="flex items-center gap-2 text-[12px] pt-0.5 flex-wrap" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
             <span style={{ color: '#6A6A7A' }}>Formação preferida:</span>
             <span className="px-2 py-0.5 rounded font-black" style={{ background: '#C9A84C22', color: '#E8C84A', border: '1px solid #C9A84C44' }}>{coach.preferredFormation}</span>
             {formation?.id === coach.preferredFormation

@@ -4,7 +4,7 @@
 
 import { useMemo, useCallback } from 'react';
 import { useGame } from '../contexts/GameContext';
-import { Team } from '../lib/gameEngine';
+import { Team } from '@shared/game/gameEngine';
 
 export function useTeams() {
   const { state } = useGame();

@@ -1,7 +1,7 @@
 import { CheckCircle2, Clock3, Trophy, XCircle } from 'lucide-react';
 import { Button, GameModal } from '../../design-system';
-import { MISSION_MAP, MISSION_RARITY_META, missionReward } from '../../lib/missions';
-import type { MissionResolution } from '../../lib/missions';
+import { MISSION_MAP, MISSION_RARITY_META, missionReward } from '@shared/game/missions';
+import type { MissionResolution } from '@shared/game/missions';
 
 interface MissionResolutionModalProps {
   resolution: MissionResolution;

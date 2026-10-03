@@ -138,7 +138,7 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
           {roomCode && (
             <div className="mb-1 flex items-center justify-between gap-3 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 py-2">
               <div className="min-w-0">
-                <div className="text-[9px] font-black tracking-[0.16em] text-[var(--ui-text-faint)]">CÓDIGO DA SALA</div>
+                <div className="text-[11px] font-black tracking-[0.16em] text-[var(--ui-text-faint)]">CÓDIGO DA SALA</div>
                 <div className="mt-0.5 font-display text-xl leading-none tracking-[0.16em] text-[var(--ui-brand-strong)]">{roomCode}</div>
               </div>
               <button
@@ -172,7 +172,7 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                   </button>
                   {showHostPicker && (
                     <div className="mb-1 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-1">
-                      <div className="px-2 py-1 text-[9px] font-black tracking-widest text-[var(--ui-text-faint)]">ESCOLHA O NOVO ANFITRIÃO</div>
+                      <div className="px-2 py-1 text-[11px] font-black tracking-widest text-[var(--ui-text-faint)]">ESCOLHA O NOVO ANFITRIÃO</div>
                       {availableHostTargets.length > 0 ? availableHostTargets.map(player => (
                         <button
                           key={player.id}
@@ -185,7 +185,7 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                           <span className="ml-2 h-2 w-2 shrink-0 rounded-full bg-[var(--ui-success)]" aria-label="Conectado" />
                         </button>
                       )) : (
-                        <div className="px-2 py-2 text-[10px] text-[var(--ui-text-faint)]">Nenhum outro jogador conectado.</div>
+                        <div className="px-2 py-2 text-[12px] text-[var(--ui-text-faint)]">Nenhum outro jogador conectado.</div>
                       )}
                     </div>
                   )}
@@ -208,7 +208,7 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                   </button>
                   {showRemovePicker && (
                     <div className="mb-1 rounded-lg border border-[var(--ui-danger)]/25 bg-[var(--ui-surface-inset)] p-1">
-                      <div className="px-2 py-1 text-[9px] font-black tracking-widest text-[var(--ui-text-faint)]">ESCOLHA O JOGADOR</div>
+                      <div className="px-2 py-1 text-[11px] font-black tracking-widest text-[var(--ui-text-faint)]">ESCOLHA O JOGADOR</div>
                       {availableRemovalTargets.length > 0 ? availableRemovalTargets.map(player => (
                         <button
                           key={player.id}
@@ -218,12 +218,12 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                           onClick={() => chooseRemove(player.id)}
                         >
                           <span className="min-w-0 truncate">{player.name}</span>
-                          <span className={`ml-2 shrink-0 text-[9px] font-black uppercase tracking-wide ${player.connected === false ? 'text-[var(--ui-text-faint)]' : 'text-[var(--ui-success)]'}`}>
+                          <span className={`ml-2 shrink-0 text-[11px] font-black uppercase tracking-wide ${player.connected === false ? 'text-[var(--ui-text-faint)]' : 'text-[var(--ui-success)]'}`}>
                             {player.connected === false ? 'OFFLINE' : 'ONLINE'}
                           </span>
                         </button>
                       )) : (
-                        <div className="px-2 py-2 text-[10px] text-[var(--ui-text-faint)]">Nenhum outro jogador na sala.</div>
+                        <div className="px-2 py-2 text-[12px] text-[var(--ui-text-faint)]">Nenhum outro jogador na sala.</div>
                       )}
                     </div>
                   )}

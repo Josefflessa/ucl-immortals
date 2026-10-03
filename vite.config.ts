@@ -27,6 +27,16 @@ function vitePluginSocketIO(): Plugin {
   };
 }
 
+// Catalogue and game-rule modules (client/src/lib and shared/game) grouped into the "catalog" and "engine" chunks.
+const CATALOG_FILES = new Set([
+  "gameData", "crests", "clubCatalog",
+  "playerCatalog", "playerPhotoCatalog", "rarity",
+]);
+const ENGINE_FILES = new Set([
+  "gameEngine", "missions", "matchNarrative", "discipline", "traits", "bets", "shop",
+  "clubProjects", "coachPrime", "stadium", "market", "onlineReadiness", "historySnapshot", "random",
+]);
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), vitePluginSocketIO()],
   resolve: {
@@ -40,6 +50,27 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Separate chunks download in parallel and stay cached independently:
+        // third-party code rarely changes, the card catalogue and the game rules
+        // change on their own schedules.
+        manualChunks(id) {
+          const file = id.split(path.sep).join("/");
+          const inModule = (...names: string[]) => names.some(name => file.includes(`/node_modules/${name}/`));
+          const libFile = file.match(/\/(?:client\/src\/lib|shared\/game)\/([^/]+)\.ts$/)?.[1];
+          if (inModule("react", "react-dom", "scheduler")) return "react";
+          if (inModule("framer-motion", "motion-dom", "motion-utils", "lucide-react", "sonner") || file.includes("/node_modules/@radix-ui/")) return "ui";
+          if (inModule("socket.io-client", "engine.io-client", "socket.io-parser", "engine.io-parser")) return "realtime";
+          if (file.includes("/shared/game/players/")) return "catalog";
+          if (file.includes("/shared/game/engine/")) return "engine";
+          if (!libFile) return undefined;
+          if (CATALOG_FILES.has(libFile)) return "catalog";
+          if (ENGINE_FILES.has(libFile) || libFile.startsWith("competition")) return "engine";
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port: 3000,

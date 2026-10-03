@@ -1,4 +1,4 @@
-import { PLAYERS } from './gameData';
+import { PLAYERS } from '@shared/game/gameData';
 import { getPlayerCatalogPath } from './playerCatalog';
 
 /**

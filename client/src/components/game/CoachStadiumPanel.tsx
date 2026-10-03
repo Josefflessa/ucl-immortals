@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Coach, Formation } from '../../lib/gameData';
-import { stadiumDisplayFor, stadiumFor } from '../../lib/stadium';
-import { PRIME_COST, PRIME_WINS_REQUIRED } from '../../lib/shop';
+import { Coach, Formation } from '@shared/game/gameData';
+import { stadiumDisplayFor, stadiumFor } from '@shared/game/stadium';
+import { PRIME_COST, PRIME_WINS_REQUIRED } from '@shared/game/shop';
 import { coachPrimeDefinition } from '../../lib/coachPrime';
 import CoachCard from './CoachCard';
 import { Button, GameModal } from '../../design-system';
@@ -27,7 +27,7 @@ function ProgressRequirement({ label, current, target }: { label: string; curren
     <div className="rounded-xl border border-[#24243A] bg-[#0A0A14] px-3 py-2.5" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-black" style={{ color: complete ? '#04120A' : '#FCA5A5', background: complete ? '#4ADE80' : '#EF444422', border: complete ? 'none' : '1px solid #EF444466' }}>
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full text-[13px] font-black" style={{ color: complete ? '#04120A' : '#FCA5A5', background: complete ? '#4ADE80' : '#EF444422', border: complete ? 'none' : '1px solid #EF444466' }}>
             {complete ? '✓' : '×'}
           </span>
           <span className="truncate text-xs font-bold text-[#C9C9D5]">{label}</span>
@@ -48,7 +48,7 @@ function TransitionRow({ before, after }: { before: React.ReactNode; after: Reac
   return (
     <div className="grid min-w-0 shrink-0 grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] items-center gap-2 py-1">
       <div className="flex min-w-0 items-center justify-center">{before}</div>
-      <div className="flex size-8 items-center justify-center rounded-full border border-[#C9A84C66] bg-[#C9A84C18] text-lg font-black text-[#E8C84A]" aria-hidden="true">→</div>
+      <div className="flex size-8 items-center justify-center rounded-full border border-primary/40 bg-primary/9 text-lg font-black text-brand-strong" aria-hidden="true">→</div>
       <div className="flex min-w-0 items-center justify-center">{after}</div>
       </div>
   );
@@ -77,7 +77,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
         <div className={showStadium ? 'grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0' : ''} style={{ borderColor: '#1A1A2A' }}>
           <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
             {showStadium && (
-              <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                 TÉCNICO
               </div>
             )}
@@ -105,7 +105,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
           </div>
           {showStadium && (
             <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
-              <div className="text-[10px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: '#6A6A7A', fontFamily: 'Rajdhani, sans-serif' }}>
                 ESTÁDIO
               </div>
               {reportStadiumImgOk && (
@@ -149,10 +149,10 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
         bodyClassName="ui-stack"
         title={(
           <div className="flex items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#C9A84C66] bg-[#C9A84C18] text-xl" aria-hidden="true">⭐</span>
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/40 bg-primary/9 text-xl" aria-hidden="true">⭐</span>
             <div className="min-w-0">
-              <div className="text-[10px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
-              <div className="mt-0.5 text-2xl leading-none tracking-wide text-[#E8C84A]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>EVOLUÇÃO PRIME</div>
+              <div className="text-[12px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
+              <div className="mt-0.5 text-2xl leading-none tracking-wide text-brand-strong" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>EVOLUÇÃO PRIME</div>
               <div className="mt-1 truncate text-xs font-bold text-[var(--ui-text-muted)]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
             </div>
           </div>
@@ -185,11 +185,11 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
                 </div>
                 <div className="grid gap-2 p-3 sm:grid-cols-2" style={{ background: '#0d0d16', fontFamily: 'Rajdhani, sans-serif' }}>
                   <div className="rounded-lg border border-[#24243A] bg-[#0A0A14] p-2.5">
-                    <div className="text-[10px] font-black tracking-widest text-[#8A8A9A]">ANTES</div>
+                    <div className="text-[12px] font-black tracking-widest text-[#8A8A9A]">ANTES</div>
                     <p className="mt-1.5 text-xs leading-relaxed text-[#C9C9D5]">{primeDefinition?.normal ?? coach.specialAbility}</p>
                   </div>
-                  <div className="rounded-lg border border-[#C9A84C66] bg-[#C9A84C0D] p-2.5">
-                    <div className="text-[10px] font-black tracking-widest text-[#E8C84A]">DEPOIS · PRIME</div>
+                  <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5">
+                    <div className="text-[12px] font-black tracking-widest text-brand-strong">DEPOIS · PRIME</div>
                     <p className="mt-1.5 text-xs leading-relaxed text-[#F1E5B2]">{primeDefinition?.prime ?? 'A habilidade especial fica mais forte.'}</p>
                   </div>
                 </div>
@@ -197,8 +197,8 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
 
               <section className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-[10px] font-black tracking-[0.16em] text-[#7E7E92]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>REQUISITOS PARA DESBLOQUEAR</div>
-                  <span className="text-[10px] font-bold text-[#6A6A7A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>PRIME</span>
+                  <div className="text-[12px] font-black tracking-[0.16em] text-[#7E7E92]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>REQUISITOS PARA DESBLOQUEAR</div>
+                  <span className="text-[12px] font-bold text-[#6A6A7A]" style={{ fontFamily: 'Rajdhani, sans-serif' }}>PRIME</span>
                 </div>
                 <ProgressRequirement label="Vitórias na campanha" current={wins} target={PRIME_WINS_REQUIRED} />
                 <ProgressRequirement label="Créditos disponíveis" current={points} target={PRIME_COST} />

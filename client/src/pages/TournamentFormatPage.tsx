@@ -29,10 +29,10 @@ import {
   type CompetitionFormat,
   type CompetitionFormatId,
   type LeagueLegs,
-} from '../lib/competition';
+} from '@shared/game/competition';
 import { AppShell, Button, ChoiceCard, Input, PageContainer, SectionHeader, TopBar } from '../design-system';
 
-const labelClass = 'text-[10px] font-bold uppercase tracking-[0.11em] text-[var(--ui-text-muted)]';
+const labelClass = 'text-[12px] font-bold uppercase tracking-[0.11em] text-[var(--ui-text-muted)]';
 const inputClass = 'ui-input mt-2 w-full text-left sm:text-center';
 
 type NumberFieldProps = {
@@ -53,7 +53,7 @@ function NumberField({ label, value, min, max, onChange, helper, className = '' 
     <label className={`block ${className}`}>
       <span className="flex items-center justify-between gap-2">
         <span className={labelClass}>{label}</span>
-        <span className="text-[10px] font-medium normal-case tracking-normal text-[var(--ui-text-faint)]">{min}–{safeMax}</span>
+        <span className="text-[12px] font-medium normal-case tracking-normal text-[var(--ui-text-faint)]">{min}–{safeMax}</span>
       </span>
       <Input
         type="number"
@@ -70,7 +70,7 @@ function NumberField({ label, value, min, max, onChange, helper, className = '' 
         aria-invalid={invalid || undefined}
         className={`${inputClass} ${invalid ? 'border-[var(--ui-danger)]' : ''}`}
       />
-      <span className={`mt-1 block text-[10px] leading-relaxed ${invalid ? 'text-[var(--ui-danger)]' : 'text-[var(--ui-text-faint)]'}`}>
+      <span className={`mt-1 block text-[12px] leading-relaxed ${invalid ? 'text-[var(--ui-danger)]' : 'text-[var(--ui-text-faint)]'}`}>
         {invalid ? `Use um número inteiro entre ${min} e ${safeMax}.` : helper ?? `Permitido: ${min} a ${safeMax}.`}
       </span>
     </label>
@@ -82,11 +82,11 @@ function ConfigSection({ index, icon, eyebrow, title, description, children }: {
     <section className="ui-panel overflow-hidden p-0">
       <div className="border-b border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-5 py-4 sm:px-6">
         <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#C9A84C55] bg-[#C9A84C12] text-[#C9A84C]" aria-hidden="true">{icon}</span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/33 bg-primary/7 text-primary" aria-hidden="true">{icon}</span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-[10px] font-black tracking-[0.16em] text-[#C9A84C]">{index}</span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">{eyebrow}</span>
+              <span className="text-[12px] font-black tracking-[0.16em] text-primary">{index}</span>
+              <span className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">{eyebrow}</span>
             </div>
             <h2 className="mt-1 text-lg font-black text-white">{title}</h2>
             <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--ui-text-muted)]">{description}</p>
@@ -102,13 +102,13 @@ function SummaryMetric({ icon, label, value, detail }: { icon: ReactNode; label:
   return (
     <div className="min-w-0">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold uppercase text-[var(--ui-text-faint)]">
-          <span className="shrink-0 text-[#C9A84C]" aria-hidden="true">{icon}</span>
+        <div className="flex min-w-0 items-center gap-1.5 text-[12px] font-bold uppercase text-[var(--ui-text-faint)]">
+          <span className="shrink-0 text-primary" aria-hidden="true">{icon}</span>
           <span className="truncate">{label}</span>
         </div>
         <div className="shrink-0 text-sm font-black leading-tight text-right text-white text-balance tabular-nums">{value}</div>
       </div>
-      <div className="mt-0.5 pl-[22px] text-[10px] leading-tight text-[var(--ui-text-faint)] text-pretty">{detail}</div>
+      <div className="mt-0.5 pl-[22px] text-[12px] leading-tight text-[var(--ui-text-faint)] text-pretty">{detail}</div>
     </div>
   );
 }
@@ -122,7 +122,7 @@ function SummaryRow({ icon, label, value, detail }: { icon: ReactNode; label: st
           <span className="text-xs font-bold text-[var(--ui-text-muted)]">{label}</span>
           <span className="text-xs font-black text-white text-right tabular-nums">{value}</span>
         </div>
-        {detail && <div className="mt-0.5 text-[10px] leading-tight text-[var(--ui-text-faint)] text-pretty">{detail}</div>}
+        {detail && <div className="mt-0.5 text-[12px] leading-tight text-[var(--ui-text-faint)] text-pretty">{detail}</div>}
       </div>
     </div>
   );
@@ -268,7 +268,7 @@ export default function TournamentFormatPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span className="text-3xl" aria-hidden="true">{option.icon}</span>
-                    {selected && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#C9A84C] text-sm font-black text-[#080810]">✓</span>}
+                    {selected && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-sm font-black text-[#080810]">✓</span>}
                   </div>
                   <div className="mt-3 font-black tracking-wide text-white" style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 22 }}>{option.name.toUpperCase()}</div>
                   <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{option.shortDescription}</p>
@@ -283,7 +283,7 @@ export default function TournamentFormatPage() {
             type="button"
             aria-expanded={advancedOpen}
             onClick={() => setAdvancedOpen(open => !open)}
-            className="flex items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-4 py-3 text-xs font-black uppercase tracking-wider text-[var(--ui-text-muted)] transition-colors hover:border-[#C9A84C88] hover:text-[#E8C84A]"
+            className="flex items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-4 py-3 text-xs font-black uppercase tracking-wider text-[var(--ui-text-muted)] transition-colors hover:border-primary/53 hover:text-brand-strong"
           >
             <Settings2 size={15} />
             {advancedOpen ? 'Ocultar opções avançadas' : 'Ver opções avançadas'}
@@ -321,9 +321,9 @@ export default function TournamentFormatPage() {
                           className="rounded-xl border p-4 text-left transition-colors"
                           style={{ borderColor: format.leagueLegs === legs ? '#C9A84C' : '#242436', background: format.leagueLegs === legs ? '#C9A84C12' : '#0F0F1A' }}
                         >
-                          <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{title}</div>{format.leagueLegs === legs && <CheckCircle2 size={16} className="text-[#C9A84C]" />}</div>
-                          <div className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
-                          <div className="mt-2 text-xs font-black text-[#C9A84C]">{legs * Math.max(1, format.teamCount - 1)} rodadas</div>
+                          <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{title}</div>{format.leagueLegs === legs && <CheckCircle2 size={16} className="text-primary" />}</div>
+                          <div className="mt-1 text-[13px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
+                          <div className="mt-2 text-xs font-black text-primary">{legs * Math.max(1, format.teamCount - 1)} rodadas</div>
                         </ChoiceCard>
                       ))}
                     </div>
@@ -358,15 +358,15 @@ export default function TournamentFormatPage() {
                     <NumberField label="Times por grupo" value={format.teamsPerGroup} min={2} max={8} onChange={value => setGroupNumber('teamsPerGroup', value)} helper="Cada grupo joga dentro da própria chave." />
                     <NumberField label="Rodadas dos grupos" value={format.groupRounds} min={1} max={Math.max(1, format.teamsPerGroup - 1)} onChange={value => setGroupNumber('groupRounds', value)} helper="Não pode superar o número de confrontos possíveis do grupo." />
                     <NumberField label="Classificados por grupo" value={format.qualifiedPerGroup} min={1} max={Math.max(1, format.teamsPerGroup)} onChange={value => setGroupNumber('qualifiedPerGroup', value)} helper="O mata-mata precisa receber exatamente 16 times." />
-                    <div className="rounded-xl border border-[#C9A84C33] bg-[#C9A84C0D] p-4 text-xs leading-relaxed text-[var(--ui-text-muted)] sm:col-span-2">
-                      <div className="flex items-center gap-2 font-bold text-[#C9A84C]"><GitBranch size={14} /> Fechamento automático da fase</div>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs leading-relaxed text-[var(--ui-text-muted)] sm:col-span-2">
+                      <div className="flex items-center gap-2 font-bold text-primary"><GitBranch size={14} /> Fechamento automático da fase</div>
                       <p className="mt-2"><strong className="text-white">{format.teamCount} times</strong> serão distribuídos em <strong className="text-white">{format.groupCount} grupos</strong>; <strong className="text-white">{format.qualifiedTeams}</strong> avançam para o mata-mata.</p>
-                      <p className="mt-1 text-[11px] text-[var(--ui-text-faint)]">Para este modelo, o jogo valida se o total fecha os grupos e se a classificação forma as oitavas.</p>
+                      <p className="mt-1 text-[13px] text-[var(--ui-text-faint)]">Para este modelo, o jogo valida se o total fecha os grupos e se a classificação forma as oitavas.</p>
                     </div>
                   </>
                 )}
               </div>
-              {format.id === 'league' && <div className="mt-4 flex items-start gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] p-3 text-[11px] leading-relaxed text-[var(--ui-text-muted)]"><Info size={15} className="mt-0.5 shrink-0 text-[#C9A84C]" /> Este formato termina na tabela: não há classificação para mata-mata.</div>}
+              {format.id === 'league' && <div className="mt-4 flex items-start gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] p-3 text-[13px] leading-relaxed text-[var(--ui-text-muted)]"><Info size={15} className="mt-0.5 shrink-0 text-primary" /> Este formato termina na tabela: não há classificação para mata-mata.</div>}
             </ConfigSection>
 
             {hasKnockout && (
@@ -380,22 +380,22 @@ export default function TournamentFormatPage() {
                       className="rounded-xl border p-4 text-left transition-colors"
                       style={{ borderColor: format.knockoutLegs === legs ? '#C9A84C' : '#242436', background: format.knockoutLegs === legs ? '#C9A84C12' : '#0F0F1A' }}
                     >
-                      <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{legs === 1 ? 'Jogo único' : 'Ida e volta'}</div>{format.knockoutLegs === legs && <CheckCircle2 size={16} className="text-[#C9A84C]" />}</div>
-                      <div className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">{legs === 1 ? 'Mais rápido, ideal para torneios compactos.' : 'A soma dos dois jogos define quem avança.'}</div>
+                      <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{legs === 1 ? 'Jogo único' : 'Ida e volta'}</div>{format.knockoutLegs === legs && <CheckCircle2 size={16} className="text-primary" />}</div>
+                      <div className="mt-1 text-[13px] leading-relaxed text-[var(--ui-text-muted)]">{legs === 1 ? 'Mais rápido, ideal para torneios compactos.' : 'A soma dos dois jogos define quem avança.'}</div>
                     </ChoiceCard>
                   ))}
                 </div>
                 <div className="mt-5 border-t border-[var(--ui-line-subtle)] pt-5">
                   <div className="text-sm font-bold text-white">Formato da final</div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">Jogo único mantém a final neutra; ida e volta faz cada finalista receber um jogo em casa e decide pelo agregado.</p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-[var(--ui-text-muted)]">Jogo único mantém a final neutra; ida e volta faz cada finalista receber um jogo em casa e decide pelo agregado.</p>
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {([
                       [true, 'Jogo único', 'Final em campo neutro, com prorrogação e pênaltis se necessário.'],
                       [false, 'Ida e volta', 'Cada finalista manda um jogo; empate no agregado vai à prorrogação e pênaltis na volta.'],
                     ] as const).map(([singleLeg, title, description]) => (
                       <ChoiceCard key={title} selected={format.finalSingleLeg === singleLeg} onClick={() => { setFormat(previous => ({ ...previous, finalSingleLeg: singleLeg })); setError(null); }} className="rounded-xl border p-4 text-left transition-colors" style={{ borderColor: format.finalSingleLeg === singleLeg ? '#C9A84C' : '#242436', background: format.finalSingleLeg === singleLeg ? '#C9A84C12' : '#0F0F1A' }}>
-                        <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{title}</div>{format.finalSingleLeg === singleLeg && <CheckCircle2 size={16} className="text-[#C9A84C]" />}</div>
-                        <div className="mt-1 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
+                        <div className="flex items-center justify-between gap-2"><div className="text-sm font-bold text-white">{title}</div>{format.finalSingleLeg === singleLeg && <CheckCircle2 size={16} className="text-primary" />}</div>
+                        <div className="mt-1 text-[13px] leading-relaxed text-[var(--ui-text-muted)]">{description}</div>
                       </ChoiceCard>
                     ))}
                   </div>
@@ -410,7 +410,7 @@ export default function TournamentFormatPage() {
             <div className="ui-panel overflow-hidden p-0">
               <div className="border-b border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-4 py-4 sm:px-5">
                 <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-[#C9A84C44] bg-[#C9A84C12] text-xl" aria-hidden="true">{preset.icon}</div>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/27 bg-primary/7 text-xl" aria-hidden="true">{preset.icon}</div>
                   <div className="min-w-0">
                     <div className="ui-section-label">RESUMO DO TORNEIO</div>
                     <h2 className="mt-0.5 text-lg font-black leading-tight text-white text-balance">{preset.name}</h2>
@@ -433,7 +433,7 @@ export default function TournamentFormatPage() {
                   </div>
                 </div>
 
-                <div className={`mt-3 flex items-center gap-1.5 border-t pt-2 text-[10px] leading-tight ${validationError ? 'border-[var(--ui-danger)] text-[var(--ui-danger)]' : 'border-[var(--ui-success)] text-[var(--ui-success)]'}`} role="status">
+                <div className={`mt-3 flex items-center gap-1.5 border-t pt-2 text-[12px] leading-tight ${validationError ? 'border-[var(--ui-danger)] text-[var(--ui-danger)]' : 'border-[var(--ui-success)] text-[var(--ui-success)]'}`} role="status">
                   {validationError ? <AlertTriangle size={13} className="shrink-0" /> : <CheckCircle2 size={13} className="shrink-0" />}
                   <div className="flex min-w-0 flex-wrap gap-x-1.5"><strong>{validationError ? 'Revise a configuração:' : 'Configuração válida:'}</strong><span className="text-pretty">{validationError ?? 'Todos os limites e formatos estão coerentes.'}</span></div>
                 </div>
@@ -443,8 +443,8 @@ export default function TournamentFormatPage() {
             {advancedOpen && (
               <div className="ui-panel ui-panel--inset p-5">
                 <div className="ui-section-label">LIMITES AUTOMÁTICOS</div>
-                <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Bot size={15} className="mt-0.5 shrink-0 text-[#C9A84C]" /><span><strong className="text-white">Solo:</strong> até {MAX_BOT_TEAMS} bots, completando no máximo {MAX_COMPETITION_TEAMS} times.</span></div>
-                <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Users size={15} className="mt-0.5 shrink-0 text-[#C9A84C]" /><span><strong className="text-white">Online:</strong> os bots completam o total depois dos jogadores humanos; a sala suporta até {MAX_ONLINE_PLAYERS} pessoas.</span></div>
+                <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Bot size={15} className="mt-0.5 shrink-0 text-primary" /><span><strong className="text-white">Solo:</strong> até {MAX_BOT_TEAMS} bots, completando no máximo {MAX_COMPETITION_TEAMS} times.</span></div>
+                <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--ui-text-muted)]"><Users size={15} className="mt-0.5 shrink-0 text-primary" /><span><strong className="text-white">Online:</strong> os bots completam o total depois dos jogadores humanos; a sala suporta até {MAX_ONLINE_PLAYERS} pessoas.</span></div>
               </div>
             )}
           </aside>

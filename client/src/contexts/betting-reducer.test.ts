@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { gameReducer } from './GameContext';
 import type { GameState, GameAction } from './GameContext';
+import { createMissionState } from '@shared/game/missions';
 
 // Estado mínimo só com os campos que o betting toca.
 const base = (over: Partial<GameState> = {}): GameState => ({
@@ -8,9 +9,15 @@ const base = (over: Partial<GameState> = {}): GameState => ({
   playerTeam: { id: 'me', players: [] } as any,
   botTeams: [] as any,
   points: 500,
+  phase: 'league',
   leagueRound: 1,
-  leagueFixtures: [] as any,
+  // Bets are only accepted on unplayed matches of the current round.
+  leagueFixtures: [
+    { round: 1, homeTeamId: 'a', awayTeamId: 'b', played: false },
+    { round: 1, homeTeamId: 'c', awayTeamId: 'd', played: false },
+  ] as any,
   bets: [],
+  missions: createMissionState('solo:me', 'L1'),
   ...over,
 });
 

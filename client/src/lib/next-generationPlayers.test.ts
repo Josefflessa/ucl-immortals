@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PLAYERS } from './gameData';
-import { NEXT_GENERATION_PLAYERS } from './next-generationPlayers';
+import { PLAYERS } from '@shared/game/gameData';
+import { NEXT_GENERATION_PLAYERS } from '@shared/game/players/next-generationPlayers';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from './playerPhotoCatalog';
 
 describe('next generation player catalog', () => {

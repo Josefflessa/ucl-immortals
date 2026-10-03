@@ -9,7 +9,7 @@ import PlayerCard from '../components/game/PlayerCard';
 import { normalizeProfileAvatarKey, PROFILE_AVATARS, resolveProfileAvatarImage } from '../lib/profileAvatars';
 import { getProfileCover, PROFILE_COVER_PRESETS } from '../lib/profileCovers';
 import { DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, getProfileAvatarBackground, normalizeProfileAvatarBackgroundKey, PROFILE_AVATAR_BACKGROUNDS } from '@shared/profileAppearance';
-import { COMPETITION_RANKING_POINTS } from '../lib/competitionRanking';
+import { COMPETITION_RANKING_POINTS } from '@shared/game/competitionRanking';
 import ReportPage from './ReportPage';
 import { cn } from '../lib/utils';
 import {
@@ -164,8 +164,8 @@ function RecordPlayerCardVisual({ player, playerId, photoUrl, name, effectiveSta
 }) {
   return player ? <PlayerCard player={player} effectiveStats={effectiveStats ?? undefined} scale={0.55} lite /> : <div className="flex h-[178px] w-[110px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-[var(--ui-line-strong)] bg-[var(--ui-surface)] p-2 text-center">
     <PlayerAvatar playerId={playerId} photoUrl={photoUrl ?? undefined} size={64} rounded="rounded-lg" ring={false} fallback={<Trophy size={20} aria-hidden="true" className="text-[var(--ui-text-muted)]" />} />
-    <span className="text-[10px] font-semibold leading-tight text-[var(--ui-text-muted)]">Carta final indisponível</span>
-    <span className="max-w-full truncate text-[9px] text-[var(--ui-text-faint)]">{name}</span>
+    <span className="text-[12px] font-semibold leading-tight text-[var(--ui-text-muted)]">Carta final indisponível</span>
+    <span className="max-w-full truncate text-[11px] text-[var(--ui-text-faint)]">{name}</span>
   </div>;
 }
 
@@ -189,8 +189,8 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
                 sizeClassName="size-9"
               />
               <div className="min-w-0">
-                <span className="block text-[9px] uppercase tracking-wider text-[var(--ui-text-faint)]">Recorde por</span>
-                <span className="block truncate text-[11px] text-[var(--ui-text-muted)]">@{record.username_snapshot}</span>
+                <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Recorde por</span>
+                <span className="block truncate text-[13px] text-[var(--ui-text-muted)]">@{record.username_snapshot}</span>
               </div>
             </div>
           </div>
@@ -198,18 +198,18 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
         <div className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/70 px-2 py-1.5">
           <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={24} className="shrink-0 rounded-full" />
           <div className="min-w-0">
-            <span className="block text-[9px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
+            <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
             <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
           </div>
         </div>
         <div className="mt-2 flex min-w-0 items-end justify-between gap-2">
           <div className="min-w-0">
-            <span className="block text-[9px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
+            <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
             <time className="block truncate text-xs text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
           </div>
           <div className="shrink-0 text-right">
             <div className="font-display text-xl leading-none tabular-nums text-[var(--ui-brand-strong)] sm:text-2xl">{record.value}</div>
-            <div className="mt-1 text-[9px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</div>
+            <div className="mt-1 text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</div>
           </div>
         </div>
       </div>
@@ -238,7 +238,7 @@ function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number
       </div>
       <div className="shrink-0 text-right">
         <div className="font-display text-2xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{entry.points}</div>
-        <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--ui-text-faint)]">pontos</div>
+        <div className="mt-1 text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">pontos</div>
       </div>
     </article>
   );
@@ -259,26 +259,26 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
           </div>
           {record && rankPosition ? <div role="status" aria-label={`${rankPosition}ª posição no ranking geral de ${meta.label.toLowerCase()}`} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--ui-brand)]/30 bg-[var(--ui-brand-soft)] px-2 py-1 text-[var(--ui-brand-strong)]">
             <span className="font-display text-base leading-none tabular-nums">#{rankPosition}</span>
-            <span className="text-[8px] uppercase leading-none tracking-wider">no geral</span>
-          </div> : record ? <span className="shrink-0 rounded-lg border border-[var(--ui-line-subtle)] px-2 py-1 text-[9px] text-[var(--ui-text-faint)]">posição indisponível</span> : null}
+            <span className="text-[10px] uppercase leading-none tracking-wider">no geral</span>
+          </div> : record ? <span className="shrink-0 rounded-lg border border-[var(--ui-line-subtle)] px-2 py-1 text-[11px] text-[var(--ui-text-faint)]">posição indisponível</span> : null}
         </div>
         {record ? <>
           <div className="mt-2 flex min-w-0 items-baseline justify-between gap-2">
             <strong className="min-w-0 truncate text-xs font-semibold text-[var(--ui-text-soft)]">{record.player_name}</strong>
             <div className="shrink-0 text-right">
               <strong className="font-display text-xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{record.value.toLocaleString('pt-BR')}</strong>
-              <span className="ml-1 text-[9px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
+              <span className="ml-1 text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
             </div>
           </div>
           <div className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/70 px-2 py-1.5">
             <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={24} className="shrink-0 rounded-full" />
             <div className="min-w-0">
-              <span className="block text-[9px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
+              <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
               <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
             </div>
           </div>
           <div className="mt-2">
-            <span className="block text-[9px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
+            <span className="block text-[11px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
             <time className="block text-xs text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
           </div>
         </> : <span className="mt-2 block text-xs text-[var(--ui-text-muted)]">Ainda sem marca registrada</span>}
@@ -402,8 +402,8 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
                   <span className="min-w-0 truncate font-display text-xl font-bold leading-tight text-[var(--ui-text)] sm:text-2xl">{entry.team_name}</span>
                 </span>
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                  <Badge tone={champion ? 'brand' : 'default'} className="px-2 py-1 text-[10px]">{finishLabel}</Badge>
-                  {summaryOnly ? <Badge className="px-2 py-1 text-[10px]">RESUMO</Badge> : null}
+                  <Badge tone={champion ? 'brand' : 'default'} className="px-2 py-1 text-[12px]">{finishLabel}</Badge>
+                  {summaryOnly ? <Badge className="px-2 py-1 text-[12px]">RESUMO</Badge> : null}
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums text-[var(--ui-text-muted)]">
                     <CalendarDays size={13} aria-hidden="true" />
                     {formatDate(entry.completed_at)}
@@ -848,8 +848,8 @@ export default function AccountPage() {
                         return <article key={friend.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                           <Button type="button" intent="ghost" aria-label={`Ver perfil de ${person.name}`} title={`Ver perfil de ${person.name}`} onClick={() => void viewFriendProfile(person.username)} className="group flex h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 rounded-lg border-0 bg-transparent p-0 text-left normal-case font-normal tracking-normal hover:translate-y-0 hover:border-transparent hover:bg-transparent">
                             <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} />
-                            <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{person.name}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className="mt-1 block text-[10px] text-[var(--ui-brand-strong)]">Amigos desde {formatDate(friend.updated_at)}</span></span>
-                            <span className="hidden shrink-0 text-[10px] font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
+                            <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{person.name}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className="mt-1 block text-[12px] text-[var(--ui-brand-strong)]">Amigos desde {formatDate(friend.updated_at)}</span></span>
+                            <span className="hidden shrink-0 text-[12px] font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
                             <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-[var(--ui-text-faint)]" />
                           </Button>
                           <Button intent="ghost" aria-label={`Remover ${person.name} dos amigos`} title={`Remover ${person.name}`} disabled={busy} onClick={() => void actFriend(friend.id, 'remove')} className="size-10 min-h-10 shrink-0 px-0"><X size={16} aria-hidden="true" /></Button>

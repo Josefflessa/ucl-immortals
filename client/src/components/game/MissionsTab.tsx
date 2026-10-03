@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Clock3, LockKeyhole, RefreshCw, ScrollText, Trash2, Trophy } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
-import { projectLevel } from '../../lib/clubProjects';
+import { projectLevel } from '@shared/game/clubProjects';
 import {
   MAX_ACTIVE_MISSIONS,
   MISSION_MAP,
@@ -11,7 +11,7 @@ import {
   missionDeadline,
   missionReward,
   missionRemovalCost,
-} from '../../lib/missions';
+} from '@shared/game/missions';
 import { Button, ConfirmDialog, Progress } from '../../design-system';
 
 function deadlineLabel(matches: number): string {
@@ -66,7 +66,7 @@ function MissionCard({
             <h3 className="text-lg font-black tracking-wide text-balance text-white sm:text-xl" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
               {definition.title}
             </h3>
-            <span className="rounded px-1.5 py-0.5 text-[11px] font-black tracking-widest" style={{ color: rarity.color, background: `${rarity.color}18`, fontFamily: 'Rajdhani, sans-serif' }}>
+            <span className="rounded px-1.5 py-0.5 text-[13px] font-black tracking-widest" style={{ color: rarity.color, background: `${rarity.color}18`, fontFamily: 'Rajdhani, sans-serif' }}>
               {rarity.label}
             </span>
           </div>

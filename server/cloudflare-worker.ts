@@ -17,7 +17,7 @@ import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './rea
 import { ACCOUNT_PRESENCE_TTL_MS, ROOM_INVITATION_TTL_MS, authenticatedAccount, handleAccountRequest } from './account-api.js';
 import { persistCompletedCompetition } from './competition-persistence.js';
 import { cloneRoomJson } from '../shared/room-sync.js';
-import { MAX_ONLINE_PLAYERS } from '../client/src/lib/competition.js';
+import { MAX_ONLINE_PLAYERS } from '../shared/game/competition.js';
 import {
   MAX_REALTIME_MESSAGE_BYTES,
   encodeRealtimeMessage,

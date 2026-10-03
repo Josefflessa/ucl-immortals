@@ -1,13 +1,13 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PLAYERS } from './gameData';
+import { PLAYERS } from '@shared/game/gameData';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from './playerPhotoCatalog';
 import {
   MAJOR_LEAGUE_CATALOG_EXPANSION,
   MAJOR_LEAGUE_CATALOG_EXPANSION_LIVE,
   MAJOR_LEAGUE_CATALOG_EXCLUDED_IDS,
-} from './majorLeagueCatalogExpansion';
+} from '@shared/game/players/majorLeagueCatalogExpansion';
 
 describe('major league catalog expansion', () => {
   it('keeps the audited source expansion at 94 cards', () => {

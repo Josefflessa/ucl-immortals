@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Scissors, X } from 'lucide-react';
-import type { Player } from '../../lib/gameData';
-import { PLAYER_PACK_META, type PlayerPackRarity } from '../../lib/shop';
+import type { Player } from '@shared/game/gameData';
+import { PLAYER_PACK_META, type PlayerPackRarity } from '@shared/game/shop';
 import { Button } from '../../design-system';
 import PlayerCard from './PlayerCard';
 
@@ -188,7 +188,7 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
           {stage === 'sealed' && (
             <motion.section key="sealed" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} className="flex w-full flex-col items-center">
               <div className="mb-5 text-center sm:mb-7">
-                <div className="text-[11px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'Rajdhani, sans-serif' }}>UMA CARTA. UMA ABERTURA.</div>
+                <div className="text-[13px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'Rajdhani, sans-serif' }}>UMA CARTA. UMA ABERTURA.</div>
                 <p className="mt-2 text-xs" style={{ color: MUTED, fontFamily: 'Rajdhani, sans-serif' }}>Rasgue a aba superior para começar.</p>
               </div>
               <motion.div
@@ -199,11 +199,11 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
               >
                 <PackFront rarity={rarity} cutProgress={cutProgress} isTearing={isTearing} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} />
               </motion.div>
-              <div className="mt-5 flex items-center gap-2 text-[10px] font-bold tracking-[0.16em]" style={{ color: '#777487', fontFamily: 'Rajdhani, sans-serif' }}>
+              <div className="mt-5 flex items-center gap-2 text-[12px] font-bold tracking-[0.16em]" style={{ color: '#777487', fontFamily: 'Rajdhani, sans-serif' }}>
                 <ArrowRight size={14} />
                 <span>{cutProgress > 0 ? 'CONTINUE DESLIZANDO' : 'DESLIZE DA ESQUERDA PARA A DIREITA'}</span>
               </div>
-              <button type="button" onClick={skipCut} className="mt-4 text-[10px] font-bold tracking-[0.14em] transition-colors hover:text-[#E8C84A]" style={{ color: '#656273', fontFamily: 'Rajdhani, sans-serif' }}>
+              <button type="button" onClick={skipCut} className="mt-4 text-[12px] font-bold tracking-[0.14em] transition-colors hover:text-brand-strong" style={{ color: '#656273', fontFamily: 'Rajdhani, sans-serif' }}>
                 ABRIR SEM ANIMAÇÃO
               </button>
             </motion.section>
@@ -211,7 +211,7 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
 
           {stage === 'revealed' && (
             <motion.section key="revealed" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="flex w-full flex-col items-center">
-              <div className="mb-4 text-[11px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'Rajdhani, sans-serif' }}>CARTA {meta.label} REVELADA</div>
+              <div className="mb-4 text-[13px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'Rajdhani, sans-serif' }}>CARTA {meta.label} REVELADA</div>
               <motion.div initial={{ rotateY: 90, scale: .82, opacity: 0 }} animate={{ rotateY: 0, scale: 1, opacity: 1 }} transition={{ duration: .78, ease: [0.22, 1, 0.36, 1] }} className="mx-auto flex w-fit justify-center" style={{ perspective: 1200 }}>
                 <PlayerCard player={card} lite scale={1.18} />
               </motion.div>
