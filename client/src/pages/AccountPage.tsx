@@ -405,10 +405,10 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                   <Badge tone={champion ? 'brand' : 'default'} className="px-2 py-1 text-[12px]">{finishLabel}</Badge>
                   {summaryOnly ? <Badge className="px-2 py-1 text-[12px]">RESUMO</Badge> : null}
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums text-[var(--ui-text-muted)]">
-                    <CalendarDays size={13} aria-hidden="true" />
-                    {formatDate(entry.completed_at)}
-                  </span>
+                </span>
+                <span className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums text-[var(--ui-text-muted)]">
+                  <CalendarDays size={13} aria-hidden="true" />
+                  {formatDate(entry.completed_at)}
                 </span>
                 {entry.mode === 'online' && hasFinishStage && entry.placement ? (
                   <span className="mt-2 block border-t border-[var(--ui-line-subtle)] pt-2 text-xs text-[var(--ui-text-muted)]">Classificação na liga: <strong className="text-[var(--ui-text)]">{entry.placement}º lugar</strong></span>

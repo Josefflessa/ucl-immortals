@@ -79,7 +79,7 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
   ] as const;
   return (
     <AppShell immersive className="flex flex-col overflow-x-hidden">
-      <TopBar title="UCL IMMORTALS — FIM DE TEMPORADA" right={onBack ? <Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO</Button> : undefined} />
+      <TopBar right={onBack ? <Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO</Button> : undefined} />
       <div className="relative z-10 flex flex-col items-center justify-center px-4 py-10 text-center sm:py-14">
         <div className="mb-4 select-none text-6xl">{entry.champion ? '🏆' : '🏅'}</div>
         <h1 className="font-display text-5xl text-[var(--ui-text)] sm:text-7xl">{entry.champion ? 'CAMPEÃO!' : 'CAMPANHA ENCERRADA'}</h1>
@@ -429,7 +429,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
       <TopBar
-        title="UCL IMMORTALS — FIM DE TEMPORADA"
+        title={historyEntry ? undefined : 'UCL IMMORTALS — FIM DE TEMPORADA'}
         right={historyEntry && onHistoryBack ? (
           <Button type="button" intent="ghost" onClick={onHistoryBack}>
             <ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO

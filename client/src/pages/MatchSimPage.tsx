@@ -228,7 +228,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           setAwayScore(s => s + rg.awayGoalDelta);
           setEvents(prev => [...prev, ...rg.goalEvents]);
           if (rg.goalAlert) {
-            showGoalAlert(rg.goalAlert, goalFavoursViewer(rg.goalAlert.teamId) ? GOAL_CELEBRATION_MS.mine : GOAL_CELEBRATION_MS.against);
+            showGoalAlert(rg.goalAlert, broadcastMode
+              ? GOAL_CELEBRATION_MS.online
+              : goalFavoursViewer(rg.goalAlert.teamId) ? GOAL_CELEBRATION_MS.mine : GOAL_CELEBRATION_MS.against);
           }
           setMomentum(m => {
             const next = Math.min(100, Math.max(0, m + rg.momentumShift));
