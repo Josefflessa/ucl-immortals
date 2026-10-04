@@ -144,7 +144,7 @@ export function AchievementMedal({ id, level, size = 48 }: { id: string; level: 
         }}
       />
       {locked ? (
-        <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]">
+        <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)]">
           <Lock size={11} className="text-[var(--ui-text-faint)]" />
         </span>
       ) : null}
@@ -185,7 +185,7 @@ export function AchievementTile({ state, rarity, className }: { state: Achieveme
           <strong className="min-w-0 break-words text-sm leading-tight text-[var(--ui-text)]">{definition.name}</strong>
           <span
             className="rounded px-1.5 py-0.5 text-[11px] font-black uppercase leading-none tracking-wider"
-            style={{ color: tier ? color : 'var(--ui-text-faint)', background: tier ? `color-mix(in srgb, ${color} 14%, transparent)` : 'var(--ui-surface)' }}
+            style={{ color: tier ? color : 'var(--ui-text-faint)', background: tier ? `color-mix(in srgb, ${color} 14%, transparent)` : 'var(--ui-surface-2)' }}
           >
             {tier ? ACHIEVEMENT_TIER_LABELS[tier] : 'Bloqueada'}
           </span>
@@ -193,16 +193,15 @@ export function AchievementTile({ state, rarity, className }: { state: Achieveme
         <p className="mt-1 text-xs leading-snug text-[var(--ui-text-muted)]">
           {maxed ? `Nível máximo · ${achievementGoalText(definition, 3)}` : achievementGoalText(definition, state.level)}
         </p>
-        {!maxed ? (
-          <div className="mt-2 flex items-center gap-2">
-            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--ui-surface)]" role="progressbar" aria-valuemin={0} aria-valuemax={nextThreshold} aria-valuenow={Math.min(state.progress, nextThreshold)}>
-              <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: state.level > 0 ? color : 'var(--ui-text-faint)' }} />
-            </div>
-            <span className="shrink-0 text-[11px] font-bold tabular-nums text-[var(--ui-text-soft)]">
-              {Math.min(state.progress, nextThreshold).toLocaleString('pt-BR')}/{nextThreshold.toLocaleString('pt-BR')}
-            </span>
+        {/* Every card keeps its bar; at the top level it stays full. */}
+        <div className="mt-2 flex items-center gap-2">
+          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--ui-surface-3)]" role="progressbar" aria-valuemin={0} aria-valuemax={nextThreshold} aria-valuenow={maxed ? nextThreshold : Math.min(state.progress, nextThreshold)}>
+            <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: state.level > 0 ? color : 'var(--ui-text-faint)' }} />
           </div>
-        ) : null}
+          <span className="shrink-0 text-[11px] font-bold tabular-nums" style={{ color: maxed ? color : 'var(--ui-text-soft)' }}>
+            {maxed ? 'MÁX' : `${Math.min(state.progress, nextThreshold).toLocaleString('pt-BR')}/${nextThreshold.toLocaleString('pt-BR')}`}
+          </span>
+        </div>
         {detail ? <p className="mt-1 truncate text-[11px] font-bold text-[var(--ui-text-soft)]">{detail}</p> : null}
         {rarityText ? <p className="mt-1.5 text-[11px] text-[var(--ui-text-faint)]">{rarityText}</p> : null}
       </div>
@@ -254,20 +253,26 @@ function findRecord(records: ProfileRecordEntry[], item: ShowcaseItem & { type: 
 }
 
 /** The mural: the player's chosen highlights (or an automatic pick). */
-export function ShowcaseSection({ payload, records, onEdit, emptyText }: {
+export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRecord }: {
   payload: AchievementsPayload;
   records: ProfileRecordEntry[];
   onEdit?: () => void;
   emptyText: string;
+  /** Full card for a pinned record; without it the compact tile is used. */
+  renderRecord?: (record: ProfileRecordEntry) => ReactNode;
 }) {
   const states = new Map(payload.achievements.map(state => [state.id, state]));
   const tiles = payload.showcase.items.flatMap<ReactNode>(item => {
-    if (item.type === 'achievement') {
-      const state = states.get(item.id);
-      return state && state.level > 0 ? [<AchievementShowcaseTile key={showcaseKey(item)} state={state} rarity={payload.rarity} />] : [];
-    }
+    if (item.type !== 'achievement') return [];
+    const state = states.get(item.id);
+    return state && state.level > 0 ? [<AchievementShowcaseTile key={showcaseKey(item)} state={state} rarity={payload.rarity} />] : [];
+  });
+  // Records are wide cards, so they get their own list under the achievement tiles.
+  const recordCards = payload.showcase.items.flatMap<ReactNode>(item => {
+    if (item.type !== 'record') return [];
     const record = findRecord(records, item);
-    return record ? [<RecordShowcaseTile key={showcaseKey(item)} record={record} />] : [];
+    if (!record) return [];
+    return [renderRecord ? <div key={showcaseKey(item)}>{renderRecord(record)}</div> : <RecordShowcaseTile key={showcaseKey(item)} record={record} />];
   });
   return (
     <section aria-label="Mural" className="space-y-3">
@@ -283,8 +288,10 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText }: {
       <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">
         {payload.showcase.automatic ? 'Destaques escolhidos automaticamente entre as conquistas e recordes.' : 'Conquistas e recordes em destaque.'}
       </p>
-      {tiles.length > 0
-        ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{tiles}</div>
+      {tiles.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{tiles}</div> : null}
+      {recordCards.length > 0 ? <div className={renderRecord ? 'grid grid-cols-1 gap-3 lg:grid-cols-2' : 'grid grid-cols-2 gap-2 sm:grid-cols-3'}>{recordCards}</div> : null}
+      {tiles.length > 0 || recordCards.length > 0
+        ? null
         : <div className="rounded-xl border border-dashed border-[var(--ui-line-strong)] p-4 text-center text-xs text-[var(--ui-text-muted)]">{emptyText}</div>}
     </section>
   );

@@ -255,7 +255,7 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   { id: 'top_scorer', name: 'Artilheiro', category: 'campaign', metric: 'bestPlayerGoals', thresholds: [10, 15, 20, 30], goal: n => `Tenha um jogador com ${n} gols numa competição` },
   { id: 'maestro', name: 'Maestro', category: 'campaign', metric: 'bestPlayerAssists', thresholds: [8, 12, 16, 22], goal: n => `Tenha um jogador com ${n} assistências numa competição` },
   { id: 'brick_keeper', name: 'Paredão', category: 'campaign', metric: 'bestKeeperSaves', thresholds: [25, 40, 55, 75], goal: n => `Tenha um goleiro com ${n} defesas numa competição` },
-  { id: 'galactic_squad', name: 'Elenco Galáctico', category: 'campaign', metric: 'bestPlayerOverall', thresholds: [100, 115, 130, 150], goal: n => `Tenha um jogador com geral efetivo ${n}` },
+  { id: 'galactic_squad', name: 'Elenco Galáctico', category: 'campaign', metric: 'bestPlayerOverall', thresholds: [100, 115, 130, 150], goal: n => `Tenha um jogador com geral efetivo ${n} numa competição` },
   { id: 'qualified', name: 'Classificado', category: 'campaign', metric: 'qualified', thresholds: [5, 25, 80, 200], goal: n => `Passe da fase de liga ${n} vezes` },
   { id: 'consistency', name: 'Regularidade', category: 'campaign', metric: 'bestQualifiedStreak', thresholds: [3, 5, 10, 20], goal: n => `Passe da fase de liga em ${n} competições seguidas` },
   // Carreira

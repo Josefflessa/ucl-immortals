@@ -9,7 +9,6 @@ import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import DifficultyEmblem from '../components/game/DifficultyEmblem';
 import { cn } from '../lib/utils';
-import { competitionStagePoints, DIFFICULTY_POINT_WEIGHT_PERCENT, isRankedDifficulty } from '@shared/game/competitionRanking';
 import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 export default function SetupPage() {
@@ -68,10 +67,7 @@ export default function SetupPage() {
           <SectionHeader
             kicker="NÍVEL DA COMPETIÇÃO"
             title="Escolha a dificuldade"
-            description={[
-              isOnlineRoomCreation ? 'Define a força dos bots que completarão a competição da sala.' : 'Define a força dos times controlados pela IA na competição.',
-              account ? 'No ranking, cada fase vale mais quanto maior a dificuldade.' : '',
-            ].filter(Boolean).join(' ')}
+            description={isOnlineRoomCreation ? 'Define a força dos bots que completarão a competição da sala.' : 'Define a força dos times controlados pela IA na competição.'}
             className="mb-8"
           />
 
@@ -112,17 +108,10 @@ export default function SetupPage() {
                       {diff.description}
                     </p>
                     {/* Medidor visual do nível selecionado */}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
-                      <div className="flex gap-1">
-                        {Array.from({ length: 5 }).map((_, k) => (
-                          <div key={k} style={{ width: 17, height: 5, borderRadius: 3, background: k < level ? color : '#22222F' }} />
-                        ))}
-                      </div>
-                      {account && isRankedDifficulty(diff.id) ? (
-                        <span className="text-[12px] font-bold" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
-                          RANKING {DIFFICULTY_POINT_WEIGHT_PERCENT[diff.id]}% · TÍTULO {competitionStagePoints('champion', diff.id)} PTS
-                        </span>
-                      ) : null}
+                    <div className="flex gap-1 mt-2">
+                      {Array.from({ length: 5 }).map((_, k) => (
+                        <div key={k} style={{ width: 17, height: 5, borderRadius: 3, background: k < level ? color : '#22222F' }} />
+                      ))}
                     </div>
                   </div>
 

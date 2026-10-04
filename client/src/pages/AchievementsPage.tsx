@@ -3,13 +3,13 @@
 // home screen; any unlocked achievement can also be pinned to the profile mural.
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { useAccount, type AchievementsPayload } from '../contexts/AccountContext';
 import AccountTabBar from '../components/account/AccountTabBar';
 import { AchievementsSection } from '../components/account/Achievements';
 import { ACHIEVEMENTS } from '@shared/game/achievements';
-import { AppShell, Button, Metric, PageContainer, SectionHeader, Skeleton, StatusBanner, TopBar } from '../design-system';
+import { AppShell, Button, PageContainer, SectionHeader, Skeleton, StatusBanner, TopBar } from '../design-system';
+import { cn } from '../lib/utils';
 
 export default function AchievementsPage() {
   const { dispatch } = useGame();
@@ -35,25 +35,20 @@ export default function AchievementsPage() {
   }, [accountId, attempt, getOwnAchievements]);
 
   const unlocked = payload?.achievements.filter(state => state.level > 0).length ?? 0;
-  const legendary = payload?.achievements.filter(state => state.level === 4).length ?? 0;
 
   return (
     <AppShell>
-      <TopBar
-        right={(
-          <Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="px-3 text-xs sm:px-4">
-            <ArrowLeft size={15} aria-hidden="true" />
-            <span className="hidden sm:inline">VOLTAR AO MENU</span>
-            <span className="sm:hidden">VOLTAR</span>
-          </Button>
-        )}
-      />
-      <PageContainer wide className="space-y-5 pb-28 pt-7 sm:pb-28 sm:pt-10">
+      <TopBar title="UCL IMMORTALS" />
+      {/* Same shell and header as the other account screens (history, friends). */}
+      <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
         <SectionHeader
-          kicker="CARREIRA"
           title="Conquistas"
-          description="Metas de carreira em 4 níveis: Bronze, Prata, Ouro e Lendário. Uma conquista desbloqueada é sua para sempre e pode ser fixada no mural do perfil."
           className="mb-0"
+          actions={payload ? (
+            <span role="status" aria-label={`${unlocked} de ${ACHIEVEMENTS.length} conquistas desbloqueadas`} className={cn('font-display whitespace-nowrap text-[clamp(30px,5vw,46px)] font-normal leading-[0.98] tabular-nums', unlocked > 0 ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text-muted)]')}>
+              {unlocked}<span className="text-[0.55em] text-[var(--ui-text-muted)]">/{ACHIEVEMENTS.length}</span>
+            </span>
+          ) : undefined}
         />
         {error ? (
           <StatusBanner tone="danger" title="Não foi possível carregar as conquistas">
@@ -62,17 +57,10 @@ export default function AchievementsPage() {
           </StatusBanner>
         ) : !payload ? (
           <div className="space-y-3" aria-label="Carregando conquistas">
-            <div className="grid grid-cols-2 gap-2">{Array.from({ length: 2 }, (_, index) => <Skeleton key={index} className="h-[84px] w-full rounded-xl" />)}</div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-[104px] w-full rounded-xl" />)}</div>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <Metric label="Desbloqueadas" value={`${unlocked}/${ACHIEVEMENTS.length}`} detail="conquistas" tone="brand" />
-              <Metric label="Nível Lendário" value={legendary} detail="no nível máximo" />
-            </div>
-            <AchievementsSection payload={payload} heading={false} />
-          </>
+          <AchievementsSection payload={payload} heading={false} />
         )}
       </PageContainer>
       {account ? <AccountTabBar
