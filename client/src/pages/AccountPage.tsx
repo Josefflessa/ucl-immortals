@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Image as ImageIcon, Info, LogIn, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Image as ImageIcon, Info, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useAccount, type AccountStats, type CompetitionHistoryEntry, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
@@ -16,6 +16,7 @@ import {
   AppShell,
   Badge,
   Button,
+  ConfirmDialog,
   EmptyState,
   GameModal,
   Input,
@@ -455,7 +456,7 @@ function CareerFinishBreakdown({ counts }: { counts: AccountStats['finishCounts'
 
 export default function AccountPage() {
   const { state, dispatch } = useGame();
-  const { account, loading, refreshProfileIfStale, login, register, updateProfile, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
   const accountId = account?.id ?? null;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
@@ -483,6 +484,21 @@ export default function AccountPage() {
   const [ownRecordsLoading, setOwnRecordsLoading] = useState(false);
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [pointsInfoOpen, setPointsInfoOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
+  const handleLogout = async () => {
+    setLogoutBusy(true);
+    setLogoutError('');
+    try {
+      await logout();
+      dispatch({ type: 'SET_PHASE', phase: 'menu' });
+    } catch {
+      setLogoutError('Não foi possível sair da conta. Tente novamente.');
+    } finally {
+      setLogoutBusy(false);
+    }
+  };
   const friendProfileRequestId = useRef(0);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [appearanceTab, setAppearanceTab] = useState<'avatar' | 'cover'>('avatar');
@@ -737,8 +753,24 @@ export default function AccountPage() {
 
   return (
     <AppShell>
-      <TopBar title="UCL IMMORTALS" />
+      {/* Leaving the account is rare, so it lives on the profile (top right), not on the home screen. */}
+      <TopBar
+        title="UCL IMMORTALS"
+        right={tab === 'profile' ? (
+          <Button
+            type="button"
+            intent="ghost"
+            loading={logoutBusy}
+            onClick={() => setLogoutConfirmOpen(true)}
+            aria-label="Sair da conta"
+            className="min-h-9 border border-[var(--ui-danger)]/40 px-3 text-xs text-[var(--ui-danger)] hover:bg-[var(--ui-danger)]/10"
+          >
+            {!logoutBusy ? <LogOut size={15} aria-hidden="true" /> : null} SAIR
+          </Button>
+        ) : undefined}
+      />
       <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
+        {logoutError ? <StatusBanner tone="danger" title="Não foi possível sair">{logoutError}</StatusBanner> : null}
         {tab === 'profile' ? <Panel className="relative isolate overflow-hidden" style={coverStyle}>
           <div className="relative h-36 sm:h-44">
             <Button type="button" intent="ghost" onClick={openAppearanceEditor} className="absolute right-4 top-4 z-10 min-h-9 border border-white/20 bg-black/60 px-3 text-xs text-white hover:bg-black/75">
@@ -770,6 +802,14 @@ export default function AccountPage() {
               records={ownRecords}
               recordsLoading={ownRecordsLoading}
               recordsError={ownRecordsError}
+            />
+            <ConfirmDialog
+              open={logoutConfirmOpen}
+              onOpenChange={setLogoutConfirmOpen}
+              title="Sair da conta?"
+              description="Seu histórico, recordes e campanha salva continuam guardados na sua conta."
+              confirmLabel="Sair"
+              onConfirm={() => { setLogoutConfirmOpen(false); void handleLogout(); }}
             />
           </TabPanel>
 

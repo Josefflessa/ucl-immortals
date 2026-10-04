@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Check, Gamepad2, Info, Play, Trophy, Plus, LogIn, LogOut, LibraryBig, Send, UserRound, Users, X } from 'lucide-react';
+import { Bell, Check, Gamepad2, Info, Play, Trophy, Plus, LogIn, LibraryBig, Send, UserRound, Users, X } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import AccountTabBar from '../components/account/AccountTabBar';
 import { useGame, type SavedSoloCampaign } from '../contexts/GameContext';
@@ -11,6 +11,8 @@ import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
 import { COMPETITION_FORMAT_PRESETS, competitionFormatSummary, createCompetitionFormat } from '@shared/game/competition';
 import { cn } from '../lib/utils';
+import { resolveProfileAvatarImage } from '../lib/profileAvatars';
+import { getProfileAvatarBackground } from '@shared/profileAppearance';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, IconButton, Input, Panel, StatusBanner } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
@@ -52,7 +54,6 @@ export default function MenuPage() {
   const {
     account,
     loading: accountLoading,
-    logout,
     getFriends,
     inviteFriendToRoom,
     updateFriendship,
@@ -62,8 +63,6 @@ export default function MenuPage() {
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
-  const [logoutBusy, setLogoutBusy] = useState(false);
-  const [logoutError, setLogoutError] = useState('');
   const [guestModeInfoOpen, setGuestModeInfoOpen] = useState(false);
   const [friendships, setFriendships] = useState<FriendshipEntry[]>([]);
   const [incomingFriendRequestCount, setIncomingFriendRequestCount] = useState(0);
@@ -134,6 +133,7 @@ export default function MenuPage() {
   const incomingFriendRequests = account
     ? friendships.filter(friendship => friendship.status === 'pending' && friendship.addressee_id === account.id)
     : [];
+  const profileImage = account ? account.avatarUrl || resolveProfileAvatarImage(account.avatarKey) : null;
   const acceptedFriends = account
     ? friendships.filter(friendship => friendship.status === 'accepted')
     : [];
@@ -207,18 +207,6 @@ export default function MenuPage() {
   const handleJoinRoom = () => {
     if (!playerName.trim() || !roomCodeInput.trim()) return;
     joinRoom(roomCodeInput.trim().toUpperCase(), playerName.trim());
-  };
-
-  const handleLogout = async () => {
-    setLogoutBusy(true);
-    setLogoutError('');
-    try {
-      await logout();
-    } catch {
-      setLogoutError('Não foi possível sair da conta. Tente novamente.');
-    } finally {
-      setLogoutBusy(false);
-    }
   };
 
   const handleRoomAction = (action: RoomMenuAction) => {
@@ -493,20 +481,24 @@ export default function MenuPage() {
               ) : null}
             </Button>
           </div>
-          <div className="absolute right-4 top-4 z-20 flex flex-col items-end sm:right-6 sm:top-6">
-            <Button
+          {/* The profile lives here instead of the tab bar: photo + name, top right. */}
+          <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+            <button
               type="button"
-              intent="danger"
-              aria-label="Sair da conta"
-              title="Sair da conta"
-              disabled={accountLoading}
-              loading={logoutBusy}
-              onClick={() => void handleLogout()}
-              className="size-11 min-h-11 w-11 justify-center rounded-full border border-[var(--ui-danger)]/50 p-0"
+              aria-label="Abrir perfil"
+              onClick={() => dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'profile' })}
+              className="flex min-h-11 max-w-[11rem] items-center gap-2 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 py-1 pl-1 pr-3.5 transition-colors hover:border-[var(--ui-brand)]/50 sm:max-w-[14rem]"
             >
-              {!logoutBusy ? <LogOut size={19} aria-hidden="true" /> : null}
-            </Button>
-            {logoutError ? <div role="alert" className="mt-2 max-w-64 rounded-md border border-[var(--ui-danger)]/40 bg-[var(--ui-surface)] px-3 py-2 text-xs text-[var(--ui-danger)]">{logoutError}</div> : null}
+              <span
+                aria-hidden="true"
+                className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-brand)]/60 text-xs font-bold text-[var(--ui-text)]"
+                style={{ backgroundColor: getProfileAvatarBackground(account.avatarBackgroundKey).color }}
+              >
+                {account.displayName.trim().charAt(0).toUpperCase()}
+                {profileImage ? <img src={profileImage} alt="" className={cn('absolute inset-0 size-full', account.avatarUrl ? 'object-cover' : 'object-contain')} onError={event => { event.currentTarget.style.display = 'none'; }} /> : null}
+              </span>
+              <span className="truncate text-xs font-bold text-[var(--ui-text)]">{account.displayName}</span>
+            </button>
           </div>
         </>
       ) : (

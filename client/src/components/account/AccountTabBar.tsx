@@ -1,4 +1,4 @@
-import { Clock3, House, Trophy, UserRound, Users } from 'lucide-react';
+import { Clock3, House, Trophy, Users } from 'lucide-react';
 import { Button } from '../../design-system';
 import type { AccountSection } from '../../contexts/GameContext';
 import { cn } from '../../lib/utils';
@@ -13,7 +13,6 @@ interface AccountTabBarProps {
 
 const NAV_ITEMS: Array<{ id: AccountNavigationTab; label: string; ariaLabel: string; icon: typeof House }> = [
   { id: 'home', label: 'INÍCIO', ariaLabel: 'Ir para o início', icon: House },
-  { id: 'profile', label: 'PERFIL', ariaLabel: 'Abrir perfil', icon: UserRound },
   { id: 'history', label: 'HISTÓRICO', ariaLabel: 'Abrir histórico', icon: Clock3 },
   { id: 'records', label: 'RANKINGS', ariaLabel: 'Abrir rankings', icon: Trophy },
   { id: 'friends', label: 'AMIGOS', ariaLabel: 'Abrir amigos', icon: Users },
@@ -26,7 +25,7 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
       className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
     >
-      <div className="mx-auto grid max-w-md grid-cols-5">
+      <div className="mx-auto grid max-w-md grid-cols-4">
         {NAV_ITEMS.map(({ id, label, ariaLabel, icon: Icon }) => {
           const selected = active === id;
           const accessibleLabel = id === 'friends' && incomingFriendRequestCount > 0
