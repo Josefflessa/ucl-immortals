@@ -18,6 +18,7 @@ export type GamePhase =
   | 'menu'           // Home screen
   | 'account'        // Account, profile, records and friends
   | 'album'          // Player album / catalog
+  | 'achievements'   // Account achievements
   | 'lobby'          // Multiplayer lobby
   | 'format'         // Choose the tournament format
   | 'setup'          // Choose name, difficulty

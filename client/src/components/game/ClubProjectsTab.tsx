@@ -17,6 +17,7 @@ import {
 } from '@shared/game/clubProjects';
 import { formationAdvantageColorForAnalysisLevel } from '@shared/game/gameEngine';
 import type { ClubProjectId } from '@shared/game/clubProjects';
+import CoinIcon from './CoinIcon';
 
 function ProjectLevelBar({ level, color }: { level: number; color: string }) {
   return (
@@ -38,6 +39,22 @@ function formatProjectCopy(projectId: string, text: string): ReactNode {
     /^(leve|clara|forte)$/i.test(part)
       ? <strong key={`${part}-${index}`} className="font-black" style={{ color: formationAdvantageColorForAnalysisLevel(part.toLowerCase() === 'forte' ? 5 : part.toLowerCase() === 'clara' ? 3 : 1) }}>{part}</strong>
       : part,
+  );
+}
+
+/** Badge artwork per club project (public/projects). */
+function ProjectArt({ id, size }: { id: string; size: number }) {
+  return (
+    <img
+      src={`/projects/${id}.webp`}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      width={size}
+      height={size}
+      className="pointer-events-none shrink-0 select-none drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+      style={{ width: size, height: size }}
+    />
   );
 }
 
@@ -129,13 +146,7 @@ export default function ClubProjectsTab() {
             >
               <div className="absolute inset-x-0 top-0 h-1" style={{ background: project.color }} />
               <div className="flex items-start gap-4">
-                <div
-                  className="flex size-14 shrink-0 items-center justify-center rounded-xl text-3xl"
-                  style={{ background: `${project.color}16`, border: `1px solid ${project.color}55` }}
-                  aria-hidden="true"
-                >
-                  {project.icon}
-                </div>
+                <ProjectArt id={project.id} size={64} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-balance text-xl font-black leading-none text-white sm:text-2xl" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{project.title}</h3>
@@ -151,7 +162,7 @@ export default function ClubProjectsTab() {
               <div id={detailsPanelId} className="mt-4 rounded-xl border border-[#242436] bg-[#0A0A14] p-3">
                 <div className="mb-2 flex items-center justify-between gap-2 text-xs font-black tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   <span className="text-[#77778A]">PROGRESSÃO</span>
-                  <span style={{ color: project.color }}>{maxed ? 'MÁXIMO' : nextCost ? <>PRÓXIMO · 💰 {nextCost}</> : 'BASE'}</span>
+                  <span style={{ color: project.color }}>{maxed ? 'MÁXIMO' : nextCost ? <>PRÓXIMO · <CoinIcon />{nextCost}</> : 'BASE'}</span>
                 </div>
                 <ProjectLevelBar level={level} color={project.color} />
                   <p className="mt-3 text-pretty text-sm leading-relaxed text-[#B0B0BE]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
@@ -192,7 +203,7 @@ export default function ClubProjectsTab() {
                             : `Evoluir para o nível ${level + 1}`
                     }
                   >
-                    {!implemented ? 'EM BREVE' : maxed ? 'MÁXIMO' : <>EVOLUIR · 💰 {nextCost}</>}
+                    {!implemented ? 'EM BREVE' : maxed ? 'MÁXIMO' : <>EVOLUIR · <CoinIcon />{nextCost}</>}
                   </button>
                 </div>
               </div>
@@ -269,7 +280,7 @@ export default function ClubProjectsTab() {
                             >
                               <PlayerCard player={player} compact lite />
                               <span className="text-[12px] font-black tracking-wide" style={{ color: affordable ? '#34D399' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>
-                                💰 {cost}
+                                <CoinIcon />{cost}
                               </span>
                             </button>
                           );
@@ -287,7 +298,7 @@ export default function ClubProjectsTab() {
                       <div className="text-lg font-black text-white" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{trainingPlayer.shortName}</div>
                       <div className="mt-1 text-xs text-[#B0B0BE]">Treinos realizados: {trainingPlayer.trainCount ?? 0}</div>
                       <div className="mt-2 text-sm font-black" style={{ color: state.points >= (trainingCost ?? Infinity) ? '#34D399' : 'var(--ui-danger)' }}>
-                        💰 {trainingCost} créditos · +{trainingBoost} no atributo
+                        <CoinIcon />{trainingCost} créditos · +{trainingBoost} no atributo
                       </div>
                     </div>
                   </div>
@@ -319,13 +330,7 @@ export default function ClubProjectsTab() {
           closeLabel="Fechar níveis"
           title={(
             <div className="flex min-w-0 items-start gap-3">
-              <span
-                className="flex size-11 shrink-0 items-center justify-center rounded-xl text-2xl"
-                style={{ background: detailsProject.color + '18', border: '1px solid ' + detailsProject.color + '55' }}
-                aria-hidden="true"
-              >
-                {detailsProject.icon}
-              </span>
+              <ProjectArt id={detailsProject.id} size={48} />
               <div className="min-w-0">
                 <div className="text-xs font-black tracking-widest text-[#9A9AAA]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   PROGRESSÃO COMPLETA
@@ -385,7 +390,7 @@ export default function ClubProjectsTab() {
                         {formatProjectCopy(detailsProject.id, effect)}
                       </p>
                       <div className="mt-3 border-t border-white/[.08] pt-2 text-xs font-bold tracking-wide text-[#8F8FA0]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                        {levelNumber === 1 ? 'BASE DO PROJETO' : <>CUSTO PARA DESBLOQUEAR · 💰 {projectUpgradeCost(levelNumber)}</>}
+                        {levelNumber === 1 ? 'BASE DO PROJETO' : <>CUSTO PARA DESBLOQUEAR · <CoinIcon />{projectUpgradeCost(levelNumber)}</>}
                       </div>
                     </div>
                   );
@@ -420,11 +425,11 @@ export default function ClubProjectsTab() {
 
               <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/33 bg-primary/5 px-3 py-2.5">
                 <span className="text-[12px] font-black tracking-widest text-[#A7A7B8]">CUSTO DA EVOLUÇÃO</span>
-                <strong className="shrink-0 text-base font-black text-brand-strong">💰 {selectedCost}</strong>
+                <strong className="shrink-0 text-base font-black text-brand-strong"><CoinIcon size={18} />{selectedCost}</strong>
               </div>
             </div>
           )}
-          confirmLabel={`CONFIRMAR · 💰 ${selectedCost}`}
+          confirmLabel={`CONFIRMAR · ${selectedCost} CRÉDITOS`}
           cancelLabel="CANCELAR"
           intent="primary"
           onConfirm={confirmUpgrade}

@@ -26,7 +26,9 @@ import PlayerDetailsModal from '../components/game/PlayerDetailsModal';
 import { AppShell, Button, PageContainer, TopBar } from '../design-system';
 import type { CompetitionHistoryEntry } from '../contexts/AccountContext';
 import { getCompetitionHistorySnapshot, type CompetitionHistorySnapshot } from '../lib/historySnapshot';
-import { competitionRankingPoints } from '@shared/game/competitionRanking';
+import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '@shared/game/competitionRanking';
+import { UnlockedAchievements } from '../components/account/Achievements';
+import type { AchievementUnlock } from '../contexts/AccountContext';
 
 type SavedEffectiveCardStats = Pick<EffectiveStats,
   'overall' | 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure'>;
@@ -108,7 +110,7 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
 
 export default function ReportPage({ historyEntry, historySnapshot: providedSnapshot, onHistoryBack }: ReportPageProps = {}) {
   const { state, dispatch, leaveRoomOnline, discardSoloCampaign } = useGame();
-  const { account, saveHistory, markCompetitionCompleted } = useAccount();
+  const { account, saveHistory, markCompetitionCompleted, getOwnAchievements } = useAccount();
   const historySnapshot = providedSnapshot ?? (historyEntry ? getCompetitionHistorySnapshot(historyEntry.report) : null);
   const { localTeamId: liveTeamId, allTeams: allTeamsForStats } = useTeams();
   const report = historySnapshot ? historySnapshot.report : state.report;
@@ -330,6 +332,29 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const [historySaveStatus, setHistorySaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [historySaveError, setHistorySaveError] = useState('');
   const [historySaveRetry, setHistorySaveRetry] = useState(0);
+  const [achievementUnlocks, setAchievementUnlocks] = useState<AchievementUnlock[]>([]);
+
+  // Online campaigns are saved by the room server when the report opens, so ask
+  // for the levels reached since then, a few times while that save completes.
+  const onlineAchievementsChecked = useRef(false);
+  useEffect(() => {
+    if (onlineAchievementsChecked.current || historyEntry || historySnapshot || !account || state.mode !== 'online' || games === 0) return;
+    onlineAchievementsChecked.current = true;
+    const since = Date.now() - 60_000;
+    let cancelled = false;
+    const timers: number[] = [];
+    [2_000, 6_000, 12_000].forEach(delay => {
+      timers.push(window.setTimeout(() => {
+        if (cancelled) return;
+        void getOwnAchievements(since).then(result => {
+          if (cancelled || result.recentlyUnlocked.length === 0) return;
+          setAchievementUnlocks(result.recentlyUnlocked);
+          cancelled = true;
+        }).catch(() => undefined);
+      }, delay));
+    });
+    return () => { cancelled = true; timers.forEach(timer => window.clearTimeout(timer)); };
+  }, [account, games, getOwnAchievements, historyEntry, historySnapshot, state.mode]);
 
   useEffect(() => {
     if (reportDataInvalidated.current || historyEntry || historySnapshot || !account || !playerTeam || games === 0) return;
@@ -350,6 +375,10 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     soloSaveAttemptKey.current = attemptKey;
     setHistorySaveStatus('saving');
     setHistorySaveError('');
+    // The server derives the points from the stage and the difficulty; the value
+    // sent here only mirrors it for the snapshot shown in the history.
+    const finishStage = competitionFinishStage(playerTeam.id, champion, state.knockoutBracket);
+    const competitionPoints = isRankedDifficulty(state.difficulty) ? competitionStagePoints(finishStage, state.difficulty) : 0;
     void saveHistory({
       mode: 'solo',
       difficultyId: state.difficulty,
@@ -359,7 +388,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       coachId: playerTeam.coachId ?? null,
       champion: isChampion,
       placement: isChampion ? 1 : null,
-      competitionPoints: competitionRankingPoints(playerTeam.id, champion, state.knockoutBracket),
+      finishStage,
+      competitionPoints,
       sourceKey: soloHistoryKey.current,
       report: {
         version: 1,
@@ -390,7 +420,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             winner: result.winner,
           })),
           championId: champion ?? null,
-        competitionPoints: competitionRankingPoints(playerTeam.id, champion, state.knockoutBracket),
+          competitionPoints,
+          finishStage,
+          difficultyId: state.difficulty,
           championName,
           formatId: state.competitionFormat.id,
           finalResult: reportFinalResult ? {
@@ -410,8 +442,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         },
       },
       records: soloRecordCandidates.candidates,
-    }).then(() => {
+    }).then(result => {
       setHistorySaveStatus('saved');
+      setAchievementUnlocks(result.achievementsUnlocked ?? []);
     }).catch(error => {
       console.error('[account] não foi possível salvar o histórico solo:', error);
       setHistorySaveError(error instanceof Error ? error.message : 'Não foi possível salvar a competição agora.');
@@ -460,6 +493,12 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           </div>
         </div>
       )}
+
+      {!historyEntry && achievementUnlocks.length > 0 ? (
+        <div className="mx-auto w-full max-w-5xl px-4 pt-3" aria-live="polite">
+          <UnlockedAchievements unlocks={achievementUnlocks} />
+        </div>
+      ) : null}
 
       {/* ── HERO: Champion or Runner-up ────────────────────────────────────── */}
       <div className="relative z-10 flex flex-col items-center justify-center py-10 sm:py-14 px-4 text-center">

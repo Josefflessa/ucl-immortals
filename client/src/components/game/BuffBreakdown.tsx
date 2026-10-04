@@ -2,6 +2,8 @@
 // about them: what belongs to the CARD, what comes from the TEAM (chemistry, captain, coach,
 // tactic, teammates) and what only switches on DURING A MATCH. Everything is read from the
 // player-sheet model, which is computed by the same engine functions the match uses.
+import TraitIcon from './TraitIcon';
+import PlaystyleIcon from './PlaystyleIcon';
 import { useState } from 'react';
 import {
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
@@ -41,7 +43,7 @@ function Note({ children }: { children: React.ReactNode }) {
   return <div className="mt-1 text-[12px] leading-snug text-[var(--ui-text-muted)]" style={FONT}>{children}</div>;
 }
 
-function Row({ icon, name, color, children }: { icon: string; name: string; color: string; children?: React.ReactNode }) {
+function Row({ icon, name, color, children }: { icon: React.ReactNode; name: string; color: string; children?: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2.5 py-2.5">
       <span className="flex-shrink-0 text-sm" aria-hidden="true">{icon}</span>
@@ -228,7 +230,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       const details = variantDetails(variant, model, model.charBoost);
       const color = state.active ? (variant.color === '#FFFFFF' ? '#E5E7EB' : variant.color) : MUTED;
       return (
-        <Row key={`v-${variant.key}`} icon={variant.icon} color={color}
+        <Row key={`v-${variant.key}`} icon={<TraitIcon trait={variant.key} fallback={variant.icon} size={28} />} color={color}
           name={`${variant.label.toUpperCase()}${state.active ? '' : state.inactiveReason === 'ainda sem bônus acumulado' ? ' · SEM BÔNUS AINDA' : ' · SEM EFEITO AGORA'}`}>
           <Chips items={details.chips.map(c => (state.active ? c : { ...c, dim: true }))} />
           <Note>{state.active || state.inactiveReason === 'ainda sem bônus acumulado' ? details.description : `Inativo: ${state.inactiveReason}. ${details.description}`}</Note>
@@ -240,7 +242,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
         <div className="space-y-1.5">
           {model.traits.map(t => (
             <div key={t.id} className="flex items-start gap-1.5">
-              <span className="mt-0.5 flex-shrink-0 text-xs leading-none" aria-hidden="true">{t.icon}</span>
+              <PlaystyleIcon trait={t.id} fallback={t.icon} size={14} color="#A78BFA" className="mt-px flex-shrink-0" />
               <div className="min-w-0 text-[12px]" style={FONT}>
                 <span className="font-black text-white">{t.id}</span>
                 {t.effect && <span className="font-bold text-[#A78BFA]"> — {t.effect}</span>}
@@ -319,8 +321,8 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       </Row>
     ),
     captain.length > 0 && model.captain && (
-      <Row key="captain" icon="👑" name={`CAPITÃO: ${model.captain.name.toUpperCase()}${model.captain.auto ? ' (AUTOMÁTICO)' : ''}`} color="#3B82F6">
-        <Chips items={attrChips(captain, '#3B82F6')} />
+      <Row key="captain" icon="👑" name={`CAPITÃO: ${model.captain.name.toUpperCase()}${model.captain.auto ? ' (AUTOMÁTICO)' : ''}`} color="#F5B731">
+        <Chips items={attrChips(captain, '#F5B731')} />
         <Note>
           {model.captain.isThisPlayer ? 'Ele é o capitão: ' : ''}a melhor estatística do capitão ({model.captain.stat}) vale +{model.captain.amount} para todo o time.
           {model.captain.auto ? ' Nenhum capitão foi escolhido, então o jogo usa o titular de maior geral. Escolha em Funções de jogo.' : ''}
@@ -353,7 +355,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
     ...teammateSources.map((src, i) => {
       const vis = TEAMCHAR[src.type];
       return (
-        <Row key={`mate-${i}`} icon={vis.icon} name={`${vis.label} — DE ${src.fromName.toUpperCase()}`} color={vis.color}>
+        <Row key={`mate-${i}`} icon={<TraitIcon trait={src.type} fallback={vis.icon} size={28} />} name={`${vis.label} — DE ${src.fromName.toUpperCase()}`} color={vis.color}>
           <Chips items={[
             ...(src.flatAll !== 0 ? [{ text: `${src.flatAll > 0 ? '+' : ''}${src.flatAll} EM CADA ATRIBUTO`, color: src.flatAll < 0 ? RED : vis.color }] : []),
             ...Object.entries(src.perStat as Record<string, number>).map(([k, v]) => ({ text: `+${v} ${ATTR_SHORT[k as keyof typeof ATTR_SHORT] ?? k}`, color: vis.color })),

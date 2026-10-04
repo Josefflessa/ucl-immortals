@@ -21,7 +21,7 @@ export const ATTR_LONG: Record<SheetAttr, string> = {
   pace: 'Ritmo', shooting: 'Finalização', passing: 'Passe', dribbling: 'Drible', defending: 'Defesa', physical: 'Físico', vision: 'Visão', composure: 'Compostura',
 };
 
-export interface StatSource { key: string; icon: string; label: string; value: number }
+export interface StatSource { key: string; icon: string; label: string; value: number; /** Trait whose artwork represents this source. */ trait?: string }
 export interface SheetStat { attr: SheetAttr; base: number; value: number; delta: number; sources: StatSource[] }
 
 export interface ChemLinkGroup { key: string; label: string; color: string; points: number; names: string[] }
@@ -148,6 +148,7 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
   const variants = getCardVariants(player);
   const bakedLabel = variants.filter(v => BAKED_VARIANTS.has(v.key)).map(v => v.label).join(' + ') || 'Característica da carta';
   const bakedIcon = variants.find(v => BAKED_VARIANTS.has(v.key))?.icon ?? '🃏';
+  const bakedKey = variants.find(v => BAKED_VARIANTS.has(v.key))?.key;
   const variantInfo = (key: string, fallbackIcon: string, fallbackLabel: string) => {
     const v = variants.find(item => item.key === key);
     return { icon: v?.icon ?? fallbackIcon, label: v?.label ?? fallbackLabel };
@@ -183,11 +184,11 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
     const value = eff[attr];
     const base = Math.max(1, player[attr] - variantDelta - medical);
     const sources: StatSource[] = [];
-    if (variantDelta !== 0) sources.push({ key: 'variant', icon: bakedIcon, label: bakedLabel, value: variantDelta });
+    if (variantDelta !== 0) sources.push({ key: 'variant', icon: bakedIcon, label: bakedLabel, value: variantDelta, trait: bakedKey });
     if (medical > 0) sources.push({ key: 'medical', icon: '🏥', label: 'Departamento médico', value: medical });
     for (const def of sourceDefs) {
       const v = b[def.key] as number;
-      if (v) sources.push({ key: def.key, icon: def.icon, label: def.label, value: v });
+      if (v) sources.push({ key: def.key, icon: def.icon, label: def.label, value: v, trait: def.key });
     }
     // The engine floors every attribute at 1; account for it so the list always adds up.
     const listed = sources.reduce((sum, s) => sum + s.value, 0);

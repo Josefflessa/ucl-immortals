@@ -2,6 +2,7 @@
 // Mantém a organização da formação: opções compactas e uma leitura detalhada
 // apenas para a tática atualmente selecionada.
 
+import TacticIcon from './TacticIcon';
 import { TACTICS, getTacticById } from '@shared/game/gameData';
 import { tacticAggression, tacticProfile, tacticStatBonus } from '@shared/game/gameEngine';
 import { ChoiceCard } from '../../design-system';
@@ -55,8 +56,8 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Mentalidade atual</div>
-            <div className="mt-0.5 flex items-center gap-1.5 font-display text-xl leading-none tracking-wide text-[var(--ui-brand-strong)]">
-              <span aria-hidden="true">{active.icon}</span>{active.name}
+            <div className="mt-1 flex items-center gap-2 font-display text-xl leading-none tracking-wide text-[var(--ui-brand-strong)]">
+              <TacticIcon tactic={active.id} fallback={active.icon} size={30} />{active.name}
             </div>
           </div>
         </div>
@@ -79,7 +80,7 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
               className="min-h-[52px] px-2.5 py-2.5"
               >
               <div className="flex items-center gap-2">
-                <span className="text-base leading-none">{tactic.icon}</span>
+                <TacticIcon tactic={tactic.id} fallback={tactic.icon} size={32} />
                 <span
                   className="text-sm font-black leading-tight text-balance"
                   style={{ color: isActive ? 'var(--ui-brand)' : '#FFF' }}
@@ -96,7 +97,7 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
       <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 py-3 text-sm">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-[13px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Impacto no jogo</span>
-          <span className="font-display text-base tracking-wide text-[var(--ui-brand-strong)]">{active.icon} {active.name}</span>
+          <span className="inline-flex items-center gap-1.5 font-display text-base tracking-wide text-[var(--ui-brand-strong)]"><TacticIcon tactic={active.id} fallback={active.icon} size={28} /> {active.name}</span>
         </div>
         <div className="text-xs leading-snug text-[var(--ui-text-muted)]">{active.desc}</div>
         <div className="mt-2 rounded-lg border border-[#22C55E33] bg-[#22C55E0D] px-2.5 py-2 text-xs leading-snug text-[#58D37B]">

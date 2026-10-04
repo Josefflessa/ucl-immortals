@@ -433,7 +433,7 @@ export default function FormationField({
         const sentOff = !!disc?.red;
         const roleMetric = roleSelection && player ? roleMetrics[player.id] : undefined;
         const isRoleSuggestion = !!roleSelection && player?.id === roleSuggestionId;
-        const roleAccent = roleSelection === 'captain' ? '#3B82F6' : roleSelection === 'penalty' ? '#C9A84C' : '#22C55E';
+        const roleAccent = roleSelection === 'captain' ? '#F5B731' : roleSelection === 'penalty' ? '#D4DAE3' : '#3B82F6';
         const positionFitType = positionGuideActive && guidedPlayer
           ? positionFit(guidedPlayer, pos.role)
           : null;

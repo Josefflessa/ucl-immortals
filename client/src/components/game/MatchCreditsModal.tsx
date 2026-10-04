@@ -1,5 +1,6 @@
 import type { MatchPoints } from '@shared/game/shop';
 import { Button, GameModal } from '../../design-system';
+import CoinIcon from './CoinIcon';
 
 interface MatchCreditsModalProps {
   points: MatchPoints;
@@ -29,7 +30,7 @@ export default function MatchCreditsModal({ points, onClose }: MatchCreditsModal
     <GameModal
       open
       onOpenChange={next => { if (!next) onClose(); }}
-      title="💰 Créditos da partida"
+      title={<><CoinIcon size={22} />Créditos da partida</>}
       className="max-w-md overflow-hidden border-[var(--ui-success)]"
       footer={<Button intent="success" className="w-full rounded-none border-0" onClick={onClose}>CONTINUAR</Button>}
     >

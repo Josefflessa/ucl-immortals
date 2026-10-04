@@ -1,8 +1,9 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats } from '../shared/game/gameEngine.js';
-import { competitionRankingPoints } from '../shared/game/competitionRanking.js';
+import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '../shared/game/competitionRanking.js';
 import type { MatchResult, PlayerCard, Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
+import { ensureAchievementsCurrent, syncAchievements } from './achievements.js';
 import type { RoomPlayer, RoomState } from './handlers.js';
 
 interface PersistenceEnv { DB: D1Database; }
@@ -132,7 +133,11 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       .map(card => ({ card, value: effectiveStatsByPlayerId[card.id].overall }))
       .sort((a, b) => b.value - a.value)[0];
     const champion = room.champion === team.id;
-    const competitionPoints = competitionRankingPoints(team.id, room.champion, room.knockoutBracket);
+    // Online rooms are server-authoritative: stage and difficulty come from the room itself.
+    const finishStage = competitionFinishStage(team.id, room.champion, room.knockoutBracket);
+    const competitionPoints = isRankedDifficulty(room.difficulty) ? competitionStagePoints(finishStage, room.difficulty) : 0;
+    // Human players in the room (Arena Lotada counts crowded rooms).
+    const humanPlayers = humanTeams(room).length;
     const historyId = `cmp_${crypto.randomUUID().replaceAll('-', '')}`;
     const playerFinalResult = finalResult && (finalResult.homeTeamId === team.id || finalResult.awayTeamId === team.id)
       ? {
@@ -160,6 +165,8 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       goalsAgainst,
       champion,
       competitionPoints,
+      finishStage,
+      humanPlayers,
       season: {
         topScorer: topGoals ? { playerId: topGoals.card.id, playerName: topGoals.card.shortName, value: topGoals.stats.goals } : null,
         topAssister: topAssists ? { playerId: topAssists.card.id, playerName: topAssists.card.shortName, value: topAssists.stats.assists } : null,
@@ -188,9 +195,9 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       },
     };
     const statements = [env.DB.prepare(`INSERT INTO competition_history
-      (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, competition_points, report_json, source_key, completed_at)
-      VALUES (?, ?, 'online', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(historyId, accountId, room.difficulty, room.competitionFormat.id, team.name, team.crestId ?? null, team.coachId ?? null, champion ? 1 : 0, placementFor(room, team.id), competitionPoints, JSON.stringify(report), sourceKey, now)
+      (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, competition_points, finish_stage, report_json, source_key, completed_at)
+      VALUES (?, ?, 'online', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(historyId, accountId, room.difficulty, room.competitionFormat.id, team.name, team.crestId ?? null, team.coachId ?? null, champion ? 1 : 0, placementFor(room, team.id), competitionPoints, finishStage, JSON.stringify(report), sourceKey, now)
     ];
 
     const username = usernames.get(accountId) ?? player.name;
@@ -230,7 +237,10 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       .bind(accountId, champion ? 1 : 0, wins, draws, losses, goals, totalAssists, totalSaves, topEffective?.value ?? 0, room.difficulty, now));
     // Make the history row, records, and profile aggregates one idempotent
     // commit. If persistence is retried, the source key skips this whole set.
+    await ensureAchievementsCurrent(env.DB, accountId);
     await env.DB.batch(statements);
     await retainRecentCompetitionSnapshots(env.DB, accountId);
+    // A failed evaluation is retried on the next profile access.
+    await syncAchievements(env.DB, accountId).catch(error => console.error('[achievements] evaluation after online save failed:', error));
   }
 }

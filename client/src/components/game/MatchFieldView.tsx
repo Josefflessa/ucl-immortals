@@ -3,6 +3,7 @@
 // out on the pitch (formation), each card showing its live rating + goals/assists, plus the
 // coach and key info (tactic, formation, chemistry, average rating). Fully responsive.
 
+import TacticIcon from './TacticIcon';
 import { FORMATIONS, COACHES, getTacticById } from '@shared/game/gameData';
 import { activeGoalkeeperForTeam, calculateChemistry, getTeamEffectiveStats, matchRoleForPlayer, type Team } from '@shared/game/gameEngine';
 import FormationField, { type EmergencyGoalkeeperDisplay } from './FormationField';
@@ -21,7 +22,7 @@ interface MatchFieldViewProps {
   disableEntryAnimation?: boolean;
 }
 
-function Chip({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
+function Chip({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
   return (
     <div
       className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 min-w-0"
@@ -119,7 +120,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
         {/* Info chips — wrap cleanly on mobile, sit in a row on wider screens */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           <Chip icon="📐" label="Formação" value={formation.name} color={accent} />
-          <Chip icon={tactic.icon} label={activePlayStyle ? 'Tática atual' : 'Tática inicial'} value={tactic.name} color="#818CF8" />
+          <Chip icon={<TacticIcon tactic={tactic.id} fallback={tactic.icon} size={30} />} label={activePlayStyle ? 'Tática atual' : 'Tática inicial'} value={tactic.name} color="#818CF8" />
           <Chip icon="🔗" label="Química" value={`${chemistry.total}`} color="#22C55E" />
           <Chip icon="⭐" label="Nota média" value={avgRating ? avgRating.toFixed(1) : '—'} color={avgColor} />
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Scissors, X } from 'lucide-react';
 import type { Player } from '@shared/game/gameData';
@@ -15,39 +15,14 @@ interface PlayerPackOpeningProps {
 
 type OpeningStage = 'sealed' | 'revealed';
 
-const GOLD = '#E8C84A';
 const MUTED = '#9693A5';
-const PACK_SIZE = { width: 'min(78vw, 360px)', height: 'min(66vh, 520px)' };
-const PACK_BACKGROUND = 'linear-gradient(145deg, #171729 0%, #111221 54%, #0C0F1A 100%)';
-const TORN_EDGE = 'polygon(0 0, 100% 0, 100% 91%, 96% 100%, 91% 92%, 86% 100%, 81% 92%, 76% 100%, 71% 92%, 66% 100%, 61% 92%, 56% 100%, 51% 92%, 46% 100%, 41% 92%, 36% 100%, 31% 92%, 26% 100%, 21% 92%, 16% 100%, 11% 92%, 6% 100%, 0 92%)';
-const TEAR_PATH = 'M 0.8 30.5 L 2.8 32.2 L 4.8 30.3 L 6.8 32.1 L 8.8 30.4 L 10.8 32.2 L 12.8 30.3 L 14.8 32.1 L 16.8 30.4 L 18.8 32.2 L 20.8 30.3 L 22.8 32.1 L 24.8 30.4 L 26.8 32.2 L 28.8 30.3 L 30.8 32.1 L 32.8 30.4 L 34.8 32.2 L 36.8 30.3 L 38.8 32.1 L 40.8 30.4 L 42.8 32.2 L 44.8 30.3 L 46.8 32.1 L 48.8 30.4 L 50.8 32.2 L 52.8 30.3 L 54.8 32.1 L 56.8 30.4 L 58.8 32.2 L 60.8 30.3 L 62.8 32.1 L 64.8 30.4 L 66.8 32.2 L 68.8 30.3 L 70.8 32.1 L 72.8 30.4 L 74.8 32.2 L 76.8 30.3 L 78.8 32.1 L 80.8 30.4 L 82.8 32.2 L 84.8 30.3 L 86.8 32.1 L 88.8 30.4 L 90.8 32.2 L 92.8 30.3 L 94.8 32.1 L 96.8 30.4 L 99.2 30.5';
-
-function PackBrand({ rarity, back = false }: { rarity: PlayerPackRarity; back?: boolean }) {
-  const meta = PLAYER_PACK_META[rarity];
-  return (
-    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-      <img src="/icons/logo_ucl.png" alt="" className="h-[clamp(52px,10vw,82px)] w-[clamp(52px,10vw,82px)] object-contain opacity-90" />
-      <div className="mt-5 text-[clamp(34px,7vw,58px)] leading-none tracking-[0.12em]" style={{ color: meta.color, fontFamily: 'var(--font-display), sans-serif' }}>{meta.label}</div>
-      <div className="mt-3 h-px w-[clamp(40px,10vw,72px)]" style={{ background: `${meta.color}99` }} />
-      <div className="mt-3 text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.22em]" style={{ color: back ? '#C9C3A4' : MUTED, fontFamily: 'var(--font-game), sans-serif' }}>
-        PACOTE DE JOGADOR
-      </div>
-    </div>
-  );
-}
-
-function PackBody({ children, accent = GOLD, background = PACK_BACKGROUND }: { children?: ReactNode; accent?: string; background?: string }) {
-  return (
-    <div
-      className="relative h-full w-full overflow-hidden rounded-[clamp(18px,3vw,28px)]"
-      style={{ background, border: `1px solid ${accent}99`, boxShadow: '0 24px 65px rgba(0,0,0,.52)' }}
-    >
-      <div aria-hidden="true" className="absolute -right-[32%] top-[17%] h-[11%] w-[170%] rotate-[-34deg]" style={{ background: `${accent}13`, borderTop: `1px solid ${accent}33`, borderBottom: `1px solid ${accent}33` }} />
-      <div aria-hidden="true" className="absolute inset-[10px] rounded-[clamp(14px,2.4vw,22px)]" style={{ border: `1px solid ${accent}26` }} />
-      {children}
-    </div>
-  );
-}
+/** Pack artwork aspect ratio (public/packs, width / height). */
+const PACK_ASPECT = 0.527;
+const PACK_HEIGHT = 'min(60vh, 540px)';
+const PACK_SIZE = { height: PACK_HEIGHT, width: `calc(${PACK_HEIGHT} * ${PACK_ASPECT})` };
+/** The flap torn off the top: the crimped strip of the artwork. */
+const TEAR_AT = 9;
+const TEAR_PATH = 'M 0.8 8.3 L 2.8 9.7 L 4.8 8.3 L 6.8 9.7 L 8.8 8.3 L 10.8 9.7 L 12.8 8.3 L 14.8 9.7 L 16.8 8.3 L 18.8 9.7 L 20.8 8.3 L 22.8 9.7 L 24.8 8.3 L 26.8 9.7 L 28.8 8.3 L 30.8 9.7 L 32.8 8.3 L 34.8 9.7 L 36.8 8.3 L 38.8 9.7 L 40.8 8.3 L 42.8 9.7 L 44.8 8.3 L 46.8 9.7 L 48.8 8.3 L 50.8 9.7 L 52.8 8.3 L 54.8 9.7 L 56.8 8.3 L 58.8 9.7 L 60.8 8.3 L 62.8 9.7 L 64.8 8.3 L 66.8 9.7 L 68.8 8.3 L 70.8 9.7 L 72.8 8.3 L 74.8 9.7 L 76.8 8.3 L 78.8 9.7 L 80.8 8.3 L 82.8 9.7 L 84.8 8.3 L 86.8 9.7 L 88.8 8.3 L 90.8 9.7 L 92.8 8.3 L 94.8 9.7 L 96.8 8.3 L 98.8 9.7';
 
 function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMove, onPointerUp }: {
   rarity: PlayerPackRarity;
@@ -57,52 +32,62 @@ function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMov
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerUp: () => void;
 }) {
-  const meta = PLAYER_PACK_META[rarity];
-  const accent = meta.color;
-  const background = `linear-gradient(145deg, ${accent}22 0%, #111221 46%, #0C0F1A 100%)`;
+  const accent = PLAYER_PACK_META[rarity].color;
+  const src = `/packs/${rarity}.webp`;
   return (
-    <div className="relative h-full w-full">
-      <motion.div
-        className="absolute inset-0 z-[2]"
-        animate={isTearing ? { opacity: 0, scale: .985 } : { opacity: 1, scale: 1 }}
-        transition={isTearing ? { duration: .84, ease: [0.22, 1, 0.36, 1] } : { duration: .14 }}
-      >
-        <PackBody accent={accent} background={background}>
-          <PackBrand rarity={rarity} />
-          <div className="absolute inset-x-[9%] bottom-[7%] flex items-center justify-between text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.18em]" style={{ color: `${accent}99`, fontFamily: 'var(--font-game), sans-serif' }}>
-            <span>UCL IMMORTALS</span>
-            <span>01 / 01</span>
-          </div>
+    <div className="relative h-full w-full select-none">
+      {/* Glow of the rarity behind the pack. */}
+      <div aria-hidden="true" className="pointer-events-none absolute -inset-[18%] -z-[1] rounded-full blur-3xl" style={{ background: `radial-gradient(circle, ${accent}55 0%, ${accent}1F 38%, transparent 70%)` }} />
+
+      {/* Body: everything below the tear line. */}
+      <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-fill" style={{ clipPath: `inset(${TEAR_AT}% 0 0 0)`, filter: 'drop-shadow(0 24px 40px rgba(0,0,0,.55))' }} />
+
+      {/* Light escaping from the opened pack. */}
+      <AnimatePresence>
+        {isTearing && (
           <motion.div
-            className="absolute inset-x-0 top-0 z-[3] h-[31%] overflow-hidden"
-            style={{ clipPath: isTearing ? TORN_EDGE : 'inset(0 0 0 0)', WebkitClipPath: isTearing ? TORN_EDGE : 'inset(0 0 0 0)', background: 'transparent', touchAction: 'pan-y', cursor: isTearing ? 'grabbing' : 'grab', willChange: 'transform', transformPerspective: 900 }}
-            animate={isTearing
-              ? { x: '118%', y: '-16%', rotate: -9, rotateY: -18, skewX: -7, opacity: 0 }
-              : { x: 0, y: cutProgress > 0 ? cutProgress * -.02 : 0, rotate: cutProgress > 0 ? cutProgress * 0.008 : 0, rotateY: 0, skewX: 0, opacity: 1 }}
-            transition={isTearing ? { duration: .66, ease: [0.22, 1, 0.36, 1] } : { duration: .08 }}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            aria-label="Deslize a aba superior para rasgar o pacote"
-          >
-            <div className="absolute inset-x-[9%] top-[17%] flex items-center justify-between text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.18em]" style={{ color: `${accent}CC`, fontFamily: 'var(--font-game), sans-serif' }}>
-              <span>UCL</span>
-              <span>{meta.label} PACK</span>
-            </div>
-            <div className="absolute bottom-[13%] left-1/2 flex -translate-x-1/2 items-center gap-2 text-[clamp(9px,1.5vw,12px)] font-bold tracking-[0.15em]" style={{ color: `${accent}AA`, fontFamily: 'var(--font-game), sans-serif' }}>
-              <Scissors size={15} />
-              <span>DESLIZE A ABA</span>
-            </div>
-          </motion.div>
-          {cutProgress > 0 && (
-            <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[4] h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d={TEAR_PATH} fill="none" stroke="#05070B" strokeWidth="2.2" strokeLinecap="round" pathLength="1" strokeDasharray="1" strokeDashoffset={1 - cutProgress / 100} />
-              <path d={TEAR_PATH} fill="none" stroke={accent} strokeWidth={isTearing ? 1 : .75} strokeLinecap="round" pathLength="1" strokeDasharray="1" strokeDashoffset={1 - cutProgress / 100} style={{ filter: `drop-shadow(0 0 4px ${accent})` }} />
-            </svg>
-          )}
-        </PackBody>
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-[4%] z-[2] origin-top"
+            style={{ top: `${TEAR_AT - 2}%`, height: '26%', background: `radial-gradient(ellipse at 50% 0%, #FFFFFF 0%, ${accent} 26%, ${accent}00 70%)`, mixBlendMode: 'screen' }}
+            initial={{ opacity: 0, scaleY: 0.2 }}
+            animate={{ opacity: [0, 1, 0.85], scaleY: [0.2, 1.25, 1] }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Flap: the crimped top strip, swiped away to open the pack. */}
+      <motion.div
+        className="absolute inset-0 z-[3]"
+        style={{ clipPath: `inset(0 0 ${100 - TEAR_AT}% 0)`, WebkitClipPath: `inset(0 0 ${100 - TEAR_AT}% 0)`, touchAction: 'pan-y', cursor: isTearing ? 'grabbing' : 'grab', willChange: 'transform', transformPerspective: 900 }}
+        animate={isTearing
+          ? { x: '118%', y: '-16%', rotate: -9, rotateY: -18, skewX: -7, opacity: 0 }
+          : { x: 0, y: cutProgress > 0 ? cutProgress * -.02 : 0, rotate: cutProgress > 0 ? cutProgress * 0.008 : 0, rotateY: 0, skewX: 0, opacity: 1 }}
+        transition={isTearing ? { duration: .66, ease: [0.22, 1, 0.36, 1] } : { duration: .08 }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        aria-label="Deslize a aba superior para rasgar o pacote"
+      >
+        <img src={src} alt="" draggable={false} className="pointer-events-none h-full w-full object-fill" />
       </motion.div>
+
+      {/* Hint right under the flap. */}
+      {!isTearing && cutProgress === 0 && (
+        <div className="pointer-events-none absolute left-1/2 z-[4] flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold tracking-[0.15em] backdrop-blur-sm" style={{ top: `${TEAR_AT + 2.5}%`, color: '#FFF', background: 'rgba(5,7,11,.55)', border: `1px solid ${accent}88`, fontFamily: 'var(--font-game), sans-serif' }}>
+          <Scissors size={13} />
+          <span>DESLIZE A ABA</span>
+        </div>
+      )}
+
+      {/* Cut line following the swipe. */}
+      {cutProgress > 0 && (
+        <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[4] h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path d={TEAR_PATH} fill="none" stroke="#05070B" strokeWidth="2.2" strokeLinecap="round" pathLength="1" strokeDasharray="1" strokeDashoffset={1 - cutProgress / 100} />
+          <path d={TEAR_PATH} fill="none" stroke={accent} strokeWidth={isTearing ? 1 : .75} strokeLinecap="round" pathLength="1" strokeDasharray="1" strokeDashoffset={1 - cutProgress / 100} style={{ filter: `drop-shadow(0 0 4px ${accent})` }} />
+        </svg>
+      )}
     </div>
   );
 }

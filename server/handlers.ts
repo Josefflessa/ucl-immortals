@@ -3396,7 +3396,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         ? room.roomEpoch + 1
         : 1;
       room.phase = 'lobby';
-      room.difficulty = 'gold';
+      // The room keeps the difficulty it was created with: a restart must not
+      // silently move a ranked room to another difficulty.
       room.players.forEach(p => {
         p.coachId = 'guardiola';
         p.coachPrime = false;

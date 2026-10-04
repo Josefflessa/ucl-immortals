@@ -134,9 +134,6 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                               <span className="text-[12px] font-black px-1.5 py-0.2 rounded text-white" style={{ background: '#222', fontFamily: 'var(--font-game), sans-serif' }}>
                                 {POS_PT[player.position] ?? player.position}
                               </span>
-                              <span className="text-[12px] text-[#8A8A9A] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                                GER {player.overall}
-                              </span>
                             </div>
                             <div className="text-sm font-black text-white truncate" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                               {player.shortName}

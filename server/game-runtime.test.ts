@@ -244,12 +244,14 @@ describe('game runtime isolation', () => {
     runWithGameRuntime(runtime, () => server.connect(host));
 
     runWithGameRuntime(runtime, () => host.receive('create_room', {
-      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'legendary', clientId: 'alice',
     }));
     runWithGameRuntime(runtime, () => host.receive('restart_room', {
       roomCode: 'ABCD', commandId: 'restart-1', roomEpoch: 1,
     }));
     expect(runtime.rooms.get('ABCD')?.roomEpoch).toBe(2);
+    // A restart keeps the difficulty the room was created with (it used to fall back to Ouro).
+    expect(runtime.rooms.get('ABCD')?.difficulty).toBe('legendary');
 
     runWithGameRuntime(runtime, () => host.receive('start_setup', {
       roomCode: 'ABCD', commandId: 'old-start', roomEpoch: 1,

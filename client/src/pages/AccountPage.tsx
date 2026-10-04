@@ -1,15 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Image as ImageIcon, Info, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
-import { useAccount, type AccountStats, type CompetitionHistoryEntry, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
+import { useAccount, type AccountStats, type AchievementsPayload, type CompetitionHistoryEntry, type FinishCounts, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
+import { ShowcaseEditor, ShowcaseSection } from '../components/account/Achievements';
 import Crest from '../components/game/Crest';
 import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerCard from '../components/game/PlayerCard';
 import { normalizeProfileAvatarKey, PROFILE_AVATARS, resolveProfileAvatarImage } from '../lib/profileAvatars';
 import { getProfileCover, PROFILE_COVER_PRESETS } from '../lib/profileCovers';
 import { DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, getProfileAvatarBackground, normalizeProfileAvatarBackgroundKey, PROFILE_AVATAR_BACKGROUNDS } from '@shared/profileAppearance';
-import { COMPETITION_RANKING_POINTS } from '@shared/game/competitionRanking';
+import {
+  COMPETITION_FINISH_STAGES,
+  competitionStagePoints,
+  finishStageFromLegacyPoints,
+  isCompetitionFinishStage,
+  isRankedDifficulty,
+  RANKED_DIFFICULTY_IDS,
+  type CompetitionFinishStage,
+  type RankedDifficultyId,
+} from '@shared/game/competitionRanking';
+import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gameData';
+import DifficultyEmblem from '../components/game/DifficultyEmblem';
 import ReportPage from './ReportPage';
 import { cn } from '../lib/utils';
 import {
@@ -58,24 +70,31 @@ const RECORD_RANKING_TAB_COMPACT_LABELS: Record<PublicRecordEntry['category'], s
   saves: 'DEFESAS',
   effective_overall: 'GERAL',
 };
-const POINT_TIER_LABELS = [
-  { label: 'Campeão', points: COMPETITION_RANKING_POINTS.champion },
-  { label: 'Vice', points: COMPETITION_RANKING_POINTS.runnerUp },
-  { label: 'Semifinal', points: COMPETITION_RANKING_POINTS.semifinalist },
-  { label: 'Quartas', points: COMPETITION_RANKING_POINTS.quarterfinalist },
-  { label: 'Oitavas', points: COMPETITION_RANKING_POINTS.roundOf16 },
-  { label: 'Playoff', points: COMPETITION_RANKING_POINTS.playoff },
-  { label: 'Fase de liga', points: COMPETITION_RANKING_POINTS.leaguePhase },
-];
-const HISTORY_FINISH_LABELS: Record<number, string> = {
-  [COMPETITION_RANKING_POINTS.champion]: 'Campeão',
-  [COMPETITION_RANKING_POINTS.runnerUp]: 'Vice-campeão',
-  [COMPETITION_RANKING_POINTS.semifinalist]: 'Encerrou na semifinal',
-  [COMPETITION_RANKING_POINTS.quarterfinalist]: 'Encerrou nas quartas de final',
-  [COMPETITION_RANKING_POINTS.roundOf16]: 'Encerrou nas oitavas de final',
-  [COMPETITION_RANKING_POINTS.playoff]: 'Encerrou no playoff',
-  [COMPETITION_RANKING_POINTS.leaguePhase]: 'Encerrou na fase de liga',
+const STAGE_SHORT_LABELS: Record<CompetitionFinishStage, string> = {
+  champion: 'Campeão',
+  runnerUp: 'Vice',
+  semifinalist: 'Semifinal',
+  quarterfinalist: 'Quartas',
+  roundOf16: 'Oitavas',
+  playoff: 'Playoff',
+  leaguePhase: 'Fase de liga',
 };
+const HISTORY_FINISH_LABELS: Record<CompetitionFinishStage, string> = {
+  champion: 'Campeão',
+  runnerUp: 'Vice-campeão',
+  semifinalist: 'Encerrou na semifinal',
+  quarterfinalist: 'Encerrou nas quartas de final',
+  roundOf16: 'Encerrou nas oitavas de final',
+  playoff: 'Encerrou no playoff',
+  leaguePhase: 'Encerrou na fase de liga',
+};
+function difficultyName(id: string | null | undefined): string {
+  return DIFFICULTY_LEVELS.find(level => level.id === id)?.name ?? 'Dificuldade desconhecida';
+}
+function difficultyColor(id: string | null | undefined): string {
+  return isRankedDifficulty(id) ? getRarityColor(id as Rarity) : 'var(--ui-text-muted)';
+}
+type DifficultyFilterValue = RankedDifficultyId | 'all';
 type RankingTab = 'overall' | 'records';
 type FriendsTab = 'friends' | 'incoming' | 'outgoing';
 
@@ -239,6 +258,57 @@ function CompactProfileAvatar({ name, avatarKey, avatarUrl, backgroundKey = DEFA
   );
 }
 
+function DifficultyFilter({ value, onChange, includeAll = false, label, available }: {
+  value: DifficultyFilterValue;
+  onChange: (value: DifficultyFilterValue) => void;
+  includeAll?: boolean;
+  label: string;
+  /** Difficulties with data; the others stay selectable but dimmed. */
+  available?: ReadonlySet<RankedDifficultyId>;
+}) {
+  const options: DifficultyFilterValue[] = [...(includeAll ? ['all' as const] : []), ...RANKED_DIFFICULTY_IDS];
+  return (
+    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
+      {options.map(option => {
+        const selected = value === option;
+        const color = option === 'all' ? 'var(--ui-brand-strong)' : difficultyColor(option);
+        const dimmed = option !== 'all' && available && !available.has(option);
+        return (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option)}
+            className={cn(
+              'inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-bold tracking-wide transition-colors',
+              option !== 'all' && 'pl-1.5',
+              selected ? 'text-[var(--ui-text)]' : 'border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]',
+              dimmed && !selected && 'opacity-50',
+            )}
+            style={selected ? { borderColor: color, background: `color-mix(in srgb, ${color} 16%, transparent)`, color } : undefined}
+          >
+            {option === 'all' ? 'Todas' : <><DifficultyEmblem difficulty={option} size={24} />{difficultyName(option)}</>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DifficultyBadge({ difficultyId }: { difficultyId: string | null | undefined }) {
+  const color = difficultyColor(difficultyId);
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md border py-0.5 pl-0.5 pr-2 text-[12px] font-bold uppercase leading-none tracking-wide"
+      style={{ borderColor: `color-mix(in srgb, ${color} 45%, transparent)`, color, background: `color-mix(in srgb, ${color} 10%, transparent)` }}
+    >
+      <DifficultyEmblem difficulty={difficultyId} size={20} />
+      {difficultyName(difficultyId)}
+    </span>
+  );
+}
+
 function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number }) {
   return (
     <article className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
@@ -256,69 +326,40 @@ function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number
   );
 }
 
-function PersonalRecordCard({ category, record }: { category: PublicRecordEntry['category']; record: ProfileRecordEntry | undefined }) {
-  const meta = RECORD_LABELS[category];
-  const Icon = meta.icon;
-  const rankPosition = record?.rank_position;
-  return (
-    <article className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
-      {record ? <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveStats={record.player_effective_stats} /> : <div aria-hidden="true" className="flex h-[178px] w-[110px] shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--ui-line-strong)] bg-[var(--ui-surface)] text-[var(--ui-text-faint)]"><Icon size={24} /></div>}
-      <div className="min-w-0 flex-1">
-        {/* Wraps instead of squeezing: on narrow cards the rank badge drops below the title. */}
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-          <div className="flex min-w-0 flex-1 basis-32 items-center gap-2">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[var(--ui-brand)]/20 bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]"><Icon size={15} aria-hidden="true" /></span>
-            <strong className="min-w-0 break-words text-sm leading-tight text-[var(--ui-text)]">{meta.label}</strong>
-          </div>
-          {record && rankPosition ? <div role="status" aria-label={`${rankPosition}ª posição no ranking geral de ${meta.label.toLowerCase()}`} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--ui-brand)]/30 bg-[var(--ui-brand-soft)] px-2 py-1 text-[var(--ui-brand-strong)]">
-            <span className="font-display text-base leading-none tabular-nums">#{rankPosition}</span>
-            <span className="text-[12px] uppercase leading-none tracking-wider">no geral</span>
-          </div> : record ? <span className="shrink-0 rounded-lg border border-[var(--ui-line-subtle)] px-2 py-1 text-[12px] text-[var(--ui-text-faint)]">posição indisponível</span> : null}
-        </div>
-        {record ? <>
-          <div className="mt-2 flex min-w-0 items-baseline justify-between gap-2">
-            <strong className="min-w-0 truncate text-xs font-semibold text-[var(--ui-text-soft)]">{record.player_name}</strong>
-            <div className="shrink-0 text-right">
-              <strong className="font-display text-xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{record.value.toLocaleString('pt-BR')}</strong>
-              <span className="ml-1 text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
-            </div>
-          </div>
-          <div className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/70 px-2 py-1.5">
-            <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={24} className="shrink-0 rounded-full" />
-            <div className="min-w-0">
-              <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
-              <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
-            </div>
-          </div>
-          <div className="mt-2">
-            <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
-            <time className="block text-xs text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
-          </div>
-        </> : <span className="mt-2 block text-xs text-[var(--ui-text-muted)]">Ainda sem marca registrada</span>}
-      </div>
-    </article>
-  );
-}
-
 function ProfileCareerContent({
   scorePosition,
   scorePositionLoading = false,
   competitionsCompleted,
   finishCounts,
+  finishCountsByDifficulty,
   records,
   recordsLoading = false,
-  recordsError = '',
-  recordsErrorTitle = 'Não foi possível carregar seus recordes',
+  achievements,
+  achievementsLoading = false,
+  onEditShowcase,
+  showcaseEmptyText = 'Nenhum destaque ainda: conquistas e recordes podem ser fixados aqui conforme as competições são concluídas.',
 }: {
   scorePosition: ScoreLeaderboardPosition | null;
   scorePositionLoading?: boolean;
   competitionsCompleted: number;
   finishCounts: AccountStats['finishCounts'];
+  finishCountsByDifficulty: AccountStats['finishCountsByDifficulty'];
+  /** The player's best records: the mural shows the ones pinned to it. */
   records: ProfileRecordEntry[];
   recordsLoading?: boolean;
-  recordsError?: string;
-  recordsErrorTitle?: string;
+  achievements?: AchievementsPayload | null;
+  achievementsLoading?: boolean;
+  onEditShowcase?: () => void;
+  showcaseEmptyText?: string;
 }) {
+  const [finishDifficulty, setFinishDifficulty] = useState<DifficultyFilterValue>('all');
+  const finishDifficulties = useMemo(
+    () => new Set(Object.keys(finishCountsByDifficulty ?? {}).filter(isRankedDifficulty)),
+    [finishCountsByDifficulty],
+  );
+  const shownFinishCounts = finishDifficulty === 'all'
+    ? finishCounts
+    : finishCountsByDifficulty?.[finishDifficulty] ?? EMPTY_FINISH_COUNTS;
   return (
     <div className="space-y-5">
       {/* Desktop: ranking and competitions side by side. */}
@@ -338,15 +379,14 @@ function ProfileCareerContent({
           />}
         <Metric label="Competições" value={competitionsCompleted} detail="concluídas no total" />
       </div>
-      <CareerFinishBreakdown counts={finishCounts} />
-      <section aria-label="Recordes pessoais" className="space-y-3">
-        <SectionHeader title="Recordes pessoais" className="mb-0" />
-        <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Melhores marcas e posições no ranking.</p>
-        {recordsError ? <StatusBanner tone="danger" title={recordsErrorTitle}>{recordsError}</StatusBanner>
-          : recordsLoading
-            ? <div className="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="Carregando recordes pessoais">{RECORD_CATEGORY_ORDER.map(category => <Skeleton key={category} className="h-[210px] w-full rounded-xl" />)}</div>
-            : <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">{RECORD_CATEGORY_ORDER.map(category => <PersonalRecordCard key={category} category={category} record={records.find(record => record.category === category)} />)}</div>}
-      </section>
+      {/* Pinned records come from the records list, so wait for both. */}
+      {achievementsLoading || recordsLoading
+        ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Carregando mural">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-[150px] w-full rounded-xl" />)}</div>
+        : achievements ? <ShowcaseSection payload={achievements} records={records} onEdit={onEditShowcase} emptyText={showcaseEmptyText} /> : null}
+      <CareerFinishBreakdown
+        counts={shownFinishCounts}
+        filter={<DifficultyFilter label="Dificuldade das competições" includeAll value={finishDifficulty} onChange={setFinishDifficulty} available={finishDifficulties} />}
+      />
     </div>
   );
 }
@@ -373,7 +413,10 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
         scorePosition={data.scorePosition}
         competitionsCompleted={profile.stats.competitionsCompleted}
         finishCounts={profile.stats.finishCounts}
+        finishCountsByDifficulty={profile.stats.finishCountsByDifficulty}
         records={records}
+        achievements={data.achievements ?? null}
+        showcaseEmptyText="Este jogador ainda não tem destaques."
       />
     </div>
   );
@@ -387,14 +430,17 @@ function reportNumber(report: Record<string, unknown>, key: string): number | nu
 function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView: (entry: CompetitionHistoryEntry) => void }) {
   const report = entry.report ?? {};
   const competitionPoints = entry.competition_points ?? reportNumber(report, 'competitionPoints');
-  const champion = Boolean(entry.champion) || competitionPoints === COMPETITION_RANKING_POINTS.champion;
-  const hasFinishStage = champion || (competitionPoints !== null && HISTORY_FINISH_LABELS[competitionPoints] !== undefined);
+  // Rows saved before stages were recorded were all scored with the full table.
+  const finishStage = isCompetitionFinishStage(entry.finish_stage)
+    ? entry.finish_stage
+    : finishStageFromLegacyPoints(competitionPoints, entry.champion);
+  const champion = Boolean(entry.champion) || finishStage === 'champion';
+  const hasFinishStage = finishStage !== null;
   const summaryOnly = report.snapshotArchived === true;
-  const finishLabel = champion
-    ? 'Campeão'
-    : HISTORY_FINISH_LABELS[competitionPoints ?? -1]
-      ?? (entry.mode === 'online' && entry.placement ? `${entry.placement}º na liga` : entry.placement ? `Terminou em ${entry.placement}º lugar` : 'Campanha concluída');
-  const title = `Ver resultado final: ${entry.team_name}, ${finishLabel}, ${formatDate(entry.completed_at)}`;
+  const finishLabel = finishStage
+    ? HISTORY_FINISH_LABELS[finishStage]
+    : entry.mode === 'online' && entry.placement ? `${entry.placement}º na liga` : entry.placement ? `Terminou em ${entry.placement}º lugar` : 'Campanha concluída';
+  const title = `Ver resultado final: ${entry.team_name}, ${finishLabel}, ${difficultyName(entry.difficulty_id)}, ${formatDate(entry.completed_at)}`;
 
   return (
     <Panel density="compact" className="overflow-hidden p-0 transition-colors hover:border-[var(--ui-line-strong)]">
@@ -417,6 +463,8 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
                 </span>
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                   <Badge tone={champion ? 'brand' : 'default'} className="px-2 py-1 text-[12px]">{finishLabel}</Badge>
+                  <DifficultyBadge difficultyId={entry.difficulty_id} />
+                  {competitionPoints ? <span className="text-xs font-bold tabular-nums text-[var(--ui-brand-strong)]">+{competitionPoints} pts</span> : null}
                   {summaryOnly ? <Badge className="px-2 py-1 text-[12px]">RESUMO</Badge> : null}
                 </span>
                 <span className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums text-[var(--ui-text-muted)]">
@@ -442,7 +490,9 @@ function friendIdentity(friend: FriendshipEntry, accountId: string) {
     : { name: friend.requester_display_name, username: friend.requester_username, avatarKey: friend.requester_avatar_key, avatarBackgroundKey: friend.requester_avatar_background_key };
 }
 
-function CareerFinishBreakdown({ counts }: { counts: AccountStats['finishCounts'] }) {
+const EMPTY_FINISH_COUNTS: FinishCounts = { leaguePhase: 0, playoff: 0, roundOf16: 0, quarterfinal: 0, semifinal: 0, runnerUp: 0, champion: 0 };
+
+function CareerFinishBreakdown({ counts, filter }: { counts: AccountStats['finishCounts']; filter?: React.ReactNode }) {
   const finishes = [
     { label: 'Vice-campeão', value: counts.runnerUp },
     { label: 'Semifinal', value: counts.semifinal },
@@ -456,6 +506,7 @@ function CareerFinishBreakdown({ counts }: { counts: AccountStats['finishCounts'
     <section aria-label="Competições por fase" className="space-y-3">
       <SectionHeader title="Competições por fase" className="mb-0" />
       <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Quantidade de competições encerradas em cada fase.</p>
+      {filter}
       <div className="space-y-2">
         <Metric label="Campeão" value={counts.champion} tone="brand" className="p-3" />
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -468,7 +519,7 @@ function CareerFinishBreakdown({ counts }: { counts: AccountStats['finishCounts'
 
 export default function AccountPage() {
   const { state, dispatch } = useGame();
-  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, updateShowcase, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
   const accountId = account?.id ?? null;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
@@ -482,6 +533,9 @@ export default function AccountPage() {
   const [scorePosition, setScorePosition] = useState<ScoreLeaderboardPosition | null>(null);
   const [ownRecords, setOwnRecords] = useState<ProfileRecordEntry[]>([]);
   const [ownRecordsError, setOwnRecordsError] = useState('');
+  const [ownAchievements, setOwnAchievements] = useState<AchievementsPayload | null>(null);
+  const [ownAchievementsLoading, setOwnAchievementsLoading] = useState(false);
+  const [showcaseEditorOpen, setShowcaseEditorOpen] = useState(false);
   const [friends, setFriends] = useState<FriendshipEntry[]>([]);
   const [friendProfileUsername, setFriendProfileUsername] = useState<string | null>(null);
   const [friendProfileData, setFriendProfileData] = useState<PublicProfileData | null>(null);
@@ -489,6 +543,8 @@ export default function AccountPage() {
   const [friendProfileError, setFriendProfileError] = useState('');
   const [rankingTab, setRankingTab] = useState<RankingTab>('overall');
   const [recordRankingTab, setRecordRankingTab] = useState<PublicRecordEntry['category']>('goals');
+  const [scoreDifficulty, setScoreDifficulty] = useState<DifficultyFilterValue>('all');
+  const [recordsDifficulty, setRecordsDifficulty] = useState<RankedDifficultyId>('immortal');
   const [friendsTab, setFriendsTab] = useState<FriendsTab>('friends');
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [scoreLoading, setScoreLoading] = useState(false);
@@ -558,19 +614,43 @@ export default function AccountPage() {
       setOwnRecordsError('');
       setOwnRecordsLoading(true);
       void getOwnRecordHighlights().then(setOwnRecords).catch(err => setOwnRecordsError(err instanceof Error ? err.message : 'Não foi possível carregar seus recordes.')).finally(() => setOwnRecordsLoading(false));
+      setOwnAchievementsLoading(true);
+      void getOwnAchievements()
+        .then(payload => { if (active) setOwnAchievements(payload); })
+        // The rest of the profile still works without achievements.
+        .catch(err => { if (active) { setOwnAchievements(null); console.error('[account] conquistas indisponíveis:', err); } })
+        .finally(() => { if (active) setOwnAchievementsLoading(false); });
     }
-    if (tab === 'records') {
-      setLeaderboardLoading(true);
-      setScoreLoading(true);
-      void getRecords({ difficulty: 'immortal' }).then(setRecords).catch(err => setError(err.message)).finally(() => setLeaderboardLoading(false));
-      void getScoreLeaderboard().then(setScoreRanking).catch(err => setError(err.message)).finally(() => setScoreLoading(false));
-    }
+
     if (tab === 'friends' && accountId) {
       setFriendsLoading(true);
       void getFriends().then(setFriends).catch(err => setError(err.message)).finally(() => setFriendsLoading(false));
     }
     return () => { active = false; };
-  }, [tab, accountId, historyPage, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getFriends, refreshProfileIfStale]);
+  }, [tab, accountId, historyPage, getHistory, getOwnRecordHighlights, getOwnAchievements, getScoreLeaderboardPosition, getFriends, refreshProfileIfStale]);
+
+  // Rankings reload on their own filter, without refetching the other lists.
+  useEffect(() => {
+    if (tab !== 'records') return;
+    let active = true;
+    setScoreLoading(true);
+    void getScoreLeaderboard(scoreDifficulty === 'all' ? null : scoreDifficulty)
+      .then(ranking => { if (active) setScoreRanking(ranking); })
+      .catch(err => { if (active) setError(err.message); })
+      .finally(() => { if (active) setScoreLoading(false); });
+    return () => { active = false; };
+  }, [tab, scoreDifficulty, getScoreLeaderboard]);
+
+  useEffect(() => {
+    if (tab !== 'records') return;
+    let active = true;
+    setLeaderboardLoading(true);
+    void getRecords({ difficulty: recordsDifficulty })
+      .then(list => { if (active) setRecords(list); })
+      .catch(err => { if (active) setError(err.message); })
+      .finally(() => { if (active) setLeaderboardLoading(false); });
+    return () => { active = false; };
+  }, [tab, recordsDifficulty, getRecords]);
 
   const submitAuth = async () => {
     setBusy(true); setError(''); setNotice('');
@@ -811,10 +891,26 @@ export default function AccountPage() {
               scorePositionLoading={scorePositionLoading}
               competitionsCompleted={account.stats.competitionsCompleted}
               finishCounts={account.stats.finishCounts}
+              finishCountsByDifficulty={account.stats.finishCountsByDifficulty}
               records={ownRecords}
               recordsLoading={ownRecordsLoading}
-              recordsError={ownRecordsError}
+              achievements={ownAchievements}
+              achievementsLoading={ownAchievementsLoading}
+              onEditShowcase={ownAchievements ? () => setShowcaseEditorOpen(true) : undefined}
             />
+            {ownAchievements ? (
+              <ShowcaseEditor
+                open={showcaseEditorOpen}
+                onOpenChange={setShowcaseEditorOpen}
+                payload={ownAchievements}
+                records={ownRecords}
+                onSave={async items => {
+                  // An empty pick goes back to the automatic mural, which the server fills.
+                  await updateShowcase(items);
+                  setOwnAchievements(await getOwnAchievements());
+                }}
+              />
+            ) : null}
             <ConfirmDialog
               open={logoutConfirmOpen}
               onOpenChange={setLogoutConfirmOpen}
@@ -833,14 +929,16 @@ export default function AccountPage() {
               </TabList>
               <TabPanel value="overall" className="space-y-3 pt-4">
                 <div className="flex min-h-12 items-start justify-between gap-3">
-                  <div><h2 className="font-display text-2xl leading-none text-[var(--ui-text)]">Ranking geral por pontos</h2><p className="mt-1 text-xs text-[var(--ui-text-muted)]">Pontuação acumulada ao concluir cada campanha.</p></div>
+                  <div><h2 className="font-display text-2xl leading-none text-[var(--ui-text)]">{scoreDifficulty === 'all' ? 'Ranking geral por pontos' : `Ranking · ${difficultyName(scoreDifficulty)}`}</h2><p className="mt-1 text-xs text-[var(--ui-text-muted)]">{scoreDifficulty === 'all' ? 'Soma dos pontos de todas as dificuldades.' : `Só as campanhas jogadas no ${difficultyName(scoreDifficulty)}.`}</p></div>
                   <Badge tone="brand" className="shrink-0 whitespace-nowrap">TOP 10</Badge>
                 </div>
+                <DifficultyFilter label="Dificuldade do ranking de pontos" includeAll value={scoreDifficulty} onChange={setScoreDifficulty} />
                 {scoreLoading ? <div className="space-y-2" aria-label="Carregando ranking de pontos">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[76px] w-full rounded-xl" />)}</div>
-                  : scoreRanking.length === 0 ? <EmptyState title="O ranking começa com as próximas campanhas" description="Cada competição concluída registra pontos conforme a fase alcançada." />
+                  : scoreRanking.length === 0 ? <EmptyState title={scoreDifficulty === 'all' ? 'O ranking começa com as próximas campanhas' : `Ninguém pontuou no ${difficultyName(scoreDifficulty)} ainda`} description="Cada competição concluída registra pontos conforme a fase alcançada e a dificuldade." />
                     : <ol className="space-y-2">{scoreRanking.slice(0, 10).map((entry, index) => <li key={entry.username}><ScoreCard entry={entry} rank={index + 1} /></li>)}</ol>}
               </TabPanel>
               <TabPanel value="records" className="space-y-3 pt-4">
+                <DifficultyFilter label="Dificuldade dos recordes" value={recordsDifficulty} onChange={value => { if (value !== 'all') setRecordsDifficulty(value); }} />
                 <Tabs value={recordRankingTab} onValueChange={value => setRecordRankingTab(value as PublicRecordEntry['category'])}>
                   <TabList aria-label="Categorias de recordes" className="ui-tabs--equal">
                     {RECORD_CATEGORY_ORDER.map(category => <Tab key={category} value={category} aria-label={RECORD_RANKING_TAB_LABELS[category]} title={RECORD_RANKING_TAB_LABELS[category]}>
@@ -858,7 +956,7 @@ export default function AccountPage() {
                         <Badge tone="brand" className="shrink-0 whitespace-nowrap">TOP 10</Badge>
                       </div>
                       {leaderboardLoading ? <div className="space-y-2" aria-label={`Carregando ranking de ${meta.label.toLowerCase()}`}>{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[210px] w-full rounded-xl" />)}</div>
-                        : categoryRecords.length === 0 ? <EmptyState title="Ainda sem resultados nesta categoria" description="Os recordes aparecem quando uma competição é concluída." />
+                        : categoryRecords.length === 0 ? <EmptyState title={`Ainda sem recordes no ${difficultyName(recordsDifficulty)}`} description="Os recordes aparecem quando uma competição é concluída nesta dificuldade." />
                           : <ol className="space-y-2">{categoryRecords.map((record, index) => <li key={record.id}><RecordCard record={record} rank={index + 1} /></li>)}</ol>}
                     </TabPanel>;
                   })}
@@ -1039,13 +1137,27 @@ export default function AccountPage() {
         closeLabel="Fechar explicação da pontuação"
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {POINT_TIER_LABELS.map(tier => <div key={tier.label} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 py-2.5">
-              <span className="text-xs text-[var(--ui-text-soft)]">{tier.label}</span>
-              <strong className="font-display text-xl tabular-nums text-[var(--ui-brand-strong)]">{tier.points}</strong>
-            </div>)}
+          <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Cada campanha vale pontos pela fase alcançada, e quanto maior a dificuldade, mais vale cada fase:</p>
+          <div className="overflow-hidden rounded-lg border border-[var(--ui-line-subtle)]">
+            <table className="w-full table-fixed border-collapse text-xs">
+              <thead>
+                <tr className="bg-[var(--ui-surface-inset)]">
+                  <th scope="col" className="w-[26%] px-2 py-2 text-left font-bold text-[var(--ui-text-soft)]">Fase</th>
+                  {RANKED_DIFFICULTY_IDS.map(id => <th key={id} scope="col" className="px-1 py-2 text-right text-[11px] font-bold sm:px-1.5 sm:text-xs" style={{ color: difficultyColor(id) }}>
+                    <DifficultyEmblem difficulty={id} size={28} className="mb-0.5 ml-auto block" />
+                    {id === 'legendary' ? <><span className="sm:hidden" aria-hidden="true">Lend.</span><span className="sr-only sm:not-sr-only">{difficultyName(id)}</span></> : difficultyName(id)}
+                  </th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {COMPETITION_FINISH_STAGES.map(stage => <tr key={stage} className="border-t border-[var(--ui-line-subtle)]">
+                  <th scope="row" className="px-2 py-1.5 text-left font-normal leading-tight text-[var(--ui-text-soft)]">{STAGE_SHORT_LABELS[stage]}</th>
+                  {RANKED_DIFFICULTY_IDS.map(id => <td key={id} className="px-1 py-1.5 text-right font-display text-sm tabular-nums text-[var(--ui-text)] sm:px-1.5 sm:text-base">{competitionStagePoints(stage, id)}</td>)}
+                </tr>)}
+              </tbody>
+            </table>
           </div>
-          <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Os pontos de todas as competições concluídas, solo e online, são somados. Em caso de empate: mais títulos; depois, mais campanhas pontuadas.</p>
+          <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">O ranking geral soma os pontos de todas as competições concluídas, solo e online, em qualquer dificuldade; o filtro mostra só uma dificuldade. Em caso de empate: mais títulos; depois, mais campanhas pontuadas.</p>
         </div>
       </GameModal>
       <GameModal

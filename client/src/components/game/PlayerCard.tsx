@@ -1,4 +1,5 @@
 import { useEffect, useState, memo } from 'react';
+import TraitIcon from './TraitIcon';
 import { motion } from 'framer-motion';
 import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
 import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
@@ -1121,7 +1122,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
             {variants.length > 0 && (
               <div className="flex flex-col items-center" style={{ gap: 1 }}>
                 {variants.map(v => (
-                  <span key={v.key} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,0,0,.6) 48%, rgba(0,0,0,0) 76%)', fontSize: 10.5, lineHeight: 1, textShadow: `0 0 5px ${v.color}` }}>{v.icon}</span>
+                  <TraitIcon key={v.key} trait={v.key} fallback={v.icon} size={18} style={{ filter: `drop-shadow(0 0 3px ${v.color})` }} />
                 ))}
               </div>
             )}
@@ -1248,7 +1249,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           <div className="absolute flex flex-col items-center" style={{ top: '82.5%', left: '50%', transform: 'translateX(-50%)', gap: 3, width: 'max-content' }} title={variantDesc(player)}>
             {variants.map(v => (
               <div key={v.key} className="inline-flex items-center" style={{ gap: 4, padding: variants.length > 1 ? '1.5px 8px' : '2.5px 10px', borderRadius: 999, fontSize: variants.length > 1 ? 8.5 : 10.5, fontWeight: 900, letterSpacing: '.1em', whiteSpace: 'nowrap', color: '#fff', background: `linear-gradient(90deg,#0008,${v.color},#0008)`, border: '1px solid rgba(0,0,0,.45)', boxShadow: `0 0 9px color-mix(in srgb,${v.color} 62%,transparent)`, textShadow: '0 1px 2px rgba(0,0,0,.9)', fontFamily: 'var(--font-game), sans-serif' }}>
-                <span>{v.icon}</span> {v.label}
+                <TraitIcon trait={v.key} fallback={v.icon} size={variants.length > 1 ? 12 : 14} /> {v.label}
               </div>
             ))}
           </div>

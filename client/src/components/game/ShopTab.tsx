@@ -2,6 +2,8 @@
 // Spend the points earned each match. Each item opens a small flow (pick a coach / player /
 // variant / attribute / pack option) and dispatches the matching SHOP_* action; the reducer
 // validates the cost. Solo and online league flows share the same presentation.
+import TraitIcon from './TraitIcon';
+import { cn } from '../../lib/utils';
 import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
 import { COACHES, PLAYERS, POS_PT, Player, UNIQUE_CARDS } from '@shared/game/gameData';
@@ -12,6 +14,7 @@ import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
 import UniquePackOpening from './UniquePackOpening';
 import { Button, GameModal } from '../../design-system';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
+import CoinIcon, { withCoins } from './CoinIcon';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'scout' | 'playerPacks';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
@@ -61,6 +64,31 @@ function VariantPagination({ page, pageCount, onPageChange }: { page: number; pa
         PRÓXIMA →
       </button>
     </div>
+  );
+}
+
+/** Shop items with their own hexagon artwork (public/shop). */
+const SHOP_ITEM_ART = new Set(['coach', 'playerPacks', 'scout', 'turbinar', 'removeVariant']);
+
+function ShopItemArt({ id, fallback, size }: { id: string; fallback?: string; size: number }) {
+  if (!SHOP_ITEM_ART.has(id)) return fallback ? <span className="text-2xl" aria-hidden="true">{fallback}</span> : null;
+  return <img src={`/shop/${id}.webp`} alt="" aria-hidden="true" draggable={false} width={size} height={size} className="pointer-events-none shrink-0 select-none" style={{ width: size, height: size }} />;
+}
+
+/** Sealed pack artwork per rarity (public/packs), portrait 0.53:1. */
+function PackArt({ rarity, height, className }: { rarity: PlayerPackRarity; height: number; className?: string }) {
+  const width = Math.round(height * 0.53);
+  return (
+    <img
+      src={`/packs/${rarity}.webp`}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      width={width}
+      height={height}
+      className={cn('pointer-events-none shrink-0 select-none object-contain drop-shadow-[0_6px_14px_rgba(0,0,0,0.55)]', className)}
+      style={{ width, height }}
+    />
   );
 }
 
@@ -245,7 +273,7 @@ export default function ShopTab() {
            return (
              <div
                key={item.id}
-               className="ui-choice relative h-[150px] p-4"
+               className="ui-choice relative min-h-[132px] p-4"
                 style={{ borderColor: affordable ? item.color + '88' : undefined }}
              >
                <button
@@ -253,19 +281,24 @@ export default function ShopTab() {
                  onClick={() => canOpen && openItem(item.id)}
                  onPointerDown={() => item.id === 'playerPacks' && warmUniqueCardAssets(uniquePackCards)}
                  disabled={!canOpen}
-                 className="h-full w-full pb-8 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                 className={cn('h-full w-full text-left disabled:cursor-not-allowed disabled:opacity-50', item.id === 'turbinar' && 'pb-8')}
                >
-                 <div className="flex items-center justify-between mb-1">
-                   {item.icon && <span className="text-2xl">{item.icon}</span>}
-                   {cost !== null && (
-                     <span className="text-sm font-black px-2 py-0.5 rounded" style={{ fontFamily: 'var(--font-display), sans-serif', background: `${item.color}22`, color: item.color }}>
-                       💰 {cost}
-                     </span>
-                   )}
+                 {/* Artwork on the left, so the card stays compact on phones. */}
+                 <div className="flex items-start gap-3">
+                   <ShopItemArt id={item.id} fallback={item.icon} size={64} />
+                   <div className="min-w-0 flex-1">
+                     <div className="flex items-start justify-between gap-2">
+                       <div className="min-w-0 text-base font-black leading-tight tracking-wide" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{item.name}</div>
+                       {cost !== null && (
+                         <span className="shrink-0 text-sm font-black px-2 py-0.5 rounded" style={{ fontFamily: 'var(--font-display), sans-serif', background: `${item.color}22`, color: item.color }}>
+                           <CoinIcon />{cost}
+                         </span>
+                       )}
+                     </div>
+                     <div className="text-[13px] mt-1 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>{item.desc}</div>
+                     {!affordable && item.id !== 'turbinar' && <div className="text-[12px] mt-1 font-bold" style={{ color: 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>Créditos insuficientes</div>}
+                   </div>
                  </div>
-                 <div className="text-base font-black tracking-wide" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{item.name}</div>
-                 <div className="text-[13px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>{item.desc}</div>
-                 {!affordable && item.id !== 'turbinar' && <div className="text-[12px] mt-1 font-bold" style={{ color: 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>Créditos insuficientes</div>}
                </button>
                {item.id === 'turbinar' && (
                  <button
@@ -319,7 +352,7 @@ export default function ShopTab() {
             className="flex max-h-[90vh] flex-col"
             title={
               <>
-                {ITEMS.find(i => i.id === active)?.icon && `${ITEMS.find(i => i.id === active)?.icon} `}{ITEMS.find(i => i.id === active)?.name}
+                <span className="inline-flex items-center gap-2">{active ? <ShopItemArt id={active} fallback={ITEMS.find(i => i.id === active)?.icon} size={32} /> : null}{ITEMS.find(i => i.id === active)?.name}</span>
               </>
             }
           >
@@ -350,15 +383,18 @@ export default function ShopTab() {
                                   key={rarity}
                                   type="button"
                                   onClick={() => setSelectedPackRarity(rarity)}
-                                  className="flex h-full flex-col rounded-xl p-4 text-left transition-all hover:brightness-110 active:scale-[0.99]"
+                                  className="group flex h-full items-center gap-3 rounded-xl p-3 text-left transition-all hover:brightness-110 active:scale-[0.99]"
                                   style={{ background: '#07070f', border: `1px solid ${meta.color}66` }}
                                 >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-lg font-black" style={{ color: meta.color, fontFamily: 'var(--font-display), sans-serif' }}>PACOTE {meta.label}</span>
-                                    <span className="text-sm font-black whitespace-nowrap" style={{ color: meta.color, fontFamily: 'var(--font-game), sans-serif' }}>{playerPackCost(rarity)}</span>
+                                  <PackArt rarity={rarity} height={112} className="transition-transform group-hover:-translate-y-0.5" />
+                                  <div className="flex min-w-0 flex-1 flex-col self-stretch py-1">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <span className="text-lg font-black leading-tight" style={{ color: meta.color, fontFamily: 'var(--font-display), sans-serif' }}>PACOTE {meta.label}</span>
+                                      <span className="text-sm font-black whitespace-nowrap" style={{ color: meta.color, fontFamily: 'var(--font-game), sans-serif' }}><CoinIcon />{playerPackCost(rarity)}</span>
+                                    </div>
+                                    <div className="mt-1 text-sm leading-snug" style={{ color: '#A9A9BA', fontFamily: 'var(--font-game), sans-serif' }}>{meta.description}</div>
+                                    <div className="mt-auto pt-1.5 text-xs font-bold" style={{ color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>{cards.length}/4 cartas na oferta · {available} disponíveis</div>
                                   </div>
-                                  <div className="mt-1.5 min-h-[2.75rem] text-sm leading-snug" style={{ color: '#A9A9BA', fontFamily: 'var(--font-game), sans-serif' }}>{meta.description}</div>
-                                  <div className="mt-auto pt-1.5 text-xs font-bold" style={{ color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>{cards.length}/4 cartas na oferta · {available} disponíveis</div>
                                 </button>
                               );
                             })}
@@ -366,7 +402,8 @@ export default function ShopTab() {
                         </>
                       ) : (
                         <>
-                          <div className="mb-3 flex items-center justify-between gap-3">
+                          <div className="mb-3 flex items-center gap-3">
+                            <PackArt rarity={selectedPackRarity} height={84} />
                             <div>
                               <div className="text-2xl font-black" style={{ color: PLAYER_PACK_META[selectedPackRarity].color, fontFamily: 'var(--font-display), sans-serif' }}>PACOTE {PLAYER_PACK_META[selectedPackRarity].label}</div>
                               <div className="text-sm" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Oferta da rodada · 4 cartas · uma será revelada</div>
@@ -408,7 +445,7 @@ export default function ShopTab() {
                               className="w-full rounded-xl px-4 py-3 text-sm font-black tracking-widest transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                               style={{ background: PLAYER_PACK_META[selectedPackRarity].color, color: '#0A0A14', fontFamily: 'var(--font-display), sans-serif' }}
                             >
-                              ABRIR PACOTE · 💰 {selectedCost}
+                              ABRIR PACOTE · <CoinIcon />{selectedCost}
                             </button>
                           </div>
                           <button
@@ -489,7 +526,7 @@ export default function ShopTab() {
                         const color = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
                         return (
                           <div key={v.key} className="w-full min-h-[86px] rounded-xl p-4 flex items-center gap-4" style={{ background: '#07070f', border: `1px solid ${color}44` }}>
-                            <span className="text-3xl flex-shrink-0">{v.icon}</span>
+                            <TraitIcon trait={v.key} fallback={v.icon} size={44} />
                             <div className="min-w-0">
                               <div className="text-lg font-black tracking-wide" style={{ fontFamily: 'var(--font-display), sans-serif', color }}>{v.label}</div>
                               <div className="text-xs leading-relaxed" style={{ color: '#B1B1C0', fontFamily: 'var(--font-game), sans-serif' }}>{v.desc}</div>
@@ -540,7 +577,7 @@ export default function ShopTab() {
                             <button key={v.key} onClick={() => askConfirm('Turbinar Carta', `Aplicar ${v.label} em ${selPlayer.shortName} por 💰 ${SHOP_COSTS.turbinar}?`, () => { buyTurbinar(selPlayer.id, v.key as ShopVariant); close(); })}
                               className="w-full text-left rounded-xl p-4 flex items-center gap-4 transition-all active:scale-[0.99]"
                               style={{ background: '#07070f', border: `1px solid ${color}44` }}>
-                              <span className="text-3xl flex-shrink-0">{v.icon}</span>
+                              <TraitIcon trait={v.key} fallback={v.icon} size={44} />
                               <div>
                                 <div className="text-lg font-black tracking-wide" style={{ fontFamily: 'var(--font-display), sans-serif', color }}>{v.label}</div>
                                 <div className="text-xs leading-relaxed" style={{ color: '#B1B1C0', fontFamily: 'var(--font-game), sans-serif' }}>{v.desc}</div>
@@ -587,7 +624,7 @@ export default function ShopTab() {
                                             className="text-[12px] font-black px-2 py-0.5 rounded-full transition-transform hover:scale-[1.08] active:scale-95"
                                             title={`Remover ${v.label}`}
                                             style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}55`, fontFamily: 'var(--font-game), sans-serif' }}>
-                                            🧹 {v.icon} {v.label}
+                                            <span className="inline-flex items-center gap-1">🧹 <TraitIcon trait={v.key} fallback={v.icon} size={24} /> {v.label}</span>
                                           </button>
                                         );
                                       })}
@@ -619,8 +656,8 @@ export default function ShopTab() {
           >
               <div className="text-3xl mb-1">🛒</div>
               <h3 className="ui-modal__title mb-2">{confirmCfg.title}</h3>
-              <p className="mb-2 text-sm text-[var(--ui-text-soft)]">{confirmCfg.message}</p>
-              <p className="mb-4 text-xs text-[var(--ui-text-muted)]">Seu saldo: 💰 {points}</p>
+              <p className="mb-2 text-sm text-[var(--ui-text-soft)]">{withCoins(confirmCfg.message)}</p>
+              <p className="mb-4 text-xs text-[var(--ui-text-muted)]">Seu saldo: <CoinIcon />{points}</p>
               <div className="flex gap-2">
                 <Button intent="ghost" className="flex-1" onClick={() => setConfirmCfg(null)}>
                   CANCELAR

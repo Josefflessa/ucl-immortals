@@ -1,6 +1,24 @@
 import { DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, isProfileAvatarBackgroundKey } from '../shared/profileAppearance';
 import { getTeamEffectiveStats, type Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
+import {
+  achievementRarity,
+  automaticShowcase,
+  ensureAchievementsCurrent,
+  loadAchievements,
+  loadShowcase,
+  saveShowcase,
+  syncAchievements,
+} from './achievements.js';
+import {
+  competitionStagePoints,
+  finishStageFromLegacyPoints,
+  isCompetitionFinishStage,
+  isRankedDifficulty,
+  RANKED_DIFFICULTY_IDS,
+  type CompetitionFinishStage,
+  type RankedDifficultyId,
+} from '../shared/game/competitionRanking.js';
 
 const SESSION_COOKIE = 'ucl_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -36,18 +54,22 @@ interface AuthenticatedAccount {
   stats: AccountStats;
 }
 
+interface FinishCounts {
+  leaguePhase: number;
+  playoff: number;
+  roundOf16: number;
+  quarterfinal: number;
+  semifinal: number;
+  runnerUp: number;
+  champion: number;
+}
+
 interface AccountStats {
   competitionsCompleted: number;
   titles: number;
-  finishCounts: {
-    leaguePhase: number;
-    playoff: number;
-    roundOf16: number;
-    quarterfinal: number;
-    semifinal: number;
-    runnerUp: number;
-    champion: number;
-  };
+  finishCounts: FinishCounts;
+  /** Same counts split by difficulty (only difficulties with campaigns). */
+  finishCountsByDifficulty: Partial<Record<RankedDifficultyId, FinishCounts>>;
   wins: number;
   draws: number;
   losses: number;
@@ -74,13 +96,7 @@ interface UserRow {
   created_at: number;
   competitions_completed?: number;
   titles?: number;
-  finish_league_phase?: number;
-  finish_playoff?: number;
-  finish_round_of_16?: number;
-  finish_quarterfinal?: number;
-  finish_semifinal?: number;
-  finish_runner_up?: number;
-  finish_champion?: number;
+  finish_breakdown?: string | null;
   wins?: number;
   draws?: number;
   losses?: number;
@@ -180,19 +196,52 @@ function passwordError(password: string): string | null {
   return null;
 }
 
+const FINISH_COUNT_KEY: Record<CompetitionFinishStage, keyof FinishCounts> = {
+  champion: 'champion',
+  runnerUp: 'runnerUp',
+  semifinalist: 'semifinal',
+  quarterfinalist: 'quarterfinal',
+  roundOf16: 'roundOf16',
+  playoff: 'playoff',
+  leaguePhase: 'leaguePhase',
+};
+
+function emptyFinishCounts(): FinishCounts {
+  return { leaguePhase: 0, playoff: 0, roundOf16: 0, quarterfinal: 0, semifinal: 0, runnerUp: 0, champion: 0 };
+}
+
+/** Parses the [difficulty, stage, count] triples aggregated by ACCOUNT_SELECT. */
+function finishCountsFromBreakdown(raw: string | null | undefined): Pick<AccountStats, 'finishCounts' | 'finishCountsByDifficulty'> {
+  const finishCounts = emptyFinishCounts();
+  const finishCountsByDifficulty: AccountStats['finishCountsByDifficulty'] = {};
+  let entries: unknown = [];
+  try {
+    entries = raw ? JSON.parse(raw) : [];
+  } catch {
+    entries = [];
+  }
+  if (!Array.isArray(entries)) return { finishCounts, finishCountsByDifficulty };
+  for (const entry of entries) {
+    if (!Array.isArray(entry)) continue;
+    const [difficultyId, stage, rawCount] = entry;
+    const count = Number(rawCount);
+    if (!isCompetitionFinishStage(stage) || !Number.isSafeInteger(count) || count <= 0) continue;
+    const key = FINISH_COUNT_KEY[stage];
+    finishCounts[key] += count;
+    if (isRankedDifficulty(difficultyId)) {
+      const perDifficulty = finishCountsByDifficulty[difficultyId] ?? emptyFinishCounts();
+      perDifficulty[key] += count;
+      finishCountsByDifficulty[difficultyId] = perDifficulty;
+    }
+  }
+  return { finishCounts, finishCountsByDifficulty };
+}
+
 function statsFromRow(row: UserRow): AccountStats {
   return {
     competitionsCompleted: Number(row.competitions_completed ?? 0),
     titles: Number(row.titles ?? 0),
-    finishCounts: {
-      leaguePhase: Number(row.finish_league_phase ?? 0),
-      playoff: Number(row.finish_playoff ?? 0),
-      roundOf16: Number(row.finish_round_of_16 ?? 0),
-      quarterfinal: Number(row.finish_quarterfinal ?? 0),
-      semifinal: Number(row.finish_semifinal ?? 0),
-      runnerUp: Number(row.finish_runner_up ?? 0),
-      champion: Number(row.finish_champion ?? 0),
-    },
+    ...finishCountsFromBreakdown(row.finish_breakdown),
     wins: Number(row.wins ?? 0),
     draws: Number(row.draws ?? 0),
     losses: Number(row.losses ?? 0),
@@ -223,30 +272,24 @@ function accountFromRow(row: UserRow): AuthenticatedAccount {
   };
 }
 
+const RANKED_DIFFICULTY_SQL = RANKED_DIFFICULTY_IDS.map(id => `'${id}'`).join(', ');
+
 const ACCOUNT_SELECT = `
-  WITH competition_finishes AS (
-    SELECT user_id,
-      SUM(CASE WHEN competition_points = 5 THEN 1 ELSE 0 END) AS finish_league_phase,
-      SUM(CASE WHEN competition_points = 15 THEN 1 ELSE 0 END) AS finish_playoff,
-      SUM(CASE WHEN competition_points = 25 THEN 1 ELSE 0 END) AS finish_round_of_16,
-      SUM(CASE WHEN competition_points = 40 THEN 1 ELSE 0 END) AS finish_quarterfinal,
-      SUM(CASE WHEN competition_points = 60 THEN 1 ELSE 0 END) AS finish_semifinal,
-      SUM(CASE WHEN competition_points = 80 THEN 1 ELSE 0 END) AS finish_runner_up,
-      SUM(CASE WHEN competition_points = 100 THEN 1 ELSE 0 END) AS finish_champion
+  WITH finish_rows AS (
+    SELECT user_id, difficulty_id, finish_stage, COUNT(*) AS finishes
     FROM competition_history
+    WHERE finish_stage IS NOT NULL
+    GROUP BY user_id, difficulty_id, finish_stage
+  ), competition_finishes AS (
+    SELECT user_id, json_group_array(json_array(difficulty_id, finish_stage, finishes)) AS finish_breakdown
+    FROM finish_rows
     GROUP BY user_id
   )
   SELECT u.id, u.email, p.username, p.display_name, p.bio, p.avatar_key, p.avatar_background_key,
          p.cover_key, p.favorite_crest_id, p.avatar_url, p.cover_url, p.visibility, p.created_at,
          COALESCE(s.competitions_completed, 0) AS competitions_completed,
          COALESCE(s.titles, 0) AS titles,
-         COALESCE(cf.finish_league_phase, 0) AS finish_league_phase,
-         COALESCE(cf.finish_playoff, 0) AS finish_playoff,
-         COALESCE(cf.finish_round_of_16, 0) AS finish_round_of_16,
-         COALESCE(cf.finish_quarterfinal, 0) AS finish_quarterfinal,
-         COALESCE(cf.finish_semifinal, 0) AS finish_semifinal,
-         COALESCE(cf.finish_runner_up, 0) AS finish_runner_up,
-         COALESCE(cf.finish_champion, 0) AS finish_champion,
+         cf.finish_breakdown,
          COALESCE(s.wins, 0) AS wins,
          COALESCE(s.draws, 0) AS draws,
          COALESCE(s.losses, 0) AS losses,
@@ -447,7 +490,7 @@ async function historyList(env: AccountEnv, account: AuthenticatedAccount, reque
   const page = totalPages === 0 ? 1 : Math.min(Math.max(1, requestedPage), totalPages);
   const offset = (page - 1) * pageSize;
   const rows = await env.DB.prepare(`SELECT id, mode, difficulty_id, format_id, team_name, crest_id, coach_id,
-      champion, placement, competition_points, report_json, completed_at
+      champion, placement, competition_points, finish_stage, report_json, completed_at
     FROM competition_history
     WHERE user_id = ?
     ORDER BY completed_at DESC, id DESC
@@ -466,6 +509,9 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   if (!body) return json({ error: 'invalid_json' }, 400);
   const mode = body.mode === 'online' ? 'online' : body.mode === 'solo' ? 'solo' : null;
   const difficultyId = String(body.difficultyId ?? '').trim().slice(0, 40);
+  if (difficultyId && !isRankedDifficulty(difficultyId)) {
+    return json({ error: 'invalid_difficulty', message: 'Dificuldade desconhecida.' }, 400);
+  }
   const formatId = String(body.formatId ?? '').trim().slice(0, 60);
   const teamName = String(body.teamName ?? '').trim().slice(0, 80);
   const report = body.report;
@@ -476,12 +522,20 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   }
   if (mode !== 'solo') return json({ error: 'online_history_server_authoritative', message: 'Resultados online são registrados pelo servidor da sala.' }, 400);
   const champion = body.champion ? 1 : 0;
-  const allowedFinishPoints = new Set([5, 15, 25, 40, 60, 80]);
-  const submittedPoints = Number(body.competitionPoints);
-  const competitionPoints = champion ? 100 : allowedFinishPoints.has(submittedPoints) ? submittedPoints : 0;
+  // The client only states how far the campaign went; the points are always
+  // derived here from that stage and the difficulty. Older clients send the
+  // full-table points instead, which still identify the stage.
+  const finishStage: CompetitionFinishStage | null = champion
+    ? 'champion'
+    : isCompetitionFinishStage(body.finishStage) && body.finishStage !== 'champion'
+      ? body.finishStage
+      : finishStageFromLegacyPoints(body.competitionPoints);
+  const competitionPoints = finishStage && isRankedDifficulty(difficultyId)
+    ? competitionStagePoints(finishStage, difficultyId)
+    : 0;
   let reportJson: string;
   try {
-    reportJson = JSON.stringify({ ...(report as Record<string, unknown>), competitionPoints });
+    reportJson = JSON.stringify({ ...(report as Record<string, unknown>), competitionPoints, finishStage });
   } catch {
     return json({ error: 'invalid_history' }, 400);
   }
@@ -520,10 +574,11 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   const placement = body.placement == null ? null : Math.max(1, Math.min(999, Number(body.placement)) || 1);
   const crestId = body.crestId ? String(body.crestId).slice(0, 80) : null;
   const coachId = body.coachId ? String(body.coachId).slice(0, 80) : null;
+  await ensureAchievementsCurrent(env.DB, account.id);
   const statements = [env.DB.prepare(`INSERT INTO competition_history
-      (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, competition_points, report_json, source_key, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, account.id, mode, difficultyId, formatId, teamName, crestId, coachId, champion, placement, competitionPoints, reportJson, sourceKey, now)];
+      (id, user_id, mode, difficulty_id, format_id, team_name, crest_id, coach_id, champion, placement, competition_points, finish_stage, report_json, source_key, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, account.id, mode, difficultyId, formatId, teamName, crestId, coachId, champion, placement, competitionPoints, finishStage, reportJson, sourceKey, now)];
   const persistedRecords = safeRecords.map(record => {
     const playerCard = recordPlayerCard(reportJson, record.playerId);
     const effectiveCardStats = playerCard?.effectiveStats && typeof playerCard.effectiveStats === 'object'
@@ -578,13 +633,19 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
         .bind(account.id, sourceKey).first<{ id: string }>();
       if (existing) {
         await retainRecentCompetitionSnapshots(env.DB, account.id);
-        return json({ id: existing.id, duplicate: true });
+        return json({ id: existing.id, duplicate: true, achievementsUnlocked: [] });
       }
     }
     throw error;
   }
   await retainRecentCompetitionSnapshots(env.DB, account.id);
-  return json({ id, duplicate: false }, 201);
+  // The campaign is stored; a failed evaluation is retried on the next profile
+  // access, so it must never turn a saved campaign into an error.
+  const achievementsUnlocked = await syncAchievements(env.DB, account.id).catch(error => {
+    console.error('[achievements] evaluation after solo save failed:', error);
+    return [];
+  });
+  return json({ id, duplicate: false, achievementsUnlocked }, 201);
 }
 
 async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
@@ -592,6 +653,7 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
   const difficulty = url.searchParams.get('difficulty');
   const allowed = new Set(['goals', 'assists', 'saves', 'effective_overall']);
   if (category && !allowed.has(category)) return json({ error: 'invalid_category' }, 400);
+  if (difficulty && !isRankedDifficulty(difficulty)) return json({ error: 'invalid_difficulty' }, 400);
   const clauses: string[] = [];
   const binds: unknown[] = [];
   if (category) { clauses.push('r.category = ?'); binds.push(category); }
@@ -885,15 +947,16 @@ async function loadRecordHighlights(env: AccountEnv, userId: string): Promise<Re
              r.mode, r.format_id, r.completed_at, r.player_card_json,
              ${RECORD_CARD_EFFECTIVE_OVERALL_SQL} AS effective_overall_snapshot,
              ROW_NUMBER() OVER (
-               PARTITION BY r.category
+               PARTITION BY r.difficulty_id, r.category
                ORDER BY r.value DESC, r.created_at ASC, r.id ASC
              ) AS ranking_position,
              ROW_NUMBER() OVER (
-               PARTITION BY r.category, r.user_id
+               PARTITION BY r.difficulty_id, r.category, r.user_id
                ORDER BY r.value DESC, r.created_at ASC, r.id ASC
              ) AS user_record_rank
         FROM competition_records r
-       WHERE r.difficulty_id = 'immortal' AND r.verified = 1
+       WHERE r.verified = 1
+         AND r.difficulty_id IN (${RANKED_DIFFICULTY_SQL})
          AND r.category IN ('goals', 'assists', 'saves', 'effective_overall')
     )
     SELECT r.category, r.difficulty_id, r.player_id, r.player_name, r.player_photo_url, r.value,
@@ -906,7 +969,7 @@ async function loadRecordHighlights(env: AccountEnv, userId: string): Promise<Re
       FROM ranked_records r
       LEFT JOIN profiles p ON p.user_id = r.user_id
      WHERE r.user_id = ? AND r.user_record_rank = 1
-     ORDER BY CASE r.category WHEN 'goals' THEN 1 WHEN 'assists' THEN 2 WHEN 'saves' THEN 3 ELSE 4 END`)
+     ORDER BY r.difficulty_id, CASE r.category WHEN 'goals' THEN 1 WHEN 'assists' THEN 2 WHEN 'saves' THEN 3 ELSE 4 END`)
     .bind(userId).all();
   return rows.results.map((row: any) => {
     const { player_card_json: playerCardJson, effective_overall_snapshot: effectiveOverallSnapshot, player_card_context: playerCardContext, ...record } = row;
@@ -922,20 +985,78 @@ async function loadRecordHighlights(env: AccountEnv, userId: string): Promise<Re
   });
 }
 
+async function achievementsPayload(env: AccountEnv, userId: string, records?: Array<Record<string, unknown>>) {
+  await ensureAchievementsCurrent(env.DB, userId);
+  const [achievements, rarity, chosen, recordRows] = await Promise.all([
+    loadAchievements(env.DB, userId),
+    achievementRarity(env.DB),
+    loadShowcase(env.DB, userId),
+    records
+      ? Promise.resolve(records)
+      : env.DB.prepare(`SELECT DISTINCT difficulty_id, category FROM competition_records WHERE user_id = ? AND verified = 1`)
+        .bind(userId).all<Record<string, unknown>>().then(result => result.results),
+  ]);
+  const recordKeys = recordRows.map(row => ({ difficultyId: String(row.difficulty_id), category: String(row.category) }));
+  const automatic = chosen.length === 0;
+  return {
+    achievements,
+    rarity,
+    showcase: { items: automatic ? automaticShowcase(achievements, rarity, recordKeys) : chosen, automatic },
+  };
+}
+
+async function accountAchievements(env: AccountEnv, account: AuthenticatedAccount, url: URL): Promise<Response> {
+  const payload = await achievementsPayload(env, account.id);
+  // Levels reached at or after "since" (e.g. while an online report was open).
+  const since = Number(url.searchParams.get('since'));
+  const recentlyUnlocked = Number.isFinite(since) && since > 0
+    ? payload.achievements.filter(state => state.level > 0 && (state.unlockedAt ?? 0) >= since).map(state => ({ id: state.id, level: state.level }))
+    : [];
+  return json({ ...payload, recentlyUnlocked });
+}
+
+async function updateShowcase(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  const body = await readJson(request);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  await ensureAchievementsCurrent(env.DB, account.id);
+  const result = await saveShowcase(env.DB, account.id, body.items);
+  if ('error' in result) {
+    const message = result.error === 'showcase_item_not_owned'
+      ? 'Só é possível fixar conquistas desbloqueadas e recordes que você tem.'
+      : 'Mural inválido.';
+    return json({ error: result.error, message }, 400);
+  }
+  return json({ showcase: { items: result.items, automatic: result.items.length === 0 } });
+}
+
 async function accountRecordHighlights(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
   const records = await loadRecordHighlights(env, account.id);
   return json({ records });
 }
 
-async function scoreLeaderboard(env: AccountEnv): Promise<Response> {
-  const pointExpression = 'competition_points';
-  const rows = await env.DB.prepare(`WITH totals AS (
-      SELECT user_id,
-        SUM(${pointExpression}) AS points,
-        SUM(CASE WHEN ${pointExpression} > 0 THEN 1 ELSE 0 END) AS scored_competitions,
+/** Optional difficulty filter of the score ranking: null = overall. */
+function scoreDifficultyFilter(url: URL): { difficulty: RankedDifficultyId | null; error?: Response } {
+  const raw = url.searchParams.get('difficulty');
+  if (!raw || raw === 'all') return { difficulty: null };
+  if (!isRankedDifficulty(raw)) return { difficulty: null, error: json({ error: 'invalid_difficulty' }, 400) };
+  return { difficulty: raw };
+}
+
+function scoreTotalsSql(difficulty: RankedDifficultyId | null): string {
+  return `SELECT user_id,
+        SUM(competition_points) AS points,
+        SUM(CASE WHEN competition_points > 0 THEN 1 ELSE 0 END) AS scored_competitions,
         SUM(champion) AS titles
       FROM competition_history
-      GROUP BY user_id
+      ${difficulty ? 'WHERE difficulty_id = ?' : ''}
+      GROUP BY user_id`;
+}
+
+async function scoreLeaderboard(env: AccountEnv, url: URL): Promise<Response> {
+  const { difficulty, error } = scoreDifficultyFilter(url);
+  if (error) return error;
+  const rows = await env.DB.prepare(`WITH totals AS (
+      ${scoreTotalsSql(difficulty)}
     )
     SELECT p.username, p.display_name, p.avatar_key, p.avatar_background_key, p.avatar_url,
       latest.team_name AS team_name_snapshot, latest.crest_id AS crest_id_snapshot,
@@ -950,25 +1071,19 @@ async function scoreLeaderboard(env: AccountEnv): Promise<Response> {
     )
     WHERE p.visibility = 'public' AND totals.points > 0
     ORDER BY totals.points DESC, totals.titles DESC, totals.scored_competitions DESC, LOWER(p.username) ASC
-    LIMIT 10`).all();
+    LIMIT 10`).bind(...(difficulty ? [difficulty] : [])).all();
   const ranking = rows.results.map((row: any) => ({
     ...row,
     points: Number(row.points ?? 0),
     scored_competitions: Number(row.scored_competitions ?? 0),
     titles: Number(row.titles ?? 0),
   }));
-  return json({ ranking });
+  return json({ ranking, difficulty });
 }
 
-async function getScoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount) {
-  const pointExpression = 'competition_points';
+async function getScoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount, difficulty: RankedDifficultyId | null = null) {
   const row = await env.DB.prepare(`WITH totals AS (
-      SELECT user_id,
-        SUM(${pointExpression}) AS points,
-        SUM(CASE WHEN ${pointExpression} > 0 THEN 1 ELSE 0 END) AS scored_competitions,
-        SUM(champion) AS titles
-      FROM competition_history
-      GROUP BY user_id
+      ${scoreTotalsSql(difficulty)}
     ), ranked AS (
       SELECT p.user_id,
         ROW_NUMBER() OVER (
@@ -985,7 +1100,7 @@ async function getScoreLeaderboardPosition(env: AccountEnv, account: Authenticat
       (SELECT COUNT(*) FROM ranked) AS participants
     FROM (SELECT ? AS user_id) viewer
     LEFT JOIN totals ON totals.user_id = viewer.user_id
-    LEFT JOIN ranked ON ranked.user_id = viewer.user_id`).bind(account.id).first<{
+    LEFT JOIN ranked ON ranked.user_id = viewer.user_id`).bind(...(difficulty ? [difficulty] : []), account.id).first<{
       position: number | null;
       points: number;
       scored_competitions: number;
@@ -1005,8 +1120,10 @@ async function getScoreLeaderboardPosition(env: AccountEnv, account: Authenticat
   } as const;
 }
 
-async function scoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
-  return json(await getScoreLeaderboardPosition(env, account));
+async function scoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount, url: URL): Promise<Response> {
+  const { difficulty, error } = scoreDifficultyFilter(url);
+  if (error) return error;
+  return json({ ...(await getScoreLeaderboardPosition(env, account, difficulty)), difficulty });
 }
 
 async function friendsList(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
@@ -1163,9 +1280,11 @@ async function publicProfile(request: Request, env: AccountEnv, username: string
   const visibleScorePosition = account.visibility === 'public'
     ? scorePosition
     : { ...scorePosition, position: null, points: 0, scored_competitions: 0, titles: 0 };
+  const achievements = await achievementsPayload(env, account.id, records);
   return json({
     profile: publicAccount(account),
     records,
+    achievements,
     scorePosition: visibleScorePosition,
     friendCount: Number(friendCountRow?.friend_count ?? 0),
   });
@@ -1191,7 +1310,7 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', 0, !isLocalRequest(request)) });
   }
   if (url.pathname === '/api/records' && request.method === 'GET') return publicRecords(env, url);
-  if (url.pathname === '/api/leaderboards/score' && request.method === 'GET') return scoreLeaderboard(env);
+  if (url.pathname === '/api/leaderboards/score' && request.method === 'GET') return scoreLeaderboard(env, url);
   if (url.pathname.startsWith('/api/users/') && request.method === 'GET') return publicProfile(request, env, decodeURIComponent(url.pathname.slice('/api/users/'.length)));
 
   if (url.pathname.startsWith('/api/account')) {
@@ -1199,8 +1318,10 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (!account) return json({ error: 'authentication_required' }, 401);
     if (url.pathname === '/api/account/profile' && request.method === 'GET') return json({ account: publicAccount(account) });
     if (url.pathname === '/api/account/profile' && request.method === 'PATCH') return profileUpdate(request, env, account);
-    if (url.pathname === '/api/account/leaderboards/score-position' && request.method === 'GET') return scoreLeaderboardPosition(env, account);
+    if (url.pathname === '/api/account/leaderboards/score-position' && request.method === 'GET') return scoreLeaderboardPosition(env, account, url);
     if (url.pathname === '/api/account/records' && request.method === 'GET') return accountRecordHighlights(env, account);
+    if (url.pathname === '/api/account/achievements' && request.method === 'GET') return accountAchievements(env, account, url);
+    if (url.pathname === '/api/account/showcase' && request.method === 'PUT') return updateShowcase(request, env, account);
     if (url.pathname === '/api/account/history' && request.method === 'GET') {
       const requestedPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
       return historyList(env, account, Number.isFinite(requestedPage) ? requestedPage : 1);

@@ -10,6 +10,7 @@ import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { Ban } from 'lucide-react';
 import { FORMATIONS, COACHES, Player, POS_PT } from '@shared/game/gameData';
 import { getTraitInfo, traitEffectLabel } from '@shared/game/traits';
+import PlaystyleIcon from '../components/game/PlaystyleIcon';
 import { DRAFT_TURN_SECONDS } from '@shared/const';
 import { AppShell, Button, Panel, PanelHeader, PanelTitle, Progress, TopBar } from '../design-system';
 
@@ -158,7 +159,7 @@ const DraftOptions = memo(function DraftOptions({
                 const isRolled = t === sel.rolledTrait;
                 return (
                   <div key={t} className="flex items-baseline gap-1.5 text-[13px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                    <span className="flex-shrink-0">{info?.icon ?? '⭐'}</span>
+                    <PlaystyleIcon trait={t} fallback={info?.icon} size={14} color="var(--ui-brand)" className="flex-shrink-0 translate-y-0.5" />
                     <span className="font-black flex-shrink-0" style={{ color: isRolled ? 'var(--ui-brand-strong)' : '#FFF' }}>{isRolled ? `${t} (extra)` : t}</span>
                     <span style={{ color: 'var(--ui-brand)' }}>{traitEffectLabel(t) || 'sem efeito direto'}</span>
                   </div>

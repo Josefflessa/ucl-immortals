@@ -13,6 +13,7 @@ import {
   missionRemovalCost,
 } from '@shared/game/missions';
 import { Button, ConfirmDialog, Progress } from '../../design-system';
+import CoinIcon from './CoinIcon';
 
 function deadlineLabel(matches: number): string {
   return `${matches} ${matches === 1 ? 'partida restante' : 'partidas restantes'}`;
@@ -89,7 +90,7 @@ function MissionCard({
           <div className="mt-auto space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm" style={{ color: '#8E8EA0', fontFamily: 'var(--font-game), sans-serif' }}>
               <span className="inline-flex items-center gap-1"><Clock3 size={14} /> {deadlineLabel(active.matchesRemaining)}</span>
-              <span className="font-black" style={{ color: '#F0C674' }}>💰 +{reward}</span>
+              <span className="font-black" style={{ color: '#F0C674' }}><CoinIcon />+{reward}</span>
             </div>
             <Button
               intent="danger"
@@ -99,7 +100,7 @@ function MissionCard({
               title={!canRemove ? 'Você não tem créditos suficientes para remover esta missão.' : undefined}
               onClick={onRemove}
             >
-              <Trash2 size={14} /> Remover por 💰 {removalCost}
+              <Trash2 size={14} /> Remover por <CoinIcon />{removalCost}
             </Button>
           </div>
         </>
@@ -107,7 +108,7 @@ function MissionCard({
         <div className="mt-auto space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm" style={{ color: '#8E8EA0', fontFamily: 'var(--font-game), sans-serif' }}>
             <span className="inline-flex items-center gap-1"><Clock3 size={14} /> Prazo: {deadline} {deadline === 1 ? 'partida' : 'partidas'}</span>
-            <span className="font-black" style={{ color: '#F0C674' }}>💰 +{reward}</span>
+            <span className="font-black" style={{ color: '#F0C674' }}><CoinIcon />+{reward}</span>
           </div>
           {resolved ? (
             <div className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-black tracking-widest" style={{ color: '#66667A', background: '#0B0B14', fontFamily: 'var(--font-game), sans-serif' }}>

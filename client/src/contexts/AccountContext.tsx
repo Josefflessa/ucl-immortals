@@ -1,18 +1,50 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Player } from '@shared/game/gameData';
+import type { CompetitionFinishStage, RankedDifficultyId } from '@shared/game/competitionRanking';
+import type { AchievementLevel, ShowcaseItem } from '@shared/game/achievements';
+
+export interface AchievementState {
+  id: string;
+  level: AchievementLevel;
+  progress: number;
+  /** Coach or crest id driving the progress, for "most with one" achievements. */
+  detail?: string | null;
+  unlockedAt: number | null;
+}
+
+export interface AchievementUnlock {
+  id: string;
+  level: AchievementLevel;
+}
+
+export interface AchievementRarity {
+  players: number;
+  /** Percent of players holding each level or better: [Bronze, Prata, Ouro, Lendário]. */
+  percentByAchievement: Record<string, [number, number, number, number]>;
+}
+
+export interface AchievementsPayload {
+  achievements: AchievementState[];
+  rarity: AchievementRarity;
+  showcase: { items: ShowcaseItem[]; automatic: boolean };
+}
+
+export interface FinishCounts {
+  leaguePhase: number;
+  playoff: number;
+  roundOf16: number;
+  quarterfinal: number;
+  semifinal: number;
+  runnerUp: number;
+  champion: number;
+}
 
 export interface AccountStats {
   competitionsCompleted: number;
   titles: number;
-  finishCounts: {
-    leaguePhase: number;
-    playoff: number;
-    roundOf16: number;
-    quarterfinal: number;
-    semifinal: number;
-    runnerUp: number;
-    champion: number;
-  };
+  finishCounts: FinishCounts;
+  /** Same counts per difficulty; missing on responses from an older server. */
+  finishCountsByDifficulty?: Partial<Record<RankedDifficultyId, FinishCounts>>;
   wins: number;
   draws: number;
   losses: number;
@@ -49,6 +81,8 @@ export interface CompetitionHistoryEntry {
   champion: number;
   placement: number | null;
   competition_points: number;
+  /** Furthest stage reached; null on rows saved before stages were recorded. */
+  finish_stage?: CompetitionFinishStage | null;
   report: Record<string, unknown>;
   completed_at: number;
 }
@@ -143,6 +177,8 @@ export interface RecordCardEffectiveStats {
 export interface PublicProfileData {
   profile: AccountProfile;
   records: ProfileRecordEntry[];
+  /** Missing on responses from an older server. */
+  achievements?: AchievementsPayload;
   scorePosition: ScoreLeaderboardPosition;
   friendCount: number;
 }
@@ -200,6 +236,7 @@ interface AccountContextValue {
     champion?: boolean;
     placement?: number | null;
     competitionPoints?: number;
+    finishStage?: CompetitionFinishStage;
     sourceKey?: string;
     report: Record<string, unknown>;
     records?: Array<{
@@ -209,10 +246,12 @@ interface AccountContextValue {
       playerPhotoUrl?: string | null;
       value: number;
     }>;
-  }) => Promise<{ id: string; duplicate: boolean }>;
+  }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[] }>;
+  getOwnAchievements: (since?: number) => Promise<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>;
+  updateShowcase: (items: ShowcaseItem[]) => Promise<AchievementsPayload['showcase']>;
   getRecords: (filters?: { category?: string; difficulty?: string }) => Promise<PublicRecordEntry[]>;
   getOwnRecordHighlights: () => Promise<ProfileRecordEntry[]>;
-  getScoreLeaderboard: () => Promise<ScoreLeaderboardEntry[]>;
+  getScoreLeaderboard: (difficulty?: RankedDifficultyId | null) => Promise<ScoreLeaderboardEntry[]>;
   getScoreLeaderboardPosition: () => Promise<ScoreLeaderboardPosition>;
   getPublicProfile: (username: string) => Promise<PublicProfileData>;
   getFriends: () => Promise<FriendshipEntry[]>;
@@ -370,10 +409,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [accountId, readCacheFor]);
 
   const saveHistory = useCallback(async (payload: Parameters<AccountContextValue['saveHistory']>[0]) => {
-    let result: { id: string; duplicate: boolean } | null = null;
+    let result: { id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[] } | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        result = await api<{ id: string; duplicate: boolean }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
+        result = await api<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[] }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
         break;
       } catch (error) {
         const status = (error as Error & { status?: number }).status;
@@ -386,6 +425,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     markCompetitionCompleted();
     return result;
   }, [markCompetitionCompleted]);
+
+  const getOwnAchievements = useCallback(async (since?: number) => {
+    const query = since ? `?since=${encodeURIComponent(String(since))}` : '';
+    return api<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>(`/api/account/achievements${query}`);
+  }, []);
+
+  const updateShowcase = useCallback(async (items: ShowcaseItem[]) => {
+    const result = await api<{ showcase: AchievementsPayload['showcase'] }>('/api/account/showcase', { method: 'PUT', body: JSON.stringify({ items }) });
+    return result.showcase;
+  }, []);
 
   const getRecords = useCallback(async (filters: { category?: string; difficulty?: string } = {}) => {
     const params = new URLSearchParams();
@@ -411,8 +460,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   }, [accountId, readCacheFor]);
 
-  const getScoreLeaderboard = useCallback(async () => {
-    const result = await api<{ ranking: ScoreLeaderboardEntry[] }>('/api/leaderboards/score');
+  const getScoreLeaderboard = useCallback(async (difficulty?: RankedDifficultyId | null) => {
+    const query = difficulty ? `?difficulty=${encodeURIComponent(difficulty)}` : '';
+    const result = await api<{ ranking: ScoreLeaderboardEntry[] }>(`/api/leaderboards/score${query}`);
     // A fresh global ranking can change this user's current place too. Keep the
     // profile position invalidated until the profile requests it again.
     if (accountId) {
@@ -484,9 +534,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile,
+    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile,
     getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

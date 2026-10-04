@@ -3,22 +3,22 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Check, Gamepad2, Info, Play, Trophy, Plus, LogIn, LibraryBig, Send, UserRound, Users, X } from 'lucide-react';
+import { Bell, Check, Gamepad2, Medal, Play, Trophy, Plus, LogIn, LibraryBig, Send, UserRound, Users, X } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import AccountTabBar from '../components/account/AccountTabBar';
 import { useGame, type SavedSoloCampaign } from '../contexts/GameContext';
 import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
+import { competitionStagePoints, type RankedDifficultyId } from '@shared/game/competitionRanking';
 import { COMPETITION_FORMAT_PRESETS, competitionFormatSummary, createCompetitionFormat } from '@shared/game/competition';
 import { cn } from '../lib/utils';
 import { resolveProfileAvatarImage } from '../lib/profileAvatars';
 import { getProfileAvatarBackground } from '@shared/profileAppearance';
-import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, IconButton, Input, Panel, StatusBanner } from '../design-system';
+import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
 const COMPETITIVE_FORMAT = createCompetitionFormat('league_knockout');
-const COMPETITIVE_DIFFICULTY = DIFFICULTY_LEVELS.find(level => level.id === 'immortal');
 
 function friendIdentity(friendship: FriendshipEntry, accountId: string | undefined) {
   if (friendship.requester_id === accountId) {
@@ -183,9 +183,9 @@ export default function MenuPage() {
     dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null });
     dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
     if (account) {
-      dispatch({ type: 'SET_DIFFICULTY', difficulty: 'immortal' });
+      // Ranked play: fixed format, free difficulty (chosen on the next screen).
       dispatch({ type: 'SET_COMPETITION_FORMAT', format: createCompetitionFormat('league_knockout') });
-      dispatch({ type: 'SET_PHASE', phase: 'crest' });
+      dispatch({ type: 'SET_PHASE', phase: 'setup' });
       return;
     }
     dispatch({ type: 'SET_PHASE', phase: 'format' });
@@ -196,7 +196,8 @@ export default function MenuPage() {
     if (account) {
       dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
       dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: 'create' });
-      createRoom(playerName.trim(), createCompetitionFormat('league_knockout'), 'immortal');
+      dispatch({ type: 'SET_COMPETITION_FORMAT', format: createCompetitionFormat('league_knockout') });
+      dispatch({ type: 'SET_PHASE', phase: 'setup' });
       return;
     }
     dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
@@ -507,23 +508,7 @@ export default function MenuPage() {
           </div>
         </>
       ) : (
-        <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-between gap-2 sm:inset-x-6 sm:top-6">
-          {!accountLoading ? (
-            <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-bg)]/90 py-1 pl-3 pr-1.5 shadow-lg">
-              <span className="text-[12px] font-bold tracking-[0.12em] text-[var(--ui-text-soft)] min-[400px]:tracking-[0.08em]">
-                <span className="min-[400px]:hidden">LIVRE</span>
-                <span className="hidden min-[400px]:inline">MODO LIVRE</span>
-              </span>
-              <IconButton
-                label="Como funciona o modo livre"
-                title="Como funciona o modo livre"
-                onClick={() => setGuestModeInfoOpen(true)}
-                className="!size-8 !min-h-8 !w-8 rounded-full bg-[var(--ui-surface)]"
-              >
-                <Info size={16} aria-hidden="true" />
-              </IconButton>
-            </div>
-          ) : <span />}
+        <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-end gap-2 sm:inset-x-6 sm:top-6">
           <div className="shrink-0">
             <Button
               type="button"
@@ -602,16 +587,32 @@ export default function MenuPage() {
                 </span>
               </Button>
 
-              <Button
-                type="button"
-                intent="ghost"
-                onClick={() => dispatch({ type: 'SET_PHASE', phase: 'album' })}
-                className="w-full border border-[var(--ui-line-subtle)]"
-              >
-                <span className="inline-flex items-center justify-center gap-2">
-                  <LibraryBig size={16} strokeWidth={2.5} /> ÁLBUM DE JOGADORES
-                </span>
-              </Button>
+              {/* Accounts also get their achievements next to the album. */}
+              <div className={cn('grid w-full gap-2', account ? 'grid-cols-2' : 'grid-cols-1')}>
+                <Button
+                  type="button"
+                  intent="ghost"
+                  onClick={() => dispatch({ type: 'SET_PHASE', phase: 'album' })}
+                  className="w-full min-w-0 border border-[var(--ui-line-subtle)] px-2"
+                >
+                  <span className="inline-flex min-w-0 items-center justify-center gap-2">
+                    <LibraryBig size={16} strokeWidth={2.5} className="shrink-0" />
+                    {account ? 'ÁLBUM' : 'ÁLBUM DE JOGADORES'}
+                  </span>
+                </Button>
+                {account ? (
+                  <Button
+                    type="button"
+                    intent="ghost"
+                    onClick={() => dispatch({ type: 'SET_PHASE', phase: 'achievements' })}
+                    className="w-full min-w-0 border border-[var(--ui-line-subtle)] px-2"
+                  >
+                    <span className="inline-flex min-w-0 items-center justify-center gap-2">
+                      <Medal size={16} strokeWidth={2.5} className="shrink-0" /> CONQUISTAS
+                    </span>
+                  </Button>
+                ) : null}
+              </div>
 
               {account ? <AccountTabBar
                 active="home"
@@ -853,7 +854,7 @@ export default function MenuPage() {
               Entre ou crie uma conta para registrar seu progresso no modo oficial. Suas competições concluídas formam seu histórico e alimentam o perfil, os rankings e os recordes.
             </p>
             <p className="pt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
-              Para manter a disputa igual para todos, o formato e a dificuldade são fixos:
+              O formato é fixo para todos e você escolhe a dificuldade. Quanto mais difícil, mais pontos cada fase vale no ranking:
             </p>
             <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
               <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
@@ -862,9 +863,11 @@ export default function MenuPage() {
                 <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{competitionFormatSummary(COMPETITIVE_FORMAT)}</p>
               </div>
               <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
-                <div className="ui-kicker">DIFICULDADE FIXA</div>
-                <div className="mt-1 text-sm font-bold text-[var(--ui-brand-strong)]">{COMPETITIVE_DIFFICULTY?.name ?? 'Imortal'}</div>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{COMPETITIVE_DIFFICULTY?.description}</p>
+                <div className="ui-kicker">DIFICULDADE À SUA ESCOLHA</div>
+                <div className="mt-1 text-sm font-bold text-[var(--ui-brand-strong)]">Bronze a Imortal</div>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
+                  Um título vale {DIFFICULTY_LEVELS.map(level => `${competitionStagePoints('champion', level.id as RankedDifficultyId)} no ${level.name}`).join(', ')}.
+                </p>
               </div>
             </div>
           </Panel>

@@ -3,6 +3,8 @@
 // elenco" screen AND the in-league "MEU TIME" tab. Both used to be near-duplicates; now any
 // change here shows up in both. It's purely presentational: data + callbacks come from props,
 // so each host wires its own state (drafted players vs the league team) and actions.
+import TacticIcon from './TacticIcon';
+import TraitIcon from './TraitIcon';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from 'react';
 import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, PLAYER_SPECIALIZATIONS, Player, POS_PT, effectiveSecondaries, type PlayerSpecialization } from '@shared/game/gameData';
@@ -433,7 +435,7 @@ export default function SquadEditor({
             title="Abrir configurações da tática"
           >
             <span className="block truncate text-[12px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>TÁTICA</span>
-            <span className="block truncate text-base font-black leading-none text-[#C7D2FE] sm:text-[17px]" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{activeTactic.icon} {activeTactic.name}</span>
+            <span className="flex min-w-0 items-center gap-1.5 text-base font-black leading-none text-[#C7D2FE] sm:text-[17px]" style={{ fontFamily: 'var(--font-display), sans-serif' }}><TacticIcon tactic={activeTactic.id} fallback={activeTactic.icon} size={28} /><span className="truncate">{activeTactic.name}</span></span>
           </button>
         </div>
         {coach && showCoachCard && (
@@ -1037,7 +1039,7 @@ export default function SquadEditor({
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="text-sm font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{candidate.shortName.toUpperCase()}</span>
                               {variants.map(v => (
-                                <span key={v.key} title={v.label} className="inline-flex items-center justify-center flex-shrink-0" style={{ width: 15, height: 15, fontSize: 12, borderRadius: 999, background: `${v.color}22`, border: `1px solid ${v.color}77` }}>{v.icon}</span>
+                                <span key={v.key} title={v.label} className="inline-flex flex-shrink-0"><TraitIcon trait={v.key} fallback={v.icon} size={24} /></span>
                               ))}
                             </div>
                             {/* posições (nativa + secundárias) + GER */}

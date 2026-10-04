@@ -1,6 +1,7 @@
 // The player sheet shared by the squad modal (Meu Time) and the read-only report modal:
 // identity + effective overall, the eight attributes (tap one to see where every point comes
 // from), chemistry/positions summary and the grouped bonus breakdown.
+import TraitIcon from '../TraitIcon';
 import { useState } from 'react';
 import { POS_PT, effectiveSecondaries, getRarityColor } from '@shared/game/gameData';
 import { getEvolutionLevel } from '@shared/game/gameEngine';
@@ -79,7 +80,7 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
             <div className="flex justify-between gap-3 text-[var(--ui-text-muted)]"><dt>Valor da carta</dt><dd className="tabular-nums">{selectedStat.base}</dd></div>
             {selectedStat.sources.map(src => (
               <div key={src.key} className="flex justify-between gap-3">
-                <dt className="min-w-0 truncate text-[var(--ui-text-soft)]"><span aria-hidden="true">{src.icon}</span> {src.label}</dt>
+                <dt className="flex min-w-0 items-center gap-1 truncate text-[var(--ui-text-soft)]"><TraitIcon trait={src.trait} fallback={src.icon} size={24} /> {src.label}</dt>
                 <dd className="font-black tabular-nums" style={{ color: src.value > 0 ? '#22C55E' : '#EF4444' }}>{src.value > 0 ? '+' : ''}{src.value}</dd>
               </div>
             ))}

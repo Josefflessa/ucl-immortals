@@ -12,6 +12,7 @@ import RoomInvitationPrompt from "./components/account/RoomInvitationPrompt";
 // showed an empty screen for a moment on every phase change, which
 // happens all the time in a session (see commit 4b629b4).
 import AlbumPage from "./pages/AlbumPage";
+import AchievementsPage from "./pages/AchievementsPage";
 import SetupPage from "./pages/SetupPage";
 import TournamentFormatPage from "./pages/TournamentFormatPage";
 import CrestPage from "./pages/CrestPage";
@@ -98,7 +99,8 @@ function ModalScrollLock() {
 function GameRouter() {
   const { state, dispatch } = useGame();
   const { account } = useAccount();
-  const accountOnLegacySetup = !!account && (state.phase === 'format' || state.phase === 'setup');
+  // Accounts play a fixed format but choose the difficulty (the 'setup' page).
+  const accountOnLegacySetup = !!account && state.phase === 'format';
 
   // Cada "página" é uma fase (state.phase). Ao trocar de fase, a janela mantinha o
   // scroll da fase anterior (ex.: rolou lá no fim do Escudo → o Treinador abria no meio).
@@ -109,16 +111,13 @@ function GameRouter() {
 
   useEffect(() => {
     if (!accountOnLegacySetup) return;
-    dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null });
-    dispatch({ type: 'SET_DIFFICULTY', difficulty: 'immortal' });
     dispatch({ type: 'SET_COMPETITION_FORMAT', format: createCompetitionFormat('league_knockout') });
-    dispatch({ type: 'SET_PHASE', phase: 'menu' });
+    dispatch({ type: 'SET_PHASE', phase: 'setup' });
   }, [accountOnLegacySetup, dispatch]);
 
-  // The account mode has a fixed competition setup. If an old back button or
-  // restored state points at the guest-only format/difficulty pages, skip them
-  // immediately instead of briefly rendering controls that no longer apply.
-  if (accountOnLegacySetup) return <MenuPage />;
+  // The account mode has a fixed format. If an old back button or restored
+  // state points at the guest-only format page, go straight to the difficulty.
+  if (accountOnLegacySetup) return renderPhase('setup');
 
   return renderPhase(state.phase);
 }
@@ -129,6 +128,7 @@ function renderPhase(phase: string) {
     case 'lobby': return <MenuPage />;
     case 'account': return <AccountPage />;
     case 'album': return <AlbumPage />;
+    case 'achievements': return <AchievementsPage />;
     case 'format': return <TournamentFormatPage />;
     case 'setup': return <SetupPage />;
     case 'crest': return <CrestPage />;

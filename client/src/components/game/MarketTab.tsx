@@ -10,6 +10,7 @@ import { getCardIntrinsicStats } from '@shared/game/gameEngine';
 import PlayerCard from './PlayerCard';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 import { Button, GameModal } from '../../design-system';
+import CoinIcon from './CoinIcon';
 
 export default function MarketTab() {
   const {
@@ -79,7 +80,7 @@ export default function MarketTab() {
                     onClick={() => setConfirmId(p.id)}
                     className="ui-btn ui-btn--danger min-h-8 px-3 text-[13px]"
                   >
-                    Vender · 💰{sellValue(p.rarity)}
+                    Vender · <CoinIcon />{sellValue(p.rarity)}
                   </button>
                 </div>
               ))}
@@ -133,7 +134,7 @@ export default function MarketTab() {
                       {/* A listed card shows what it carries with it, not the seller's team bonuses. */}
                       <PlayerCard player={li.player} effectiveStats={getCardIntrinsicStats(li.player, { isKnockout: state.phase === 'knockout' })} compact lite />
                       <div className="text-center text-xs text-[var(--ui-text-muted)]">
-                        {mine ? 'Seu anúncio' : li.sellerName} · <b className="text-[var(--ui-brand-strong)]">💰{li.price}</b>
+                        {mine ? 'Seu anúncio' : li.sellerName} · <b className="text-[var(--ui-brand-strong)]"><CoinIcon />{li.price}</b>
                       </div>
                       {mine ? (
                         <button
@@ -246,7 +247,7 @@ export default function MarketTab() {
           <div className="text-center">
             <div className="text-3xl mb-1">🏪</div>
             <p className="mb-1 text-sm text-[var(--ui-text-soft)]">
-              Vender <b className="text-[var(--ui-text)]">{confirmPlayer.shortName}</b> pra banca por <b className="text-[var(--ui-brand-strong)]">💰 {sellValue(confirmPlayer.rarity)}</b>?
+              Vender <b className="text-[var(--ui-text)]">{confirmPlayer.shortName}</b> pra banca por <b className="text-[var(--ui-brand-strong)]"><CoinIcon />{sellValue(confirmPlayer.rarity)}</b>?
             </p>
             <p className="text-xs text-[var(--ui-text-muted)]">Essa ação é permanente.</p>
           </div>
@@ -276,7 +277,7 @@ export default function MarketTab() {
           <div className="text-center">
             <div className="text-3xl mb-1">🤝</div>
             <p className="mb-3 text-sm text-[var(--ui-text-soft)]">
-              Anunciar <b className="text-[var(--ui-text)]">{listPlayer.shortName}</b> pros outros. Mínimo: <b className="text-[var(--ui-brand-strong)]">💰 {marketMinPrice(listPlayer)}</b>.
+              Anunciar <b className="text-[var(--ui-text)]">{listPlayer.shortName}</b> pros outros. Mínimo: <b className="text-[var(--ui-brand-strong)]"><CoinIcon />{marketMinPrice(listPlayer)}</b>.
             </p>
             <input
               type="number"

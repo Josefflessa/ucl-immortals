@@ -136,6 +136,22 @@ export function roleMetricFor(player: RoleablePlayer, role: GameRole): RoleMetri
   };
 }
 
+/** Badge artwork per match role (public/roles). */
+function RoleArt({ role, size }: { role: GameRole; size: number }) {
+  return (
+    <img
+      src={`/roles/${role}.webp`}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      width={size}
+      height={size}
+      className="pointer-events-none shrink-0 select-none"
+      style={{ width: size, height: size }}
+    />
+  );
+}
+
 export default function RolesSelector({
   players,
   captainId,
@@ -149,10 +165,10 @@ export default function RolesSelector({
   const captain = players.find(p => p.id === captainId);
   const taker = players.find(p => p.id === penaltyTakerId);
   const fkTaker = players.find(p => p.id === freeKickTakerId);
-  const roleCards: Array<{ role: GameRole; label: string; icon: string; color: string; player?: RoleablePlayer }> = [
-    { role: 'captain', label: 'CAPITÃO', icon: '🅒', color: '#3B82F6', player: captain },
-    { role: 'penalty', label: 'PÊNALTI', icon: '⚽', color: '#C9A84C', player: taker },
-    { role: 'freeKick', label: 'FALTA', icon: '🎯', color: '#22C55E', player: fkTaker },
+  const roleCards: Array<{ role: GameRole; label: string; color: string; player?: RoleablePlayer }> = [
+    { role: 'captain', label: 'CAPITÃO', color: '#F5B731', player: captain },
+    { role: 'penalty', label: 'PÊNALTI', color: '#D4DAE3', player: taker },
+    { role: 'freeKick', label: 'FALTA', color: '#3B82F6', player: fkTaker },
   ];
 
   const info: Record<GameRole, { title: string; description: string; metric: string }> = {
@@ -201,7 +217,7 @@ export default function RolesSelector({
                 title={`Escolher ${card.label.toLowerCase()} no campo`}
               >
                 <span className="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-[12px] font-black uppercase tracking-[0.02em] sm:gap-1 sm:text-[13px] sm:tracking-[0.08em]">
-                  <span aria-hidden="true">{card.icon}</span>
+                  <RoleArt role={card.role} size={24} />
                   <span>{card.label}</span>
                 </span>
                 <span className="mt-1 flex min-h-7 items-center gap-1.5 truncate text-[12px] font-bold" style={{ color: card.player ? '#FFF' : '#8A8A9A' }}>
@@ -240,11 +256,16 @@ export default function RolesSelector({
 
       {infoRole ? (
         <div className="mt-2 rounded-lg px-3.5 py-3 text-[13px] leading-snug" style={{ background: '#0A0A14', border: `1px solid ${roleCards.find(card => card.role === infoRole)?.color ?? '#C9A84C'}55`, color: '#B8B8C8', fontFamily: 'var(--font-game), sans-serif' }}>
-          <div className="mb-1 text-sm font-black tracking-widest" style={{ color: roleCards.find(card => card.role === infoRole)?.color ?? 'var(--ui-brand)' }}>
-            {info[infoRole].title}
+          <div className="flex items-start gap-3">
+            <RoleArt role={infoRole} size={48} />
+            <div className="min-w-0">
+              <div className="mb-1 text-sm font-black tracking-widest" style={{ color: roleCards.find(card => card.role === infoRole)?.color ?? 'var(--ui-brand)' }}>
+                {info[infoRole].title}
+              </div>
+              <div>{info[infoRole].description}</div>
+              <div className="mt-1.5" style={{ color: '#9999A8' }}>{info[infoRole].metric} Toque no bloco para escolher diretamente no campo.</div>
+            </div>
           </div>
-          <div>{info[infoRole].description}</div>
-          <div className="mt-1.5" style={{ color: '#9999A8' }}>{info[infoRole].metric} Toque no bloco para escolher diretamente no campo.</div>
         </div>
       ) : null}
     </div>

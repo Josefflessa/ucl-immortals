@@ -8,6 +8,7 @@ import { Button, GameModal } from '../../design-system';
 import type { Player } from '@shared/game/gameData';
 import { getCardIntrinsicStats } from '@shared/game/gameEngine';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
+import CoinIcon from './CoinIcon';
 
 // Room updates clone the authoritative state. Keep unchanged trade cards from
 // recalculating when only the other side's offer or ready flag changes.
@@ -133,7 +134,7 @@ export default function TradeNegotiationModal() {
           </div>
           {theirSide.creditsDelta > 0 && (
             <div className="mt-3 text-center text-xs text-[var(--ui-text-muted)]">
-              + <b className="text-[var(--ui-brand-strong)]">💰{theirSide.creditsDelta}</b> extra
+              + <b className="text-[var(--ui-brand-strong)]"><CoinIcon />{theirSide.creditsDelta}</b> extra
             </div>
           )}
         </div>
