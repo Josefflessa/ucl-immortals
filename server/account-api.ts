@@ -1278,7 +1278,7 @@ async function friendUpdate(request: Request, env: AccountEnv, account: Authenti
 async function accountEvents(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
   const { states, unlocked } = await syncEventRewards(env.DB, account.id);
   return json({
-    events: states.filter(state => state.status !== 'ended' || state.frameUnlocked),
+    events: states,
     frames: await loadOwnedFrames(env.DB, account.id),
     equippedFrame: account.avatarFrameKey,
     unlocked,

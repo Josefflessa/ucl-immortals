@@ -13,6 +13,7 @@ import RoomInvitationPrompt from "./components/account/RoomInvitationPrompt";
 // happens all the time in a session (see commit 4b629b4).
 import AlbumPage from "./pages/AlbumPage";
 import AchievementsPage from "./pages/AchievementsPage";
+import EventsPage from "./pages/EventsPage";
 import SetupPage from "./pages/SetupPage";
 import TournamentFormatPage from "./pages/TournamentFormatPage";
 import CrestPage from "./pages/CrestPage";
@@ -129,6 +130,7 @@ function renderPhase(phase: string) {
     case 'account': return <AccountPage />;
     case 'album': return <AlbumPage />;
     case 'achievements': return <AchievementsPage />;
+    case 'events': return <EventsPage />;
     case 'format': return <TournamentFormatPage />;
     case 'setup': return <SetupPage />;
     case 'crest': return <CrestPage />;

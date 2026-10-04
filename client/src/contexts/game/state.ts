@@ -19,6 +19,7 @@ export type GamePhase =
   | 'account'        // Account, profile, records and friends
   | 'album'          // Player album / catalog
   | 'achievements'   // Account achievements
+  | 'events'         // Account events and their rewards
   | 'lobby'          // Multiplayer lobby
   | 'format'         // Choose the tournament format
   | 'setup'          // Choose name, difficulty

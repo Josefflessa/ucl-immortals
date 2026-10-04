@@ -16,8 +16,7 @@ import { resolveProfileAvatarImage } from '../lib/profileAvatars';
 import { getProfileAvatarBackground } from '@shared/profileAppearance';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
 import FramedAvatar from '../components/account/AvatarFrame';
-import { EventModal, EventTopChip } from '../components/account/GameEvents';
-import type { GameEventState } from '../contexts/AccountContext';
+import { EventsHomeButton } from '../components/account/GameEvents';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
@@ -61,18 +60,16 @@ export default function MenuPage() {
     inviteFriendToRoom,
     updateFriendship,
     getEvents,
-    updateProfile,
   } = useAccount();
-  // The running event (if any), shown at the top of the home screen.
-  const [homeEvent, setHomeEvent] = useState<GameEventState | null>(null);
-  const [eventOpen, setEventOpen] = useState(false);
+  // Running events the player has not completed yet: the badge on the events shortcut.
+  const [pendingEvents, setPendingEvents] = useState(0);
   const accountIdForEvents = account?.id ?? null;
   useEffect(() => {
-    if (!accountIdForEvents) { setHomeEvent(null); return; }
+    if (!accountIdForEvents) { setPendingEvents(0); return; }
     let active = true;
     void getEvents()
-      .then(result => { if (active) setHomeEvent(result.events.find(event => event.status === 'active') ?? null); })
-      .catch(() => { if (active) setHomeEvent(null); });
+      .then(result => { if (active) setPendingEvents(result.events.filter(event => event.status === 'active' && !event.completed).length); })
+      .catch(() => { if (active) setPendingEvents(0); });
     return () => { active = false; };
   }, [accountIdForEvents, getEvents]);
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
@@ -498,15 +495,8 @@ export default function MenuPage() {
                 </span>
               ) : null}
             </Button>
-            {homeEvent ? <EventTopChip event={homeEvent} look={account} onOpen={() => setEventOpen(true)} /> : null}
+            <EventsHomeButton pending={pendingEvents} onOpen={() => dispatch({ type: 'SET_PHASE', phase: 'events' })} />
           </div>
-          <EventModal
-            event={homeEvent}
-            look={account}
-            open={eventOpen}
-            onOpenChange={setEventOpen}
-            onEquip={async frameKey => { await updateProfile({ avatarFrameKey: frameKey }); }}
-          />
           {/* The profile lives here instead of the tab bar: photo + name, top right. */}
           <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
             <button
