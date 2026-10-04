@@ -533,7 +533,9 @@ export default function MenuPage() {
         </div>
       )}
 
-      <div className={cn('relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 pt-8', account ? 'pb-28' : 'pb-8')}>
+      <div className={cn('relative z-10 flex min-h-dvh flex-col items-center px-4 pt-8', account ? 'pb-24' : 'pb-4')}>
+        {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
+        <div aria-hidden="true" className="flex-1" />
         {/* Eyebrow */}
         <span
           className="ui-kicker mb-3 text-center tracking-[0.32em] sm:tracking-[0.42em]"
@@ -801,16 +803,12 @@ export default function MenuPage() {
           )}
         </div>
 
+        <div aria-hidden="true" className="flex-1" />
+        <footer className="pointer-events-none flex justify-center pt-8">
+          <span className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
+        </footer>
       </div>
 
-      <footer className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4" style={{ bottom: account ? 'calc(5rem + env(safe-area-inset-bottom))' : '1rem' }}>
-        <span
-          className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75"
-          style={{ fontFamily: 'var(--font-game), sans-serif' }}
-        >
-          by J.Lessa
-        </span>
-      </footer>
 
       <GameModal
         open={guestModeInfoOpen}
