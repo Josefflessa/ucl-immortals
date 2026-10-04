@@ -19,11 +19,17 @@
   --ui-surface-2: #14142a;
   --ui-surface-3: #1a1a2a;
   --ui-surface-inset: #08080f;
+  /* Aliases used across screens. */
+  --ui-surface: var(--ui-surface-2);
+  --ui-surface-muted: var(--ui-surface-1);
+  --ui-surface-strong: var(--ui-surface-3);
+  --ui-panel-inset: var(--ui-surface-inset);
 
   /* Lines */
   --ui-line: #2a2a3a;
   --ui-line-subtle: rgba(154, 154, 170, 0.16);
   --ui-line-strong: #3a3a4e;
+  --ui-border: var(--ui-line);
   --ui-focus: #f0d27a;
 
   /* Text */
