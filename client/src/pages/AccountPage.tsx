@@ -537,7 +537,8 @@ function CareerFinishBreakdown({ counts, filter }: { counts: AccountStats['finis
       {filter}
       <div className="space-y-2">
         <Metric label="Campeão" value={counts.champion} tone="brand" className="p-3" />
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {/* Six fixed phases: 2, 3 or 6 per row always fill every row. */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {finishes.map(finish => <Metric key={finish.label} label={finish.label} value={finish.value} className="p-3" />)}
         </div>
       </div>

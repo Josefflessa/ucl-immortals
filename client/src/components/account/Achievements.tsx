@@ -253,6 +253,19 @@ function findRecord(records: ProfileRecordEntry[], item: ShowcaseItem & { type: 
   return records.find(record => record.difficulty_id === item.difficultyId && record.category === item.category);
 }
 
+/**
+ * Grid span for a mural tile: 2 columns on phones, 3 (as 6 half-columns) from sm up.
+ * The tiles of an incomplete last row stretch, so the row never ends with a gap.
+ */
+function showcaseSpan(index: number, count: number): string {
+  const classes = [count % 2 === 1 && index === count - 1 ? 'col-span-2' : 'col-span-1'];
+  const rest = count % 3;
+  if (rest === 1 && index === count - 1) classes.push('sm:col-span-6');
+  else if (rest === 2 && index >= count - 2) classes.push('sm:col-span-3');
+  else classes.push('sm:col-span-2');
+  return cn('min-w-0 [&>article]:h-full', ...classes);
+}
+
 /** The mural: the player's chosen highlights (or an automatic pick). */
 export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRecord }: {
   payload: AchievementsPayload;
@@ -289,7 +302,7 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
       <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">
         {payload.showcase.automatic ? 'Destaques escolhidos automaticamente entre as conquistas e recordes.' : 'Conquistas e recordes em destaque.'}
       </p>
-      {tiles.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{tiles}</div> : null}
+      {tiles.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">{tiles.map((tile, index) => <div key={index} className={showcaseSpan(index, tiles.length)}>{tile}</div>)}</div> : null}
       {recordCards.length > 0 ? <div className={renderRecord ? 'grid grid-cols-1 gap-3 lg:grid-cols-2' : 'grid grid-cols-2 gap-2 sm:grid-cols-3'}>{recordCards}</div> : null}
       {tiles.length > 0 || recordCards.length > 0
         ? null
