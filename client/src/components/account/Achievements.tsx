@@ -307,6 +307,7 @@ export function AchievementsSection({ payload, heading = true }: { payload: Achi
   // The dedicated page shows one category at a time, picked from a menu.
   const [category, setCategory] = useState<AchievementCategory | 'all'>(heading ? 'all' : CATEGORY_ORDER[0]);
   const categoryOptions: SelectMenuOption<AchievementCategory | 'all'>[] = [
+    { value: 'all', text: 'Todas', label: <span className="flex min-w-0 flex-1 items-center justify-between gap-3 pl-1"><span>Todas</span><span className="text-xs tabular-nums text-[var(--ui-text-muted)]">{unlocked}/{ACHIEVEMENTS.length}</span></span> },
     ...CATEGORY_ORDER.map(id => {
       const inCategory = ACHIEVEMENTS.filter(definition => definition.category === id);
       const done = inCategory.filter(definition => (states.get(definition.id)?.level ?? 0) > 0).length;
@@ -316,7 +317,6 @@ export function AchievementsSection({ payload, heading = true }: { payload: Achi
         label: <span className="flex min-w-0 flex-1 items-center justify-between gap-3 pl-1"><span>{ACHIEVEMENT_CATEGORY_LABELS[id]}</span><span className="text-xs tabular-nums text-[var(--ui-text-muted)]">{done}/{inCategory.length}</span></span>,
       };
     }),
-    { value: 'all', text: 'Todas', label: <span className="pl-1">Todas</span> },
   ];
   const shownCategories = category === 'all' ? CATEGORY_ORDER : [category];
   return (
