@@ -23,6 +23,13 @@ export function areHistoricalPartners(a: Player, b: Player): boolean {
 // ============================================================
 // TYPES
 // ============================================================
+/** Card fields that grow with matches and change the card's effective numbers. */
+export const KICKOFF_CARD_FIELDS = [
+  'appearances', 'evolvePoints', 'prodigioStarts', 'resilienteDefeats', 'goleadorGoals',
+  'garcomAssists', 'arroganteGoals', 'mercenarioMissions', 'padrinhoGoals', 'lapidadoBoost',
+] as const;
+export type KickoffCardState = Partial<Pick<Player, (typeof KICKOFF_CARD_FIELDS)[number]>>;
+
 export interface PlayerCard extends Player {
   chemistryScore: number; // 0-3
   isOOP: boolean;
@@ -327,6 +334,25 @@ export interface MatchResult {
   startingLineups?: {
     home: string[];
     away: string[];
+  };
+  /**
+   * Each side's credits at kickoff. Credit-scaled traits (Estribado) are read
+   * from here on replay, so every viewer sees the numbers the engine used —
+   * an opponent's balance is private and the owner's changes after the match.
+   */
+  kickoffCredits?: {
+    home?: number;
+    away?: number;
+  };
+  /**
+   * Per-card growth counters at kickoff (Goleador goals, appearances, …), keyed
+   * by player id. The server credits this match's growth right after simulating
+   * it, so without this the replay would show cards already boosted by goals
+   * that have not happened on screen yet.
+   */
+  kickoffCards?: {
+    home?: Record<string, KickoffCardState>;
+    away?: Record<string, KickoffCardState>;
   };
   mvp?: string;
   topDuel?: { attacker: string; defender: string; winner: string };

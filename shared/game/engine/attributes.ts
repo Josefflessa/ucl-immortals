@@ -4,10 +4,10 @@ import { Player, Coach, effectiveSecondaries, PLAYER_SPECIALIZATIONS, type Rarit
 import { AttrKey, getTraitAttributeBonus } from '../traits';
 import { Stadium } from '../stadium';
 import { stadiumHomeBonus } from '../clubProjects';
-import { type PlayerCard, type Team, type MatchResult } from './teamModel';
+import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS } from './teamModel';
 import { getCoachModifiersForPlayer, type CharBoostMap } from './chemistry';
 import { tacticStatBonus } from './matchSim';
-import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, estribadoStatBoost, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost } from './draft';
+import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, estribadoStatBoost, ESTRIBADO_CREDITS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost } from './draft';
 
 // ============================================================
 // ATTRIBUTE RESOLVER
@@ -325,14 +325,81 @@ export function bumpStarterAppearances(
 }
 
 /** Attaches the captured XI to an authoritative result without changing the score. */
-export function stampMatchStartingLineups(result: MatchResult, home: Pick<Team, 'players'>, away: Pick<Team, 'players'>): MatchResult {
+export function stampMatchStartingLineups(
+  result: MatchResult,
+  home: Pick<Team, 'players'> & Partial<Pick<Team, 'credits'>>,
+  away: Pick<Team, 'players'> & Partial<Pick<Team, 'credits'>>,
+): MatchResult {
   return {
     ...result,
     startingLineups: {
       home: starterPlayerIds(home),
       away: starterPlayerIds(away),
     },
+    kickoffCredits: result.kickoffCredits ?? {
+      home: kickoffCreditBand(home),
+      away: kickoffCreditBand(away),
+    },
+    kickoffCards: result.kickoffCards ?? {
+      home: kickoffCardStates(home),
+      away: kickoffCardStates(away),
+    },
   };
+}
+
+function kickoffCardStates(team: Pick<Team, 'players'>): Record<string, KickoffCardState> {
+  const states: Record<string, KickoffCardState> = {};
+  for (const player of team.players) {
+    if (!player?.id) continue;
+    const state: KickoffCardState = {};
+    for (const field of KICKOFF_CARD_FIELDS) {
+      const value = player[field];
+      if (value !== undefined) (state as Record<string, unknown>)[field] = field === 'evolvePoints' ? { ...(value as object) } : value;
+    }
+    // An empty entry still matters: it resets a counter that only appeared after kickoff.
+    states[player.id] = state;
+  }
+  return states;
+}
+
+/**
+ * Only Estribado reads credits, and only in whole bands. Recording the band
+ * (never the exact balance, and nothing for teams without the trait) keeps the
+ * opponent's balance private while reproducing the exact same bonus.
+ */
+function kickoffCreditBand(team: Pick<Team, 'players'> & Partial<Pick<Team, 'credits'>>): number | undefined {
+  if (typeof team.credits !== 'number' || !team.players.some(player => player?.estribado)) return undefined;
+  return Math.floor(Math.max(0, team.credits) / ESTRIBADO_CREDITS_PER_BOOST) * ESTRIBADO_CREDITS_PER_BOOST;
+}
+
+/**
+ * A replay team as it was when the match was simulated: its credit band and
+ * every card's growth counters at kickoff. Both viewers rebuild the same cards.
+ * Results recorded before these snapshots existed keep the current team.
+ */
+export function teamAtKickoff<T extends Pick<Team, 'id' | 'credits' | 'players'>>(team: T, result: MatchResult): T {
+  const side = result.homeTeamId === team.id ? 'home' : result.awayTeamId === team.id ? 'away' : null;
+  if (!side) return team;
+  const credits = result.kickoffCredits?.[side];
+  const cards = result.kickoffCards?.[side];
+  let next = team;
+  if (typeof credits === 'number' && credits !== team.credits) next = { ...next, credits };
+  if (cards) {
+    next = {
+      ...next,
+      players: team.players.map(player => {
+        const state = player ? cards[player.id] : undefined;
+        if (!state) return player;
+        const restored = { ...player } as Record<string, unknown>;
+        for (const field of KICKOFF_CARD_FIELDS) {
+          if (state[field] === undefined) delete restored[field];
+          else restored[field] = state[field];
+        }
+        return restored as unknown as typeof player;
+      }),
+    };
+  }
+  return next;
 }
 
 /** Gets the captured starters for one side of a result, with a safe legacy fallback. */

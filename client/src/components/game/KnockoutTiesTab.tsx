@@ -421,7 +421,10 @@ export default function KnockoutTiesTab() {
                     const legWord = isSingleLegTie ? '' : (legNum === 2 ? 'volta' : 'ida');
                     const badge = (b: Bet | undefined, word: string) => {
                       if (!b || !b.settled) return null;
-                      if (hideScore || !b.revealed) return <div key={word} className="text-[12px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>🎯 palpite {word} em andamento</div>;
+                      // Online, the server reveals each ticket to its owner once that match is
+                      // revealed (the result pop-up already showed it); the room-wide spoiler
+                      // lock only hides the scoreboard, not a ticket the owner already knows.
+                      if (!b.revealed || (state.mode !== 'online' && hideScore)) return <div key={word} className="text-[12px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>🎯 palpite {word} em andamento</div>;
                       const txt = b.tier === 'exact' ? `✅ Palpite ${word}: placar exato (+${b.payout})`
                         : b.tier === 'outcome' ? `✅ Palpite ${word}: resultado certo (+${b.payout})`
                         : b.tier === 'builder' ? `✅ Aposta ${word}: certa (+${b.payout})`

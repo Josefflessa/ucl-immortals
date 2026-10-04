@@ -355,7 +355,8 @@ function jsonByteLength(value: unknown): number {
  */
 function trimMatchResultForSync(result: MatchResult): MatchResult {
   if (result.resultTrimmed) return result;
-  return { ...result, events: [], playerStats: {}, resultTrimmed: true };
+  // Kickoff snapshots only serve the live replay of the current round.
+  return { ...result, events: [], playerStats: {}, kickoffCards: undefined, kickoffCredits: undefined, resultTrimmed: true };
 }
 
 /**
@@ -2983,6 +2984,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
       // revealed. Keep this fallback for players who reconnected and reached the
       // advance gate before their final room patch arrived.
       releaseAllLeagueMatchRewards(room);
+      // The watch window belongs to the round just played. Leaving it filled
+      // made clients treat the next, unplayed round as already watched.
+      room.watchedRoundPlayers = [];
+      room.watchedLeagueRound = null;
 
       const stageRounds = room.competitionFormat.id === 'groups_knockout' ? room.competitionFormat.groupRounds : room.competitionFormat.leagueRounds;
       if (room.leagueRound < stageRounds) {
@@ -3299,6 +3304,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
       // Defensive reconciliation for a reconnect or an older client that
       // reached the gate before receiving the reward patch.
       releaseAllKnockoutMatchRewards(room);
+      // Same for the knockout: the next round starts with an empty watch window.
+      room.watchedKnockoutLegPlayers = [];
+      room.watchedKnockoutLegKey = null;
 
       const champion = advanceKnockoutBracket(room.knockoutBracket);
       if (champion) {

@@ -17,7 +17,7 @@ import type { MatchResult, Team } from '@shared/game/gameEngine';
 import type { Player } from '@shared/game/gameData';
 
 export function useLeagueHub() {
-  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline, requestMatchResultOnline, dismissMissionResolutionOnline } = useGame();
+  const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline, requestMatchResultOnline, dismissMissionResolutionOnline, notifyMatchWatchedOnline } = useGame();
   const online = state.mode === 'online';
   // A reward is acknowledged once per match. This also prevents an existing
   // online reward from reopening as soon as the page mounts or reconnects.
@@ -501,18 +501,62 @@ export function useLeagueHub() {
   // broadcasts the authoritative results. As soon as the local player's fixture
   // for the current round is resolved, auto-open it as a synchronized live replay
   // (each device replays the same server result, so the score is identical).
+  // The server is the source of truth for "already watched": local markers only
+  // remember which replay this device opened/finished. A replay that was never
+  // finished opens again; one that was finished but not acknowledged by the
+  // server is confirmed again instead of being replayed.
+  const myOnlineId = online
+    ? state.onlinePlayers.find(player => player.socketId === state.socketId)?.id ?? null
+    : null;
+  const pendingWatchConfirmation = useMemo((): { type: 'league' } | { type: 'knockout'; matchId: string; leg?: number } | null => {
+    if (!online || !myOnlineId || !localTeamId || state.currentMatchResult) return null;
+    if (state.phase === 'league') {
+      if (state.onlineWatchedLeagueRound === leagueRound && state.onlineWatchedPlayers.includes(myOnlineId)) return null;
+      return state.onlineFinishedReplays.includes(`L${leagueRound}`) ? { type: 'league' } : null;
+    }
+    if (state.phase === 'knockout' && state.knockoutBracket) {
+      const legKey = state.onlineWatchedKnockoutLegKey;
+      if (!legKey || legKey.round !== state.knockoutBracket.currentRound) return null;
+      if (state.onlineWatchedPlayers.includes(myOnlineId)) return null;
+      const myTie = (getActiveKnockoutMatches(state.knockoutBracket) as KnockoutMatch[])
+        .find(m => m.homeTeamId === localTeamId || m.awayTeamId === localTeamId);
+      if (!myTie) return null;
+      const singleLeg = myTie.isSingleLeg === true;
+      const key = singleLeg ? myTie.id : `${myTie.id}_l${legKey.leg}`;
+      if (!state.onlineFinishedReplays.includes(key)) return null;
+      return singleLeg ? { type: 'knockout', matchId: myTie.id } : { type: 'knockout', matchId: myTie.id, leg: legKey.leg };
+    }
+    return null;
+  }, [
+    online, myOnlineId, localTeamId, state.currentMatchResult, state.phase, leagueRound, state.knockoutBracket,
+    state.onlineWatchedLeagueRound, state.onlineWatchedKnockoutLegKey, state.onlineWatchedPlayers, state.onlineFinishedReplays,
+  ]);
+  const pendingWatchKey = pendingWatchConfirmation ? JSON.stringify(pendingWatchConfirmation) : null;
+  useEffect(() => {
+    if (!pendingWatchConfirmation) return;
+    // The first confirmation was sent when the replay ended; give it time to
+    // land before repeating it. The server ignores duplicates.
+    const resend = () => {
+      if (pendingWatchConfirmation.type === 'league') notifyMatchWatchedOnline('league');
+      else notifyMatchWatchedOnline('knockout', { matchId: pendingWatchConfirmation.matchId, leg: pendingWatchConfirmation.leg });
+    };
+    const timer = window.setInterval(resend, 4000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingWatchKey, notifyMatchWatchedOnline]);
+
   useEffect(() => {
     if (state.mode !== 'online') return;
     if (state.phase !== 'league') return;
     if (state.currentMatchResult) return; // already watching one
-
-    if (!localTeamId) return;
+    if (!localTeamId || !myOnlineId) return;
 
     const myFixture = leagueFixtures.find(
       f => f.round === leagueRound && (f.homeTeamId === localTeamId || f.awayTeamId === localTeamId)
     );
     if (!myFixture || !myFixture.played || !myFixture.result) return;
-    if (state.lastWatchedRound >= leagueRound) return;
+    if (state.onlineWatchedLeagueRound === leagueRound && state.onlineWatchedPlayers.includes(myOnlineId)) return;
+    if (state.onlineFinishedReplays.includes(`L${leagueRound}`)) return;
 
     const home = getTeamById(myFixture.homeTeamId);
     const away = getTeamById(myFixture.awayTeamId);
@@ -520,8 +564,9 @@ export function useLeagueHub() {
 
     dispatch({ type: 'WATCH_ONLINE_MATCH', teams: [home, away], result: myFixture.result });
   }, [
-    state.mode, state.phase, state.currentMatchResult, localTeamId,
-    state.lastWatchedRound, leagueFixtures, leagueRound, getTeamById, dispatch,
+    state.mode, state.phase, state.currentMatchResult, localTeamId, myOnlineId,
+    state.onlineWatchedLeagueRound, state.onlineWatchedPlayers, state.onlineFinishedReplays,
+    leagueFixtures, leagueRound, getTeamById, dispatch,
   ]);
 
   // Knockout: auto-open the local player's tie as a synchronized replay — LEG BY LEG
@@ -537,7 +582,15 @@ export function useLeagueHub() {
     const ties = getActiveKnockoutMatches(kb) as KnockoutMatch[];
     const myTie = ties.find(m => m.homeTeamId === localTeamId || m.awayTeamId === localTeamId);
     if (!myTie) return;
-    const watched = state.watchedKnockoutMatches;
+    let watched = state.watchedKnockoutMatches;
+    if (state.mode === 'online' && myOnlineId) {
+      const legKey = state.onlineWatchedKnockoutLegKey;
+      const serverWaitsForMe = !!legKey && legKey.round === round && !state.onlineWatchedPlayers.includes(myOnlineId);
+      if (serverWaitsForMe) {
+        const pendingKey = myTie.isSingleLeg === true ? myTie.id : `${myTie.id}_l${legKey.leg}`;
+        if (!state.onlineFinishedReplays.includes(pendingKey)) watched = watched.filter(key => key !== pendingKey);
+      }
+    }
 
     // Single-leg tie.
     const isSingleLegTie = myTie.isSingleLeg === true;
@@ -569,7 +622,10 @@ export function useLeagueHub() {
         knockout: { matchId: myTie.id, round, leg: 2, firstLeg: { home: myTie.leg1?.awayGoals ?? 0, away: myTie.leg1?.homeGoals ?? 0 } },
       });
     }
-  }, [state.phase, state.currentMatchResult, state.watchedKnockoutMatches, state.knockoutBracket, localTeamId, getTeamById, dispatch]);
+  }, [
+    state.phase, state.mode, state.currentMatchResult, state.watchedKnockoutMatches, state.knockoutBracket, localTeamId, myOnlineId,
+    state.onlineWatchedKnockoutLegKey, state.onlineWatchedPlayers, state.onlineFinishedReplays, getTeamById, dispatch,
+  ]);
 
   return {
     // Game context

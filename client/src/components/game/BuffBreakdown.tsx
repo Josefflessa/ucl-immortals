@@ -367,7 +367,11 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
     ...model.situations.map(s => (
       <Row key={`sit-${s.label}`} icon="⏱️" name={s.label.toUpperCase()} color="#FBBF24">
         <Chips items={s.effects.map(e => ({ text: e, color: '#FBBF24' }))} />
-        <Note>Nessa situação o geral efetivo vai a <b className="text-[var(--ui-text-soft)]">{s.overall}</b>.</Note>
+        {s.replaces.length > 0 && <Note>Substitui {s.replaces.join(', ')} (não soma).</Note>}
+        <Note>
+          Nessa situação o geral efetivo vai de <b className="text-[var(--ui-text-soft)]">{model.eff.overall}</b> a <b className="text-[var(--ui-text-soft)]">{s.overall}</b>
+          {' '}({s.overallDelta >= 0 ? '+' : ''}{s.overallDelta}).
+        </Note>
       </Row>
     )),
     model.homeBonus > 0 && (

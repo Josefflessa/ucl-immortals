@@ -390,6 +390,13 @@ describe('game runtime isolation', () => {
 
     expect(room.players[1].points).toBe(175);
     expect(room.players[1].pendingMatchPoints).toBeUndefined();
+
+    // Advancing starts an empty watch window: the previous round's viewers
+    // must not make the next, unplayed round look already watched.
+    runWithGameRuntime(runtime, () => host.receive('advance_round', { roomCode: 'ABCD' }));
+    expect(room.leagueRound).toBe(2);
+    expect(room.watchedRoundPlayers).toEqual([]);
+    expect(room.watchedLeagueRound).toBeNull();
   });
 
   it('treats leaving during a replay as a reveal without double-crediting', () => {

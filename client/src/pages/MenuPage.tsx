@@ -494,8 +494,13 @@ export default function MenuPage() {
                 className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-brand)]/60 text-xs font-bold text-[var(--ui-text)]"
                 style={{ backgroundColor: getProfileAvatarBackground(account.avatarBackgroundKey).color }}
               >
-                {account.displayName.trim().charAt(0).toUpperCase()}
-                {profileImage ? <img src={profileImage} alt="" className={cn('absolute inset-0 size-full', account.avatarUrl ? 'object-cover' : 'object-contain')} onError={event => { event.currentTarget.style.display = 'none'; }} /> : null}
+                {/* Initial only when there is no portrait (they have transparent backgrounds). */}
+                <span hidden={!!profileImage}>{account.displayName.trim().charAt(0).toUpperCase()}</span>
+                {profileImage ? <img key={profileImage} src={profileImage} alt="" className={cn('absolute inset-0 size-full', account.avatarUrl ? 'object-cover' : 'object-contain')} onError={event => {
+                  event.currentTarget.style.display = 'none';
+                  const fallback = event.currentTarget.previousElementSibling as HTMLElement | null;
+                  if (fallback) fallback.hidden = false;
+                }} /> : null}
               </span>
               <span className="truncate text-xs font-bold text-[var(--ui-text)]">{account.displayName}</span>
             </button>
@@ -533,7 +538,7 @@ export default function MenuPage() {
         </div>
       )}
 
-      <div className={cn('relative z-10 flex min-h-dvh flex-col items-center px-4 pt-8', account ? 'pb-24' : 'pb-4')}>
+      <div className={cn('relative z-10 flex min-h-dvh flex-col items-center px-4 pt-20 sm:pt-24', account ? 'pb-24' : 'pb-4')}>
         {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
         <div aria-hidden="true" className="flex-1" />
         {/* Eyebrow */}

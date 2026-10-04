@@ -94,6 +94,17 @@ function friendErrorMessage(error: unknown, fallback: string): string {
   return FRIEND_ERROR_MESSAGES[code] ?? fallback;
 }
 
+/**
+ * Portraits have transparent backgrounds, so the initials fallback must not sit
+ * behind them (it showed through around the character). Reveal it only if the
+ * image fails to load.
+ */
+function showAvatarFallback(event: { currentTarget: HTMLImageElement }) {
+  event.currentTarget.style.display = 'none';
+  const fallback = event.currentTarget.previousElementSibling as HTMLElement | null;
+  if (fallback) fallback.hidden = false;
+}
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)?.[0]}` : parts[0]?.slice(0, 2) ?? '?').toUpperCase();
@@ -125,8 +136,8 @@ function profileAvatar(avatarUrl: string | null, avatarKey: string, name: string
       className={cn(size, 'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--ui-brand)]/60 text-3xl font-black text-[var(--ui-text)]')}
       style={{ backgroundColor: getProfileAvatarBackground(backgroundKey).color }}
     >
-      <span aria-hidden="true">{initials(name)}</span>
-      {image ? <img src={image} alt="" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={event => { event.currentTarget.style.display = 'none'; }} /> : null}
+      <span aria-hidden="true" hidden={!!image}>{initials(name)}</span>
+      {image ? <img key={image} src={image} alt="" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={showAvatarFallback} /> : null}
     </div>
   );
 }
@@ -222,8 +233,8 @@ function CompactProfileAvatar({ name, avatarKey, avatarUrl, backgroundKey = DEFA
   const image = avatarUrl || resolveProfileAvatarImage(avatarKey);
   return (
     <div role="img" aria-label={`Foto de ${name}`} className={cn('relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-line-strong)] font-bold text-[var(--ui-text)]', sizeClassName)} style={{ backgroundColor: getProfileAvatarBackground(backgroundKey).color }}>
-      <span aria-hidden="true">{initials(name)}</span>
-      {image ? <img src={image} alt="" loading="lazy" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={event => { event.currentTarget.style.display = 'none'; }} /> : null}
+      <span aria-hidden="true" hidden={!!image}>{initials(name)}</span>
+      {image ? <img key={image} src={image} alt="" loading="lazy" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={showAvatarFallback} /> : null}
     </div>
   );
 }
@@ -253,10 +264,11 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
     <article className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
       {record ? <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveStats={record.player_effective_stats} /> : <div aria-hidden="true" className="flex h-[178px] w-[110px] shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--ui-line-strong)] bg-[var(--ui-surface)] text-[var(--ui-text-faint)]"><Icon size={24} /></div>}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
+        {/* Wraps instead of squeezing: on narrow cards the rank badge drops below the title. */}
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+          <div className="flex min-w-0 flex-1 basis-32 items-center gap-2">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[var(--ui-brand)]/20 bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]"><Icon size={15} aria-hidden="true" /></span>
-            <strong className="min-w-0 text-sm leading-tight text-[var(--ui-text)]">{meta.label}</strong>
+            <strong className="min-w-0 break-words text-sm leading-tight text-[var(--ui-text)]">{meta.label}</strong>
           </div>
           {record && rankPosition ? <div role="status" aria-label={`${rankPosition}ª posição no ranking geral de ${meta.label.toLowerCase()}`} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--ui-brand)]/30 bg-[var(--ui-brand-soft)] px-2 py-1 text-[var(--ui-brand-strong)]">
             <span className="font-display text-base leading-none tabular-nums">#{rankPosition}</span>

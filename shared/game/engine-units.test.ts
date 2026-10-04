@@ -14,7 +14,7 @@ import {
   MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
   HOME_ATTR_BONUS,
-  getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, evolvePointsBudget, specializationAttributeBonus, canChooseSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, choosePlayerSpecialization, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, EVOLVE_GAMES, EVOLVE_POINTS, SPECIALIZATION_UNLOCK_COST,
+  getEvolutionLevel, isEvolved, evolvePointsSpent, applyEvolvePoint, chooseEvolveAttribute, evolvePointsBudget, specializationAttributeBonus, canChooseSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, choosePlayerSpecialization, bumpStarterAppearances, starterPlayerIds, stampMatchStartingLineups, teamAtKickoff, getCardIntrinsicStats, EVOLVE_GAMES, EVOLVE_POINTS, SPECIALIZATION_UNLOCK_COST,
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost, GOLEADOR_GOALS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, goleadorStatBoost, garcomStatBoost,
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, arroganteStatBoost, arroganteTeamPenalty,
   ESTRIBADO_CREDITS_PER_BOOST, ESTRIBADO_STAT_BOOST, estribadoStatBoost,
@@ -334,6 +334,50 @@ describe('⭐ cartas evoluídas', () => {
     }, home, away);
     expect(result.startingLineups?.home).toEqual(starterPlayerIds(home));
     expect(result.startingLineups?.away).toEqual(starterPlayerIds(away));
+  });
+  it('o resultado guarda só a faixa de créditos do Estribado, igual para os dois lados', () => {
+    const home = { ...mkTeam('H', [mkP({ estribado: true }), ...Array.from({ length: 12 }, () => mkP())]), credits: 357 };
+    const away = { ...mkTeam('A', Array.from({ length: 13 }, () => mkP())), credits: 900 };
+    const result = stampMatchStartingLineups({
+      homeTeamId: 'H', awayTeamId: 'A', homeGoals: 1, awayGoals: 0,
+      events: [], winner: 'H', stats: {} as any,
+    }, home, away);
+    // Band only (the exact balance stays private) and nothing for a team without the trait.
+    expect(result.kickoffCredits).toEqual({ home: 300, away: undefined });
+    // Replay: the owner's later balance and the opponent's hidden one read the same band.
+    expect(teamAtKickoff({ ...home, credits: 999 }, result).credits).toBe(300);
+    expect(teamAtKickoff({ ...home, credits: undefined }, result).credits).toBe(300);
+    expect(estribadoStatBoost(300)).toBe(estribadoStatBoost(357));
+  });
+  it('o valor da carta leva o que é dela e deixa o que é do time', () => {
+    const base = mkP({ overall: 80 });
+    expect(getCardIntrinsicStats(base).overall).toBe(80);
+    const goleador = mkP({ overall: 80, goleador: true, goleadorGoals: 9, evolvePoints: { pace: 8 } });
+    const own = getCardIntrinsicStats(goleador);
+    expect(own.shooting).toBe(70 + goleadorStatBoost(9));
+    expect(own.pace).toBe(70 + goleadorStatBoost(9) + 8);
+    expect(own.overall).toBe(80 + goleadorStatBoost(9) + 1);
+    // Estribado reads the owner's credits: it stays with the team.
+    const estribado = mkP({ overall: 80, estribado: true });
+    expect(getCardIntrinsicStats(estribado).overall).toBe(80);
+  });
+  it('o replay mostra as cartas como entraram em campo, antes do crescimento da própria partida', () => {
+    const scorer = mkP({ goleador: true, goleadorGoals: 2, goleadorMatchIds: [] });
+    const home = mkTeam('H', [scorer, ...Array.from({ length: 12 }, () => mkP())]);
+    const away = mkTeam('A', Array.from({ length: 13 }, () => mkP()));
+    const stamped = stampMatchStartingLineups({
+      homeTeamId: 'H', awayTeamId: 'A', homeGoals: 2, awayGoals: 0, events: [], winner: 'H', stats: {} as any,
+      playerStats: { ['H::' + scorer.id]: { goals: 2, assists: 0 } } as any,
+    }, home, away);
+    // The server credits the match (goals + appearance) before anyone watches it.
+    const grown = bumpStarterAppearances(applyMatchStatGrowth(home, stamped, 'L1:H-A'), starterPlayerIds(home), 'L1:H-A');
+    expect(grown.players[0].goleadorGoals).toBe(4);
+    expect(grown.players[0].appearances).toBe(1);
+    const replay = teamAtKickoff(grown, stamped);
+    expect(replay.players[0].goleadorGoals).toBe(2);
+    expect(replay.players[0].appearances).toBeUndefined();
+    // A result without snapshots (older data) keeps the current team.
+    expect(teamAtKickoff(grown, { ...stamped, kickoffCards: undefined, kickoffCredits: undefined })).toBe(grown);
   });
   it('Prodígio: acumula titularidades e dá +1 a cada uma, sem evoluir reservas', () => {
     const prodigio = mkP({ prodigio: true, prodigioStarts: 0 });

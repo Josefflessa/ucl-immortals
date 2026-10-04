@@ -173,7 +173,8 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                     const myBet = betFor(matchKey);
                     if (fixture.played) {
                       if (!myBet) return null;
-                      if (hideRoundScore || !myBet.revealed) {
+                      // Online, a revealed ticket was already announced to its owner.
+                      if (!myBet.revealed || (state.mode !== 'online' && hideRoundScore)) {
                         return <div className="mt-2 text-center text-[12px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>🎯 palpite em andamento</div>;
                       }
                       const txt = myBet.tier === 'exact' ? `✅ Palpite: placar exato (+${myBet.payout})`

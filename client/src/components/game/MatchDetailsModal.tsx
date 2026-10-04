@@ -3,7 +3,7 @@
 // de cada time (formação + jogadores) com a NOTA FINAL real de cada um (do result.playerStats).
 // Reutilizável na rodada da liga, no MEUS JOGOS e no mata-mata (substitui a antiga narração).
 import { useState } from 'react';
-import { MatchResult, MatchEvent, Team } from '@shared/game/gameEngine';
+import { MatchResult, MatchEvent, Team, teamAtKickoff } from '@shared/game/gameEngine';
 import MatchFieldView from './MatchFieldView';
 import Crest from './Crest';
 import { GameModal } from '../../design-system';
@@ -37,7 +37,9 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
       : g.opponentId && nameById[g.opponentId] ? `${nameById[g.opponentId]} (Contra)` : 'Gol Contra';
 
   // Notas/gols/assistências FINAIS por jogador (do time selecionado), keyed por player.id.
-  const team = side === 'home' ? homeTeam : awayTeam;
+  // Cards as they took the field, identical for both players (see teamAtKickoff).
+  const sideTeam = side === 'home' ? homeTeam : awayTeam;
+  const team = sideTeam ? teamAtKickoff(sideTeam, result) : sideTeam;
   const ratings: Record<string, number> = {};
   const goalsByPlayer: Record<string, number> = {};
   const assistsByPlayer: Record<string, number> = {};

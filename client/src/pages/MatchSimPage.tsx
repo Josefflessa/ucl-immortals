@@ -5,7 +5,7 @@ import { useGame } from '../contexts/GameContext';
 import {
   Team, MatchResult, MatchEvent, MatchStatsDelta, PlayerMatchStat,
   activeGoalkeeperForTeam, setStatIds, statKey, playerMatchDiscipline, computePossession, tacticProfile,
-  getTeamEffectiveStats,
+  getTeamEffectiveStats, teamAtKickoff,
 } from '@shared/game/gameEngine';
 import GoalCelebration, { GOAL_CELEBRATION_FADE_MS, GOAL_CELEBRATION_MS, type GoalMoment } from '../components/game/match/GoalCelebration';
 import {
@@ -61,8 +61,13 @@ function tacticAtMinute(team: Team, matchEvents: MatchEvent[], currentMinute: nu
 export default function MatchSimPage() {
   const { state } = useGame();
   const { currentMatchTeams, currentMatchResult } = state;
-  if (!currentMatchTeams || !currentMatchResult) return null;
-  return <MatchReplay teams={currentMatchTeams} replayResult={currentMatchResult} />;
+  // Replay every card with the credits each side had at kickoff, so both
+  // players see the same effective numbers the engine used.
+  const replayTeams = useMemo((): [Team, Team] | null => (currentMatchTeams && currentMatchResult
+    ? [teamAtKickoff(currentMatchTeams[0], currentMatchResult), teamAtKickoff(currentMatchTeams[1], currentMatchResult)]
+    : null), [currentMatchTeams, currentMatchResult]);
+  if (!replayTeams || !currentMatchResult) return null;
+  return <MatchReplay teams={replayTeams} replayResult={currentMatchResult} />;
 }
 
 function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResult: MatchResult }) {

@@ -3,10 +3,10 @@
 // opcionais, vendo a oferta do outro em tempo real, até os dois marcarem "Pronto".
 import { memo } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import PlayerCard from './PlayerCard';
+import PlayerCard, { type PlayerCardStats } from './PlayerCard';
 import { Button, GameModal } from '../../design-system';
 import type { Player } from '@shared/game/gameData';
-import type { EffectiveStats } from '@shared/game/gameEngine';
+import { getCardIntrinsicStats } from '@shared/game/gameEngine';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 
 // Room updates clone the authoritative state. Keep unchanged trade cards from
@@ -14,7 +14,7 @@ import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 const TradePlayerCard = memo(function TradePlayerCard({ player, effectiveStats, selected, onToggle }: {
   player: Player;
   /** Own reserves show their Meu Time values; the other side's cards stay as base cards. */
-  effectiveStats?: EffectiveStats;
+  effectiveStats?: PlayerCardStats;
   selected?: boolean;
   onToggle?: (playerId: string) => void;
 }) {
@@ -125,7 +125,8 @@ export default function TradeNegotiationModal() {
           </div>
           <div className="market-player-row flex flex-wrap gap-3">
             {theirCards.length > 0 ? (
-              theirCards.map(player => <TradePlayerCard key={player.id} player={player} />)
+              // The other side's cards show what travels with them, not their team bonuses.
+              theirCards.map(player => <TradePlayerCard key={player.id} player={player} effectiveStats={getCardIntrinsicStats(player, { isKnockout: state.phase === 'knockout' })} />)
             ) : (
               <div className="ui-empty">Ainda escolhendo...</div>
             )}

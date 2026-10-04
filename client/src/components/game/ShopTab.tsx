@@ -2,7 +2,7 @@
 // Spend the points earned each match. Each item opens a small flow (pick a coach / player /
 // variant / attribute / pack option) and dispatches the matching SHOP_* action; the reducer
 // validates the cost. Solo and online league flows share the same presentation.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
 import { COACHES, PLAYERS, POS_PT, Player, UNIQUE_CARDS } from '@shared/game/gameData';
 import { buildUniquePackRoundKey, SCOUT_MIN_OVERALL, hasVariant, canAddVariant, variantCount } from '@shared/game/gameEngine';
@@ -11,6 +11,7 @@ import { PLAYER_PACK_META, PLAYER_PACK_RARITIES, SHOP_COSTS, TURBINAR_VARIANTS, 
 import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
 import UniquePackOpening from './UniquePackOpening';
 import { Button, GameModal } from '../../design-system';
+import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'scout' | 'playerPacks';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
@@ -78,6 +79,8 @@ export default function ShopTab() {
   const [variantPage, setVariantPage] = useState(0);
   const [turbinarView, setTurbinarView] = useState<'catalog' | 'apply'>('catalog');
   const [selectedPackRarity, setSelectedPackRarity] = useState<PlayerPackRarity | null>(null);
+  // Cards are picked by what they are worth in the squad right now, not by base numbers.
+  const ownStats = useMemo(() => (team ? teamEffectiveStats(team, state.phase === 'knockout', points) : {}), [team, state.phase, points]);
   // 🛒 Confirmação de compra (premium) — reutilizada por todas as compras significativas da loja.
   const [confirmCfg, setConfirmCfg] = useState<null | { title: string; message: string; onConfirm: () => void }>(null);
   const askConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmCfg({ title, message, onConfirm });
@@ -514,7 +517,7 @@ export default function ShopTab() {
                                 <button key={p.id} onClick={() => { if (canAddVariant(p)) { setSelPlayerId(p.id); setVariantPage(0); } }} disabled={!canAddVariant(p)}
                                   className="disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-[1.05]"
                                   title={!canAddVariant(p) ? 'Já atingiu o máximo de características' : (variantCount(p) === 1 ? '⭐ Única: pode receber a 2ª característica' : '')}>
-                                  <PlayerCard player={p} compact lite />
+                                  <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite />
                                 </button>
                               ))}
                             </div>
@@ -575,7 +578,7 @@ export default function ShopTab() {
                                 const vs = getCardVariants(p);
                                 return (
                                   <div key={p.id} className="flex flex-col items-center gap-1.5">
-                                    <PlayerCard player={p} compact lite />
+                                    <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite />
                                     <div className="flex flex-wrap justify-center gap-1" style={{ maxWidth: 120 }}>
                                       {vs.map(v => {
                                         const vc = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;

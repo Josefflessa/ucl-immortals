@@ -10,6 +10,36 @@ import { createInitialClubProjects, projectLevel, calculateClubReward, bettingLo
 import { DEFAULT_REWARDS_CONFIG, normalizeCompetitionFormat, validateCompetitionFormat } from '@shared/game/competition';
 import { createMissionMatchContext, createMissionState, missionCycleKey, normalizeMissionState, rotateMissionBoard, updateMissionsAfterMatch, completedMissionCount } from '@shared/game/missions';
 import { type GameState, type KnockoutBracket, type GameAction, initialState } from './state';
+
+/**
+ * Replay markers only make sense inside one room session. Carrying them into
+ * another room (or a restarted one) marks unplayed rounds as watched, so the
+ * replay never opens and the room waits forever for a confirmation.
+ */
+const ONLINE_REPLAY_RESET = {
+  lastWatchedRound: 0,
+  watchedKnockoutMatches: [],
+  onlineWatchedPlayers: [],
+  onlineWatchedLeagueRound: null,
+  onlineWatchedKnockoutLegKey: null,
+  onlineReplayKey: null,
+  onlineFinishedReplays: [],
+  currentMatchTeams: null,
+  currentMatchResult: null,
+  activeKnockoutMatch: null,
+  spectating: false,
+  matchCreditsModalPending: false,
+} satisfies Partial<GameState>;
+
+function finishOnlineReplay(state: GameState): Pick<GameState, 'onlineReplayKey' | 'onlineFinishedReplays'> {
+  const key = state.mode === 'online' ? state.onlineReplayKey : null;
+  return {
+    onlineReplayKey: null,
+    onlineFinishedReplays: key && !state.onlineFinishedReplays.includes(key)
+      ? [...state.onlineFinishedReplays, key]
+      : state.onlineFinishedReplays,
+  };
+}
 import { soloSeatContext, soloMissionBoard, applySoloSeatRule, localMissionSeed, onlineLeagueResults, createRecruitmentOffer, medicalInjuryDurationForTeam, applyMedicalRecoveries, finishEliminatedSoloCampaign } from './soloCampaign';
 
 // ============================================================
@@ -471,6 +501,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         // The round was already marked watched when the replay opened.
         return {
           ...state,
+          ...finishOnlineReplay(state),
           phase: 'league',
           currentMatchTeams: null,
           currentMatchResult: null,
@@ -995,6 +1026,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       return {
         ...state,
+        ...finishOnlineReplay(state),
         phase: 'knockout',
         spectating: false,
         activeKnockoutMatch: null,
@@ -1033,6 +1065,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         activeKnockoutMatch: action.knockout
           ? { matchId: action.knockout.matchId, round: action.knockout.round, leg: action.knockout.leg, firstLeg: action.knockout.firstLeg }
           : null,
+        onlineReplayKey: state.mode === 'online' && !action.spectator
+          ? (watchKey ?? `L${state.leagueRound}`)
+          : state.onlineReplayKey,
         lastWatchedRound: action.knockout
           ? state.lastWatchedRound
           : Math.max(state.lastWatchedRound, state.leagueRound),
@@ -1086,9 +1121,22 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         } else {
           targetPhase = 'crest';
         }
-      } else if (state.phase === 'match_sim' && (roomState.phase === 'league' || roomState.phase === 'knockout')) {
+      } else if (state.phase === 'match_sim'
+        && !!state.currentMatchResult
+        && (roomState.phase === 'league' || roomState.phase === 'knockout')) {
+        // Stay on the replay only while there is one to show; otherwise the
+        // match screen would render nothing.
         targetPhase = 'match_sim';
       }
+      // A room back in the lobby (restart) starts a new competition: every
+      // replay marker from the previous one is stale.
+      const replayBase = roomState.phase === 'lobby' ? { ...state, ...ONLINE_REPLAY_RESET } : state;
+      const watchedLeagueRound = Number.isSafeInteger(roomState.watchedLeagueRound) ? roomState.watchedLeagueRound as number : null;
+      const watchedKnockoutLegKey = roomState.watchedKnockoutLegKey
+        && typeof roomState.watchedKnockoutLegKey.round === 'string'
+        && (roomState.watchedKnockoutLegKey.leg === 1 || roomState.watchedKnockoutLegKey.leg === 2)
+        ? { round: roomState.watchedKnockoutLegKey.round as string, leg: roomState.watchedKnockoutLegKey.leg as number }
+        : null;
 
       // While the player is actively on a SELECTION screen (coach / formation / squad
       // review), their local picks aren't submitted yet — a room broadcast triggered by
@@ -1110,12 +1158,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         : state.missions;
       const serverWatchedThisLeagueRound = roomState.phase === 'league'
         && !!me
+        && watchedLeagueRound === (roomState.leagueRound || 1)
         && (roomState.watchedRoundPlayers || []).includes(me.id);
-      let syncedWatchedKnockoutMatches = state.watchedKnockoutMatches;
+      let syncedWatchedKnockoutMatches = replayBase.watchedKnockoutMatches;
       if (roomState.phase === 'knockout'
         && me?.team
         && roomState.knockoutBracket
-        && roomState.watchedKnockoutLegKey
+        && watchedKnockoutLegKey
+        && watchedKnockoutLegKey.round === roomState.knockoutBracket.currentRound
         && (roomState.watchedKnockoutLegPlayers || []).includes(me.id)) {
         const activeTies = getActiveKnockoutMatches(roomState.knockoutBracket) as any[];
         const myTie = activeTies.find(tie => tie.homeTeamId === me.team.id
@@ -1123,10 +1173,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           || tie.homeTeamId === me.id
           || tie.awayTeamId === me.id);
         if (myTie) {
-          const watchedKey = `${myTie.id}_l${roomState.watchedKnockoutLegKey.leg}`;
-          syncedWatchedKnockoutMatches = state.watchedKnockoutMatches.includes(watchedKey)
-            ? state.watchedKnockoutMatches
-            : [...state.watchedKnockoutMatches, watchedKey];
+          const watchedKey = myTie.isSingleLeg === true ? myTie.id : `${myTie.id}_l${watchedKnockoutLegKey.leg}`;
+          syncedWatchedKnockoutMatches = syncedWatchedKnockoutMatches.includes(watchedKey)
+            ? syncedWatchedKnockoutMatches
+            : [...syncedWatchedKnockoutMatches, watchedKey];
         }
       }
 
@@ -1153,6 +1203,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         onlineWatchedPlayers: roomState.phase === 'league'
           ? (roomState.watchedRoundPlayers || [])
           : (roomState.watchedKnockoutLegPlayers || []),
+        onlineWatchedLeagueRound: watchedLeagueRound,
+        onlineWatchedKnockoutLegKey: watchedKnockoutLegKey,
+        onlineReplayKey: replayBase.onlineReplayKey,
+        onlineFinishedReplays: replayBase.onlineFinishedReplays,
+        currentMatchTeams: replayBase.currentMatchTeams,
+        currentMatchResult: replayBase.currentMatchResult,
+        activeKnockoutMatch: replayBase.activeKnockoutMatch,
+        spectating: replayBase.spectating,
+        matchCreditsModalPending: replayBase.matchCreditsModalPending,
         onlineReadyPlayers: roomState.readyPlayers || [],
         onlineMarket: roomState.market || [],
         onlineTradeSessions: roomState.trades || [],
@@ -1184,8 +1243,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         // window. Mirror the server marker so reconnecting does not reopen a
         // replay that was already released and credited.
         lastWatchedRound: serverWatchedThisLeagueRound
-          ? Math.max(state.lastWatchedRound, roomState.leagueRound || 1)
-          : state.lastWatchedRound,
+          ? Math.max(replayBase.lastWatchedRound, roomState.leagueRound || 1)
+          : replayBase.lastWatchedRound,
         watchedKnockoutMatches: syncedWatchedKnockoutMatches,
         draftedPlayers: keepLocalPicks ? state.draftedPlayers : (me ? me.draftedPlayers : state.draftedPlayers),
         selectedCrestId: keepLocalPicks ? state.selectedCrestId : (me ? (me.crestId ?? state.selectedCrestId) : state.selectedCrestId),
@@ -1224,6 +1283,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'INIT_ONLINE':
       return {
         ...state,
+        ...(state.mode !== 'online' || state.roomCode !== action.roomCode ? ONLINE_REPLAY_RESET : {}),
         mode: 'online',
         onlineSetupIntent: null,
         socketId: action.socketId,

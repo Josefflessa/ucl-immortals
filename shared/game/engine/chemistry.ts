@@ -739,6 +739,36 @@ export function getTeamEffectiveStats(
   }));
 }
 
+/**
+ * Bonuses a card carries wherever it goes (they live on the card itself).
+ * Everything else — chemistry, position, coach, tactic, captain, teammates'
+ * characteristics, the owner's credits (Estribado) and the owner's mission
+ * count (Conquistador) — belongs to the team and is recalculated on a new one.
+ */
+const CARD_INTRINSIC_SOURCES = [
+  'trait', 'train', 'evolve', 'specialization', 'prodigio', 'resiliente', 'goleador',
+  'garcom', 'arrogante', 'padrinho', 'lapidado', 'pipoqueiro',
+] as const;
+const CARD_ATTRS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'] as const;
+
+/** A card's own value, as shown to anyone outside its team (market, trades). */
+export function getCardIntrinsicStats(player: Player, options: { isKnockout?: boolean } = {}): {
+  overall: number; pace: number; shooting: number; passing: number; dribbling: number;
+  defending: number; physical: number; vision: number; composure: number;
+} {
+  const eff = getPlayerEffectiveStats(player, 0, false, '', 0, 'balanced', {
+    isKnockout: options.isKnockout,
+    role: player.position,
+  });
+  const values = Object.fromEntries(CARD_ATTRS.map(attr => {
+    const breakdown = eff.breakdown[attr] as unknown as Record<string, number>;
+    const bonus = CARD_INTRINSIC_SOURCES.reduce((sum, key) => sum + (breakdown[key] ?? 0), 0);
+    return [attr, Math.max(1, player[attr] + bonus)];
+  })) as Record<(typeof CARD_ATTRS)[number], number>;
+  const meanDelta = Math.round(CARD_ATTRS.reduce((sum, attr) => sum + values[attr] - player[attr], 0) / CARD_ATTRS.length);
+  return { overall: Math.max(1, player.overall + meanDelta), ...values };
+}
+
 // Average passing of a team's midfield (central + wide mids) — a proxy for who
 // controls the middle of the pitch. Used so a side that out-passes the opponent's
 // midfield manufactures BETTER chances (passing finally feeds chance creation, not

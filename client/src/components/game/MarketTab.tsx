@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
 import { sellValue } from '@shared/game/shop';
 import { marketMinPrice } from '@shared/game/market';
+import { getCardIntrinsicStats } from '@shared/game/gameEngine';
 import PlayerCard from './PlayerCard';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 import { Button, GameModal } from '../../design-system';
@@ -129,7 +130,8 @@ export default function MarketTab() {
                   const cantAfford = state.points < li.price;
                   return (
                     <div key={li.id} className="flex flex-col items-center gap-1">
-                      <PlayerCard player={li.player} compact lite />
+                      {/* A listed card shows what it carries with it, not the seller's team bonuses. */}
+                      <PlayerCard player={li.player} effectiveStats={getCardIntrinsicStats(li.player, { isKnockout: state.phase === 'knockout' })} compact lite />
                       <div className="text-center text-xs text-[var(--ui-text-muted)]">
                         {mine ? 'Seu anúncio' : li.sellerName} · <b className="text-[var(--ui-brand-strong)]">💰{li.price}</b>
                       </div>

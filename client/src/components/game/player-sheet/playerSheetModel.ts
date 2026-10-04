@@ -38,7 +38,15 @@ export interface SheetChem {
 
 export interface SheetTrait { id: string; icon: string; effect: string; flavor: string | null; keeperOnly: boolean }
 export interface SheetCaptain { name: string; auto: boolean; stat: string; amount: number; isThisPlayer: boolean }
-export interface SheetSituation { label: string; effects: string[]; overall: number }
+export interface SheetSituation {
+  label: string;
+  effects: string[];
+  /** Effects active now that this situation swaps out (e.g. Galácticos → Rei do Mata-Mata). */
+  replaces: string[];
+  overall: number;
+  /** Change against the current effective overall — what the situation really adds. */
+  overallDelta: number;
+}
 
 export interface PlayerSheetModel {
   player: Player;
@@ -251,7 +259,8 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
   const situations = situationDefs.map(({ label, ctx }) => {
     const alt = effFor(ctx);
     const effects = alt.activeCoachEffects.filter(e => !eff.activeCoachEffects.includes(e));
-    return { label, effects, overall: alt.overall };
+    const replaces = eff.activeCoachEffects.filter(e => !alt.activeCoachEffects.includes(e));
+    return { label, effects, replaces, overall: alt.overall, overallDelta: alt.overall - eff.overall };
   }).filter(s => s.effects.length > 0);
 
   const role = formationRole;

@@ -149,6 +149,15 @@ export interface GameState {
   spectating: boolean;
   // IDs of players who have confirmed watching the current round/leg (from server)
   onlineWatchedPlayers: string[];
+  // Which round / leg the server list above refers to. The server keeps the list
+  // until the next match is simulated, so it is only meaningful for this window.
+  onlineWatchedLeagueRound: number | null;
+  onlineWatchedKnockoutLegKey: { round: string; leg: number } | null;
+  // Replay currently open (league "L<round>", knockout "<tieId>_l<leg>" or "<tieId>")
+  // and replays this device finished. A finished replay the server has not
+  // acknowledged is re-confirmed instead of replayed again.
+  onlineReplayKey: string | null;
+  onlineFinishedReplays: string[];
   onlineReadyPlayers: string[]; // ✅ jogadores que apertaram "Estou pronto" p/ a rodada/perna atual
   onlineMarket: MarketListing[]; // 🏪 anúncios do mercado online (compartilhado pela sala)
   onlineTradeSessions: TradeSession[]; // 🔄 sessões de troca direta (compartilhado pela sala)
@@ -332,6 +341,10 @@ export const initialState: GameState = {
   watchedKnockoutMatches: [],
   spectating: false,
   onlineWatchedPlayers: [],
+  onlineWatchedLeagueRound: null,
+  onlineWatchedKnockoutLegKey: null,
+  onlineReplayKey: null,
+  onlineFinishedReplays: [],
   onlineReadyPlayers: [],
   onlineMarket: [],
   onlineTradeSessions: [],
