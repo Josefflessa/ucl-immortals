@@ -7,12 +7,14 @@ import { useGame } from '../contexts/GameContext';
 import { useAccount, type EventsPayload, type GameEventState } from '../contexts/AccountContext';
 import AccountTabBar from '../components/account/AccountTabBar';
 import { EventCard } from '../components/account/GameEvents';
-import { AppShell, Button, EmptyState, PageContainer, SectionHeader, Skeleton, StatusBanner, TopBar } from '../design-system';
+import { AppShell, Button, EmptyState, PageContainer, SectionHeader, Skeleton, StatusBanner, Tab, TabList, TabPanel, Tabs, TopBar } from '../design-system';
 
-const SECTIONS: { status: GameEventState['status']; title: string }[] = [
-  { status: 'active', title: 'Em andamento' },
-  { status: 'upcoming', title: 'Em breve' },
-  { status: 'ended', title: 'Encerrados' },
+type EventStatus = GameEventState['status'];
+
+const SECTIONS: { status: EventStatus; title: string; emptyTitle: string; empty: string }[] = [
+  { status: 'active', title: 'Em andamento', emptyTitle: 'Nenhum evento em andamento', empty: 'Nenhum evento acontecendo agora. Fique de olho: os próximos aparecem em "Em breve".' },
+  { status: 'upcoming', title: 'Em breve', emptyTitle: 'Nenhum evento a caminho', empty: 'Nenhum evento anunciado por enquanto.' },
+  { status: 'ended', title: 'Encerrados', emptyTitle: 'Nenhum evento encerrado', empty: 'Os eventos que terminarem ficam guardados aqui.' },
 ];
 
 export default function EventsPage() {
@@ -21,6 +23,7 @@ export default function EventsPage() {
   const [payload, setPayload] = useState<EventsPayload | null>(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const [tab, setTab] = useState<EventStatus>('active');
   const accountId = account?.id ?? null;
 
   // Events belong to an account; without one there is nothing to show.
@@ -56,19 +59,27 @@ export default function EventsPage() {
           </StatusBanner>
         ) : !payload ? (
           <div className="space-y-3" aria-label="Carregando eventos"><Skeleton className="h-[320px] w-full rounded-2xl" /></div>
-        ) : payload.events.length === 0 ? (
-          <EmptyState title="Nenhum evento no momento" description="Os próximos eventos aparecem aqui, com os desafios e as recompensas." />
         ) : (
-          SECTIONS.map(section => {
-            const events = payload.events.filter(event => event.status === section.status);
-            if (events.length === 0) return null;
-            return (
-              <section key={section.status} aria-label={section.title} className="space-y-3">
-                <div className="ui-kicker">{section.title}</div>
-                {events.map(event => <EventCard key={event.id} event={event} equippedFrame={payload.equippedFrame} onEquip={equip} />)}
-              </section>
-            );
-          })
+          <Tabs value={tab} onValueChange={value => setTab(value as EventStatus)}>
+            <TabList aria-label="Situação dos eventos" className="ui-tabs--equal">
+              {SECTIONS.map(section => {
+                const count = payload.events.filter(event => event.status === section.status).length;
+                return <Tab key={section.status} value={section.status} title={section.title} className="inline-flex items-center justify-center gap-1.5">
+                  {section.title}{count > 0 ? <span className="tabular-nums opacity-70">{count}</span> : null}
+                </Tab>;
+              })}
+            </TabList>
+            {SECTIONS.map(section => {
+              const events = payload.events.filter(event => event.status === section.status);
+              return (
+                <TabPanel key={section.status} value={section.status} className="space-y-3 pt-4">
+                  {events.length === 0
+                    ? <EmptyState title={section.emptyTitle} description={section.empty} />
+                    : events.map(event => <EventCard key={event.id} event={event} equippedFrame={payload.equippedFrame} onEquip={equip} />)}
+                </TabPanel>
+              );
+            })}
+          </Tabs>
         )}
       </PageContainer>
       {account ? <AccountTabBar
