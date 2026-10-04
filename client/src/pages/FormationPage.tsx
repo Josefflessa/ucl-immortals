@@ -2,7 +2,6 @@
 
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
-import { useAccount } from '../contexts/AccountContext';
 import { FORMATIONS, COACHES } from '@shared/game/gameData';
 import { formationAdvantageLabelForAnalysisLevel, formationProfile } from '@shared/game/gameEngine';
 import FormationField from '../components/game/FormationField';
@@ -13,7 +12,6 @@ import { AppShell, Button, ChoiceCard, PageContainer, Panel, SectionHeader, TopB
 
 export default function FormationPage() {
   const { state, dispatch, submitSetupOnline } = useGame();
-  const { account } = useAccount();
   const selectedCoach = COACHES.find(c => c.id === state.selectedCoachId);
 
   const me = state.mode === 'online' ? state.onlinePlayers.find(p => p.socketId === state.socketId) : null;
@@ -56,7 +54,6 @@ export default function FormationPage() {
         {/* Left: Formation list */}
         <div className="flex-1">
           <SectionHeader
-            kicker={`PLANO DE JOGO · ${account ? '03' : '05'}`}
             title="Escolha a formação"
             description={selectedCoach ? `${selectedCoach.name} prefere ${selectedCoach.preferredFormation}.` : undefined}
             className="mb-6"

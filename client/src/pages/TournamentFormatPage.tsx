@@ -243,7 +243,6 @@ export default function TournamentFormatPage() {
       <TopBar right={<CompetitionExitControl />} />
       <PageContainer wide className="flex flex-col gap-6 py-8 sm:py-10">
         <SectionHeader
-          kicker="NOVA COMPETIÇÃO"
           title="Formato do torneio"
           description="Escolha um modelo pronto e personalize apenas o que faz sentido para aquela estrutura."
         />

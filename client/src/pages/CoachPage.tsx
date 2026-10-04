@@ -2,7 +2,6 @@
 
 import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
-import { useAccount } from '../contexts/AccountContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { COACHES } from '@shared/game/gameData';
 import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } from '../design-system';
@@ -29,7 +28,6 @@ const COACH_COLORS: Record<string, string> = {
 
 export default function CoachPage() {
   const { state, dispatch } = useGame();
-  const { account } = useAccount();
 
   const handleSelect = (coachId: string) => {
     dispatch({ type: 'SET_COACH', coachId });
@@ -62,7 +60,6 @@ export default function CoachPage() {
         >
           {/* Title */}
           <SectionHeader
-            kicker={`IDENTIDADE TÁTICA · ${account ? '02' : '04'}`}
             title="Escolha seu treinador"
             description="O treinador define sua filosofia de jogo e bônus táticos. Jogadores que trabalharam com ele ganham química extra."
             className="mb-8"

@@ -65,7 +65,6 @@ export default function SetupPage() {
         >
           {/* Title */}
           <SectionHeader
-            kicker="NÍVEL DA COMPETIÇÃO"
             title="Escolha a dificuldade"
             description={isOnlineRoomCreation ? 'Define a força dos bots que completarão a competição da sala.' : 'Define a força dos times controlados pela IA na competição.'}
             className="mb-8"
