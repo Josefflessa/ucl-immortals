@@ -15,6 +15,9 @@ import { cn } from '../lib/utils';
 import { resolveProfileAvatarImage } from '../lib/profileAvatars';
 import { getProfileAvatarBackground } from '@shared/profileAppearance';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
+import FramedAvatar from '../components/account/AvatarFrame';
+import { EventModal, EventTopChip } from '../components/account/GameEvents';
+import type { GameEventState } from '../contexts/AccountContext';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
@@ -57,7 +60,21 @@ export default function MenuPage() {
     getFriends,
     inviteFriendToRoom,
     updateFriendship,
+    getEvents,
+    updateProfile,
   } = useAccount();
+  // The running event (if any), shown at the top of the home screen.
+  const [homeEvent, setHomeEvent] = useState<GameEventState | null>(null);
+  const [eventOpen, setEventOpen] = useState(false);
+  const accountIdForEvents = account?.id ?? null;
+  useEffect(() => {
+    if (!accountIdForEvents) { setHomeEvent(null); return; }
+    let active = true;
+    void getEvents()
+      .then(result => { if (active) setHomeEvent(result.events.find(event => event.status === 'active') ?? null); })
+      .catch(() => { if (active) setHomeEvent(null); });
+    return () => { active = false; };
+  }, [accountIdForEvents, getEvents]);
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
   const [soloSaveConfirm, setSoloSaveConfirm] = useState<'choose' | 'new' | null>(null);
   const [playerName, setPlayerName] = useState('');
@@ -459,7 +476,7 @@ export default function MenuPage() {
       {/* Content */}
       {account ? (
         <>
-          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+          <div className="absolute left-4 top-4 z-20 flex items-center gap-2 sm:left-6 sm:top-6">
             <Button
               type="button"
               intent="ghost"
@@ -481,7 +498,15 @@ export default function MenuPage() {
                 </span>
               ) : null}
             </Button>
+            {homeEvent ? <EventTopChip event={homeEvent} look={account} onOpen={() => setEventOpen(true)} /> : null}
           </div>
+          <EventModal
+            event={homeEvent}
+            look={account}
+            open={eventOpen}
+            onOpenChange={setEventOpen}
+            onEquip={async frameKey => { await updateProfile({ avatarFrameKey: frameKey }); }}
+          />
           {/* The profile lives here instead of the tab bar: photo + name, top right. */}
           <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
             <button
@@ -490,7 +515,7 @@ export default function MenuPage() {
               onClick={() => dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'profile' })}
               className="flex min-h-11 max-w-[11rem] items-center gap-2 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 py-1 pl-1 pr-3.5 transition-colors hover:border-[var(--ui-brand)]/50 sm:max-w-[14rem]"
             >
-              <span
+              <FramedAvatar frameKey={account.avatarFrameKey}><span
                 aria-hidden="true"
                 className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-brand)]/60 text-xs font-bold text-[var(--ui-text)]"
                 style={{ backgroundColor: getProfileAvatarBackground(account.avatarBackgroundKey).color }}
@@ -502,7 +527,7 @@ export default function MenuPage() {
                   const fallback = event.currentTarget.previousElementSibling as HTMLElement | null;
                   if (fallback) fallback.hidden = false;
                 }} /> : null}
-              </span>
+              </span></FramedAvatar>
               <span className="truncate text-xs font-bold text-[var(--ui-text)]">{account.displayName}</span>
             </button>
           </div>

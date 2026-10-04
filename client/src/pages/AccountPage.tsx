@@ -23,6 +23,8 @@ import {
 import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import DifficultyEmblem from '../components/game/DifficultyEmblem';
 import SelectMenu, { type SelectMenuOption } from '../components/account/SelectMenu';
+import FramedAvatar, { FrameImage } from '../components/account/AvatarFrame';
+import { AVATAR_FRAMES, GAME_EVENTS } from '@shared/game/events';
 import ReportPage from './ReportPage';
 import { cn } from '../lib/utils';
 import {
@@ -146,11 +148,11 @@ function profileCoverStyle(coverKey: string, coverUrl?: string | null) {
   } as const;
 }
 
-function profileAvatar(avatarUrl: string | null, avatarKey: string, name: string, backgroundKey: string, size = 'size-24') {
+function profileAvatar(avatarUrl: string | null, avatarKey: string, name: string, backgroundKey: string, frameKey?: string | null, size = 'size-24') {
   const characterImage = resolveProfileAvatarImage(avatarKey);
   const image = avatarUrl ?? characterImage;
   return (
-    <div
+    <FramedAvatar frameKey={frameKey}><div
       role="img"
       aria-label={`Foto de ${name}`}
       className={cn(size, 'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--ui-brand)]/60 text-3xl font-black text-[var(--ui-text)]')}
@@ -158,7 +160,7 @@ function profileAvatar(avatarUrl: string | null, avatarKey: string, name: string
     >
       <span aria-hidden="true" hidden={!!image}>{initials(name)}</span>
       {image ? <img key={image} src={image} alt="" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={showAvatarFallback} /> : null}
-    </div>
+    </div></FramedAvatar>
   );
 }
 
@@ -218,6 +220,7 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
                 avatarKey={record.profile_avatar_key ?? ''}
                 avatarUrl={record.profile_avatar_url}
                 backgroundKey={record.profile_avatar_background_key ?? undefined}
+                frameKey={record.profile_avatar_frame_key}
                 sizeClassName="size-9"
               />
               <div className="min-w-0">
@@ -249,13 +252,13 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
   );
 }
 
-function CompactProfileAvatar({ name, avatarKey, avatarUrl, backgroundKey = DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, sizeClassName }: { name: string; avatarKey: string; avatarUrl?: string | null; backgroundKey?: string; sizeClassName?: string }) {
+function CompactProfileAvatar({ name, avatarKey, avatarUrl, backgroundKey = DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, frameKey, sizeClassName }: { name: string; avatarKey: string; avatarUrl?: string | null; backgroundKey?: string; frameKey?: string | null; sizeClassName?: string }) {
   const image = avatarUrl || resolveProfileAvatarImage(avatarKey);
   return (
-    <div role="img" aria-label={`Foto de ${name}`} className={cn('relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-line-strong)] font-bold text-[var(--ui-text)]', sizeClassName)} style={{ backgroundColor: getProfileAvatarBackground(backgroundKey).color }}>
+    <FramedAvatar frameKey={frameKey}><div role="img" aria-label={`Foto de ${name}`} className={cn('relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-line-strong)] font-bold text-[var(--ui-text)]', sizeClassName)} style={{ backgroundColor: getProfileAvatarBackground(backgroundKey).color }}>
       <span aria-hidden="true" hidden={!!image}>{initials(name)}</span>
       {image ? <img key={image} src={image} alt="" loading="lazy" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={showAvatarFallback} /> : null}
-    </div>
+    </div></FramedAvatar>
   );
 }
 
@@ -338,7 +341,7 @@ function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number
   return (
     <article className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
       <div aria-label={`Posição ${rank}`} className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg border font-display text-xl tabular-nums', rank === 1 ? 'border-[var(--ui-brand)]/45 bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)]')}>{String(rank).padStart(2, '0')}</div>
-      <CompactProfileAvatar name={entry.display_name} avatarKey={entry.avatar_key} avatarUrl={entry.avatar_url} backgroundKey={entry.avatar_background_key} sizeClassName="size-16" />
+      <CompactProfileAvatar name={entry.display_name} avatarKey={entry.avatar_key} avatarUrl={entry.avatar_url} backgroundKey={entry.avatar_background_key} frameKey={entry.avatar_frame_key} sizeClassName="size-16" />
       <div className="min-w-0 flex-1">
         <strong className="block truncate text-base font-bold text-[var(--ui-text)]">{entry.display_name}</strong>
         <div className="truncate text-xs text-[var(--ui-text-muted)]">@{entry.username}</div>
@@ -425,7 +428,7 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
       <section className="relative isolate overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]" aria-label={`Perfil de ${profile.displayName}`} style={coverStyle}>
         <div aria-hidden="true" className="relative h-36 sm:h-44" />
         <div className="relative -mt-12 flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:px-8 sm:pb-8">
-          <div className="shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey)}</div>
+          <div className="shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey, profile.avatarFrameKey)}</div>
           <div className="min-w-0 flex-1 pb-1">
             <h2 className="truncate font-display text-3xl text-[var(--ui-text)]">{profile.displayName}</h2>
             <p className="mt-1 truncate text-sm text-[var(--ui-text-muted)]">@{profile.username} · conta criada em {formatDate(profile.createdAt)}</p>
@@ -514,8 +517,8 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
 
 function friendIdentity(friend: FriendshipEntry, accountId: string) {
   return friend.requester_id === accountId
-    ? { name: friend.addressee_display_name, username: friend.addressee_username, avatarKey: friend.addressee_avatar_key, avatarBackgroundKey: friend.addressee_avatar_background_key }
-    : { name: friend.requester_display_name, username: friend.requester_username, avatarKey: friend.requester_avatar_key, avatarBackgroundKey: friend.requester_avatar_background_key };
+    ? { name: friend.addressee_display_name, username: friend.addressee_username, avatarKey: friend.addressee_avatar_key, avatarBackgroundKey: friend.addressee_avatar_background_key, avatarFrameKey: friend.addressee_avatar_frame_key }
+    : { name: friend.requester_display_name, username: friend.requester_username, avatarKey: friend.requester_avatar_key, avatarBackgroundKey: friend.requester_avatar_background_key, avatarFrameKey: friend.requester_avatar_frame_key };
 }
 
 const EMPTY_FINISH_COUNTS: FinishCounts = { leaguePhase: 0, playoff: 0, roundOf16: 0, quarterfinal: 0, semifinal: 0, runnerUp: 0, champion: 0 };
@@ -548,7 +551,7 @@ function CareerFinishBreakdown({ counts, filter }: { counts: AccountStats['finis
 
 export default function AccountPage() {
   const { state, dispatch } = useGame();
-  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, updateShowcase, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, getEvents, updateShowcase, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
   const accountId = account?.id ?? null;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
@@ -597,9 +600,10 @@ export default function AccountPage() {
   };
   const friendProfileRequestId = useRef(0);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
-  const [appearanceTab, setAppearanceTab] = useState<'avatar' | 'cover'>('avatar');
+  const [appearanceTab, setAppearanceTab] = useState<'avatar' | 'frame' | 'cover'>('avatar');
+  const [ownedFrames, setOwnedFrames] = useState<string[]>([]);
   const [appearancePage, setAppearancePage] = useState(0);
-  const [appearanceDraft, setAppearanceDraft] = useState({ avatarKey: 'mark-evans', avatarBackgroundKey: DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, coverKey: 'cover-01' });
+  const [appearanceDraft, setAppearanceDraft] = useState<{ avatarKey: string; avatarBackgroundKey: string; avatarFrameKey: string | null; coverKey: string }>({ avatarKey: 'mark-evans', avatarBackgroundKey: DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, avatarFrameKey: null, coverKey: 'cover-01' });
   const [appearanceBusy, setAppearanceBusy] = useState(false);
   const [appearanceError, setAppearanceError] = useState('');
   const [nameEditorOpen, setNameEditorOpen] = useState(false);
@@ -733,7 +737,9 @@ export default function AccountPage() {
     if (!account) return;
     const avatarKey = normalizeProfileAvatarKey(account.avatarKey);
     const currentAvatarIndex = PROFILE_AVATARS.findIndex(avatar => avatar.key === avatarKey);
-    setAppearanceDraft({ avatarKey, avatarBackgroundKey: normalizeProfileAvatarBackgroundKey(account.avatarBackgroundKey), coverKey: account.coverKey });
+    setAppearanceDraft({ avatarKey, avatarBackgroundKey: normalizeProfileAvatarBackgroundKey(account.avatarBackgroundKey), avatarFrameKey: account.avatarFrameKey ?? null, coverKey: account.coverKey });
+    // Frames come from events; the list is only needed while editing.
+    void getEvents().then(result => setOwnedFrames(result.frames)).catch(() => setOwnedFrames(account.avatarFrameKey ? [account.avatarFrameKey] : []));
     setAppearanceTab('avatar');
     setAppearancePage(Math.max(0, Math.floor(currentAvatarIndex / AVATARS_PER_PAGE)));
     setAppearanceError('');
@@ -744,7 +750,7 @@ export default function AccountPage() {
     setAppearanceBusy(true);
     setAppearanceError('');
     try {
-      await updateProfile({ avatarKey: appearanceDraft.avatarKey, avatarBackgroundKey: appearanceDraft.avatarBackgroundKey, coverKey: appearanceDraft.coverKey });
+      await updateProfile({ avatarKey: appearanceDraft.avatarKey, avatarBackgroundKey: appearanceDraft.avatarBackgroundKey, avatarFrameKey: appearanceDraft.avatarFrameKey, coverKey: appearanceDraft.coverKey });
       setNotice('Foto e fundo do perfil atualizados.');
       setAppearanceOpen(false);
     } catch (err) {
@@ -900,7 +906,7 @@ export default function AccountPage() {
           </div>
           <PanelBody className="relative -mt-12 px-5 pb-5 sm:px-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-              {profileAvatar(account.avatarUrl, account.avatarKey, account.displayName, account.avatarBackgroundKey)}
+              {profileAvatar(account.avatarUrl, account.avatarKey, account.displayName, account.avatarBackgroundKey, account.avatarFrameKey)}
               <div className="min-w-0 flex-1 pb-1">
                 <div className="flex flex-wrap items-center gap-2"><h1 className="truncate font-display text-balance text-3xl text-[var(--ui-text)]">{account.displayName}</h1><Button type="button" intent="ghost" aria-label="Editar nome de exibição" title="Editar nome de exibição" onClick={openNameEditor} className="size-8 min-h-8 rounded-full px-0"><Pencil size={14} aria-hidden="true" /></Button></div>
                 <div className="mt-1 text-sm text-[var(--ui-text-muted)]">@{account.username} · conta criada em {formatDate(account.createdAt)}</div>
@@ -1026,7 +1032,7 @@ export default function AccountPage() {
                         const person = friendIdentity(friend, account.id);
                         return <article key={friend.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                           <Button type="button" intent="ghost" aria-label={`Ver perfil de ${person.name}`} title={`Ver perfil de ${person.name}`} onClick={() => void viewFriendProfile(person.username)} className="group flex h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 rounded-lg border-0 bg-transparent p-0 text-left normal-case font-normal tracking-normal hover:translate-y-0 hover:border-transparent hover:bg-transparent">
-                            <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} />
+                            <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
                             <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{person.name}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className="mt-1 block text-[12px] text-[var(--ui-brand-strong)]">Amigos desde {formatDate(friend.updated_at)}</span></span>
                             <span className="hidden shrink-0 text-[12px] font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
                             <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-[var(--ui-text-faint)]" />
@@ -1041,7 +1047,7 @@ export default function AccountPage() {
                     : pendingIncoming.map(friend => {
                       const person = friendIdentity(friend, account.id);
                       return <article key={friend.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
-                        <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} />
+                        <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
                         <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{person.name}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
                         <Button intent="primary" disabled={busy} aria-label={`Aceitar solicitação de ${person.name}`} onClick={() => void actFriend(friend.id, 'accept')} className="size-10 min-h-10 shrink-0 px-0 sm:h-auto sm:w-auto sm:px-3"><Check size={15} aria-hidden="true" /><span className="hidden sm:inline">ACEITAR</span></Button>
                         <Button intent="ghost" disabled={busy} aria-label={`Recusar solicitação de ${person.name}`} onClick={() => void actFriend(friend.id, 'decline')} className="size-10 min-h-10 shrink-0 px-0"><X size={16} aria-hidden="true" /></Button>
@@ -1054,7 +1060,7 @@ export default function AccountPage() {
                     : pendingOutgoing.map(friend => {
                       const person = friendIdentity(friend, account.id);
                       return <article key={friend.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
-                        <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} />
+                        <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
                         <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{person.name}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
                         <Badge tone="warning">PENDENTE</Badge>
                         <Button intent="ghost" aria-label={`Cancelar solicitação para ${person.name}`} title="Cancelar solicitação" disabled={busy} onClick={() => void actFriend(friend.id, 'remove')} className="size-10 min-h-10 shrink-0 px-0"><X size={16} aria-hidden="true" /></Button>
@@ -1090,11 +1096,44 @@ export default function AccountPage() {
       >
         <div className="space-y-4">
           {appearanceError ? <StatusBanner tone="danger" title="Não foi possível salvar">{appearanceError}</StatusBanner> : null}
-          <Tabs value={appearanceTab} onValueChange={value => setAppearanceTab(value as 'avatar' | 'cover')}>
+          <Tabs value={appearanceTab} onValueChange={value => setAppearanceTab(value as 'avatar' | 'frame' | 'cover')}>
             <TabList className="ui-tabs--split-mobile">
               <Tab value="avatar" className="inline-flex items-center justify-center gap-2"><UserRound size={15} aria-hidden="true" /> AVATAR</Tab>
+              <Tab value="frame" className="inline-flex items-center justify-center gap-2"><Sparkles size={15} aria-hidden="true" /> MOLDURA</Tab>
               <Tab value="cover" className="inline-flex items-center justify-center gap-2"><ImageIcon size={15} aria-hidden="true" /> CAPA</Tab>
             </TabList>
+            <TabPanel value="frame" className="pt-4">
+              {/* Frames are earned in events; locked ones say which event grants them. */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {[null, ...AVATAR_FRAMES.map(frame => frame.key)].map(frameKey => {
+                  const frame = AVATAR_FRAMES.find(item => item.key === frameKey);
+                  const owned = frameKey === null || ownedFrames.includes(frameKey);
+                  const selected = appearanceDraft.avatarFrameKey === frameKey;
+                  const event = frame ? GAME_EVENTS.find(item => item.frameKey === frame.key) : undefined;
+                  const label = frame ? frame.name : 'Sem moldura';
+                  return <Button
+                    type="button"
+                    key={frameKey ?? 'none'}
+                    intent="ghost"
+                    disabled={!owned}
+                    aria-label={owned ? `Usar ${label}` : `${label}: bloqueada`}
+                    aria-pressed={selected}
+                    onClick={() => setAppearanceDraft(draft => ({ ...draft, avatarFrameKey: frameKey }))}
+                    className={cn('relative flex h-auto min-h-0 w-full flex-col items-center gap-2 whitespace-normal rounded-xl border px-2 py-4 normal-case tracking-normal disabled:opacity-100', selected ? 'border-[var(--ui-brand)] ring-2 ring-[var(--ui-brand)]/35' : 'border-[var(--ui-line-subtle)]')}
+                  >
+                    <span className={cn('relative grid size-20 place-items-center', !owned && 'opacity-40 grayscale')}>
+                      <span className="size-[57px] overflow-hidden rounded-full" style={{ backgroundColor: getProfileAvatarBackground(appearanceDraft.avatarBackgroundKey).color }}>
+                        <img src={resolveProfileAvatarImage(appearanceDraft.avatarKey) ?? undefined} alt="" className="size-full object-contain" />
+                      </span>
+                      {frameKey ? <FrameImage frameKey={frameKey} className="absolute inset-0 size-full" /> : null}
+                    </span>
+                    <span className="text-xs font-bold text-[var(--ui-text)]">{label}</span>
+                    {!owned ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Complete o evento {event?.name ?? ''}</span> : null}
+                    {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
+                  </Button>;
+                })}
+              </div>
+            </TabPanel>
             <TabPanel value="avatar" className="space-y-4 pt-4">
               <fieldset className="min-w-0 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
                   <legend className="ui-kicker">COR DO FUNDO</legend>

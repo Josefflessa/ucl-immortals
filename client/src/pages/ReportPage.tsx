@@ -28,7 +28,9 @@ import type { CompetitionHistoryEntry } from '../contexts/AccountContext';
 import { getCompetitionHistorySnapshot, type CompetitionHistorySnapshot } from '../lib/historySnapshot';
 import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '@shared/game/competitionRanking';
 import { UnlockedAchievements } from '../components/account/Achievements';
-import type { AchievementUnlock } from '../contexts/AccountContext';
+import type { AchievementUnlock, FrameUnlock } from '../contexts/AccountContext';
+import { AVATAR_FRAME_BY_KEY } from '@shared/game/events';
+import { FrameImage } from '../components/account/AvatarFrame';
 
 type SavedEffectiveCardStats = Pick<EffectiveStats,
   'overall' | 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure'>;
@@ -333,6 +335,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const [historySaveError, setHistorySaveError] = useState('');
   const [historySaveRetry, setHistorySaveRetry] = useState(0);
   const [achievementUnlocks, setAchievementUnlocks] = useState<AchievementUnlock[]>([]);
+  const [frameUnlocks, setFrameUnlocks] = useState<FrameUnlock[]>([]);
 
   // Online campaigns are saved by the room server when the report opens, so ask
   // for the levels reached since then, a few times while that save completes.
@@ -445,6 +448,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     }).then(result => {
       setHistorySaveStatus('saved');
       setAchievementUnlocks(result.achievementsUnlocked ?? []);
+      setFrameUnlocks(result.framesUnlocked ?? []);
     }).catch(error => {
       console.error('[account] não foi possível salvar o histórico solo:', error);
       setHistorySaveError(error instanceof Error ? error.message : 'Não foi possível salvar a competição agora.');
@@ -493,6 +497,26 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           </div>
         </div>
       )}
+
+      {/* An event finished with this campaign: its avatar frame is now the player's. */}
+      {!historyEntry && frameUnlocks.length > 0 ? (
+        <div className="mx-auto w-full max-w-5xl px-4 pt-3" aria-live="polite">
+          {frameUnlocks.map(unlock => {
+            const frame = AVATAR_FRAME_BY_KEY.get(unlock.frameKey);
+            if (!frame) return null;
+            return (
+              <div key={unlock.frameKey} className="flex items-center gap-3 rounded-xl border bg-[var(--ui-surface-inset)] p-3" style={{ borderColor: `color-mix(in srgb, ${frame.color} 55%, var(--ui-line-subtle))` }}>
+                <FrameImage frameKey={unlock.frameKey} className="size-14 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: frame.color }}>Evento concluído</div>
+                  <div className="font-display text-xl leading-tight text-[var(--ui-text)]">Moldura {frame.name} desbloqueada</div>
+                  <div className="text-xs text-[var(--ui-text-muted)]">Use no perfil, em Personalizar › Moldura.</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       {!historyEntry && achievementUnlocks.length > 0 ? (
         <div className="mx-auto w-full max-w-5xl px-4 pt-3" aria-live="polite">

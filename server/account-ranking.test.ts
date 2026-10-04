@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import type { DatabaseSync as SqliteDatabase } from 'node:sqlite';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handleAccountRequest } from './account-api';
 import { competitionStagePoints } from '../shared/game/competitionRanking';
 
@@ -268,5 +268,54 @@ describe('achievements from records and loyalty', () => {
     expect(state.brick_keeper).toMatchObject({ level: 2, progress: 41 });
     expect(state.qualified).toMatchObject({ level: 1, progress: 5 });
     expect(state.marathoner).toMatchObject({ level: 1, progress: 60 });
+  });
+});
+
+describe('events and avatar frames', () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const at = (iso: string) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(iso)); };
+  const finish = (difficultyId: string, finishStage: string) => soloHistory(difficultyId, { champion: finishStage === 'champion', finishStage });
+
+  it('unlocks the frame when every objective is done inside the window, and only owners can wear it', async () => {
+    const { call, register } = api(database());
+    at('2026-10-10T12:00:00-03:00');
+    const cookie = await register('noturno');
+
+    const before = (await call('/api/account/events', { cookie })).body;
+    expect(before.events[0]).toMatchObject({ id: 'noite-dos-imortais-2026', status: 'active', completed: false, frameUnlocked: false });
+    expect(before.frames).toEqual([]);
+    // A frame the account does not own cannot be equipped.
+    expect((await call('/api/account/profile', { method: 'PATCH', cookie, body: { avatarFrameKey: 'noite-dos-imortais' } })).status).toBe(403);
+
+    const posts = [finish('bronze', 'leaguePhase'), finish('gold', 'semifinalist'), finish('gold', 'runnerUp'), finish('silver', 'playoff')];
+    for (const body of posts) expect((await call('/api/account/history', { method: 'POST', cookie, body })).body.framesUnlocked).toEqual([]);
+    const progress = Object.fromEntries((await call('/api/account/events', { cookie })).body.events[0].objectives.map((o: any) => [o.id, o.progress]));
+    expect(progress).toEqual({ competitions: 4, semifinals: 2, title: 0 });
+
+    // The 5th competition: a Lendário title closes all three objectives.
+    const last = await call('/api/account/history', { method: 'POST', cookie, body: finish('legendary', 'champion') });
+    expect(last.body.framesUnlocked).toEqual([{ frameKey: 'noite-dos-imortais', eventId: 'noite-dos-imortais-2026' }]);
+    const after = (await call('/api/account/events', { cookie })).body;
+    expect(after.events[0]).toMatchObject({ completed: true, frameUnlocked: true });
+    expect(after.frames).toEqual(['noite-dos-imortais']);
+
+    const equipped = await call('/api/account/profile', { method: 'PATCH', cookie, body: { avatarFrameKey: 'noite-dos-imortais' } });
+    expect(equipped.body.account.avatarFrameKey).toBe('noite-dos-imortais');
+    expect((await call('/api/users/noturno')).body.profile.avatarFrameKey).toBe('noite-dos-imortais');
+    // Taking it off is always allowed.
+    expect((await call('/api/account/profile', { method: 'PATCH', cookie, body: { avatarFrameKey: null } })).body.account.avatarFrameKey).toBeNull();
+  });
+
+  it('counts only competitions completed inside the event window', async () => {
+    const { call, register } = api(database());
+    at('2026-10-03T23:00:00-03:00');
+    const cookie = await register('adiantado');
+    // One hour before the start: does not count.
+    await call('/api/account/history', { method: 'POST', cookie, body: finish('immortal', 'champion') });
+    expect((await call('/api/account/events', { cookie })).body.events[0].status).toBe('upcoming');
+    at('2026-10-04T00:30:00-03:00');
+    await call('/api/account/history', { method: 'POST', cookie, body: finish('gold', 'semifinalist') });
+    const progress = Object.fromEntries((await call('/api/account/events', { cookie })).body.events[0].objectives.map((o: any) => [o.id, o.progress]));
+    expect(progress).toEqual({ competitions: 1, semifinals: 1, title: 0 });
   });
 });

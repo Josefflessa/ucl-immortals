@@ -23,6 +23,40 @@ export interface AchievementRarity {
   percentByAchievement: Record<string, [number, number, number, number]>;
 }
 
+export interface FrameUnlock {
+  frameKey: string;
+  eventId: string;
+}
+
+export interface EventObjectiveState {
+  id: string;
+  label: string;
+  progress: number;
+  target: number;
+  done: boolean;
+}
+
+export interface GameEventState {
+  id: string;
+  name: string;
+  description: string;
+  startsAt: number;
+  endsAt: number;
+  status: 'upcoming' | 'active' | 'ended';
+  frameKey: string;
+  objectives: EventObjectiveState[];
+  completed: boolean;
+  frameUnlocked: boolean;
+}
+
+export interface EventsPayload {
+  events: GameEventState[];
+  /** Frames the account owns. */
+  frames: string[];
+  equippedFrame: string | null;
+  unlocked: FrameUnlock[];
+}
+
 export interface AchievementsPayload {
   achievements: AchievementState[];
   rarity: AchievementRarity;
@@ -62,6 +96,7 @@ export interface AccountProfile {
   bio: string;
   avatarKey: string;
   avatarBackgroundKey: string;
+  avatarFrameKey?: string | null;
   coverKey: string;
   avatarUrl: string | null;
   coverUrl: string | null;
@@ -109,6 +144,7 @@ export interface PublicRecordEntry {
   profile_display_name?: string | null;
   profile_avatar_key?: string | null;
   profile_avatar_background_key?: string | null;
+  profile_avatar_frame_key?: string | null;
   profile_avatar_url?: string | null;
   team_name_snapshot: string;
   crest_id_snapshot: string | null;
@@ -124,6 +160,7 @@ export interface ScoreLeaderboardEntry {
   display_name: string;
   avatar_key: string;
   avatar_background_key: string;
+  avatar_frame_key?: string | null;
   avatar_url: string | null;
   team_name_snapshot: string | null;
   crest_id_snapshot: string | null;
@@ -154,6 +191,7 @@ export interface ProfileRecordEntry {
   profile_display_name?: string | null;
   profile_avatar_key?: string | null;
   profile_avatar_background_key?: string | null;
+  profile_avatar_frame_key?: string | null;
   profile_avatar_url?: string | null;
   team_name_snapshot: string;
   crest_id_snapshot: string | null;
@@ -192,10 +230,12 @@ export interface FriendshipEntry {
   requester_display_name: string;
   requester_avatar_key: string;
   requester_avatar_background_key: string;
+  requester_avatar_frame_key?: string | null;
   addressee_username: string;
   addressee_display_name: string;
   addressee_avatar_key: string;
   addressee_avatar_background_key: string;
+  addressee_avatar_frame_key?: string | null;
   created_at: number;
   updated_at: number;
   is_online: boolean;
@@ -224,7 +264,7 @@ interface AccountContextValue {
   login: (username: string, password: string) => Promise<AccountProfile>;
   register: (username: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
+  updateProfile: (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
   getHistory: (page?: number) => Promise<CompetitionHistoryPage>;
   saveHistory: (payload: {
     mode: 'solo' | 'online';
@@ -246,8 +286,9 @@ interface AccountContextValue {
       playerPhotoUrl?: string | null;
       value: number;
     }>;
-  }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[] }>;
+  }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[] }>;
   getOwnAchievements: (since?: number) => Promise<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>;
+  getEvents: () => Promise<EventsPayload>;
   updateShowcase: (items: ShowcaseItem[]) => Promise<AchievementsPayload['showcase']>;
   getRecords: (filters?: { category?: string; difficulty?: string }) => Promise<PublicRecordEntry[]>;
   getOwnRecordHighlights: () => Promise<ProfileRecordEntry[]>;
@@ -386,7 +427,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setAccount(null);
   }, [accountId]);
 
-  const updateProfile = useCallback(async (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'coverKey' | 'favoriteCrestId'>>) => {
+  const updateProfile = useCallback(async (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'coverKey' | 'favoriteCrestId'>>) => {
     const result = await api<{ account: AccountProfile }>('/api/account/profile', { method: 'PATCH', body: JSON.stringify(patch) });
     setAccount(result.account);
     return result.account;
@@ -409,10 +450,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [accountId, readCacheFor]);
 
   const saveHistory = useCallback(async (payload: Parameters<AccountContextValue['saveHistory']>[0]) => {
-    let result: { id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[] } | null = null;
+    let result: { id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[] } | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        result = await api<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[] }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
+        result = await api<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[] }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
         break;
       } catch (error) {
         const status = (error as Error & { status?: number }).status;
@@ -430,6 +471,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const query = since ? `?since=${encodeURIComponent(String(since))}` : '';
     return api<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>(`/api/account/achievements${query}`);
   }, []);
+
+  const getEvents = useCallback(async () => api<EventsPayload>('/api/account/events'), []);
 
   const updateShowcase = useCallback(async (items: ShowcaseItem[]) => {
     const result = await api<{ showcase: AchievementsPayload['showcase'] }>('/api/account/showcase', { method: 'PUT', body: JSON.stringify({ items }) });
@@ -534,9 +577,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile,
+    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile,
     getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

@@ -4,6 +4,7 @@ import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } fr
 import type { MatchResult, PlayerCard, Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
 import { ensureAchievementsCurrent, syncAchievements } from './achievements.js';
+import { syncEventRewards } from './events.js';
 import type { RoomPlayer, RoomState } from './handlers.js';
 
 interface PersistenceEnv { DB: D1Database; }
@@ -242,5 +243,6 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
     await retainRecentCompetitionSnapshots(env.DB, accountId);
     // A failed evaluation is retried on the next profile access.
     await syncAchievements(env.DB, accountId).catch(error => console.error('[achievements] evaluation after online save failed:', error));
+    await syncEventRewards(env.DB, accountId).catch(error => console.error('[events] evaluation after online save failed:', error));
   }
 }
