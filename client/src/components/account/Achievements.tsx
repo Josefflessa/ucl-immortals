@@ -24,6 +24,7 @@ import {
 } from '@shared/game/achievements';
 import { COACHES, DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import DifficultyEmblem from '../game/DifficultyEmblem';
+import SelectMenu, { type SelectMenuOption } from './SelectMenu';
 import { getCrest } from '@shared/game/crests';
 import { isRankedDifficulty, RANKED_DIFFICULTY_IDS } from '@shared/game/competitionRanking';
 import type { AchievementRarity, AchievementState, AchievementsPayload, ProfileRecordEntry } from '../../contexts/AccountContext';
@@ -303,8 +304,23 @@ const CATEGORY_ORDER: AchievementCategory[] = ['titles', 'campaign', 'career', '
 export function AchievementsSection({ payload, heading = true }: { payload: AchievementsPayload; heading?: boolean }) {
   const states = new Map(payload.achievements.map(state => [state.id, state]));
   const unlocked = payload.achievements.filter(state => state.level > 0).length;
+  // The dedicated page shows one category at a time, picked from a menu.
+  const [category, setCategory] = useState<AchievementCategory | 'all'>(heading ? 'all' : CATEGORY_ORDER[0]);
+  const categoryOptions: SelectMenuOption<AchievementCategory | 'all'>[] = [
+    ...CATEGORY_ORDER.map(id => {
+      const inCategory = ACHIEVEMENTS.filter(definition => definition.category === id);
+      const done = inCategory.filter(definition => (states.get(definition.id)?.level ?? 0) > 0).length;
+      return {
+        value: id,
+        text: ACHIEVEMENT_CATEGORY_LABELS[id],
+        label: <span className="flex min-w-0 flex-1 items-center justify-between gap-3 pl-1"><span>{ACHIEVEMENT_CATEGORY_LABELS[id]}</span><span className="text-xs tabular-nums text-[var(--ui-text-muted)]">{done}/{inCategory.length}</span></span>,
+      };
+    }),
+    { value: 'all', text: 'Todas', label: <span className="pl-1">Todas</span> },
+  ];
+  const shownCategories = category === 'all' ? CATEGORY_ORDER : [category];
   return (
-    <section aria-label="Conquistas" className="space-y-3">
+    <section aria-label="Conquistas" className={heading ? 'space-y-3' : 'space-y-5'}>
       {heading ? <>
         <SectionHeader
           title="Conquistas"
@@ -313,14 +329,15 @@ export function AchievementsSection({ payload, heading = true }: { payload: Achi
         />
         <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Metas de carreira em 4 níveis: Bronze, Prata, Ouro e Lendário. A porcentagem mostra quantos jogadores já chegaram lá.</p>
       </> : null}
-      {CATEGORY_ORDER.map(category => {
+      {heading ? null : <SelectMenu label="Categoria das conquistas" value={category} options={categoryOptions} onChange={setCategory} />}
+      {shownCategories.map(category => {
         const list = ACHIEVEMENTS.filter(definition => definition.category === category)
           .map(definition => states.get(definition.id))
           .filter((state): state is AchievementState => !!state)
           .sort((a, b) => b.level - a.level);
         return (
           <div key={category} className="space-y-2">
-            <div className="ui-kicker">{ACHIEVEMENT_CATEGORY_LABELS[category]}</div>
+            {shownCategories.length > 1 ? <div className="ui-kicker">{ACHIEVEMENT_CATEGORY_LABELS[category]}</div> : null}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {list.map(state => <AchievementTile key={state.id} state={state} rarity={payload.rarity} />)}
             </div>

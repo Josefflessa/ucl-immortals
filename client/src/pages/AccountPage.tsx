@@ -1,5 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Image as ImageIcon, Info, Layers, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Image as ImageIcon, Info, Layers, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useAccount, type AccountStats, type AchievementsPayload, type CompetitionHistoryEntry, type FinishCounts, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
@@ -22,6 +22,7 @@ import {
 } from '@shared/game/competitionRanking';
 import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import DifficultyEmblem from '../components/game/DifficultyEmblem';
+import SelectMenu, { type SelectMenuOption } from '../components/account/SelectMenu';
 import ReportPage from './ReportPage';
 import { cn } from '../lib/utils';
 import {
@@ -267,65 +268,17 @@ function DifficultyFilter({ value, onChange, includeAll = false, label, availabl
   /** Difficulties with data; the others stay selectable but dimmed. */
   available?: ReadonlySet<RankedDifficultyId>;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const listId = useId();
-  const options: DifficultyFilterValue[] = [...(includeAll ? ['all' as const] : []), ...RANKED_DIFFICULTY_IDS];
-  const colorOf = (option: DifficultyFilterValue) => option === 'all' ? 'var(--ui-brand-strong)' : difficultyColor(option);
-  const content = (option: DifficultyFilterValue) => option === 'all'
-    ? <><span className="grid size-6 place-items-center"><Layers size={16} aria-hidden="true" /></span>Todas</>
-    : <><DifficultyEmblem difficulty={option} size={24} />{difficultyName(option)}</>;
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
-    document.addEventListener('pointerdown', close);
-    document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="relative inline-block">
-      <button
-        type="button"
-        aria-label={`${label}: ${value === 'all' ? 'Todas' : difficultyName(value)}`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listId}
-        onClick={() => setOpen(current => !current)}
-        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border bg-[var(--ui-surface-inset)] py-1 pl-1.5 pr-2.5 text-sm font-bold tracking-wide transition-colors hover:bg-[var(--ui-surface-2)]"
-        style={{ borderColor: `color-mix(in srgb, ${colorOf(value)} 55%, var(--ui-line-subtle))`, color: colorOf(value) }}
-      >
-        {content(value)}
-        <ChevronDown size={16} aria-hidden="true" className={cn('ml-1 text-[var(--ui-text-muted)] transition-transform', open && 'rotate-180')} />
-      </button>
-      {open ? (
-        <ul id={listId} role="listbox" aria-label={label} className="absolute left-0 top-full z-30 mt-1.5 min-w-full overflow-hidden rounded-lg border border-[var(--ui-line-strong)] bg-[var(--ui-surface-2)] py-1 shadow-xl">
-          {options.map(option => {
-            const selected = value === option;
-            const dimmed = option !== 'all' && available && !available.has(option);
-            return (
-              <li key={option} role="option" aria-selected={selected}>
-                <button
-                  type="button"
-                  onClick={() => { onChange(option); setOpen(false); }}
-                  className={cn(
-                    'flex w-full items-center gap-1.5 whitespace-nowrap py-1.5 pl-1.5 pr-4 text-left text-sm font-bold transition-colors hover:bg-[var(--ui-surface-inset)]',
-                    dimmed && !selected && 'opacity-50',
-                  )}
-                  style={{ color: selected ? colorOf(option) : 'var(--ui-text-soft)' }}
-                >
-                  {content(option)}
-                  {selected ? <Check size={15} aria-hidden="true" className="ml-auto pl-1" /> : null}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-    </div>
-  );
+  const options: SelectMenuOption<DifficultyFilterValue>[] = [
+    ...(includeAll ? [{ value: 'all' as const, text: 'Todas', label: <><span className="grid size-6 place-items-center"><Layers size={16} aria-hidden="true" /></span>Todas</> }] : []),
+    ...RANKED_DIFFICULTY_IDS.map(id => ({
+      value: id,
+      text: difficultyName(id),
+      color: difficultyColor(id),
+      dimmed: available ? !available.has(id) : false,
+      label: <><DifficultyEmblem difficulty={id} size={24} />{difficultyName(id)}</>,
+    })),
+  ];
+  return <SelectMenu label={label} value={value} options={options} onChange={onChange} />;
 }
 
 function DifficultyBadge({ difficultyId }: { difficultyId: string | null | undefined }) {
@@ -347,39 +300,33 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
   const Icon = meta.icon;
   const rankPosition = record?.rank_position;
   return (
-    <article className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
+    <article className="flex min-w-0 items-stretch gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
       {record ? <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveStats={record.player_effective_stats} /> : <div aria-hidden="true" className="flex h-[178px] w-[110px] shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--ui-line-strong)] bg-[var(--ui-surface)] text-[var(--ui-text-faint)]"><Icon size={24} /></div>}
-      <div className="min-w-0 flex-1">
-        {/* Wraps instead of squeezing: on narrow cards the rank badge drops below the title. */}
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-          <div className="flex min-w-0 flex-1 basis-32 items-center gap-2">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[var(--ui-brand)]/20 bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]"><Icon size={15} aria-hidden="true" /></span>
-            <strong className="min-w-0 break-words text-sm leading-tight text-[var(--ui-text)]">{meta.label}</strong>
-          </div>
-          {record && rankPosition ? <div role="status" aria-label={`${rankPosition}ª posição no ranking geral de ${meta.label.toLowerCase()}`} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--ui-brand)]/30 bg-[var(--ui-brand-soft)] px-2 py-1 text-[var(--ui-brand-strong)]">
-            <span className="font-display text-base leading-none tabular-nums">#{rankPosition}</span>
-            <span className="text-[12px] uppercase leading-none tracking-wider">no geral</span>
-          </div> : record ? <span className="shrink-0 rounded-lg border border-[var(--ui-line-subtle)] px-2 py-1 text-[12px] text-[var(--ui-text-faint)]">posição indisponível</span> : null}
-        </div>
+      {/* Reads top to bottom: what the record is, the mark, who set it, where it ranks, then the campaign. */}
+      <div className="flex min-w-0 flex-1 flex-col self-stretch">
+        <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider text-[var(--ui-text-soft)]">
+          <Icon size={14} aria-hidden="true" className="shrink-0 text-[var(--ui-brand-strong)]" />
+          <span className="truncate">{meta.label}</span>
+        </span>
         {record ? <>
-          <div className="mt-2"><DifficultyBadge difficultyId={record.difficulty_id} /></div>
-          <div className="mt-2 flex min-w-0 items-baseline justify-between gap-2">
-            <strong className="min-w-0 truncate text-xs font-semibold text-[var(--ui-text-soft)]">{record.player_name}</strong>
-            <div className="shrink-0 text-right">
-              <strong className="font-display text-xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{record.value.toLocaleString('pt-BR')}</strong>
-              <span className="ml-1 text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
-            </div>
+          <div className="mt-1.5 flex items-baseline gap-1.5">
+            <strong className="font-display text-4xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{record.value.toLocaleString('pt-BR')}</strong>
+            <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
           </div>
-          <div className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/70 px-2 py-1.5">
-            <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={24} className="shrink-0 rounded-full" />
+          <strong className="mt-1 block truncate text-sm font-semibold text-[var(--ui-text)]">{record.player_name}</strong>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <DifficultyBadge difficultyId={record.difficulty_id} />
+            {rankPosition ? <span role="status" aria-label={`${rankPosition}ª posição no ranking geral de ${meta.label.toLowerCase()}`} className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-[var(--ui-brand)]/30 bg-[var(--ui-brand-soft)] px-2 py-1 text-[var(--ui-brand-strong)]">
+              <span className="font-display text-sm leading-none tabular-nums">#{rankPosition}</span>
+              <span className="text-[11px] font-bold uppercase leading-none tracking-wider">no geral</span>
+            </span> : null}
+          </div>
+          <div className="mt-auto flex min-w-0 items-center gap-2 border-t border-[var(--ui-line-subtle)] pt-2.5">
+            <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={26} className="shrink-0 rounded-full" />
             <div className="min-w-0">
-              <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
               <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
+              <time className="block text-[11px] text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
             </div>
-          </div>
-          <div className="mt-2">
-            <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
-            <time className="block text-xs text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
           </div>
         </> : <span className="mt-2 block text-xs text-[var(--ui-text-muted)]">Ainda sem marca registrada</span>}
       </div>

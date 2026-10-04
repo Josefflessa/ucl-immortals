@@ -43,7 +43,6 @@ export default function AchievementsPage() {
       <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
         <SectionHeader
           title="Conquistas"
-          className="mb-0"
           actions={payload ? (
             <span role="status" aria-label={`${unlocked} de ${ACHIEVEMENTS.length} conquistas desbloqueadas`} className={cn('font-display whitespace-nowrap text-[clamp(30px,5vw,46px)] font-normal leading-[0.98] tabular-nums', unlocked > 0 ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text-muted)]')}>
               {unlocked}<span className="text-[0.55em] text-[var(--ui-text-muted)]">/{ACHIEVEMENTS.length}</span>
