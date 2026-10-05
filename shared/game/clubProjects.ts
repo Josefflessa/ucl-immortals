@@ -277,6 +277,7 @@ interface ClubRewardBreakdown {
   supportersVenue: SupportersVenue;
   magnataBonus: number;
   magnataPercent: number;
+  midiaticoBonus: number;
   lossStreakBonus: number;
   total: number;
 }
@@ -294,6 +295,8 @@ export function calculateClubReward(
   venue: SupportersVenue,
   magnataActive: boolean,
   lossStreakBonusAmount = 0,
+  /** 📺 Midiático: flat credits from its goals (see midiaticoCredits). */
+  midiaticoCredits = 0,
 ): ClubRewardBreakdown {
   const safeBase = Math.max(0, Math.floor(Number.isFinite(base) ? base : 0));
   const supportersPercent = supportersBonusPercent(supportersLevel, venue);
@@ -301,6 +304,7 @@ export function calculateClubReward(
   const magnataPercent = magnataActive ? 50 : 0;
   const magnataBonus = Math.round(safeBase * magnataPercent / 100);
   const safeLossStreakBonus = Math.max(0, Math.floor(Number.isFinite(lossStreakBonusAmount) ? lossStreakBonusAmount : 0));
+  const midiaticoBonus = Math.max(0, Math.floor(Number.isFinite(midiaticoCredits) ? midiaticoCredits : 0));
   return {
     base: safeBase,
     supportersBonus,
@@ -308,8 +312,9 @@ export function calculateClubReward(
     supportersVenue: venue,
     magnataBonus,
     magnataPercent,
+    midiaticoBonus,
     lossStreakBonus: safeLossStreakBonus,
-    total: safeBase + supportersBonus + magnataBonus + safeLossStreakBonus,
+    total: safeBase + supportersBonus + magnataBonus + midiaticoBonus + safeLossStreakBonus,
   };
 }
 

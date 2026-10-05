@@ -51,6 +51,8 @@ export interface MatchPoints {
   supportersVenue?: 'home' | 'away' | 'neutral';
   magnataBonus?: number;
   magnataPercent?: number;
+  /** 📺 Midiático — credits from its goals. */
+  midiaticoBonus?: number;
   /** 🔥 Recuperação — extra credits paid on a loss, scaled by the CURRENT losing streak. */
   lossStreakBonus?: number;
   lossStreakAfter?: number;
@@ -124,6 +126,17 @@ export function playerPackCost(rarity: PlayerPackRarity): number {
   return SHOP_COSTS.playerPack[rarity];
 }
 
+/** 🏷️ Pechincheiro: discount on shop items while one is in the squad (does not stack). */
+export const PECHINCHEIRO_DISCOUNT = 0.15;
+
+/**
+ * Price of a shop item (Turbinar, removing a characteristic, packs, Caça-Talentos,
+ * coach change) for this squad. Training, physio and club projects never use it.
+ */
+export function shopItemCost(baseCost: number, players: ReadonlyArray<{ pechincheiro?: boolean } | null | undefined>): number {
+  return players.some(player => player?.pechincheiro) ? Math.round(baseCost * (1 - PECHINCHEIRO_DISCOUNT)) : baseCost;
+}
+
 function isPlayerPackRarity(value: unknown): value is PlayerPackRarity {
   return typeof value === 'string' && (PLAYER_PACK_RARITIES as readonly string[]).includes(value);
 }
@@ -166,7 +179,7 @@ export const TRAIN_ATTRS: { key: TrainAttr; label: string }[] = [
 ];
 
 // ── "Turbinar Carta" — the special variants the player can buy onto a card. ──
-export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador';
+export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador' | 'apostador' | 'agregador' | 'pechincheiro' | 'midiatico';
 export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: '+4 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: '+7 em todos os atributos, mas −12 na química geral do time.' },
@@ -193,4 +206,8 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'mercenario', icon: '🏆', label: 'Conquistador', color: '#F59E0B', desc: '+2 em todos os atributos por missão concluída. Acumula sem limite.' },
   { key: 'padrinho', icon: '🤵', label: 'Padrinho', color: '#C4B5FD', desc: 'O afilhado (um titular que você escolhe) ganha +3 em tudo enquanto os dois jogam juntos. A cada gol do afilhado, o Padrinho ganha +1 permanente.' },
   { key: 'lapidador', icon: '💎', label: 'Lapidador', color: '#93C5FD', desc: 'A cada vitória em que ele for titular, todos os reservas ganham +1 permanente em todos os atributos. Acumula.' },
+  { key: 'apostador', icon: '🎲', label: 'Apostador', color: '#D9752F', desc: '+2 permanente em todos os atributos a cada aposta vencida com ele no elenco. Acumula.' },
+  { key: 'agregador', icon: '🔗', label: 'Agregador', color: '#A5ACC2', desc: 'Titular: todo o time ganha +1 em todos os atributos para cada característica diferente entre os titulares.' },
+  { key: 'pechincheiro', icon: '🏷️', label: 'Pechincheiro', color: '#E0315F', desc: 'No elenco: Turbinar, remover característica, pacotes, Caça-Talentos e troca de técnico custam 15% a menos.' },
+  { key: 'midiatico', icon: '📺', label: 'Midiático', color: '#7C6FF0', desc: 'Cada gol dele rende 15 créditos.' },
 ];

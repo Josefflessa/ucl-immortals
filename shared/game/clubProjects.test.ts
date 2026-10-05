@@ -156,6 +156,7 @@ describe('estrutura dos Projetos do Clube', () => {
       supportersVenue: 'home',
       magnataBonus: 50,
       magnataPercent: 50,
+      midiaticoBonus: 0,
       lossStreakBonus: 0,
       total: 175,
     });
@@ -170,6 +171,7 @@ describe('estrutura dos Projetos do Clube', () => {
       supportersVenue: 'home',
       magnataBonus: 0,
       magnataPercent: 0,
+      midiaticoBonus: 0,
       lossStreakBonus: 45,
       total: 145,
     });

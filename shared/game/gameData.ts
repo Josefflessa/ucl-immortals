@@ -123,6 +123,11 @@ export interface Player {
   lapidador?: boolean;   // 💎 Lapidador — a cada vitória como titular, todos os reservas ganham +1 permanente em tudo
   lapidadorMatchIds?: string[]; // 💎 partidas já contabilizadas (idempotência online/reconexão)
   lapidadoBoost?: number; // 💎 bônus permanente recebido de Lapidadores enquanto estava na reserva (fica com a carta)
+  apostador?: boolean;   // 🎲 Apostador — +2 permanente em tudo por aposta vencida com ele no elenco
+  apostadorWins?: number; // 🎲 apostas vencidas contabilizadas enquanto a carta carrega a característica
+  agregador?: boolean;   // 🧩 Agregador — titular: +1 em tudo ao XI por característica diferente entre os titulares
+  pechincheiro?: boolean; // 🏷️ Pechincheiro — no elenco: itens da loja custam 15% a menos
+  midiatico?: boolean;   // 📺 Midiático — cada gol dele rende 15 créditos
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).

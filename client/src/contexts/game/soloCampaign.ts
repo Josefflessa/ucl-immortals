@@ -2,7 +2,7 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player } from '@shared/game/gameData';
-import { Team, MatchResult, generateDraftOptions, generateImmortalReport, LeagueFixture, computeGroupQualifiedStandings, getAllPlayedMatchResults, createKnockoutBracket, buildUniquePackRoundKey, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches } from '@shared/game/gameEngine';
+import { Team, MatchResult, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, generateImmortalReport, LeagueFixture, computeGroupQualifiedStandings, getAllPlayedMatchResults, createKnockoutBracket, buildUniquePackRoundKey, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches } from '@shared/game/gameEngine';
 import { applyMedicalReturnBoost, resolveAvailableLineup } from '@shared/game/discipline';
 import { createRecruitmentOfferMeta, getRecruitmentOfferConfig, medicalInjuryDuration, medicalReturnBoost, projectLevel, type RecruitmentEventKind, type RecruitmentOfferMeta } from '@shared/game/clubProjects';
 import { type GamePhase, type GameState, type KnockoutBracket } from './state';
@@ -128,7 +128,7 @@ export function createRecruitmentOffer(
   const level = projectLevel(team.clubProjects, 'recruitment');
   const config = getRecruitmentOfferConfig(baseOptions, level, eventNumber);
   const ownedIds = team.players.map(player => player.id);
-  const options = generateDraftOptions([], ownedIds, config.optionCount, config.minimumOverall);
+  const options = generateDraftOptions([], ownedIds, config.optionCount, config.minimumOverall, RECRUITMENT_VARIANT_CHANCE);
   const selectionLimit = Math.min(config.selectionLimit, Math.max(1, options.length));
 
   return {

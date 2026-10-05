@@ -8,13 +8,13 @@
 
 import { FORMATIONS, PLAYERS, TACTICS, UNIQUE_CARDS, type Player, type PlayerSpecialization } from './gameData';
 import {
-  applyEvolvePoint, applyMercenarioProgress, generateDraftOptions, getActiveKnockoutMatches, validateMatchPlan, applyShopVariant, canAddVariant, canUnlockSpecialization,
+  applyEvolvePoint, applyMercenarioProgress, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, getActiveKnockoutMatches, validateMatchPlan, applyShopVariant, canAddVariant, canUnlockSpecialization,
   choosePlayerSpecialization, drawPlayerPackCard, drawUniquePackCard, evolvePointsBudget,
   generatePlayerPackOffer, generateScoutOptions, generateUniquePackOffer, getEvolutionLevel, hasVariant,
   isEvolved, rebuildTeamChemistry, SPECIALIZATION_UNLOCK_COST, stripSpecificVariant, stripVariant,
   unlockPlayerSpecialization, type PlayerCard, type Team, type VariantFlag,
 } from './gameEngine';
-import { canEvolvePrime, PRIME_COST, sellValue, SHOP_COSTS, type RegularPlayerPackRarity, type ShopVariant, type TrainAttr } from './shop';
+import { canEvolvePrime, PRIME_COST, sellValue, SHOP_COSTS, shopItemCost, type RegularPlayerPackRarity, type ShopVariant, type TrainAttr } from './shop';
 import {
   bettingStakeCapBonus, medicalFreeTreatmentsPerCompetition, medicalPhysioCost, medicalReturnBoost, projectLevel, projectUpgradeCost, purchaseClubProjectUpgrade, trainingBoostForProject, trainingCostForProject,
   type ClubProjectId, type RecruitmentOfferMeta,
@@ -83,7 +83,7 @@ const mapPlayer = (seat: PlayerSeat, playerId: string, update: (card: PlayerCard
 
 export function changeCoach(seat: PlayerSeat, ctx: SeatContext, coachId: string): SeatResult {
   if (!ctx.shopOpen || seat.team.coachId === coachId) return fail();
-  const cost = SHOP_COSTS.changeCoach;
+  const cost = shopItemCost(SHOP_COSTS.changeCoach, seat.team.players);
   if (seat.points < cost) return insufficient(seat.points, cost);
   // The coach drives chemistry links and buffs, so the team is recomputed.
   return ok(spend(seat, cost, rebuildTeamChemistry({ ...seat.team, coachId })));
@@ -138,7 +138,7 @@ const hasPendingPack = (seat: PlayerSeat) => !!(seat.pendingPack || seat.pending
 export function openUniquePack(seat: PlayerSeat, ctx: SeatContext): SeatResult {
   if (!ctx.shopOpen || hasPendingPack(seat)) return fail();
   const offered = ensureUniquePackOffer(seat, ctx);
-  const cost = SHOP_COSTS.uniqueCard;
+  const cost = shopItemCost(SHOP_COSTS.uniqueCard, seat.team.players);
   if (offered.points < cost) return insufficient(offered.points, cost);
   const card = drawUniquePackCard(offered.uniquePackOfferIds ?? [], ownedIds(offered));
   if (!card) return fail('Você já possui todas as Cartas Únicas desta oferta.');
@@ -157,7 +157,7 @@ export function claimUniquePack(seat: PlayerSeat): SeatResult {
 export function openPlayerPack(seat: PlayerSeat, ctx: SeatContext, rarity: RegularPlayerPackRarity): SeatResult {
   if (!ctx.shopOpen || hasPendingPack(seat)) return fail();
   const offered = ensurePlayerPackOffers(seat, ctx);
-  const cost = SHOP_COSTS.playerPack[rarity];
+  const cost = shopItemCost(SHOP_COSTS.playerPack[rarity], seat.team.players);
   if (offered.points < cost) return insufficient(offered.points, cost);
   const card = drawPlayerPackCard(offered.playerPackOfferIds?.[rarity] ?? [], rarity, ownedIds(offered));
   if (!card) return fail('Você já possui todas as cartas disponíveis desta oferta.');
@@ -177,7 +177,7 @@ export function openScoutPack(seat: PlayerSeat, ctx: SeatContext, position: stri
   if (!ctx.shopOpen || hasPendingPack(seat)) return fail();
   const options = generateScoutOptions(position, ownedIds(seat));
   if (options.length === 0) return fail();
-  const cost = SHOP_COSTS.scout;
+  const cost = shopItemCost(SHOP_COSTS.scout, seat.team.players);
   if (seat.points < cost) return insufficient(seat.points, cost);
   return ok({ ...spend(seat, cost), pendingPack: { kind: 'scout', options: options.map(option => ({ ...option })) } });
 }
@@ -204,7 +204,7 @@ export function turbinar(
 ): SeatResult {
   if (!ctx.shopOpen) return fail();
   const target = seat.team.players.find(card => card.id === playerId);
-  const cost = SHOP_COSTS.turbinar;
+  const cost = shopItemCost(SHOP_COSTS.turbinar, seat.team.players);
   if (!target || !canAddVariant(target)) return fail(); // one per card (Únicas: two)
   if (seat.points < cost) return insufficient(seat.points, cost);
   const stats = { ...competitionStats, missionsCompleted: seat.missions ? completedMissionCount(seat.missions) : 0 };
@@ -215,7 +215,7 @@ export function turbinar(
 export function removeVariant(seat: PlayerSeat, ctx: SeatContext, playerId: string, variantKey?: VariantFlag): SeatResult {
   if (!ctx.shopOpen) return fail();
   const target = seat.team.players.find(card => card.id === playerId);
-  const cost = SHOP_COSTS.removeVariant;
+  const cost = shopItemCost(SHOP_COSTS.removeVariant, seat.team.players);
   if (!target || !hasVariant(target)) return fail();
   if (seat.points < cost) return insufficient(seat.points, cost);
   const players = mapPlayer(seat, playerId, card => ({
@@ -518,7 +518,7 @@ export function rerollReinforcement(seat: PlayerSeat, canRecruit: boolean): Seat
   if (!canRecruit || !offer || rerollsLeft <= 0 || !seat.reinforcementOptions?.length) return fail();
   return ok({
     ...seat,
-    reinforcementOptions: generateDraftOptions([], ownedIds(seat), seat.reinforcementOptions.length, offer.minimumOverall ?? 0),
+    reinforcementOptions: generateDraftOptions([], ownedIds(seat), seat.reinforcementOptions.length, offer.minimumOverall ?? 0, RECRUITMENT_VARIANT_CHANCE),
     reinforcementOffer: { ...offer, rerollsUsed: offer.rerollsUsed + 1 },
   });
 }

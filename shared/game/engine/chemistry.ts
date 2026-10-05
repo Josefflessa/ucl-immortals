@@ -9,7 +9,7 @@ import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedP
 import { getEffectiveAttribute, SECONDARY_STAT_MULT, positionFit, specializationAttributeBonus } from './attributes';
 import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
-import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant } from './draft';
+import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost } from './draft';
 
 // Playing in the coach's preferred formation gels the side: a flat bonus to the team's
 // TOTAL chemistry, which can push it into a higher global-bonus tier (passe/ritmo/especial).
@@ -467,6 +467,7 @@ export function getPlayerEffectiveStats(
   const mercenarioBonus = (_attr: AttrKey): number => player.mercenario ? mercenarioStatBoost(player.mercenarioMissions) : 0;
   const padrinhoBonus = (_attr: AttrKey): number => player.padrinho ? padrinhoStatBoost(player.padrinhoGoals) : 0;
   const lapidadoBonus = (_attr: AttrKey): number => Math.max(0, player.lapidadoBoost ?? 0);
+  const apostadorBonus = (_attr: AttrKey): number => player.apostador ? apostadorStatBoost(player.apostadorWins) : 0;
 
   // 🩸❤️🪑🤝 Team-effect characteristics buffing THIS player.
   const charB = context?.charBoosts?.[player.id];
@@ -477,7 +478,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + mercenarioBonus(attr) + padrinhoBonus(attr) + lapidadoBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + mercenarioBonus(attr) + padrinhoBonus(attr) + lapidadoBonus(attr) + apostadorBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -584,7 +585,7 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho' | 'agregador'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
@@ -660,6 +661,13 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
         contribute(mate.id, { type: 'arrogante', fromId: a.id, fromName: a.shortName, flatAll: -penalty, perStat: {} });
       }
     }
+  }
+  // 🧩 Agregador — +1 em tudo a todo o XI por característica DIFERENTE entre os titulares
+  // (ele mesmo conta). Cada Agregador titular soma o seu.
+  const distinctTraits = VARIANT_FLAGS.filter(flag => xi.some(p => (p as unknown as Record<string, unknown>)[flag])).length;
+  for (const agg of xi) {
+    if (!agg.agregador) continue;
+    for (const mate of xi) contribute(mate.id, { type: 'agregador', fromId: agg.id, fromName: agg.shortName, flatAll: distinctTraits * AGREGADOR_STAT_BOOST_PER_TRAIT, perStat: {} });
   }
   // 🛟 Noé — SÓ rende se ele é o ÚNICO titular do XI com característica: +20 em tudo NELE.
   // (o +50 de química vive em calculateChemistry). Dois Noés no XI se cancelam (nenhum é "o único").

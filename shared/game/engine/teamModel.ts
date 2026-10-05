@@ -2,7 +2,7 @@
 
 import { Player, FORMATIONS } from '../gameData';
 import { type ClubProjectsState } from '../clubProjects';
-import { LAPIDADOR_RESERVE_BOOST } from './draft';
+import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL } from './draft';
 
 // Premium variants keep their own card IDs for inventory/UI. Cards that represent
 // a different club/era may provide historicalPlayerId so historical chemistry
@@ -550,6 +550,29 @@ export function applyMercenarioProgress(team: Team, completedMissions: number): 
     return { ...player, mercenarioMissions: count };
   });
   return changed ? { ...team, players } : team;
+}
+
+/** 📺 Midiático: credits earned from this match's goals by the team's Midiático cards. */
+export function midiaticoCredits(team: Team, result: MatchResult): number {
+  if (!result.playerStats || (result.homeTeamId !== team.id && result.awayTeamId !== team.id)) return 0;
+  let goals = 0;
+  for (const player of team.players) {
+    if (!player.midiatico) continue;
+    const stat = result.playerStats[statKey(team.id, player.id)]
+      ?? (player.statId?.startsWith(`${team.id}::`) ? result.playerStats[player.statId] : undefined);
+    goals += Math.max(0, stat?.goals ?? 0);
+  }
+  return goals * MIDIATICO_CREDITS_PER_GOAL;
+}
+
+/** 🎲 Apostador: every card with the trait, anywhere in the squad, counts the bets just won. */
+export function applyApostadorWins(team: Team, wonBets: number): Team {
+  const wins = Math.max(0, Math.floor(wonBets));
+  if (wins === 0 || !team.players.some(player => player.apostador)) return team;
+  return {
+    ...team,
+    players: team.players.map(player => player.apostador ? { ...player, apostadorWins: (player.apostadorWins ?? 0) + wins } : player),
+  };
 }
 
 export interface StandingsEntry {

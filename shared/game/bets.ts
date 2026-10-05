@@ -391,6 +391,11 @@ export function settleBet(
   return { won: false, tier: 'miss', payout: 0 };
 }
 
+/** Bets that a settlement pass (a .map over `before`) has just revealed as won. */
+export function newlyWonBets(before: readonly Bet[], after: readonly Bet[]): number {
+  return after.filter((bet, index) => bet.revealed && bet.won && !before[index]?.revealed).length;
+}
+
 export function buildLeagueMatchKey(round: number, homeTeamId: string, awayTeamId: string): string {
   return `L${round}:${homeTeamId}-${awayTeamId}`;
 }

@@ -9,7 +9,7 @@ import {
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
   FORASTEIRO_STAT_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
   INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_STAT_PENALTY,
-  LAPIDADOR_RESERVE_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
+  LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
   PILAR_CHEM_BONUS, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST,
   TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
   garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, padrinhoStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
@@ -85,6 +85,7 @@ function variantState(variant: Variant, model: PlayerSheetModel): { active: bool
     case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'não é o único titular com característica' : 'só vale como titular' };
     case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'divide país ou clube com outro titular' : 'só vale como titular' };
     case 'todosPorUm': return sources.some(s => s.type === 'todosPorUm') ? { active: true } : { active: false, inactiveReason: 'os 11 titulares precisam ter a característica' };
+    case 'agregador': return sources.some(s => s.type === 'agregador' && s.fromId === model.player.id) ? { active: true } : { active: false, inactiveReason: 'só vale como titular' };
     case 'padrinho':
     case 'lapidador': return model.isStarter ? { active: true } : { active: false, inactiveReason: 'só vale como titular' };
     default: {
@@ -97,6 +98,7 @@ function variantState(variant: Variant, model: PlayerSheetModel): { active: bool
         garcom: garcomStatBoost(model.player.garcomAssists ?? 0),
         arrogante: arroganteStatBoost(model.player.arroganteGoals ?? 0),
         mercenario: mercenarioStatBoost(model.player.mercenarioMissions ?? 0),
+        apostador: apostadorStatBoost(model.player.apostadorWins ?? 0),
         colecionador: sources.find(s => s.type === 'colecionador')?.flatAll ?? 0,
       };
       return variant.key in growing && growing[variant.key] <= 0 ? { active: false, inactiveReason: 'ainda sem bônus acumulado' } : { active: true };
@@ -187,6 +189,18 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     }
     case 'lapidador':
       return { chips: [{ text: `+${LAPIDADOR_RESERVE_BOOST} PERMANENTE NA RESERVA POR VITÓRIA`, color: own }], description: 'A cada vitória em que ele for titular, todos os jogadores da reserva ganham +1 em todos os atributos, para sempre. Mais de um Lapidador titular soma.' };
+    case 'apostador': {
+      const wins = p.apostadorWins ?? 0;
+      return { chips: [{ text: `+${apostadorStatBoost(wins)} EM CADA ATRIBUTO`, color: GREEN }], description: `+${APOSTADOR_STAT_BOOST_PER_WIN} permanente a cada aposta vencida com ele no elenco. Já venceu ${wins}.` };
+    }
+    case 'agregador': {
+      const boost = charBoost?.sources.find(s => s.type === 'agregador' && s.fromId === p.id)?.flatAll;
+      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO AO TIME`, color: GREEN }], description: `Como titular, todo o XI ganha +${AGREGADOR_STAT_BOOST_PER_TRAIT} em cada atributo para cada característica diferente entre os titulares. Mais de um Agregador soma.` };
+    }
+    case 'pechincheiro':
+      return { chips: [{ text: 'LOJA 15% MAIS BARATA', color: GREEN }], description: 'Enquanto estiver no elenco (titular ou reserva): Turbinar, remover característica, pacotes, Caça-Talentos e troca de técnico custam 15% a menos.' };
+    case 'midiatico':
+      return { chips: [{ text: `+${MIDIATICO_CREDITS_PER_GOAL} CRÉDITOS POR GOL`, color: GREEN }], description: 'Cada gol dele rende créditos, somados aos créditos da partida.' };
     default:
       return { chips: [{ text: variant.label.toUpperCase(), color: own }], description: '' };
   }
@@ -203,6 +217,7 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   todosPorUm: { icon: '🤝', label: 'TODOS POR UM', color: '#4ADE80' },
   arrogante: { icon: '👑', label: 'ARROGANTE', color: '#E879F9' },
   padrinho: { icon: '🤵', label: 'PADRINHO', color: '#C4B5FD' },
+  agregador: { icon: '🔗', label: 'AGREGADOR', color: '#A5ACC2' },
 };
 
 export default function BuffBreakdown({ model, collapsible = false }: { model: PlayerSheetModel; collapsible?: boolean }) {

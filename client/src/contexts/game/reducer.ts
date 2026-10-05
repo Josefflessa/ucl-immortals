@@ -2,9 +2,9 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player, FORMATIONS, DIFFICULTY_LEVELS } from '@shared/game/gameData';
-import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress } from '@shared/game/gameEngine';
+import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress, applyApostadorWins, midiaticoCredits } from '@shared/game/gameEngine';
 import { computeMatchPointsWithConfig, MatchPoints, lossStreakBonus, nextLossStreak } from '@shared/game/shop';
-import { buildLeagueMatchKey, buildKnockoutMatchKey, revealEligibleKoBets, settleBet } from '@shared/game/bets';
+import { buildLeagueMatchKey, buildKnockoutMatchKey, newlyWonBets, revealEligibleKoBets, settleBet } from '@shared/game/bets';
 import { applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout } from '@shared/game/discipline';
 import { createInitialClubProjects, projectLevel, calculateClubReward, bettingLossRefundPercent } from '@shared/game/clubProjects';
 import { DEFAULT_REWARDS_CONFIG, normalizeCompetitionFormat, validateCompetitionFormat } from '@shared/game/competition';
@@ -597,6 +597,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         rewardVenue,
         magMult > 1,
         streakBonusAmount,
+        midiaticoCredits(state.playerTeam, playerResult),
       );
       const earnedPoints = rewards.pointsEnabled ? reward.total : 0;
       const decoratedMatchPoints = rewards.pointsEnabled
@@ -610,6 +611,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             supportersVenue: reward.supportersVenue,
             magnataBonus: reward.magnataBonus,
             magnataPercent: reward.magnataPercent,
+            midiaticoBonus: reward.midiaticoBonus,
             lossStreakBonus: reward.lossStreakBonus,
             lossStreakAfter: updatedLossStreak,
           }
@@ -690,7 +692,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         bets: settledBets,
         discipline: disc.next,
         // ⭐ +1 jogo pros 11 titulares do jogador (progresso pra Carta Evoluída).
-        playerTeam: { ...applyMercenarioProgress(recoveredPlayerTeam, completedMissionCount(missionUpdate.state)), credits: nextPoints, lossStreak: updatedLossStreak },
+        playerTeam: { ...applyApostadorWins(applyMercenarioProgress(recoveredPlayerTeam, completedMissionCount(missionUpdate.state)), newlyWonBets(state.bets, settledBets)), credits: nextPoints, lossStreak: updatedLossStreak },
         botTeams: updatedBotTeams,
       };
     }
@@ -857,7 +859,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         knockoutBracket: bracket,
         discipline: disc.next,
-        playerTeam,
+        playerTeam: applyApostadorWins(playerTeam, newlyWonBets(state.bets, revealed.bets)),
         botTeams,
         bets: revealed.bets,
         points: state.points + revealed.winnings,
@@ -930,6 +932,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           rewardVenue,
           magnataPointMultiplier(state.playerTeam.players) > 1,
           streakBonusAmount,
+          midiaticoCredits(state.playerTeam, action.result),
         );
         popup = {
           ...mp,
@@ -941,6 +944,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           supportersVenue: reward.supportersVenue,
           magnataBonus: reward.magnataBonus,
           magnataPercent: reward.magnataPercent,
+          midiaticoBonus: reward.midiaticoBonus,
           lossStreakBonus: reward.lossStreakBonus,
           lossStreakAfter: updatedLossStreak,
         };
@@ -974,6 +978,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           watchedLegKeys,
           bettingLossRefundPercent(bettingLevel),
         );
+        if (playerTeamAfterStreak) playerTeamAfterStreak = applyApostadorWins(playerTeamAfterStreak, newlyWonBets(koBets, revealed.bets));
         koBets = revealed.bets;
         points += revealed.winnings;
       }

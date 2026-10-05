@@ -23,36 +23,13 @@ export const DRAFT_RARITY_CHANCES: Readonly<Record<DraftRarity, number>> = {
   immortal: 0.01,
 };
 
-// ── Draft card variants (arcade variety) ──────────────────────
-// Each card in the draft pool has a small chance to spawn as a boosted "in-form"
-// special, or to receive a wildcard extra trait. These ALWAYS clone the player
-// so the static PLAYERS pool is never mutated.
-const DRAFT_INFORM_CHANCE = 0.06;   // ⚡ Em alta — rare boosted card
-// Extra special variants (mutually exclusive with each other and with "em alta"):
-const DRAFT_LOBO_CHANCE = 0.04;     // 🐺 Lobo Solitário
-const DRAFT_CORINGA_CHANCE = 0.04;  // 🃏 Coringa
-const DRAFT_NOMADE_CHANCE = 0.04;   // 🌍 Nômade
-const DRAFT_PILAR_CHANCE = 0.04;    // 🧱 Pilar
-const DRAFT_MARTIR_CHANCE = 0.03;   // 🩸 Mártir
-const DRAFT_IDOLO_CHANCE = 0.03;    // ❤️ Ídolo
-const DRAFT_DECIMO_CHANCE = 0.03;   // 🪑 12º Homem
-const DRAFT_PIPOQUEIRO_CHANCE = 0.03; // 🍿 Pipoqueiro
-const DRAFT_NOE_CHANCE = 0.02;        // 🛟 Noé — raro (é MUITO forte)
-const DRAFT_FORASTEIRO_CHANCE = 0.03; // 🧳 Forasteiro
-const DRAFT_CAPITAO_CHANCE = 0.03;  // 🗣️ Capitão Nato
-const DRAFT_MAGNATA_CHANCE = 0.03;  // 🤑 Magnata
-const DRAFT_FRAGIL_CHANCE = 0.03;   // 🩹 Frágil — +7 em tudo, mas se machuca com muito mais frequência
-const DRAFT_PRODIGIO_CHANCE = 0.03; // 📈 Prodígio — cresce a cada titularidade
-const DRAFT_RESILIENTE_CHANCE = 0.03; // 🔥 Resiliente — cresce após cada derrota do time
-const DRAFT_COLECIONADOR_CHANCE = 0.03; // 🧩 Colecionador — +1 por jogador na reserva
-const DRAFT_GOLEADOR_CHANCE = 0.03; // ⚽ Goleador — cresce a cada 3 gols marcados
-const DRAFT_GARCOM_CHANCE = 0.03; // 🎯 Garçom — cresce a cada 2 assistências dadas
-const DRAFT_ARROGANTE_CHANCE = 0.03; // 👑 Arrogante — +2 por gol; −1 aos outros a cada 2 gols
-const DRAFT_ESTRIBADO_CHANCE = 0.03; // 💰 Estribado — +1 por cada 100 créditos disponíveis
-const DRAFT_TODOS_POR_UM_CHANCE = 0.03; // 🤝 Todos por um — só ativa quando fecha o XI
-const DRAFT_MERCENARIO_CHANCE = 0.03; // 🏆 Conquistador — +2 por missão concluída
-const DRAFT_PADRINHO_CHANCE = 0.03; // 🤵 Padrinho — +3 no afilhado; cresce com os gols dele
-const DRAFT_LAPIDADOR_CHANCE = 0.03; // 💎 Lapidador — vitória como titular lapida toda a reserva
+// ── Draft card variants ──────────────────────────────────────
+// A drafted card has DRAFT_VARIANT_CHANCE of coming with a special characteristic;
+// when it does, the characteristic is drawn uniformly from every one that exists
+// (VARIANT_FLAGS). The Recruitment Centre offers them more often. Cards are always
+// cloned, so the static PLAYERS pool is never mutated.
+export const DRAFT_VARIANT_CHANCE = 0.25;
+export const RECRUITMENT_VARIANT_CHANCE = 0.40;
 export const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
 export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
@@ -105,6 +82,17 @@ export const MERCENARIO_STAT_BOOST_PER_MISSION = 2;
 export const PADRINHO_AFILHADO_BOOST = 3;
 export const PADRINHO_BOOST_PER_GOAL = 1;
 export const LAPIDADOR_RESERVE_BOOST = 1;
+/** 🎲 Apostador: +N em tudo, permanente, por aposta vencida com ele no elenco. */
+export const APOSTADOR_STAT_BOOST_PER_WIN = 2;
+/** 🧩 Agregador: +N em tudo ao XI por característica diferente entre os titulares (cada Agregador soma). */
+export const AGREGADOR_STAT_BOOST_PER_TRAIT = 1;
+/** 📺 Midiático: créditos por gol dele. */
+export const MIDIATICO_CREDITS_PER_GOAL = 15;
+
+/** Returns Apostador's permanent all-attribute bonus from winning bets. */
+export function apostadorStatBoost(wins: number | undefined): number {
+  return Math.max(0, Math.floor(wins ?? 0)) * APOSTADOR_STAT_BOOST_PER_WIN;
+}
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */
 export function prodigioStatBoost(starts: number | undefined): number {
@@ -147,154 +135,19 @@ function clampStat(v: number): number {
   return Math.max(1, v);
 }
 
-function applyDraftVariant(p: Player): Player {
-  const r = random();
-  let acc = DRAFT_INFORM_CHANCE;
-
-  // ⚡ Em alta: +N to every attribute (overall follows) AND a guaranteed extra trait.
-  if (r < acc) {
-    const b = INFORM_STAT_BOOST;
-    return {
-      ...p, inForm: true, baseOverall: p.overall,
-      overall: clampStat(p.overall + b), pace: clampStat(p.pace + b), shooting: clampStat(p.shooting + b),
-      passing: clampStat(p.passing + b), dribbling: clampStat(p.dribbling + b), defending: clampStat(p.defending + b),
-      physical: clampStat(p.physical + b), vision: clampStat(p.vision + b), composure: clampStat(p.composure + b),
-      traits: rollPlayerTraits(p.position, p.rarity, 2),
-    };
-  }
-
-  // 🐺 Lobo Solitário: a bigger personal boost than "em alta", but it drains the team's
-  // chemistry (applied in calculateChemistry). baseOverall stored for the "+N" display.
-  acc += DRAFT_LOBO_CHANCE;
-  if (r < acc) {
-    const b = LOBO_STAT_BOOST;
-    return {
-      ...p, lobo: true, baseOverall: p.overall,
-      overall: clampStat(p.overall + b), pace: clampStat(p.pace + b), shooting: clampStat(p.shooting + b),
-      passing: clampStat(p.passing + b), dribbling: clampStat(p.dribbling + b), defending: clampStat(p.defending + b),
-      physical: clampStat(p.physical + b), vision: clampStat(p.vision + b), composure: clampStat(p.composure + b),
-      traits: rollPlayerTraits(p.position, p.rarity, 2),
-    };
-  }
-
-  // 🃏 Coringa · 🌍 Nômade · 🧱 Pilar — pure flags (no stat change); their effect lives in calculateChemistry.
-  acc += DRAFT_CORINGA_CHANCE;
-  if (r < acc) return { ...p, coringa: true, traits: rollPlayerTraits(p.position, p.rarity) };
-  acc += DRAFT_NOMADE_CHANCE;
-  if (r < acc) return { ...p, nomade: true, traits: rollPlayerTraits(p.position, p.rarity) };
-  acc += DRAFT_PILAR_CHANCE;
-  if (r < acc) return { ...p, pilar: true, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🩸 Mártir: sacrifica-se (−6 em tudo) pra dar +5 em tudo a 2 titulares (efeito em computeCharacteristicBoosts).
-  acc += DRAFT_MARTIR_CHANCE;
-  if (r < acc) {
-    const b = MARTIR_STAT_PENALTY;
-    return {
-      ...p, martir: true, baseOverall: p.overall,
-      overall: clampStat(p.overall - b), pace: clampStat(p.pace - b), shooting: clampStat(p.shooting - b),
-      passing: clampStat(p.passing - b), dribbling: clampStat(p.dribbling - b), defending: clampStat(p.defending - b),
-      physical: clampStat(p.physical - b), vision: clampStat(p.vision - b), composure: clampStat(p.composure - b),
-      traits: rollPlayerTraits(p.position, p.rarity),
-    };
-  }
-  // ❤️ Ídolo · 🪑 12º Homem — flags puras; efeito em computeCharacteristicBoosts.
-  acc += DRAFT_IDOLO_CHANCE;
-  if (r < acc) return { ...p, idolo: true, traits: rollPlayerTraits(p.position, p.rarity) };
-  acc += DRAFT_DECIMO_CHANCE;
-  if (r < acc) return { ...p, decimoHomem: true, traits: rollPlayerTraits(p.position, p.rarity) };
-  // 🍿 Pipoqueiro — flag pura; efeito (runtime, por fase) em getEffectiveAttribute/getPlayerEffectiveStats.
-  acc += DRAFT_PIPOQUEIRO_CHANCE;
-  if (r < acc) return { ...p, pipoqueiro: true, traits: rollPlayerTraits(p.position, p.rarity) };
-  // 🛟 Noé · 🧳 Forasteiro — flags puras; efeito (por composição do XI) em computeCharacteristicBoosts.
-  acc += DRAFT_NOE_CHANCE;
-  if (r < acc) return { ...p, noe: true, traits: rollPlayerTraits(p.position, p.rarity) };
-  acc += DRAFT_FORASTEIRO_CHANCE;
-  if (r < acc) return { ...p, forasteiro: true, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🧩 Colecionador — bônus individual baseado na quantidade de jogadores na reserva.
-  acc += DRAFT_COLECIONADOR_CHANCE;
-  if (r < acc) return { ...p, colecionador: true, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🗣️ Capitão Nato — flag pura; efeito (dobra o bônus de capitão SE for o capitão) em captainBoostFromStarters.
-  acc += DRAFT_CAPITAO_CHANCE;
-  if (r < acc) return { ...p, capitaoNato: true, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🤑 Magnata — sacrifica −7 em tudo, mas multiplica os créditos da partida (efeito em magnataPointMultiplier).
-  acc += DRAFT_MAGNATA_CHANCE;
-  if (r < acc) {
-    const b = MAGNATA_STAT_PENALTY;
-    return {
-      ...p, magnata: true, baseOverall: p.overall,
-      overall: clampStat(p.overall - b), pace: clampStat(p.pace - b), shooting: clampStat(p.shooting - b),
-      passing: clampStat(p.passing - b), dribbling: clampStat(p.dribbling - b), defending: clampStat(p.defending - b),
-      physical: clampStat(p.physical - b), vision: clampStat(p.vision - b), composure: clampStat(p.composure - b),
-      traits: rollPlayerTraits(p.position, p.rarity),
-    };
-  }
-
-  // 🩹 Frágil — ganha +7 em tudo, mas fica muito mais sujeito a lesões durante as partidas.
-  acc += DRAFT_FRAGIL_CHANCE;
-  if (r < acc) {
-    const b = FRAGIL_STAT_BOOST;
-    return {
-      ...p, fragil: true, baseOverall: p.overall,
-      overall: clampStat(p.overall + b), pace: clampStat(p.pace + b), shooting: clampStat(p.shooting + b),
-      passing: clampStat(p.passing + b), dribbling: clampStat(p.dribbling + b), defending: clampStat(p.defending + b),
-      physical: clampStat(p.physical + b), vision: clampStat(p.vision + b), composure: clampStat(p.composure + b),
-      traits: rollPlayerTraits(p.position, p.rarity),
-    };
-  }
-
-  // 📈 Prodígio — começa a contar titularidades a partir desta carta, sem herdar jogos anteriores.
-  acc += DRAFT_PRODIGIO_CHANCE;
-  if (r < acc) return { ...p, prodigio: true, prodigioStarts: 0, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🔥 Resiliente — starts at zero and grows only when its team loses a match.
-  acc += DRAFT_RESILIENTE_CHANCE;
-  if (r < acc) return { ...p, resiliente: true, resilienteDefeats: 0, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // ⚽ Goleador — starts at zero and grows from the authoritative match stats.
-  acc += DRAFT_GOLEADOR_CHANCE;
-  if (r < acc) return { ...p, goleador: true, goleadorGoals: 0, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🎯 Garçom — starts at zero and grows from the authoritative match stats.
-  acc += DRAFT_GARCOM_CHANCE;
-  if (r < acc) return { ...p, garcom: true, garcomAssists: 0, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 👑 Arrogante — começa sem gols acumulados; a vaidade cresce com os gols,
-  // mas o peso da personalidade recai sobre os outros titulares.
-  acc += DRAFT_ARROGANTE_CHANCE;
-  if (r < acc) return { ...p, arrogante: true, arroganteGoals: 0, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 💰 Estribado — runtime bonus based on the owner's current credit balance.
-  acc += DRAFT_ESTRIBADO_CHANCE;
-  if (r < acc) return { ...p, estribado: true, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🤝 Todos por um — flag pura; o bônus só liga quando os 11 titulares a possuem.
-  acc += DRAFT_TODOS_POR_UM_CHANCE;
-  if (r < acc) return { ...p, todosPorUm: true, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🏆 Conquistador — começa sem missões acumuladas e cresce com o mural da campanha.
-  acc += DRAFT_MERCENARIO_CHANCE;
-  if (r < acc) return { ...p, mercenario: true, mercenarioMissions: 0, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 🤵 Padrinho — começa sem gols do afilhado; o afilhado é escolhido no elenco.
-  acc += DRAFT_PADRINHO_CHANCE;
-  if (r < acc) return { ...p, padrinho: true, padrinhoGoals: 0, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // 💎 Lapidador — flag pura; o bônus vai para as cartas da reserva a cada vitória.
-  acc += DRAFT_LAPIDADOR_CHANCE;
-  if (r < acc) return { ...p, lapidador: true, traits: rollPlayerTraits(p.position, p.rarity) };
-
-  // Every other card is dealt fresh random traits (1 guaranteed + rarity-weighted extras).
-  return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
+function applyDraftVariant(p: Player, chance: number): Player {
+  if (random() >= chance) return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
+  const variant = VARIANT_FLAGS[Math.floor(random() * VARIANT_FLAGS.length)];
+  // Em Alta and Lobo Solitário also come with an extra rolled trait.
+  const minTraits = variant === 'inForm' || variant === 'lobo' ? 2 : 1;
+  return { ...applyShopVariant(p, variant), traits: rollPlayerTraits(p.position, p.rarity, minTraits) };
 }
 
 // A variant never pushes a card below the offer's overall floor (a recruitment
 // offer promises that minimum): such a card is offered without the variant.
-function withDraftVariants(list: Player[], overallFloor = 0): Player[] {
+function withDraftVariants(list: Player[], overallFloor = 0, chance = DRAFT_VARIANT_CHANCE): Player[] {
   return list.map(player => {
-    const variant = applyDraftVariant(player);
+    const variant = applyDraftVariant(player, chance);
     return variant.overall >= overallFloor ? variant : player;
   });
 }
@@ -410,6 +263,7 @@ export function generateDraftOptions(
   alreadyDrafted: string[],
   optionCount = DRAFT_OPTIONS_COUNT,
   minimumOverall = 0,
+  variantChance = DRAFT_VARIANT_CHANCE,
 ): Player[] {
   const requestedCount = Math.max(1, Math.floor(optionCount));
   const overallFloor = Math.max(0, Math.floor(minimumOverall));
@@ -418,7 +272,7 @@ export function generateDraftOptions(
   );
 
   if (neededPositions.length === 0) {
-    return withDraftVariants(shuffleWithDraftNeed(fullAvailable, [], requestedCount), overallFloor);
+    return withDraftVariants(shuffleWithDraftNeed(fullAvailable, [], requestedCount), overallFloor, variantChance);
   }
 
   // Hard-gate the starter draft to the remaining formation roles. This keeps
@@ -456,7 +310,7 @@ export function generateDraftOptions(
 
   const result = guaranteed ? [guaranteed, ...rest] : rest.slice(0, requestedCount);
   // Shuffle the final list so the guaranteed pick isn't always first
-  return withDraftVariants(result.sort(() => random() - 0.5), overallFloor);
+  return withDraftVariants(result.sort(() => random() - 0.5), overallFloor, variantChance);
 }
 
 // ── Shop packs ──────────────────────────────────────────────────────────────
@@ -563,7 +417,7 @@ export function drawUniquePackCard(offerIds: string[], ownedIds: string[]): Play
 // but is deterministic (the player picks which) and preserves the card's existing traits.
 export function applyShopVariant(
   player: Player,
-  variant: 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador',
+  variant: VariantFlag,
   competitionStats: { goals?: number; assists?: number; missionsCompleted?: number } = {},
 ): Player {
   if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata' || variant === 'fragil') {
@@ -584,12 +438,13 @@ export function applyShopVariant(
   if (variant === 'mercenario') return { ...player, mercenario: true, mercenarioMissions: Math.max(0, Math.floor(competitionStats.missionsCompleted ?? 0)) };
   if (variant === 'padrinho') return { ...player, padrinho: true, padrinhoGoals: 0, padrinhoMatchIds: [] };
   if (variant === 'lapidador') return { ...player, lapidador: true, lapidadorMatchIds: [] };
+  if (variant === 'apostador') return { ...player, apostador: true, apostadorWins: 0 };
   return { ...player, [variant]: true };
 }
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador'] as const;
+export const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
@@ -631,6 +486,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.mercenario; delete p.mercenarioMissions;
   delete p.padrinho; delete p.padrinhoTarget; delete p.padrinhoGoals; delete p.padrinhoMatchIds;
   delete p.lapidador; delete p.lapidadorMatchIds;
+  delete p.apostador; delete p.apostadorWins; delete p.agregador; delete p.pechincheiro; delete p.midiatico;
   return p;
 }
 
@@ -664,6 +520,7 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
   if (variant === 'mercenario') delete p.mercenarioMissions;
   if (variant === 'padrinho') { delete p.padrinhoTarget; delete p.padrinhoGoals; delete p.padrinhoMatchIds; }
   if (variant === 'lapidador') delete p.lapidadorMatchIds;
+  if (variant === 'apostador') delete p.apostadorWins;
   return p;
 }
 

@@ -667,7 +667,7 @@ const SPECIAL_TRAIT_KEYS: Array<keyof PlayerCard> = [
   'inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem',
   'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm',
   'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante',
-  'mercenario', 'padrinho', 'lapidador',
+  'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico',
 ];
 
 function specialCarded(player: PlayerCard): boolean {

@@ -9,7 +9,7 @@ import { useGame } from '../../contexts/GameContext';
 import { COACHES, PLAYERS, POS_PT, Player, UNIQUE_CARDS } from '@shared/game/gameData';
 import { buildUniquePackRoundKey, SCOUT_MIN_OVERALL, hasVariant, canAddVariant, variantCount } from '@shared/game/gameEngine';
 import type { VariantFlag } from '@shared/game/gameEngine';
-import { PLAYER_PACK_META, PLAYER_PACK_RARITIES, SHOP_COSTS, TURBINAR_VARIANTS, ShopVariant, type PlayerPackRarity, type RegularPlayerPackRarity, playerPackCost } from '@shared/game/shop';
+import { PLAYER_PACK_META, PLAYER_PACK_RARITIES, SHOP_COSTS, TURBINAR_VARIANTS, ShopVariant, type PlayerPackRarity, type RegularPlayerPackRarity, playerPackCost, shopItemCost } from '@shared/game/shop';
 import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
 import UniquePackOpening from './UniquePackOpening';
 import { Button, GameModal } from '../../design-system';
@@ -96,6 +96,15 @@ export default function ShopTab() {
   const { state, dispatch, shopChangeCoachOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, ensurePlayerPackOffersOnline, shopOpenPlayerPackOnline, shopClaimPlayerPackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline } = useGame();
   const team = state.playerTeam;
   const points = state.points;
+  // 🏷️ Prices as charged: the Pechincheiro discount applies to every shop item.
+  const squad = team?.players ?? [];
+  const COSTS = {
+    changeCoach: shopItemCost(SHOP_COSTS.changeCoach, squad),
+    scout: shopItemCost(SHOP_COSTS.scout, squad),
+    turbinar: shopItemCost(SHOP_COSTS.turbinar, squad),
+    removeVariant: shopItemCost(SHOP_COSTS.removeVariant, squad),
+  };
+  const packCost = (rarity: PlayerPackRarity) => shopItemCost(playerPackCost(rarity), squad);
   const online = state.mode === 'online';
   const pendingPack = state.pendingPack; // 🛒 pacote JÁ PAGO aguardando a escolha do jogador
   const pendingPackKind = pendingPack?.kind ?? null;
@@ -190,11 +199,11 @@ export default function ShopTab() {
   const close = () => { setActive(null); setSelPlayerId(null); setVariantPage(0); setTurbinarView('catalog'); setSelectedPackRarity(null); };
 
   const ITEMS: { id: ItemId; icon: string; name: string; cost: number | null; color: string; desc: string }[] = [
-    { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: SHOP_COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
+    { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
     { id: 'playerPacks', icon: '📦', name: 'PACOTES DE JOGADOR', cost: null, color: '#F0C674', desc: 'Escolha uma raridade, do Bronze à Única, e abra um pacote temático para reforçar o elenco.' },
-    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: SHOP_COSTS.scout, color: '#38BDF8', desc: `Paga ao abrir e escolhe 1 de até 4 jogadores ${SCOUT_MIN_OVERALL}+ da posição principal escolhida.` },
-    { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: SHOP_COSTS.turbinar, color: '#E8C84A', desc: 'Consulte todas as características e aplique uma delas a um jogador.' },
-    { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: SHOP_COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
+    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: COSTS.scout, color: '#38BDF8', desc: `Paga ao abrir e escolhe 1 de até 4 jogadores ${SCOUT_MIN_OVERALL}+ da posição principal escolhida.` },
+    { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: COSTS.turbinar, color: '#E8C84A', desc: 'Consulte todas as características e aplique uma delas a um jogador.' },
+    { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
   ];
 
   const availableVariants = selPlayer
@@ -240,14 +249,14 @@ export default function ShopTab() {
   };
 
   const pickScoutPosition = (pos: string) => {
-    if (points < SHOP_COSTS.scout) return;
-    askConfirm('Caça-Talentos', `Abrir o Caça-Talentos de ${POS_PT[pos] ?? pos} por 💰 ${SHOP_COSTS.scout}? (posição principal, overall ${SCOUT_MIN_OVERALL}+)`, () => {
+    if (points < COSTS.scout) return;
+    askConfirm('Caça-Talentos', `Abrir o Caça-Talentos de ${POS_PT[pos] ?? pos} por 💰 ${COSTS.scout}? (posição principal, overall ${SCOUT_MIN_OVERALL}+)`, () => {
       openScoutPack(pos); // COBRA ao abrir
     });
   };
 
   const openRarityPack = (rarity: PlayerPackRarity) => {
-    const cost = playerPackCost(rarity);
+    const cost = packCost(rarity);
     const meta = PLAYER_PACK_META[rarity];
     if (points < cost) return;
     if (rarity === 'unique') {
@@ -364,7 +373,7 @@ export default function ShopTab() {
                       ? (regularPackCards[selectedPackRarity] ?? [])
                       : [];
                   const availableCards = selectedCards.filter(card => !ownedIds.includes(card.id));
-                  const selectedCost = selectedPackRarity ? playerPackCost(selectedPackRarity) : 0;
+                  const selectedCost = selectedPackRarity ? packCost(selectedPackRarity) : 0;
                   const selectedAffordable = points >= selectedCost;
                   return (
                     <div>
@@ -390,7 +399,7 @@ export default function ShopTab() {
                                   <div className="flex min-w-0 flex-1 flex-col self-stretch py-1">
                                     <div className="flex items-start justify-between gap-2">
                                       <span className="text-lg font-black leading-tight" style={{ color: meta.color, fontFamily: 'var(--font-display), sans-serif' }}>PACOTE {meta.label}</span>
-                                      <span className="text-sm font-black whitespace-nowrap" style={{ color: meta.color, fontFamily: 'var(--font-game), sans-serif' }}><CoinIcon />{playerPackCost(rarity)}</span>
+                                      <span className="text-sm font-black whitespace-nowrap" style={{ color: meta.color, fontFamily: 'var(--font-game), sans-serif' }}><CoinIcon />{packCost(rarity)}</span>
                                     </div>
                                     <div className="mt-1 text-sm leading-snug" style={{ color: '#A9A9BA', fontFamily: 'var(--font-game), sans-serif' }}>{meta.description}</div>
                                     <div className="mt-auto pt-1.5 text-xs font-bold" style={{ color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>{cards.length}/4 cartas na oferta · {available} disponíveis</div>
@@ -468,9 +477,9 @@ export default function ShopTab() {
                 {/* TROCAR TÉCNICO */}
                 {active === 'coach' && (
                   <div className="space-y-2">
-                    <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o novo técnico (−{SHOP_COSTS.changeCoach} créditos):</p>
+                    <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o novo técnico (−{COSTS.changeCoach} créditos):</p>
                     {COACHES.filter(c => c.id !== team.coachId).map(c => (
-                      <button key={c.id} onClick={() => askConfirm('Trocar Técnico', `Trocar o comandante para ${c.name} por 💰 ${SHOP_COSTS.changeCoach}?`, () => { buyCoach(c.id); close(); })}
+                      <button key={c.id} onClick={() => askConfirm('Trocar Técnico', `Trocar o comandante para ${c.name} por 💰 ${COSTS.changeCoach}?`, () => { buyCoach(c.id); close(); })}
                         className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all hover:border-primary/60 active:scale-[0.99]"
                         style={{ background: '#07070f', border: '1px solid var(--ui-surface-3)' }}>
                         {c.photoUrl && <img src={c.photoUrl} alt={c.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" style={{ objectPosition: 'center top', border: '1px solid #C9A84C44' }} />}
@@ -567,14 +576,14 @@ export default function ShopTab() {
                     <div>
                       <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                         {variantCount(selPlayer) === 1
-                          ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> ⭐ (−{SHOP_COSTS.turbinar} créditos):</>
-                          : <>Carta especial para <b style={{ color: 'var(--ui-brand)' }}>{selPlayer.shortName}</b> (−{SHOP_COSTS.turbinar} créditos):</>}
+                          ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> ⭐ (−{COSTS.turbinar} créditos):</>
+                          : <>Carta especial para <b style={{ color: 'var(--ui-brand)' }}>{selPlayer.shortName}</b> (−{COSTS.turbinar} créditos):</>}
                       </p>
                       <div className="space-y-2">
                         {visibleVariants.map(v => {
                           const color = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
                           return (
-                            <button key={v.key} onClick={() => askConfirm('Turbinar Carta', `Aplicar ${v.label} em ${selPlayer.shortName} por 💰 ${SHOP_COSTS.turbinar}?`, () => { buyTurbinar(selPlayer.id, v.key as ShopVariant); close(); })}
+                            <button key={v.key} onClick={() => askConfirm('Turbinar Carta', `Aplicar ${v.label} em ${selPlayer.shortName} por 💰 ${COSTS.turbinar}?`, () => { buyTurbinar(selPlayer.id, v.key as ShopVariant); close(); })}
                               className="w-full text-left rounded-xl p-4 flex items-center gap-4 transition-all active:scale-[0.99]"
                               style={{ background: '#07070f', border: `1px solid ${color}44` }}>
                               <TraitIcon trait={v.key} fallback={v.icon} size={44} />
@@ -604,7 +613,7 @@ export default function ShopTab() {
                   return (
                     <div>
                       <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
-                        Clique na <b style={{ color: '#F87171' }}>característica</b> que quer remover (−{SHOP_COSTS.removeVariant} créditos). Cartas <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter duas — some só a que você escolher.
+                        Clique na <b style={{ color: '#F87171' }}>característica</b> que quer remover (−{COSTS.removeVariant} créditos). Cartas <b style={{ color: '#F0E6C0' }}>Únicas</b> podem ter duas — some só a que você escolher.
                       </p>
                       <div className="space-y-3">
                         {groups.map(g => g.list.length === 0 ? null : (
@@ -620,7 +629,7 @@ export default function ShopTab() {
                                       {vs.map(v => {
                                         const vc = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
                                         return (
-                                          <button key={v.key} onClick={() => askConfirm('Remover Característica', `Remover ${v.label} de ${p.shortName} por 💰 ${SHOP_COSTS.removeVariant}?`, () => { removeVariant(p.id, v.key as VariantFlag); close(); })}
+                                          <button key={v.key} onClick={() => askConfirm('Remover Característica', `Remover ${v.label} de ${p.shortName} por 💰 ${COSTS.removeVariant}?`, () => { removeVariant(p.id, v.key as VariantFlag); close(); })}
                                             className="text-[12px] font-black px-2 py-0.5 rounded-full transition-transform hover:scale-[1.08] active:scale-95"
                                             title={`Remover ${v.label}`}
                                             style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}55`, fontFamily: 'var(--font-game), sans-serif' }}>

@@ -1,5 +1,5 @@
 // UCL Immortals — special trait icon.
-// The 25 special traits have their own medallion artwork (public/traits). At
+// The special traits have their own medallion artwork (public/traits). At
 // chip sizes the round frame would eat the space, so small icons zoom into the
 // medallion and show just its central symbol.
 
@@ -10,6 +10,7 @@ const TRAIT_KEYS = new Set([
   'inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro',
   'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil',
   'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador',
+  'apostador', 'agregador', 'pechincheiro', 'midiatico',
 ]);
 /** Effects named after the trait that grants them. */
 const TRAIT_ALIASES: Record<string, string> = { lapidado: 'lapidador' };

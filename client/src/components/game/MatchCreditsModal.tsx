@@ -23,6 +23,7 @@ export default function MatchCreditsModal({ points, onClose }: MatchCreditsModal
     points.csBonus > 0 ? { label: 'Jogo sem sofrer gol', value: `+${points.csBonus}`, color: '#60A5FA' } : null,
     (points.supportersBonus ?? 0) > 0 ? { label: `Torcida ${venueLabel} · +${points.supportersPercent ?? 0}%`, value: `+${points.supportersBonus}`, color: '#FBBF24' } : null,
     (points.magnataBonus ?? 0) > 0 ? { label: `Magnata · +${points.magnataPercent ?? 0}%`, value: `+${points.magnataBonus}`, color: '#FBBF24' } : null,
+    (points.midiaticoBonus ?? 0) > 0 ? { label: 'Midiático · gols', value: `+${points.midiaticoBonus}`, color: '#7C6FF0' } : null,
     (points.lossStreakBonus ?? 0) > 0 ? { label: 'Bônus de recuperação', value: `+${points.lossStreakBonus}`, color: '#FB923C' } : null,
   ].filter((row): row is { label: string; value: string; color: string } => row !== null);
 

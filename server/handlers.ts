@@ -3,6 +3,7 @@ import type { RealtimeServer, RealtimeSocket } from "./realtime.js";
 // Import game engine functions
 import {
   generateDraftOptions,
+  RECRUITMENT_VARIANT_CHANCE,
   getNeededPositions,
   generateBotTeam,
   pickBotNames,
@@ -25,6 +26,8 @@ import {
   bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
   EVOLVE_POINTS, applyDefeatGrowth,
   applyMercenarioProgress,
+  applyApostadorWins,
+  midiaticoCredits,
   draftSlotIndex,
   MAX_RESERVE_PLAYERS, reservePlayerCount,
   VariantFlag,
@@ -43,7 +46,7 @@ import { ALL_CRESTS } from "../shared/game/crests.js";
 import * as seatRules from "../shared/game/seatRules.js";
 import { computeMatchPointsWithConfig, MatchPoints, ShopVariant, TrainAttr, TRAIN_ATTRS, TURBINAR_VARIANTS, lossStreakBonus, nextLossStreak, isRegularPlayerPackRarity } from "../shared/game/shop.js";
 import type { RegularPlayerPackRarity } from "../shared/game/shop.js";
-import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, settleBet } from "../shared/game/bets.js";
+import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, newlyWonBets, settleBet } from "../shared/game/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../shared/game/onlineReadiness.js";
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
@@ -730,7 +733,7 @@ function createRecruitmentOffer(
   const level = projectLevel(team.clubProjects, 'recruitment');
   const config = getRecruitmentOfferConfig(baseOptions, level, eventNumber);
   const ownedIds = team.players.map(player => player.id);
-  const options = generateDraftOptions([], ownedIds, config.optionCount, config.minimumOverall);
+  const options = generateDraftOptions([], ownedIds, config.optionCount, config.minimumOverall, RECRUITMENT_VARIANT_CHANCE);
   const selectionLimit = Math.min(config.selectionLimit, Math.max(1, options.length));
 
   return {
@@ -1027,6 +1030,7 @@ function knockoutLegAlreadyPlayed(room: RoomState): boolean {
 function revealBetsForMatch(room: RoomState, matchKey: string, result: MatchResult): void {
   room.players.forEach(player => {
     let changed = false;
+    const before = player.bets;
     player.bets = player.bets.map(bet => {
       if (bet.matchKey !== matchKey || bet.revealed) return bet;
       const settled = settleBet(bet, result);
@@ -1050,7 +1054,9 @@ function revealBetsForMatch(room: RoomState, matchKey: string, result: MatchResu
         protectionRefund,
       };
     });
-    if (changed) syncTeamCredits(player);
+    if (!changed) return;
+    if (player.team) player.team = applyApostadorWins(player.team, newlyWonBets(before, player.bets));
+    syncTeamCredits(player);
   });
 }
 
@@ -2852,6 +2858,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
               rewardVenue,
               magMult > 1,
               streakBonusAmount,
+              midiaticoCredits(p.team, fixture.result),
             );
             const earned = rewards.pointsEnabled ? reward.total : 0;
             const decoratedMatchPoints = rewards.pointsEnabled
@@ -2865,6 +2872,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
                   supportersVenue: reward.supportersVenue,
                   magnataBonus: reward.magnataBonus,
                   magnataPercent: reward.magnataPercent,
+                  midiaticoBonus: reward.midiaticoBonus,
                   lossStreakBonus: reward.lossStreakBonus,
                   lossStreakAfter: p.team.lossStreak,
                 }
@@ -3209,6 +3217,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
               rewardVenue,
               magnataPointMultiplier(p.team.players) > 1,
               streakBonusAmount,
+              midiaticoCredits(p.team, legRes),
             );
             p.pendingMatchPoints = room.competitionFormat.rewards.pointsEnabled ? reward.total : undefined;
             p.lastMatchPoints = room.competitionFormat.rewards.pointsEnabled
@@ -3222,6 +3231,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
                   supportersVenue: reward.supportersVenue,
                   magnataBonus: reward.magnataBonus,
                   magnataPercent: reward.magnataPercent,
+                  midiaticoBonus: reward.midiaticoBonus,
                   lossStreakBonus: reward.lossStreakBonus,
                   lossStreakAfter: p.team.lossStreak,
                 }
