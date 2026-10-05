@@ -179,13 +179,13 @@ describe('achievements and showcase', () => {
     const cookie = await register('campeao');
     const title = (difficultyId: string, extra: Record<string, unknown> = {}) => soloHistory(difficultyId, {
       champion: true, finishStage: 'champion',
-      report: { version: 1, games: 14, wins: 12, draws: 2, losses: 0, goals: 41, goalsAgainst: 7 },
+      report: { version: 1, games: 14, wins: 12, draws: 2, losses: 0, goals: 46, goalsAgainst: 7 },
       ...extra,
     });
 
     const first = await call('/api/account/history', { method: 'POST', cookie, body: title('gold') });
     const unlocked = Object.fromEntries(first.body.achievementsUnlocked.map((u: any) => [u.id, u.level]));
-    // First title, unbeaten, tight defence and a 41-goal campaign.
+    // First title, unbeaten, tight defence and a 46-goal campaign.
     expect(unlocked).toMatchObject({ trophy_collector: 1, unbeaten: 1, iron_wall: 1, firepower: 2 });
     expect(unlocked.veteran).toBeUndefined();
 
@@ -245,6 +245,29 @@ describe('achievements and showcase', () => {
     const own = (await call('/api/account/achievements', { cookie })).body;
     expect(own.achievements.find((a: any) => a.id === 'immortal_legend').level).toBe(1);
   });
+
+  it('re-evaluates under new rules once, even when that lowers a level', async () => {
+    const db = database();
+    const { call, register } = api(db);
+    const cookie = await register('regra-nova');
+    await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('bronze', {
+      champion: true, finishStage: 'champion',
+      report: { version: 1, games: 14, wins: 12, draws: 2, losses: 0, goals: 41, goalsAgainst: 7 },
+    }) });
+    await call('/api/account/showcase', { method: 'PUT', cookie, body: { items: [{ type: 'achievement', id: 'firepower' }] } });
+    // Levels stored under older rules, above what the history supports now.
+    db.exec(`UPDATE user_achievements SET level = 4 WHERE achievement_id IN ('firepower', 'immortal_legend');
+      UPDATE profile_stats SET achievements_version = 0;`);
+    const own = (await call('/api/account/achievements', { cookie })).body;
+    const level = (id: string) => own.achievements.find((a: any) => a.id === id).level;
+    // Prata and above need the campaign on Prata or higher: Bronze only.
+    expect(level('firepower')).toBe(1);
+    // An achievement the history does not support is locked again and leaves the mural.
+    expect(level('immortal_legend')).toBe(0);
+    expect(own.showcase.items).toContainEqual({ type: 'achievement', id: 'firepower' });
+    const again = (await call('/api/account/achievements', { cookie })).body;
+    expect(again.achievements.find((a: any) => a.id === 'firepower').level).toBe(1);
+  });
 });
 
 describe('achievements from records and loyalty', () => {
@@ -264,7 +287,7 @@ describe('achievements from records and loyalty', () => {
     const state = Object.fromEntries((await call('/api/account/achievements', { cookie })).body.achievements.map((a: any) => [a.id, a]));
     expect(state.lasting_partnership).toMatchObject({ level: 1, progress: 5, detail: 'ancelotti' });
     expect(state.loyal_crest).toMatchObject({ level: 1, progress: 5, detail: 'milan' });
-    expect(state.top_scorer).toMatchObject({ level: 2, progress: 16 });
+    expect(state.top_scorer).toMatchObject({ level: 1, progress: 16 });
     expect(state.brick_keeper).toMatchObject({ level: 2, progress: 41 });
     expect(state.qualified).toMatchObject({ level: 1, progress: 5 });
     expect(state.marathoner).toMatchObject({ level: 1, progress: 60 });

@@ -1021,11 +1021,14 @@ async function achievementsPayload(env: AccountEnv, userId: string, records?: Ar
         .bind(userId).all<Record<string, unknown>>().then(result => result.results),
   ]);
   const recordKeys = recordRows.map(row => ({ difficultyId: String(row.difficulty_id), category: String(row.category) }));
-  const automatic = chosen.length === 0;
+  // A pinned achievement stays on the mural only while it is unlocked (a rule change can lock it again).
+  const levels = new Map(achievements.map(state => [state.id, state.level]));
+  const pinned = chosen.filter(item => item.type !== 'achievement' || (levels.get(item.id) ?? 0) > 0);
+  const automatic = pinned.length === 0;
   return {
     achievements,
     rarity,
-    showcase: { items: automatic ? automaticShowcase(achievements, rarity, recordKeys) : chosen, automatic },
+    showcase: { items: automatic ? automaticShowcase(achievements, rarity, recordKeys) : pinned, automatic },
   };
 }
 

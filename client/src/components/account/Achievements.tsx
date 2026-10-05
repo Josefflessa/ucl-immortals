@@ -4,7 +4,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   Activity, Award, BadgeCheck, BrickWall, CalendarCheck, CalendarDays, Castle, ChartColumnIncreasing, Check, ChevronsUp,
-  CircleCheck, ClipboardList, Compass, Crown, Flag, Flame, Gamepad2, Gem, Globe, Goal, Hand, Handshake, Heart, HeartHandshake,
+  ChevronRight, CircleCheck, ClipboardList, Compass, Crown, Flag, Flame, Gamepad2, Gem, Globe, Goal, Hand, Handshake, Heart, HeartHandshake,
   Lock, Medal, Mountain, Pencil, Repeat, Shield, ShieldCheck, ShieldPlus, Shirt, Skull, Sparkles, Star, Sword, Swords,
   Target, Timer, TrendingUp, Trophy, Users, Wifi, Zap, type LucideIcon,
 } from 'lucide-react';
@@ -170,8 +170,9 @@ export function AchievementTile({ state, rarity, className }: { state: Achieveme
   const color = achievementLevelColor(state.level);
   const maxed = state.level >= 4;
   const nextThreshold: number = definition.thresholds[Math.min(state.level, 3)];
-  const previousThreshold: number = state.level === 0 ? 0 : definition.thresholds[Math.min(state.level - 1, 3)];
-  const ratio = maxed ? 1 : Math.max(0, Math.min(1, (state.progress - previousThreshold) / Math.max(1, nextThreshold - previousThreshold)));
+  // The bar matches the counter next to it (3/5 fills 60%) and takes the colour of the level it leads to.
+  const ratio = maxed ? 1 : Math.max(0, Math.min(1, state.progress / Math.max(1, nextThreshold)));
+  const barColor = maxed ? color : achievementLevelColor(state.level + 1);
   const rarityText = rarityLine(state, rarity);
   const detail = detailText(definition, state.detail);
   return (
@@ -197,7 +198,7 @@ export function AchievementTile({ state, rarity, className }: { state: Achieveme
         {/* Every card keeps its bar; at the top level it stays full. */}
         <div className="mt-2 flex items-center gap-2">
           <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--ui-surface-3)]" role="progressbar" aria-valuemin={0} aria-valuemax={nextThreshold} aria-valuenow={maxed ? nextThreshold : Math.min(state.progress, nextThreshold)}>
-            <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: state.level > 0 ? color : 'var(--ui-text-faint)' }} />
+            <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: barColor }} />
           </div>
           <span className="shrink-0 text-[11px] font-bold tabular-nums" style={{ color: maxed ? color : 'var(--ui-text-soft)' }}>
             {maxed ? 'MÁX' : `${Math.min(state.progress, nextThreshold).toLocaleString('pt-BR')}/${nextThreshold.toLocaleString('pt-BR')}`}
@@ -531,26 +532,52 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
 
 /** "Conquista desbloqueada" list for the end-of-competition report. */
 export function UnlockedAchievements({ unlocks }: { unlocks: Array<{ id: string; level: number }> }) {
-  if (unlocks.length === 0) return null;
+  const [open, setOpen] = useState(false);
+  const shown = unlocks.filter(unlock => ACHIEVEMENT_BY_ID.has(unlock.id) && tierForLevel(unlock.level));
+  if (shown.length === 0) return null;
+  // Highest levels first, so the summary row shows the best medals.
+  const sorted = [...shown].sort((a, b) => b.level - a.level);
+  const best = achievementLevelColor(sorted[0].level);
   return (
-    <section aria-label="Conquistas desbloqueadas" className="space-y-2">
-      <div className="ui-kicker">{unlocks.length === 1 ? 'Conquista desbloqueada' : 'Conquistas desbloqueadas'}</div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {unlocks.map(unlock => {
-          const definition = ACHIEVEMENT_BY_ID.get(unlock.id);
-          const tier = tierForLevel(unlock.level);
-          if (!definition || !tier) return null;
-          return (
-            <div key={unlock.id} className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: achievementLevelColor(unlock.level), background: `color-mix(in srgb, ${achievementLevelColor(unlock.level)} 10%, transparent)` }}>
-              <AchievementMedal id={unlock.id} level={unlock.level} size={52} />
-              <div className="min-w-0">
-                <strong className="block text-sm text-[var(--ui-text)]">{definition.name}</strong>
-                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: achievementLevelColor(unlock.level) }}>Nível {ACHIEVEMENT_TIER_LABELS[tier]}</span>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:brightness-110"
+        style={{ borderColor: best, background: `color-mix(in srgb, ${best} 10%, transparent)` }}
+      >
+        <span className="flex shrink-0 items-center" aria-hidden="true">
+          {sorted.slice(0, 3).map((unlock, index) => (
+            <span key={unlock.id} className={index > 0 ? '-ml-4' : undefined}>
+              <AchievementMedal id={unlock.id} level={unlock.level} size={40} />
+            </span>
+          ))}
+        </span>
+        <span className="min-w-0 flex-1">
+          <strong className="block text-sm text-[var(--ui-text)]">
+            {shown.length === 1 ? 'Você desbloqueou 1 conquista' : `Você desbloqueou ${shown.length} conquistas`}
+          </strong>
+          <span className="text-xs text-[var(--ui-text-muted)]">Toque para ver</span>
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-[var(--ui-text-muted)]" aria-hidden="true" />
+      </button>
+      <GameModal open={open} onOpenChange={setOpen} title={shown.length === 1 ? 'Conquista desbloqueada' : 'Conquistas desbloqueadas'}>
+        <div className="space-y-2">
+          {sorted.map(unlock => {
+            const definition = ACHIEVEMENT_BY_ID.get(unlock.id)!;
+            const tier = tierForLevel(unlock.level)!;
+            return (
+              <div key={unlock.id} className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: achievementLevelColor(unlock.level), background: `color-mix(in srgb, ${achievementLevelColor(unlock.level)} 10%, transparent)` }}>
+                <AchievementMedal id={unlock.id} level={unlock.level} size={52} />
+                <div className="min-w-0">
+                  <strong className="block text-sm text-[var(--ui-text)]">{definition.name}</strong>
+                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: achievementLevelColor(unlock.level) }}>Nível {ACHIEVEMENT_TIER_LABELS[tier]}</span>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+            );
+          })}
+        </div>
+      </GameModal>
+    </>
   );
 }

@@ -135,28 +135,36 @@ export async function loadAchievements(db: D1Database, userId: string): Promise<
 
 /**
  * Re-evaluates an account from its whole history and stores the result.
- * Levels never go down (an achievement is a permanent fact). Returns the levels
- * that went up in this call.
+ * Levels never go down (an achievement is a permanent fact), except once when the
+ * definitions change (ACHIEVEMENTS_VERSION): the account is then re-evaluated under
+ * the new rules and keeps exactly what they give. Returns the levels that went up.
  */
 export async function syncAchievements(db: D1Database, userId: string, now = Date.now()): Promise<AchievementUnlock[]> {
-  const [career, current] = await Promise.all([loadCareer(db, userId), loadAchievements(db, userId)]);
+  const [career, current, versionRow] = await Promise.all([
+    loadCareer(db, userId),
+    loadAchievements(db, userId),
+    db.prepare('SELECT achievements_version FROM profile_stats WHERE user_id = ?').bind(userId).first<{ achievements_version: number }>(),
+  ]);
+  const rebase = Number(versionRow?.achievements_version ?? 0) < ACHIEVEMENTS_VERSION;
   const previous = new Map(current.map(state => [state.id, state]));
   const unlocks: AchievementUnlock[] = [];
   const statements = evaluateAchievements(career).flatMap(result => {
     const before = previous.get(result.id);
-    const level = Math.max(before?.level ?? 0, result.level) as AchievementLevel;
-    const leveledUp = level > (before?.level ?? 0);
+    const beforeLevel = before?.level ?? 0;
+    const level = (rebase ? result.level : Math.max(beforeLevel, result.level)) as AchievementLevel;
+    const leveledUp = level > beforeLevel;
     if (leveledUp) unlocks.push({ id: result.id, level });
-    if (!leveledUp && before && before.progress === result.progress && before.detail === result.detail) return [];
+    if (level === beforeLevel && before && before.progress === result.progress && before.detail === result.detail) return [];
+    const unlockedAt = level === 0 ? null : leveledUp ? now : before?.unlockedAt ?? null;
     return [db.prepare(`INSERT INTO user_achievements (user_id, achievement_id, level, progress, detail, unlocked_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, achievement_id) DO UPDATE SET
-        level = MAX(user_achievements.level, excluded.level),
+        level = ${rebase ? 'excluded.level' : 'MAX(user_achievements.level, excluded.level)'},
         progress = excluded.progress,
         detail = excluded.detail,
-        unlocked_at = CASE WHEN excluded.level > user_achievements.level THEN excluded.unlocked_at ELSE user_achievements.unlocked_at END,
+        unlocked_at = ${rebase ? 'excluded.unlocked_at' : 'CASE WHEN excluded.level > user_achievements.level THEN excluded.unlocked_at ELSE user_achievements.unlocked_at END'},
         updated_at = excluded.updated_at`)
-      .bind(userId, result.id, level, result.progress, result.detail, leveledUp ? now : before?.unlockedAt ?? null, now)];
+      .bind(userId, result.id, level, result.progress, result.detail, unlockedAt, now)];
   });
   statements.push(db.prepare(`INSERT INTO profile_stats (user_id, updated_at, achievements_version) VALUES (?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET achievements_version = excluded.achievements_version`)

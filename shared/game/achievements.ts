@@ -6,7 +6,7 @@
 import { isCompetitionFinishStage, isRankedDifficulty, type CompetitionFinishStage } from './competitionRanking';
 
 /** Bumped whenever definitions or the evaluation change, to re-evaluate accounts. */
-export const ACHIEVEMENTS_VERSION = 2;
+export const ACHIEVEMENTS_VERSION = 3;
 
 export const ACHIEVEMENT_TIERS = ['bronze', 'silver', 'gold', 'legendary'] as const;
 export type AchievementTier = (typeof ACHIEVEMENT_TIERS)[number];
@@ -232,32 +232,42 @@ export interface AchievementDefinition {
   /** Goal for a tier threshold (handles the singular). */
   goal: (n: string, one: boolean) => string;
   detail?: AchievementDetailKind;
+  /** Each level only counts competitions at the difficulty of the same name or above
+   * (Bronze: any; Prata: Prata+; Ouro: Ouro+; Lendário: Lendário+). Set on the
+   * Títulos and Campanha achievements; see TIER_DIFFICULTY_FLOOR. */
+  byDifficulty?: true;
 }
+
+/** Ranked difficulty index (bronze 0 … immortal 4); -1 for anything else. */
+const DIFFICULTY_RANK = new Map<string, number>([['bronze', 0], ['silver', 1], ['gold', 2], ['legendary', 3], ['immortal', 4]]);
+/** Lowest difficulty that counts for each level of a byDifficulty achievement. */
+const TIER_DIFFICULTY_FLOOR = [0, 1, 2, 3] as const;
+const TIER_DIFFICULTY_LABEL = ['', 'Prata', 'Ouro', 'Lendário'] as const;
 
 const times = (n: string, one: boolean, text: string) => (one ? text : `${text} ${n} vezes`);
 
 export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   // Títulos
-  { id: 'trophy_collector', name: 'Colecionador de Taças', category: 'titles', metric: 'titles', thresholds: [1, 5, 15, 50], goal: (n, one) => times(n, one, 'Seja campeão') },
-  { id: 'finalist', name: 'Finalista', category: 'titles', metric: 'finals', thresholds: [3, 10, 30, 80], goal: n => `Chegue à final ${n} vezes` },
-  { id: 'persistent_runner_up', name: 'Vice Persistente', category: 'titles', metric: 'runnerUps', thresholds: [1, 5, 15, 40], goal: (n, one) => (one ? 'Seja vice-campeão' : `Seja vice-campeão ${n} vezes`) },
-  { id: 'dynasty', name: 'Hegemonia', category: 'titles', metric: 'bestTitleStreak', thresholds: [2, 3, 5, 8], goal: n => `Seja campeão em ${n} competições seguidas` },
+  { id: 'trophy_collector', name: 'Colecionador de Taças', category: 'titles', metric: 'titles', thresholds: [1, 5, 15, 50], goal: (n, one) => times(n, one, 'Seja campeão'), byDifficulty: true },
+  { id: 'finalist', name: 'Finalista', category: 'titles', metric: 'finals', thresholds: [3, 10, 30, 80], goal: n => `Chegue à final ${n} vezes`, byDifficulty: true },
+  { id: 'persistent_runner_up', name: 'Vice Persistente', category: 'titles', metric: 'runnerUps', thresholds: [1, 5, 15, 40], goal: (n, one) => (one ? 'Seja vice-campeão' : `Seja vice-campeão ${n} vezes`), byDifficulty: true },
+  { id: 'dynasty', name: 'Hegemonia', category: 'titles', metric: 'bestTitleStreak', thresholds: [2, 3, 5, 8], goal: n => `Seja campeão em ${n} competições seguidas`, byDifficulty: true },
   { id: 'ladder', name: 'Escalada', category: 'titles', metric: 'titleDifficulties', thresholds: [2, 3, 4, 5], goal: n => `Seja campeão em ${n} dificuldades diferentes` },
-  { id: 'perfect_campaign', name: 'Campanha Perfeita', category: 'titles', metric: 'perfectTitles', thresholds: [1, 2, 5, 10], goal: (n, one) => times(n, one, 'Seja campeão vencendo todos os jogos') },
-  { id: 'winning_coach', name: 'Técnico Vencedor', category: 'titles', metric: 'titleCoaches', thresholds: [2, 4, 7, 10], goal: n => `Seja campeão com ${n} técnicos diferentes` },
-  { id: 'crest_collector', name: 'Colecionador de Escudos', category: 'titles', metric: 'titleCrests', thresholds: [2, 5, 10, 20], goal: n => `Seja campeão com ${n} escudos diferentes` },
+  { id: 'perfect_campaign', name: 'Campanha Perfeita', category: 'titles', metric: 'perfectTitles', thresholds: [1, 2, 5, 10], goal: (n, one) => times(n, one, 'Seja campeão vencendo todos os jogos'), byDifficulty: true },
+  { id: 'winning_coach', name: 'Técnico Vencedor', category: 'titles', metric: 'titleCoaches', thresholds: [2, 4, 7, 10], goal: n => `Seja campeão com ${n} técnicos diferentes`, byDifficulty: true },
+  { id: 'crest_collector', name: 'Colecionador de Escudos', category: 'titles', metric: 'titleCrests', thresholds: [2, 5, 10, 20], goal: n => `Seja campeão com ${n} escudos diferentes`, byDifficulty: true },
   // Campanha
-  { id: 'unbeaten', name: 'Invicto', category: 'campaign', metric: 'unbeatenTitles', thresholds: [1, 3, 10, 20], goal: (n, one) => times(n, one, 'Seja campeão sem perder um jogo') },
-  { id: 'iron_wall', name: 'Muralha', category: 'campaign', metric: 'tightTitles', thresholds: [1, 3, 10, 20], goal: (n, one) => times(n, one, `Seja campeão sofrendo no máximo ${MURALHA_MAX_GOALS_AGAINST} gols`) },
-  { id: 'firepower', name: 'Ataque Devastador', category: 'campaign', metric: 'bestCompetitionGoals', thresholds: [30, 40, 50, 65], goal: n => `Marque ${n} gols numa única competição` },
-  { id: 'steamroller', name: 'Rolo Compressor', category: 'campaign', metric: 'bestCompetitionWins', thresholds: [10, 12, 14, 16], goal: n => `Vença ${n} jogos numa única competição` },
-  { id: 'goal_difference', name: 'Saldo Arrasador', category: 'campaign', metric: 'bestGoalDifference', thresholds: [20, 30, 40, 55], goal: n => `Termine uma competição com saldo de +${n} gols` },
-  { id: 'top_scorer', name: 'Artilheiro', category: 'campaign', metric: 'bestPlayerGoals', thresholds: [10, 15, 20, 30], goal: n => `Tenha um jogador com ${n} gols numa competição` },
-  { id: 'maestro', name: 'Maestro', category: 'campaign', metric: 'bestPlayerAssists', thresholds: [8, 12, 16, 22], goal: n => `Tenha um jogador com ${n} assistências numa competição` },
-  { id: 'brick_keeper', name: 'Paredão', category: 'campaign', metric: 'bestKeeperSaves', thresholds: [25, 40, 55, 75], goal: n => `Tenha um goleiro com ${n} defesas numa competição` },
-  { id: 'galactic_squad', name: 'Elenco Galáctico', category: 'campaign', metric: 'bestPlayerOverall', thresholds: [100, 115, 130, 150], goal: n => `Tenha um jogador com geral efetivo ${n} numa competição` },
-  { id: 'qualified', name: 'Classificado', category: 'campaign', metric: 'qualified', thresholds: [5, 25, 80, 200], goal: n => `Passe da fase de liga ${n} vezes` },
-  { id: 'consistency', name: 'Regularidade', category: 'campaign', metric: 'bestQualifiedStreak', thresholds: [3, 5, 10, 20], goal: n => `Passe da fase de liga em ${n} competições seguidas` },
+  { id: 'unbeaten', name: 'Invicto', category: 'campaign', metric: 'unbeatenTitles', thresholds: [1, 3, 10, 20], goal: (n, one) => times(n, one, 'Seja campeão sem perder um jogo'), byDifficulty: true },
+  { id: 'iron_wall', name: 'Muralha', category: 'campaign', metric: 'tightTitles', thresholds: [1, 3, 10, 20], goal: (n, one) => times(n, one, `Seja campeão sofrendo no máximo ${MURALHA_MAX_GOALS_AGAINST} gols`), byDifficulty: true },
+  { id: 'firepower', name: 'Ataque Devastador', category: 'campaign', metric: 'bestCompetitionGoals', thresholds: [35, 45, 55, 70], goal: n => `Marque ${n} gols numa única competição`, byDifficulty: true },
+  { id: 'steamroller', name: 'Rolo Compressor', category: 'campaign', metric: 'bestCompetitionWins', thresholds: [10, 12, 14, 16], goal: n => `Vença ${n} jogos numa única competição`, byDifficulty: true },
+  { id: 'goal_difference', name: 'Saldo Arrasador', category: 'campaign', metric: 'bestGoalDifference', thresholds: [20, 30, 40, 55], goal: n => `Termine uma competição com saldo de +${n} gols`, byDifficulty: true },
+  { id: 'top_scorer', name: 'Artilheiro', category: 'campaign', metric: 'bestPlayerGoals', thresholds: [12, 18, 25, 35], goal: n => `Tenha um jogador com ${n} gols numa competição`, byDifficulty: true },
+  { id: 'maestro', name: 'Maestro', category: 'campaign', metric: 'bestPlayerAssists', thresholds: [8, 12, 16, 22], goal: n => `Tenha um jogador com ${n} assistências numa competição`, byDifficulty: true },
+  { id: 'brick_keeper', name: 'Paredão', category: 'campaign', metric: 'bestKeeperSaves', thresholds: [25, 40, 55, 75], goal: n => `Tenha um goleiro com ${n} defesas numa competição`, byDifficulty: true },
+  { id: 'galactic_squad', name: 'Elenco Galáctico', category: 'campaign', metric: 'bestPlayerOverall', thresholds: [120, 150, 180, 210], goal: n => `Tenha um jogador com geral efetivo ${n} numa competição`, byDifficulty: true },
+  { id: 'qualified', name: 'Classificado', category: 'campaign', metric: 'qualified', thresholds: [5, 25, 80, 200], goal: n => `Passe da fase de liga ${n} vezes`, byDifficulty: true },
+  { id: 'consistency', name: 'Regularidade', category: 'campaign', metric: 'bestQualifiedStreak', thresholds: [3, 5, 10, 20], goal: n => `Passe da fase de liga em ${n} competições seguidas`, byDifficulty: true },
   // Carreira
   { id: 'contender', name: 'Sempre na Briga', category: 'career', metric: 'semifinalOrBetter', thresholds: [3, 15, 50, 150], goal: n => `Chegue à semifinal ou além ${n} vezes` },
   { id: 'veteran', name: 'Veterano', category: 'career', metric: 'competitions', thresholds: [5, 25, 100, 300], goal: n => `Conclua ${n} competições` },
@@ -287,8 +297,10 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
 export const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map(achievement => [achievement.id, achievement]));
 
 export function achievementGoalText(definition: AchievementDefinition, tierIndex: number): string {
-  const threshold = definition.thresholds[Math.max(0, Math.min(3, tierIndex))];
-  return definition.goal(threshold.toLocaleString('pt-BR'), threshold === 1);
+  const tier = Math.max(0, Math.min(3, tierIndex));
+  const threshold = definition.thresholds[tier];
+  const goal = definition.goal(threshold.toLocaleString('pt-BR'), threshold === 1);
+  return definition.byDifficulty && tier > 0 ? `${goal} no ${TIER_DIFFICULTY_LABEL[tier]} ou acima` : goal;
 }
 
 /** 0 = locked, 1..4 = Bronze..Lendário. */
@@ -310,14 +322,27 @@ export function levelFor(definition: AchievementDefinition, value: number): Achi
 
 export function evaluateAchievements(competitions: readonly CareerCompetition[]): AchievementProgress[] {
   const { metrics, details } = summarizeCareer(competitions);
+  // The career seen from each level's difficulty floor (index 0 = every competition).
+  const byFloor = TIER_DIFFICULTY_FLOOR.map(floor => floor === 0
+    ? metrics
+    : summarizeCareer(competitions.filter(c => (DIFFICULTY_RANK.get(c.difficultyId) ?? -1) >= floor)).metrics);
   return ACHIEVEMENTS.map(definition => {
-    const progress = metrics[definition.metric];
-    return {
-      id: definition.id,
-      level: levelFor(definition, progress),
-      progress,
-      detail: definition.detail ? details[definition.metric] ?? null : null,
-    };
+    if (!definition.byDifficulty) {
+      const progress = metrics[definition.metric];
+      return {
+        id: definition.id,
+        level: levelFor(definition, progress),
+        progress,
+        detail: definition.detail ? details[definition.metric] ?? null : null,
+      };
+    }
+    // A higher floor only drops competitions and the thresholds increase, so meeting
+    // a level always means meeting the ones below it.
+    let level = 0;
+    definition.thresholds.forEach((threshold, index) => { if (byFloor[index][definition.metric] >= threshold) level = index + 1; });
+    // Progress is shown towards the next level, so it is counted at that level's floor.
+    const progress = byFloor[Math.min(level, 3)][definition.metric];
+    return { id: definition.id, level: level as AchievementLevel, progress, detail: null };
   });
 }
 

@@ -104,6 +104,20 @@ describe('seat rules — recruitment and lineup', () => {
     expect(seatRules.pickReinforcement(offered, true, 'not-offered').ok).toBe(false);
   });
 
+  it('a recruited card keeps the variant and traits it was offered with', () => {
+    const base = seat();
+    const ownedIds = new Set(base.team.players.map(card => card.id));
+    const card = PLAYERS.find(option => !ownedIds.has(option.id))!;
+    const variant = { ...card, estribado: true, overall: card.overall + 5, traits: ['finisher'] } as typeof card;
+    const picked = seatRules.pickReinforcement({ ...base, reinforcementOptions: [variant], reinforcementOffer: null }, true, card.id);
+    expect(picked.ok).toBe(true);
+    if (!picked.ok) return;
+    const added = picked.seat.team.players.at(-1)!;
+    expect(added.estribado).toBe(true);
+    expect(added.overall).toBe(card.overall + 5);
+    expect(added.traits).toEqual(['finisher']);
+  });
+
   it('swapping a role holder to the bench drops the role', () => {
     const base = seat();
     const captain = base.team.players[0].id;

@@ -494,8 +494,9 @@ export function dismissMissionResult(seat: PlayerSeat): SeatResult {
 export function pickReinforcement(seat: PlayerSeat, canRecruit: boolean, playerId: string): SeatResult {
   if (!canRecruit) return fail();
   const offered = seat.reinforcementOptions?.find(option => option.id === playerId);
-  // Rebuilt from the catalogue: the client never submits a card's stats or traits.
-  const canonical = offered && PLAYERS.find(card => card.id === offered.id);
+  // The client only submits an id. The card itself is the offer's copy, which the engine
+  // rolled with its variant and traits: rebuilding it from the catalogue would drop them.
+  const canonical = offered && PLAYERS.some(card => card.id === offered.id) ? { ...offered } : null;
   if (!canonical || seat.team.players.some(card => card.id === canonical.id)) {
     return fail('Essa carta não está mais disponível. Sua escolha continua reservada.');
   }

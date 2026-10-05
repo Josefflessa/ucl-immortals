@@ -51,6 +51,26 @@ describe('achievement definitions', () => {
   });
 });
 
+describe('levels by difficulty', () => {
+  it('each level of a Títulos/Campanha achievement only counts its difficulty or above', () => {
+    const goals = (difficultyId: string) => campaign({ difficultyId, goals: 57 });
+    // 57 goals on Bronze: only the Bronze level (35, any difficulty).
+    expect(levelOf([goals('bronze')], 'firepower')).toMatchObject({ level: 1, progress: 0 });
+    // On Ouro it reaches Ouro (55 on Ouro+); progress towards Lendário counts Lendário+ only.
+    expect(levelOf([goals('bronze'), goals('gold')], 'firepower')).toMatchObject({ level: 3, progress: 0 });
+    expect(levelOf([goals('immortal')], 'firepower')).toMatchObject({ level: 3, progress: 57 });
+    // Carreira ignores the difficulty.
+    expect(levelOf(Array.from({ length: 5 }, () => campaign({ difficultyId: 'bronze' })), 'veteran').level).toBe(1);
+  });
+
+  it('names the difficulty in the goal from Prata up', () => {
+    const firepower = ACHIEVEMENT_BY_ID.get('firepower')!;
+    expect(achievementGoalText(firepower, 0)).toBe('Marque 35 gols numa única competição');
+    expect(achievementGoalText(firepower, 2)).toBe('Marque 55 gols numa única competição no Ouro ou acima');
+    expect(achievementGoalText(ACHIEVEMENT_BY_ID.get('ladder')!, 2)).not.toMatch(/ou acima/);
+  });
+});
+
 describe('goal texts', () => {
   it('use the singular for a single time and the plural otherwise', () => {
     const immortal = ACHIEVEMENT_BY_ID.get('immortal_legend')!;
@@ -68,8 +88,9 @@ describe('career evaluation', () => {
   it('counts titles, streaks and per-difficulty titles from the history order', () => {
     const career = [title(), title({ difficultyId: 'immortal' }), campaign(), title({ difficultyId: 'bronze' }), title(), title()];
     expect(metricsOf(career)).toMatchObject({ titles: 5, bestTitleStreak: 3, titleDifficulties: 3, immortalTitles: 1, competitions: 6, goldOrAboveTitles: 4 });
-    expect(levelOf(career, 'trophy_collector')).toMatchObject({ level: 2, progress: 5 });
-    expect(levelOf(career, 'dynasty')).toMatchObject({ level: 2, progress: 3 });
+    // Prata needs titles on Prata or above: the Bronze title does not count there.
+    expect(levelOf(career, 'trophy_collector')).toMatchObject({ level: 1, progress: 4 });
+    expect(levelOf(career, 'dynasty')).toMatchObject({ level: 1, progress: 2 });
     expect(levelOf(career, 'ladder')).toMatchObject({ level: 2, progress: 3 });
   });
 
@@ -82,7 +103,7 @@ describe('career evaluation', () => {
     ];
     const metrics = metricsOf(career);
     expect(metrics).toMatchObject({ unbeatenTitles: 2, perfectTitles: 1, tightTitles: 2, bestCompetitionGoals: 52, bestCompetitionWins: 13, bestGoalDifference: 42 });
-    expect(levelOf(career, 'firepower').level).toBe(3);
+    expect(levelOf(career, 'firepower').level).toBe(2);
     expect(levelOf(career, 'goal_difference').level).toBe(3);
   });
 
@@ -94,8 +115,8 @@ describe('career evaluation', () => {
   it('best players of a campaign come from its records', () => {
     const career = [campaign({ topPlayerGoals: 21, topPlayerAssists: 9 }), campaign({ topKeeperSaves: 44, topPlayerOverall: 131 })];
     expect(metricsOf(career)).toMatchObject({ bestPlayerGoals: 21, bestPlayerAssists: 9, bestKeeperSaves: 44, bestPlayerOverall: 131 });
-    expect(levelOf(career, 'top_scorer').level).toBe(3);
-    expect(levelOf(career, 'galactic_squad').level).toBe(3);
+    expect(levelOf(career, 'top_scorer').level).toBe(2);
+    expect(levelOf(career, 'galactic_squad').level).toBe(1);
   });
 
   it('loyalty follows the most used coach and crest, and reports which one', () => {

@@ -2,7 +2,7 @@
 // Local UI state, effects, derived standings/fixtures/stats and handlers used by
 // LeaguePage and its tab/modal components. Computed once per render of the page.
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { useGame, KnockoutMatch } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
@@ -545,7 +545,8 @@ export function useLeagueHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingWatchKey, notifyMatchWatchedOnline]);
 
-  useEffect(() => {
+  // Layout effect, like the knockout one below: the replay opens before the result is painted.
+  useLayoutEffect(() => {
     if (state.mode !== 'online') return;
     if (state.phase !== 'league') return;
     if (state.currentMatchResult) return; // already watching one
@@ -572,7 +573,9 @@ export function useLeagueHub() {
   // Knockout: auto-open the local player's tie as a synchronized replay — LEG BY LEG
   // (solo + online). This lives in the HUB (not the CONFRONTOS tab) so it still fires
   // when the player is on another tab — WATCH_ONLINE_MATCH navigates to the replay.
-  useEffect(() => {
+  // A layout effect: it opens the replay before the browser paints the bracket, so the
+  // leg's results are never shown on the hub first.
+  useLayoutEffect(() => {
     if (state.phase !== 'knockout' || !state.knockoutBracket) return;
     if (state.currentMatchResult) return;
     if (!localTeamId) return;
