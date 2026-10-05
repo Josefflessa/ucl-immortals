@@ -191,6 +191,16 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                   )}
                 </>
               )}
+              {/* Neutral actions first; the destructive ones (red) close the menu. */}
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-bold tracking-wide text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-2)]"
+                onClick={() => choose('restart')}
+              >
+                <RotateCcw size={15} className="text-[var(--ui-brand-strong)]" />
+                REINICIAR COMPETIÇÃO
+              </button>
               {onRemovePlayer && (
                 <>
                   <button
@@ -229,15 +239,6 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                   )}
                 </>
               )}
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-bold tracking-wide text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-2)]"
-                onClick={() => choose('restart')}
-              >
-                <RotateCcw size={15} className="text-[var(--ui-brand-strong)]" />
-                REINICIAR COMPETIÇÃO
-              </button>
               <button
                 type="button"
                 role="menuitem"
