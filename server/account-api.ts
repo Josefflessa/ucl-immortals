@@ -55,6 +55,8 @@ interface AuthenticatedAccount {
   coverUrl: string | null;
   visibility: 'public' | 'friends' | 'private';
   createdAt: number;
+  /** Likes other players gave this profile. */
+  likeCount: number;
   stats: AccountStats;
 }
 
@@ -99,6 +101,7 @@ interface UserRow {
   cover_url: string | null;
   visibility: 'public' | 'friends' | 'private';
   created_at: number;
+  like_count?: number;
   competitions_completed?: number;
   titles?: number;
   finish_breakdown?: string | null;
@@ -274,6 +277,7 @@ function accountFromRow(row: UserRow): AuthenticatedAccount {
     coverUrl: row.cover_url ?? null,
     visibility: row.visibility,
     createdAt: Number(row.created_at),
+    likeCount: Number(row.like_count ?? 0),
     stats: statsFromRow(row),
   };
 }
@@ -293,6 +297,7 @@ const ACCOUNT_SELECT = `
   )
   SELECT u.id, u.email, p.username, p.display_name, p.bio, p.avatar_key, p.avatar_background_key, p.avatar_frame_key,
          p.cover_key, p.favorite_crest_id, p.avatar_url, p.cover_url, p.visibility, p.created_at,
+         (SELECT COUNT(*) FROM profile_likes pl WHERE pl.user_id = u.id) AS like_count,
          COALESCE(s.competitions_completed, 0) AS competitions_completed,
          COALESCE(s.titles, 0) AS titles,
          cf.finish_breakdown,
@@ -458,6 +463,7 @@ function publicAccount(account: AuthenticatedAccount): Record<string, unknown> {
     coverUrl: account.coverUrl,
     favoriteCrestId: account.favoriteCrestId,
     createdAt: account.createdAt,
+    likeCount: account.likeCount,
     stats: account.stats,
   };
 }
@@ -1285,21 +1291,45 @@ async function accountEvents(env: AccountEnv, account: AuthenticatedAccount): Pr
   });
 }
 
+/** Whether the viewer may see this profile: public, their own, or a friend's "friends only". */
+async function canViewProfile(env: AccountEnv, viewer: AuthenticatedAccount | null, account: AuthenticatedAccount): Promise<boolean> {
+  if (viewer?.id === account.id || account.visibility === 'public') return true;
+  if (account.visibility === 'private' || !viewer) return false;
+  const friendship = await env.DB.prepare(`SELECT id FROM friendships
+    WHERE status = 'accepted'
+      AND ((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?))
+    LIMIT 1`).bind(viewer.id, account.id, account.id, viewer.id).first<{ id: string }>();
+  return Boolean(friendship);
+}
+
+/** Like (PUT) or unlike (DELETE) another player's profile. */
+async function profileLike(request: Request, env: AccountEnv, username: string): Promise<Response> {
+  const viewer = await authenticatedAccount(request, env);
+  if (!viewer) return json({ error: 'authentication_required' }, 401);
+  const row = await env.DB.prepare(`${ACCOUNT_SELECT} WHERE p.username = ?`).bind(normalizeUsername(username)).first<UserRow>();
+  if (!row) return json({ error: 'user_not_found' }, 404);
+  const account = accountFromRow(row);
+  if (account.id === viewer.id) return json({ error: 'cannot_like_self' }, 400);
+  if (!(await canViewProfile(env, viewer, account))) return json({ error: 'profile_private' }, 403);
+  const liked = request.method === 'PUT';
+  if (liked) {
+    await env.DB.prepare('INSERT OR IGNORE INTO profile_likes (user_id, liker_id, created_at) VALUES (?, ?, ?)').bind(account.id, viewer.id, Date.now()).run();
+  } else {
+    await env.DB.prepare('DELETE FROM profile_likes WHERE user_id = ? AND liker_id = ?').bind(account.id, viewer.id).run();
+  }
+  const count = await env.DB.prepare('SELECT COUNT(*) AS like_count FROM profile_likes WHERE user_id = ?').bind(account.id).first<{ like_count: number }>();
+  return json({ liked, likeCount: Number(count?.like_count ?? 0) });
+}
+
 async function publicProfile(request: Request, env: AccountEnv, username: string): Promise<Response> {
   const row = await env.DB.prepare(`${ACCOUNT_SELECT} WHERE p.username = ?`).bind(normalizeUsername(username)).first<UserRow>();
   if (!row) return json({ error: 'user_not_found' }, 404);
   const account = accountFromRow(row);
   const viewer = await authenticatedAccount(request, env);
-  const isSelf = viewer?.id === account.id;
-  if (!isSelf && account.visibility === 'private') return json({ error: 'profile_private' }, 403);
-  if (!isSelf && account.visibility === 'friends') {
-    if (!viewer) return json({ error: 'profile_private' }, 403);
-    const friendship = await env.DB.prepare(`SELECT id FROM friendships
-      WHERE status = 'accepted'
-        AND ((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?))
-      LIMIT 1`).bind(viewer.id, account.id, account.id, viewer.id).first<{ id: string }>();
-    if (!friendship) return json({ error: 'profile_private' }, 403);
-  }
+  if (!(await canViewProfile(env, viewer, account))) return json({ error: 'profile_private' }, 403);
+  const likedByViewer = viewer && viewer.id !== account.id
+    ? Boolean(await env.DB.prepare('SELECT 1 AS liked FROM profile_likes WHERE user_id = ? AND liker_id = ?').bind(account.id, viewer.id).first())
+    : false;
   const [records, scorePosition, friendCountRow] = await Promise.all([
     loadRecordHighlights(env, account.id),
     getScoreLeaderboardPosition(env, account),
@@ -1316,6 +1346,7 @@ async function publicProfile(request: Request, env: AccountEnv, username: string
     achievements,
     scorePosition: visibleScorePosition,
     friendCount: Number(friendCountRow?.friend_count ?? 0),
+    likedByViewer,
   });
 }
 
@@ -1340,6 +1371,8 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
   }
   if (url.pathname === '/api/records' && request.method === 'GET') return publicRecords(env, url);
   if (url.pathname === '/api/leaderboards/score' && request.method === 'GET') return scoreLeaderboard(env, url);
+  const likeRoute = /^\/api\/users\/([^/]+)\/like$/.exec(url.pathname);
+  if (likeRoute && (request.method === 'PUT' || request.method === 'DELETE')) return profileLike(request, env, decodeURIComponent(likeRoute[1]));
   if (url.pathname.startsWith('/api/users/') && request.method === 'GET') return publicProfile(request, env, decodeURIComponent(url.pathname.slice('/api/users/'.length)));
 
   if (url.pathname.startsWith('/api/account')) {

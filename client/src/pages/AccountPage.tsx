@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Image as ImageIcon, Info, Layers, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Heart, Image as ImageIcon, Info, Layers, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useAccount, type AccountStats, type AchievementsPayload, type CompetitionHistoryEntry, type FinishCounts, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
@@ -419,6 +419,46 @@ function ProfileCareerContent({
   );
 }
 
+/** Like / unlike another player's profile, with the running count. */
+function ProfileLikeButton({ username, initialLiked, initialCount }: { username: string; initialLiked: boolean; initialCount: number }) {
+  const { likeProfile } = useAccount();
+  const [liked, setLiked] = useState(initialLiked);
+  const [count, setCount] = useState(initialCount);
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    const next = !liked;
+    // Optimistic: the heart reacts at once and rolls back if the server refuses.
+    setLiked(next);
+    setCount(value => Math.max(0, value + (next ? 1 : -1)));
+    setBusy(true);
+    try {
+      const result = await likeProfile(username, next);
+      setLiked(result.liked);
+      setCount(result.likeCount);
+    } catch {
+      setLiked(!next);
+      setCount(value => Math.max(0, value + (next ? -1 : 1)));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Button
+      type="button"
+      intent="ghost"
+      aria-pressed={liked}
+      aria-label={liked ? 'Descurtir perfil' : 'Curtir perfil'}
+      disabled={busy}
+      onClick={() => void toggle()}
+      className={cn('min-h-9 gap-1.5 rounded-full border px-3 text-xs disabled:opacity-100', liked ? 'border-rose-400/60 bg-rose-500/15 text-rose-300' : 'border-[var(--ui-line-subtle)] bg-black/40 text-[var(--ui-text-soft)]')}
+    >
+      <Heart size={15} aria-hidden="true" className={cn('transition-transform', liked && 'scale-110 fill-current')} />
+      <span className="tabular-nums">{count}</span>
+      <span className="hidden sm:inline">{liked ? 'CURTIDO' : 'CURTIR'}</span>
+    </Button>
+  );
+}
+
 function FriendProfileView({ data }: { data: PublicProfileData }) {
   const { profile, records } = data;
   const coverStyle = profileCoverStyle(profile.coverKey, profile.coverUrl);
@@ -431,9 +471,12 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
           <div className="shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey, profile.avatarFrameKey)}</div>
           <div className="min-w-0 flex-1 pb-1">
             <h2 className="truncate font-display text-3xl text-[var(--ui-text)]">{profile.displayName}</h2>
-            <p className="mt-1 truncate text-sm text-[var(--ui-text-muted)]">@{profile.username} · conta criada em {formatDate(profile.createdAt)}</p>
+            <p className="mt-1 break-words text-sm text-[var(--ui-text-muted)]">@{profile.username} · conta criada em {formatDate(profile.createdAt)}</p>
           </div>
-          <div className="flex items-center gap-2 pb-1 text-xs text-[var(--ui-text-faint)]"><Users size={14} aria-hidden="true" /> {data.friendCount} amigos</div>
+          <div className="flex items-center gap-3 pb-1">
+            <span className="flex items-center gap-2 text-xs text-[var(--ui-text-faint)]"><Users size={14} aria-hidden="true" /> {data.friendCount} {data.friendCount === 1 ? "amigo" : "amigos"}</span>
+            <ProfileLikeButton key={profile.username} username={profile.username} initialLiked={Boolean(data.likedByViewer)} initialCount={profile.likeCount ?? 0} />
+          </div>
         </div>
       </section>
 
@@ -911,7 +954,7 @@ export default function AccountPage() {
                 <div className="flex flex-wrap items-center gap-2"><h1 className="truncate font-display text-balance text-3xl text-[var(--ui-text)]">{account.displayName}</h1><Button type="button" intent="ghost" aria-label="Editar nome de exibição" title="Editar nome de exibição" onClick={openNameEditor} className="size-8 min-h-8 rounded-full px-0"><Pencil size={14} aria-hidden="true" /></Button></div>
                 <div className="mt-1 text-sm text-[var(--ui-text-muted)]">@{account.username} · conta criada em {formatDate(account.createdAt)}</div>
               </div>
-              <div className="flex items-center gap-2 pb-1 text-xs text-[var(--ui-text-faint)]"><Users size={14} /> {acceptedFriends.length} amigos</div>
+              <div className="flex items-center gap-3 pb-1 text-xs text-[var(--ui-text-faint)]"><span className="flex items-center gap-2"><Users size={14} /> {acceptedFriends.length} {acceptedFriends.length === 1 ? "amigo" : "amigos"}</span><span className="flex items-center gap-1.5" aria-label={`${account.likeCount ?? 0} curtidas no perfil`}><Heart size={14} aria-hidden="true" className="text-rose-300" /> {account.likeCount ?? 0} {(account.likeCount ?? 0) === 1 ? "curtida" : "curtidas"}</span></div>
             </div>
           </PanelBody>
         </Panel> : null}

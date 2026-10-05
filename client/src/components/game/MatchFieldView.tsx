@@ -79,6 +79,11 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
     roleOverrides: emergencyGoalkeeper ? { [emergencyGoalkeeper.playerId]: 'GK' } : undefined,
   });
 
+  // Team overall: average of the starters' effective overall, as on the "Meu time" screen.
+  const teamOverall = starters.length === 11
+    ? Math.round(starters.reduce((sum, player) => sum + (effectiveStats[player.id]?.overall ?? player.overall), 0) / 11)
+    : null;
+
   const rated = starters.map(p => ratings[p.id]).filter((r): r is number => r !== undefined);
   const avgRating = rated.length ? rated.reduce((a, b) => a + b, 0) / rated.length : 0;
   // Man of the match (best-rated starter so far).
@@ -115,6 +120,12 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
               <div className="text-[12px] font-bold truncate" style={{ color: accent, fontFamily: 'var(--font-game), sans-serif' }}>{coach.philosophy}</div>
             )}
           </div>
+          {teamOverall !== null && (
+            <div className="shrink-0 text-right" aria-label={`Geral do time: ${teamOverall}`}>
+              <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Geral</div>
+              <div className="font-display text-4xl leading-none tabular-nums" style={{ color: 'var(--ui-brand-strong)' }}>{teamOverall}</div>
+            </div>
+          )}
         </div>
 
         {/* Info chips — wrap cleanly on mobile, sit in a row on wider screens */}

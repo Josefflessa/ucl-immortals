@@ -319,3 +319,28 @@ describe('events and avatar frames', () => {
     expect(progress).toEqual({ competitions: 1, semifinals: 1, title: 0 });
   });
 });
+
+describe('profile likes', () => {
+  it('likes once, unlikes, never likes itself and respects private profiles', async () => {
+    const db = database();
+    const { call, register } = api(db);
+    const fan = await register('torcedor');
+    const star = await register('craque');
+
+    const liked = await call('/api/users/craque/like', { method: 'PUT', cookie: fan });
+    expect(liked.body).toEqual({ liked: true, likeCount: 1 });
+    // Liking twice keeps a single like.
+    expect((await call('/api/users/craque/like', { method: 'PUT', cookie: fan })).body.likeCount).toBe(1);
+    const seen = (await call('/api/users/craque', { cookie: fan })).body;
+    expect(seen.profile.likeCount).toBe(1);
+    expect(seen.likedByViewer).toBe(true);
+    expect((await call('/api/account/profile', { cookie: star })).body.account.likeCount).toBe(1);
+
+    expect((await call('/api/users/craque/like', { method: 'DELETE', cookie: fan })).body).toEqual({ liked: false, likeCount: 0 });
+    expect((await call('/api/users/craque/like', { method: 'PUT', cookie: star })).status).toBe(400);
+    expect((await call('/api/users/craque/like', { method: 'PUT' })).status).toBe(401);
+
+    db.exec("UPDATE profiles SET visibility = 'private' WHERE username = 'craque'");
+    expect((await call('/api/users/craque/like', { method: 'PUT', cookie: fan })).status).toBe(403);
+  });
+});

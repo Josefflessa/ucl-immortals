@@ -102,6 +102,8 @@ export interface AccountProfile {
   coverUrl: string | null;
   favoriteCrestId: string | null;
   createdAt: number;
+  /** Likes other players gave this profile. */
+  likeCount?: number;
   stats: AccountStats;
 }
 
@@ -219,6 +221,8 @@ export interface PublicProfileData {
   achievements?: AchievementsPayload;
   scorePosition: ScoreLeaderboardPosition;
   friendCount: number;
+  /** Whether the signed-in viewer liked this profile. */
+  likedByViewer?: boolean;
 }
 
 export interface FriendshipEntry {
@@ -295,6 +299,7 @@ interface AccountContextValue {
   getScoreLeaderboard: (difficulty?: RankedDifficultyId | null) => Promise<ScoreLeaderboardEntry[]>;
   getScoreLeaderboardPosition: () => Promise<ScoreLeaderboardPosition>;
   getPublicProfile: (username: string) => Promise<PublicProfileData>;
+  likeProfile: (username: string, like: boolean) => Promise<{ liked: boolean; likeCount: number }>;
   getFriends: () => Promise<FriendshipEntry[]>;
   setPresence: (presenceId: string, status: 'available' | 'busy' | 'away', revision: number, statusChanged?: boolean) => Promise<void>;
   getRoomInvitations: () => Promise<RoomInvitationEntry[]>;
@@ -537,6 +542,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return api<PublicProfileData>(`/api/users/${encodeURIComponent(username)}`);
   }, []);
 
+  const likeProfile = useCallback(async (username: string, like: boolean) => {
+    return api<{ liked: boolean; likeCount: number }>(`/api/users/${encodeURIComponent(username)}/like`, { method: like ? 'PUT' : 'DELETE' });
+  }, []);
+
   const getFriends = useCallback(async () => {
     const result = await api<{ friends: FriendshipEntry[] }>('/api/account/friends');
     return result.friends;
@@ -577,9 +586,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile,
+    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile,
     getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

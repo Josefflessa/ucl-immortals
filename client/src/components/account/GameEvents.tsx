@@ -1,8 +1,8 @@
 // UCL Immortals — account events: the home shortcut and the event card used on
 // the events screen (challenges, progress and the frame each event unlocks).
 
-import { useState } from 'react';
-import { Check, Clock, Lock, PartyPopper, Sparkles } from 'lucide-react';
+import { useId, useState } from 'react';
+import { Check, ChevronDown, Clock, Lock, PartyPopper, Sparkles } from 'lucide-react';
 import { AVATAR_FRAME_BY_KEY } from '@shared/game/events';
 import type { GameEventState } from '../../contexts/AccountContext';
 import { Button, StatusBanner } from '../../design-system';
@@ -54,6 +54,9 @@ export function EventCard({ event, equippedFrame, onEquip }: {
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Collapsed by default: the header says what the event is; details open on demand.
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   const frame = AVATAR_FRAME_BY_KEY.get(event.frameKey);
   const color = frame?.color ?? 'var(--ui-brand-strong)';
   const done = event.objectives.filter(objective => objective.done).length;
@@ -76,7 +79,7 @@ export function EventCard({ event, equippedFrame, onEquip }: {
       aria-label={`Evento ${event.name}`}
     >
       {/* Header: the reward on the left, what and until when on the right. */}
-      <div className="flex items-center gap-4 border-b border-[var(--ui-line-subtle)] p-4" style={{ background: `linear-gradient(120deg, color-mix(in srgb, ${color} 16%, transparent), transparent 70%)` }}>
+      <div className="flex items-center gap-4 p-4" style={{ background: `linear-gradient(120deg, color-mix(in srgb, ${color} 16%, transparent), transparent 70%)` }}>
         <FrameImage frameKey={event.frameKey} className={cn('size-24 shrink-0 sm:size-28', !event.frameUnlocked && event.status === 'ended' && 'grayscale')} />
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-2xl leading-none text-[var(--ui-text)] sm:text-3xl">{event.name}</h2>
@@ -85,10 +88,11 @@ export function EventCard({ event, equippedFrame, onEquip }: {
             {event.frameUnlocked ? <Check size={13} aria-hidden="true" /> : <Lock size={12} aria-hidden="true" />}
             Recompensa: moldura {frame?.name ?? ''}{event.frameUnlocked ? ' · conquistada' : ''}
           </p>
+          <p className="mt-1 text-xs font-bold tabular-nums text-[var(--ui-text-soft)]">{done}/{event.objectives.length} desafios concluídos</p>
         </div>
       </div>
 
-      <div className="space-y-3 p-4">
+      {expanded ? <div id={detailsId} className="space-y-3 border-t border-[var(--ui-line-subtle)] p-4">
         <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">{event.description}</p>
         {error ? <StatusBanner tone="danger" title="Não foi possível usar a moldura">{error}</StatusBanner> : null}
         <div className="flex items-center justify-between gap-2">
@@ -123,7 +127,18 @@ export function EventCard({ event, equippedFrame, onEquip }: {
         ) : event.status !== 'ended' ? (
           <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Vale qualquer competição concluída com a conta durante o evento, solo ou online. A moldura fica com você para sempre.</p>
         ) : null}
-      </div>
+      </div> : null}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        onClick={() => setExpanded(value => !value)}
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        style={{ fontFamily: 'var(--font-game), sans-serif' }}
+      >
+        <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>
+        <ChevronDown size={15} aria-hidden="true" className={cn('transition-transform', expanded && 'rotate-180')} />
+      </button>
     </article>
   );
 }

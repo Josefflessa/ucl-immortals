@@ -8,6 +8,7 @@ import { getEvolutionLevel } from '@shared/game/gameEngine';
 import { canonicalClubName } from '@shared/game/crests';
 import PlayerPortrait from '../PlayerPortrait';
 import BuffBreakdown from '../BuffBreakdown';
+import { getCardVariants } from '../PlayerCard';
 import { ATTR_LONG, ATTR_SHORT, type PlayerSheetModel, type SheetAttr } from './playerSheetModel';
 
 const FONT = { fontFamily: 'var(--font-game), sans-serif' } as const;
@@ -20,6 +21,8 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
   const evolutionLevel = getEvolutionLevel(player);
   const selectedStat = selected ? model.stats.find(s => s.attr === selected) ?? null : null;
   const anyDelta = model.stats.some(s => s.delta !== 0);
+  // Special characteristics right in the identity row, not only in the bonus breakdown.
+  const variants = getCardVariants(player);
 
   return (
     <div className="overflow-hidden rounded-xl" style={{ background: 'rgba(7,7,15,.82)', border: `1px solid ${rarity}33` }}>
@@ -38,6 +41,11 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
             {model.fit === 'off' && <span className="rounded px-2 py-0.5 text-[12px] font-black" style={{ background: '#EF444422', color: 'var(--ui-danger)', border: '1px solid #EF444444', ...FONT }}>⚠️ FORA DE POSIÇÃO · −15%</span>}
             {model.fit === 'secondary' && <span className="whitespace-nowrap rounded px-2 py-0.5 text-[12px] font-black" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', ...FONT }}>🔁 2ª POSIÇÃO · −5%</span>}
             {evolutionLevel > 0 && <span className="rounded px-2 py-0.5 text-[12px] font-black leading-none" style={{ background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success))', color: '#04120a', letterSpacing: '0.06em' }}>⭐ NÍVEL {evolutionLevel}</span>}
+            {variants.map(variant => (
+              <span key={variant.key} className="inline-flex items-center gap-1 whitespace-nowrap rounded py-0.5 pl-0.5 pr-2 text-[12px] font-black" style={{ background: `${variant.color}1F`, color: variant.color, border: `1px solid ${variant.color}55`, ...FONT }}>
+                <TraitIcon trait={variant.key} fallback={variant.icon} size={18} /> {variant.label}
+              </span>
+            ))}
           </div>
           <div className="truncate text-xl font-black uppercase text-white" style={DISPLAY}>{player.shortName}</div>
           <div className="truncate text-xs text-[var(--ui-text-muted)]" style={FONT}>{canonicalClubName(player.club)} · {player.nation}</div>

@@ -377,13 +377,13 @@ export default function SquadEditor({
               {pilars.map(p => (
                 <span key={p.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px]"
                   style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'var(--font-game), sans-serif' }}>
-                  🧱 {p.shortName} <b>+{PILAR_CHEM_BONUS}</b> química geral
+                  <TraitIcon trait="pilar" fallback="🧱" size={18} /> {p.shortName} <b>+{PILAR_CHEM_BONUS}</b> química geral
                 </span>
               ))}
               {lobos.map(p => (
                 <span key={p.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px]"
                   style={{ background: '#EF444418', border: '1px solid #EF444440', color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>
-                  🐺 {p.shortName} <b>−{LOBO_CHEM_PENALTY}</b> química geral
+                  <TraitIcon trait="lobo" fallback="🐺" size={18} /> {p.shortName} <b>−{LOBO_CHEM_PENALTY}</b> química geral
                 </span>
               ))}
             </div>
