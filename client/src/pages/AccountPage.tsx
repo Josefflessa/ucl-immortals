@@ -467,15 +467,16 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
     <div className="space-y-5">
       <section className="relative isolate overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]" aria-label={`Perfil de ${profile.displayName}`} style={coverStyle}>
         <div aria-hidden="true" className="relative h-36 sm:h-44" />
+        {/* Like: top right of the cover, where the own profile has its edit button. */}
+        <div className="absolute right-4 top-4 z-10"><ProfileLikeButton key={profile.username} username={profile.username} initialLiked={Boolean(data.likedByViewer)} initialCount={profile.likeCount ?? 0} /></div>
         <div className="relative -mt-12 flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:px-8 sm:pb-8">
           <div className="shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey, profile.avatarFrameKey)}</div>
           <div className="min-w-0 flex-1 pb-1">
             <h2 className="truncate font-display text-3xl text-[var(--ui-text)]">{profile.displayName}</h2>
             <p className="mt-1 break-words text-sm text-[var(--ui-text-muted)]">@{profile.username} · conta criada em {formatDate(profile.createdAt)}</p>
           </div>
-          <div className="flex items-center gap-3 pb-1">
+          <div className="flex items-center gap-2 pb-1">
             <span className="flex items-center gap-2 text-xs text-[var(--ui-text-faint)]"><Users size={14} aria-hidden="true" /> {data.friendCount} {data.friendCount === 1 ? "amigo" : "amigos"}</span>
-            <ProfileLikeButton key={profile.username} username={profile.username} initialLiked={Boolean(data.likedByViewer)} initialCount={profile.likeCount ?? 0} />
           </div>
         </div>
       </section>
