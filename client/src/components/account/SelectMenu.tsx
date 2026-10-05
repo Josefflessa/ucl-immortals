@@ -22,6 +22,8 @@ export default function SelectMenu<T extends string>({ label, value, options, on
   onChange: (value: T) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Opens upwards when the list would not fit below (e.g. near a modal footer).
+  const [dropUp, setDropUp] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const listId = useId();
   const current = options.find(option => option.value === value) ?? options[0];
@@ -36,6 +38,28 @@ export default function SelectMenu<T extends string>({ label, value, options, on
     return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); };
   }, [open]);
 
+  const toggle = () => {
+    if (!open && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      let bottom = window.innerHeight;
+      let top = 0;
+      // The nearest scrolling/clipping ancestor limits the room too.
+      for (let node = rootRef.current.parentElement; node; node = node.parentElement) {
+        const overflow = getComputedStyle(node).overflowY;
+        if (overflow === 'auto' || overflow === 'scroll' || overflow === 'hidden') {
+          const box = node.getBoundingClientRect();
+          bottom = Math.min(bottom, box.bottom);
+          top = Math.max(top, box.top);
+          break;
+        }
+      }
+      const listHeight = options.length * 38 + 12;
+      const below = bottom - rect.bottom;
+      setDropUp(below < listHeight && rect.top - top > below);
+    }
+    setOpen(isOpen => !isOpen);
+  };
+
   return (
     <div ref={rootRef} className="relative inline-block">
       <button
@@ -44,7 +68,7 @@ export default function SelectMenu<T extends string>({ label, value, options, on
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        onClick={() => setOpen(isOpen => !isOpen)}
+        onClick={toggle}
         className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border bg-[var(--ui-surface-inset)] py-1 pl-1.5 pr-2.5 text-sm font-bold tracking-wide transition-colors hover:bg-[var(--ui-surface-2)]"
         style={{ borderColor: `color-mix(in srgb, ${colorOf(current)} 55%, var(--ui-line-subtle))`, color: colorOf(current) }}
       >
@@ -52,7 +76,7 @@ export default function SelectMenu<T extends string>({ label, value, options, on
         <ChevronDown size={16} aria-hidden="true" className={cn('ml-1 text-[var(--ui-text-muted)] transition-transform', open && 'rotate-180')} />
       </button>
       {open ? (
-        <ul id={listId} role="listbox" aria-label={label} className="absolute left-0 top-full z-30 mt-1.5 min-w-full overflow-hidden rounded-lg border border-[var(--ui-line-strong)] bg-[var(--ui-surface-2)] py-1 shadow-xl">
+        <ul id={listId} role="listbox" aria-label={label} className={cn('absolute left-0 z-30 min-w-full', dropUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5', ' overflow-hidden rounded-lg border border-[var(--ui-line-strong)] bg-[var(--ui-surface-2)] py-1 shadow-xl')}>
           {options.map(option => {
             const selected = option.value === value;
             return (

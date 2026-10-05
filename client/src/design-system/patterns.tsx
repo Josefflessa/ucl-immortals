@@ -116,7 +116,14 @@ export function GameModal({
           <DialogPrimitive.Content
             className={cn('ui-modal', size === 'wide' && 'ui-modal--wide', 'flex flex-col', className)}
             aria-describedby={undefined}
-            onPointerDownOutside={event => { if (!dismissible) event.preventDefault(); }}
+            onPointerDownOutside={event => {
+              // On touch, Radix only decides "outside" on the click that follows the tap. A tap
+              // that confirmed a stacked modal (e.g. a purchase confirmation) arrives after that
+              // modal is gone, so it would close this one too. Its target is no longer in the
+              // page: that is not a tap outside this modal.
+              const target = event.target as Node | null;
+              if (!dismissible || (target && !target.isConnected)) event.preventDefault();
+            }}
             onEscapeKeyDown={event => { if (!dismissible) event.preventDefault(); }}
             onOpenAutoFocus={dismissible ? undefined : event => event.preventDefault()}
           >

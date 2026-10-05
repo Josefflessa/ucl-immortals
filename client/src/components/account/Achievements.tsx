@@ -379,8 +379,44 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
   }, [open, payload.showcase]);
 
   const unlocked = payload.achievements.filter(state => state.level > 0).sort((a, b) => b.level - a.level);
+  // Achievements are listed by category, as on the achievements screen.
+  const [achievementCategory, setAchievementCategory] = useState<AchievementCategory | 'all'>('all');
+  const unlockedIn = (category: AchievementCategory | 'all') => category === 'all'
+    ? unlocked
+    : unlocked.filter(state => ACHIEVEMENT_BY_ID.get(state.id)?.category === category);
+  const achievementCategoryOptions: SelectMenuOption<AchievementCategory | 'all'>[] = [
+    { value: 'all', text: 'Todas', label: <span className="flex min-w-0 flex-1 items-center justify-between gap-3 pl-1"><span>Todas</span><span className="text-xs tabular-nums text-[var(--ui-text-muted)]">{unlocked.length}</span></span> },
+    ...CATEGORY_ORDER.map(id => ({
+      value: id,
+      text: ACHIEVEMENT_CATEGORY_LABELS[id],
+      dimmed: unlockedIn(id).length === 0,
+      label: <span className="flex min-w-0 flex-1 items-center justify-between gap-3 pl-1"><span>{ACHIEVEMENT_CATEGORY_LABELS[id]}</span><span className="text-xs tabular-nums text-[var(--ui-text-muted)]">{unlockedIn(id).length}</span></span>,
+    })),
+  ];
+  const shownAchievements = unlockedIn(achievementCategory);
+  useEffect(() => {
+    if (!open) return;
+    setAchievementCategory(CATEGORY_ORDER.find(category => unlockedIn(category).length > 0) ?? 'all');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const ownedRecords = [...RANKED_DIFFICULTY_IDS].reverse().flatMap(difficultyId =>
     records.filter(record => record.difficulty_id === difficultyId));
+  // Records are listed one difficulty at a time; it opens on the hardest one with records.
+  const recordDifficulties = new Set(ownedRecords.map(record => record.difficulty_id));
+  const [recordDifficulty, setRecordDifficulty] = useState<string>('immortal');
+  useEffect(() => {
+    if (!open) return;
+    setRecordDifficulty(ownedRecords[0]?.difficulty_id ?? 'immortal');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const shownRecords = ownedRecords.filter(record => record.difficulty_id === recordDifficulty);
+  const recordDifficultyOptions: SelectMenuOption<string>[] = [...RANKED_DIFFICULTY_IDS].reverse().map(id => ({
+    value: id,
+    text: difficultyName(id),
+    color: getRarityColor(id as Rarity),
+    dimmed: !recordDifficulties.has(id),
+    label: <><DifficultyEmblem difficulty={id} size={24} />{difficultyName(id)}</>,
+  }));
   const selectedKeys = selected.map(showcaseKey);
   const toggle = (item: ShowcaseItem) => {
     const key = showcaseKey(item);
@@ -441,10 +477,15 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
       <div className="space-y-4">
         {error ? <StatusBanner tone="danger" title="Não foi possível salvar">{error}</StatusBanner> : null}
         <div className="space-y-2">
-          <div className="ui-kicker">Conquistas desbloqueadas</div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="ui-kicker">Conquistas</div>
+            {unlocked.length > 0 ? <SelectMenu label="Categoria das conquistas" value={achievementCategory} options={achievementCategoryOptions} onChange={setAchievementCategory} /> : null}
+          </div>
           {unlocked.length === 0
             ? <p className="text-xs text-[var(--ui-text-muted)]">Você ainda não desbloqueou conquistas.</p>
-            : unlocked.map(state => {
+            : shownAchievements.length === 0
+              ? <p className="text-xs text-[var(--ui-text-muted)]">Nenhuma conquista desbloqueada nesta categoria.</p>
+            : shownAchievements.map(state => {
               const definition = ACHIEVEMENT_BY_ID.get(state.id)!;
               const tier = tierForLevel(state.level)!;
               return option(`a:${state.id}`, (
@@ -459,10 +500,15 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
             })}
         </div>
         <div className="space-y-2">
-          <div className="ui-kicker">Recordes</div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="ui-kicker">Recordes</div>
+            {ownedRecords.length > 0 ? <SelectMenu label="Dificuldade dos recordes" value={recordDifficulty} options={recordDifficultyOptions} onChange={setRecordDifficulty} /> : null}
+          </div>
           {ownedRecords.length === 0
             ? <p className="text-xs text-[var(--ui-text-muted)]">Seus recordes aparecem aqui quando você concluir competições.</p>
-            : ownedRecords.map(record => {
+            : shownRecords.length === 0
+              ? <p className="text-xs text-[var(--ui-text-muted)]">Nenhum recorde no {difficultyName(recordDifficulty)} ainda.</p>
+            : shownRecords.map(record => {
               const category = record.category as RecordCategory;
               const meta = RECORD_META[category] ?? RECORD_META.goals;
               const Icon = meta.icon;
