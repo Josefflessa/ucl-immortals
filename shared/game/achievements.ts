@@ -326,14 +326,6 @@ export function tierForLevel(level: number): AchievementTier | null {
 }
 
 /** Rarity wording for "N% of players have it". */
-export function rarityLabel(percent: number): 'Comum' | 'Incomum' | 'Rara' | 'Épica' | 'Lendária' {
-  if (percent >= 50) return 'Comum';
-  if (percent >= 20) return 'Incomum';
-  if (percent >= 5) return 'Rara';
-  if (percent >= 1) return 'Épica';
-  return 'Lendária';
-}
-
 // ── Showcase (mural) ──
 export const SHOWCASE_MAX_ITEMS = 6;
 export const RECORD_CATEGORIES = ['goals', 'assists', 'saves', 'effective_overall'] as const;

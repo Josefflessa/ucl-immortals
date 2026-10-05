@@ -4,7 +4,6 @@ import {
   ACHIEVEMENT_BY_ID,
   achievementGoalText,
   evaluateAchievements,
-  rarityLabel,
   sanitizeShowcase,
   SHOWCASE_MAX_ITEMS,
   summarizeCareer,
@@ -153,9 +152,5 @@ describe('showcase and rarity', () => {
     expect(sanitizeShowcase([{ type: 'record', difficultyId: 'easy', category: 'goals' }])).toBeNull();
     expect(sanitizeShowcase([{ type: 'achievement', id: 'veteran' }, { type: 'achievement', id: 'veteran' }])).toBeNull();
     expect(sanitizeShowcase(Array.from({ length: SHOWCASE_MAX_ITEMS + 1 }, () => ({ type: 'achievement', id: 'veteran' })))).toBeNull();
-  });
-
-  it('names rarity from the share of players', () => {
-    expect([60, 30, 10, 2, 0.5].map(rarityLabel)).toEqual(['Comum', 'Incomum', 'Rara', 'Épica', 'Lendária']);
   });
 });

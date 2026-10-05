@@ -14,7 +14,6 @@ import {
   ACHIEVEMENT_TIER_LABELS,
   ACHIEVEMENTS,
   achievementGoalText,
-  rarityLabel,
   showcaseKey,
   SHOWCASE_MAX_ITEMS,
   tierForLevel,
@@ -153,13 +152,14 @@ export function AchievementMedal({ id, level, size = 48 }: { id: string; level: 
   );
 }
 
+/** Share of players at this level or above ("38% dos jogadores chegaram ao nível Ouro"); locked shows the Bronze. */
 function rarityLine(state: AchievementState, rarity: AchievementRarity): string | null {
   if (rarity.players === 0) return null;
   const percents = rarity.percentByAchievement[state.id];
   if (!percents) return null;
-  if (state.level === 0) return `${formatPercent(percents[0])} dos jogadores têm o Bronze`;
-  const percent = percents[state.level - 1];
-  return `${rarityLabel(percent)} · ${formatPercent(percent)} dos jogadores`;
+  const level = Math.max(1, state.level);
+  const tier = tierForLevel(level);
+  return `${formatPercent(percents[level - 1])} dos jogadores chegaram ao nível ${tier ? ACHIEVEMENT_TIER_LABELS[tier] : 'Bronze'}`;
 }
 
 /** Full achievement card: level, next goal with progress, and rarity. */
@@ -224,7 +224,7 @@ function AchievementShowcaseTile({ state, rarity }: { state: AchievementState; r
       <AchievementMedal id={state.id} level={state.level} size={64} />
       <strong className="mt-1 line-clamp-2 text-sm leading-tight text-[var(--ui-text)]">{definition.name}</strong>
       <span className="text-[11px] font-black uppercase tracking-wider" style={{ color }}>{ACHIEVEMENT_TIER_LABELS[tier]}</span>
-      {percent !== undefined ? <span className="text-[11px] leading-tight text-[var(--ui-text-faint)]">{rarityLabel(percent)} · {formatPercent(percent)}</span> : null}
+      {percent !== undefined ? <span className="text-[11px] leading-tight text-[var(--ui-text-faint)]">{formatPercent(percent)} dos jogadores chegaram ao nível {ACHIEVEMENT_TIER_LABELS[tier]}</span> : null}
     </article>
   );
 }
