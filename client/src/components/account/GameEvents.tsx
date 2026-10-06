@@ -264,7 +264,7 @@ export function NameStyleEventCard({ event, playerName, onChoose }: { event: Gam
             const isChosen = chosen?.key === key;
             return (
               <li key={key} className={cn('flex flex-col items-center gap-2 rounded-xl border bg-[var(--ui-surface-1)] p-3 text-center', isChosen ? 'border-[var(--ui-brand)]' : 'border-[var(--ui-line-subtle)]', chosen && !isChosen && 'opacity-40')}>
-                <span className="max-w-full truncate font-display text-2xl"><StyledName name={playerName} styleKey={key} /></span>
+                <span className="block max-w-full font-display text-2xl"><StyledName name={playerName} styleKey={key} /></span>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">{style.name}</span>
                 {canPick ? <Button type="button" intent="primary" onClick={() => setConfirming(key)} className="w-full">ESCOLHER</Button> : null}
               </li>

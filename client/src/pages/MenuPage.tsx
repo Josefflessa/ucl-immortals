@@ -438,7 +438,7 @@ export default function MenuPage() {
                         {friend.displayName.slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-[var(--ui-text)]"><StyledName name={friend.displayName} styleKey={friend.nameStyleKey} size="sm" /></div>
+                        <div className="min-w-0 max-w-full text-sm font-semibold text-[var(--ui-text)]"><StyledName name={friend.displayName} styleKey={friend.nameStyleKey} size="sm" /></div>
                         <div className="truncate text-xs text-[var(--ui-text-muted)]">@{friend.username}</div>
                         <div className={cn(
                           'mt-1 text-[12px] font-bold uppercase tracking-wider',
@@ -519,7 +519,7 @@ export default function MenuPage() {
                   if (fallback) fallback.hidden = false;
                 }} /> : null}
               </span></FramedAvatar>
-              <span className="truncate text-xs font-bold text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} size="sm" /></span>
+              <span className="block min-w-0 max-w-full text-xs font-bold text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} size="sm" /></span>
             </button>
           </div>
         </>
@@ -910,7 +910,7 @@ export default function MenuPage() {
                   {friend.displayName.slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-[var(--ui-text)]"><StyledName name={friend.displayName} styleKey={friend.nameStyleKey} size="sm" /></div>
+                  <div className="min-w-0 max-w-full text-sm font-semibold text-[var(--ui-text)]"><StyledName name={friend.displayName} styleKey={friend.nameStyleKey} size="sm" /></div>
                   <div className="truncate text-xs text-[var(--ui-text-muted)]">@{friend.username} quer adicionar você</div>
                 </div>
                 <div className="flex w-full gap-2 sm:w-auto">

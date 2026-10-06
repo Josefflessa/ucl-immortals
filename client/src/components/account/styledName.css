@@ -9,19 +9,26 @@
   white-space: nowrap;
   vertical-align: bottom;
   line-height: 1.25;
-  padding-inline: .06em;
+  /* Room for the glows: overflow:hidden (needed for the ellipsis) would
+     otherwise cut text-shadow at the box edge into a visible rectangle. */
+  padding: .3em .35em;
+  margin: -.3em -.35em;
+  max-width: calc(100% + .7em);
 }
 
 /* Lendário: gold metal with a passing shine. */
 .styled-name--lendario {
   font-weight: 900;
+  color: #f6d77a; /* the ellipsis */
+  filter: drop-shadow(0 2px 0 #2a1902) drop-shadow(0 0 10px rgba(246, 200, 90, .45));
+}
+.styled-name--lendario .styled-name__text {
   background: linear-gradient(100deg, #7a4e12 0%, #f6d77a 22%, #fff4c4 30%, #c8901f 45%, #fbe39a 62%, #8a5a14 100%);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   -webkit-text-stroke: 1px #4a2d06;
-  filter: drop-shadow(0 2px 0 #2a1902) drop-shadow(0 0 10px rgba(246, 200, 90, .45));
   animation: styled-name-shine 3.2s linear infinite;
 }
 @keyframes styled-name-shine { from { background-position: 120% 0; } to { background-position: -120% 0; } }
@@ -36,11 +43,14 @@
 /* Assombrado: toxic green. */
 .styled-name--assombrado {
   letter-spacing: .04em;
+  color: #84cc16; /* the ellipsis */
+  filter: drop-shadow(0 0 8px rgba(132, 204, 22, .75)) drop-shadow(0 3px 0 #052e16);
+}
+.styled-name--assombrado .styled-name__text {
   background: linear-gradient(180deg, #d9f99d, #65a30d 60%, #14532d);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 8px rgba(132, 204, 22, .75)) drop-shadow(0 3px 0 #052e16);
 }
 
 /* Neon: double-line pink. */
@@ -58,13 +68,14 @@
 }
 
 /* Small size: same font and colour, lighter effects, no motion. */
-.styled-name--sm { animation: none; }
-.styled-name--sm.styled-name--lendario { -webkit-text-stroke: 0; filter: drop-shadow(0 1px 0 #2a1902); background-position: 40% 0; }
+.styled-name--sm, .styled-name--sm .styled-name__text { animation: none; }
+.styled-name--sm.styled-name--lendario { filter: drop-shadow(0 1px 0 #2a1902); }
+.styled-name--sm.styled-name--lendario .styled-name__text { -webkit-text-stroke: 0; background-position: 40% 0; }
 .styled-name--sm.styled-name--arcade { text-shadow: 1px 1px 0 #0a5c00; }
 .styled-name--sm.styled-name--assombrado { filter: drop-shadow(0 1px 0 #052e16); }
 .styled-name--sm.styled-name--neon { text-shadow: none; font-size: .82em; }
 .styled-name--sm.styled-name--pirata { -webkit-text-stroke: 0; text-shadow: 1px 1px 0 #3d2410; }
 
 @media (prefers-reduced-motion: reduce) {
-  .styled-name { animation: none; }
+  .styled-name, .styled-name__text { animation: none; }
 }

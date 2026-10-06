@@ -34,7 +34,9 @@ export default function StyledName({ name, styleKey, size = 'lg', className }: {
   if (!style) return <span className={className}>{name}</span>;
   return (
     <span className={cn('styled-name', 'styled-name--' + style.key, size === 'sm' && 'styled-name--sm', className)} style={{ fontFamily: style.font }}>
-      {name}
+      {/* Gradient fills live on the inner span and glows on the outer one:
+          Chrome would otherwise draw the drop-shadow of the whole box. */}
+      <span className="styled-name__text">{name}</span>
     </span>
   );
 }

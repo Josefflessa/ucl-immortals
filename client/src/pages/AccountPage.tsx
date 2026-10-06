@@ -345,7 +345,7 @@ function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number
       <div aria-label={`Posição ${rank}`} className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg border font-display text-xl tabular-nums', rank === 1 ? 'border-[var(--ui-brand)]/45 bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)]')}>{String(rank).padStart(2, '0')}</div>
       <CompactProfileAvatar name={entry.display_name} avatarKey={entry.avatar_key} avatarUrl={entry.avatar_url} backgroundKey={entry.avatar_background_key} frameKey={entry.avatar_frame_key} sizeClassName="size-16" />
       <div className="min-w-0 flex-1">
-        <strong className="block truncate text-base font-bold text-[var(--ui-text)]"><StyledName name={entry.display_name} styleKey={entry.name_style_key} size="sm" /></strong>
+        <strong className="block min-w-0 text-base font-bold text-[var(--ui-text)]"><StyledName name={entry.display_name} styleKey={entry.name_style_key} size="sm" /></strong>
         <div className="truncate text-xs text-[var(--ui-text-muted)]">@{entry.username}</div>
       </div>
       <div className="shrink-0 text-right">
@@ -474,7 +474,7 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
         <div className="relative -mt-12 flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:px-8 sm:pb-8">
           <div className="shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey, profile.avatarFrameKey)}</div>
           <div className="min-w-0 flex-1 pb-1">
-            <h2 className="truncate font-display text-3xl text-[var(--ui-text)]"><StyledName name={profile.displayName} styleKey={profile.nameStyleKey} /></h2>
+            <h2 className="min-w-0 max-w-full font-display text-3xl text-[var(--ui-text)]"><StyledName name={profile.displayName} styleKey={profile.nameStyleKey} /></h2>
             <p className="mt-1 break-words text-sm text-[var(--ui-text-muted)]">@{profile.username} · conta criada em {formatDate(profile.createdAt)}</p>
           </div>
           <div className="flex items-center gap-2 pb-1">
@@ -958,7 +958,7 @@ export default function AccountPage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               {profileAvatar(account.avatarUrl, account.avatarKey, account.displayName, account.avatarBackgroundKey, account.avatarFrameKey)}
               <div className="min-w-0 flex-1 pb-1">
-                <div className="flex flex-wrap items-center gap-2"><h1 className="truncate font-display text-balance text-3xl text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} /></h1><Button type="button" intent="ghost" aria-label="Editar nome de exibição" title="Editar nome de exibição" onClick={openNameEditor} className="size-8 min-h-8 rounded-full px-0"><Pencil size={14} aria-hidden="true" /></Button></div>
+                <div className="flex flex-wrap items-center gap-2"><h1 className="min-w-0 max-w-full font-display text-balance text-3xl text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} /></h1><Button type="button" intent="ghost" aria-label="Editar nome de exibição" title="Editar nome de exibição" onClick={openNameEditor} className="size-8 min-h-8 rounded-full px-0"><Pencil size={14} aria-hidden="true" /></Button></div>
                 <div className="mt-1 text-sm text-[var(--ui-text-muted)]">@{account.username} · conta criada em {formatDate(account.createdAt)}</div>
               </div>
               <div className="flex items-center gap-3 pb-1 text-xs text-[var(--ui-text-faint)]"><span className="flex items-center gap-2"><Users size={14} /> {acceptedFriends.length} {acceptedFriends.length === 1 ? "amigo" : "amigos"}</span><span className="flex items-center gap-1.5" aria-label={`${account.likeCount ?? 0} curtidas no perfil`}><Heart size={14} aria-hidden="true" className="text-rose-300" /> {account.likeCount ?? 0} {(account.likeCount ?? 0) === 1 ? "curtida" : "curtidas"}</span></div>
@@ -1083,7 +1083,7 @@ export default function AccountPage() {
                         return <article key={friend.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                           <Button type="button" intent="ghost" aria-label={`Ver perfil de ${person.name}`} title={`Ver perfil de ${person.name}`} onClick={() => void viewFriendProfile(person.username)} className="group flex h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 rounded-lg border-0 bg-transparent p-0 text-left normal-case font-normal tracking-normal hover:translate-y-0 hover:border-transparent hover:bg-transparent">
                             <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                            <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className="mt-1 block text-[12px] text-[var(--ui-brand-strong)]">Amigos desde {formatDate(friend.updated_at)}</span></span>
+                            <span className="min-w-0 flex-1"><strong className="block min-w-0 text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className="mt-1 block text-[12px] text-[var(--ui-brand-strong)]">Amigos desde {formatDate(friend.updated_at)}</span></span>
                             <span className="hidden shrink-0 text-[12px] font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
                             <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-[var(--ui-text-faint)]" />
                           </Button>
@@ -1098,7 +1098,7 @@ export default function AccountPage() {
                       const person = friendIdentity(friend, account.id);
                       return <article key={friend.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                         <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                        <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
+                        <div className="min-w-0 flex-1"><strong className="block min-w-0 text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
                         <Button intent="primary" disabled={busy} aria-label={`Aceitar solicitação de ${person.name}`} onClick={() => void actFriend(friend.id, 'accept')} className="size-10 min-h-10 shrink-0 px-0 sm:h-auto sm:w-auto sm:px-3"><Check size={15} aria-hidden="true" /><span className="hidden sm:inline">ACEITAR</span></Button>
                         <Button intent="ghost" disabled={busy} aria-label={`Recusar solicitação de ${person.name}`} onClick={() => void actFriend(friend.id, 'decline')} className="size-10 min-h-10 shrink-0 px-0"><X size={16} aria-hidden="true" /></Button>
                       </article>;
@@ -1111,7 +1111,7 @@ export default function AccountPage() {
                       const person = friendIdentity(friend, account.id);
                       return <article key={friend.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                         <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                        <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
+                        <div className="min-w-0 flex-1"><strong className="block min-w-0 text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
                         <Badge tone="warning">PENDENTE</Badge>
                         <Button intent="ghost" aria-label={`Cancelar solicitação para ${person.name}`} title="Cancelar solicitação" disabled={busy} onClick={() => void actFriend(friend.id, 'remove')} className="size-10 min-h-10 shrink-0 px-0"><X size={16} aria-hidden="true" /></Button>
                       </article>;
@@ -1136,8 +1136,8 @@ export default function AccountPage() {
           <label className="block space-y-2"><span className="ui-kicker">NOME DE EXIBIÇÃO</span><Input autoFocus value={nameDraft} maxLength={40} onChange={event => setNameDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void saveDisplayName(); }} /></label>
           {/* Live preview: big as on the profile, small as in the ranking. */}
           <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-4 text-center">
-            <div className="truncate font-display text-4xl text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} /></div>
-            <div className="mt-2 truncate text-sm font-bold text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} size="sm" /></div>
+            <div className="font-display text-4xl text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} /></div>
+            <div className="mt-2 text-sm font-bold text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} size="sm" /></div>
           </div>
           <div className="space-y-2">
             <span className="ui-kicker">ESTILO DO NOME</span>
