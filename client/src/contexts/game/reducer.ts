@@ -1049,6 +1049,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'DISMISS_MATCH_CREDITS':
       return { ...state, matchCreditsModalPending: false };
 
+    case 'SET_EVENT_UNIQUE_IDS':
+      return { ...state, eventUniqueIds: action.ids };
+
 
     case 'WATCH_ONLINE_MATCH': {
       // Open the match-sim screen in replay mode, driven by the authoritative

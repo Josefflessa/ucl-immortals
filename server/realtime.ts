@@ -12,6 +12,8 @@ export interface RealtimeSocket {
   id: string;
   /** Identity from the HttpOnly account session, never supplied by the client. */
   accountId?: string;
+  /** Event Únicas that account unlocked (its personal Pacote Único pool), loaded with the session. */
+  eventCardIds?: string[];
   /** Optional transport-level liveness marker used by the room watchdog. */
   getLastSeenAt?(): number | undefined;
   on(event: string, handler: RealtimeEventHandler): unknown;

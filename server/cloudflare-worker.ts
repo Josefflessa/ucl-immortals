@@ -16,6 +16,7 @@ import {
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime.js';
 import { ACCOUNT_PRESENCE_TTL_MS, ROOM_INVITATION_TTL_MS, authenticatedAccount, handleAccountRequest } from './account-api.js';
 import { persistCompletedCompetition } from './competition-persistence.js';
+import { loadOwnedEventCards } from './events.js';
 import { cloneRoomJson } from '../shared/room-sync.js';
 import { MAX_ONLINE_PLAYERS } from '../shared/game/competition.js';
 import {
@@ -76,6 +77,7 @@ interface ChunkedStoredGameRoomManifest {
 interface SocketAttachment {
   socketId: string;
   accountId?: string;
+  eventCardIds?: string[];
   /** Durable Object identity, retained even before a player joins the game. */
   roomCode?: string;
   /** Socket.IO-style room membership; absent until join_room/create_room succeeds. */
@@ -289,6 +291,7 @@ class DurableSocket implements RealtimeSocket {
   private joinedRoomCode: string | undefined;
   private lastSeenAt: number;
   readonly accountId?: string;
+  readonly eventCardIds?: string[];
 
   constructor(
     readonly id: string,
@@ -297,10 +300,12 @@ class DurableSocket implements RealtimeSocket {
     private readonly objectRoomCode: string,
     attachment?: SocketAttachment,
     accountId?: string,
+    eventCardIds?: string[],
   ) {
     this.joinedRoomCode = attachment?.joinedRoomCode;
     this.lastSeenAt = Number.isFinite(attachment?.lastSeenAt) ? attachment!.lastSeenAt! : Date.now();
     this.accountId = accountId ?? attachment?.accountId;
+    this.eventCardIds = eventCardIds ?? attachment?.eventCardIds;
   }
 
   getLastSeenAt(): number {
@@ -459,16 +464,16 @@ class DurableRealtimeServer implements RealtimeServer {
     };
   }
 
-  attach(webSocket: WebSocket, roomCode: string, restored = false, accountId?: string): DurableSocket {
+  attach(webSocket: WebSocket, roomCode: string, restored = false, accountId?: string, eventCardIds?: string[]): DurableSocket {
     const attachment = webSocket.deserializeAttachment() as SocketAttachment | null;
     const socketId = attachment?.socketId || crypto.randomUUID();
-    const socket = new DurableSocket(socketId, webSocket, this, roomCode, attachment ?? undefined, accountId);
+    const socket = new DurableSocket(socketId, webSocket, this, roomCode, attachment ?? undefined, accountId, eventCardIds);
     this.byWebSocket.set(webSocket, socket);
     this.sockets.sockets.set(socketId, socket);
     socket.restoreMembership();
     this.connectionHandlers.forEach((handler) => handler(socket));
     if (!restored) {
-      webSocket.serializeAttachment({ socketId, roomCode, accountId: socket.accountId, lastSeenAt: socket.getLastSeenAt() } satisfies SocketAttachment);
+      webSocket.serializeAttachment({ socketId, roomCode, accountId: socket.accountId, eventCardIds: socket.eventCardIds, lastSeenAt: socket.getLastSeenAt() } satisfies SocketAttachment);
       webSocket.send(encodeRealtimeMessage({ type: 'system', event: 'connected', socketId }));
     }
     return socket;
@@ -566,12 +571,14 @@ export class GameRoom {
       const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
       this.state.acceptWebSocket(server);
       let accountId: string | undefined;
+      let eventCardIds: string[] | undefined;
       try {
         accountId = (await authenticatedAccount(request, this.env))?.id;
+        if (accountId) eventCardIds = await loadOwnedEventCards(this.env.DB, accountId);
       } catch {
         // Account identity is additive. A temporary D1 issue must not block guests.
       }
-      runWithGameRuntime(this.runtime, () => this.server.attach(server, roomCode, false, accountId));
+      runWithGameRuntime(this.runtime, () => this.server.attach(server, roomCode, false, accountId, eventCardIds));
       return new Response(null, { status: 101, webSocket: client });
     });
   }

@@ -34,6 +34,17 @@ export interface EventObjective {
   counts: (competition: CareerCompetition) => boolean;
 }
 
+/** One option of a choice event: pick it once, then complete its objectives to unlock its card. */
+export interface EventChoice {
+  key: string;
+  /** Club shown on the option. */
+  label: string;
+  /** Event Única unlocked by completing the objectives (EVENT_UNIQUE_CARDS). */
+  cardId: string;
+  crestId: string;
+  objectives: readonly EventObjective[];
+}
+
 export interface GameEvent {
   id: string;
   name: string;
@@ -41,8 +52,12 @@ export interface GameEvent {
   /** Window in ms since epoch: [startsAt, endsAt). */
   startsAt: number;
   endsAt: number;
-  frameKey: string;
+  /** Frame reward of a regular event. */
+  frameKey?: string;
+  /** Regular event: everyone has these objectives. */
   objectives: readonly EventObjective[];
+  /** Choice event: the account picks one option (for good) and gets its objectives and card. */
+  choices?: readonly EventChoice[];
 }
 
 const SEMIFINAL_OR_BETTER = new Set<CompetitionFinishStage>(['semifinalist', 'runnerUp', 'champion']);
@@ -50,6 +65,9 @@ const GOLD_OR_ABOVE = new Set(['gold', 'legendary', 'immortal']);
 const LEGENDARY_OR_ABOVE = new Set(['legendary', 'immortal']);
 
 const isChampion = (c: CareerCompetition) => c.champion || c.finishStage === 'champion';
+const reachedFinal = (c: CareerCompetition) => isChampion(c) || c.finishStage === 'runnerUp';
+const goldOrAbove = (c: CareerCompetition) => GOLD_OR_ABOVE.has(c.difficultyId);
+const withCrest = (crestId: string) => (c: CareerCompetition) => c.crestId === crestId;
 const reachedSemifinal = (c: CareerCompetition) => isChampion(c) || (c.finishStage !== null && SEMIFINAL_OR_BETTER.has(c.finishStage));
 
 /** Midnight in Brasília (UTC−3) of the given day. */
@@ -67,6 +85,48 @@ export const GAME_EVENTS: readonly GameEvent[] = [
       { id: 'competitions', label: 'Conclua 5 competições', target: 5, counts: () => true },
       { id: 'semifinals', label: 'Chegue à semifinal 3 vezes no Ouro ou acima', target: 3, counts: c => GOLD_OR_ABOVE.has(c.difficultyId) && reachedSemifinal(c) },
       { id: 'title', label: 'Seja campeão no Lendário ou Imortal', target: 1, counts: c => LEGENDARY_OR_ABOVE.has(c.difficultyId) && isChampion(c) },
+    ],
+  },
+  {
+    id: 'classicos-sp-2026',
+    name: 'Clássicos de São Paulo',
+    description: 'Escolha o seu clube e cumpra as missões até 30 de novembro para liberar a Carta Única dele no seu Pacote Único. A escolha é definitiva.',
+    startsAt: brasiliaMidnight(2026, 11, 1),
+    endsAt: brasiliaMidnight(2026, 12, 1),
+    objectives: [],
+    choices: [
+      {
+        key: 'corinthians', label: 'Corinthians', cardId: 'emerson_sheik_unico', crestId: 'corinthians',
+        objectives: [
+          { id: 'crest', label: 'Conclua 3 competições com o escudo do Corinthians', target: 3, counts: withCrest('corinthians') },
+          { id: 'finals', label: 'Chegue à final 2 vezes no Ouro ou acima', target: 2, counts: c => goldOrAbove(c) && reachedFinal(c) },
+          { id: 'title', label: 'Seja campeão com o escudo do Corinthians no Ouro ou acima', target: 1, counts: c => withCrest('corinthians')(c) && goldOrAbove(c) && isChampion(c) },
+        ],
+      },
+      {
+        key: 'palmeiras', label: 'Palmeiras', cardId: 'gustavo_gomez_unico', crestId: 'palmeiras',
+        objectives: [
+          { id: 'crest', label: 'Conclua 3 competições com o escudo do Palmeiras', target: 3, counts: withCrest('palmeiras') },
+          { id: 'unbeaten', label: 'Termine uma competição sem derrotas no Ouro ou acima', target: 1, counts: c => goldOrAbove(c) && c.losses === 0 && c.wins + c.draws > 0 },
+          { id: 'title', label: 'Seja campeão com o escudo do Palmeiras sofrendo no máximo 10 gols', target: 1, counts: c => withCrest('palmeiras')(c) && isChampion(c) && c.goalsAgainst <= 10 },
+        ],
+      },
+      {
+        key: 'sao-paulo', label: 'São Paulo', cardId: 'luis_fabiano_unico', crestId: 'sao-paulo',
+        objectives: [
+          { id: 'crest', label: 'Conclua 3 competições com o escudo do São Paulo', target: 3, counts: withCrest('sao-paulo') },
+          { id: 'scorer', label: 'Tenha um jogador com 20 gols numa competição', target: 1, counts: c => c.topPlayerGoals >= 20 },
+          { id: 'goals', label: 'Marque 50 gols numa competição no Ouro ou acima', target: 1, counts: c => goldOrAbove(c) && c.goals >= 50 },
+        ],
+      },
+      {
+        key: 'santos', label: 'Santos', cardId: 'ganso_unico', crestId: 'santos',
+        objectives: [
+          { id: 'crest', label: 'Conclua 3 competições com o escudo do Santos', target: 3, counts: withCrest('santos') },
+          { id: 'assists', label: 'Tenha um jogador com 12 assistências numa competição', target: 1, counts: c => c.topPlayerAssists >= 12 },
+          { id: 'title', label: 'Seja campeão com o escudo do Santos no Ouro ou acima', target: 1, counts: c => withCrest('santos')(c) && goldOrAbove(c) && isChampion(c) },
+        ],
+      },
     ],
   },
 ];
@@ -88,10 +148,21 @@ export interface EventObjectiveProgress {
   done: boolean;
 }
 
-/** Progress of each objective, counting only competitions completed inside the window. */
-export function evaluateGameEvent(event: GameEvent, career: readonly CareerCompetition[]): { objectives: EventObjectiveProgress[]; completed: boolean } {
+/** The objectives an account works on: the event's own, or those of its chosen option. */
+export function eventObjectivesFor(event: GameEvent, choiceKey?: string | null): readonly EventObjective[] {
+  if (!event.choices) return event.objectives;
+  return event.choices.find(choice => choice.key === choiceKey)?.objectives ?? [];
+}
+
+/**
+ * Progress of each objective, counting only competitions completed inside the window.
+ * A choice event without a choice yet has nothing to complete.
+ */
+export function evaluateGameEvent(event: GameEvent, career: readonly CareerCompetition[], choiceKey?: string | null): { objectives: EventObjectiveProgress[]; completed: boolean } {
   const inWindow = career.filter(c => c.completedAt >= event.startsAt && c.completedAt < event.endsAt);
-  const objectives = event.objectives.map(objective => {
+  const list = eventObjectivesFor(event, choiceKey);
+  if (list.length === 0) return { objectives: [], completed: false };
+  const objectives = list.map(objective => {
     const progress = inWindow.filter(objective.counts).length;
     return { id: objective.id, label: objective.label, progress, target: objective.target, done: progress >= objective.target };
   });

@@ -1,6 +1,6 @@
 // Draft options, card variants and shop packs.
 
-import { Player, PLAYERS, UNIQUE_CARDS, FORMATIONS, getPositionGroup, effectiveSecondaries, type Rarity } from '../gameData';
+import { Player, PLAYERS, UNIQUE_CARDS, EVENT_UNIQUE_CARDS, ALL_UNIQUE_CARDS, FORMATIONS, getPositionGroup, effectiveSecondaries, type Rarity } from '../gameData';
 import { rollPlayerTraits } from '../traits';
 import { random } from '../random';
 
@@ -390,9 +390,12 @@ export function generateUniquePackOffer(
   ownedIds: string[],
   excludedIds: string[] = [],
   size = UNIQUE_PACK_OFFER_SIZE,
+  /** Event Únicas this account unlocked: they join its pool, and nobody else's. */
+  eventUniqueIds: readonly string[] = [],
 ): string[] {
   const excluded = new Set([...ownedIds, ...excludedIds]);
-  const pool = UNIQUE_CARDS.filter(card => !excluded.has(card.id)).map(card => card.id);
+  const eventCards = EVENT_UNIQUE_CARDS.filter(card => eventUniqueIds.includes(card.id));
+  const pool = [...UNIQUE_CARDS, ...eventCards].filter(card => !excluded.has(card.id)).map(card => card.id);
 
   // Fisher-Yates keeps each available card equally likely and avoids the
   // duplicated entries used by rarity-weighted draft shuffles.
@@ -407,7 +410,7 @@ export function generateUniquePackOffer(
 export function drawUniquePackCard(offerIds: string[], ownedIds: string[]): Player | null {
   const owned = new Set(ownedIds);
   const pool = Array.from(new Set(offerIds))
-    .map(id => UNIQUE_CARDS.find(card => card.id === id))
+    .map(id => ALL_UNIQUE_CARDS.find(card => card.id === id))
     .filter((card): card is Player => !!card && !owned.has(card.id));
   if (pool.length === 0) return null;
   return { ...pool[Math.floor(random() * pool.length)] };

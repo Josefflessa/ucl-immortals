@@ -88,6 +88,8 @@ export interface RoomPlayer {
   socketId: string;
   /** Authenticated account identity; omitted for guest players. */
   accountId?: string;
+  /** Event Únicas of that account: they join its Pacote Único pool. */
+  eventUniqueIds?: string[];
   clientId?: string; // identidade persistente do cliente (reconexão robusta, mesmo entre refreshes)
   kicked?: boolean; // removido pelo host; o assento ativo não pode voltar por reconexão
   id: string;
@@ -453,6 +455,7 @@ function roomViewForSocket(room: RoomState, socketId: string): RoomState {
     return {
       ...player,
       accountId: undefined,
+      eventUniqueIds: undefined,
       clientId: undefined,
       points: 0,
       lastMatchPoints: null,
@@ -655,6 +658,7 @@ function seatOf(player: RoomPlayer): seatRules.PlayerSeat {
     pendingUniquePack: player.pendingUniquePack,
     uniquePackOfferIds: player.uniquePackOfferIds,
     uniquePackOfferRoundKey: player.uniquePackOfferRoundKey,
+    eventUniqueIds: player.eventUniqueIds,
     playerPackOfferIds: player.playerPackOfferIds,
     playerPackOfferRoundKeys: player.playerPackOfferRoundKeys,
   };
@@ -1668,6 +1672,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
           {
             socketId: socket.id,
             accountId: socket.accountId,
+            eventUniqueIds: socket.eventCardIds,
             clientId,
             id: 'player_0',
             name: normalizedCreatorName,
@@ -1772,6 +1777,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         }
         byClient.socketId = socket.id;
         byClient.accountId = socket.accountId;
+        byClient.eventUniqueIds = socket.eventCardIds;
         byClient.connected = true;
         cancelRoomCleanup(code);
         scheduleRoomWatchdog(io, room);
@@ -1808,6 +1814,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const newPlayer: RoomPlayer = {
         socketId: socket.id,
         accountId: socket.accountId,
+        eventUniqueIds: socket.eventCardIds,
         clientId,
         id: `player_${room.players.length}`,
         name: normalizedPlayerName,

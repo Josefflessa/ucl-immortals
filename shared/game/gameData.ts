@@ -630,4 +630,4 @@ export const HISTORICAL_TRIOS: HistoricalTrio[] = [
 // ============================================================
 // PLAYERS DATABASE — see players/index.ts (and `pnpm catalog` to search it)
 // ============================================================
-export { PLAYERS, UNIQUE_CARDS, PLAYER_SOURCES } from './players';
+export { PLAYERS, UNIQUE_CARDS, EVENT_UNIQUE_CARDS, ALL_UNIQUE_CARDS, PLAYER_SOURCES } from './players';

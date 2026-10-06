@@ -23,7 +23,7 @@ import { USER_SELECTED_HISTORICAL_PLAYERS } from './userSelectedHistoricalPlayer
 import { FIFAINDEX_FAMOUS_ADDITIONS } from './fifaIndexFamousExpansion';
 import { FIFAINDEX_VERSION_ADDITIONS } from './fifaIndexVersionsExpansion';
 import { ORIGINAL_PLAYERS } from './originalCatalog';
-import { UNIQUE_CARD_LIST } from './uniqueCards';
+import { EVENT_UNIQUE_CARD_LIST, UNIQUE_CARD_LIST } from './uniqueCards';
 
 export interface PlayerSource {
   /** File in shared/game/players that holds the cards. */
@@ -63,3 +63,7 @@ export const PLAYERS: Player[] = PLAYER_SOURCES
   .map(withCanonicalClub);
 
 export const UNIQUE_CARDS: Player[] = UNIQUE_CARD_LIST.map(withCanonicalClub);
+/** Event Únicas: only in the Pacote Único pool of the accounts that unlocked them. */
+export const EVENT_UNIQUE_CARDS: Player[] = EVENT_UNIQUE_CARD_LIST.map(withCanonicalClub);
+/** Every Única, for lookups (offers, claims, album). */
+export const ALL_UNIQUE_CARDS: Player[] = [...UNIQUE_CARDS, ...EVENT_UNIQUE_CARDS];

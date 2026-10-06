@@ -1,4 +1,4 @@
-import { PLAYERS, UNIQUE_CARDS, type Player } from '@shared/game/gameData';
+import { ALL_UNIQUE_CARDS, PLAYERS, type Player } from '@shared/game/gameData';
 import { clubIdForName } from '@shared/game/crests';
 import { CLUBS_BY_ID, type ClubCatalogEntry } from './clubCatalog';
 
@@ -45,7 +45,7 @@ function catalogClubForPlayer(player: Pick<Player, 'club' | 'clubId'>): ClubCata
 }
 
 export function buildPlayerCatalog(
-  players: readonly Player[] = [...PLAYERS, ...UNIQUE_CARDS],
+  players: readonly Player[] = [...PLAYERS, ...ALL_UNIQUE_CARDS],
 ): PlayerCatalog {
   const uniquePlayers = Array.from(
     new Map(players.map(player => [player.id, {

@@ -10,7 +10,7 @@ import {
   saveShowcase,
   syncAchievements,
 } from './achievements.js';
-import { loadOwnedFrames, syncEventRewards } from './events.js';
+import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, syncEventRewards } from './events.js';
 import { isAvatarFrameKey } from '../shared/game/events.js';
 import {
   competitionStagePoints,
@@ -663,11 +663,11 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     console.error('[achievements] evaluation after solo save failed:', error);
     return [];
   });
-  const framesUnlocked = await syncEventRewards(env.DB, account.id).then(result => result.unlocked).catch(error => {
+  const eventRewards = await syncEventRewards(env.DB, account.id).catch(error => {
     console.error('[events] evaluation after solo save failed:', error);
-    return [];
+    return { unlocked: [], cardsUnlocked: [] };
   });
-  return json({ id, duplicate: false, achievementsUnlocked, framesUnlocked }, 201);
+  return json({ id, duplicate: false, achievementsUnlocked, framesUnlocked: eventRewards.unlocked, eventCardsUnlocked: eventRewards.cardsUnlocked }, 201);
 }
 
 async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
@@ -1283,15 +1283,25 @@ async function friendUpdate(request: Request, env: AccountEnv, account: Authenti
   return json({ ok: true });
 }
 
-/** Events with the account's progress, plus the frames it owns and wears. */
+/** Events with the account's progress, plus the frames and event Únicas it owns. */
 async function accountEvents(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
-  const { states, unlocked } = await syncEventRewards(env.DB, account.id);
+  const { states, unlocked, cardsUnlocked } = await syncEventRewards(env.DB, account.id);
   return json({
     events: states,
     frames: await loadOwnedFrames(env.DB, account.id),
+    eventCards: await loadOwnedEventCards(env.DB, account.id),
     equippedFrame: account.avatarFrameKey,
     unlocked,
+    cardsUnlocked,
   });
+}
+
+/** Picks the account's option in a choice event (for good). */
+async function chooseEvent(request: Request, env: AccountEnv, account: AuthenticatedAccount, eventId: string): Promise<Response> {
+  const body = await readJson(request);
+  const result = await chooseEventOption(env.DB, account.id, eventId, body?.choice);
+  if ('error' in result) return json(result, result.error === 'already_chosen' ? 409 : 400);
+  return accountEvents(env, account);
 }
 
 /** Whether the viewer may see this profile: public, their own, or a friend's "friends only". */
@@ -1388,6 +1398,8 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (url.pathname === '/api/account/achievements' && request.method === 'GET') return accountAchievements(env, account, url);
     if (url.pathname === '/api/account/showcase' && request.method === 'PUT') return updateShowcase(request, env, account);
     if (url.pathname === '/api/account/events' && request.method === 'GET') return accountEvents(env, account);
+    const eventChoice = url.pathname.match(/^\/api\/account\/events\/([a-z0-9-]+)\/choice$/);
+    if (eventChoice && request.method === 'POST') return chooseEvent(request, env, account, eventChoice[1]);
     if (url.pathname === '/api/account/history' && request.method === 'GET') {
       const requestedPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
       return historyList(env, account, Number.isFinite(requestedPage) ? requestedPage : 1);

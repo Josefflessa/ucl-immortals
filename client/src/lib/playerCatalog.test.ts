@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { PLAYERS, UNIQUE_CARDS } from '@shared/game/gameData';
+import { ALL_UNIQUE_CARDS, PLAYERS } from '@shared/game/gameData';
 import { CLUB_CATALOG, CLUBS_BY_ID } from './clubCatalog';
 import { buildPlayerCatalog, getPlayerCatalogPath, PLAYER_CATALOG } from './playerCatalog';
 
 describe('catálogo hierárquico de jogadores', () => {
   it('classifica todas as cartas em país, liga e clube sem perder nenhuma', () => {
-    const sourceCards = new Map([...PLAYERS, ...UNIQUE_CARDS].map(player => [player.id, player]));
+    const sourceCards = new Map([...PLAYERS, ...ALL_UNIQUE_CARDS].map(player => [player.id, player]));
     const catalogCards = new Map(PLAYER_CATALOG.players.map(player => [player.id, player]));
 
     expect(catalogCards.size).toBe(sourceCards.size);

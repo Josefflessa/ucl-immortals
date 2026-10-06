@@ -343,6 +343,49 @@ describe('events and avatar frames', () => {
   });
 });
 
+describe('choice events and event Únicas', () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const at = (iso: string) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(iso)); };
+  const event = (body: any) => body.events.find((e: any) => e.id === 'classicos-sp-2026');
+
+  it('picks one club for good and unlocks only its card after its own challenges', async () => {
+    const { call, register } = api(database());
+    at('2026-10-20T12:00:00-03:00');
+    const cookie = await register('alvinegro');
+    // Before the start the clubs are shown but cannot be picked.
+    expect(event((await call('/api/account/events', { cookie })).body)).toMatchObject({ status: 'upcoming', chosenKey: null });
+    expect((await call('/api/account/events/classicos-sp-2026/choice', { method: 'POST', cookie, body: { choice: 'corinthians' } })).status).toBe(400);
+
+    at('2026-11-05T12:00:00-03:00');
+    // Without a choice nothing is tracked, even with Corinthians campaigns.
+    await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('gold', { crestId: 'corinthians' }) });
+    expect(event((await call('/api/account/events', { cookie })).body)).toMatchObject({ chosenKey: null, objectives: [], completed: false });
+
+    expect((await call('/api/account/events/classicos-sp-2026/choice', { method: 'POST', cookie, body: { choice: 'time-qualquer' } })).status).toBe(400);
+    const chosen = await call('/api/account/events/classicos-sp-2026/choice', { method: 'POST', cookie, body: { choice: 'corinthians' } });
+    expect(chosen.status).toBe(200);
+    expect(event(chosen.body)).toMatchObject({ chosenKey: 'corinthians', cardUnlocked: false });
+    // The choice is for good.
+    expect((await call('/api/account/events/classicos-sp-2026/choice', { method: 'POST', cookie, body: { choice: 'santos' } })).status).toBe(409);
+
+    // The competition played before choosing already counts (it is inside the window).
+    const posts = [
+      soloHistory('gold', { crestId: 'corinthians', champion: false, finishStage: 'runnerUp' }),
+      soloHistory('silver', { crestId: 'palmeiras', champion: true, finishStage: 'champion' }),
+    ];
+    for (const body of posts) expect((await call('/api/account/history', { method: 'POST', cookie, body })).body.eventCardsUnlocked).toEqual([]);
+    const progress = Object.fromEntries(event((await call('/api/account/events', { cookie })).body).objectives.map((o: any) => [o.id, o.progress]));
+    expect(progress).toEqual({ crest: 2, finals: 1, title: 0 });
+
+    // A Corinthians title on Ouro closes all three.
+    const last = await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('gold', { crestId: 'corinthians', champion: true, finishStage: 'champion' }) });
+    expect(last.body.eventCardsUnlocked).toEqual([{ cardId: 'emerson_sheik_unico', eventId: 'classicos-sp-2026' }]);
+    const after = (await call('/api/account/events', { cookie })).body;
+    expect(event(after)).toMatchObject({ completed: true, cardUnlocked: true });
+    expect(after.eventCards).toEqual(['emerson_sheik_unico']);
+  });
+});
+
 describe('profile likes', () => {
   it('likes once, unlikes, never likes itself and respects private profiles', async () => {
     const db = database();

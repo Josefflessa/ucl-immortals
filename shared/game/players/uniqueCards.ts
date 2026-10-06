@@ -69,3 +69,18 @@ export const UNIQUE_CARD_LIST: Player[] = [
   { id: 'figo_unico', basePlayerId: 'figo', historicalPlayerId: 'figo', shortName: 'Figo', fullName: 'Luís Filipe Madeira Caeiro Figo', position: 'RW', secondaryPositions: ['RM', 'CAM'], nation: 'Portugal', club: 'Real Madrid', season: 'Única', rarity: 'unique', overall: 99,
     pace: 95, shooting: 90, passing: 96, dribbling: 98, defending: 52, physical: 85, vision: 96, composure: 97, traits: ['Dribblador Nato', 'Passe Preciso', 'Armador'], historicalPartners: ['zidane', 'roberto_carlos', 'raul'] },
 ];
+
+/**
+ * Cartas Únicas de evento. Ficam fora do pool geral do Pacote Único: cada uma
+ * entra só no pool de quem a conquistou no evento (shared/game/events.ts).
+ */
+export const EVENT_UNIQUE_CARD_LIST: Player[] = [
+  { id: 'emerson_sheik_unico', shortName: 'Emerson Sheik', fullName: 'Márcio Passos de Albuquerque', position: 'ST', secondaryPositions: ['LW', 'RW'], nation: 'Brasil', club: 'Corinthians', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 92, shooting: 95, passing: 84, dribbling: 93, defending: 40, physical: 84, vision: 86, composure: 97, traits: ['Finalizador', 'Especialista em Decisões', 'Frio na Final'] },
+  { id: 'gustavo_gomez_unico', basePlayerId: 'brasileirao_79010306', shortName: 'Gustavo Gómez', fullName: 'Gustavo Raúl Gómez Portillo', position: 'CB', nation: 'Paraguai', club: 'Palmeiras', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 78, shooting: 62, passing: 76, dribbling: 70, defending: 99, physical: 98, vision: 74, composure: 96, traits: ['Líder da Defesa', 'Muralha', 'Cabeceador'] },
+  { id: 'luis_fabiano_unico', shortName: 'Luís Fabiano', fullName: 'Luís Fabiano Clemente', position: 'ST', nation: 'Brasil', club: 'São Paulo', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 86, shooting: 99, passing: 80, dribbling: 88, defending: 42, physical: 95, vision: 82, composure: 96, traits: ['Finalizador', 'Cabeceador', 'Força Bruta'], historicalPartners: ['rogerio_ceni'] },
+  { id: 'ganso_unico', basePlayerId: 'ganso', shortName: 'Ganso', fullName: 'Paulo Henrique Chagas de Lima', position: 'CAM', secondaryPositions: ['CM'], nation: 'Brasil', club: 'Santos', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 72, shooting: 86, passing: 99, dribbling: 94, defending: 45, physical: 70, vision: 99, composure: 96, traits: ['Maestro do Passe', 'Visão de Jogo', 'Armador'], historicalPartners: ['neymar_santos'] },
+];

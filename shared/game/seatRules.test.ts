@@ -4,7 +4,8 @@ import { generateBotTeam } from './gameEngine';
 import { SHOP_COSTS } from './shop';
 import { createMissionState } from './missions';
 import { trainingCostForProject } from './clubProjects';
-import { PLAYERS } from './gameData';
+import { EVENT_UNIQUE_CARDS, PLAYERS, UNIQUE_CARDS } from './gameData';
+import { generateUniquePackOffer } from './gameEngine';
 
 const open: seatRules.SeatContext = { shopOpen: true, roundKey: 'league:1' };
 const closed: seatRules.SeatContext = { shopOpen: false, roundKey: null };
@@ -140,5 +141,28 @@ describe('seat rules — recruitment and lineup', () => {
     expect(seatRules.setMatchRoles(base, { captain: gk.id }).ok).toBe(true);
     expect(seatRules.setFormation(base, 'not-a-formation').ok).toBe(false);
     expect(seatRules.setPlayStyle(base, 'not-a-tactic').ok).toBe(false);
+  });
+});
+
+describe('seat rules — event Únicas', () => {
+  it('an event Única only joins the Pacote Único pool of the account that unlocked it', () => {
+    const all = UNIQUE_CARDS.length + EVENT_UNIQUE_CARDS.length;
+    const everyone = generateUniquePackOffer([], [], all);
+    expect(everyone.some(id => EVENT_UNIQUE_CARDS.some(card => card.id === id))).toBe(false);
+    const owner = generateUniquePackOffer([], [], all, ['ganso_unico']);
+    expect(owner).toContain('ganso_unico');
+    expect(owner).not.toContain('emerson_sheik_unico');
+  });
+
+  it('the owner can open the pack and claim the event card', () => {
+    const base = seat(5000);
+    const withOffer = { ...base, eventUniqueIds: ['ganso_unico'], uniquePackOfferIds: ['ganso_unico'], uniquePackOfferRoundKey: open.roundKey };
+    const opened = seatRules.openUniquePack(withOffer, open);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    expect(opened.seat.pendingUniquePack?.id).toBe('ganso_unico');
+    const claimed = seatRules.claimUniquePack(opened.seat);
+    expect(claimed.ok).toBe(true);
+    if (claimed.ok) expect(claimed.seat.team.players.some(card => card.id === 'ganso_unico')).toBe(true);
   });
 });

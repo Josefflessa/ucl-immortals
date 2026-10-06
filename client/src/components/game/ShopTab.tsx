@@ -6,7 +6,7 @@ import TraitIcon from './TraitIcon';
 import { cn } from '../../lib/utils';
 import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import { COACHES, PLAYERS, POS_PT, Player, UNIQUE_CARDS } from '@shared/game/gameData';
+import { ALL_UNIQUE_CARDS, COACHES, PLAYERS, POS_PT, Player } from '@shared/game/gameData';
 import { buildUniquePackRoundKey, SCOUT_MIN_OVERALL, hasVariant, canAddVariant, variantCount } from '@shared/game/gameEngine';
 import type { VariantFlag } from '@shared/game/gameEngine';
 import { PLAYER_PACK_META, PLAYER_PACK_RARITIES, SHOP_COSTS, TURBINAR_VARIANTS, ShopVariant, type PlayerPackRarity, type RegularPlayerPackRarity, playerPackCost, shopItemCost } from '@shared/game/shop';
@@ -183,7 +183,7 @@ export default function ShopTab() {
       : null;
   const uniquePackCards = state.uniquePackOfferRoundKey === uniqueOfferRoundKey
     ? state.uniquePackOfferIds
-      .map(id => UNIQUE_CARDS.find(card => card.id === id))
+      .map(id => ALL_UNIQUE_CARDS.find(card => card.id === id))
       .filter((card): card is Player => !!card)
     : [];
   const regularPackCards: Partial<Record<RegularPlayerPackRarity, Player[]>> = {};

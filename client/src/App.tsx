@@ -123,6 +123,17 @@ function GameRouter() {
   return renderPhase(state.phase);
 }
 
+/** The account's event Únicas feed its Pacote Único in solo games. */
+function EventCardsSync() {
+  const { eventCards } = useAccount();
+  const { state, dispatch } = useGame();
+  const key = eventCards.join(',');
+  useEffect(() => {
+    if ((state.eventUniqueIds ?? []).join(',') !== key) dispatch({ type: 'SET_EVENT_UNIQUE_IDS', ids: key ? key.split(',') : [] });
+  }, [key, state.eventUniqueIds, dispatch]);
+  return null;
+}
+
 function renderPhase(phase: string) {
   switch (phase) {
     case 'menu':
@@ -154,6 +165,7 @@ function App() {
       <AccountProvider>
         <GameProvider>
           <ModalScrollLock />
+          <EventCardsSync />
           <GameRouter />
           <RoomInvitationPrompt />
           <InstallPrompt />

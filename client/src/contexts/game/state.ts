@@ -121,6 +121,8 @@ export interface GameState {
   // quando uma é adquirida, o card apenas passa a exibir "JÁ POSSUI".
   uniquePackOfferIds: string[];
   uniquePackOfferRoundKey: string | null;
+  // ⭐ Cartas Únicas de evento da conta: entram no pool do Pacote Único dela (solo).
+  eventUniqueIds: string[];
   playerPackOfferIds: Partial<Record<RegularPlayerPackRarity, string[]>>;
   playerPackOfferRoundKeys: Partial<Record<RegularPlayerPackRarity, string | null>>;
   // 🎯 Palpites (apostas de pontos). Escrow já debitado ao apostar; crédito só na revelação.
@@ -266,6 +268,7 @@ export type GameAction =
   | { type: 'ADVANCE_KNOCKOUT' }
   | { type: 'FINISH_KNOCKOUT_MATCH'; result: MatchResult }
   | { type: 'DISMISS_MATCH_CREDITS' }
+  | { type: 'SET_EVENT_UNIQUE_IDS'; ids: string[] }
   | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } }; spectator?: boolean }
   | { type: 'FINISH_ELIMINATED_CAMPAIGN' }
   | { type: 'FINISH_GAME'; champion: string }
@@ -321,6 +324,7 @@ export const initialState: GameState = {
   pendingUniquePack: null,
   uniquePackOfferIds: [],
   uniquePackOfferRoundKey: null,
+  eventUniqueIds: [],
   playerPackOfferIds: {},
   playerPackOfferRoundKeys: {},
   bets: [],

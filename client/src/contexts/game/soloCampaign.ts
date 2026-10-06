@@ -54,6 +54,7 @@ function soloSeatOf(state: GameState): seatRules.PlayerSeat | null {
     pendingUniquePack: state.pendingUniquePack,
     uniquePackOfferIds: state.uniquePackOfferIds,
     uniquePackOfferRoundKey: state.uniquePackOfferRoundKey,
+    eventUniqueIds: state.eventUniqueIds ?? [],
     playerPackOfferIds: state.playerPackOfferIds,
     playerPackOfferRoundKeys: state.playerPackOfferRoundKeys,
   };

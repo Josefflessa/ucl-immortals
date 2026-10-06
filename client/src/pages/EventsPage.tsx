@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { useAccount, type EventsPayload, type GameEventState } from '../contexts/AccountContext';
 import AccountTabBar from '../components/account/AccountTabBar';
-import { EventCard } from '../components/account/GameEvents';
+import { ChoiceEventCard, EventCard } from '../components/account/GameEvents';
 import { AppShell, Button, EmptyState, PageContainer, SectionHeader, Skeleton, StatusBanner, Tab, TabList, TabPanel, Tabs, TopBar } from '../design-system';
 
 type EventStatus = GameEventState['status'];
@@ -19,7 +19,7 @@ const SECTIONS: { status: EventStatus; title: string; emptyTitle: string; empty:
 
 export default function EventsPage() {
   const { dispatch } = useGame();
-  const { account, loading, getEvents, updateProfile } = useAccount();
+  const { account, loading, getEvents, chooseEventOption, updateProfile } = useAccount();
   const [payload, setPayload] = useState<EventsPayload | null>(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -40,6 +40,10 @@ export default function EventsPage() {
       .catch(err => { if (active) setError(err instanceof Error ? err.message : 'Não foi possível carregar os eventos.'); });
     return () => { active = false; };
   }, [accountId, attempt, getEvents]);
+
+  const choose = async (eventId: string, choice: string) => {
+    setPayload(await chooseEventOption(eventId, choice));
+  };
 
   const equip = async (frameKey: string) => {
     await updateProfile({ avatarFrameKey: frameKey });
@@ -75,7 +79,9 @@ export default function EventsPage() {
                 <TabPanel key={section.status} value={section.status} className="space-y-3 pt-4">
                   {events.length === 0
                     ? <EmptyState title={section.emptyTitle} description={section.empty} />
-                    : events.map(event => <EventCard key={event.id} event={event} equippedFrame={payload.equippedFrame} onEquip={equip} />)}
+                    : events.map(event => event.choices
+                      ? <ChoiceEventCard key={event.id} event={event} onChoose={choice => choose(event.id, choice)} />
+                      : <EventCard key={event.id} event={event} equippedFrame={payload.equippedFrame} onEquip={equip} />)}
                 </TabPanel>
               );
             })}

@@ -36,6 +36,14 @@ export interface EventObjectiveState {
   done: boolean;
 }
 
+export interface EventChoiceState {
+  key: string;
+  label: string;
+  cardId: string;
+  crestId: string;
+  objectives: string[];
+}
+
 export interface GameEventState {
   id: string;
   name: string;
@@ -43,18 +51,31 @@ export interface GameEventState {
   startsAt: number;
   endsAt: number;
   status: 'upcoming' | 'active' | 'ended';
-  frameKey: string;
+  /** Frame reward (regular events). */
+  frameKey: string | null;
+  /** Choice events: the options and the account's pick. */
+  choices: EventChoiceState[] | null;
+  chosenKey: string | null;
   objectives: EventObjectiveState[];
   completed: boolean;
   frameUnlocked: boolean;
+  cardUnlocked: boolean;
+}
+
+export interface EventCardUnlock {
+  cardId: string;
+  eventId: string;
 }
 
 export interface EventsPayload {
   events: GameEventState[];
   /** Frames the account owns. */
   frames: string[];
+  /** Event Únicas the account unlocked (its personal Pacote Único pool). */
+  eventCards: string[];
   equippedFrame: string | null;
   unlocked: FrameUnlock[];
+  cardsUnlocked: EventCardUnlock[];
 }
 
 export interface AchievementsPayload {
@@ -290,9 +311,13 @@ interface AccountContextValue {
       playerPhotoUrl?: string | null;
       value: number;
     }>;
-  }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[] }>;
+  }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[] }>;
   getOwnAchievements: (since?: number) => Promise<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>;
   getEvents: () => Promise<EventsPayload>;
+  /** Picks the account's option in a choice event (for good). */
+  chooseEventOption: (eventId: string, choice: string) => Promise<EventsPayload>;
+  /** Event Únicas the account unlocked; empty for guests. */
+  eventCards: string[];
   updateShowcase: (items: ShowcaseItem[]) => Promise<AchievementsPayload['showcase']>;
   getRecords: (filters?: { category?: string; difficulty?: string }) => Promise<PublicRecordEntry[]>;
   getOwnRecordHighlights: () => Promise<ProfileRecordEntry[]>;
@@ -455,10 +480,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [accountId, readCacheFor]);
 
   const saveHistory = useCallback(async (payload: Parameters<AccountContextValue['saveHistory']>[0]) => {
-    let result: { id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[] } | null = null;
+    let result: { id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[] } | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        result = await api<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[] }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
+        result = await api<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[] }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
         break;
       } catch (error) {
         const status = (error as Error & { status?: number }).status;
@@ -477,7 +502,23 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return api<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>(`/api/account/achievements${query}`);
   }, []);
 
-  const getEvents = useCallback(async () => api<EventsPayload>('/api/account/events'), []);
+  const [eventCards, setEventCards] = useState<string[]>([]);
+  const getEvents = useCallback(async () => {
+    const payload = await api<EventsPayload>('/api/account/events');
+    setEventCards(payload.eventCards ?? []);
+    return payload;
+  }, []);
+  const chooseEventOption = useCallback(async (eventId: string, choice: string) => {
+    const payload = await api<EventsPayload>(`/api/account/events/${encodeURIComponent(eventId)}/choice`, { method: 'POST', body: JSON.stringify({ choice }) });
+    setEventCards(payload.eventCards ?? []);
+    return payload;
+  }, []);
+  // The account's event Únicas feed its Pacote Único in solo games.
+  const accountKey = account?.id ?? null;
+  useEffect(() => {
+    if (!accountKey) { setEventCards([]); return; }
+    void getEvents().catch(() => undefined);
+  }, [accountKey, getEvents]);
 
   const updateShowcase = useCallback(async (items: ShowcaseItem[]) => {
     const result = await api<{ showcase: AchievementsPayload['showcase'] }>('/api/account/showcase', { method: 'PUT', body: JSON.stringify({ items }) });
@@ -586,9 +627,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile,
+    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, chooseEventOption, eventCards, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile,
     getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, chooseEventOption, eventCards, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

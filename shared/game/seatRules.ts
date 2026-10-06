@@ -6,7 +6,7 @@
 // upgrade or an evolution choice follows exactly the same rule everywhere.
 // Network-input validation (ids, enums) stays at the server boundary.
 
-import { FORMATIONS, PLAYERS, TACTICS, UNIQUE_CARDS, type Player, type PlayerSpecialization } from './gameData';
+import { ALL_UNIQUE_CARDS, EVENT_UNIQUE_CARDS, FORMATIONS, PLAYERS, TACTICS, UNIQUE_CARDS, type Player, type PlayerSpecialization } from './gameData';
 import {
   applyEvolvePoint, applyMercenarioProgress, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, getActiveKnockoutMatches, validateMatchPlan, applyShopVariant, canAddVariant, canUnlockSpecialization,
   choosePlayerSpecialization, drawPlayerPackCard, drawUniquePackCard, evolvePointsBudget,
@@ -41,6 +41,8 @@ export interface PlayerSeat {
   pendingUniquePack: Player | null;
   uniquePackOfferIds?: string[];
   uniquePackOfferRoundKey?: string | null;
+  /** Event Únicas the account unlocked: they can show up in its Pacote Único. */
+  eventUniqueIds?: string[];
   playerPackOfferIds?: Partial<Record<RegularPlayerPackRarity, string[]>>;
   playerPackOfferRoundKeys?: Partial<Record<RegularPlayerPackRarity, string | null>>;
 }
@@ -103,12 +105,14 @@ export function ensureUniquePackOffer(seat: PlayerSeat, ctx: SeatContext): Playe
   const owned = ownedIds(seat);
   const excluded = seat.pendingUniquePack ? [seat.pendingUniquePack.id] : [];
   const stored = seat.uniquePackOfferIds;
-  const validStored = Array.isArray(stored) && stored.every(id => UNIQUE_CARDS.some(card => card.id === id));
+  const eventIds = seat.eventUniqueIds ?? [];
+  const pool = [...UNIQUE_CARDS, ...EVENT_UNIQUE_CARDS.filter(card => eventIds.includes(card.id))];
+  const validStored = Array.isArray(stored) && stored.every(id => pool.some(card => card.id === id));
   const unavailable = new Set([...owned, ...excluded]);
-  const anyLeft = UNIQUE_CARDS.some(card => !unavailable.has(card.id));
+  const anyLeft = pool.some(card => !unavailable.has(card.id));
   // An empty offer is valid once the whole catalogue is owned.
   if (seat.uniquePackOfferRoundKey === ctx.roundKey && validStored && (stored!.length > 0 || !anyLeft)) return seat;
-  return { ...seat, uniquePackOfferIds: generateUniquePackOffer(owned, excluded), uniquePackOfferRoundKey: ctx.roundKey };
+  return { ...seat, uniquePackOfferIds: generateUniquePackOffer(owned, excluded, undefined, eventIds), uniquePackOfferRoundKey: ctx.roundKey };
 }
 
 export const REGULAR_PLAYER_PACK_RARITIES: RegularPlayerPackRarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal'];
@@ -148,7 +152,7 @@ export function openUniquePack(seat: PlayerSeat, ctx: SeatContext): SeatResult {
 export function claimUniquePack(seat: PlayerSeat): SeatResult {
   const pending = seat.pendingUniquePack;
   if (!pending) return fail();
-  const canonical = UNIQUE_CARDS.find(card => card.id === pending.id);
+  const canonical = ALL_UNIQUE_CARDS.find(card => card.id === pending.id);
   // The pack stays reserved when validation fails, so a paid purchase is never lost.
   if (!canonical || seat.team.players.some(card => card.id === canonical.id)) return fail('Não foi possível adicionar esta Carta Única.');
   return ok({ ...seat, pendingUniquePack: null, team: addToBench(seat, canonical) });

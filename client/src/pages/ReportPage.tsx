@@ -28,7 +28,8 @@ import type { CompetitionHistoryEntry } from '../contexts/AccountContext';
 import { getCompetitionHistorySnapshot, type CompetitionHistorySnapshot } from '../lib/historySnapshot';
 import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '@shared/game/competitionRanking';
 import { UnlockedAchievements } from '../components/account/Achievements';
-import type { AchievementUnlock, FrameUnlock } from '../contexts/AccountContext';
+import type { AchievementUnlock, EventCardUnlock, FrameUnlock } from '../contexts/AccountContext';
+import { ALL_UNIQUE_CARDS } from '@shared/game/gameData';
 import { AVATAR_FRAME_BY_KEY } from '@shared/game/events';
 import { FrameImage } from '../components/account/AvatarFrame';
 
@@ -336,6 +337,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const [historySaveRetry, setHistorySaveRetry] = useState(0);
   const [achievementUnlocks, setAchievementUnlocks] = useState<AchievementUnlock[]>([]);
   const [frameUnlocks, setFrameUnlocks] = useState<FrameUnlock[]>([]);
+  const [cardUnlocks, setCardUnlocks] = useState<EventCardUnlock[]>([]);
 
   // Online campaigns are saved by the room server when the report opens, so ask
   // for the levels reached since then, a few times while that save completes.
@@ -449,6 +451,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       setHistorySaveStatus('saved');
       setAchievementUnlocks(result.achievementsUnlocked ?? []);
       setFrameUnlocks(result.framesUnlocked ?? []);
+      setCardUnlocks(result.eventCardsUnlocked ?? []);
     }).catch(error => {
       console.error('[account] não foi possível salvar o histórico solo:', error);
       setHistorySaveError(error instanceof Error ? error.message : 'Não foi possível salvar a competição agora.');
@@ -497,6 +500,25 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           </div>
         </div>
       )}
+
+      {/* A choice event finished with this campaign: its Única joins the player's Pacote Único. */}
+      {!historyEntry && cardUnlocks.length > 0 ? (
+        <div className="mx-auto w-full max-w-5xl px-4 pt-3" aria-live="polite">
+          {cardUnlocks.map(unlock => {
+            const card = ALL_UNIQUE_CARDS.find(candidate => candidate.id === unlock.cardId);
+            if (!card) return null;
+            return (
+              <div key={unlock.cardId} className="flex items-center gap-3 rounded-xl border border-[var(--ui-brand)] bg-[var(--ui-surface-inset)] p-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--ui-brand-strong)]">Evento concluído</div>
+                  <div className="font-display text-xl leading-tight text-[var(--ui-text)]">Carta Única {card.shortName} liberada</div>
+                  <div className="text-xs text-[var(--ui-text-muted)]">Ela agora pode aparecer no seu Pacote Único.</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       {/* An event finished with this campaign: its avatar frame is now the player's. */}
       {!historyEntry && frameUnlocks.length > 0 ? (
