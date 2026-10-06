@@ -389,6 +389,41 @@ describe('choice events and event Únicas', () => {
   });
 });
 
+describe('name style event', () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const at = (iso: string) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(iso)); };
+  const event = (body: any) => body.events.find((e: any) => e.id === 'estilo-de-craque-2026');
+  const choose = (call: any, cookie: string, choice: string) => call('/api/account/events/estilo-de-craque-2026/choice', { method: 'POST', cookie, body: { choice } });
+
+  it('picks one name style after the challenge, wears it and shows it to others', async () => {
+    const { call, register } = api(database());
+    at('2026-10-10T12:00:00-03:00');
+    const cookie = await register('estiloso');
+    expect(event((await call('/api/account/events', { cookie })).body)).toMatchObject({ status: 'active', chosenKey: null, rewardNameStyles: ['lendario', 'arcade', 'assombrado', 'neon', 'pirata'] });
+    // Not before the challenge is done.
+    expect((await choose(call, cookie, 'neon')).body.error).toBe('event_not_completed');
+    // Nobody can wear a style they do not own.
+    expect((await call('/api/account/profile', { method: 'PATCH', cookie, body: { nameStyleKey: 'neon' } })).status).toBe(403);
+
+    for (let i = 0; i < 5; i += 1) await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('bronze') });
+    expect(event((await call('/api/account/events', { cookie })).body)).toMatchObject({ completed: true, chosenKey: null });
+    expect((await choose(call, cookie, 'fogo')).status).toBe(400);
+    const picked = await choose(call, cookie, 'neon');
+    expect(picked.status).toBe(200);
+    expect(picked.body.nameStyles).toEqual(['neon']);
+    expect(event(picked.body).chosenKey).toBe('neon');
+    // One style per event.
+    expect((await choose(call, cookie, 'pirata')).status).toBe(409);
+
+    expect((await call('/api/account/profile', { method: 'PATCH', cookie, body: { nameStyleKey: 'pirata' } })).status).toBe(403);
+    const worn = await call('/api/account/profile', { method: 'PATCH', cookie, body: { nameStyleKey: 'neon' } });
+    expect(worn.body.account.nameStyleKey).toBe('neon');
+    expect((await call('/api/users/estiloso')).body.profile.nameStyleKey).toBe('neon');
+    // Taking it off is always allowed.
+    expect((await call('/api/account/profile', { method: 'PATCH', cookie, body: { nameStyleKey: null } })).body.account.nameStyleKey).toBeNull();
+  });
+});
+
 describe('profile likes', () => {
   it('likes once, unlikes, never likes itself and respects private profiles', async () => {
     const db = database();

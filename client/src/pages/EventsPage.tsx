@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { useAccount, type EventsPayload, type GameEventState } from '../contexts/AccountContext';
 import AccountTabBar from '../components/account/AccountTabBar';
-import { ChoiceEventCard, EventCard } from '../components/account/GameEvents';
+import { ChoiceEventCard, EventCard, NameStyleEventCard } from '../components/account/GameEvents';
 import { AppShell, Button, EmptyState, PageContainer, SectionHeader, Skeleton, StatusBanner, Tab, TabList, TabPanel, Tabs, TopBar } from '../design-system';
 
 type EventStatus = GameEventState['status'];
@@ -79,7 +79,9 @@ export default function EventsPage() {
                 <TabPanel key={section.status} value={section.status} className="space-y-3 pt-4">
                   {events.length === 0
                     ? <EmptyState title={section.emptyTitle} description={section.empty} />
-                    : events.map(event => event.choices
+                    : events.map(event => event.rewardNameStyles
+                      ? <NameStyleEventCard key={event.id} event={event} playerName={account?.displayName ?? ''} onChoose={choice => choose(event.id, choice)} />
+                      : event.choices
                       ? <ChoiceEventCard key={event.id} event={event} onChoose={choice => choose(event.id, choice)} />
                       : <EventCard key={event.id} event={event} equippedFrame={payload.equippedFrame} onEquip={equip} />)}
                 </TabPanel>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Heart, Image as ImageIcon, Info, Layers, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { CalendarDays, Check, Lock, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Heart, Image as ImageIcon, Info, Layers, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useAccount, type AccountStats, type AchievementsPayload, type CompetitionHistoryEntry, type FinishCounts, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
@@ -24,6 +24,8 @@ import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gam
 import DifficultyEmblem from '../components/game/DifficultyEmblem';
 import SelectMenu, { type SelectMenuOption } from '../components/account/SelectMenu';
 import FramedAvatar, { FrameImage } from '../components/account/AvatarFrame';
+import StyledName from '../components/account/StyledName';
+import { NAME_STYLES } from '@shared/game/nameStyles';
 import { AVATAR_FRAMES, GAME_EVENTS } from '@shared/game/events';
 import ReportPage from './ReportPage';
 import { cn } from '../lib/utils';
@@ -343,7 +345,7 @@ function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number
       <div aria-label={`Posição ${rank}`} className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg border font-display text-xl tabular-nums', rank === 1 ? 'border-[var(--ui-brand)]/45 bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)]')}>{String(rank).padStart(2, '0')}</div>
       <CompactProfileAvatar name={entry.display_name} avatarKey={entry.avatar_key} avatarUrl={entry.avatar_url} backgroundKey={entry.avatar_background_key} frameKey={entry.avatar_frame_key} sizeClassName="size-16" />
       <div className="min-w-0 flex-1">
-        <strong className="block truncate text-base font-bold text-[var(--ui-text)]">{entry.display_name}</strong>
+        <strong className="block truncate text-base font-bold text-[var(--ui-text)]"><StyledName name={entry.display_name} styleKey={entry.name_style_key} size="sm" /></strong>
         <div className="truncate text-xs text-[var(--ui-text-muted)]">@{entry.username}</div>
       </div>
       <div className="shrink-0 text-right">
@@ -472,7 +474,7 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
         <div className="relative -mt-12 flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:px-8 sm:pb-8">
           <div className="shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey, profile.avatarFrameKey)}</div>
           <div className="min-w-0 flex-1 pb-1">
-            <h2 className="truncate font-display text-3xl text-[var(--ui-text)]">{profile.displayName}</h2>
+            <h2 className="truncate font-display text-3xl text-[var(--ui-text)]"><StyledName name={profile.displayName} styleKey={profile.nameStyleKey} /></h2>
             <p className="mt-1 break-words text-sm text-[var(--ui-text-muted)]">@{profile.username} · conta criada em {formatDate(profile.createdAt)}</p>
           </div>
           <div className="flex items-center gap-2 pb-1">
@@ -561,8 +563,8 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
 
 function friendIdentity(friend: FriendshipEntry, accountId: string) {
   return friend.requester_id === accountId
-    ? { name: friend.addressee_display_name, username: friend.addressee_username, avatarKey: friend.addressee_avatar_key, avatarBackgroundKey: friend.addressee_avatar_background_key, avatarFrameKey: friend.addressee_avatar_frame_key }
-    : { name: friend.requester_display_name, username: friend.requester_username, avatarKey: friend.requester_avatar_key, avatarBackgroundKey: friend.requester_avatar_background_key, avatarFrameKey: friend.requester_avatar_frame_key };
+    ? { name: friend.addressee_display_name, username: friend.addressee_username, avatarKey: friend.addressee_avatar_key, avatarBackgroundKey: friend.addressee_avatar_background_key, avatarFrameKey: friend.addressee_avatar_frame_key, nameStyleKey: friend.addressee_name_style_key }
+    : { name: friend.requester_display_name, username: friend.requester_username, avatarKey: friend.requester_avatar_key, avatarBackgroundKey: friend.requester_avatar_background_key, avatarFrameKey: friend.requester_avatar_frame_key, nameStyleKey: friend.requester_name_style_key };
 }
 
 const EMPTY_FINISH_COUNTS: FinishCounts = { leaguePhase: 0, playoff: 0, roundOf16: 0, quarterfinal: 0, semifinal: 0, runnerUp: 0, champion: 0 };
@@ -652,6 +654,8 @@ export default function AccountPage() {
   const [appearanceError, setAppearanceError] = useState('');
   const [nameEditorOpen, setNameEditorOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [nameStyleDraft, setNameStyleDraft] = useState<string | null>(null);
+  const [ownedNameStyles, setOwnedNameStyles] = useState<string[]>([]);
   const [nameBusy, setNameBusy] = useState(false);
   const [nameError, setNameError] = useState('');
   const [friendUsername, setFriendUsername] = useState('');
@@ -754,8 +758,10 @@ export default function AccountPage() {
   const openNameEditor = () => {
     if (!account) return;
     setNameDraft(account.displayName);
+    setNameStyleDraft(account.nameStyleKey ?? null);
     setNameError('');
     setNameEditorOpen(true);
+    void getEvents().then(result => setOwnedNameStyles(result.nameStyles ?? [])).catch(() => setOwnedNameStyles(account.nameStyleKey ? [account.nameStyleKey] : []));
   };
 
   const saveDisplayName = async () => {
@@ -767,7 +773,7 @@ export default function AccountPage() {
     setNameBusy(true);
     setNameError('');
     try {
-      await updateProfile({ displayName });
+      await updateProfile({ displayName, nameStyleKey: nameStyleDraft });
       setNotice('Nome atualizado.');
       setNameEditorOpen(false);
     } catch (err) {
@@ -952,7 +958,7 @@ export default function AccountPage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               {profileAvatar(account.avatarUrl, account.avatarKey, account.displayName, account.avatarBackgroundKey, account.avatarFrameKey)}
               <div className="min-w-0 flex-1 pb-1">
-                <div className="flex flex-wrap items-center gap-2"><h1 className="truncate font-display text-balance text-3xl text-[var(--ui-text)]">{account.displayName}</h1><Button type="button" intent="ghost" aria-label="Editar nome de exibição" title="Editar nome de exibição" onClick={openNameEditor} className="size-8 min-h-8 rounded-full px-0"><Pencil size={14} aria-hidden="true" /></Button></div>
+                <div className="flex flex-wrap items-center gap-2"><h1 className="truncate font-display text-balance text-3xl text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} /></h1><Button type="button" intent="ghost" aria-label="Editar nome de exibição" title="Editar nome de exibição" onClick={openNameEditor} className="size-8 min-h-8 rounded-full px-0"><Pencil size={14} aria-hidden="true" /></Button></div>
                 <div className="mt-1 text-sm text-[var(--ui-text-muted)]">@{account.username} · conta criada em {formatDate(account.createdAt)}</div>
               </div>
               <div className="flex items-center gap-3 pb-1 text-xs text-[var(--ui-text-faint)]"><span className="flex items-center gap-2"><Users size={14} /> {acceptedFriends.length} {acceptedFriends.length === 1 ? "amigo" : "amigos"}</span><span className="flex items-center gap-1.5" aria-label={`${account.likeCount ?? 0} curtidas no perfil`}><Heart size={14} aria-hidden="true" className="text-rose-300" /> {account.likeCount ?? 0} {(account.likeCount ?? 0) === 1 ? "curtida" : "curtidas"}</span></div>
@@ -1077,7 +1083,7 @@ export default function AccountPage() {
                         return <article key={friend.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                           <Button type="button" intent="ghost" aria-label={`Ver perfil de ${person.name}`} title={`Ver perfil de ${person.name}`} onClick={() => void viewFriendProfile(person.username)} className="group flex h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 rounded-lg border-0 bg-transparent p-0 text-left normal-case font-normal tracking-normal hover:translate-y-0 hover:border-transparent hover:bg-transparent">
                             <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                            <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{person.name}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className="mt-1 block text-[12px] text-[var(--ui-brand-strong)]">Amigos desde {formatDate(friend.updated_at)}</span></span>
+                            <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className="mt-1 block text-[12px] text-[var(--ui-brand-strong)]">Amigos desde {formatDate(friend.updated_at)}</span></span>
                             <span className="hidden shrink-0 text-[12px] font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
                             <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-[var(--ui-text-faint)]" />
                           </Button>
@@ -1092,7 +1098,7 @@ export default function AccountPage() {
                       const person = friendIdentity(friend, account.id);
                       return <article key={friend.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                         <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                        <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{person.name}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
+                        <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
                         <Button intent="primary" disabled={busy} aria-label={`Aceitar solicitação de ${person.name}`} onClick={() => void actFriend(friend.id, 'accept')} className="size-10 min-h-10 shrink-0 px-0 sm:h-auto sm:w-auto sm:px-3"><Check size={15} aria-hidden="true" /><span className="hidden sm:inline">ACEITAR</span></Button>
                         <Button intent="ghost" disabled={busy} aria-label={`Recusar solicitação de ${person.name}`} onClick={() => void actFriend(friend.id, 'decline')} className="size-10 min-h-10 shrink-0 px-0"><X size={16} aria-hidden="true" /></Button>
                       </article>;
@@ -1105,7 +1111,7 @@ export default function AccountPage() {
                       const person = friendIdentity(friend, account.id);
                       return <article key={friend.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                         <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                        <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{person.name}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
+                        <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span></div>
                         <Badge tone="warning">PENDENTE</Badge>
                         <Button intent="ghost" aria-label={`Cancelar solicitação para ${person.name}`} title="Cancelar solicitação" disabled={busy} onClick={() => void actFriend(friend.id, 'remove')} className="size-10 min-h-10 shrink-0 px-0"><X size={16} aria-hidden="true" /></Button>
                       </article>;
@@ -1120,13 +1126,43 @@ export default function AccountPage() {
         open={nameEditorOpen}
         onOpenChange={open => { setNameEditorOpen(open); if (!open) setNameError(''); }}
         title="EDITAR NOME"
-        subtitle="Esse é o nome que aparece no seu perfil e para seus amigos."
+        subtitle="Esse é o nome que aparece no seu perfil, no ranking e para seus amigos."
+        size="wide"
         closeLabel="Fechar edição do nome"
         footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" intent="ghost" disabled={nameBusy} onClick={() => setNameEditorOpen(false)}>CANCELAR</Button><Button type="button" intent="primary" loading={nameBusy} onClick={() => void saveDisplayName()}><Check size={15} /> SALVAR NOME</Button></div>}
       >
         <div className="space-y-3">
           {nameError ? <StatusBanner tone="danger" title="Não foi possível salvar">{nameError}</StatusBanner> : null}
           <label className="block space-y-2"><span className="ui-kicker">NOME DE EXIBIÇÃO</span><Input autoFocus value={nameDraft} maxLength={40} onChange={event => setNameDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void saveDisplayName(); }} /></label>
+          {/* Live preview: big as on the profile, small as in the ranking. */}
+          <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-4 text-center">
+            <div className="truncate font-display text-4xl text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} /></div>
+            <div className="mt-2 truncate text-sm font-bold text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} size="sm" /></div>
+          </div>
+          <div className="space-y-2">
+            <span className="ui-kicker">ESTILO DO NOME</span>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <button type="button" aria-pressed={nameStyleDraft === null} onClick={() => setNameStyleDraft(null)} className={cn('flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border p-2 text-center transition-colors', nameStyleDraft === null ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] hover:border-[var(--ui-line-strong)]')}>
+                <span className="truncate font-display text-xl text-[var(--ui-text)]">{nameDraft.trim() || 'Seu nome'}</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">Padrão</span>
+              </button>
+              {NAME_STYLES.map(style => {
+                const owned = ownedNameStyles.includes(style.key);
+                const selected = nameStyleDraft === style.key;
+                const source = GAME_EVENTS.find(event => event.rewardNameStyles?.includes(style.key));
+                return (
+                  <button key={style.key} type="button" disabled={!owned} aria-pressed={selected} title={owned ? style.name : `Prêmio do evento ${source?.name ?? ''}`} onClick={() => setNameStyleDraft(style.key)}
+                    className={cn('relative flex min-h-20 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border p-2 text-center transition-colors', selected ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]', owned ? 'hover:border-[var(--ui-line-strong)]' : 'cursor-not-allowed')}>
+                    <span className={cn('max-w-full font-display text-xl', !owned && 'opacity-35 grayscale')}><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={style.key} size="sm" /></span>
+                    <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">
+                      {owned ? (selected ? <Check size={11} aria-hidden="true" /> : null) : <Lock size={11} aria-hidden="true" />}{style.name}
+                    </span>
+                    {!owned && source ? <span className="text-[10px] leading-tight text-[var(--ui-text-faint)]">{source.name}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </GameModal>
       <GameModal

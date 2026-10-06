@@ -15,6 +15,7 @@ import { cn } from '../lib/utils';
 import { resolveProfileAvatarImage } from '../lib/profileAvatars';
 import { getProfileAvatarBackground } from '@shared/profileAppearance';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
+import StyledName from '../components/account/StyledName';
 import FramedAvatar from '../components/account/AvatarFrame';
 import { EventsHomeButton } from '../components/account/GameEvents';
 
@@ -24,9 +25,9 @@ const COMPETITIVE_FORMAT = createCompetitionFormat('league_knockout');
 
 function friendIdentity(friendship: FriendshipEntry, accountId: string | undefined) {
   if (friendship.requester_id === accountId) {
-    return { username: friendship.addressee_username, displayName: friendship.addressee_display_name, avatarKey: friendship.addressee_avatar_key };
+    return { username: friendship.addressee_username, displayName: friendship.addressee_display_name, avatarKey: friendship.addressee_avatar_key, nameStyleKey: friendship.addressee_name_style_key };
   }
-  return { username: friendship.requester_username, displayName: friendship.requester_display_name, avatarKey: friendship.requester_avatar_key };
+  return { username: friendship.requester_username, displayName: friendship.requester_display_name, avatarKey: friendship.requester_avatar_key, nameStyleKey: friendship.requester_name_style_key };
 }
 
 function soloCampaignStageLabel(save: SavedSoloCampaign): string {
@@ -437,7 +438,7 @@ export default function MenuPage() {
                         {friend.displayName.slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-[var(--ui-text)]">{friend.displayName}</div>
+                        <div className="truncate text-sm font-semibold text-[var(--ui-text)]"><StyledName name={friend.displayName} styleKey={friend.nameStyleKey} size="sm" /></div>
                         <div className="truncate text-xs text-[var(--ui-text-muted)]">@{friend.username}</div>
                         <div className={cn(
                           'mt-1 text-[12px] font-bold uppercase tracking-wider',
@@ -518,7 +519,7 @@ export default function MenuPage() {
                   if (fallback) fallback.hidden = false;
                 }} /> : null}
               </span></FramedAvatar>
-              <span className="truncate text-xs font-bold text-[var(--ui-text)]">{account.displayName}</span>
+              <span className="truncate text-xs font-bold text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} size="sm" /></span>
             </button>
           </div>
         </>
@@ -909,7 +910,7 @@ export default function MenuPage() {
                   {friend.displayName.slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-[var(--ui-text)]">{friend.displayName}</div>
+                  <div className="truncate text-sm font-semibold text-[var(--ui-text)]"><StyledName name={friend.displayName} styleKey={friend.nameStyleKey} size="sm" /></div>
                   <div className="truncate text-xs text-[var(--ui-text-muted)]">@{friend.username} quer adicionar você</div>
                 </div>
                 <div className="flex w-full gap-2 sm:w-auto">

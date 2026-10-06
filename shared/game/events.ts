@@ -58,6 +58,8 @@ export interface GameEvent {
   objectives: readonly EventObjective[];
   /** Choice event: the account picks one option (for good) and gets its objectives and card. */
   choices?: readonly EventChoice[];
+  /** Reward picked after completing the objectives: one of these name styles (nameStyles.ts). */
+  rewardNameStyles?: readonly string[];
 }
 
 const SEMIFINAL_OR_BETTER = new Set<CompetitionFinishStage>(['semifinalist', 'runnerUp', 'champion']);
@@ -92,6 +94,17 @@ export const GAME_EVENTS: readonly GameEvent[] = [
       { id: 'semifinals', label: 'Chegue à semifinal 3 vezes no Ouro ou acima', target: 3, counts: c => GOLD_OR_ABOVE.has(c.difficultyId) && reachedSemifinal(c) },
       { id: 'title', label: 'Seja campeão no Lendário ou Imortal', target: 1, counts: c => LEGENDARY_OR_ABOVE.has(c.difficultyId) && isChampion(c) },
     ],
+  },
+  {
+    id: 'estilo-de-craque-2026',
+    name: 'Estilo de Craque',
+    description: 'Conclua 5 competições até 31 de outubro e escolha um estilo para o seu nome: a fonte e o efeito com que ele aparece no perfil, no ranking e para os amigos. A escolha é definitiva.',
+    startsAt: brasiliaMidnight(2026, 10, 5),
+    endsAt: brasiliaMidnight(2026, 11, 1),
+    objectives: [
+      { id: 'competitions', label: 'Conclua 5 competições', target: 5, counts: () => true },
+    ],
+    rewardNameStyles: ['lendario', 'arcade', 'assombrado', 'neon', 'pirata'],
   },
   {
     id: 'classicos-sp-2026',

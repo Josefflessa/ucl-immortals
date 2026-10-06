@@ -56,6 +56,8 @@ export interface GameEventState {
   /** Choice events: the options and the account's pick. */
   choices: EventChoiceState[] | null;
   chosenKey: string | null;
+  /** Name styles to pick from once the objectives are done (null = not that kind of event). */
+  rewardNameStyles: string[] | null;
   objectives: EventObjectiveState[];
   completed: boolean;
   frameUnlocked: boolean;
@@ -73,6 +75,8 @@ export interface EventsPayload {
   frames: string[];
   /** Event Únicas the account unlocked (its personal Pacote Único pool). */
   eventCards: string[];
+  /** Name styles the account unlocked. */
+  nameStyles: string[];
   equippedFrame: string | null;
   unlocked: FrameUnlock[];
   cardsUnlocked: EventCardUnlock[];
@@ -118,6 +122,8 @@ export interface AccountProfile {
   avatarKey: string;
   avatarBackgroundKey: string;
   avatarFrameKey?: string | null;
+  /** Font + effect the display name is shown with (event reward). */
+  nameStyleKey?: string | null;
   coverKey: string;
   avatarUrl: string | null;
   coverUrl: string | null;
@@ -184,6 +190,7 @@ export interface ScoreLeaderboardEntry {
   avatar_key: string;
   avatar_background_key: string;
   avatar_frame_key?: string | null;
+  name_style_key?: string | null;
   avatar_url: string | null;
   team_name_snapshot: string | null;
   crest_id_snapshot: string | null;
@@ -256,11 +263,13 @@ export interface FriendshipEntry {
   requester_avatar_key: string;
   requester_avatar_background_key: string;
   requester_avatar_frame_key?: string | null;
+  requester_name_style_key?: string | null;
   addressee_username: string;
   addressee_display_name: string;
   addressee_avatar_key: string;
   addressee_avatar_background_key: string;
   addressee_avatar_frame_key?: string | null;
+  addressee_name_style_key?: string | null;
   created_at: number;
   updated_at: number;
   is_online: boolean;
@@ -289,7 +298,7 @@ interface AccountContextValue {
   login: (username: string, password: string) => Promise<AccountProfile>;
   register: (username: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
+  updateProfile: (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'nameStyleKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
   getHistory: (page?: number) => Promise<CompetitionHistoryPage>;
   saveHistory: (payload: {
     mode: 'solo' | 'online';
@@ -457,7 +466,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setAccount(null);
   }, [accountId]);
 
-  const updateProfile = useCallback(async (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'coverKey' | 'favoriteCrestId'>>) => {
+  const updateProfile = useCallback(async (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'nameStyleKey' | 'coverKey' | 'favoriteCrestId'>>) => {
     const result = await api<{ account: AccountProfile }>('/api/account/profile', { method: 'PATCH', body: JSON.stringify(patch) });
     setAccount(result.account);
     return result.account;

@@ -13,6 +13,7 @@ import {
   type GameEventStatus,
 } from '../shared/game/events.js';
 import { EVENT_UNIQUE_CARDS } from '../shared/game/gameData.js';
+import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { loadCareer } from './achievements.js';
 
 export interface FrameUnlock {
@@ -44,7 +45,10 @@ export interface GameEventState {
   frameKey: string | null;
   /** Choice events: the options and the one this account picked. */
   choices: EventChoiceState[] | null;
+  /** Choice events: the club picked. Reward-choice events: the name style picked. */
   chosenKey: string | null;
+  /** Name styles to pick from once the objectives are done (null = not that kind of event). */
+  rewardNameStyles: string[] | null;
   objectives: EventObjectiveProgress[];
   completed: boolean;
   frameUnlocked: boolean;
@@ -64,6 +68,12 @@ export async function loadOwnedEventCards(db: D1Database, userId: string): Promi
   return rows.results.map(row => row.card_id).filter(id => EVENT_CARD_IDS.has(id));
 }
 
+/** Name styles this account unlocked. */
+export async function loadOwnedNameStyles(db: D1Database, userId: string): Promise<string[]> {
+  const rows = await db.prepare('SELECT style_key FROM user_name_styles WHERE user_id = ? ORDER BY unlocked_at').bind(userId).all<{ style_key: string }>();
+  return rows.results.map(row => row.style_key).filter(isNameStyleKey);
+}
+
 async function loadChoices(db: D1Database, userId: string): Promise<Map<string, string>> {
   const rows = await db.prepare('SELECT event_id, choice_key FROM user_event_choices WHERE user_id = ?').bind(userId).all<{ event_id: string; choice_key: string }>();
   return new Map(rows.results.map(row => [row.event_id, row.choice_key]));
@@ -75,6 +85,19 @@ async function loadChoices(db: D1Database, userId: string): Promise<Map<string, 
  */
 export async function chooseEventOption(db: D1Database, userId: string, eventId: string, choiceKey: unknown, now = Date.now()): Promise<{ ok: true } | { error: string }> {
   const event = GAME_EVENT_BY_ID.get(eventId);
+  if (event?.rewardNameStyles) {
+    // The reward is picked after the objectives are done, so it can still be
+    // picked after the event ended (only competitions inside the window count).
+    if (typeof choiceKey !== 'string' || !event.rewardNameStyles.includes(choiceKey)) return { error: 'invalid_choice' };
+    if (gameEventStatus(event, now) === 'upcoming') return { error: 'event_not_active' };
+    if (!evaluateGameEvent(event, await loadCareer(db, userId)).completed) return { error: 'event_not_completed' };
+    const result = await db.prepare('INSERT OR IGNORE INTO user_event_choices (user_id, event_id, choice_key, chosen_at) VALUES (?, ?, ?, ?)')
+      .bind(userId, eventId, choiceKey, now).run();
+    if ((result.meta?.changes ?? 0) === 0) return { error: 'already_chosen' };
+    await db.prepare('INSERT OR IGNORE INTO user_name_styles (user_id, style_key, event_id, unlocked_at) VALUES (?, ?, ?, ?)')
+      .bind(userId, choiceKey, eventId, now).run();
+    return { ok: true };
+  }
   if (!event?.choices) return { error: 'event_not_found' };
   if (gameEventStatus(event, now) !== 'active') return { error: 'event_not_active' };
   if (typeof choiceKey !== 'string' || !event.choices.some(choice => choice.key === choiceKey)) return { error: 'invalid_choice' };
@@ -103,7 +126,7 @@ export async function syncEventRewards(db: D1Database, userId: string, now = Dat
   const cardsUnlocked: EventCardUnlock[] = [];
   const states: GameEventState[] = GAME_EVENTS.map(event => {
     const status = gameEventStatus(event, now);
-    const chosenKey = event.choices ? choices.get(event.id) ?? null : null;
+    const chosenKey = event.choices || event.rewardNameStyles ? choices.get(event.id) ?? null : null;
     const chosen = event.choices?.find(choice => choice.key === chosenKey) ?? null;
     const evaluation = status === 'upcoming'
       ? { objectives: eventObjectivesFor(event, chosenKey).map(o => ({ id: o.id, label: o.label, progress: 0, target: o.target, done: false })), completed: false }
@@ -126,6 +149,7 @@ export async function syncEventRewards(db: D1Database, userId: string, now = Dat
       frameKey: event.frameKey ?? null,
       choices: event.choices?.map(choice => ({ key: choice.key, label: choice.label, cardId: choice.cardId, crestId: choice.crestId, objectives: choice.objectives.map(o => o.label) })) ?? null,
       chosenKey,
+      rewardNameStyles: event.rewardNameStyles ? [...event.rewardNameStyles] : null,
       ...evaluation,
       frameUnlocked: !!event.frameKey && ownedFrames.has(event.frameKey),
       cardUnlocked: !!chosen && ownedCards.has(chosen.cardId),

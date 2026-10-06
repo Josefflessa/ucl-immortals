@@ -10,7 +10,8 @@ import {
   saveShowcase,
   syncAchievements,
 } from './achievements.js';
-import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, syncEventRewards } from './events.js';
+import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, loadOwnedNameStyles, syncEventRewards } from './events.js';
+import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { isAvatarFrameKey } from '../shared/game/events.js';
 import {
   competitionStagePoints,
@@ -49,6 +50,8 @@ interface AuthenticatedAccount {
   avatarBackgroundKey: string;
   /** Event frame drawn around the avatar (null = none). */
   avatarFrameKey: string | null;
+  /** Font + effect the display name is shown with (null = default). */
+  nameStyleKey: string | null;
   coverKey: string;
   favoriteCrestId: string | null;
   avatarUrl: string | null;
@@ -95,6 +98,7 @@ interface UserRow {
   avatar_key: string;
   avatar_background_key: string;
   avatar_frame_key: string | null;
+  name_style_key: string | null;
   cover_key: string;
   favorite_crest_id: string | null;
   avatar_url: string | null;
@@ -271,6 +275,7 @@ function accountFromRow(row: UserRow): AuthenticatedAccount {
     avatarKey: row.avatar_key,
     avatarBackgroundKey: row.avatar_background_key ?? DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY,
     avatarFrameKey: isAvatarFrameKey(row.avatar_frame_key) ? row.avatar_frame_key : null,
+    nameStyleKey: isNameStyleKey(row.name_style_key) ? row.name_style_key : null,
     coverKey: row.cover_key,
     favoriteCrestId: row.favorite_crest_id,
     avatarUrl: row.avatar_url ?? null,
@@ -295,7 +300,7 @@ const ACCOUNT_SELECT = `
     FROM finish_rows
     GROUP BY user_id
   )
-  SELECT u.id, u.email, p.username, p.display_name, p.bio, p.avatar_key, p.avatar_background_key, p.avatar_frame_key,
+  SELECT u.id, u.email, p.username, p.display_name, p.bio, p.avatar_key, p.avatar_background_key, p.avatar_frame_key, p.name_style_key,
          p.cover_key, p.favorite_crest_id, p.avatar_url, p.cover_url, p.visibility, p.created_at,
          (SELECT COUNT(*) FROM profile_likes pl WHERE pl.user_id = u.id) AS like_count,
          COALESCE(s.competitions_completed, 0) AS competitions_completed,
@@ -458,6 +463,7 @@ function publicAccount(account: AuthenticatedAccount): Record<string, unknown> {
     avatarKey: account.avatarKey,
     avatarBackgroundKey: account.avatarBackgroundKey,
     avatarFrameKey: account.avatarFrameKey,
+    nameStyleKey: account.nameStyleKey,
     coverKey: account.coverKey,
     avatarUrl: account.avatarUrl,
     coverUrl: account.coverUrl,
@@ -492,9 +498,14 @@ async function profileUpdate(request: Request, env: AccountEnv, account: Authent
     avatarFrameKey = body.avatarFrameKey ? String(body.avatarFrameKey) : null;
     if (avatarFrameKey && !(await loadOwnedFrames(env.DB, account.id)).includes(avatarFrameKey)) return json({ error: 'frame_not_owned' }, 403);
   }
+  let nameStyleKey = account.nameStyleKey;
+  if (body.nameStyleKey !== undefined) {
+    nameStyleKey = body.nameStyleKey ? String(body.nameStyleKey) : null;
+    if (nameStyleKey && !(await loadOwnedNameStyles(env.DB, account.id)).includes(nameStyleKey)) return json({ error: 'name_style_not_owned' }, 403);
+  }
   if (!/^[a-z0-9-]{3,40}$/.test(avatarKey) || !/^[a-z0-9-]{3,40}$/.test(coverKey) || !isProfileAvatarBackgroundKey(avatarBackgroundKey)) return json({ error: 'invalid_profile_asset' }, 400);
-  await env.DB.prepare(`UPDATE profiles SET display_name = ?, bio = ?, avatar_key = ?, avatar_background_key = ?, avatar_frame_key = ?, cover_key = ?, avatar_url = ?, cover_url = ?, favorite_crest_id = ?, updated_at = ? WHERE user_id = ?`)
-    .bind(displayName, bio, avatarKey, avatarBackgroundKey, avatarFrameKey, coverKey, avatarUrl, coverUrl, favoriteCrestId, Date.now(), account.id).run();
+  await env.DB.prepare(`UPDATE profiles SET display_name = ?, bio = ?, avatar_key = ?, avatar_background_key = ?, avatar_frame_key = ?, name_style_key = ?, cover_key = ?, avatar_url = ?, cover_url = ?, favorite_crest_id = ?, updated_at = ? WHERE user_id = ?`)
+    .bind(displayName, bio, avatarKey, avatarBackgroundKey, avatarFrameKey, nameStyleKey, coverKey, avatarUrl, coverUrl, favoriteCrestId, Date.now(), account.id).run();
   const updated = await accountById(env.DB, account.id);
   return updated ? json({ account: publicAccount(updated) }) : json({ error: 'account_not_found' }, 404);
 }
@@ -1085,7 +1096,7 @@ async function scoreLeaderboard(env: AccountEnv, url: URL): Promise<Response> {
   const rows = await env.DB.prepare(`WITH totals AS (
       ${scoreTotalsSql(difficulty)}
     )
-    SELECT p.username, p.display_name, p.avatar_key, p.avatar_background_key, p.avatar_url, p.avatar_frame_key,
+    SELECT p.username, p.display_name, p.avatar_key, p.avatar_background_key, p.avatar_url, p.avatar_frame_key, p.name_style_key,
       latest.team_name AS team_name_snapshot, latest.crest_id AS crest_id_snapshot,
       totals.points, totals.scored_competitions, totals.titles
     FROM totals
@@ -1168,8 +1179,8 @@ async function friendsList(env: AccountEnv, account: AuthenticatedAccount): Prom
       WHERE f.requester_id = ? OR f.addressee_id = ?
     )
     SELECT f.id, f.status, f.requester_id, f.addressee_id, f.created_at, f.updated_at,
-    pr.username AS requester_username, pr.display_name AS requester_display_name, pr.avatar_key AS requester_avatar_key, pr.avatar_background_key AS requester_avatar_background_key, pr.avatar_frame_key AS requester_avatar_frame_key,
-    pa.username AS addressee_username, pa.display_name AS addressee_display_name, pa.avatar_key AS addressee_avatar_key, pa.avatar_background_key AS addressee_avatar_background_key, pa.avatar_frame_key AS addressee_avatar_frame_key,
+    pr.username AS requester_username, pr.display_name AS requester_display_name, pr.avatar_key AS requester_avatar_key, pr.avatar_background_key AS requester_avatar_background_key, pr.avatar_frame_key AS requester_avatar_frame_key, pr.name_style_key AS requester_name_style_key,
+    pa.username AS addressee_username, pa.display_name AS addressee_display_name, pa.avatar_key AS addressee_avatar_key, pa.avatar_background_key AS addressee_avatar_background_key, pa.avatar_frame_key AS addressee_avatar_frame_key, pa.name_style_key AS addressee_name_style_key,
     COALESCE(ps.is_online, 0) AS is_online,
     CASE WHEN COALESCE(ps.has_available_session, 0) = 1 AND COALESCE(ps.has_busy_session, 0) = 0 THEN 1 ELSE 0 END AS is_available,
     COALESCE(ps.has_busy_session, 0) AS is_busy
@@ -1290,6 +1301,7 @@ async function accountEvents(env: AccountEnv, account: AuthenticatedAccount): Pr
     events: states,
     frames: await loadOwnedFrames(env.DB, account.id),
     eventCards: await loadOwnedEventCards(env.DB, account.id),
+    nameStyles: await loadOwnedNameStyles(env.DB, account.id),
     equippedFrame: account.avatarFrameKey,
     unlocked,
     cardsUnlocked,

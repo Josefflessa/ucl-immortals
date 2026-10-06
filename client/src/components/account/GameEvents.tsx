@@ -10,6 +10,8 @@ import type { EventChoiceState, EventObjectiveState, GameEventState } from '../.
 import { Button, ConfirmDialog, StatusBanner } from '../../design-system';
 import { cn } from '../../lib/utils';
 import PlayerCard from '../game/PlayerCard';
+import { NAME_STYLE_BY_KEY } from '@shared/game/nameStyles';
+import StyledName from './StyledName';
 import { FrameImage } from './AvatarFrame';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -193,6 +195,102 @@ export function ChoiceEventCard({ event, onChoose }: { event: GameEventState; on
         onOpenChange={open => { if (!open && !busy) setConfirming(null); }}
         title={confirming ? `Escolher ${confirming.label}?` : ''}
         description={confirming ? `Você vai jogar pela Carta Única ${cardById(confirming.cardId)?.shortName ?? ''}. A escolha é definitiva: não dá para trocar de clube neste evento.` : ''}
+        confirmLabel="Escolher"
+        intent="primary"
+        onConfirm={() => { if (confirming) void pick(confirming); }}
+      />
+    </article>
+  );
+}
+
+const STYLE_COLOR = '#f472b6';
+
+/**
+ * A reward-choice event: complete the challenge, then pick one name style (for
+ * good). The player then wears it from the pencil next to the name.
+ */
+export function NameStyleEventCard({ event, playerName, onChoose }: { event: GameEventState; playerName: string; onChoose: (styleKey: string) => Promise<void> }) {
+  const [expanded, setExpanded] = useState(event.completed && !event.chosenKey);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const detailsId = useId();
+  const options = event.rewardNameStyles ?? [];
+  const chosen = event.chosenKey ? NAME_STYLE_BY_KEY.get(event.chosenKey) : undefined;
+  const done = event.objectives.filter(objective => objective.done).length;
+  const canPick = event.completed && !event.chosenKey;
+  const pick = async (styleKey: string) => {
+    setBusy(true);
+    setError('');
+    try {
+      await onChoose(styleKey);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível registrar a escolha agora.');
+    } finally {
+      setBusy(false);
+      setConfirming(null);
+    }
+  };
+  return (
+    <article
+      className={cn('overflow-hidden rounded-2xl border bg-[var(--ui-surface-inset)]', event.status === 'ended' && !event.chosenKey && 'opacity-75')}
+      style={{ borderColor: `color-mix(in srgb, ${STYLE_COLOR} 45%, var(--ui-line-subtle))` }}
+      aria-label={`Evento ${event.name}`}
+    >
+      <div className="flex items-center gap-4 p-4" style={{ background: `linear-gradient(120deg, color-mix(in srgb, ${STYLE_COLOR} 14%, transparent), transparent 70%)` }}>
+        <div className="grid size-24 shrink-0 place-items-center rounded-2xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] text-4xl sm:size-28" aria-hidden="true">
+          <StyledName name="Aa" styleKey={chosen?.key ?? 'lendario'} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-2xl leading-none text-[var(--ui-text)] sm:text-3xl">{event.name}</h2>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--ui-text-muted)]"><Clock size={12} aria-hidden="true" /> {eventTimeLabel(event)}</p>
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: STYLE_COLOR }}>
+            {chosen ? <Check size={13} aria-hidden="true" /> : <Lock size={12} aria-hidden="true" />}
+            {chosen ? `Estilo ${chosen.name} conquistado` : 'Recompensa: um estilo de nome à sua escolha'}
+          </p>
+          <p className="mt-1 text-xs font-bold tabular-nums text-[var(--ui-text-soft)]">{canPick ? 'Desafio concluído · escolha o seu estilo' : `${done}/${event.objectives.length} desafios concluídos`}</p>
+        </div>
+      </div>
+
+      {expanded ? <div id={detailsId} className="space-y-3 border-t border-[var(--ui-line-subtle)] p-4">
+        <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">{event.description}</p>
+        {error ? <StatusBanner tone="danger" title="Não foi possível escolher">{error}</StatusBanner> : null}
+        <ObjectiveList objectives={event.objectives} color={STYLE_COLOR} />
+        <span className="ui-kicker block pt-1">{canPick ? 'Escolha o seu estilo · a escolha é definitiva' : chosen ? 'Seu estilo' : 'Estilos para escolher'}</span>
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {options.map(key => {
+            const style = NAME_STYLE_BY_KEY.get(key);
+            if (!style) return null;
+            const isChosen = chosen?.key === key;
+            return (
+              <li key={key} className={cn('flex flex-col items-center gap-2 rounded-xl border bg-[var(--ui-surface-1)] p-3 text-center', isChosen ? 'border-[var(--ui-brand)]' : 'border-[var(--ui-line-subtle)]', chosen && !isChosen && 'opacity-40')}>
+                <span className="max-w-full truncate font-display text-2xl"><StyledName name={playerName} styleKey={key} /></span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">{style.name}</span>
+                {canPick ? <Button type="button" intent="primary" onClick={() => setConfirming(key)} className="w-full">ESCOLHER</Button> : null}
+              </li>
+            );
+          })}
+        </ul>
+        {chosen ? <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Para usar, toque no lápis ao lado do seu nome no perfil.</p> : event.status !== 'ended' ? (
+          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Vale qualquer competição concluída com a conta durante o evento, solo ou online.</p>
+        ) : null}
+      </div> : null}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        onClick={() => setExpanded(value => !value)}
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        style={{ fontFamily: 'var(--font-game), sans-serif' }}
+      >
+        <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>
+        <ChevronDown size={15} aria-hidden="true" className={cn('transition-transform', expanded && 'rotate-180')} />
+      </button>
+      <ConfirmDialog
+        open={!!confirming}
+        onOpenChange={open => { if (!open && !busy) setConfirming(null); }}
+        title={confirming ? `Escolher o estilo ${NAME_STYLE_BY_KEY.get(confirming)?.name ?? ''}?` : ''}
+        description="A escolha é definitiva: neste evento você leva só um estilo."
         confirmLabel="Escolher"
         intent="primary"
         onConfirm={() => { if (confirming) void pick(confirming); }}
