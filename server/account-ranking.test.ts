@@ -375,10 +375,13 @@ describe('choice events and event Únicas', () => {
     ];
     for (const body of posts) expect((await call('/api/account/history', { method: 'POST', cookie, body })).body.eventCardsUnlocked).toEqual([]);
     const progress = Object.fromEntries(event((await call('/api/account/events', { cookie })).body).objectives.map((o: any) => [o.id, o.progress]));
-    expect(progress).toEqual({ crest: 2, finals: 1, title: 0 });
+    expect(progress).toEqual({ crest: 2, goals: 0, title: 0 });
 
-    // A Corinthians title on Ouro closes all three.
-    const last = await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('gold', { crestId: 'corinthians', champion: true, finishStage: 'champion' }) });
+    // A 42-goal Corinthians title on Ouro closes all three.
+    const last = await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('gold', {
+      crestId: 'corinthians', champion: true, finishStage: 'champion',
+      report: { version: 1, games: 14, wins: 12, draws: 1, losses: 1, goals: 42, goalsAgainst: 9 },
+    }) });
     expect(last.body.eventCardsUnlocked).toEqual([{ cardId: 'emerson_sheik_unico', eventId: 'classicos-sp-2026' }]);
     const after = (await call('/api/account/events', { cookie })).body;
     expect(event(after)).toMatchObject({ completed: true, cardUnlocked: true });

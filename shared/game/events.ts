@@ -65,9 +65,15 @@ const GOLD_OR_ABOVE = new Set(['gold', 'legendary', 'immortal']);
 const LEGENDARY_OR_ABOVE = new Set(['legendary', 'immortal']);
 
 const isChampion = (c: CareerCompetition) => c.champion || c.finishStage === 'champion';
-const reachedFinal = (c: CareerCompetition) => isChampion(c) || c.finishStage === 'runnerUp';
 const goldOrAbove = (c: CareerCompetition) => GOLD_OR_ABOVE.has(c.difficultyId);
 const withCrest = (crestId: string) => (c: CareerCompetition) => c.crestId === crestId;
+/** The same final challenge for every club: a title with its crest on Ouro or above. */
+const clubTitle = (crestId: string, club: string): EventObjective => ({
+  id: 'title',
+  label: `Seja campeão com o escudo do ${club} no Ouro ou acima`,
+  target: 1,
+  counts: c => withCrest(crestId)(c) && goldOrAbove(c) && isChampion(c),
+});
 const reachedSemifinal = (c: CareerCompetition) => isChampion(c) || (c.finishStage !== null && SEMIFINAL_OR_BETTER.has(c.finishStage));
 
 /** Midnight in Brasília (UTC−3) of the given day. */
@@ -99,32 +105,32 @@ export const GAME_EVENTS: readonly GameEvent[] = [
         key: 'corinthians', label: 'Corinthians', cardId: 'emerson_sheik_unico', crestId: 'corinthians',
         objectives: [
           { id: 'crest', label: 'Conclua 3 competições com o escudo do Corinthians', target: 3, counts: withCrest('corinthians') },
-          { id: 'finals', label: 'Chegue à final 2 vezes no Ouro ou acima', target: 2, counts: c => goldOrAbove(c) && reachedFinal(c) },
-          { id: 'title', label: 'Seja campeão com o escudo do Corinthians no Ouro ou acima', target: 1, counts: c => withCrest('corinthians')(c) && goldOrAbove(c) && isChampion(c) },
+          { id: 'goals', label: 'Marque 40 gols numa competição no Ouro ou acima', target: 1, counts: c => goldOrAbove(c) && c.goals >= 40 },
+          clubTitle('corinthians', 'Corinthians'),
         ],
       },
       {
         key: 'palmeiras', label: 'Palmeiras', cardId: 'gustavo_gomez_unico', crestId: 'palmeiras',
         objectives: [
           { id: 'crest', label: 'Conclua 3 competições com o escudo do Palmeiras', target: 3, counts: withCrest('palmeiras') },
-          { id: 'unbeaten', label: 'Termine uma competição sem derrotas no Ouro ou acima', target: 1, counts: c => goldOrAbove(c) && c.losses === 0 && c.wins + c.draws > 0 },
-          { id: 'title', label: 'Seja campeão com o escudo do Palmeiras sofrendo no máximo 10 gols', target: 1, counts: c => withCrest('palmeiras')(c) && isChampion(c) && c.goalsAgainst <= 10 },
+          { id: 'defense', label: 'Termine uma competição sofrendo no máximo 10 gols no Ouro ou acima', target: 1, counts: c => goldOrAbove(c) && c.wins + c.draws + c.losses > 0 && c.goalsAgainst <= 10 },
+          clubTitle('palmeiras', 'Palmeiras'),
         ],
       },
       {
         key: 'sao-paulo', label: 'São Paulo', cardId: 'luis_fabiano_unico', crestId: 'sao-paulo',
         objectives: [
           { id: 'crest', label: 'Conclua 3 competições com o escudo do São Paulo', target: 3, counts: withCrest('sao-paulo') },
-          { id: 'scorer', label: 'Tenha um jogador com 20 gols numa competição', target: 1, counts: c => c.topPlayerGoals >= 20 },
-          { id: 'goals', label: 'Marque 50 gols numa competição no Ouro ou acima', target: 1, counts: c => goldOrAbove(c) && c.goals >= 50 },
+          { id: 'scorer', label: 'Tenha um jogador com 18 gols numa competição no Ouro ou acima', target: 1, counts: c => goldOrAbove(c) && c.topPlayerGoals >= 18 },
+          clubTitle('sao-paulo', 'São Paulo'),
         ],
       },
       {
         key: 'santos', label: 'Santos', cardId: 'ganso_unico', crestId: 'santos',
         objectives: [
           { id: 'crest', label: 'Conclua 3 competições com o escudo do Santos', target: 3, counts: withCrest('santos') },
-          { id: 'assists', label: 'Tenha um jogador com 12 assistências numa competição', target: 1, counts: c => c.topPlayerAssists >= 12 },
-          { id: 'title', label: 'Seja campeão com o escudo do Santos no Ouro ou acima', target: 1, counts: c => withCrest('santos')(c) && goldOrAbove(c) && isChampion(c) },
+          { id: 'assists', label: 'Tenha um jogador com 10 assistências numa competição no Ouro ou acima', target: 1, counts: c => goldOrAbove(c) && c.topPlayerAssists >= 10 },
+          clubTitle('santos', 'Santos'),
         ],
       },
     ],
