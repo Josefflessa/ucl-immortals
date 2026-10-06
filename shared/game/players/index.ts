@@ -21,6 +21,7 @@ import { SORTITOUTSI_1000_ADDITIONS } from './sortitoutsiThousandExpansion';
 import { SORTITOUTSI_EUROPEAN_LEGENDS } from './sortitoutsiEuropeanLegendsExpansion';
 import { USER_SELECTED_HISTORICAL_PLAYERS } from './userSelectedHistoricalPlayers';
 import { FIFAINDEX_FAMOUS_ADDITIONS } from './fifaIndexFamousExpansion';
+import { FIFAINDEX_VERSION_ADDITIONS } from './fifaIndexVersionsExpansion';
 import { ORIGINAL_PLAYERS } from './originalCatalog';
 import { UNIQUE_CARD_LIST } from './uniqueCards';
 
@@ -42,6 +43,7 @@ export const PLAYER_SOURCES: PlayerSource[] = [
   { file: 'sortitoutsiEuropeanLegendsExpansion', players: SORTITOUTSI_EUROPEAN_LEGENDS },
   { file: 'userSelectedHistoricalPlayers', players: USER_SELECTED_HISTORICAL_PLAYERS },
   { file: 'fifaIndexFamousExpansion', players: FIFAINDEX_FAMOUS_ADDITIONS },
+  { file: 'fifaIndexVersionsExpansion', players: FIFAINDEX_VERSION_ADDITIONS },
   { file: 'originalCatalog', players: ORIGINAL_PLAYERS },
 ];
 

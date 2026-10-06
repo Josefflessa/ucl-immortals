@@ -89,6 +89,7 @@ export const CREST_CATALOG: CrestGroup[] = [
     league: "Ligue 1 🇫🇷", crests: [
       { id: "paris-saint-germain", name: "Paris Saint-Germain", url: "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg" },
       { id: "marseille", name: "Marseille", url: "https://upload.wikimedia.org/wikipedia/commons/d/d8/Olympique_Marseille_logo.svg" },
+      { id: "saint-etienne", name: "Saint-Étienne", url: "https://upload.wikimedia.org/wikipedia/en/2/25/AS_Saint-%C3%89tienne_logo.svg" },
       { id: "lille", name: "Lille", url: "https://upload.wikimedia.org/wikipedia/en/3/3f/Lille_OSC_2018_logo.svg" },
       { id: "nice", name: "Nice", url: "https://upload.wikimedia.org/wikipedia/en/2/2e/OGC_Nice_logo.svg" },
       { id: "rennes", name: "Rennes", url: "https://upload.wikimedia.org/wikipedia/en/9/9e/Stade_Rennais_FC.svg" },
@@ -123,6 +124,7 @@ export const CREST_CATALOG: CrestGroup[] = [
     league: "Turquia 🇹🇷", crests: [
       { id: "galatasaray", name: "Galatasaray", url: "https://upload.wikimedia.org/wikipedia/commons/2/20/Galatasaray_Sports_Club_Logo.svg" },
       { id: "besiktas", name: "Beşiktaş", url: "https://upload.wikimedia.org/wikipedia/commons/2/20/Logo_of_Be%C5%9Fikta%C5%9F_JK.svg" },
+      { id: "trabzonspor", name: "Trabzonspor", url: "https://upload.wikimedia.org/wikipedia/en/d/de/Trabzonspor_Amblem.svg" },
       { id: "fenerbahce", name: "Fenerbahçe", url: "https://upload.wikimedia.org/wikipedia/commons/e/ed/Fenerbah%C3%A7e_Spor_Kul%C3%BCb%C3%BC_%28logo%2C_1923%29.svg" },
     ]
   },
@@ -210,6 +212,10 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "dinamo-zagreb", name: "Dinamo Zagreb", url: "https://upload.wikimedia.org/wikipedia/commons/5/56/Logo_GNK_Dinamo_Zagreb_%282019%29.svg" },
       { id: "girona", name: "Girona FC", url: "https://upload.wikimedia.org/wikipedia/en/f/f7/Girona_FC_Logo.svg" },
       { id: "al-nassr", name: "Al Nassr", url: "https://upload.wikimedia.org/wikipedia/commons/3/3f/Nassr_FC_Logo.svg" },
+      { id: "al-hilal", name: "Al Hilal", url: "https://upload.wikimedia.org/wikipedia/commons/5/55/Al_Hilal_SFC_Logo.svg" },
+      { id: "al-ittihad", name: "Al Ittihad", url: "https://upload.wikimedia.org/wikipedia/en/8/87/Al-Ittihad_Club_%28Jeddah%29_logo.svg" },
+      { id: "al-ahli", name: "Al Ahli", url: "https://upload.wikimedia.org/wikipedia/en/4/45/Al_Ahli_Saudi_FC_logo.svg" },
+      { id: "guangzhou-evergrande", name: "Guangzhou Evergrande", url: "https://upload.wikimedia.org/wikipedia/en/9/98/Guangzhou_Evergrande_Taobao_logo.svg" },
       { id: "atlanta-united", name: "Atlanta United", url: "https://upload.wikimedia.org/wikipedia/en/b/bb/Atlanta_MLS.svg" },
       { id: "dalian-yifang", name: "Dalian YiFang FC", url: "https://upload.wikimedia.org/wikipedia/en/6/69/Dalian_Professional_F.C.svg" },
       { id: "dynamo-moscow", name: "Dynamo Moscow", url: "https://upload.wikimedia.org/wikipedia/en/e/e7/Dynamo_Moscow_logo.svg" },
