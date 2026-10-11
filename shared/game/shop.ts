@@ -209,5 +209,5 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'apostador', icon: '🎲', label: 'Apostador', color: '#D9752F', desc: '+2 permanente em todos os atributos a cada aposta vencida com ele no elenco. Acumula.' },
   { key: 'agregador', icon: '🔗', label: 'Agregador', color: '#A5ACC2', desc: 'Titular: todo o time ganha +1 em todos os atributos para cada característica diferente entre os titulares.' },
   { key: 'pechincheiro', icon: '🏷️', label: 'Pechincheiro', color: '#E0315F', desc: 'No elenco: Turbinar, remover característica, pacotes, Caça-Talentos e troca de técnico custam 15% a menos.' },
-  { key: 'midiatico', icon: '📺', label: 'Midiático', color: '#7C6FF0', desc: 'Cada gol dele rende 15 créditos.' },
+  { key: 'midiatico', icon: '📺', label: 'Midiático', color: '#7C6FF0', desc: 'Cada gol dele rende 20 créditos.' },
 ];

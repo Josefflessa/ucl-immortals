@@ -87,7 +87,7 @@ export const APOSTADOR_STAT_BOOST_PER_WIN = 2;
 /** 🧩 Agregador: +N em tudo ao XI por característica diferente entre os titulares (cada Agregador soma). */
 export const AGREGADOR_STAT_BOOST_PER_TRAIT = 1;
 /** 📺 Midiático: créditos por gol dele. */
-export const MIDIATICO_CREDITS_PER_GOAL = 15;
+export const MIDIATICO_CREDITS_PER_GOAL = 20;
 
 /** Returns Apostador's permanent all-attribute bonus from winning bets. */
 export function apostadorStatBoost(wins: number | undefined): number {

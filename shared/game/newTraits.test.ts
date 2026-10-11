@@ -10,6 +10,7 @@ import { SHOP_COSTS, shopItemCost } from './shop';
 import { calculateClubReward } from './clubProjects';
 import { createMissionState } from './missions';
 import { seededRandom, withRandomSource } from './random';
+import { MIDIATICO_CREDITS_PER_GOAL } from './engine/draft';
 
 /** A bot team with every characteristic removed, so each test adds only what it needs. */
 function plainTeam(): Team {
@@ -120,7 +121,7 @@ describe('📺 Midiático', () => {
         [statKey(team.id, team.players[8].id)]: { goals: 1, assists: 1 },
       },
     } as unknown as MatchResult;
-    expect(midiaticoCredits(withTrait, result)).toBe(30);
+    expect(midiaticoCredits(withTrait, result)).toBe(2 * MIDIATICO_CREDITS_PER_GOAL);
     expect(midiaticoCredits(team, result)).toBe(0);
     const reward = calculateClubReward(100, 1, 'home', false, 0, 30);
     expect(reward.midiaticoBonus).toBe(30);

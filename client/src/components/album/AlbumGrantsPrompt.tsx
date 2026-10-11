@@ -1,7 +1,7 @@
 // The packs the album just granted for a finished campaign: open them now or keep
 // them in the inventory. Shown when returning to the home menu.
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, Package } from 'lucide-react';
+import { Package } from 'lucide-react';
 import type { AlbumItemKey } from '@shared/game/album';
 import { Button, GameModal } from '../../design-system';
 import { useAlbum, type ItemGrant } from '../../contexts/AlbumContext';
@@ -20,7 +20,7 @@ function headline(grants: readonly ItemGrant[]): { title: string; text: string }
 
 export default function AlbumGrantsPrompt() {
   const { album, pendingGrants, dismissGrants, refresh } = useAlbum();
-  const { state, dispatch } = useGame();
+  const { state } = useGame();
   const [opening, setOpening] = useState<AlbumItemKey[] | null>(null);
   const previousPhase = useRef(state.phase);
   const hasPendingGrants = useRef(pendingGrants.length > 0);
@@ -64,9 +64,6 @@ export default function AlbumGrantsPrompt() {
       footer={(
         <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button intent="ghost" onClick={dismissGrants}>Guardar no inventário</Button>
-          <Button intent="secondary" onClick={() => { dismissGrants(); dispatch({ type: 'SET_PHASE', phase: 'album' }); }}>
-            <BookOpen size={16} aria-hidden="true" /> Ver álbum
-          </Button>
           <Button intent="primary" disabled={keys.length === 0} onClick={() => { setOpening(keys); dismissGrants(); }}>
             <Package size={16} aria-hidden="true" /> Abrir agora
           </Button>

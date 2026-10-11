@@ -127,7 +127,7 @@ export interface Player {
   apostadorWins?: number; // 🎲 apostas vencidas contabilizadas enquanto a carta carrega a característica
   agregador?: boolean;   // 🧩 Agregador — titular: +1 em tudo ao XI por característica diferente entre os titulares
   pechincheiro?: boolean; // 🏷️ Pechincheiro — no elenco: itens da loja custam 15% a menos
-  midiatico?: boolean;   // 📺 Midiático — cada gol dele rende 15 créditos
+  midiatico?: boolean;   // 📺 Midiático — cada gol dele rende 20 créditos
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).
