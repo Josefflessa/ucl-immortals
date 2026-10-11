@@ -34,9 +34,9 @@ export default function NarrationStrip({ minute, isFinished, userPaused, danger,
   const accent = danger ? (danger.forMe ? '#22C55E' : '#EF4444') : '#eab308';
   const label = isFinished ? 'FIM DE JOGO' : userPaused ? 'PAUSADO' : danger ? (danger.forMe ? 'CHANCE DO SEU TIME' : 'PERIGO NO SEU GOL') : 'AO VIVO';
   return (
-    <div className="p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0 transition-colors" style={{ background: danger ? `${accent}14` : 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: danger ? `${accent}4d` : '#171725' }}>
+    <div className="narration-strip p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0 transition-colors" style={{ background: danger ? `${accent}14` : 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: danger ? `${accent}4d` : '#171725' }}>
       <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[12px] font-black tracking-widest uppercase" style={{ fontFamily: 'var(--font-game), sans-serif', color: isFinished ? 'var(--ui-text-soft)' : accent }}>
+        <span className="narration-strip__label text-[12px] font-black tracking-widest uppercase" style={{ fontFamily: 'var(--font-game), sans-serif', color: isFinished ? 'var(--ui-text-soft)' : accent }}>
           {label}
         </span>
         {danger && !isFinished && (
@@ -49,7 +49,7 @@ export default function NarrationStrip({ minute, isFinished, userPaused, danger,
       </div>
       {isFinished ? finishedContent : (
         <div className="flex items-center gap-2 sm:gap-3">
-          <span className="text-sm sm:text-base font-bold text-yellow-500 tabular-nums min-w-[28px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+          <span className="narration-strip__minute text-sm sm:text-base font-bold text-yellow-500 tabular-nums min-w-[28px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
             {minute}'
           </span>
           <AnimatePresence mode="wait">
@@ -60,7 +60,7 @@ export default function NarrationStrip({ minute, isFinished, userPaused, danger,
               // In a danger each line is timed to the pitch: a quick swap, not a slow fade.
               exit={{ opacity: 0, x: -20, transition: { duration: danger ? 0.03 : 0.2 } }}
               transition={{ duration: danger ? 0.12 : 0.25 }}
-              className="text-sm sm:text-base font-extrabold text-white leading-tight uppercase break-words"
+              className="narration-strip__text text-sm sm:text-base font-extrabold text-white leading-tight uppercase break-words"
               style={{ fontFamily: 'var(--font-game), sans-serif' }}
             >
               {danger ? danger.message : heldText}

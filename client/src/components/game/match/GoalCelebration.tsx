@@ -110,8 +110,12 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, localT
   const assisterTeamId = goal.assisterTeamId ?? goal.teamId;
   const assisterTeam = assisterTeamId === homeTeam.id ? homeTeam : awayTeam;
   const narrow = typeof window !== 'undefined' && window.innerWidth < 640;
-  const scorerScale = narrow ? (goal.assister ? 0.8 : 0.9) : 1.05;
-  const assistScale = narrow ? 0.6 : 0.76;
+  // A phone on its side (the pitch's full screen): little height, so the headline and the cards
+  // sit side by side and the cards are sized from the height.
+  const wide = typeof window !== 'undefined' && window.innerHeight < 520 && window.innerWidth > window.innerHeight;
+  const fitScale = wide ? Math.min(0.95, (window.innerHeight * 0.62) / 324) : 1;
+  const scorerScale = wide ? fitScale : narrow ? (goal.assister ? 0.8 : 0.9) : 1.05;
+  const assistScale = wide ? fitScale * 0.78 : narrow ? 0.6 : 0.76;
   // The cards are the heaviest part to mount; let the headline paint first and
   // mount them a moment later so the entry is not one long frame.
   const [cardsReady, setCardsReady] = useState(false);
@@ -166,7 +170,9 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, localT
         </>
       )}
 
-      <div className="relative flex w-full max-w-3xl flex-col items-center">
+      {/* Wide: one centred group, the headline and caption next to the cards (columns as wide as their content). */}
+      <div className={wide ? 'relative grid grid-cols-[auto_auto] grid-rows-[auto_auto] items-center justify-center gap-x-7' : 'relative flex w-full max-w-3xl flex-col items-center'}>
+        <div className={wide ? 'col-start-1 row-start-1 flex min-w-0 flex-col items-center self-end' : 'contents'}>
         {/* The word itself is the headline. */}
         <div
           className="text-center font-black leading-[0.85]"
@@ -175,7 +181,7 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, localT
             ...LAYER,
             animation: `goal-title-in 600ms ${EASE_OUT} both`,
             color: accent,
-            fontSize: mine ? 'clamp(4.5rem, 21vw, 10rem)' : 'clamp(5rem, 26vw, 10rem)',
+            fontSize: wide ? (mine ? 'clamp(2.6rem, 17vh, 5rem)' : 'clamp(3rem, 20vh, 5.5rem)') : mine ? 'clamp(4.5rem, 21vw, 10rem)' : 'clamp(5rem, 26vw, 10rem)',
             letterSpacing: '0.03em',
             textShadow: `0 0 36px ${accent}99, 0 6px 0 rgba(0,0,0,.5)`,
           }}
@@ -184,14 +190,15 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, localT
         </div>
         <div
           className="mt-2 flex items-center gap-2 text-center font-black uppercase tracking-[0.12em] text-white"
-          style={{ ...FONT_GAME, ...LAYER, fontSize: 'clamp(1rem, 4.4vw, 1.6rem)', animation: `goal-rise-in 250ms ${EASE_OUT} 200ms both` }}
+          style={{ ...FONT_GAME, ...LAYER, fontSize: wide ? 'clamp(0.85rem, 4.6vh, 1.25rem)' : 'clamp(1rem, 4.4vw, 1.6rem)', animation: `goal-rise-in 250ms ${EASE_OUT} 200ms both` }}
         >
-          <Crest crestId={scoringTeam.crestId} name={scoringTeam.name} size={narrow ? 24 : 32} />
+          <Crest crestId={scoringTeam.crestId} name={scoringTeam.name} size={narrow || wide ? 24 : 32} />
           {mine ? scoringTeam.name : `do ${scoringTeam.name}`}
+        </div>
         </div>
 
         {/* Cards: scorer (big) + assist (smaller) */}
-        <div className="mt-6 flex items-end justify-center gap-4 sm:gap-8" style={{ minHeight: Math.round(324 * scorerScale) + 32 }}>
+        <div className={wide ? 'col-start-2 row-span-2 row-start-1 flex items-end justify-center gap-4 self-center' : 'mt-6 flex items-end justify-center gap-4 sm:gap-8'} style={{ minHeight: Math.round(324 * scorerScale) + 32 }}>
           {cardsReady && goal.scorer && (
             <CardSlot label={goal.ownGoal ? 'GOL CONTRA' : 'GOL'} accent={goal.ownGoal ? '#EF4444' : accent} delayMs={0} dir={-1}>
               <PlayerCard player={goal.scorer} effectiveStats={goal.scorerStats} scale={scorerScale} albumLevel={scorerTeam.albumLevels?.[goal.scorer.id]} showAlbumLevel={scorerTeam.id === localTeamId} />
@@ -204,9 +211,10 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, localT
           )}
         </div>
 
+        <div className={wide ? 'col-start-1 row-start-2 flex min-w-0 flex-col items-center self-start' : 'contents'}>
         {/* Caption */}
-        <div className="mt-4 text-center" style={{ ...FONT_GAME, ...LAYER, animation: `goal-rise-in 250ms ${EASE_OUT} 650ms both` }}>
-          <div className="text-lg font-black uppercase tracking-wide text-white sm:text-2xl">
+        <div className={wide ? 'mt-3 text-center' : 'mt-4 text-center'} style={{ ...FONT_GAME, ...LAYER, animation: `goal-rise-in 250ms ${EASE_OUT} 650ms both` }}>
+          <div className={wide ? 'text-base font-black uppercase tracking-wide text-white' : 'text-lg font-black uppercase tracking-wide text-white sm:text-2xl'}>
             {goal.scorer?.shortName ?? 'Gol contra'}
             {goal.assister && <span className="text-[var(--ui-text-muted)]"> · assistência de <span className="text-[#93C5FD]">{goal.assister.shortName}</span></span>}
           </div>
@@ -220,10 +228,11 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, localT
         </div>
 
         {onSkip && (
-          <div className="mt-5 text-[12px] font-bold tracking-widest text-[var(--ui-text-faint)]" style={FONT_GAME}>
+          <div className={wide ? 'mt-3 text-[11px] font-bold tracking-widest text-[var(--ui-text-faint)]' : 'mt-5 text-[12px] font-bold tracking-widest text-[var(--ui-text-faint)]'} style={FONT_GAME}>
             TOQUE PARA CONTINUAR
           </div>
         )}
+        </div>
       </div>
     </div>
   );

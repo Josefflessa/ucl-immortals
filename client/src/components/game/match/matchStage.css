@@ -302,3 +302,104 @@
     font-size: 10.5px;
   }
 }
+
+/* A phone on its side: little height, so everything beside the pitch gets compact (a narrower
+   column, a slimmer board, one-line narration) and the pitch keeps most of the screen. */
+@media (max-height: 520px) {
+  .match-stage--full {
+    --side: clamp(190px, 27vw, 260px);
+  }
+  .fs-board {
+    --fs-pad: 6px;
+    --fs-name: 11px;
+    --fs-goals: 17px;
+  }
+  .fs-board__top {
+    margin-bottom: 5px;
+  }
+  .fs-board__clock {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+  .fs-board__icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+  .fs-board__icon svg {
+    width: 14px;
+    height: 14px;
+  }
+  .fs-board__teams {
+    gap: 3px;
+  }
+  .fs-board__team {
+    gap: 6px;
+    padding: 3px 6px 3px 4px;
+    border-radius: 6px;
+  }
+  .fs-board__team > :first-child {
+    width: 18px !important;
+    height: 18px !important;
+    flex-shrink: 0;
+  }
+  .fs-board__pens {
+    font-size: 10px;
+  }
+  .fs-board__aggregate {
+    margin-top: 4px;
+    font-size: 9.5px;
+  }
+  .match-stage--full .narration-strip {
+    padding: 5px 8px;
+  }
+  .match-stage--full .narration-strip__label {
+    font-size: 9.5px;
+  }
+  .match-stage--full .narration-strip__minute {
+    min-width: 0;
+    font-size: 11px;
+  }
+  .match-stage--full .narration-strip__text {
+    font-size: 11px;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .match-stage--full .match-stage__feedhead {
+    padding: 4px 8px;
+  }
+  .match-stage--full .match-stage__feedhead span {
+    font-size: 10px;
+  }
+  .match-stage--full .match-stage__feed {
+    padding: 6px;
+  }
+  .match-stage--full .match-stage__feed > * + * {
+    margin-top: 4px !important;
+  }
+  .match-stage--full .feed-card {
+    gap: 5px;
+    padding: 4px 6px 4px 5px;
+    border-radius: 8px;
+  }
+  .match-stage--full .feed-card__min {
+    min-width: 18px;
+    font-size: 10px;
+  }
+  .match-stage--full .feed-card__crest,
+  .match-stage--full .feed-card__crest > * {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  .match-stage--full .feed-card__text {
+    font-size: 10.5px;
+    line-height: 1.25;
+  }
+  .match-stage--full .feed-card__tag {
+    margin-top: 2px;
+    font-size: 8.5px;
+  }
+}

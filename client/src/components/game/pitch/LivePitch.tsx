@@ -160,7 +160,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
   castSlotsRef.current = snap.cast.map(c => c.slot);
   const faceOffsets = useRef(new Map<number, { x: number; y: number }>());
   const size = useRef({ w: 0, h: 0 });
-  const camera = useRef({ x: 52.5, y: 34, zoom: 1, vx: 0, vy: 0, vz: 0 });
+  const camera = useRef({ x: 52.5, y: 34, zoom: 1, vx: 0, vy: 0, vz: 0, still: 0, promoted: false });
   // Each portrait's name tag, measured to keep tags from overlapping.
   const nameRefs = useRef(new Map<number, HTMLSpanElement>());
   const focusRef = useRef(snap.focus);
@@ -448,7 +448,19 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
       const slackX = ((CAMERA_SLACK_M / VIEW_W) * 100) * Math.min(1, Math.max(0, (z - 1) / 0.5));
       const cx = Math.min(100 - half + slackX, Math.max(half - slackX, ((cam.x - VIEW_X) / VIEW_W) * 100));
       const cy = Math.min(100 - half, Math.max(half, ((cam.y - VIEW_Y) / VIEW_H) * 100));
-      if (cameraRef.current) cameraRef.current.style.transform = `translate(${50 - z * cx}%, ${50 - z * cy}%) scale(${z})`;
+      if (cameraRef.current) {
+        cameraRef.current.style.transform = `translate(${50 - z * cx}%, ${50 - z * cy}%) scale(${z})`;
+        // While the camera moves, the grass is its own layer (moved, not redrawn, each frame:
+        // the redraw of the whole pitch is what stutters on phones); once it has settled, it
+        // goes back to being drawn, so its lines are crisp again at the new zoom.
+        const moving = Math.abs(cam.vx) + Math.abs(cam.vy) > 0.08 || Math.abs(cam.vz) > 0.004;
+        cam.still = moving ? 0 : cam.still + step;
+        const promote = cam.still < 0.4;
+        if (promote !== cam.promoted) {
+          cam.promoted = promote;
+          cameraRef.current.style.willChange = promote ? 'transform' : 'auto';
+        }
+      }
       // Only the grass is scaled by the camera. Players, faces, names and the ball are
       // placed in screen pixels at their real size, so they stay sharp at any zoom.
       const tx = ((50 - z * cx) / 100) * w;
