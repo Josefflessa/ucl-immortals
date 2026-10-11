@@ -22,6 +22,7 @@ import { SORTITOUTSI_EUROPEAN_LEGENDS } from './sortitoutsiEuropeanLegendsExpans
 import { USER_SELECTED_HISTORICAL_PLAYERS } from './userSelectedHistoricalPlayers';
 import { FIFAINDEX_FAMOUS_ADDITIONS } from './fifaIndexFamousExpansion';
 import { FIFAINDEX_VERSION_ADDITIONS } from './fifaIndexVersionsExpansion';
+import { FIFAINDEX_ALBUM_CLUB_ADDITIONS } from './fifaIndexAlbumClubsExpansion';
 import { ORIGINAL_PLAYERS } from './originalCatalog';
 import { EVENT_UNIQUE_CARD_LIST, UNIQUE_CARD_LIST } from './uniqueCards';
 
@@ -45,6 +46,7 @@ export const PLAYER_SOURCES: PlayerSource[] = [
   { file: 'fifaIndexFamousExpansion', players: FIFAINDEX_FAMOUS_ADDITIONS },
   { file: 'fifaIndexVersionsExpansion', players: FIFAINDEX_VERSION_ADDITIONS },
   { file: 'originalCatalog', players: ORIGINAL_PLAYERS },
+  { file: 'fifaIndexAlbumClubsExpansion', players: FIFAINDEX_ALBUM_CLUB_ADDITIONS },
 ];
 
 // The source objects still carry a hand-written rarity label, but the overall band

@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PLAYERS } from '@shared/game/gameData';
 import { FIFAINDEX_FAMOUS_ADDITIONS } from '@shared/game/players/fifaIndexFamousExpansion';
+import { FIFAINDEX_VERSION_ADDITIONS } from '@shared/game/players/fifaIndexVersionsExpansion';
+import { FIFAINDEX_ALBUM_CLUB_ADDITIONS } from '@shared/game/players/fifaIndexAlbumClubsExpansion';
 import { buildPlayerCatalog } from './playerCatalog';
 
 const normalize = (value: string) => value
@@ -25,7 +27,10 @@ describe('fifaindex famous additions', () => {
 
   it('does not reuse an id or duplicate a person already in the catalog', () => {
     const addedIds = new Set(FIFAINDEX_FAMOUS_ADDITIONS.map(player => player.id));
-    const rest = PLAYERS.filter(player => !addedIds.has(player.id));
+    // Later batches add these same people at other clubs on purpose (other versions): they
+    // are not duplicates of this one, which only brought people new to the catalogue.
+    const laterVersions = new Set([...FIFAINDEX_VERSION_ADDITIONS, ...FIFAINDEX_ALBUM_CLUB_ADDITIONS].map(player => player.id));
+    const rest = PLAYERS.filter(player => !addedIds.has(player.id) && !laterVersions.has(player.id));
     const existingFullNames = new Set(rest.map(player => normalize(player.fullName)));
     expect(PLAYERS.filter(player => addedIds.has(player.id))).toHaveLength(FIFAINDEX_FAMOUS_ADDITIONS.length);
     expect(FIFAINDEX_FAMOUS_ADDITIONS.filter(player => existingFullNames.has(normalize(player.fullName))).map(p => p.fullName)).toEqual([]);
