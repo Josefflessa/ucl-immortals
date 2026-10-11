@@ -13,6 +13,10 @@ import {
 import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, loadOwnedNameStyles, syncEventRewards } from './events.js';
 import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { isAvatarFrameKey } from '../shared/game/events.js';
+import { isClubRewardKey } from '../shared/game/clubRewards.js';
+import { albumSummary, applyCopy, buyPack, ensureAlbum, loadOwnedCovers, openItem, sellCopies, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, type ItemGrant } from './album.js';
+import { albumCatalog } from '../shared/game/album.js';
+import { WEEKLY_PACK_REWARDS } from '../shared/game/dailyRewards.js';
 import {
   competitionStagePoints,
   finishStageFromLegacyPoints,
@@ -504,6 +508,8 @@ async function profileUpdate(request: Request, env: AccountEnv, account: Authent
     if (nameStyleKey && !(await loadOwnedNameStyles(env.DB, account.id)).includes(nameStyleKey)) return json({ error: 'name_style_not_owned' }, 403);
   }
   if (!/^[a-z0-9-]{3,40}$/.test(avatarKey) || !/^[a-z0-9-]{3,40}$/.test(coverKey) || !isProfileAvatarBackgroundKey(avatarBackgroundKey)) return json({ error: 'invalid_profile_asset' }, 400);
+  // A club's cover is earned in the album: only an account that completed the club may use it.
+  if (coverKey !== account.coverKey && isClubRewardKey(coverKey) && !(await loadOwnedCovers(env.DB, account.id)).includes(coverKey)) return json({ error: 'cover_not_owned' }, 403);
   await env.DB.prepare(`UPDATE profiles SET display_name = ?, bio = ?, avatar_key = ?, avatar_background_key = ?, avatar_frame_key = ?, name_style_key = ?, cover_key = ?, avatar_url = ?, cover_url = ?, favorite_crest_id = ?, updated_at = ? WHERE user_id = ?`)
     .bind(displayName, bio, avatarKey, avatarBackgroundKey, avatarFrameKey, nameStyleKey, coverKey, avatarUrl, coverUrl, favoriteCrestId, Date.now(), account.id).run();
   const updated = await accountById(env.DB, account.id);
@@ -600,6 +606,9 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
   }
   const id = `cmp_${randomToken(12)}`;
   const now = Date.now();
+  // Ensure campaign rewards are active before saving this result. This must not depend on a
+  // visit to the album screen; the saved result uses the same timestamp and is immediately eligible.
+  await ensureAlbum(env.DB, account.id, now);
   const placement = body.placement == null ? null : Math.max(1, Math.min(999, Number(body.placement)) || 1);
   const crestId = body.crestId ? String(body.crestId).slice(0, 80) : null;
   const coachId = body.coachId ? String(body.coachId).slice(0, 80) : null;
@@ -678,7 +687,9 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     console.error('[events] evaluation after solo save failed:', error);
     return { unlocked: [], cardsUnlocked: [] };
   });
-  return json({ id, duplicate: false, achievementsUnlocked, framesUnlocked: eventRewards.unlocked, eventCardsUnlocked: eventRewards.cardsUnlocked }, 201);
+  // Album packs for campaigns saved since this account's album rewards were initialized.
+  const albumGrants = await grantCampaignAlbumPacks(env, account.id);
+  return json({ id, duplicate: false, achievementsUnlocked, framesUnlocked: eventRewards.unlocked, eventCardsUnlocked: eventRewards.cardsUnlocked, albumGrants }, 201);
 }
 
 async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
@@ -1179,8 +1190,8 @@ async function friendsList(env: AccountEnv, account: AuthenticatedAccount): Prom
       WHERE f.requester_id = ? OR f.addressee_id = ?
     )
     SELECT f.id, f.status, f.requester_id, f.addressee_id, f.created_at, f.updated_at,
-    pr.username AS requester_username, pr.display_name AS requester_display_name, pr.avatar_key AS requester_avatar_key, pr.avatar_background_key AS requester_avatar_background_key, pr.avatar_frame_key AS requester_avatar_frame_key, pr.name_style_key AS requester_name_style_key,
-    pa.username AS addressee_username, pa.display_name AS addressee_display_name, pa.avatar_key AS addressee_avatar_key, pa.avatar_background_key AS addressee_avatar_background_key, pa.avatar_frame_key AS addressee_avatar_frame_key, pa.name_style_key AS addressee_name_style_key,
+    pr.username AS requester_username, pr.display_name AS requester_display_name, pr.avatar_key AS requester_avatar_key, pr.avatar_background_key AS requester_avatar_background_key, pr.avatar_url AS requester_avatar_url, pr.avatar_frame_key AS requester_avatar_frame_key, pr.name_style_key AS requester_name_style_key,
+    pa.username AS addressee_username, pa.display_name AS addressee_display_name, pa.avatar_key AS addressee_avatar_key, pa.avatar_background_key AS addressee_avatar_background_key, pa.avatar_url AS addressee_avatar_url, pa.avatar_frame_key AS addressee_avatar_frame_key, pa.name_style_key AS addressee_name_style_key,
     COALESCE(ps.is_online, 0) AS is_online,
     CASE WHEN COALESCE(ps.has_available_session, 0) = 1 AND COALESCE(ps.has_busy_session, 0) = 0 THEN 1 ELSE 0 END AS is_available,
     COALESCE(ps.has_busy_session, 0) AS is_busy
@@ -1287,11 +1298,286 @@ async function friendUpdate(request: Request, env: AccountEnv, account: Authenti
   } else if (action === 'block') {
     await env.DB.prepare('UPDATE friendships SET status = \'blocked\', updated_at = ? WHERE id = ?').bind(now, id).run();
   } else if (action === 'remove') {
-    await env.DB.prepare('DELETE FROM friendships WHERE id = ?').bind(id).run();
+    const friendId = row.requester_id === account.id ? row.addressee_id : row.requester_id;
+    await env.DB.batch([
+      // A removed friend should no longer have an active conversation or an offer in flight.
+      env.DB.prepare('DELETE FROM friend_messages WHERE friendship_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM album_friend_trades WHERE friendship_id = ?').bind(id),
+      // Remove the like this account gave the friend; incoming likes are independent.
+      env.DB.prepare('DELETE FROM profile_likes WHERE user_id = ? AND liker_id = ?').bind(friendId, account.id),
+      env.DB.prepare('DELETE FROM friendships WHERE id = ?').bind(id),
+    ]);
   } else {
     return json({ error: 'invalid_friend_action' }, 400);
   }
   return json({ ok: true });
+}
+
+/** A chat and trades are available only while this friendship is accepted. */
+async function acceptedFriendship(env: AccountEnv, account: AuthenticatedAccount, friendshipId: string): Promise<{ id: string; requester_id: string; addressee_id: string } | null> {
+  return env.DB.prepare(`SELECT id, requester_id, addressee_id FROM friendships
+    WHERE id = ? AND status = 'accepted' AND (requester_id = ? OR addressee_id = ?) LIMIT 1`)
+    .bind(friendshipId, account.id, account.id)
+    .first<{ id: string; requester_id: string; addressee_id: string }>();
+}
+
+const FRIEND_MESSAGE_TTL_MS = 24 * 60 * 60 * 1000;
+const FRIEND_MESSAGE_MAX_LENGTH = 500;
+
+async function friendMessages(request: Request, env: AccountEnv, account: AuthenticatedAccount, friendshipId: string): Promise<Response> {
+  const friendship = await acceptedFriendship(env, account, friendshipId);
+  if (!friendship) return json({ error: 'friendship_not_found' }, 404);
+  const now = Date.now();
+  // Expiration is enforced on every read and send; cleanup is shared across conversations.
+  await env.DB.prepare('DELETE FROM friend_messages WHERE expires_at <= ?').bind(now).run();
+  if (request.method === 'GET') {
+    const rows = await env.DB.prepare(`SELECT id, sender_id, body, created_at, expires_at
+      FROM friend_messages WHERE friendship_id = ? AND expires_at > ?
+      ORDER BY created_at ASC LIMIT 200`).bind(friendshipId, now).all();
+    return json({ messages: rows.results });
+  }
+  const body = await readJson(request);
+  const text = typeof body?.body === 'string' ? body.body.trim() : '';
+  if (!text || text.length > FRIEND_MESSAGE_MAX_LENGTH) return json({ error: 'invalid_message' }, 400);
+  const message = {
+    id: `msg_${randomToken(12)}`,
+    sender_id: account.id,
+    body: text,
+    created_at: now,
+    expires_at: now + FRIEND_MESSAGE_TTL_MS,
+  };
+  await env.DB.prepare(`INSERT INTO friend_messages (id, friendship_id, sender_id, body, created_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?)`).bind(message.id, friendshipId, account.id, text, now, message.expires_at).run();
+  return json({ message }, 201);
+}
+
+const FRIEND_TRADE_TTL_MS = 72 * 60 * 60 * 1000;
+const FRIEND_TRADE_MAX_QUANTITY = 999;
+
+interface FriendTradeRow {
+  id: string;
+  friendship_id: string;
+  requester_id: string;
+  addressee_id: string;
+  requester_card_id: string;
+  requester_quantity: number;
+  addressee_card_id: string | null;
+  addressee_quantity: number | null;
+  requester_ready: number;
+  addressee_ready: number;
+  status: 'pending' | 'processing' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+  created_at: number;
+  updated_at: number;
+  expires_at: number;
+}
+
+async function friendTrades(request: Request, env: AccountEnv, account: AuthenticatedAccount, friendshipId: string): Promise<Response> {
+  const friendship = await acceptedFriendship(env, account, friendshipId);
+  if (!friendship) return json({ error: 'friendship_not_found' }, 404);
+  const now = Date.now();
+  await env.DB.prepare(`UPDATE album_friend_trades SET status = 'expired', updated_at = ?
+    WHERE friendship_id = ? AND status = 'pending' AND expires_at <= ?`).bind(now, friendshipId, now).run();
+  if (request.method === 'GET') {
+    const rows = await env.DB.prepare(`SELECT id, friendship_id, requester_id, addressee_id,
+        requester_card_id, requester_quantity, addressee_card_id, addressee_quantity, requester_ready, addressee_ready,
+        status, created_at, updated_at, expires_at
+      FROM album_friend_trades WHERE friendship_id = ?
+        AND ((status = 'pending' AND expires_at > ?) OR (status = 'accepted' AND updated_at > ?))
+      ORDER BY created_at DESC LIMIT 50`).bind(friendshipId, now, now - 10 * 60 * 1000).all<FriendTradeRow>();
+    return json({ trades: rows.results.map((row: any) => ({ ...row, requester_ready: Boolean(row.requester_ready), addressee_ready: Boolean(row.addressee_ready) })) });
+  }
+
+  const body = await readJson(request);
+  const cardId = typeof body?.cardId === 'string' ? body.cardId : '';
+  const quantity = Number(body?.quantity ?? 1);
+  if (!albumCatalog().stickers.has(cardId)) return json({ error: 'invalid_card' }, 400);
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > FRIEND_TRADE_MAX_QUANTITY) return json({ error: 'invalid_quantity' }, 400);
+  const addresseeId = friendship.requester_id === account.id ? friendship.addressee_id : friendship.requester_id;
+  const availability = await env.DB.prepare(`SELECT
+      EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'available' AND updated_at > ?) AS has_available_session,
+      EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'busy' AND updated_at > ?) AS has_busy_session`)
+    .bind(addresseeId, now - ACCOUNT_PRESENCE_TTL_MS, addresseeId, now - ACCOUNT_PRESENCE_TTL_MS)
+    .first<{ has_available_session: number; has_busy_session: number }>();
+  if (!availability?.has_available_session || availability.has_busy_session) return json({ error: 'friend_unavailable' }, 409);
+  const activeTrade = await env.DB.prepare(`SELECT id FROM album_friend_trades
+    WHERE friendship_id = ? AND status IN ('pending', 'processing')
+      AND (status = 'processing' OR expires_at > ?) LIMIT 1`).bind(friendshipId, now).first();
+  if (activeTrade) return json({ error: 'trade_in_progress' }, 409);
+  const available = await env.DB.prepare('SELECT spare FROM user_stickers WHERE user_id = ? AND card_id = ?')
+    .bind(account.id, cardId).first<{ spare: number }>();
+  if (!available || available.spare < quantity) return json({ error: 'no_spare_copy' }, 409);
+  const trade = {
+    id: `tr_${randomToken(12)}`,
+    friendship_id: friendshipId,
+    requester_id: account.id,
+    addressee_id: addresseeId,
+    requester_card_id: cardId,
+    requester_quantity: quantity,
+    status: 'pending' as const,
+    created_at: now,
+    updated_at: now,
+    expires_at: now + FRIEND_TRADE_TTL_MS,
+  };
+  try {
+    await env.DB.prepare(`INSERT INTO album_friend_trades
+      (id, friendship_id, requester_id, addressee_id, requester_card_id, requester_quantity, requester_ready, addressee_ready, status, created_at, updated_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'pending', ?, ?, ?)`)
+      .bind(trade.id, trade.friendship_id, trade.requester_id, trade.addressee_id, trade.requester_card_id,
+        trade.requester_quantity, trade.created_at, trade.updated_at, trade.expires_at).run();
+  } catch (cause) {
+    const active = await env.DB.prepare(`SELECT id FROM album_friend_trades
+      WHERE friendship_id = ? AND status IN ('pending', 'processing')
+        AND (status = 'processing' OR expires_at > ?) LIMIT 1`)
+      .bind(friendshipId, now).first();
+    if (active) return json({ error: 'trade_in_progress' }, 409);
+    throw cause;
+  }
+  return json({ trade }, 201);
+}
+
+async function friendTradeAction(
+  env: AccountEnv,
+  account: AuthenticatedAccount,
+  friendshipId: string,
+  tradeId: string,
+  action: 'decline' | 'cancel',
+): Promise<Response> {
+  const friendship = await acceptedFriendship(env, account, friendshipId);
+  if (!friendship) return json({ error: 'friendship_not_found' }, 404);
+  const trade = await env.DB.prepare(`SELECT * FROM album_friend_trades
+    WHERE id = ? AND friendship_id = ? AND status = 'pending' AND expires_at > ?`)
+    .bind(tradeId, friendshipId, Date.now()).first<FriendTradeRow>();
+  if (!trade) return json({ error: 'trade_not_found' }, 404);
+
+  const allowed = action === 'decline' ? trade.addressee_id === account.id : trade.requester_id === account.id;
+  if (!allowed) return json({ error: 'invalid_trade_action' }, 403);
+  const status = action === 'decline' ? 'declined' : 'cancelled';
+  const now = Date.now();
+  const result = await env.DB.prepare(`UPDATE album_friend_trades SET status = ?, updated_at = ?
+    WHERE id = ? AND status = 'pending' AND expires_at > ?`)
+    .bind(status, now, tradeId, now).run();
+  if ((result.meta?.changes ?? 0) === 0) return json({ error: 'trade_not_found' }, 404);
+  return json({ ok: true, status });
+}
+
+async function finishFriendTrade(env: AccountEnv, friendshipId: string, tradeId: string): Promise<Response> {
+  const trade = await env.DB.prepare(`SELECT * FROM album_friend_trades
+    WHERE id = ? AND friendship_id = ? AND status = 'processing'`).bind(tradeId, friendshipId).first<FriendTradeRow>();
+  if (!trade || !trade.addressee_card_id || !trade.addressee_quantity) return json({ error: 'trade_not_found' }, 404);
+  const now = Date.now();
+  // The trade is claimed before this batch, so neither side can change it while copies move.
+  const results = await env.DB.batch([
+    env.DB.prepare(`UPDATE user_stickers SET spare = spare - ?, updated_at = ?
+      WHERE user_id = ? AND card_id = ? AND spare >= ?`)
+      .bind(trade.requester_quantity, now, trade.requester_id, trade.requester_card_id, trade.requester_quantity),
+    env.DB.prepare(`UPDATE user_stickers SET spare = spare - ?, updated_at = ?
+      WHERE user_id = ? AND card_id = ? AND spare >= ? AND (SELECT changes()) = 1`)
+      .bind(trade.addressee_quantity, now, trade.addressee_id, trade.addressee_card_id, trade.addressee_quantity),
+    env.DB.prepare(`INSERT INTO user_stickers (user_id, card_id, copies, spare, first_at, updated_at)
+      SELECT ?, ?, 1, ?, ?, ? WHERE (SELECT changes()) = 1
+      ON CONFLICT(user_id, card_id) DO UPDATE SET spare = user_stickers.spare + ?, updated_at = excluded.updated_at`)
+      .bind(trade.requester_id, trade.addressee_card_id, Math.max(0, trade.addressee_quantity - 1), now, now, trade.addressee_quantity),
+    env.DB.prepare(`INSERT INTO user_stickers (user_id, card_id, copies, spare, first_at, updated_at)
+      SELECT ?, ?, 1, ?, ?, ? WHERE (SELECT changes()) = 1
+      ON CONFLICT(user_id, card_id) DO UPDATE SET spare = user_stickers.spare + ?, updated_at = excluded.updated_at`)
+      .bind(trade.addressee_id, trade.requester_card_id, Math.max(0, trade.requester_quantity - 1), now, now, trade.requester_quantity),
+    env.DB.prepare(`UPDATE album_friend_trades SET status = 'accepted', updated_at = ?
+      WHERE id = ? AND status = 'processing' AND (SELECT changes()) = 1`).bind(now, tradeId),
+  ]);
+  const requesterDebited = Number(results[0]?.meta?.changes ?? 0) === 1;
+  const addresseeDebited = Number(results[1]?.meta?.changes ?? 0) === 1;
+  const completed = Number(results[4]?.meta?.changes ?? 0) === 1;
+  if (!completed) {
+    const statements: D1PreparedStatement[] = [];
+    if (requesterDebited && !addresseeDebited) {
+      statements.push(env.DB.prepare(`UPDATE user_stickers SET spare = spare + ?, updated_at = ?
+        WHERE user_id = ? AND card_id = ?`).bind(trade.requester_quantity, now, trade.requester_id, trade.requester_card_id));
+    }
+    statements.push(env.DB.prepare(`UPDATE album_friend_trades SET status = 'pending', requester_ready = 0, addressee_ready = 0, updated_at = ?
+      WHERE id = ? AND status = 'processing'`).bind(now, tradeId));
+    await env.DB.batch(statements);
+    return json({ error: requesterDebited ? 'no_spare_copy' : 'trade_cards_unavailable' }, 409);
+  }
+  let pageRewards: unknown[] = [];
+  try {
+    const [toAddressee, toRequester] = await Promise.all([
+      syncAlbumPagesForCards(env.DB, trade.addressee_id, [trade.requester_card_id], now),
+      syncAlbumPagesForCards(env.DB, trade.requester_id, [trade.addressee_card_id], now),
+    ]);
+    pageRewards = [...toAddressee, ...toRequester];
+  } catch (error) {
+    console.error('[album] page rewards after friend trade failed:', error);
+  }
+  return json({ ok: true, status: 'accepted', pageRewards, trade: { ...trade, status: 'accepted', updated_at: now } });
+}
+
+async function updateFriendTradeSelection(
+  request: Request,
+  env: AccountEnv,
+  account: AuthenticatedAccount,
+  friendshipId: string,
+  tradeId: string,
+): Promise<Response> {
+  const friendship = await acceptedFriendship(env, account, friendshipId);
+  if (!friendship) return json({ error: 'friendship_not_found' }, 404);
+  const trade = await env.DB.prepare(`SELECT * FROM album_friend_trades
+    WHERE id = ? AND friendship_id = ? AND status = 'pending' AND expires_at > ?`)
+    .bind(tradeId, friendshipId, Date.now()).first<FriendTradeRow>();
+  if (!trade) return json({ error: 'trade_not_found' }, 404);
+  const isRequester = trade.requester_id === account.id;
+  if (!isRequester && trade.addressee_id !== account.id) return json({ error: 'invalid_trade_action' }, 403);
+
+  const body = await readJson(request);
+  const cardId = typeof body?.cardId === 'string' ? body.cardId : '';
+  const quantity = Number(body?.quantity ?? 1);
+  const ready = body?.ready === true;
+  const expectedOtherCardId = typeof body?.expectedOtherCardId === 'string' ? body.expectedOtherCardId : null;
+  const expectedOtherQuantity = body?.expectedOtherQuantity == null ? null : Number(body.expectedOtherQuantity);
+  if (!albumCatalog().stickers.has(cardId)) return json({ error: 'invalid_card' }, 400);
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > FRIEND_TRADE_MAX_QUANTITY) return json({ error: 'invalid_quantity' }, 400);
+  if (ready && (!expectedOtherCardId || !Number.isSafeInteger(expectedOtherQuantity) || expectedOtherQuantity! < 1)) {
+    return json({ error: 'trade_changed' }, 409);
+  }
+  const available = await env.DB.prepare('SELECT spare FROM user_stickers WHERE user_id = ? AND card_id = ?')
+    .bind(account.id, cardId).first<{ spare: number }>();
+  if (!available || available.spare < quantity) return json({ error: 'no_spare_copy' }, 409);
+
+  const now = Date.now();
+  const update = isRequester
+    ? env.DB.prepare(`UPDATE album_friend_trades SET requester_card_id = ?, requester_quantity = ?,
+        requester_ready = CASE WHEN requester_card_id = ? AND requester_quantity = ? THEN ? ELSE 0 END,
+        addressee_ready = CASE WHEN requester_card_id = ? AND requester_quantity = ? THEN addressee_ready ELSE 0 END,
+        updated_at = ?
+        WHERE id = ? AND friendship_id = ? AND requester_id = ? AND status = 'pending' AND expires_at > ?
+          AND (? = 0 OR (addressee_card_id = ? AND addressee_quantity = ?))`)
+      .bind(cardId, quantity, cardId, quantity, Number(ready), cardId, quantity, now, tradeId, friendshipId, account.id, now,
+        Number(ready), expectedOtherCardId, expectedOtherQuantity)
+    : env.DB.prepare(`UPDATE album_friend_trades SET addressee_card_id = ?, addressee_quantity = ?,
+        addressee_ready = CASE WHEN addressee_card_id = ? AND addressee_quantity = ? THEN ? ELSE 0 END,
+        requester_ready = CASE WHEN addressee_card_id = ? AND addressee_quantity = ? THEN requester_ready ELSE 0 END,
+        updated_at = ?
+        WHERE id = ? AND friendship_id = ? AND addressee_id = ? AND status = 'pending' AND expires_at > ?
+          AND (? = 0 OR (requester_card_id = ? AND requester_quantity = ?))`)
+      .bind(cardId, quantity, cardId, quantity, Number(ready), cardId, quantity, now, tradeId, friendshipId, account.id, now,
+        Number(ready), expectedOtherCardId, expectedOtherQuantity);
+  const updated = await update.run();
+  if ((updated.meta?.changes ?? 0) === 0) {
+    const latest = await env.DB.prepare(`SELECT * FROM album_friend_trades
+      WHERE id = ? AND friendship_id = ? AND status = 'pending' AND expires_at > ?`)
+      .bind(tradeId, friendshipId, now).first<FriendTradeRow>();
+    return latest ? json({ error: 'trade_changed' }, 409) : json({ error: 'trade_not_found' }, 404);
+  }
+
+  const current = await env.DB.prepare('SELECT * FROM album_friend_trades WHERE id = ?').bind(tradeId).first<FriendTradeRow>();
+  if (!current) return json({ error: 'trade_not_found' }, 404);
+  if (current.requester_ready && current.addressee_ready && current.addressee_card_id && current.addressee_quantity) {
+    const claim = await env.DB.prepare(`UPDATE album_friend_trades SET status = 'processing', updated_at = ?
+      WHERE id = ? AND friendship_id = ? AND status = 'pending' AND expires_at > ?
+        AND requester_ready = 1 AND addressee_ready = 1`)
+      .bind(now, tradeId, friendshipId, now).run();
+    if ((claim.meta?.changes ?? 0) === 1) return finishFriendTrade(env, friendshipId, tradeId);
+  }
+  return json({ trade: { ...current, requester_ready: Boolean(current.requester_ready), addressee_ready: Boolean(current.addressee_ready) } });
 }
 
 /** Events with the account's progress, plus the frames and event Únicas it owns. */
@@ -1314,6 +1600,101 @@ async function chooseEvent(request: Request, env: AccountEnv, account: Authentic
   const result = await chooseEventOption(env.DB, account.id, eventId, body?.choice);
   if ('error' in result) return json(result, result.error === 'already_chosen' ? 409 : 400);
   return accountEvents(env, account);
+}
+
+/** Album packs due for finished campaigns; never turns a saved campaign into an error. */
+async function grantCampaignAlbumPacks(env: AccountEnv, userId: string): Promise<ItemGrant[]> {
+  try {
+    const album = await env.DB.prepare('SELECT created_at FROM user_album WHERE user_id = ?').bind(userId).first<{ created_at: number }>();
+    return album ? await syncCampaignGrants(env.DB, userId, album.created_at) : [];
+  } catch (error) {
+    console.error('[album] grants after save failed:', error);
+    return [];
+  }
+}
+
+const ALBUM_ERROR_STATUS: Record<string, number> = {
+  invalid_item: 400, invalid_card: 400, invalid_quantity: 400, not_for_sale: 400,
+  item_not_owned: 409, no_spare_copy: 409, max_level: 409, not_enough_coins: 409,
+};
+
+/** The album state (after granting what is due) and the profile covers it won, plus whatever the operation returned. */
+async function albumResponse(env: AccountEnv, userId: string, extra: Record<string, unknown> = {}): Promise<Response> {
+  const [{ state, grants }, covers] = await Promise.all([syncAlbum(env.DB, userId), loadOwnedCovers(env.DB, userId)]);
+  return json({ ...state, grants, covers, ...extra });
+}
+
+async function albumAction(request: Request, env: AccountEnv, account: AuthenticatedAccount, action: string): Promise<Response> {
+  const body = await readJson(request) ?? {};
+  await ensureAlbum(env.DB, account.id);
+  let result: Record<string, unknown>;
+  switch (action) {
+    case 'open': result = await openItem(env.DB, account.id, String(body.item ?? '')) as unknown as Record<string, unknown>; break;
+    case 'apply': result = await applyCopy(env.DB, account.id, String(body.cardId ?? '')); break;
+    case 'sell': result = await sellCopies(env.DB, account.id, String(body.cardId ?? ''), Number(body.quantity ?? 1)); break;
+    case 'buy-pack': result = await buyPack(env.DB, account.id, String(body.tier ?? '')); break;
+    default: return json({ error: 'not_found' }, 404);
+  }
+  if ('error' in result) return json(result, ALBUM_ERROR_STATUS[String(result.error)] ?? 400);
+  return albumResponse(env, account.id, { result });
+}
+
+interface WeeklyPackClaimRow {
+  day_index: number;
+  item_key: string;
+  claimed_at: number;
+}
+
+/** Calendar dates for the account reward week, using the game's São Paulo day boundary. */
+function saoPauloRewardWeek(now: number): { date: string; weekStart: string; dayIndex: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(now));
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  const year = Number(values.year);
+  const month = Number(values.month);
+  const day = Number(values.day);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayIndex = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - dayIndex);
+  const format = (value: Date) => `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${String(value.getUTCDate()).padStart(2, '0')}`;
+  return { date: format(new Date(Date.UTC(year, month - 1, day))), weekStart: format(date), dayIndex };
+}
+
+async function weeklyPackRewardsResponse(env: AccountEnv, accountId: string, now: number): Promise<Response> {
+  const { date, weekStart, dayIndex } = saoPauloRewardWeek(now);
+  const claims = await env.DB.prepare(`SELECT day_index, item_key, claimed_at
+    FROM user_weekly_pack_claims WHERE user_id = ? AND week_start = ? ORDER BY day_index ASC`)
+    .bind(accountId, weekStart).all<WeeklyPackClaimRow>();
+  return json({
+    date,
+    weekStart,
+    todayIndex: dayIndex,
+    rewards: WEEKLY_PACK_REWARDS,
+    claims: claims.results.map(claim => ({ dayIndex: claim.day_index, itemKey: claim.item_key, claimedAt: claim.claimed_at })),
+  });
+}
+
+async function claimWeeklyPackReward(env: AccountEnv, accountId: string): Promise<Response> {
+  const now = Date.now();
+  const { weekStart, dayIndex } = saoPauloRewardWeek(now);
+  const reward = WEEKLY_PACK_REWARDS[dayIndex];
+  // The claim ledger and inventory credit share a D1 batch. `changes()` only lets the second
+  // statement add the package when this request inserted the unique claim row.
+  const results = await env.DB.batch([
+    env.DB.prepare(`INSERT INTO user_weekly_pack_claims (user_id, week_start, day_index, item_key, claimed_at)
+      VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, week_start, day_index) DO NOTHING`)
+      .bind(accountId, weekStart, dayIndex, reward.itemKey, now),
+    env.DB.prepare(`INSERT INTO user_inventory (user_id, item_key, quantity, updated_at)
+      SELECT ?, ?, 1, ? WHERE (SELECT changes()) = 1
+      ON CONFLICT(user_id, item_key) DO UPDATE SET
+        quantity = user_inventory.quantity + excluded.quantity, updated_at = excluded.updated_at`)
+      .bind(accountId, reward.itemKey, now),
+  ]);
+  if (Number(results[0]?.meta?.changes ?? 0) !== 1) {
+    return json({ error: 'already_claimed', message: 'A recompensa de hoje já foi resgatada.' }, 409);
+  }
+  return weeklyPackRewardsResponse(env, accountId, now);
 }
 
 /** Whether the viewer may see this profile: public, their own, or a friend's "friends only". */
@@ -1365,8 +1746,10 @@ async function publicProfile(request: Request, env: AccountEnv, username: string
     ? scorePosition
     : { ...scorePosition, position: null, points: 0, scored_competitions: 0, titles: 0 };
   const achievements = await achievementsPayload(env, account.id, records);
+  const album = await albumSummary(env.DB, account.id).catch(() => null);
   return json({
     profile: publicAccount(account),
+    album,
     records,
     achievements,
     scorePosition: visibleScorePosition,
@@ -1410,6 +1793,11 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (url.pathname === '/api/account/achievements' && request.method === 'GET') return accountAchievements(env, account, url);
     if (url.pathname === '/api/account/showcase' && request.method === 'PUT') return updateShowcase(request, env, account);
     if (url.pathname === '/api/account/events' && request.method === 'GET') return accountEvents(env, account);
+    if (url.pathname === '/api/account/daily-rewards' && request.method === 'GET') return weeklyPackRewardsResponse(env, account.id, Date.now());
+    if (url.pathname === '/api/account/daily-rewards/claim' && request.method === 'POST') return claimWeeklyPackReward(env, account.id);
+    if (url.pathname === '/api/account/album' && request.method === 'GET') return albumResponse(env, account.id);
+    const albumRoute = url.pathname.match(/^\/api\/account\/album\/(open|apply|sell|buy-pack)$/);
+    if (albumRoute && request.method === 'POST') return albumAction(request, env, account, albumRoute[1]);
     const eventChoice = url.pathname.match(/^\/api\/account\/events\/([a-z0-9-]+)\/choice$/);
     if (eventChoice && request.method === 'POST') return chooseEvent(request, env, account, eventChoice[1]);
     if (url.pathname === '/api/account/history' && request.method === 'GET') {
@@ -1420,6 +1808,25 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (url.pathname === '/api/account/presence' && request.method === 'POST') return updatePresence(request, env, account);
     if (url.pathname === '/api/account/friends' && request.method === 'GET') return friendsList(env, account);
     if (url.pathname === '/api/account/friends' && request.method === 'POST') return friendCreate(request, env, account);
+    const friendMessagesMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)\/messages$/);
+    if (friendMessagesMatch && (request.method === 'GET' || request.method === 'POST')) {
+      return friendMessages(request, env, account, decodeURIComponent(friendMessagesMatch[1]));
+    }
+    const friendTradesMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)\/trades$/);
+    if (friendTradesMatch && (request.method === 'GET' || request.method === 'POST')) {
+      return friendTrades(request, env, account, decodeURIComponent(friendTradesMatch[1]));
+    }
+    const friendTradeSelectionMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)\/trades\/([^/]+)\/selection$/);
+    if (friendTradeSelectionMatch && request.method === 'PATCH') {
+      return updateFriendTradeSelection(request, env, account,
+        decodeURIComponent(friendTradeSelectionMatch[1]), decodeURIComponent(friendTradeSelectionMatch[2]));
+    }
+    const friendTradeActionMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)\/trades\/([^/]+)\/(decline|cancel)$/);
+    if (friendTradeActionMatch && request.method === 'POST') {
+      return friendTradeAction(env, account,
+        decodeURIComponent(friendTradeActionMatch[1]), decodeURIComponent(friendTradeActionMatch[2]),
+        friendTradeActionMatch[3] as 'decline' | 'cancel');
+    }
     if (url.pathname === '/api/account/room-invitations' && request.method === 'GET') return roomInvitationsList(env, account);
     // PATCH /api/account/room-invitations/:id (accept/decline) is handled by the
     // Worker (cloudflare-worker.ts), because it must validate against the room DO.

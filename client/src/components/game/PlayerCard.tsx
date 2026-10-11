@@ -6,7 +6,11 @@ import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_G
 import { canonicalClubName, crestIdForClub } from '@shared/game/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
+import AlbumLevelFrame, { type AlbumLevel } from './AlbumLevelFrame';
+import { useAlbumLevel } from '../../contexts/AlbumContext';
 import Crest from './Crest';
+import { Star } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 
 const CATALOG_PLAYER_PHOTO_URLS = new Map<string, string>(
   PLAYERS.flatMap(player => player.photoUrl ? [[player.id, player.photoUrl] as const] : []),
@@ -34,6 +38,10 @@ interface PlayerCardProps {
   // the card intentionally renders the player's stored card values.
   effectiveStats?: PlayerCardStats;
   scale?: number; // encolhe o card FULL e sua área ocupada (ex.: caber 2 por linha no mobile)
+  /** The owner's album level for this player (★1–★5): the metalwork grown around the shield. */
+  albumLevel?: AlbumLevel;
+  /** Shows the account's own album level for this player (its own cards: draft, Meu Time). */
+  showAlbumLevel?: boolean;
 }
 
 // SoFIFA mapping — updated to latest available FIFA version per player for best photo quality
@@ -876,6 +884,7 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   gustavo_gomez_unico: { texture: '/cards/gustavo_gomez_unico.webp', render: '/players/unico/gustavo_gomez.webp', font: '#F3EBD2', ring: '#1E9E57', photoX: 24, photoY: 11, photoW: 70 },
   luis_fabiano_unico: { texture: '/cards/luis_fabiano_unico.webp', render: '/players/unico/luis_fabiano.webp', font: '#F6E7C1', ring: '#E23B3B', photoX: 19, photoY: 15, photoW: 70 },
   ganso_unico: { texture: '/cards/ganso_unico.webp', render: '/players/unico/ganso.webp', font: '#F1E7D0', ring: '#D5B36A', photoX: 28, photoY: 10, photoW: 68 },
+  neymar_barca_unico: { texture: '/cards/neymar_barca_unico.webp', render: '/players/unico/neymar_barca.webp', font: '#F7E08C', ring: '#E8C84A', photoX: 5, photoY: 2, photoW: 106 },
   rogerio_ceni_unico: { texture: '/cards/rogerio_ceni_unico.webp', render: '/players/unico/rogerio_ceni.webp', font: '#F6E7C1', ring: '#E23B3B', photoX: 11, photoY: 7, photoW: 90 },
   garrincha_unico: { texture: '/cards/garrincha_unico.webp', render: '/players/unico/garrincha.webp', font: '#F1E7D0', ring: '#D5B36A', photoX: 11, photoY: -5, photoW: 108 },
   ronaldinho_unico: { texture: '/cards/ronaldinho_unico.webp', render: '/players/unico/ronaldinho.webp', font: '#F7D76B', ring: '#2D72E8', photoX: 6, photoY: 15, photoW: 114 },
@@ -1058,7 +1067,9 @@ function variantDesc(player: Player): string {
   return '';
 }
 
-function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, effectiveStats, scale = 1 }: PlayerCardProps) {
+function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, effectiveStats, scale = 1, albumLevel: albumLevelProp, showAlbumLevel = false }: PlayerCardProps) {
+  const ownAlbumLevel = useAlbumLevel(player.id);
+  const albumLevel = albumLevelProp ?? (showAlbumLevel ? ownAlbumLevel : undefined);
   // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
@@ -1105,6 +1116,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         className={`relative select-none flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
         style={{ width: 92, height: 146, filter: selected ? 'drop-shadow(0 0 8px rgba(255,255,255,.7))' : `drop-shadow(0 0 5px ${cRing}66)` }}
       >
+        <AlbumLevelFrame level={albumLevel} color={cRing} compact />
         {/* borda em COR SÓLIDA (característica, ou raridade se não tiver) — máscara do escudo cheia */}
         <div className="absolute inset-0" style={{ ...frameMask('100% 100%'), zIndex: 0, background: cRing }} />
         {/* ⭐ 2ª característica: linha vertical no centro da moldura (some no interior, aparece no topo/base) */}
@@ -1195,6 +1207,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       className={`relative select-none flex ${onClick ? 'cursor-pointer' : ''}`}
       style={{ width: 200, height: 324, filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 8px 14px rgba(0,0,0,.5))` }}
     >
+      <AlbumLevelFrame level={albumLevel} color={ringColor} />
       {/* moldura do escudo (contorno + borda dourada reais), tingida por raridade */}
       <img src={FRAME_URL} alt="" className="absolute inset-0" style={{ width: '100%', height: '100%', objectFit: 'fill', zIndex: 0, pointerEvents: 'none', filter: vis.frameFilter }} />
       {/* anel metálico (raridade ou característica) — máscara cheia, revela na banda entre borda e textura */}
@@ -1225,7 +1238,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {/* ⭐ selo do nível de evolução (discreto, topo-centro) */}
         {evolved && !lite && (
           <div className="absolute" style={{ top: '2.5%', left: '50%', transform: 'translateX(-50%)', padding: '2px 8px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.14em', whiteSpace: 'nowrap', color: '#04120a', background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success),#0a7a2f)', border: '1px solid rgba(0,0,0,.4)', boxShadow: '0 2px 8px rgba(0,0,0,.5)', fontFamily: 'var(--font-game), sans-serif', zIndex: 6 }}>
-            ⭐ NÍVEL {evolutionLevel}
+            <Star {...INLINE_ICON} fill="currentColor" />NÍVEL {evolutionLevel}
           </div>
         )}
         {/* rail: OVR → posição → bandeira → escudo do clube */}

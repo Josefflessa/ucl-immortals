@@ -4,6 +4,8 @@ import { POS_PT } from '@shared/game/gameData';
 import { Tab, TabList, Tabs } from '../../design-system';
 import SpoilerLock from './SpoilerLock';
 import type { LeagueHub } from './useLeagueHub';
+import { CardIcon } from '../../components/game/StatusIcon';
+import type { ReactNode } from 'react';
 
 export default function StatsTab({ hub }: { hub: LeagueHub }) {
   const {
@@ -86,7 +88,7 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                       const isPlayerTeam = player.teamId === playerTeam?.id;
 
                       // Resolve metric values
-                      let metricVal: string | number = 0;
+                      let metricVal: ReactNode = 0;
                       let metricLabel = "";
 
                       if (statsSubTab === 'goals') {
@@ -105,7 +107,7 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                         metricVal = player.stats.tackles;
                         metricLabel = metricVal === 1 ? 'desarme' : 'desarmes';
                       } else if (statsSubTab === 'cards') {
-                        metricVal = `${player.stats.yellowCards}🟨${player.stats.redCards > 0 ? ` ${player.stats.redCards}🟥` : ''}`;
+                        metricVal = <span className="inline-flex items-center gap-1">{player.stats.yellowCards}<CardIcon color="yellow" />{player.stats.redCards > 0 && <>{' '}{player.stats.redCards}<CardIcon color="red" /></>}</span>;
                         metricLabel = 'cartões';
                       }
 

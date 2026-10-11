@@ -5,6 +5,8 @@ import { PRIME_COST, PRIME_WINS_REQUIRED } from '@shared/game/shop';
 import { coachPrimeDefinition } from '../../lib/coachPrime';
 import CoachCard from './CoachCard';
 import { Button, GameModal } from '../../design-system';
+import { Star } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 
 
 interface Props {
@@ -135,7 +137,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
       {showButton && (
         <div className="px-4 pb-4 -mt-1">
           <Button intent="primary" className="w-full" onClick={() => setShowModal(true)}>
-            ⭐ EVOLUIR TÉCNICO → PRIME
+            <Star {...INLINE_ICON} fill="currentColor" />EVOLUIR TÉCNICO → PRIME
           </Button>
         </div>
       )}
@@ -149,7 +151,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
         bodyClassName="ui-stack"
         title={(
           <div className="flex items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/40 bg-primary/9 text-xl" aria-hidden="true">⭐</span>
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/40 bg-primary/9 text-xl text-brand-strong" aria-hidden="true"><Star size={20} strokeWidth={2.2} fill="currentColor" /></span>
             <div className="min-w-0">
               <div className="text-[12px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
               <div className="mt-0.5 text-2xl leading-none tracking-wide text-brand-strong" style={{ fontFamily: 'var(--font-display), sans-serif' }}>EVOLUÇÃO PRIME</div>

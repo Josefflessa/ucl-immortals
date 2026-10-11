@@ -5,7 +5,10 @@
 // so each host wires its own state (drafted players vs the league team) and actions.
 import TacticIcon from './TacticIcon';
 import TraitIcon from './TraitIcon';
-import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from 'react';
+import { CardIcon, InjuryIcon } from './StatusIcon';
+import { Armchair, ArrowLeftRight, GraduationCap, Repeat, Search, Star, TriangleAlert } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, PLAYER_SPECIALIZATIONS, Player, POS_PT, effectiveSecondaries, type PlayerSpecialization } from '@shared/game/gameData';
 import {
@@ -121,21 +124,21 @@ export default function SquadEditor({
     return () => query.removeEventListener?.('change', update);
   }, []);
   // 🟨🟥🩹 Badge de disponibilidade de um jogador (ou null se está tudo certo).
-  const availBadge = (playerId: string): { txt: string; color: string } | null => {
+  const availBadge = (playerId: string): { icon: ReactNode; txt: string; color: string } | null => {
     const a = availability?.[playerId];
     if (!a) return null;
-    if (a.banned > 0) return { txt: `🟥 SUSP · ${a.banned} ${a.banned === 1 ? 'JOGO' : 'JOGOS'}`, color: '#EF4444' };
-    if (a.injured > 0) return { txt: `🩹 LESÃO · ${a.injured} ${a.injured === 1 ? 'JOGO' : 'JOGOS'}`, color: '#F59E0B' };
-    if (a.yellows > 0) return { txt: `🟨×${a.yellows}`, color: '#EAB308' };
+    if (a.banned > 0) return { icon: <CardIcon color="red" />, txt: `SUSP · ${a.banned} ${a.banned === 1 ? 'JOGO' : 'JOGOS'}`, color: '#EF4444' };
+    if (a.injured > 0) return { icon: <InjuryIcon />, txt: `LESÃO · ${a.injured} ${a.injured === 1 ? 'JOGO' : 'JOGOS'}`, color: '#F59E0B' };
+    if (a.yellows > 0) return { icon: <CardIcon color="yellow" />, txt: `×${a.yellows}`, color: '#EAB308' };
     return null;
   };
   const disciplineChips = (playerId: string) => {
     const a = availability?.[playerId];
     if (!a) return [];
     return [
-      ...(a.yellows > 0 ? [{ key: 'yellow', label: `🟨 ${a.yellows}`, title: `${a.yellows} cartão${a.yellows === 1 ? '' : 'ões'} amarelo${a.yellows === 1 ? '' : 's'}`, color: '#EAB308' }] : []),
-      ...(a.banned > 0 ? [{ key: 'banned', label: `🟥 ${a.banned}J`, title: `Suspenso por ${a.banned} jogo${a.banned === 1 ? '' : 's'}`, color: '#EF4444' }] : []),
-      ...(a.injured > 0 ? [{ key: 'injured', label: `🩹 ${a.injured}J`, title: `Lesionado por ${a.injured} jogo${a.injured === 1 ? '' : 's'}`, color: '#F59E0B' }] : []),
+      ...(a.yellows > 0 ? [{ key: 'yellow', icon: <CardIcon color="yellow" />, label: `${a.yellows}`, title: `${a.yellows} cartão${a.yellows === 1 ? '' : 'ões'} amarelo${a.yellows === 1 ? '' : 's'}`, color: '#EAB308' }] : []),
+      ...(a.banned > 0 ? [{ key: 'banned', icon: <CardIcon color="red" />, label: `${a.banned}J`, title: `Suspenso por ${a.banned} jogo${a.banned === 1 ? '' : 's'}`, color: '#EF4444' }] : []),
+      ...(a.injured > 0 ? [{ key: 'injured', icon: <InjuryIcon />, label: `${a.injured}J`, title: `Lesionado por ${a.injured} jogo${a.injured === 1 ? '' : 's'}`, color: '#F59E0B' }] : []),
     ];
   };
 
@@ -346,7 +349,7 @@ export default function SquadEditor({
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
       <div className="space-y-4">
       {/* Team overall + chemistry summary */}
-      <div className="rounded-xl p-4 lg:h-full" style={{ background: '#0F0F1A', border: `1px solid ${chemColor}44` }}>
+      <div className="rounded-xl p-4 lg:flex lg:h-full lg:flex-col" style={{ background: '#0F0F1A', border: `1px solid ${chemColor}44` }}>
         {teamOverall !== null && (
           <div className="flex items-center justify-between mb-3 pb-3 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
             <span className="text-sm font-black tracking-widest" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>OVERALL DO TIME</span>
@@ -391,7 +394,7 @@ export default function SquadEditor({
         })()}
         {activeTrios.length > 0 && (
           <div className="mt-3 text-xs" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-            ⭐ {activeTrios.map(t => t?.name).join(' · ')}
+            <Star {...INLINE_ICON} fill="currentColor" />{activeTrios.map(t => t?.name).join(' · ')}
           </div>
         )}
         <ChemistryBonusInfo total={chemData.total} />
@@ -456,7 +459,7 @@ export default function SquadEditor({
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <span className="flex h-full w-full items-center justify-center text-sm">🎓</span>
+                  <span className="flex h-full w-full items-center justify-center text-brand-strong"><GraduationCap size={16} strokeWidth={2.4} aria-hidden="true" /></span>
                 )}
                 {coachPrime && <span className="absolute bottom-0 right-0 rounded-tl-md bg-brand-strong px-0.5 text-[12px] font-black leading-3 text-[#17120A]">★</span>}
               </span>
@@ -539,6 +542,7 @@ export default function SquadEditor({
             <FormationField
               formation={formation}
               players={xi}
+              showAlbumLevel
               onPlayerLongPress={startStarterSwapSelection}
               // Reuse the same compact match indicators on the tactical field:
               // suspension (red), injury and accumulated yellows.
@@ -612,10 +616,10 @@ export default function SquadEditor({
               const ab = availBadge(player.id);
               return (
                 <div key={player.id} className="relative">
-                  <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} chemScore={chemData.individual[player.id]} showChemistry compact
+                  <PlayerCard player={player} showAlbumLevel effectiveStats={effectiveStatsById[player.id]} chemScore={chemData.individual[player.id]} showChemistry compact
                     selected={selectedIndex === index} onClick={() => setSelectedIndex(index)} />
                   {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[12px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
-                    style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'var(--font-game), sans-serif' }}>{ab.txt}</span>}
+                    style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'var(--font-game), sans-serif' }}><span className="inline-flex items-center gap-1">{ab.icon}{ab.txt}</span></span>}
                 </div>
               );
             })}
@@ -623,7 +627,7 @@ export default function SquadEditor({
 
           <div className="ui-gesture-surface mt-5 pt-4 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
             <div className="text-xs font-black tracking-widest mb-2 flex items-center gap-2" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
-              🪑 BANCO / RESERVAS <span style={{ color: bench.length > MAX_RESERVE_PLAYERS ? '#FCA5A5' : 'var(--ui-text-faint)' }}>({bench.length}/{MAX_RESERVE_PLAYERS})</span>
+              <span className="inline-flex items-center"><Armchair {...INLINE_ICON} />BANCO / RESERVAS</span> <span style={{ color: bench.length > MAX_RESERVE_PLAYERS ? '#FCA5A5' : 'var(--ui-text-faint)' }}>({bench.length}/{MAX_RESERVE_PLAYERS})</span>
             </div>
             {bench.length > 0 ? (
               <>
@@ -646,7 +650,7 @@ export default function SquadEditor({
                         onPointerCancel={handleBenchPointerEnd}
                         title={isDesktopInput ? 'Arraste sobre um titular para trocar' : 'Segure para escolher no campo quem será substituído'}
                       >
-                        <PlayerCard player={player} effectiveStats={effectiveStatsById[player.id]} compact selected={selectedIndex === 11 + i || benchSwapSourceIndex === 11 + i}
+                        <PlayerCard player={player} showAlbumLevel effectiveStats={effectiveStatsById[player.id]} compact selected={selectedIndex === 11 + i || benchSwapSourceIndex === 11 + i}
                           onClick={() => {
                             if (activeRole) return;
                             if (benchHoldClickGuardRef.current || benchDragClickGuardRef.current) {
@@ -657,7 +661,7 @@ export default function SquadEditor({
                             setSelectedIndex(11 + i);
                           }} />
                         {ab && <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[12px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-10"
-                          style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'var(--font-game), sans-serif' }}>{ab.txt}</span>}
+                          style={{ background: '#0A0A14', color: ab.color, border: `1px solid ${ab.color}88`, fontFamily: 'var(--font-game), sans-serif' }}><span className="inline-flex items-center gap-1">{ab.icon}{ab.txt}</span></span>}
                       </div>
                     );
                   })}
@@ -723,7 +727,7 @@ export default function SquadEditor({
             headerExtra={
               <button onClick={() => setZoomCard(true)} title="Ver card em tela cheia" aria-label="Ver card ampliado"
                 className="w-9 h-9 rounded-lg flex items-center justify-center text-lg transition-colors hover:bg-white/10"
-                style={{ border: '1px solid #2E2E42', color: '#C9C9D5' }}>🔍</button>
+                style={{ border: '1px solid #2E2E42', color: '#C9C9D5' }}><Search size={18} strokeWidth={2.4} aria-hidden="true" /></button>
             }
             footer={
               <button onClick={() => setSelectedIndex(null)}
@@ -748,7 +752,7 @@ export default function SquadEditor({
                 return (
                   <div className="flex flex-col items-stretch gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#1d1d2f', background: '#12060688' }}>
                     <div className="min-w-0 text-xs font-bold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: a.banned > 0 ? '#FCA5A5' : a.injured > 0 ? '#FCD34D' : 'var(--ui-warning)' }}>
-                      {a.banned > 0 ? `🟥 Suspenso — fora de ${a.banned} jogo(s)` : a.injured > 0 ? `🩹 Lesionado — fora de ${a.injured} jogo(s)` : `🟨 ${a.yellows} amarelo(s) acumulado(s)`}
+                      <span className="inline-flex items-center gap-1.5">{a.banned > 0 ? <><CardIcon color="red" size="1.15em" />{`Suspenso — fora de ${a.banned} jogo(s)`}</> : a.injured > 0 ? <><InjuryIcon size="1.15em" />{`Lesionado — fora de ${a.injured} jogo(s)`}</> : <><CardIcon color="yellow" size="1.15em" />{`${a.yellows} amarelo(s) acumulado(s)`}</>}</span>
                     </div>
                     {a.injured > 0 && onHealInjury && (
                       <button disabled={!canAffordPhysio} onClick={() => setConfirmPhysioFor(selectedPlayer.id)}
@@ -757,7 +761,7 @@ export default function SquadEditor({
                         style={{ fontFamily: 'var(--font-game), sans-serif', background: '#0E7490', color: '#ECFEFF', border: '1px solid #22D3EE55' }}
                         title={canAffordPhysio ? undefined : `Faltam créditos (custa ${physioCost})`}>
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="text-lg leading-none" aria-hidden="true">🏥</span>
+                          <img src="/projects/medical.webp" alt="" aria-hidden="true" className="h-8 w-8 flex-shrink-0 object-contain" />
                           <span className="flex flex-col leading-none">
                             <span>FISIOTERAPIA</span>
                             <span className="mt-1 text-[12px] font-bold tracking-wide" style={{ color: '#A5F3FC' }}>−1 JOGO DE LESÃO</span>
@@ -791,7 +795,7 @@ export default function SquadEditor({
                   };
                   return (
                     <div className="rounded-xl p-3" style={{ background: '#1a0808', border: '1px solid #B91C1C55' }}>
-                      <div className="text-[13px] font-black tracking-widest" style={{ color: '#F87171', fontFamily: 'var(--font-game), sans-serif' }}>🩸 SACRIFÍCIO DO MÁRTIR</div>
+                      <div className="text-[13px] font-black tracking-widest" style={{ color: '#F87171', fontFamily: 'var(--font-game), sans-serif' }}><TraitIcon trait="martir" fallback="🩸" size={18} className="mr-1 align-[-0.25em]" />SACRIFÍCIO DO MÁRTIR</div>
                       <p className="text-[13px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                         Escolha até <b style={{ color: '#fff' }}>2 titulares</b> que recebem <b style={{ color: '#F87171' }}>+{MARTIR_TARGET_BOOST} em todos os atributos</b>.
                         {current.length < 2 && <> Sem escolher, vai automático pros 2 de maior overall.</>}
@@ -819,7 +823,7 @@ export default function SquadEditor({
                   const effective = selectedSheet?.godchild?.id;
                   return (
                     <div className="rounded-xl p-3" style={{ background: '#120c1f', border: '1px solid #C4B5FD44' }}>
-                      <div className="text-[13px] font-black tracking-widest" style={{ color: '#C4B5FD', fontFamily: 'var(--font-game), sans-serif' }}>🤵 AFILHADO DO PADRINHO</div>
+                      <div className="text-[13px] font-black tracking-widest" style={{ color: '#C4B5FD', fontFamily: 'var(--font-game), sans-serif' }}><TraitIcon trait="padrinho" fallback="🤵" size={18} className="mr-1 align-[-0.25em]" />AFILHADO DO PADRINHO</div>
                       <p className="text-[13px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                         Escolha <b style={{ color: '#fff' }}>1 titular</b> que recebe <b style={{ color: '#C4B5FD' }}>+{PADRINHO_AFILHADO_BOOST} em todos os atributos</b>. Cada gol dele dá +1 permanente ao Padrinho.
                         {!chosen && <> Sem escolher, vai automático para o titular de maior geral.</>}
@@ -884,7 +888,7 @@ export default function SquadEditor({
                   return (
                     <div className="rounded-xl overflow-hidden" style={{ background: '#0F0F1A', border: `1px solid ${evolved ? '#22C55E55' : '#1A1A2A'}` }}>
                       <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: 'var(--ui-surface-3)', background: '#0A0A12' }}>
-                        <span className="text-[13px] font-black tracking-widest" style={{ color: evolved ? 'var(--ui-success)' : 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>⭐ EVOLUÇÃO · NÍVEL {evolutionLevel}/{maxLevel}</span>
+                        <span className="text-[13px] font-black tracking-widest" style={{ color: evolved ? 'var(--ui-success)' : 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}><Star {...INLINE_ICON} fill="currentColor" />EVOLUÇÃO · NÍVEL {evolutionLevel}/{maxLevel}</span>
                         {evolved && <span className="text-[13px] font-black" style={{ color: availablePoints > 0 ? '#4ADE80' : 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>{availablePoints > 0 ? `+${availablePoints} DISPONÍVEIS` : `+${spent} APLICADOS`}</span>}
                       </div>
                       <div className="p-3.5">
@@ -1053,8 +1057,8 @@ export default function SquadEditor({
                             {candidateDisciplineChips.length > 0 && (
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {candidateDisciplineChips.map(status => (
-                                  <span key={status.key} title={status.title} className="inline-flex items-center rounded px-1.5 py-0.5 text-[12px] font-black leading-none" style={{ background: `${status.color}18`, border: `1px solid ${status.color}66`, color: status.color, fontFamily: 'var(--font-game), sans-serif' }}>
-                                    {status.label}
+                                  <span key={status.key} title={status.title} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-black leading-none" style={{ background: `${status.color}18`, border: `1px solid ${status.color}66`, color: status.color, fontFamily: 'var(--font-game), sans-serif' }}>
+                                    {status.icon}{status.label}
                                   </span>
                                 ))}
                               </div>
@@ -1063,8 +1067,8 @@ export default function SquadEditor({
                             {role && (
                               <div className="mt-1">
                                 {nativeFit && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#0a7a2f', color: '#eafff0', fontFamily: 'var(--font-game), sans-serif' }}>✓ ENCAIXA NA VAGA{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
-                                {secFit && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'var(--font-game), sans-serif' }}>{coringaInGoal ? '🃏 CORINGA NO GOL · DEFENDE COM 70%' : '🔁 COBRE A VAGA (2ª pos · −5%)'}{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
-                                {!fits && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a0a0a', color: 'var(--ui-danger)', border: '1px solid #EF444455', fontFamily: 'var(--font-game), sans-serif' }}>⚠️ FORA DE POSIÇÃO{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
+                                {secFit && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a2708', color: '#F59E0B', border: '1px solid #F59E0B66', fontFamily: 'var(--font-game), sans-serif' }}>{coringaInGoal ? <><TraitIcon trait="coringa" fallback="🃏" size={14} className="mr-1 align-[-0.2em]" />CORINGA NO GOL · DEFENDE COM 70%</> : <><Repeat {...INLINE_ICON} />COBRE A VAGA (2ª pos · −5%)</>}{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
+                                {!fits && <span className="text-[12px] font-black px-1.5 py-0.5 rounded" style={{ background: '#3a0a0a', color: 'var(--ui-danger)', border: '1px solid #EF444455', fontFamily: 'var(--font-game), sans-serif' }}><TriangleAlert {...INLINE_ICON} />FORA DE POSIÇÃO{starterSel ? '' : ` (${POS_PT[role] ?? role})`}</span>}
                               </div>
                             )}
                           </div>
@@ -1081,7 +1085,7 @@ export default function SquadEditor({
                     const starters = players.map((c, i) => ({ c, i })).filter(({ i }) => i < 11 && i !== selectedIndex).sort(sortFit);
                     const bench = players.map((c, i) => ({ c, i })).filter(({ i }) => i >= 11 && i !== selectedIndex).sort(sortFit);
                     const fitsSlot = ({ c, i }: { c: Player; i: number }) => fitRank(c, i) > 0;
-                    const Section = ({ title, color, items }: { title: string; color: string; items: { c: Player; i: number }[] }) => {
+                    const Section = ({ title, color, items }: { title: ReactNode; color: string; items: { c: Player; i: number }[] }) => {
                       if (items.length === 0) return null;
                       return (
                         <div className="space-y-2">
@@ -1101,17 +1105,17 @@ export default function SquadEditor({
                           )}
                         </div>
                         <div className="space-y-4">
-                          {noneFits && starters.length + bench.length > 0 && <div className="rounded-lg px-3 py-2 text-[12px] text-[#F59E0B]" style={{ background: '#F59E0B12', border: '1px solid #F59E0B44', fontFamily: 'var(--font-game), sans-serif' }}>⚠️ Ninguém do elenco joga nesta posição. Qualquer troca aqui deixa o substituto fora de posição.</div>}
+                          {noneFits && starters.length + bench.length > 0 && <div className="rounded-lg px-3 py-2 text-[12px] text-[#F59E0B]" style={{ background: '#F59E0B12', border: '1px solid #F59E0B44', fontFamily: 'var(--font-game), sans-serif' }}><TriangleAlert {...INLINE_ICON} />Ninguém do elenco joga nesta posição. Qualquer troca aqui deixa o substituto fora de posição.</div>}
                           {/* A starter is usually replaced from the bench, so the bench comes first. */}
                           {starterSel ? (
                             <>
-                              <Section title="🪑 RESERVAS / BANCO" color="#818CF8" items={bench} />
+                              <Section title={<><Armchair {...INLINE_ICON} />RESERVAS / BANCO</>} color="#818CF8" items={bench} />
                               <Section title="TITULARES (TROCA DE POSIÇÃO)" color="#22C55E" items={starters} />
                             </>
                           ) : (
                             <>
                               <Section title="TITULARES" color="#22C55E" items={starters} />
-                              <Section title="🪑 RESERVAS / BANCO" color="#818CF8" items={bench} />
+                              <Section title={<><Armchair {...INLINE_ICON} />RESERVAS / BANCO</>} color="#818CF8" items={bench} />
                             </>
                           )}
                         </div>
@@ -1152,7 +1156,7 @@ export default function SquadEditor({
               }
             >
               <div className="text-center">
-                <div className="text-3xl mb-1">🏥</div>
+                <div className="mb-2 flex justify-center"><img src="/projects/medical.webp" alt="Departamento médico" className="h-20 w-20 object-contain" /></div>
                 <p className="text-[13px] mb-1" style={{ color: '#C8D0D4', fontFamily: 'var(--font-game), sans-serif' }}>
                   Reduzir <b style={{ color: '#FFF' }}>1 jogo</b> de lesão de <b style={{ color: '#FFF' }}>{pp.shortName}</b>?
                 </p>
@@ -1174,7 +1178,7 @@ export default function SquadEditor({
             closeLabel="Fechar"
             bodyClassName="flex items-center justify-center"
           >
-            <PlayerCard player={selectedPlayer} effectiveStats={effectiveStatsById[selectedPlayer.id]} scale={1.5} />
+            <PlayerCard player={selectedPlayer} showAlbumLevel effectiveStats={effectiveStatsById[selectedPlayer.id]} scale={1.5} />
           </GameModal>
         )}
       </>
@@ -1186,7 +1190,7 @@ export default function SquadEditor({
           onOpenChange={open => { if (!open) setPendingSwap(null); }}
           title={
             <span className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/33 bg-primary/9 text-xl text-brand-strong" aria-hidden="true">↔</span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/33 bg-primary/9 text-xl text-brand-strong" aria-hidden="true"><ArrowLeftRight size={20} strokeWidth={2.4} /></span>
               <span>{pendingIsStarterSwap ? 'CONFIRMAR TROCA DE POSIÇÃO' : 'CONFIRMAR ENTRADA NO TIME'}</span>
             </span>
           }

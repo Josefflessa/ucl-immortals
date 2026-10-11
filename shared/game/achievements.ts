@@ -41,6 +41,8 @@ export interface CareerCompetition {
   topPlayerAssists: number;
   topKeeperSaves: number;
   topPlayerOverall: number;
+  /** Card ids of the XI that started the final (empty when there was no final or it was not recorded). */
+  finalStarterIds: string[];
 }
 
 /** A title "conceding few goals" (Muralha) allows at most this many. */

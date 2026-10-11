@@ -9,6 +9,8 @@ import type { Player } from '@shared/game/gameData';
 import { getCardIntrinsicStats } from '@shared/game/gameEngine';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 import CoinIcon from './CoinIcon';
+import { Repeat } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 
 // Room updates clone the authoritative state. Keep unchanged trade cards from
 // recalculating when only the other side's offer or ready flag changes.
@@ -66,7 +68,7 @@ export default function TradeNegotiationModal() {
       open
       onOpenChange={next => { if (!next) tradeLeaveOnline(session.id); }}
       size="wide"
-      title={<span className="text-[#78c4d8]">🔄 Negociando com {theirName}</span>}
+      title={<span className="text-[#78c4d8]"><Repeat {...INLINE_ICON} />Negociando com {theirName}</span>}
       footer={
         <div className="flex gap-2">
           <Button intent="ghost" className="flex-1" onClick={() => tradeLeaveOnline(session.id)}>

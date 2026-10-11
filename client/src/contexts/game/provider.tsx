@@ -4,6 +4,7 @@ import React from 'react';
 import { createContext, useContext, useReducer, useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAccount } from '../AccountContext';
+import { useAlbumLevels } from '../AlbumContext';
 import { clearSoloSave, loadSoloSave, writeSoloSave } from '../../lib/soloSave';
 import { Player, type PlayerSpecialization } from '@shared/game/gameData';
 import { Team, MatchResult, type MatchPlan, type VariantFlag } from '@shared/game/gameEngine';
@@ -24,7 +25,7 @@ import { gameReducer } from './reducer';
 // ============================================================
 // CONTEXT
 // ============================================================
-interface GameContextType {
+export interface GameContextType {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
   // Helpers
@@ -105,7 +106,8 @@ interface GameContextType {
   dismissMissionResolutionOnline: () => void;
 }
 
-const GameContext = createContext<GameContextType | null>(null);
+/** Exported for the dev-only match harness (pages/dev), which supplies its own value. */
+export const GameContext = createContext<GameContextType | null>(null);
 
 // Production builds use the Durable Object endpoint on the same Cloudflare
 // hostname. `pnpm dev` uses the Socket.IO server embedded in Vite.
@@ -122,6 +124,7 @@ export const useGame = () => {
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  const accountAlbumLevels = useAlbumLevels();
   const socketRef = useRef<RealtimeClientSocket | null>(null);
   const socketRoomCodeRef = useRef<string | null>(null);
   const onlineRoomRef = useRef<any | null>(null);
@@ -160,6 +163,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       ...(Number.isSafeInteger(roomEpoch) && roomEpoch > 0 ? { roomEpoch } : {}),
     });
   }, [state.roomCode]);
+
+  const albumLevelSync = useMemo(() => {
+    const team = state.playerTeam;
+    if (state.mode !== 'online' || !state.roomCode || !team) return null;
+    const albumLevels: Record<string, 2 | 3 | 4 | 5> = {};
+    const cardIds = new Set(team.players.map(player => player.id));
+    accountAlbumLevels.forEach((level, cardId) => {
+      if (cardIds.has(cardId) && level >= 2) albumLevels[cardId] = level as 2 | 3 | 4 | 5;
+    });
+    const roster = team.players.map(player => player.id).join(',');
+    const syncKey = JSON.stringify([state.roomCode, team.id, roster, albumLevels]);
+    return { roomCode: state.roomCode, albumLevels, syncKey };
+  }, [accountAlbumLevels, state.mode, state.playerTeam, state.roomCode]);
+  const lastAlbumLevelSyncRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!albumLevelSync || !socketRef.current || lastAlbumLevelSyncRef.current === albumLevelSync.syncKey) return;
+    lastAlbumLevelSyncRef.current = albumLevelSync.syncKey;
+    emitOnlineAction('sync_album_levels', {
+      roomCode: albumLevelSync.roomCode,
+      albumLevels: albumLevelSync.albumLevels,
+    });
+  }, [albumLevelSync, emitOnlineAction]);
 
   // Auto disconnect on unmount
   useEffect(() => {
@@ -491,6 +516,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [emitOnlineAction, state.roomCode]);
 
   const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string, matchPlan: MatchPlan) => {
+    const albumLevels: Record<string, 2 | 3 | 4 | 5> = {};
+    const submittedIds = new Set(draftedPlayers.flatMap(player => player ? [player.id] : []));
+    accountAlbumLevels.forEach((level, cardId) => {
+      if (submittedIds.has(cardId) && level >= 2) albumLevels[cardId] = level as 2 | 3 | 4 | 5;
+    });
     emitOnlineAction("submit_squad_review", {
       roomCode: state.roomCode,
       captain,
@@ -500,8 +530,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       playStyle,
       formationId,
       matchPlan,
+      albumLevels,
     });
-  }, [emitOnlineAction, state.roomCode]);
+  }, [accountAlbumLevels, emitOnlineAction, state.roomCode]);
 
   const setMatchRolesOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, playStyle?: string, formationId?: string) => {
     emitOnlineAction("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker, freeKickTaker, playStyle, formationId });

@@ -18,6 +18,8 @@ import {
 import { formationAdvantageColorForAnalysisLevel } from '@shared/game/gameEngine';
 import type { ClubProjectId } from '@shared/game/clubProjects';
 import CoinIcon from './CoinIcon';
+import { Dumbbell } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 
 function ProjectLevelBar({ level, color }: { level: number; color: string }) {
   return (
@@ -248,7 +250,7 @@ export default function ClubProjectsTab() {
           open={trainingOpen}
           onOpenChange={open => setTrainingOpen(open)}
           size="wide"
-          title="💪 CENTRO DE TREINAMENTO"
+          title={<><Dumbbell {...INLINE_ICON} />CENTRO DE TREINAMENTO</>}
           subtitle="Evolua permanentemente um atributo do jogador. O treino é aplicado na hora e usa os créditos da campanha."
           closeLabel="Fechar treinamento"
         >

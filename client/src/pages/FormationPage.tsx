@@ -9,6 +9,8 @@ import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import ImpactMeter from '../components/game/ImpactMeter';
 import { AppShell, Button, ChoiceCard, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
+import { Star } from 'lucide-react';
+import { INLINE_ICON } from '../components/game/inlineIcon';
 
 export default function FormationPage() {
   const { state, dispatch, submitSetupOnline } = useGame();
@@ -101,7 +103,7 @@ export default function FormationPage() {
                       {isPreferred && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-bold"
                           style={{ background: '#C9A84C22', color: 'var(--ui-brand)', border: '1px solid #C9A84C44', fontFamily: 'var(--font-game), sans-serif' }}>
-                          ⭐ Preferida
+                          <Star {...INLINE_ICON} fill="currentColor" />Preferida
                         </span>
                       )}
                       {isSelected && !isPreferred && (
@@ -117,13 +119,18 @@ export default function FormationPage() {
 
                     {/* Matchup info — bônus situacional de equipe, aplicado somente durante a partida */}
                     {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
-                      <div className="mt-3 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
+                      <div className="mt-3 space-y-1 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                         {formation.counters.length > 0 && (
-                          <>Confronto favorável contra: <span style={{ color: 'var(--ui-success)' }}>{formation.counters.join(', ')}</span> <span style={{ color: 'var(--ui-success)' }}>· {formationAdvantageLabelForAnalysisLevel(1)}</span></>
+                          <div>
+                            <span className="font-bold" style={{ color: 'var(--ui-success)' }}>Vantagem contra: </span>
+                            <span style={{ color: 'var(--ui-success)' }}>{formation.counters.join(', ')} · {formationAdvantageLabelForAnalysisLevel(1)}</span>
+                          </div>
                         )}
-                        {formation.counters.length > 0 && formation.counteredBy.length > 0 && ' · '}
                         {formation.counteredBy.length > 0 && (
-                          <>Pode sofrer contra: <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')}</span> <span style={{ color: '#F97316' }}>(o rival terá {formationAdvantageLabelForAnalysisLevel(1).toLowerCase()})</span></>
+                          <div>
+                            <span className="font-bold" style={{ color: '#F97316' }}>Desvantagem contra: </span>
+                            <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')} (o rival terá {formationAdvantageLabelForAnalysisLevel(1).toLowerCase()})</span>
+                          </div>
                         )}
                       </div>
                     )}

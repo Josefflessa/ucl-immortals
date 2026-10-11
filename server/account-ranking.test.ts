@@ -350,7 +350,7 @@ describe('choice events and event Únicas', () => {
 
   it('picks one club for good and unlocks only its card after its own challenges', async () => {
     const { call, register } = api(database());
-    at('2026-10-20T12:00:00-03:00');
+    at('2026-10-11T12:00:00-03:00');
     const cookie = await register('alvinegro');
     // Before the start the clubs are shown but cannot be picked.
     expect(event((await call('/api/account/events', { cookie })).body)).toMatchObject({ status: 'upcoming', chosenKey: null });

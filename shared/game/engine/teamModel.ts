@@ -2,6 +2,7 @@
 
 import { Player, FORMATIONS } from '../gameData';
 import { type ClubProjectsState } from '../clubProjects';
+import type { AlbumLevel } from '../album';
 import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL } from './draft';
 
 // Premium variants keep their own card IDs for inventory/UI. Cards that represent
@@ -165,6 +166,8 @@ export interface Team {
   playStyle: string;
   matchPlan?: MatchPlan;
   players: PlayerCard[]; // 11 titulares
+  /** Cosmetic album levels owned by this team, keyed by card id (public in match views). */
+  albumLevels?: Partial<Record<string, Exclude<AlbumLevel, 1>>>;
   captain?: string;
   penaltyTaker?: string;
   freeKickTaker?: string;
@@ -244,6 +247,30 @@ export function activeGoalkeeperForTeam(
   return { player: emergency, emergency: true };
 }
 
+/** How a chance was built. The engine already decides it; recording it lets the
+ * replay (narration and the live pitch) show the play that was actually simulated. */
+export type PlayKind =
+  | 'cross' | 'through' | 'dribble' | 'longrange' | 'counter'
+  | 'corner' | 'freekick' | 'penalty'
+  | 'own_goal' | 'blunder' | 'deflected' | 'screamer' | 'woodwork';
+
+/** The finish the engine resolved (see shotTypeForApproach in matchSim.ts). */
+export type PlayShot = 'normal' | 'header' | 'long_range' | 'one_on_one' | 'first_time';
+
+export interface MatchPlay {
+  kind: PlayKind;
+  shot?: PlayShot;
+  /** Who shoots (or takes the penalty / free kick). */
+  attackerId?: string;
+  /** Who served it: the assist, the key pass, the corner. */
+  creatorId?: string;
+  /** The wide player who crossed. */
+  wideId?: string;
+  /** The marker in the duel (on an own goal, the defender who put it in). */
+  defenderId?: string;
+  goalkeeperId?: string;
+}
+
 export interface MatchEvent {
   minute: number;
   type: 'goal' | 'save' | 'miss' | 'duel' | 'sub' | 'penalty' | 'foul' | 'momentum' | 'tactic' | 'yellow' | 'red' | 'injury' | 'corner' | 'stat';
@@ -263,6 +290,8 @@ export interface MatchEvent {
   /** Rating changes (statKey → delta) produced during this event's minute, so the replay
    * rebuilds the live ratings exactly as the engine computed them. */
   ratingDelta?: Record<string, number>;
+  /** The play behind a goal / save / miss / duel, as the engine simulated it. */
+  play?: MatchPlay;
 }
 
 /** Incremental match statistics attached to the authoritative event timeline. */
@@ -316,6 +345,8 @@ export interface PenaltyKick {
   takerName: string;
   gkName: string;
   isGoal: boolean;
+  takerId?: string;
+  gkId?: string;
 }
 
 export interface MatchResult {
@@ -359,6 +390,13 @@ export interface MatchResult {
   /** Inputs of computePossession (except shots and the active tactic), so the replay can show
    * the live possession with the same formula that produces the final value. */
   possessionModel?: { homeStrength: number; awayStrength: number; homeShapeControl: number; awayShapeControl: number };
+  /**
+   * The run of play, one entry per minute from minute 1: the sign says who was
+   * attacking (+ home, − away) and the size is the home side's momentum + 1
+   * (1..101). Recorded only, never drawn from, so it changes no result; the live
+   * pitch uses it to show where the game is.
+   */
+  flow?: number[];
   stats: {
     homePos: number;
     awayPos: number;

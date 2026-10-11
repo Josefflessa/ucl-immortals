@@ -1319,6 +1319,14 @@ export default {
     }
     return env.ASSETS.fetch(request);
   },
+  async scheduled(_controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
+    const now = Date.now();
+    context.waitUntil(env.DB.batch([
+      env.DB.prepare('DELETE FROM friend_messages WHERE expires_at <= ?').bind(now),
+      env.DB.prepare(`UPDATE album_friend_trades SET status = 'expired', updated_at = ?
+        WHERE status = 'pending' AND expires_at <= ?`).bind(now, now),
+    ]).then(() => undefined));
+  },
 } satisfies ExportedHandler<Env>;
 
 async function handleRoomInvitationAction(request: Request, env: Env, invitationId: string): Promise<Response> {

@@ -7,7 +7,8 @@ import PlayerCard from '../components/game/PlayerCard';
 import PlayerPortrait from '../components/game/PlayerPortrait';
 import FormationField from '../components/game/FormationField';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
-import { Ban } from 'lucide-react';
+import { Armchair, Ban, Eye, Snowflake, Target } from 'lucide-react';
+import { INLINE_ICON } from '../components/game/inlineIcon';
 import { FORMATIONS, COACHES, Player, POS_PT } from '@shared/game/gameData';
 import { getTraitInfo, traitEffectLabel } from '@shared/game/traits';
 import PlaystyleIcon from '../components/game/PlaystyleIcon';
@@ -117,6 +118,7 @@ const DraftOptions = memo(function DraftOptions({
             key={`${round}-${player.id}`}
             player={player}
             lite
+            showAlbumLevel
             scale={cardScale}
             selected={selectedId === player.id}
             onClick={() => {
@@ -144,15 +146,15 @@ const DraftOptions = memo(function DraftOptions({
                 pick can be weighed without bloating the card. */}
             <div className="flex items-center gap-4 mb-2 text-[13px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
               <span className="inline-flex items-center gap-1.5 text-gray-400" title="Visão: peso de armação — influencia quem controla a posse e dispara habilidades como a do Guardiola (Visão ≥ 80).">
-                👁️ Visão <b className="text-white">{sel.vision}</b>
+                <Eye size="1em" strokeWidth={2.5} aria-hidden="true" /> Visão <b className="text-white">{sel.vision}</b>
               </span>
               <span className="inline-flex items-center gap-1.5 text-gray-400" title="Compostura: frieza nos momentos decisivos — pênaltis e a escolha do batedor/finalizador.">
-                🧊 Compostura <b className="text-white">{sel.composure}</b>
+                <Snowflake size="1em" strokeWidth={2.5} aria-hidden="true" /> Compostura <b className="text-white">{sel.composure}</b>
               </span>
             </div>
             {visibleTraits.length > 0 && (
             <>
-            <div className="text-[12px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>🎯 ESTILOS DE JOGO</div>
+            <div className="text-[12px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}><Target {...INLINE_ICON} />ESTILOS DE JOGO</div>
             <div className="flex flex-col gap-1">
               {visibleTraits.map(t => {
                 const info = getTraitInfo(t);
@@ -203,7 +205,7 @@ const DraftedRoster = memo(function DraftedRoster({
       </div>
       <div className="flex flex-wrap gap-2">
         {filled.map(p => (
-          <PlayerCard key={p.id} player={p} compact lite />
+          <PlayerCard key={p.id} player={p} compact lite showAlbumLevel />
         ))}
         {Array.from({ length: Math.max(0, total - filled.length) }).map((_, i) => (
           <div
@@ -459,7 +461,7 @@ export default function DraftPage() {
                     ) : (
                       <>
                         <div className="text-xs font-black tracking-widest mb-1" style={{ color: '#22D3EE', fontFamily: 'var(--font-game), sans-serif' }}>
-                          🪑 RESERVA — BANCO
+                          <Armchair {...INLINE_ICON} />RESERVA — BANCO
                         </div>
                         <div className="text-[13px] font-bold" style={{ color: '#8A9BA0', fontFamily: 'var(--font-game), sans-serif' }}>
                           Escolha qualquer jogador para o banco.
@@ -499,6 +501,7 @@ export default function DraftPage() {
               <FormationField
                 formation={formation}
                 players={draftedPlayers}
+                showAlbumLevel
               />
             )}
             {coach && (

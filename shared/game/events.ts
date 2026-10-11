@@ -5,6 +5,7 @@
 // the server (see server/events.ts), so the browser can never grant a frame.
 
 import type { CareerCompetition } from './achievements';
+import { isClubRewardKey } from './clubRewards';
 import type { CompetitionFinishStage } from './competitionRanking';
 
 export interface AvatarFrame {
@@ -22,8 +23,9 @@ export const AVATAR_FRAMES: readonly AvatarFrame[] = [
 
 export const AVATAR_FRAME_BY_KEY = new Map(AVATAR_FRAMES.map(frame => [frame.key, frame]));
 
+/** An event frame, or a club's frame from the album (drawn in code). */
 export function isAvatarFrameKey(key: unknown): key is string {
-  return typeof key === 'string' && AVATAR_FRAME_BY_KEY.has(key);
+  return typeof key === 'string' && (AVATAR_FRAME_BY_KEY.has(key) || isClubRewardKey(key));
 }
 
 export interface EventObjective {
@@ -60,6 +62,8 @@ export interface GameEvent {
   choices?: readonly EventChoice[];
   /** Reward picked after completing the objectives: one of these name styles (nameStyles.ts). */
   rewardNameStyles?: readonly string[];
+  /** Regular event whose reward is an event Única (EVENT_UNIQUE_CARDS), unlocked for every account that completes it. */
+  rewardCardId?: string;
 }
 
 const SEMIFINAL_OR_BETTER = new Set<CompetitionFinishStage>(['semifinalist', 'runnerUp', 'champion']);
@@ -76,6 +80,12 @@ const clubTitle = (crestId: string, club: string): EventObjective => ({
   target: 1,
   counts: c => withCrest(crestId)(c) && goldOrAbove(c) && isChampion(c),
 });
+/** Every version of Neymar in the game (regular cards and Únicas), by card id. */
+export const NEYMAR_CARD_IDS: ReadonlySet<string> = new Set([
+  'neymar', 'neymar_psg', 'neymar_santos', 'neymar_al_hilal_2023_24', 'neymar_unico', 'neymar_barca_unico',
+]);
+/** A version of Neymar started the final (champions only: the final is the last match they played). */
+const neymarStartedFinal = (c: CareerCompetition) => c.finalStarterIds.some(id => NEYMAR_CARD_IDS.has(id));
 const reachedSemifinal = (c: CareerCompetition) => isChampion(c) || (c.finishStage !== null && SEMIFINAL_OR_BETTER.has(c.finishStage));
 
 /** Midnight in Brasília (UTC−3) of the given day. */
@@ -85,7 +95,7 @@ export const GAME_EVENTS: readonly GameEvent[] = [
   {
     id: 'noite-dos-imortais-2026',
     name: 'Noite dos Imortais',
-    description: 'Complete os três desafios até 31 de outubro e ganhe a moldura exclusiva para a sua foto de perfil.',
+    description: 'Complete os três desafios e ganhe a moldura exclusiva para a sua foto de perfil.',
     startsAt: brasiliaMidnight(2026, 10, 4),
     endsAt: brasiliaMidnight(2026, 11, 1),
     frameKey: 'noite-dos-imortais',
@@ -98,7 +108,7 @@ export const GAME_EVENTS: readonly GameEvent[] = [
   {
     id: 'estilo-de-craque-2026',
     name: 'Estilo de Craque',
-    description: 'Conclua 5 competições até 31 de outubro e escolha um estilo para o seu nome: a fonte e o efeito com que ele aparece no perfil, no ranking e para os amigos. A escolha é definitiva.',
+    description: 'Conclua 5 competições e escolha um estilo para o seu nome: a fonte e o efeito com que ele aparece no perfil, no ranking e para os amigos. A escolha é definitiva.',
     startsAt: brasiliaMidnight(2026, 10, 5),
     endsAt: brasiliaMidnight(2026, 11, 1),
     objectives: [
@@ -107,10 +117,21 @@ export const GAME_EVENTS: readonly GameEvent[] = [
     rewardNameStyles: ['lendario', 'arcade', 'assombrado', 'neon', 'pirata'],
   },
   {
+    id: 'neymar-2026',
+    name: 'O Príncipe',
+    description: 'Seja campeão 4 vezes no Ouro ou acima com alguma versão do Neymar como titular na final e ganhe a Carta Única do Neymar no Barcelona para o seu Pacote Único.',
+    startsAt: brasiliaMidnight(2026, 10, 11),
+    endsAt: brasiliaMidnight(2026, 11, 11),
+    rewardCardId: 'neymar_barca_unico',
+    objectives: [
+      { id: 'titles', label: 'Seja campeão 4 vezes no Ouro ou acima com o Neymar titular na final', target: 4, counts: c => goldOrAbove(c) && isChampion(c) && neymarStartedFinal(c) },
+    ],
+  },
+  {
     id: 'classicos-sp-2026',
     name: 'Clássicos de São Paulo',
-    description: 'Escolha o seu clube e cumpra as missões até 30 de novembro para liberar a Carta Única dele no seu Pacote Único. A escolha é definitiva.',
-    startsAt: brasiliaMidnight(2026, 11, 1),
+    description: 'Escolha o seu clube e cumpra as missões para liberar a Carta Única dele no seu Pacote Único. A escolha é definitiva.',
+    startsAt: brasiliaMidnight(2026, 10, 12),
     endsAt: brasiliaMidnight(2026, 12, 1),
     objectives: [],
     choices: [

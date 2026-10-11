@@ -4,6 +4,8 @@
 // player-sheet model, which is computed by the same engine functions the match uses.
 import TraitIcon from './TraitIcon';
 import PlaystyleIcon from './PlaystyleIcon';
+import { ChevronsUp, ClipboardList, Dna, Dumbbell, GraduationCap, Hand, House, Link, Palette, Repeat, Star, Timer } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 import { useState } from 'react';
 import {
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
@@ -46,7 +48,7 @@ function Note({ children }: { children: React.ReactNode }) {
 function Row({ icon, name, color, children }: { icon: React.ReactNode; name: string; color: string; children?: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2.5 py-2.5">
-      <span className="flex-shrink-0 text-sm" aria-hidden="true">{icon}</span>
+      <span className="inline-flex h-5 flex-shrink-0 items-center text-sm" style={{ color }} aria-hidden="true">{icon}</span>
       <div className="min-w-0 flex-1">
         <div className="text-xs font-black tracking-wider" style={{ color, ...FONT }}>{name}</div>
         {children ? <div className="mt-1">{children}</div> : null}
@@ -253,7 +255,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       );
     }),
     model.traits.length > 0 && (
-      <Row key="traits" icon="🎨" name="ESTILOS DE JOGO" color="#A78BFA">
+      <Row key="traits" icon={<Palette size={15} strokeWidth={2.4} />} name="ESTILOS DE JOGO" color="#A78BFA">
         <div className="space-y-1.5">
           {model.traits.map(t => (
             <div key={t.id} className="flex items-start gap-1.5">
@@ -270,25 +272,25 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       </Row>
     ),
     evolution.length > 0 && (
-      <Row key="evolution" icon="🆙" name="EVOLUÇÃO" color={GREEN}>
+      <Row key="evolution" icon={<ChevronsUp size={15} strokeWidth={2.4} />} name="EVOLUÇÃO" color={GREEN}>
         <Chips items={attrChips(evolution, GREEN)} />
         <Note>Pontos de evolução e especialização aplicados nesta carta.</Note>
       </Row>
     ),
     train.length > 0 && (
-      <Row key="train" icon="💪" name="TREINO (LOJA)" color="#34D399">
+      <Row key="train" icon={<Dumbbell size={15} strokeWidth={2.4} />} name="TREINO (LOJA)" color="#34D399">
         <Chips items={attrChips(train, '#34D399')} />
         <Note>Melhoria permanente comprada na loja.</Note>
       </Row>
     ),
     medical > 0 && (
-      <Row key="medical" icon="🏥" name="DEPARTAMENTO MÉDICO" color="#22D3EE">
+      <Row key="medical" icon={<img src="/projects/medical.webp" alt="" className="h-4 w-4 object-contain" />} name="DEPARTAMENTO MÉDICO" color="#22D3EE">
         <Chips items={[{ text: `+${medical} EM CADA ATRIBUTO`, color: '#22D3EE' }]} />
         <Note>Bônus permanente acumulado ao voltar de lesões.</Note>
       </Row>
     ),
     lapidado > 0 && (
-      <Row key="lapidado" icon="💎" name="LAPIDADO" color="#93C5FD">
+      <Row key="lapidado" icon={<TraitIcon trait="lapidado" size={16} />} name="LAPIDADO" color="#93C5FD">
         <Chips items={[{ text: `+${lapidado} EM CADA ATRIBUTO`, color: '#93C5FD' }]} />
         <Note>Bônus permanente recebido de Lapidadores em vitórias enquanto estava na reserva.</Note>
       </Row>
@@ -297,7 +299,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
 
   const teamRows = [
     chem && (
-      <Row key="chem" icon="🔗" color={chem.oop ? RED : GREEN}
+      <Row key="chem" icon={<Link size={15} strokeWidth={2.4} />} color={chem.oop ? RED : GREEN}
         name={`QUÍMICA INDIVIDUAL ${chem.score}/3 · ×${chem.multiplier.toFixed(2)}${chem.oop ? ' · FORA DE POSIÇÃO' : ''}`}>
         {chemPerAttr.length > 0 && <Chips items={attrChips(chemPerAttr, GREEN)} />}
         {chem.oop ? (
@@ -326,7 +328,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       </Row>
     ),
     hasGlobal && (
-      <Row key="global" icon="⭐" name="QUÍMICA DO TIME" color="#C9A84C">
+      <Row key="global" icon={<Star size={15} strokeWidth={2.4} />} name="QUÍMICA DO TIME" color="#C9A84C">
         <Chips items={[
           ...(global.passing > 0 ? [{ text: `+${global.passing} PAS`, color: '#C9A84C' }] : []),
           ...(global.pace > 0 ? [{ text: `+${global.pace} RIT`, color: '#C9A84C' }] : []),
@@ -336,7 +338,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       </Row>
     ),
     captain.length > 0 && model.captain && (
-      <Row key="captain" icon="👑" name={`CAPITÃO: ${model.captain.name.toUpperCase()}${model.captain.auto ? ' (AUTOMÁTICO)' : ''}`} color="#F5B731">
+      <Row key="captain" icon={<img src="/roles/captain.webp" alt="" className="h-4 w-4 object-contain" />} name={`CAPITÃO: ${model.captain.name.toUpperCase()}${model.captain.auto ? ' (AUTOMÁTICO)' : ''}`} color="#F5B731">
         <Chips items={attrChips(captain, '#F5B731')} />
         <Note>
           {model.captain.isThisPlayer ? 'Ele é o capitão: ' : ''}a melhor estatística do capitão ({model.captain.stat}) vale +{model.captain.amount} para todo o time.
@@ -345,24 +347,24 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       </Row>
     ),
     (coach.length > 0 || eff.activeCoachEffects.length > 0) && (
-      <Row key="coach" icon="🎓" name={`TREINADOR${model.coachName ? `: ${model.coachName.toUpperCase()}` : ''}`} color="#E8C84A">
+      <Row key="coach" icon={<GraduationCap size={15} strokeWidth={2.4} />} name={`TREINADOR${model.coachName ? `: ${model.coachName.toUpperCase()}` : ''}`} color="#E8C84A">
         <Chips items={attrChips(coach, '#E8C84A')} />
         {eff.activeCoachEffects.length > 0 && <Note>Ativo agora: {eff.activeCoachEffects.join(' · ')}</Note>}
       </Row>
     ),
     tactic.length > 0 && (
-      <Row key="tactic" icon="📋" name={`TÁTICA: ${tacticName.toUpperCase()}`} color="#4FC3F7">
+      <Row key="tactic" icon={<ClipboardList size={15} strokeWidth={2.4} />} name={`TÁTICA: ${tacticName.toUpperCase()}`} color="#4FC3F7">
         <Chips items={attrChips(tactic, '#4FC3F7')} />
       </Row>
     ),
     position.length > 0 && (
-      <Row key="position" icon="🔁" name={eff.isOOP ? 'FORA DE POSIÇÃO · −15%' : 'POSIÇÃO SECUNDÁRIA · −5%'} color={eff.isOOP ? RED : '#EAB308'}>
+      <Row key="position" icon={<Repeat size={15} strokeWidth={2.4} />} name={eff.isOOP ? 'FORA DE POSIÇÃO · −15%' : 'POSIÇÃO SECUNDÁRIA · −5%'} color={eff.isOOP ? RED : '#EAB308'}>
         <Chips items={attrChips(position, eff.isOOP ? RED : '#EAB308')} />
         <Note>Penalidade nos atributos por jogar fora da posição de origem.</Note>
       </Row>
     ),
     model.outfieldInGoal && (
-      <Row key="gk" icon="🧤" name="JOGADOR DE LINHA NO GOL" color="#F59E0B">
+      <Row key="gk" icon={<Hand size={15} strokeWidth={2.4} />} name="JOGADOR DE LINHA NO GOL" color="#F59E0B">
         <Chips items={[{ text: `${goalkeeper} DEF`, color: '#F59E0B' }]} />
         <Note>Jogadores de linha aproveitam {Math.round(OUTFIELD_GK_MULTIPLIER * 100)}% da Defesa no gol.</Note>
       </Row>
@@ -382,7 +384,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
 
   const matchRows = [
     ...model.situations.map(s => (
-      <Row key={`sit-${s.label}`} icon="⏱️" name={s.label.toUpperCase()} color="#FBBF24">
+      <Row key={`sit-${s.label}`} icon={<Timer size={15} strokeWidth={2.4} />} name={s.label.toUpperCase()} color="#FBBF24">
         <Chips items={s.effects.map(e => ({ text: e, color: '#FBBF24' }))} />
         {s.replaces.length > 0 && <Note>Substitui {s.replaces.join(', ')} (não soma).</Note>}
         <Note>
@@ -392,13 +394,13 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       </Row>
     )),
     model.homeBonus > 0 && (
-      <Row key="home" icon="🏟️" name="JOGANDO EM CASA" color="#60A5FA">
+      <Row key="home" icon={<House size={15} strokeWidth={2.4} />} name="JOGANDO EM CASA" color="#60A5FA">
         <Chips items={[{ text: `+${model.homeBonus} EM CADA ATRIBUTO`, color: '#60A5FA' }]} />
         <Note>Vale nos lances das partidas em casa (projeto Estádio). A final em jogo único é em campo neutro.</Note>
       </Row>
     ),
     model.keeper && (
-      <Row key="keeper" icon="🧤" name={`DEFESA DE CHUTES: ${model.keeper.rating}`} color="#22D3EE">
+      <Row key="keeper" icon={<Hand size={15} strokeWidth={2.4} />} name={`DEFESA DE CHUTES: ${model.keeper.rating}`} color="#22D3EE">
         <Note>
           É o valor usado contra finalizações e pênaltis: DEF {eff.defending}
           {model.keeper.traitBonus > 0 ? <> + <b className="text-[var(--ui-text-soft)]">{model.keeper.traitBonus}</b> dos estilos de goleiro</> : null}.
@@ -414,7 +416,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       <button type="button" onClick={() => collapsible && setOpen(v => !v)} disabled={!collapsible}
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 text-left disabled:cursor-default">
-        <span className="text-xs font-black tracking-widest text-[var(--ui-text-soft)]" style={FONT}>🧬 DE ONDE VEM CADA BÔNUS</span>
+        <span className="text-xs font-black tracking-widest text-[var(--ui-text-soft)]" style={FONT}><Dna {...INLINE_ICON} />DE ONDE VEM CADA BÔNUS</span>
         {collapsible && <span className="text-[12px] font-bold text-[var(--ui-text-muted)]" style={FONT}>{open ? 'Ocultar ▴' : `Ver ${total} fonte${total === 1 ? '' : 's'} ▾`}</span>}
       </button>
       {open && (total === 0 ? (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Scissors, X } from 'lucide-react';
 import type { Player } from '@shared/game/gameData';
@@ -17,15 +17,18 @@ type OpeningStage = 'sealed' | 'revealed';
 
 const MUTED = '#9693A5';
 /** Pack artwork aspect ratio (public/packs, width / height). */
-const PACK_ASPECT = 0.527;
+export const PACK_ASPECT = 0.527;
 const PACK_HEIGHT = 'min(60vh, 540px)';
 const PACK_SIZE = { height: PACK_HEIGHT, width: `calc(${PACK_HEIGHT} * ${PACK_ASPECT})` };
 /** The flap torn off the top: the crimped strip of the artwork. */
 const TEAR_AT = 9;
 const TEAR_PATH = 'M 0.8 8.3 L 2.8 9.7 L 4.8 8.3 L 6.8 9.7 L 8.8 8.3 L 10.8 9.7 L 12.8 8.3 L 14.8 9.7 L 16.8 8.3 L 18.8 9.7 L 20.8 8.3 L 22.8 9.7 L 24.8 8.3 L 26.8 9.7 L 28.8 8.3 L 30.8 9.7 L 32.8 8.3 L 34.8 9.7 L 36.8 8.3 L 38.8 9.7 L 40.8 8.3 L 42.8 9.7 L 44.8 8.3 L 46.8 9.7 L 48.8 8.3 L 50.8 9.7 L 52.8 8.3 L 54.8 9.7 L 56.8 8.3 L 58.8 9.7 L 60.8 8.3 L 62.8 9.7 L 64.8 8.3 L 66.8 9.7 L 68.8 8.3 L 70.8 9.7 L 72.8 8.3 L 74.8 9.7 L 76.8 8.3 L 78.8 9.7 L 80.8 8.3 L 82.8 9.7 L 84.8 8.3 L 86.8 9.7 L 88.8 8.3 L 90.8 9.7 L 92.8 8.3 L 94.8 9.7 L 96.8 8.3 L 98.8 9.7';
 
-function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMove, onPointerUp }: {
+export function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMove, onPointerUp, art, tearAt = TEAR_AT }: {
   rarity: PlayerPackRarity;
+  /** Artwork drawn instead of the card pack's (the album's sticker packets), and its tear line in %. */
+  art?: ReactNode;
+  tearAt?: number;
   cutProgress: number;
   isTearing: boolean;
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -40,7 +43,9 @@ function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMov
       <div aria-hidden="true" className="pointer-events-none absolute -inset-[18%] -z-[1] rounded-full blur-3xl" style={{ background: `radial-gradient(circle, ${accent}55 0%, ${accent}1F 38%, transparent 70%)` }} />
 
       {/* Body: everything below the tear line. */}
-      <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-fill" style={{ clipPath: `inset(${TEAR_AT}% 0 0 0)`, filter: 'drop-shadow(0 24px 40px rgba(0,0,0,.55))' }} />
+      {art
+        ? <div className="pointer-events-none absolute inset-0" style={{ clipPath: `inset(${tearAt}% 0 0 0)`, filter: 'drop-shadow(0 24px 40px rgba(0,0,0,.55))' }}>{art}</div>
+        : <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-fill" style={{ clipPath: `inset(${tearAt}% 0 0 0)`, filter: 'drop-shadow(0 24px 40px rgba(0,0,0,.55))' }} />}
 
       {/* Light escaping from the opened pack. */}
       <AnimatePresence>
@@ -48,7 +53,7 @@ function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMov
           <motion.div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-[4%] z-[2] origin-top"
-            style={{ top: `${TEAR_AT - 2}%`, height: '26%', background: `radial-gradient(ellipse at 50% 0%, #FFFFFF 0%, ${accent} 26%, ${accent}00 70%)`, mixBlendMode: 'screen' }}
+            style={{ top: `${tearAt - 2}%`, height: '26%', background: `radial-gradient(ellipse at 50% 0%, #FFFFFF 0%, ${accent} 26%, ${accent}00 70%)`, mixBlendMode: 'screen' }}
             initial={{ opacity: 0, scaleY: 0.2 }}
             animate={{ opacity: [0, 1, 0.85], scaleY: [0.2, 1.25, 1] }}
             transition={{ duration: 0.7, ease: 'easeOut' }}
@@ -59,7 +64,7 @@ function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMov
       {/* Flap: the crimped top strip, swiped away to open the pack. */}
       <motion.div
         className="absolute inset-0 z-[3]"
-        style={{ clipPath: `inset(0 0 ${100 - TEAR_AT}% 0)`, WebkitClipPath: `inset(0 0 ${100 - TEAR_AT}% 0)`, touchAction: 'pan-y', cursor: isTearing ? 'grabbing' : 'grab', willChange: 'transform', transformPerspective: 900 }}
+        style={{ clipPath: `inset(0 0 ${100 - tearAt}% 0)`, WebkitClipPath: `inset(0 0 ${100 - tearAt}% 0)`, touchAction: 'pan-y', cursor: isTearing ? 'grabbing' : 'grab', willChange: 'transform', transformPerspective: 900 }}
         animate={isTearing
           ? { x: '118%', y: '-16%', rotate: -9, rotateY: -18, skewX: -7, opacity: 0 }
           : { x: 0, y: cutProgress > 0 ? cutProgress * -.02 : 0, rotate: cutProgress > 0 ? cutProgress * 0.008 : 0, rotateY: 0, skewX: 0, opacity: 1 }}
@@ -70,12 +75,12 @@ function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMov
         onPointerCancel={onPointerUp}
         aria-label="Deslize a aba superior para rasgar o pacote"
       >
-        <img src={src} alt="" draggable={false} className="pointer-events-none h-full w-full object-fill" />
+        {art ?? <img src={src} alt="" draggable={false} className="pointer-events-none h-full w-full object-fill" />}
       </motion.div>
 
       {/* Hint right under the flap. */}
       {!isTearing && cutProgress === 0 && (
-        <div className="pointer-events-none absolute left-1/2 z-[4] flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold tracking-[0.15em] backdrop-blur-sm" style={{ top: `${TEAR_AT + 2.5}%`, color: '#FFF', background: 'rgba(5,7,11,.55)', border: `1px solid ${accent}88`, fontFamily: 'var(--font-game), sans-serif' }}>
+        <div className="pointer-events-none absolute left-1/2 z-[4] flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold tracking-[0.15em] backdrop-blur-sm" style={{ top: `${tearAt + 2.5}%`, color: '#FFF', background: 'rgba(5,7,11,.55)', border: `1px solid ${accent}88`, fontFamily: 'var(--font-game), sans-serif' }}>
           <Scissors size={13} />
           <span>DESLIZE A ABA</span>
         </div>

@@ -105,6 +105,8 @@ export interface RoomPlayer {
   captain: string | null;
   penaltyTaker: string | null;
   freeKickTaker: string | null;
+  /** Private staging copy until the public Team object is built at squad review. */
+  albumLevels?: Team['albumLevels'];
   team: Team | null;
   ready: boolean;
   connected: boolean;
@@ -124,6 +126,17 @@ export interface RoomPlayer {
   bets: Bet[];                        // 🎯 palpites (escrow já debitado; crédito só na revelação da partida-alvo)
   pendingMatchPoints?: number;        // pontos da própria partida calculados, aguardando seu replay/revelação
   missions?: MissionState;            // mural privado de missões do jogador
+}
+
+function normalizeTeamAlbumLevels(value: unknown, roster: readonly ({ id: string } | undefined)[]): NonNullable<Team['albumLevels']> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const allowedIds = new Set(roster.flatMap(player => player ? [player.id] : []));
+  const levels: NonNullable<Team['albumLevels']> = {};
+  for (const [cardId, rawLevel] of Object.entries(value)) {
+    if (!allowedIds.has(cardId) || typeof rawLevel !== 'number' || !Number.isInteger(rawLevel) || rawLevel < 2 || rawLevel > 5) continue;
+    levels[cardId] = rawLevel as 2 | 3 | 4 | 5;
+  }
+  return levels;
 }
 
 export interface RoomState {
@@ -451,10 +464,11 @@ function roomViewForSocket(room: RoomState, socketId: string): RoomState {
   const viewerId = viewer?.id;
 
   view.players = view.players.map(player => {
-    if (player.id === viewerId) return { ...player, accountId: undefined };
+    if (player.id === viewerId) return { ...player, accountId: undefined, albumLevels: undefined };
     return {
       ...player,
       accountId: undefined,
+      albumLevels: undefined,
       eventUniqueIds: undefined,
       clientId: undefined,
       points: 0,
@@ -1990,7 +2004,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     });
 
     // Player submits squad review (captain, penalty taker)
-    on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId, matchPlan }) => {
+    on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId, matchPlan, albumLevels }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (room.phase !== 'squad_review') return;
@@ -2017,6 +2031,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       player.penaltyTaker = canonicalPenaltyTaker;
       player.freeKickTaker = canonicalFreeKickTaker;
       player.draftedPlayers = orderedDraft;
+      player.albumLevels = normalizeTeamAlbumLevels(albumLevels, orderedDraft);
       if (playStyle) player.playStyle = playStyle;
       if (formationId) player.formationId = formationId; // formation can be changed post-draft
       player.matchPlan = canonicalMatchPlan;
@@ -2061,7 +2076,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
             isBot: false,
             credits: p.points,
             clubProjects: p.team?.clubProjects ?? createInitialClubProjects(),
-            crestId: p.crestId ?? undefined
+            crestId: p.crestId ?? undefined,
+            albumLevels: p.albumLevels,
           };
           p.missions = normalizeMissionState(
             p.missions,
@@ -2097,6 +2113,19 @@ export function registerSocketHandlers(io: RealtimeServer) {
         }
       }
 
+      emitRoomUpdate(io, room);
+    });
+
+    // Album levels are public cosmetic metadata. Only the current socket's own
+    // roster can update them, and unknown player IDs or invalid levels are dropped.
+    on("sync_album_levels", ({ roomCode, albumLevels }) => {
+      const room = rooms.get(roomCode);
+      const player = room?.players.find(candidate => candidate.socketId === socket.id);
+      if (!room || !player?.team) return;
+      const normalized = normalizeTeamAlbumLevels(albumLevels, player.team.players);
+      const serialize = (levels: Team['albumLevels']) => JSON.stringify(Object.entries(levels ?? {}).sort(([a], [b]) => a.localeCompare(b)));
+      if (serialize(player.team.albumLevels) === serialize(normalized)) return;
+      player.team = { ...player.team, albumLevels: normalized };
       emitRoomUpdate(io, room);
     });
 

@@ -8,20 +8,20 @@ import { motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
-import { CREST_CATALOG, ALL_CRESTS, getCrest } from '@shared/game/crests';
+import { PLAYABLE_CREST_CATALOG, PLAYABLE_CRESTS, getCrest } from '@shared/game/crests';
 import { AppShell, Button, Input, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 const GOLD = '#C9A84C';
 
 export default function CrestPage() {
   const { state, dispatch } = useGame();
   const { account } = useAccount();
-  const [openLeague, setOpenLeague] = useState(CREST_CATALOG[0]?.league ?? '');
+  const [openLeague, setOpenLeague] = useState(PLAYABLE_CREST_CATALOG[0]?.league ?? '');
   const [query, setQuery] = useState('');
   const selected = state.selectedCrestId;
 
   const search = query.trim().toLowerCase();
   const searchResults = useMemo(
-    () => search ? ALL_CRESTS.filter(c => c.name.toLowerCase().includes(search)) : [],
+    () => search ? PLAYABLE_CRESTS.filter(c => c.name.toLowerCase().includes(search)) : [],
     [search]
   );
 
@@ -36,7 +36,7 @@ export default function CrestPage() {
     dispatch({ type: 'SET_PHASE', phase: 'setup' });
   };
 
-  const activeGroup = CREST_CATALOG.find(g => g.league === openLeague);
+  const activeGroup = PLAYABLE_CREST_CATALOG.find(g => g.league === openLeague);
   const shownCrests = search ? searchResults : (activeGroup?.crests ?? []);
   const selectedDef = getCrest(selected);
 
@@ -77,7 +77,7 @@ export default function CrestPage() {
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="🔍 Buscar clube..."
+            placeholder="Buscar clube..."
             className="ui-input mb-4"
             aria-label="Buscar clube"
           />
@@ -85,7 +85,7 @@ export default function CrestPage() {
           {/* League tabs (hidden while searching) */}
           {!search && (
             <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-              {CREST_CATALOG.map(g => {
+              {PLAYABLE_CREST_CATALOG.map(g => {
                 const active = g.league === openLeague;
                 return (
                   <Button key={g.league} onClick={() => setOpenLeague(g.league)} intent="ghost"

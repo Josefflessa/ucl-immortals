@@ -4,9 +4,12 @@
 // coach and key info (tactic, formation, chemistry, average rating). Fully responsive.
 
 import TacticIcon from './TacticIcon';
+import { Crown, GraduationCap, Hand, LayoutGrid, Link, Star } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 import { FORMATIONS, COACHES, getTacticById } from '@shared/game/gameData';
 import { activeGoalkeeperForTeam, calculateChemistry, getTeamEffectiveStats, matchRoleForPlayer, type Team } from '@shared/game/gameEngine';
 import FormationField, { type EmergencyGoalkeeperDisplay } from './FormationField';
+import { CardIcon } from './StatusIcon';
 
 interface MatchFieldViewProps {
   team: Team;
@@ -20,6 +23,8 @@ interface MatchFieldViewProps {
   isFinal?: boolean;
   isLosing?: boolean;
   disableEntryAnimation?: boolean;
+  /** Whether this team belongs to the viewer's account (for a local album fallback). */
+  showAlbumLevel?: boolean;
 }
 
 function Chip({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
@@ -37,7 +42,7 @@ function Chip({ icon, label, value, color }: { icon: React.ReactNode; label: str
   );
 }
 
-export default function MatchFieldView({ team, activePlayStyle, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent, isKnockout, isFinal, isLosing, disableEntryAnimation = false }: MatchFieldViewProps) {
+export default function MatchFieldView({ team, activePlayStyle, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent, isKnockout, isFinal, isLosing, disableEntryAnimation = false, showAlbumLevel = false }: MatchFieldViewProps) {
   const formation = FORMATIONS.find(f => f.id === team.formationId) ?? FORMATIONS[0];
   const coach = COACHES.find(c => c.id === team.coachId);
   const tactic = getTacticById(activePlayStyle ?? team.playStyle);
@@ -109,7 +114,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
               style={{ border: `2px solid ${accent}55`, objectPosition: 'center top' }}
             />
           ) : (
-            <div className="w-[66px] h-[66px] rounded-lg flex items-center justify-center flex-shrink-0 text-2xl" style={{ background: '#14142a', border: `2px solid ${accent}55` }}>🎓</div>
+            <div className="w-[66px] h-[66px] rounded-lg flex items-center justify-center flex-shrink-0 text-2xl" style={{ background: '#14142a', border: `2px solid ${accent}55`, color: accent }}><GraduationCap size={30} strokeWidth={2} aria-hidden="true" /></div>
           )}
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Técnico</div>
@@ -130,15 +135,15 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
 
         {/* Info chips — wrap cleanly on mobile, sit in a row on wider screens */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-          <Chip icon="📐" label="Formação" value={formation.name} color={accent} />
+          <Chip icon={<LayoutGrid size={14} strokeWidth={2.4} color={accent} />} label="Formação" value={formation.name} color={accent} />
           <Chip icon={<TacticIcon tactic={tactic.id} fallback={tactic.icon} size={30} />} label={activePlayStyle ? 'Tática atual' : 'Tática inicial'} value={tactic.name} color="#818CF8" />
-          <Chip icon="🔗" label="Química" value={`${chemistry.total}`} color="#22C55E" />
-          <Chip icon="⭐" label="Nota média" value={avgRating ? avgRating.toFixed(1) : '—'} color={avgColor} />
+          <Chip icon={<Link size={14} strokeWidth={2.4} color="#22C55E" />} label="Química" value={`${chemistry.total}`} color="#22C55E" />
+          <Chip icon={<Star size={14} strokeWidth={2.4} color={avgColor} />} label="Nota média" value={avgRating ? avgRating.toFixed(1) : '—'} color={avgColor} />
         </div>
 
         {motm && (
           <div className="mt-2 text-[12px] font-bold" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
-            👑 Melhor em campo: <b style={{ color: '#d4af37' }}>{motm.name}</b> ({motm.r.toFixed(1)})
+            <Crown {...INLINE_ICON} />Melhor em campo: <b style={{ color: '#d4af37' }}>{motm.name}</b> ({motm.r.toFixed(1)})
           </div>
         )}
       </div>
@@ -151,9 +156,9 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
           style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.28)' }}
         >
           <div className="flex items-center gap-2 text-[13px] font-black" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>
-            <span>🟥 {originalGoalkeeper.shortName} foi expulso</span>
+            <span className="inline-flex items-center gap-1"><CardIcon color="red" /> {originalGoalkeeper.shortName} foi expulso</span>
             <span style={{ color: '#6B7280' }}>•</span>
-            <span style={{ color: '#FDE68A' }}>🧤 {activeGoalkeeper.player.shortName} assumiu o gol</span>
+            <span className="inline-flex items-center" style={{ color: '#FDE68A' }}><Hand {...INLINE_ICON} />{activeGoalkeeper.player.shortName} assumiu o gol</span>
           </div>
           <div className="mt-0.5 text-[12px]" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
             O time segue com 10 jogadores e o goleiro emergencial tem aptidão reduzida para defender.
@@ -170,6 +175,8 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
         disableEntryAnimation={disableEntryAnimation}
         emergencyGoalkeeper={emergencyGoalkeeper}
         effectiveStats={effectiveStats}
+        albumLevels={team.albumLevels}
+        showAlbumLevel={showAlbumLevel}
       />
     </div>
   );

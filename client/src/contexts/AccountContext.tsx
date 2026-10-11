@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Player } from '@shared/game/gameData';
 import type { CompetitionFinishStage, RankedDifficultyId } from '@shared/game/competitionRanking';
 import type { AchievementLevel, ShowcaseItem } from '@shared/game/achievements';
+import type { ItemGrant } from './AlbumContext';
+import type { AlbumSummary } from '../components/album/ProfileAlbumSummary';
 
 export interface AchievementState {
   id: string;
@@ -61,6 +63,8 @@ export interface GameEventState {
   objectives: EventObjectiveState[];
   completed: boolean;
   frameUnlocked: boolean;
+  /** Regular events that give an event Única. */
+  rewardCardId: string | null;
   cardUnlocked: boolean;
 }
 
@@ -251,6 +255,8 @@ export interface PublicProfileData {
   friendCount: number;
   /** Whether the signed-in viewer liked this profile. */
   likedByViewer?: boolean;
+  /** Their album (null before they open it). */
+  album?: AlbumSummary | null;
 }
 
 export interface FriendshipEntry {
@@ -262,12 +268,14 @@ export interface FriendshipEntry {
   requester_display_name: string;
   requester_avatar_key: string;
   requester_avatar_background_key: string;
+  requester_avatar_url?: string | null;
   requester_avatar_frame_key?: string | null;
   requester_name_style_key?: string | null;
   addressee_username: string;
   addressee_display_name: string;
   addressee_avatar_key: string;
   addressee_avatar_background_key: string;
+  addressee_avatar_url?: string | null;
   addressee_avatar_frame_key?: string | null;
   addressee_name_style_key?: string | null;
   created_at: number;
@@ -320,7 +328,7 @@ interface AccountContextValue {
       playerPhotoUrl?: string | null;
       value: number;
     }>;
-  }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[] }>;
+  }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[]; albumGrants?: ItemGrant[] }>;
   getOwnAchievements: (since?: number) => Promise<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>;
   getEvents: () => Promise<EventsPayload>;
   /** Picks the account's option in a choice event (for good). */
@@ -359,7 +367,7 @@ function emptyAccountReadCache(): AccountReadCache {
   return { revision: 0, historyByPage: new Map(), historyRequests: new Map() };
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, {
@@ -489,10 +497,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [accountId, readCacheFor]);
 
   const saveHistory = useCallback(async (payload: Parameters<AccountContextValue['saveHistory']>[0]) => {
-    let result: { id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[] } | null = null;
+    let result: { id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[]; albumGrants?: ItemGrant[] } | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        result = await api<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[] }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
+        result = await api<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[]; albumGrants?: ItemGrant[] }>('/api/account/history', { method: 'POST', body: JSON.stringify(payload) });
         break;
       } catch (error) {
         const status = (error as Error & { status?: number }).status;

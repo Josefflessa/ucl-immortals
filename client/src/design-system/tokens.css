@@ -905,11 +905,12 @@
   }
 }
 
-@media (max-width: 899px) {
-  .market-player-row {
-    justify-content: center;
-  }
+/* The market's cards sit centred on every screen (a wide one left them hugging the left edge). */
+.market-player-row {
+  justify-content: center;
+}
 
+@media (max-width: 899px) {
   .ui-tabs--split-mobile {
     gap: 0;
     overflow-x: hidden;

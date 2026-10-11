@@ -1,10 +1,10 @@
 // UCL Immortals — account events: the home shortcut and the event card used on
 // the events screen (challenges, progress and the frame each event unlocks).
 
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, Clock, Lock, PartyPopper, Sparkles } from 'lucide-react';
 import { AVATAR_FRAME_BY_KEY } from '@shared/game/events';
-import { ALL_UNIQUE_CARDS } from '@shared/game/gameData';
+import { ALL_UNIQUE_CARDS, type Player } from '@shared/game/gameData';
 import { getCrest } from '@shared/game/crests';
 import type { EventChoiceState, EventObjectiveState, GameEventState } from '../../contexts/AccountContext';
 import { Button, ConfirmDialog, StatusBanner } from '../../design-system';
@@ -78,6 +78,20 @@ function ObjectiveList({ objectives, color }: { objectives: EventObjectiveState[
   );
 }
 
+/** The reward on the left of every event header: the same width for all events, so their titles line up. */
+function RewardSlot({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn('flex w-24 shrink-0 justify-center sm:w-28', className)}>{children}</div>;
+}
+
+/** The reward card, centred in the reward column. */
+function RewardCard({ player, dimmed }: { player: Player; dimmed?: boolean }) {
+  return (
+    <RewardSlot className={dimmed ? 'grayscale' : undefined}>
+      <PlayerCard player={player} scale={0.42} />
+    </RewardSlot>
+  );
+}
+
 const cardById = (id: string) => ALL_UNIQUE_CARDS.find(card => card.id === id) ?? null;
 const CHOICE_COLOR = 'var(--ui-brand-strong)';
 
@@ -134,11 +148,13 @@ export function ChoiceEventCard({ event, onChoose }: { event: GameEventState; on
     >
       <div className="flex items-center gap-4 p-4" style={{ background: `linear-gradient(120deg, color-mix(in srgb, ${CHOICE_COLOR} 16%, transparent), transparent 70%)` }}>
         {chosenCard ? (
-          <div className="shrink-0"><PlayerCard player={chosenCard} scale={0.42} /></div>
+          <RewardCard player={chosenCard} />
         ) : (
-          <div className="grid shrink-0 grid-cols-2 gap-1.5" aria-hidden="true">
-            {choices.map(choice => { const crest = getCrest(choice.crestId); return crest ? <img key={choice.key} src={crest.url} alt="" className="size-10 object-contain" /> : null; })}
-          </div>
+          <RewardSlot>
+            <div className="grid grid-cols-2 gap-1.5" aria-hidden="true">
+              {choices.map(choice => { const crest = getCrest(choice.crestId); return crest ? <img key={choice.key} src={crest.url} alt="" className="size-10 object-contain" /> : null; })}
+            </div>
+          </RewardSlot>
         )}
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-2xl leading-none text-[var(--ui-text)] sm:text-3xl">{event.name}</h2>
@@ -199,6 +215,61 @@ export function ChoiceEventCard({ event, onChoose }: { event: GameEventState; on
         intent="primary"
         onConfirm={() => { if (confirming) void pick(confirming); }}
       />
+    </article>
+  );
+}
+
+/** A regular event whose reward is an event Única: the card, the challenges, and the card once won. */
+export function CardRewardEventCard({ event }: { event: GameEventState }) {
+  // Collapsed by default, like the other events: the header says what it is.
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
+  const card = event.rewardCardId ? cardById(event.rewardCardId) : null;
+  const done = event.objectives.filter(objective => objective.done).length;
+  return (
+    <article
+      className={cn('overflow-hidden rounded-2xl border bg-[var(--ui-surface-inset)]', event.status === 'ended' && !event.cardUnlocked && 'opacity-75')}
+      style={{ borderColor: `color-mix(in srgb, ${CHOICE_COLOR} 45%, var(--ui-line-subtle))` }}
+      aria-label={`Evento ${event.name}`}
+    >
+      <div className="flex items-center gap-4 p-4" style={{ background: `linear-gradient(120deg, color-mix(in srgb, ${CHOICE_COLOR} 16%, transparent), transparent 70%)` }}>
+        {card ? <RewardCard player={card} dimmed={!event.cardUnlocked && event.status === 'ended'} /> : null}
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-2xl leading-none text-[var(--ui-text)] sm:text-3xl">{event.name}</h2>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--ui-text-muted)]"><Clock size={12} aria-hidden="true" /> {eventTimeLabel(event)}</p>
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: CHOICE_COLOR }}>
+            {event.cardUnlocked ? <Check size={13} aria-hidden="true" /> : <Lock size={12} aria-hidden="true" />}
+            Recompensa: Carta Única {card?.shortName ?? ''}{event.cardUnlocked ? ' · conquistada' : ''}
+          </p>
+          <p className="mt-1 text-xs font-bold tabular-nums text-[var(--ui-text-soft)]">{done}/{event.objectives.length} desafios concluídos</p>
+        </div>
+      </div>
+
+      {expanded ? <div id={detailsId} className="space-y-3 border-t border-[var(--ui-line-subtle)] p-4">
+        <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">{event.description}</p>
+        {event.cardUnlocked && card ? (
+          <StatusBanner tone="success" title={`${card.shortName} liberado`}>A carta agora pode aparecer no seu Pacote Único, nas suas competições.</StatusBanner>
+        ) : null}
+        <div className="flex items-center justify-between gap-2">
+          <span className="ui-kicker">Desafios</span>
+          <span className="text-xs font-bold tabular-nums text-[var(--ui-text-soft)]">{done}/{event.objectives.length}</span>
+        </div>
+        <ObjectiveList objectives={event.objectives} color={CHOICE_COLOR} />
+        {!event.cardUnlocked && event.status !== 'ended' ? (
+          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Vale qualquer competição concluída com a conta durante o evento, solo ou online.</p>
+        ) : null}
+      </div> : null}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        onClick={() => setExpanded(value => !value)}
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        style={{ fontFamily: 'var(--font-game), sans-serif' }}
+      >
+        <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>
+        <ChevronDown size={15} aria-hidden="true" className={cn('transition-transform', expanded && 'rotate-180')} />
+      </button>
     </article>
   );
 }
@@ -334,7 +405,7 @@ export function EventCard({ event, equippedFrame, onEquip }: {
     >
       {/* Header: the reward on the left, what and until when on the right. */}
       <div className="flex items-center gap-4 p-4" style={{ background: `linear-gradient(120deg, color-mix(in srgb, ${color} 16%, transparent), transparent 70%)` }}>
-        <FrameImage frameKey={frameKey} className={cn('size-24 shrink-0 sm:size-28', !event.frameUnlocked && event.status === 'ended' && 'grayscale')} />
+        <RewardSlot><FrameImage frameKey={frameKey} className={cn('aspect-square w-full', !event.frameUnlocked && event.status === 'ended' && 'grayscale')} /></RewardSlot>
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-2xl leading-none text-[var(--ui-text)] sm:text-3xl">{event.name}</h2>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--ui-text-muted)]"><Clock size={12} aria-hidden="true" /> {eventTimeLabel(event)}</p>

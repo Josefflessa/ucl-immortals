@@ -15,6 +15,9 @@ import { bettingStakeCapBonus, projectLevel } from '@shared/game/clubProjects';
 import { unavailableStarters } from '@shared/game/discipline';
 import { getOnlineKnockoutParticipantIds, getReadinessStatus, isOnlineHumanMatch, sortMatchesForOnlineDisplay } from '@shared/game/onlineReadiness';
 import { GameModal } from '../../design-system';
+import { Ban, CircleCheck, CircleX, Crown, Eye, Hourglass, Play, Star, Target, Trophy, Users } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
+
 
 export default function KnockoutTiesTab() {
   const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
@@ -144,16 +147,16 @@ export default function KnockoutTiesTab() {
     humanPlayersInBracket.every(p => state.onlineWatchedPlayers.includes(p.id));
   const knockoutWaitingCount = humanPlayersInBracket.filter(p => !state.onlineWatchedPlayers.includes(p.id)).length;
   const playLabel = isFinalSingleLeg
-    ? `▶ JOGAR ${label}`
+    ? `JOGAR ${label}`
     : currentLeg === 1
-      ? `▶ JOGAR IDA — ${label}`
-      : `▶ JOGAR VOLTA — ${label}`;
+      ? `JOGAR IDA — ${label}`
+      : `JOGAR VOLTA — ${label}`;
   // Gate label: which leg everyone is still watching (ida between legs, else volta).
   const waitingLegLabel = idaPlayed ? 'A IDA' : 'O RESULTADO';
   const waitingBlock = (
     <div className="py-3">
       <div className="text-sm font-bold animate-pulse" style={{ fontFamily: 'var(--font-game), sans-serif', color: 'var(--ui-brand)' }}>
-        ⏳ AGUARDANDO {knockoutWaitingCount} JOGADOR{knockoutWaitingCount !== 1 ? 'ES' : ''} ASSISTIREM {waitingLegLabel}...
+        <Hourglass {...INLINE_ICON} />AGUARDANDO {knockoutWaitingCount} JOGADOR{knockoutWaitingCount !== 1 ? 'ES' : ''} ASSISTIREM {waitingLegLabel}...
       </div>
       <div className="mt-1 text-[13px] text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
         ({humanPlayersInBracket.length - knockoutWaitingCount}/{humanPlayersInBracket.length} concluídos)
@@ -218,7 +221,7 @@ export default function KnockoutTiesTab() {
                       color: hasPlayer ? 'var(--ui-brand)' : '#A5B4FC',
                       fontFamily: 'var(--font-game), sans-serif',
                     }}>
-                    {hasPlayer ? '⭐ SEU TIME' : '👥 PARTIDA DE JOGADORES'}
+                    {hasPlayer ? <><Star {...INLINE_ICON} fill="currentColor" />SEU TIME</> : <><Users {...INLINE_ICON} />PARTIDA DE JOGADORES</>}
                   </div>
                 )}
                 <div className="px-4 sm:px-6 py-4 sm:py-5">
@@ -239,7 +242,7 @@ export default function KnockoutTiesTab() {
                     <div className="flex-shrink-0 w-24 sm:w-36 text-center">
                       {hideScore ? (
                         <div className="text-sm font-black animate-pulse" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand)' }}>
-                          ⚽ AO VIVO
+                          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-600" />AO VIVO</span>
                         </div>
                       ) : twoLeg ? (
                         !l1 ? (
@@ -250,7 +253,7 @@ export default function KnockoutTiesTab() {
                             <div className="text-3xl sm:text-4xl font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand)' }}>
                               {l1.homeGoals} - {l1.awayGoals}
                             </div>
-                            <div className="text-[12px] sm:text-[12px] font-bold text-gray-400 mt-0.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>⏳ aguardando a volta</div>
+                            <div className="text-[12px] sm:text-[12px] font-bold text-gray-400 mt-0.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}><Hourglass {...INLINE_ICON} />aguardando a volta</div>
                           </div>
                         ) : (
                           <div>
@@ -344,18 +347,18 @@ export default function KnockoutTiesTab() {
                           if (!l1 && !l2) return <span className="px-4 py-2 text-xs font-bold text-gray-600" style={{ fontFamily: 'var(--font-game), sans-serif' }}>AGUARDANDO JOGO</span>;
                           return (
                             <>
-                              {l1 && <button onClick={() => spectateLeg(match, 1)} className={specBtn} style={specStyle}>👁 ASSISTIR IDA</button>}
-                              {l2 && <button onClick={() => spectateLeg(match, 2)} className={specBtn} style={specStyle}>👁 ASSISTIR VOLTA</button>}
+                              {l1 && <button onClick={() => spectateLeg(match, 1)} className={specBtn} style={specStyle}><Eye {...INLINE_ICON} />ASSISTIR IDA</button>}
+                              {l2 && <button onClick={() => spectateLeg(match, 2)} className={specBtn} style={specStyle}><Eye {...INLINE_ICON} />ASSISTIR VOLTA</button>}
                             </>
                           );
                         }
                         return match.result
-                          ? <button onClick={() => spectateLeg(match, 0)} className={specBtn} style={specStyle}>👁 ASSISTIR JOGO</button>
+                          ? <button onClick={() => spectateLeg(match, 0)} className={specBtn} style={specStyle}><Eye {...INLINE_ICON} />ASSISTIR JOGO</button>
                           : <span className="px-4 py-2 text-xs font-bold text-gray-600" style={{ fontFamily: 'var(--font-game), sans-serif' }}>AGUARDANDO JOGO</span>;
                       })()
                     ) : hideScore ? (
                       <span className="px-4 py-2 text-xs font-bold animate-pulse" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-                        {hideMyScore ? '⚽ ABRINDO SEU CONFRONTO...' : '⏳ AGUARDANDO TODOS ASSISTIREM...'}
+                        {hideMyScore ? '⚽ ABRINDO SEU CONFRONTO...' : <><Hourglass {...INLINE_ICON} />AGUARDANDO TODOS ASSISTIREM...</>}
                       </span>
                     ) : match.played && match.result ? (
                       // Confronto RESOLVIDO. Em ida/volta dá pra ver as DUAS pernas; jogo único, uma só.
@@ -369,9 +372,9 @@ export default function KnockoutTiesTab() {
                         const detStyle = { background: '#1A1A2A', color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif', border: '1px solid #333' };
                         return (
                           <>
-                            <button onClick={() => setViewingResult({ result: l1, homeTeam: teamA, awayTeam: teamB, homeName, awayName, subtitle: `Jogo de IDA · ${label}` })} className={detBtn} style={detStyle}>👁 VER IDA</button>
+                            <button onClick={() => setViewingResult({ result: l1, homeTeam: teamA, awayTeam: teamB, homeName, awayName, subtitle: `Jogo de IDA · ${label}` })} className={detBtn} style={detStyle}><Eye {...INLINE_ICON} />VER IDA</button>
                             {/* Volta: quem manda é o visitante da ida → inverte casa/fora. */}
-                            <button onClick={() => setViewingResult({ result: l2, homeTeam: teamB, awayTeam: teamA, homeName: awayName, awayName: homeName, subtitle: `✅ ${advancer} avança · Agg ${homeName} ${aggH}-${aggA} ${awayName}${penSuffix}` })} className={detBtn} style={detStyle}>👁 VER VOLTA</button>
+                            <button onClick={() => setViewingResult({ result: l2, homeTeam: teamB, awayTeam: teamA, homeName: awayName, awayName: homeName, subtitle: `${advancer} avança · Agg ${homeName} ${aggH}-${aggA} ${awayName}${penSuffix}` })} className={detBtn} style={detStyle}><Eye {...INLINE_ICON} />VER VOLTA</button>
                           </>
                         );
                       })() : (
@@ -424,12 +427,12 @@ export default function KnockoutTiesTab() {
                       // Online, the server reveals each ticket to its owner once that match is
                       // revealed (the result pop-up already showed it); the room-wide spoiler
                       // lock only hides the scoreboard, not a ticket the owner already knows.
-                      if (!b.revealed || (state.mode !== 'online' && hideScore)) return <div key={word} className="text-[12px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>🎯 palpite {word} em andamento</div>;
-                      const txt = b.tier === 'exact' ? `✅ Palpite ${word}: placar exato (+${b.payout})`
-                        : b.tier === 'outcome' ? `✅ Palpite ${word}: resultado certo (+${b.payout})`
-                        : b.tier === 'builder' ? `✅ Aposta ${word}: certa (+${b.payout})`
-                          : `❌ Palpite ${word} perdido (−${b.stake})${(b.protectionRefund ?? 0) > 0 ? ` · devolução +${b.protectionRefund}` : ''}`;
-                      return <div key={word} className="text-[13px] font-black" style={{ color: b.won ? 'var(--ui-success)' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>{txt}</div>;
+                      if (!b.revealed || (state.mode !== 'online' && hideScore)) return <div key={word} className="text-[12px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}><Target {...INLINE_ICON} />palpite {word} em andamento</div>;
+                      const txt = b.tier === 'exact' ? `Palpite ${word}: placar exato (+${b.payout})`
+                        : b.tier === 'outcome' ? `Palpite ${word}: resultado certo (+${b.payout})`
+                        : b.tier === 'builder' ? `Aposta ${word}: certa (+${b.payout})`
+                          : `Palpite ${word} perdido (−${b.stake})${(b.protectionRefund ?? 0) > 0 ? ` · devolução +${b.protectionRefund}` : ''}`;
+                      return <div key={word} className="text-[13px] font-black" style={{ color: b.won ? 'var(--ui-success)' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>{b.won ? <CircleCheck {...INLINE_ICON} /> : <CircleX {...INLINE_ICON} />}{txt}</div>;
                     };
                     return (
                       <div className="mb-3 flex flex-col items-center gap-1">
@@ -443,7 +446,7 @@ export default function KnockoutTiesTab() {
                           })}
                             className="px-3 py-1 rounded-lg text-[13px] font-black tracking-wider transition-transform hover:scale-[1.03]"
                             style={{ fontFamily: 'var(--font-game), sans-serif', background: myActiveBet ? '#C9A84C22' : 'var(--ui-surface-1)', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C55' }}>
-                            {myActiveBet ? `🎯 ${myActiveBet.market === 'builder' ? 'Aposta' : 'Palpite'} ${legWord}: ${describeBet(myActiveBet)} · ${myActiveBet.stake} (editar)` : `🎯 Palpitar ${legWord}`}
+                            <Target {...INLINE_ICON} />{myActiveBet ? `${myActiveBet.market === 'builder' ? 'Aposta' : 'Palpite'} ${legWord}: ${describeBet(myActiveBet)} · ${myActiveBet.stake} (editar)` : `Palpitar ${legWord}`}
                           </button>
                         )}
                         {isSingleLegTie
@@ -475,7 +478,7 @@ export default function KnockoutTiesTab() {
                 {/* SOLO: aviso se o próprio time tem indisponível (modal ao clicar em jogar). */}
                 {state.mode !== 'online' && myUnavailableKO.length > 0 && (
                   <div className="mb-3 rounded-lg px-3 py-2 text-[13px] font-bold" style={{ background: '#241010', border: '1px solid #EF444466', color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>
-                    🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU CLUBE.
+                    <Ban {...INLINE_ICON} />Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU CLUBE.
                   </div>
                 )}
                 {/* ONLINE: só quem disputa um confronto confirma "Estou pronto". */}
@@ -483,12 +486,12 @@ export default function KnockoutTiesTab() {
                   iAmReadyKO ? (
                     <button onClick={handleReadyToggleKO} className="w-full py-3 rounded-xl font-black text-lg tracking-widest transition-all mb-2 active:scale-[0.98]"
                       style={{ fontFamily: 'var(--font-display), sans-serif', background: '#0a1a0e', color: '#4ADE80', border: '1px solid #22C55E88', boxShadow: 'inset 0 3px 9px rgba(0,0,0,0.55)', transform: 'scale(0.985)' }} title="Toque para cancelar">
-                      ✅ PRONTO!
+                      <CircleCheck {...INLINE_ICON} />PRONTO!
                     </button>
                   ) : (
                     <button onClick={handleReadyToggleKO} className="w-full py-3 rounded-xl font-black text-lg tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98] mb-2"
                       style={{ fontFamily: 'var(--font-display), sans-serif', background: 'linear-gradient(135deg, var(--ui-success) 0%, #4ADE80 50%, var(--ui-success) 100%)', color: '#04140A', boxShadow: '0 4px 0 #16833f, 0 8px 18px rgba(34,197,94,0.25)' }}>
-                      ✅ ESTOU PRONTO
+                      <CircleCheck {...INLINE_ICON} />ESTOU PRONTO
                     </button>
                   )
                 )}
@@ -508,7 +511,7 @@ export default function KnockoutTiesTab() {
                     boxShadow: (state.mode === 'online' && !allReadyKO) ? 'none' : '0 0 25px rgba(201,168,76,0.3)',
                   }}
                 >
-                  {playLabel}
+                  <Play {...INLINE_ICON} fill="currentColor" />{playLabel}
                 </button>
                 <div className="mt-2 text-[13px] font-bold text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   {state.mode === 'online' && !allReadyKO
@@ -531,13 +534,13 @@ export default function KnockoutTiesTab() {
                   boxShadow: '0 0 25px rgba(34,197,94,0.3)',
                 }}
               >
-                {isFinal ? '🏆 VER O CAMPEÃO →' : 'AVANÇAR PARA A PRÓXIMA FASE →'}
+                {isFinal ? <><Trophy {...INLINE_ICON} />VER O CAMPEÃO →</> : 'AVANÇAR PARA A PRÓXIMA FASE →'}
               </button>
             )
           ) : (
             idaPlayed && !allPlayersWatched ? (
               <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                ⏳ AGUARDANDO TODOS ASSISTIREM A IDA ANTES DA VOLTA...
+                <Hourglass {...INLINE_ICON} />AGUARDANDO TODOS ASSISTIREM A IDA ANTES DA VOLTA...
               </div>
             ) : !allPlayed ? (
               iPlayThisRound ? (
@@ -545,18 +548,18 @@ export default function KnockoutTiesTab() {
                 <>
                   {myUnavailableKO.length > 0 && (
                     <div className="mb-3 rounded-lg px-3 py-2 text-[13px] font-bold" style={{ background: '#241010', border: '1px solid #EF444466', color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>
-                      🚫 Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU CLUBE.
+                      <Ban {...INLINE_ICON} />Você tem indisponível no XI: {myUnavailableKO.map(u => u.shortName).join(', ')} — substitua em MEU CLUBE.
                     </div>
                   )}
                   {iAmReadyKO ? (
                     <button onClick={handleReadyToggleKO} className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all active:scale-[0.98]"
                       style={{ fontFamily: 'var(--font-display), sans-serif', background: '#0a1a0e', color: '#4ADE80', border: '1px solid #22C55E88', boxShadow: 'inset 0 3px 10px rgba(0,0,0,0.55)', transform: 'scale(0.985)' }} title="Toque para cancelar">
-                      ✅ PRONTO!
+                      <CircleCheck {...INLINE_ICON} />PRONTO!
                     </button>
                   ) : (
                     <button onClick={handleReadyToggleKO} className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
                       style={{ fontFamily: 'var(--font-display), sans-serif', background: 'linear-gradient(135deg, var(--ui-success) 0%, #4ADE80 50%, var(--ui-success) 100%)', color: '#04140A', boxShadow: '0 4px 0 #16833f, 0 8px 18px rgba(34,197,94,0.25)' }}>
-                      ✅ ESTOU PRONTO
+                      <CircleCheck {...INLINE_ICON} />ESTOU PRONTO
                     </button>
                   )}
                   <div className="mt-2 text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
@@ -565,18 +568,18 @@ export default function KnockoutTiesTab() {
                 </>
               ) : (
                 <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  ⏳ AGUARDANDO O ANFITRIÃO INICIAR: {isFinal ? label : currentLeg === 1 ? `IDA — ${label}` : `VOLTA — ${label}`}...
+                  <Hourglass {...INLINE_ICON} />AGUARDANDO O ANFITRIÃO INICIAR: {isFinal ? label : currentLeg === 1 ? `IDA — ${label}` : `VOLTA — ${label}`}...
                 </div>
               )
             ) : (
               <div className="py-2 text-sm font-bold text-green-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                👑 FASE CONCLUÍDA! AGUARDANDO O ANFITRIÃO AVANÇAR...
+                <Crown {...INLINE_ICON} />FASE CONCLUÍDA! AGUARDANDO O ANFITRIÃO AVANÇAR...
               </div>
             )
           )}
           {state.advanceBlocked && state.advanceBlocked.length > 0 && (
             <div className="mt-2 text-center text-[13px] font-bold text-yellow-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-              ⏳ Aguardando assistirem: {state.advanceBlocked.join(', ')}
+              <Hourglass {...INLINE_ICON} />Aguardando assistirem: {state.advanceBlocked.join(', ')}
             </div>
           )}
         </motion.div>
@@ -593,6 +596,7 @@ export default function KnockoutTiesTab() {
             subtitle={viewingResult.subtitle}
             isKnockout
             isFinal={isFinal}
+            localTeamId={playerTeam?.id ?? localTeamId}
             onClose={() => setViewingResult(null)}
           />
         )}
@@ -647,7 +651,7 @@ export default function KnockoutTiesTab() {
       >
         {lineupWarning && (
           <div className="text-center">
-            <div className="text-4xl mb-2">🚫</div>
+            <Ban size={36} strokeWidth={2.2} className="mx-auto mb-2 text-red-400" aria-hidden="true" />
             {lineupWarning.kind === 'reserve' ? (
               <p className="text-[13px] leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'var(--font-game), sans-serif' }}>
                 Seu banco tem <b style={{ color: '#FCA5A5' }}>{reserveCountKO} reservas</b>, mas o limite para iniciar uma partida é de <b style={{ color: '#FFF' }}>{MAX_RESERVE_PLAYERS}</b>.<br />

@@ -5,6 +5,7 @@
 import {
   AVATAR_FRAME_BY_KEY,
   evaluateGameEvent,
+  isAvatarFrameKey,
   eventObjectivesFor,
   GAME_EVENT_BY_ID,
   GAME_EVENTS,
@@ -52,6 +53,8 @@ export interface GameEventState {
   objectives: EventObjectiveProgress[];
   completed: boolean;
   frameUnlocked: boolean;
+  /** Regular events that give an event Única (null = not that kind of event). */
+  rewardCardId: string | null;
   cardUnlocked: boolean;
 }
 
@@ -59,7 +62,7 @@ const EVENT_CARD_IDS = new Set(EVENT_UNIQUE_CARDS.map(card => card.id));
 
 export async function loadOwnedFrames(db: D1Database, userId: string): Promise<string[]> {
   const rows = await db.prepare('SELECT frame_key FROM user_frames WHERE user_id = ? ORDER BY unlocked_at').bind(userId).all<{ frame_key: string }>();
-  return rows.results.map(row => row.frame_key).filter(key => AVATAR_FRAME_BY_KEY.has(key));
+  return rows.results.map(row => row.frame_key).filter(isAvatarFrameKey);
 }
 
 /** Event Únicas this account unlocked: they join its Pacote Único pool. */
@@ -135,9 +138,11 @@ export async function syncEventRewards(db: D1Database, userId: string, now = Dat
       unlocked.push({ frameKey: event.frameKey, eventId: event.id });
       ownedFrames.add(event.frameKey);
     }
-    if (evaluation.completed && chosen && !ownedCards.has(chosen.cardId)) {
-      cardsUnlocked.push({ cardId: chosen.cardId, eventId: event.id });
-      ownedCards.add(chosen.cardId);
+    // The Única of the event: the chosen option's, or the event's own.
+    const rewardCard = chosen?.cardId ?? event.rewardCardId ?? null;
+    if (evaluation.completed && rewardCard && !ownedCards.has(rewardCard)) {
+      cardsUnlocked.push({ cardId: rewardCard, eventId: event.id });
+      ownedCards.add(rewardCard);
     }
     return {
       id: event.id,
@@ -152,7 +157,8 @@ export async function syncEventRewards(db: D1Database, userId: string, now = Dat
       rewardNameStyles: event.rewardNameStyles ? [...event.rewardNameStyles] : null,
       ...evaluation,
       frameUnlocked: !!event.frameKey && ownedFrames.has(event.frameKey),
-      cardUnlocked: !!chosen && ownedCards.has(chosen.cardId),
+      rewardCardId: event.rewardCardId ?? null,
+      cardUnlocked: !!rewardCard && ownedCards.has(rewardCard),
     };
   });
   const writes = [

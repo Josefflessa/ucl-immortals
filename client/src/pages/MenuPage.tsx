@@ -17,7 +17,9 @@ import { getProfileAvatarBackground } from '@shared/profileAppearance';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
 import StyledName from '../components/account/StyledName';
 import FramedAvatar from '../components/account/AvatarFrame';
+import { clubOfRewardKey } from '@shared/game/clubRewards';
 import { EventsHomeButton } from '../components/account/GameEvents';
+import DailyRewardsHomeButton from '../components/account/DailyRewards';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
@@ -474,7 +476,7 @@ export default function MenuPage() {
       {/* Content */}
       {account ? (
         <>
-          <div className="absolute left-4 top-4 z-20 flex items-center gap-2 sm:left-6 sm:top-6">
+          <div className="absolute left-4 top-4 z-20 flex items-center gap-1.5 sm:left-6 sm:top-6">
             <Button
               type="button"
               intent="ghost"
@@ -497,6 +499,7 @@ export default function MenuPage() {
               ) : null}
             </Button>
             <EventsHomeButton pending={pendingEvents} onOpen={() => dispatch({ type: 'SET_PHASE', phase: 'events' })} />
+            <DailyRewardsHomeButton />
           </div>
           {/* The profile lives here instead of the tab bar: photo + name, top right. */}
           <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
@@ -506,9 +509,10 @@ export default function MenuPage() {
               onClick={() => dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'profile' })}
               className="flex min-h-11 max-w-[11rem] items-center gap-2 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 py-1 pl-1 pr-3.5 transition-colors hover:border-[var(--ui-brand)]/50 sm:max-w-[14rem]"
             >
-              <FramedAvatar frameKey={account.avatarFrameKey}><span
+              <FramedAvatar frameKey={account.avatarFrameKey} compact><span
                 aria-hidden="true"
-                className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-brand)]/60 text-xs font-bold text-[var(--ui-text)]"
+                // A club frame's band goes around the photo: it is a bit smaller so the pill keeps its height.
+                className={cn('relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-brand)]/60 text-xs font-bold text-[var(--ui-text)]', clubOfRewardKey(account.avatarFrameKey) ? 'size-8' : 'size-9')}
                 style={{ backgroundColor: getProfileAvatarBackground(account.avatarBackgroundKey).color }}
               >
                 {/* Initial only when there is no portrait (they have transparent backgrounds). */}
@@ -542,12 +546,6 @@ export default function MenuPage() {
       <div className={cn('relative z-10 flex min-h-dvh flex-col items-center px-4 pt-20 sm:pt-24', account ? 'pb-24' : 'pb-4')}>
         {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
         <div aria-hidden="true" className="flex-1" />
-        {/* Eyebrow */}
-        <span
-          className="ui-kicker mb-3 text-center tracking-[0.32em] sm:tracking-[0.42em]"
-        >
-          Ultimate Champions League
-        </span>
 
         {/* Logo (herói) + título */}
         <div className="flex flex-col items-center">
@@ -564,7 +562,7 @@ export default function MenuPage() {
         <div className="flex flex-col items-center mt-4 mb-7">
           <div className="h-px w-40 bg-[var(--ui-brand)] opacity-70 sm:w-56" />
           <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base">
-            Monte um elenco histórico e competitivo. Conquiste o título da <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
+            Jogadores de todas as épocas e ligas. Monte seu time e conquiste a <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
           </p>
         </div>
 

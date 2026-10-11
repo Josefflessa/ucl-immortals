@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../design-system';
+import { Share, SquarePlus } from 'lucide-react';
 
 const DISMISS_KEY = 'ucl-pwa-install-dismissed-v1';
 const ICON = '/icons/icon-192.png';
@@ -103,8 +104,8 @@ export default function InstallPrompt() {
 
             {iosHint ? (
               <div className="ui-panel ui-panel--inset mt-3 px-3 py-2.5 text-sm leading-relaxed text-[var(--ui-text-soft)]">
-                No Safari: toque em <b style={{ color: '#fff' }}>Compartilhar</b> <span aria-hidden>⬆️</span> e depois em
-                <b style={{ color: '#fff' }}> "Adicionar à Tela de Início"</b> <span aria-hidden>➕</span>.
+                No Safari: toque em <b style={{ color: '#fff' }}>Compartilhar</b> <Share size="1em" strokeWidth={2.5} aria-hidden="true" className="inline-block align-[-0.15em]" /> e depois em
+                <b style={{ color: '#fff' }}> "Adicionar à Tela de Início"</b> <SquarePlus size="1em" strokeWidth={2.5} aria-hidden="true" className="inline-block align-[-0.15em]" />.
               </div>
             ) : (
               <div className="mt-3 flex gap-2">

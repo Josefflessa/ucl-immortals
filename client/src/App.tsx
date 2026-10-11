@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { GameProvider, useGame } from "./contexts/GameContext";
 import { AccountProvider, useAccount } from "./contexts/AccountContext";
+import { AlbumProvider } from "./contexts/AlbumContext";
+import AlbumGrantsPrompt from "./components/album/AlbumGrantsPrompt";
 import ErrorBoundary from "./components/ErrorBoundary";
 import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
@@ -163,13 +165,16 @@ function App() {
     <ErrorBoundary>
       <Toaster />
       <AccountProvider>
-        <GameProvider>
-          <ModalScrollLock />
-          <EventCardsSync />
-          <GameRouter />
-          <RoomInvitationPrompt />
-          <InstallPrompt />
-        </GameProvider>
+        <AlbumProvider>
+          <GameProvider>
+            <ModalScrollLock />
+            <EventCardsSync />
+            <GameRouter />
+            <RoomInvitationPrompt />
+            <InstallPrompt />
+            <AlbumGrantsPrompt />
+          </GameProvider>
+        </AlbumProvider>
       </AccountProvider>
     </ErrorBoundary>
   );

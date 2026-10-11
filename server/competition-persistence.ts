@@ -168,6 +168,8 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       competitionPoints,
       finishStage,
       humanPlayers,
+      // The XI that started this team's final (events count it); none when it did not play one.
+      finalStarterIds: playerFinalResult ? team.players.slice(0, 11).map(card => card.id) : [],
       season: {
         topScorer: topGoals ? { playerId: topGoals.card.id, playerName: topGoals.card.shortName, value: topGoals.stats.goals } : null,
         topAssister: topAssists ? { playerId: topAssists.card.id, playerName: topAssists.card.shortName, value: topAssists.stats.assists } : null,

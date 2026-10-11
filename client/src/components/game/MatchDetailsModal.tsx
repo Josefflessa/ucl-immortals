@@ -7,6 +7,7 @@ import { MatchResult, MatchEvent, Team, teamAtKickoff } from '@shared/game/gameE
 import MatchFieldView from './MatchFieldView';
 import Crest from './Crest';
 import { GameModal } from '../../design-system';
+import { CardIcon, InjuryIcon } from './StatusIcon';
 
 interface Props {
   result: MatchResult;
@@ -17,10 +18,12 @@ interface Props {
   subtitle?: string;      // ex.: agregado do mata-mata
   isKnockout?: boolean;
   isFinal?: boolean;
+  /** Local account's team, so its album frames also appear in solo match history. */
+  localTeamId?: string;
   onClose: () => void;
 }
 
-export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName, awayName, subtitle, isKnockout = false, isFinal = false, onClose }: Props) {
+export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName, awayName, subtitle, isKnockout = false, isFinal = false, localTeamId, onClose }: Props) {
   const [side, setSide] = useState<'home' | 'away'>('home');
 
   // playerId → nome (a partir do playerStats, que também tem teamId e a nota final).
@@ -108,7 +111,7 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           {(() => {
             const hasDisc = result.events.some(e => e.type === 'yellow' || e.type === 'red' || e.type === 'injury');
             if (goalEvents.length === 0 && !hasDisc) return null;
-            const ic = (t: string) => t === 'yellow' ? '🟨' : t === 'red' ? '🟥' : '🩹';
+            const ic = (t: string) => t === 'yellow' ? <CardIcon color="yellow" size="1.2em" /> : t === 'red' ? <CardIcon color="red" size="1.2em" /> : <InjuryIcon size="1.15em" />;
             return (
               <div className="mb-4 pb-3" style={{ borderBottom: '1px solid #16162a' }}>
                 {goalEvents.length > 0 && (
@@ -175,6 +178,7 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
               isKnockout={isKnockout}
               isFinal={isFinal}
               isLosing={team.id === result.homeTeamId ? result.homeGoals < result.awayGoals : result.awayGoals < result.homeGoals}
+              showAlbumLevel={team.id === localTeamId}
             />
           ) : (
             <div className="ui-empty">Escalação indisponível.</div>

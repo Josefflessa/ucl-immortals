@@ -7,7 +7,7 @@ import { stadiumFor, type Stadium } from '../stadium';
 import { projectLevel } from '../clubProjects';
 import { yellowChance, injuryChanceFromFoul, randomInjuryChance, tacticAggression, formationAggression, CARD_POS_MULT, STRAIGHT_RED_PROB, RED_PENALTY, RED_GK_PENALTY, INJURY_DEBUFF, DANGEROUS_FOUL_CARD_MULT, THREAT_FOUL_CARD_MULT, DANGEROUS_FOUL_INJURY_MULT, compressAggression, settleFactor, SECOND_YELLOW_LENIENCY } from '../discipline';
 import { random } from '../random';
-import { type PlayerCard, setStatIds, statKey, type MatchTrigger, type MatchPlan, normalizeMatchPlan, isExcludedPlayer, type Team, matchRoleForPlayer, activeGoalkeeperForTeam, type MatchEvent, type MatchStatsDelta, type PlayerMatchStat, type PenaltyKick, type MatchResult } from './teamModel';
+import { type PlayerCard, setStatIds, statKey, type MatchTrigger, type MatchPlan, normalizeMatchPlan, isExcludedPlayer, type Team, matchRoleForPlayer, activeGoalkeeperForTeam, type MatchEvent, type MatchStatsDelta, type PlayerMatchStat, type PenaltyKick, type MatchResult, type MatchPlay, type PlayShot } from './teamModel';
 import { getChemistryBonus, computeCharacteristicBoosts, teamPlaymaking, midfieldBuildUpEdge, computePossession, getFreeKickTaker, getHeaderTarget } from './chemistry';
 import { edgeChance } from './curves';
 import { getEffectiveAttribute, DUEL_SCALE, FINISH_EDGE, KEEPER_DUEL_SCALE, SET_PIECE_SCALE, FREE_KICK_EDGE, HEADER_EDGE, PENALTY_EDGE, PENALTY_SCALE, ON_TARGET_RESISTANCE, TACTICAL_INFLUENCE, MATCH_NOISE, CHANCE_VOLUME_INFLUENCE, FORMATION_ATTACK_DANGER_INFLUENCE, TACTIC_ATTACK_DANGER_INFLUENCE, FORMATION_DEFENSE_SUPPRESSION_INFLUENCE, TACTIC_DEFENSE_SUPPRESSION_INFLUENCE, formationCounterBonusForAnalysisLevel } from './attributes';
@@ -77,7 +77,7 @@ export const HOME_INITIATIVE_SHARE = 0.5;
 
 // ── Open-play shot resolution ──────────────────────────────────────────────────
 // Single source of truth for the chance math of a key-minute attack.
-type ShotType = 'normal' | 'header' | 'long_range' | 'one_on_one' | 'first_time';
+type ShotType = PlayShot;
 interface ChanceResult {
   outcome: 'goal' | 'save' | 'miss' | 'duel';
   onTarget: boolean;
@@ -332,6 +332,7 @@ export function runMatchSimulation(
   let homeGoals = initialHomeGoals;
   let awayGoals = initialAwayGoals;
   let homeMomentum = 50;
+  const flow: number[] = [];
   let awayMomentum = 50;
 
   const homeCoach = COACHES.find(c => c.id === home.coachId)!;
@@ -759,6 +760,7 @@ export function runMatchSimulation(
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
         if (playerStats[penaltyTaker.statId!]) playerStats[penaltyTaker.statId!].shots++;
 
+        const penaltyPlay: MatchPlay = { kind: 'penalty', shot: 'normal', attackerId: penaltyTaker.id, defenderId: fouler?.id, goalkeeperId: penaltyGk.id };
         if (isPenGoal) {
           if (homeAttacks) { homeGoals++; matchStats.homeShotsOnTarget++; } else { awayGoals++; matchStats.awayShotsOnTarget++; }
           if (playerStats[penaltyTaker.statId!]) { playerStats[penaltyTaker.statId!].goals++; playerStats[penaltyTaker.statId!].shotsOnTarget++; playerStats[penaltyTaker.statId!].rating += 1.0; }
@@ -766,7 +768,7 @@ export function runMatchSimulation(
           if (foulerStat) foulerStat.rating -= 0.2;
           events.push({
             minute, type: 'goal',
-            description: penaltyGoalDesc(penaltyTaker.shortName, fouled?.shortName ?? 'um atacante', fouler?.shortName ?? 'um defensor', penaltyGk.shortName),
+            play: penaltyPlay, description: penaltyGoalDesc(penaltyTaker.shortName, fouled?.shortName ?? 'um atacante', fouler?.shortName ?? 'um defensor', penaltyGk.shortName),
             teamId: attackTeam.id, playerId: penaltyTaker.id, opponentId: penaltyGk.id, isSpecial: true,
           });
           lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: penaltyTaker.shortName, defName: fouler?.shortName ?? 'um defensor', gkName: penaltyGk.shortName, approach: 'longrange' };
@@ -776,7 +778,7 @@ export function runMatchSimulation(
           if (playerStats[penaltyTaker.statId!]) playerStats[penaltyTaker.statId!].shotsOnTarget++;
           events.push({
             minute, type: 'save',
-            description: penaltySaveDesc(penaltyGk.shortName, penaltyTaker.shortName),
+            play: penaltyPlay, description: penaltySaveDesc(penaltyGk.shortName, penaltyTaker.shortName),
             teamId: defendTeam.id, playerId: penaltyGk.id, opponentId: penaltyTaker.id,
           });
           lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: penaltyTaker.shortName, defName: fouler?.shortName ?? 'um defensor', gkName: penaltyGk.shortName, approach: 'longrange' };
@@ -784,7 +786,7 @@ export function runMatchSimulation(
           if (playerStats[penaltyTaker.statId!]) playerStats[penaltyTaker.statId!].rating -= 0.6;
           events.push({
             minute, type: 'miss',
-            description: penaltyMissDesc(penaltyTaker.shortName),
+            play: penaltyPlay, description: penaltyMissDesc(penaltyTaker.shortName),
             teamId: attackTeam.id, playerId: penaltyTaker.id,
           });
           lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: penaltyTaker.shortName, defName: fouler?.shortName ?? 'um defensor', gkName: penaltyGk.shortName, approach: 'longrange' };
@@ -815,13 +817,14 @@ export function runMatchSimulation(
         const r = random();
         if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
 
+        const freeKickPlay: MatchPlay = { kind: 'freekick', shot: 'normal', attackerId: taker.id, goalkeeperId: fkGk.id };
         if (r < goalChance) {
           if (homeAttacks) { homeGoals++; matchStats.homeShotsOnTarget++; } else { awayGoals++; matchStats.awayShotsOnTarget++; }
           if (playerStats[taker.statId!]) { playerStats[taker.statId!].goals++; playerStats[taker.statId!].rating += 1.5; }
           if (playerStats[fkGk.statId!]) playerStats[fkGk.statId!].rating -= 0.3;
           events.push({
             minute, type: 'goal',
-            description: freeKickGoalDesc(taker.shortName, fkGk.shortName),
+            play: freeKickPlay, description: freeKickGoalDesc(taker.shortName, fkGk.shortName),
             teamId: attackTeam.id, playerId: taker.id, opponentId: fkGk.id, isSpecial: true,
           });
           const sw = homeAttacks ? GOAL_MOMENTUM_SWING : -GOAL_MOMENTUM_SWING;
@@ -833,13 +836,13 @@ export function runMatchSimulation(
           if (playerStats[fkGk.statId!]) { playerStats[fkGk.statId!].saves++; playerStats[fkGk.statId!].rating += 0.5; }
           events.push({
             minute, type: 'save',
-            description: freeKickSaveDesc(fkGk.shortName, taker.shortName),
+            play: freeKickPlay, description: freeKickSaveDesc(fkGk.shortName, taker.shortName),
             teamId: defendTeam.id, playerId: fkGk.id, opponentId: taker.id,
           });
         } else {
           events.push({
             minute, type: 'miss',
-            description: freeKickMissDesc(taker.shortName),
+            play: freeKickPlay, description: freeKickMissDesc(taker.shortName),
             teamId: attackTeam.id, playerId: taker.id,
           });
         }
@@ -897,6 +900,7 @@ export function runMatchSimulation(
           const r2 = random();
           if (homeAttacks) matchStats.homeShots++; else matchStats.awayShots++;
 
+          const cornerPlay: MatchPlay = { kind: 'corner', shot: 'header', attackerId: header.id, goalkeeperId: cgk.id };
           if (r2 < goalChance) {
             if (homeAttacks) { homeGoals++; matchStats.homeShotsOnTarget++; } else { awayGoals++; matchStats.awayShotsOnTarget++; }
             if (playerStats[header.statId!]) { playerStats[header.statId!].goals++; playerStats[header.statId!].rating += 1.4; }
@@ -905,7 +909,7 @@ export function runMatchSimulation(
             if (assister && playerStats[assister.statId!]) { playerStats[assister.statId!].assists++; playerStats[assister.statId!].rating += 0.7; }
             events.push({
               minute, type: 'goal',
-              description: cornerGoalDesc(header.shortName, cgk.shortName),
+              play: { ...cornerPlay, creatorId: assister?.id }, description: cornerGoalDesc(header.shortName, cgk.shortName),
               teamId: attackTeam.id, playerId: header.id, opponentId: cgk.id, assisterId: assister?.id, isSpecial: true,
             });
             const sw = homeAttacks ? GOAL_MOMENTUM_SWING : -GOAL_MOMENTUM_SWING;
@@ -917,13 +921,13 @@ export function runMatchSimulation(
             if (playerStats[cgk.statId!]) { playerStats[cgk.statId!].saves++; playerStats[cgk.statId!].rating += 0.5; }
             events.push({
               minute, type: 'save',
-              description: cornerSaveDesc(cgk.shortName, header.shortName),
+              play: cornerPlay, description: cornerSaveDesc(cgk.shortName, header.shortName),
               teamId: defendTeam.id, playerId: cgk.id, opponentId: header.id,
             });
           } else {
             events.push({
               minute, type: 'miss',
-              description: cornerMissDesc(header.shortName),
+              play: cornerPlay, description: cornerMissDesc(header.shortName),
               teamId: attackTeam.id, playerId: header.id,
             });
           }
@@ -971,6 +975,7 @@ export function runMatchSimulation(
       const isLuckEvent = random() < 0.04;
 
       if (isLuckEvent) {
+        const luckPlayers = { attackerId: attacker.id, defenderId: defender.id, goalkeeperId: gk.id };
         dangerCount++; // a luck event always resolves into a clear chance (goal / woodwork)
         const randLuck = random();
         // Every luck outcome is an attempt: a goal (on target) or the woodwork. The box
@@ -986,7 +991,7 @@ export function runMatchSimulation(
           if (playerStats[defender.statId!]) playerStats[defender.statId!].rating -= 0.8;
           events.push({
             minute, type: 'goal',
-            description: ownGoalDesc(defender.shortName, gk.shortName),
+            play: { kind: 'own_goal', ...luckPlayers }, description: ownGoalDesc(defender.shortName, gk.shortName),
             teamId: attackTeam.id, opponentId: defender.id,
           });
           lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: defender.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -1000,7 +1005,7 @@ export function runMatchSimulation(
           if (playerStats[gk.statId!]) playerStats[gk.statId!].rating -= 1.0;
           events.push({
             minute, type: 'goal',
-            description: frangoDesc(attacker.shortName, gk.shortName),
+            play: { kind: 'blunder', shot: 'normal', ...luckPlayers }, description: frangoDesc(attacker.shortName, gk.shortName),
             teamId: attackTeam.id, playerId: attacker.id, opponentId: gk.id,
           });
           lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -1014,7 +1019,7 @@ export function runMatchSimulation(
           if (playerStats[defender.statId!]) playerStats[defender.statId!].rating -= 0.3;
           events.push({
             minute, type: 'goal',
-            description: deflectedDesc(attacker.shortName, defender.shortName),
+            play: { kind: 'deflected', shot: 'normal', ...luckPlayers }, description: deflectedDesc(attacker.shortName, defender.shortName),
             teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
           });
           lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -1027,7 +1032,7 @@ export function runMatchSimulation(
           if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].goals++; playerStats[attacker.statId!].rating += 1.6; }
           events.push({
             minute, type: 'goal',
-            description: screamedDesc(attacker.shortName, gk.shortName),
+            play: { kind: 'screamer', shot: 'long_range', ...luckPlayers }, description: screamedDesc(attacker.shortName, gk.shortName),
             teamId: attackTeam.id, playerId: attacker.id, opponentId: gk.id, isSpecial: true,
           });
           lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -1039,7 +1044,7 @@ export function runMatchSimulation(
           if (playerStats[attacker.statId!]) { playerStats[attacker.statId!].shots++; playerStats[attacker.statId!].rating += 0.1; }
           events.push({
             minute, type: 'miss',
-            description: woodworkDesc(attacker.shortName, defender.shortName),
+            play: { kind: 'woodwork', shot: 'normal', ...luckPlayers }, description: woodworkDesc(attacker.shortName, defender.shortName),
             teamId: attackTeam.id, playerId: attacker.id,
           });
           lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -1089,6 +1094,14 @@ export function runMatchSimulation(
           ),
           approach,
         });
+        const openPlay: MatchPlay = {
+          kind: approach,
+          shot: chance.shotType,
+          attackerId: attacker.id,
+          defenderId: defender.id,
+          goalkeeperId: gk.id,
+          wideId: approach === 'cross' && widePlayer.id !== attacker.id ? widePlayer.id : undefined,
+        };
 
         if (chance.outcome !== 'duel') {
           dangerCount++; // a shot (goal / save / miss) is a clear chance — counts toward the cap
@@ -1124,7 +1137,7 @@ export function runMatchSimulation(
 
               events.push({
                 minute, type: 'goal',
-                description: goalDesc(approach, attacker.shortName, assister?.shortName ?? null, defender.shortName, gk.shortName, homeGoals, awayGoals, minute, atkGoals, defGoals, isImmortal),
+                play: { ...openPlay, creatorId: assister?.id }, description: goalDesc(approach, attacker.shortName, assister?.shortName ?? null, defender.shortName, gk.shortName, homeGoals, awayGoals, minute, atkGoals, defGoals, isImmortal),
                 teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
                 assisterId: assister?.id,
                 isSpecial: isImmortal || attacker.traits.includes('Frio na Final'),
@@ -1148,7 +1161,7 @@ export function runMatchSimulation(
 
               events.push({
                 minute, type: 'save',
-                description: saveDesc(approach, gk.shortName, attacker.shortName, isCorner),
+                play: { ...openPlay, creatorId: creatorS?.id }, description: saveDesc(approach, gk.shortName, attacker.shortName, isCorner),
                 teamId: defendTeam.id, playerId: gk.id, opponentId: attacker.id, isCorner,
               });
               lastKeyCtx = { type: 'save', teamId: defendTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -1160,7 +1173,7 @@ export function runMatchSimulation(
             if (creatorM && playerStats[creatorM.statId!]) { playerStats[creatorM.statId!].keyPasses++; playerStats[creatorM.statId!].rating += 0.15; }
             events.push({
               minute, type: 'miss',
-              description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
+              play: { ...openPlay, creatorId: creatorM?.id }, description: missDesc(approach, attacker.shortName, defender.shortName, gk.shortName),
               teamId: attackTeam.id, playerId: attacker.id,
             });
             lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -1175,7 +1188,7 @@ export function runMatchSimulation(
           if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.12;
           events.push({
             minute, type: 'duel',
-            description: duelDesc(approach, defender.shortName, attacker.shortName),
+            play: openPlay, description: duelDesc(approach, defender.shortName, attacker.shortName),
             teamId: defendTeam.id, playerId: defender.id, opponentId: attacker.id,
           });
           lastKeyCtx = { type: 'duel', teamId: defendTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
@@ -1221,6 +1234,7 @@ export function runMatchSimulation(
         else homeMomentum = Math.max(5, homeMomentum - 2);
       }
     }
+    flow.push((homeAttacks ? 1 : -1) * (Math.round(Math.min(100, Math.max(0, homeMomentum))) + 1));
   }
   if (endMinute > startMinute) flushRatingDelta();
 
@@ -1326,6 +1340,7 @@ export function runMatchSimulation(
     stats: matchStats,
     playerStats,
     possessionModel,
+    flow,
   };
 }
 
@@ -1414,6 +1429,7 @@ export function simulateMatch(
   if (isKnockout && resolveKnockoutTie && r90.homeGoals === r90.awayGoals) {
     // Tied at 90 → extra time (90→120). Winner determination + penalties handled inside.
     const rET = runMatchSimulation(home, away, 90, 120, r90.homeGoals, r90.awayGoals, r90.events, r90.stats, playerStats, true, isFinal, true, neutralFinal);
+    rET.flow = [...(r90.flow ?? []), ...(rET.flow ?? [])];
     rET.durationMinutes = 120;
     return rET;
   }

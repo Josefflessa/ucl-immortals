@@ -58,6 +58,18 @@ interface CareerRow {
   top_assists: unknown;
   top_saves: unknown;
   top_overall: unknown;
+  final_starters: unknown;
+}
+
+/** The final's XI as recorded in the report (a JSON array of card ids); anything else is none. */
+function starterIds(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+  try {
+    const list = JSON.parse(value) as unknown;
+    return Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string').slice(0, 11) : [];
+  } catch {
+    return [];
+  }
 }
 
 const toNumber = (value: unknown): number => {
@@ -78,6 +90,7 @@ export async function loadCareer(db: D1Database, userId: string): Promise<Career
       CASE WHEN json_valid(h.report_json) THEN json_extract(h.report_json, '$.goals') END AS goals,
       CASE WHEN json_valid(h.report_json) THEN json_extract(h.report_json, '$.goalsAgainst') END AS goals_against,
       CASE WHEN json_valid(h.report_json) THEN json_extract(h.report_json, '$.humanPlayers') END AS human_players,
+      CASE WHEN json_valid(h.report_json) THEN json_extract(h.report_json, '$.finalStarterIds') END AS final_starters,
       MAX(CASE WHEN r.category = 'goals' THEN r.value END) AS top_goals,
       MAX(CASE WHEN r.category = 'assists' THEN r.value END) AS top_assists,
       MAX(CASE WHEN r.category = 'saves' THEN r.value END) AS top_saves,
@@ -107,6 +120,7 @@ export async function loadCareer(db: D1Database, userId: string): Promise<Career
     topPlayerAssists: toNumber(row.top_assists),
     topKeeperSaves: toNumber(row.top_saves),
     topPlayerOverall: toNumber(row.top_overall),
+    finalStarterIds: starterIds(row.final_starters),
   }));
 }
 

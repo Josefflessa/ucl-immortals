@@ -2,7 +2,7 @@
 
 import { Player, PLAYERS, COACHES, FORMATIONS, HISTORICAL_TRIOS } from '../gameData';
 import { rollPlayerTraits } from '../traits';
-import { ALL_CRESTS, BOT_CREST_MAP, crestIdForClub, sameClub } from '../crests';
+import { PLAYABLE_CRESTS, BOT_CREST_MAP, crestIdForClub, sameClub } from '../crests';
 import { random } from '../random';
 import { type PlayerCard, type Team, type MatchResult } from './teamModel';
 import { calculateChemistry } from './chemistry';
@@ -119,7 +119,7 @@ export function pickBotNames(count: number, humans: HumanTeamIdentity[]): string
     if (crestId) takenCrests.add(crestId);
   };
   for (const name of BOT_NAMES) use(name, botCrestId(name));
-  for (const crest of ALL_CRESTS) use(crest.name, crest.id);
+  for (const crest of PLAYABLE_CRESTS) use(crest.name, crest.id);
   return picked;
 }
 

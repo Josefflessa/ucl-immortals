@@ -3,6 +3,7 @@ import { CalendarDays, Check, Lock, ChevronLeft, ChevronRight, Crown, Eye, EyeOf
 import { useAccount, type AccountStats, type AchievementsPayload, type CompetitionHistoryEntry, type FinishCounts, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
+import FriendActions from '../components/account/FriendActions';
 import { ShowcaseEditor, ShowcaseSection } from '../components/account/Achievements';
 import Crest from '../components/game/Crest';
 import PlayerAvatar from '../components/game/PlayerAvatar';
@@ -27,6 +28,11 @@ import FramedAvatar, { FrameImage } from '../components/account/AvatarFrame';
 import StyledName from '../components/account/StyledName';
 import { NAME_STYLES } from '@shared/game/nameStyles';
 import { AVATAR_FRAMES, GAME_EVENTS } from '@shared/game/events';
+import { clubOfRewardKey } from '@shared/game/clubRewards';
+import { getCrest } from '@shared/game/crests';
+import { ClubCover } from '../components/account/ClubRewards';
+import { useAlbum } from '../contexts/AlbumContext';
+import ProfileAlbumSummary from '../components/album/ProfileAlbumSummary';
 import ReportPage from './ReportPage';
 import { cn } from '../lib/utils';
 import {
@@ -138,7 +144,21 @@ function formatDate(timestamp: number): string {
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(timestamp));
 }
 
+/** The cover drawn behind a profile when it is a completed club's (an album reward). */
+function ProfileCoverLayer({ coverKey, coverUrl }: { coverKey: string; coverUrl?: string | null }) {
+  const clubId = coverUrl ? null : clubOfRewardKey(coverKey);
+  if (!clubId) return null;
+  return (
+    <>
+      <ClubCover clubId={clubId} className="absolute inset-0 -z-10" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10" style={{ backgroundImage: 'linear-gradient(180deg, rgba(7,9,16,0) 0%, rgba(7,9,16,.3) 46%, rgba(7,9,16,.86) 100%)' }} />
+    </>
+  );
+}
+
 function profileCoverStyle(coverKey: string, coverUrl?: string | null) {
+  // A completed club's cover is drawn in code (ProfileCoverLayer), not an image.
+  if (!coverUrl && clubOfRewardKey(coverKey)) return {};
   const imageUrl = coverUrl ?? getProfileCover(coverKey).src;
   const safeImageUrl = imageUrl.replace(/["\\\n\r]/g, character => `\\${character}`);
   return {
@@ -468,13 +488,14 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
   return (
     <div className="space-y-5">
       <section className="relative isolate overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]" aria-label={`Perfil de ${profile.displayName}`} style={coverStyle}>
+        <ProfileCoverLayer coverKey={profile.coverKey} coverUrl={profile.coverUrl} />
         <div aria-hidden="true" className="relative h-36 sm:h-44" />
         {/* Like: top right of the cover, where the own profile has its edit button. */}
         <div className="absolute right-4 top-4 z-10"><ProfileLikeButton key={profile.username} username={profile.username} initialLiked={Boolean(data.likedByViewer)} initialCount={profile.likeCount ?? 0} /></div>
         <div className="relative -mt-12 flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:px-8 sm:pb-8">
           <div className="shrink-0">{profileAvatar(profile.avatarUrl, profile.avatarKey, profile.displayName, profile.avatarBackgroundKey, profile.avatarFrameKey)}</div>
           <div className="min-w-0 flex-1 pb-1">
-            <h2 className="min-w-0 max-w-full font-display text-3xl text-[var(--ui-text)]"><StyledName name={profile.displayName} styleKey={profile.nameStyleKey} /></h2>
+            <h2 className="min-w-0 max-w-full font-ui text-3xl font-bold text-[var(--ui-text)]"><StyledName name={profile.displayName} styleKey={profile.nameStyleKey} /></h2>
             <p className="mt-1 break-words text-sm text-[var(--ui-text-muted)]">@{profile.username} · conta criada em {formatDate(profile.createdAt)}</p>
           </div>
           <div className="flex items-center gap-2 pb-1">
@@ -482,6 +503,8 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
           </div>
         </div>
       </section>
+
+      {data.album ? <ProfileAlbumSummary album={data.album} /> : null}
 
       <ProfileCareerContent
         scorePosition={data.scorePosition}
@@ -562,9 +585,10 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
 }
 
 function friendIdentity(friend: FriendshipEntry, accountId: string) {
+  const presence = { isOnline: friend.is_online, isAvailable: friend.is_available };
   return friend.requester_id === accountId
-    ? { name: friend.addressee_display_name, username: friend.addressee_username, avatarKey: friend.addressee_avatar_key, avatarBackgroundKey: friend.addressee_avatar_background_key, avatarFrameKey: friend.addressee_avatar_frame_key, nameStyleKey: friend.addressee_name_style_key }
-    : { name: friend.requester_display_name, username: friend.requester_username, avatarKey: friend.requester_avatar_key, avatarBackgroundKey: friend.requester_avatar_background_key, avatarFrameKey: friend.requester_avatar_frame_key, nameStyleKey: friend.requester_name_style_key };
+    ? { ...presence, name: friend.addressee_display_name, username: friend.addressee_username, avatarKey: friend.addressee_avatar_key, avatarBackgroundKey: friend.addressee_avatar_background_key, avatarUrl: friend.addressee_avatar_url, avatarFrameKey: friend.addressee_avatar_frame_key, nameStyleKey: friend.addressee_name_style_key }
+    : { ...presence, name: friend.requester_display_name, username: friend.requester_username, avatarKey: friend.requester_avatar_key, avatarBackgroundKey: friend.requester_avatar_background_key, avatarUrl: friend.requester_avatar_url, avatarFrameKey: friend.requester_avatar_frame_key, nameStyleKey: friend.requester_name_style_key };
 }
 
 const EMPTY_FINISH_COUNTS: FinishCounts = { leaguePhase: 0, playoff: 0, roundOf16: 0, quarterfinal: 0, semifinal: 0, runnerUp: 0, champion: 0 };
@@ -648,6 +672,8 @@ export default function AccountPage() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [appearanceTab, setAppearanceTab] = useState<'avatar' | 'frame' | 'cover'>('avatar');
   const [ownedFrames, setOwnedFrames] = useState<string[]>([]);
+  // Profile covers won in the album (a completed club's).
+  const albumCovers = useAlbum().album?.covers ?? [];
   const [appearancePage, setAppearancePage] = useState(0);
   const [appearanceDraft, setAppearanceDraft] = useState<{ avatarKey: string; avatarBackgroundKey: string; avatarFrameKey: string | null; coverKey: string }>({ avatarKey: 'mark-evans', avatarBackgroundKey: DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, avatarFrameKey: null, coverKey: 'cover-01' });
   const [appearanceBusy, setAppearanceBusy] = useState(false);
@@ -670,6 +696,7 @@ export default function AccountPage() {
     setError('');
     setNotice('');
     let active = true;
+    let friendsRefreshTimer: number | undefined;
     if (tab === 'history' && accountId) {
       setHistoryLoading(true);
       void getHistory(historyPage)
@@ -704,9 +731,12 @@ export default function AccountPage() {
 
     if (tab === 'friends' && accountId) {
       setFriendsLoading(true);
-      void getFriends().then(setFriends).catch(err => setError(err.message)).finally(() => setFriendsLoading(false));
+      void getFriends().then(rows => { if (active) setFriends(rows); }).catch(err => { if (active) setError(err.message); }).finally(() => { if (active) setFriendsLoading(false); });
+      friendsRefreshTimer = window.setInterval(() => {
+        void getFriends().then(rows => { if (active) setFriends(rows); }).catch(() => {});
+      }, 8000);
     }
-    return () => { active = false; };
+    return () => { active = false; if (friendsRefreshTimer !== undefined) window.clearInterval(friendsRefreshTimer); };
   }, [tab, accountId, historyPage, getHistory, getOwnRecordHighlights, getOwnAchievements, getScoreLeaderboardPosition, getFriends, refreshProfileIfStale]);
 
   // Rankings reload on their own filter, without refetching the other lists.
@@ -949,6 +979,7 @@ export default function AccountPage() {
       <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
         {logoutError ? <StatusBanner tone="danger" title="Não foi possível sair">{logoutError}</StatusBanner> : null}
         {tab === 'profile' ? <Panel className="relative isolate overflow-hidden" style={coverStyle}>
+          <ProfileCoverLayer coverKey={account.coverKey} coverUrl={account.coverUrl} />
           <div className="relative h-36 sm:h-44">
             <Button type="button" intent="ghost" onClick={openAppearanceEditor} className="absolute right-4 top-4 z-10 min-h-9 border border-white/20 bg-black/60 px-3 text-xs text-white hover:bg-black/75">
               <Pencil size={14} aria-hidden="true" /> EDITAR
@@ -958,7 +989,7 @@ export default function AccountPage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               {profileAvatar(account.avatarUrl, account.avatarKey, account.displayName, account.avatarBackgroundKey, account.avatarFrameKey)}
               <div className="min-w-0 flex-1 pb-1">
-                <div className="flex flex-wrap items-center gap-2"><h1 className="min-w-0 max-w-full font-display text-balance text-3xl text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} /></h1><Button type="button" intent="ghost" aria-label="Editar nome de exibição" title="Editar nome de exibição" onClick={openNameEditor} className="size-8 min-h-8 rounded-full px-0"><Pencil size={14} aria-hidden="true" /></Button></div>
+                <div className="flex flex-wrap items-center gap-2"><h1 className="min-w-0 max-w-full font-ui text-balance text-3xl font-bold text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} /></h1><Button type="button" intent="ghost" aria-label="Editar nome de exibição" title="Editar nome de exibição" onClick={openNameEditor} className="size-8 min-h-8 rounded-full px-0"><Pencil size={14} aria-hidden="true" /></Button></div>
                 <div className="mt-1 text-sm text-[var(--ui-text-muted)]">@{account.username} · conta criada em {formatDate(account.createdAt)}</div>
               </div>
               <div className="flex items-center gap-3 pb-1 text-xs text-[var(--ui-text-faint)]"><span className="flex items-center gap-2"><Users size={14} /> {acceptedFriends.length} {acceptedFriends.length === 1 ? "amigo" : "amigos"}</span><span className="flex items-center gap-1.5" aria-label={`${account.likeCount ?? 0} curtidas no perfil`}><Heart size={14} aria-hidden="true" className="text-rose-300" /> {account.likeCount ?? 0} {(account.likeCount ?? 0) === 1 ? "curtida" : "curtidas"}</span></div>
@@ -1082,12 +1113,11 @@ export default function AccountPage() {
                         const person = friendIdentity(friend, account.id);
                         return <article key={friend.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                           <Button type="button" intent="ghost" aria-label={`Ver perfil de ${person.name}`} title={`Ver perfil de ${person.name}`} onClick={() => void viewFriendProfile(person.username)} className="group flex h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 rounded-lg border-0 bg-transparent p-0 text-left normal-case font-normal tracking-normal hover:translate-y-0 hover:border-transparent hover:bg-transparent">
-                            <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                            <span className="min-w-0 flex-1"><strong className="block min-w-0 text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className="mt-1 block text-[12px] text-[var(--ui-brand-strong)]">Amigos desde {formatDate(friend.updated_at)}</span></span>
+                            <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} avatarUrl={person.avatarUrl} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
+                            <span className="min-w-0 flex-1"><strong className="block min-w-0 text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className={`mt-1 inline-flex items-center gap-1.5 text-[11px] ${person.isAvailable ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-muted)]'}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${person.isAvailable ? 'bg-[var(--ui-success)]' : person.isOnline ? 'bg-[var(--ui-warning)]' : 'bg-[var(--ui-text-faint)]'}`} />{person.isAvailable ? 'Disponível' : person.isOnline ? 'Ocupado' : 'Offline'}</span></span>
                             <span className="hidden shrink-0 text-[12px] font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
-                            <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-[var(--ui-text-faint)]" />
                           </Button>
-                          <Button intent="ghost" aria-label={`Remover ${person.name} dos amigos`} title={`Remover ${person.name}`} disabled={busy} onClick={() => void actFriend(friend.id, 'remove')} className="size-10 min-h-10 shrink-0 px-0"><X size={16} aria-hidden="true" /></Button>
+                          <FriendActions friendshipId={friend.id} friendName={person.name} friendAvatarKey={person.avatarKey} friendAvatarBackgroundKey={person.avatarBackgroundKey} friendAvatarUrl={person.avatarUrl} friendAvatarFrameKey={person.avatarFrameKey} friendOnline={person.isOnline} friendAvailable={person.isAvailable} removeDisabled={busy} onRemove={() => void actFriend(friend.id, 'remove')} />
                         </article>;
                       })}
               </TabPanel>
@@ -1136,14 +1166,14 @@ export default function AccountPage() {
           <label className="block space-y-2"><span className="ui-kicker">NOME DE EXIBIÇÃO</span><Input autoFocus value={nameDraft} maxLength={40} onChange={event => setNameDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void saveDisplayName(); }} /></label>
           {/* Live preview: big as on the profile, small as in the ranking. */}
           <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-4 text-center">
-            <div className="font-display text-4xl text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} /></div>
+            <div className="font-ui text-4xl font-bold text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} /></div>
             <div className="mt-2 text-sm font-bold text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} size="sm" /></div>
           </div>
           <div className="space-y-2">
             <span className="ui-kicker">ESTILO DO NOME</span>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <button type="button" aria-pressed={nameStyleDraft === null} onClick={() => setNameStyleDraft(null)} className={cn('flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border p-2 text-center transition-colors', nameStyleDraft === null ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] hover:border-[var(--ui-line-strong)]')}>
-                <span className="truncate font-display text-xl text-[var(--ui-text)]">{nameDraft.trim() || 'Seu nome'}</span>
+                <span className="truncate font-ui text-xl font-bold text-[var(--ui-text)]">{nameDraft.trim() || 'Seu nome'}</span>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">Padrão</span>
               </button>
               {NAME_STYLES.map(style => {
@@ -1185,12 +1215,13 @@ export default function AccountPage() {
             <TabPanel value="frame" className="pt-4">
               {/* Frames are earned in events; locked ones say which event grants them. */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {[null, ...AVATAR_FRAMES.map(frame => frame.key)].map(frameKey => {
+                {[null, ...AVATAR_FRAMES.map(frame => frame.key), ...ownedFrames.filter(key => clubOfRewardKey(key))].map(frameKey => {
                   const frame = AVATAR_FRAMES.find(item => item.key === frameKey);
                   const owned = frameKey === null || ownedFrames.includes(frameKey);
                   const selected = appearanceDraft.avatarFrameKey === frameKey;
                   const event = frame ? GAME_EVENTS.find(item => item.frameKey === frame.key) : undefined;
-                  const label = frame ? frame.name : 'Sem moldura';
+                  const frameClub = clubOfRewardKey(frameKey);
+                  const label = frame ? frame.name : frameClub ? (getCrest(frameClub)?.name ?? 'Clube') : 'Sem moldura';
                   return <Button
                     type="button"
                     key={frameKey ?? 'none'}
@@ -1208,7 +1239,7 @@ export default function AccountPage() {
                       {frameKey ? <FrameImage frameKey={frameKey} className="absolute inset-0 size-full" /> : null}
                     </span>
                     <span className="text-xs font-bold text-[var(--ui-text)]">{label}</span>
-                    {!owned ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Complete o evento {event?.name ?? ''}</span> : null}
+                    {!owned ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Complete o evento {event?.name ?? ''}</span> : frameClub ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Página completa no álbum</span> : null}
                     {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
                   </Button>;
                 })}
@@ -1268,6 +1299,25 @@ export default function AccountPage() {
                     className={cn('relative aspect-[3/2] h-auto min-h-0 w-full overflow-hidden rounded-xl border p-0', selected ? 'border-[var(--ui-brand)] ring-2 ring-[var(--ui-brand)]/40' : 'border-[var(--ui-line-subtle)]')}
                   >
                     <img src={cover.src} alt="" loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover" />
+                    {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
+                  </Button>;
+                })}
+                {albumCovers.map(coverKey => {
+                  const clubId = clubOfRewardKey(coverKey);
+                  if (!clubId) return null;
+                  const selected = appearanceDraft.coverKey === coverKey;
+                  const name = getCrest(clubId)?.name ?? 'Clube';
+                  return <Button
+                    type="button"
+                    key={coverKey}
+                    intent="ghost"
+                    aria-label={`Selecionar fundo: ${name}`}
+                    aria-pressed={selected}
+                    onClick={() => setAppearanceDraft(draft => ({ ...draft, coverKey }))}
+                    className={cn('relative aspect-[3/2] h-auto min-h-0 w-full overflow-hidden rounded-xl border p-0', selected ? 'border-[var(--ui-brand)] ring-2 ring-[var(--ui-brand)]/40' : 'border-[var(--ui-line-subtle)]')}
+                  >
+                    <ClubCover clubId={clubId} className="absolute inset-0" />
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-4 text-left text-[11px] font-bold text-white">{name}</span>
                     {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
                   </Button>;
                 })}

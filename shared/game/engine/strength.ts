@@ -259,14 +259,14 @@ export function simulatePenalties(
     const homeGoal = penaltyKickGoal(homeTaker, homeSide, awayGK, awaySide);
     if (homeGoal) homeScore++;
     homeKicks++;
-    kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoal });
+    kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoal, takerId: homeTaker.id, gkId: awayGK.id });
     if (clinched()) { decided = true; break; }
 
     const awayTaker = awayTakers[awayKicks % awayTakers.length];
     const awayGoal = penaltyKickGoal(awayTaker, awaySide, homeGK, homeSide);
     if (awayGoal) awayScore++;
     awayKicks++;
-    kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoal });
+    kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoal, takerId: awayTaker.id, gkId: homeGK.id });
     if (clinched()) { decided = true; break; }
   }
 
@@ -279,8 +279,8 @@ export function simulatePenalties(
       const homeGoalSD = penaltyKickGoal(homeTaker, homeSide, awayGK, awaySide);
       const awayGoalSD = penaltyKickGoal(awayTaker, awaySide, homeGK, homeSide);
 
-      kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoalSD });
-      kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoalSD });
+      kicks.push({ teamId: home.id, takerName: homeTaker.shortName, gkName: awayGK.shortName, isGoal: homeGoalSD, takerId: homeTaker.id, gkId: awayGK.id });
+      kicks.push({ teamId: away.id, takerName: awayTaker.shortName, gkName: homeGK.shortName, isGoal: awayGoalSD, takerId: awayTaker.id, gkId: homeGK.id });
 
       if (homeGoalSD && !awayGoalSD) return { winner: home.id, homeScore: homeScore + 1, awayScore, kicks };
       if (awayGoalSD && !homeGoalSD) return { winner: away.id, homeScore, awayScore: awayScore + 1, kicks };

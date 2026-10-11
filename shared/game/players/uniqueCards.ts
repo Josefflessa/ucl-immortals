@@ -83,4 +83,7 @@ export const EVENT_UNIQUE_CARD_LIST: Player[] = [
     pace: 86, shooting: 99, passing: 80, dribbling: 88, defending: 42, physical: 95, vision: 82, composure: 96, traits: ['Finalizador', 'Cabeceador', 'Força Bruta'], historicalPartners: ['rogerio_ceni'] },
   { id: 'ganso_unico', basePlayerId: 'ganso', shortName: 'Ganso', fullName: 'Paulo Henrique Chagas de Lima', position: 'CAM', secondaryPositions: ['CM'], nation: 'Brasil', club: 'Santos', season: 'Única', rarity: 'unique', overall: 99,
     pace: 72, shooting: 86, passing: 99, dribbling: 94, defending: 45, physical: 70, vision: 99, composure: 96, traits: ['Maestro do Passe', 'Visão de Jogo', 'Armador'], historicalPartners: ['neymar_santos'] },
+  // Evento O Príncipe: o Neymar do Barça (MSN).
+  { id: 'neymar_barca_unico', basePlayerId: 'neymar', historicalPlayerId: 'neymar', shortName: 'Neymar', fullName: 'Neymar da Silva Santos Júnior', position: 'LW', secondaryPositions: ['ST', 'CAM'], nation: 'Brasil', club: 'Barcelona', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 97, shooting: 92, passing: 88, dribbling: 99, defending: 38, physical: 66, vision: 92, composure: 96, traits: [], historicalCoaches: ['guardiola'], historicalPartners: ['messi', 'suarez', 'xavi', 'iniesta'] },
 ];

@@ -1,0 +1,409 @@
+.live-pitch {
+  position: relative;
+  /* About half the screen at most, so the feed below keeps room on short laptops. */
+  width: min(100%, calc(48vh * 111 / 73));
+  margin-inline: auto;
+  aspect-ratio: 111 / 73;
+  overflow: hidden;
+  container-type: inline-size;
+  background: #0e2615;
+  --dot: clamp(10px, 2.9cqw, 20px);
+  --face: clamp(22px, 6.2cqw, 44px);
+}
+.live-pitch__camera {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  /* No will-change: the grass is redrawn at each zoom, so its lines stay crisp. */
+}
+.live-pitch__field { position: absolute; inset: 0; width: 100%; height: 100%; }
+.live-pitch__layer { position: absolute; inset: 0; pointer-events: none; }
+.live-pitch__dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--dot);
+  height: var(--dot);
+  margin: calc(var(--dot) / -2) 0 0 calc(var(--dot) / -2);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 800 calc(var(--dot) * .5) / 1 var(--font-game), sans-serif;
+  color: #0b0b14;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+  transition: opacity 250ms;
+  will-change: transform;
+}
+.live-pitch__dot--keeper { filter: brightness(.72); outline: 1.5px solid rgba(255, 255, 255, .7); }
+.live-pitch__dot--hidden { opacity: 0; }
+.live-pitch__dot--injured::after {
+  content: '';
+  position: absolute;
+  right: calc(var(--dot) * -.22);
+  top: calc(var(--dot) * -.22);
+  width: calc(var(--dot) * .5);
+  height: calc(var(--dot) * .5);
+  border-radius: 2px;
+  background:
+    linear-gradient(#e11d48, #e11d48) center / 22% 64% no-repeat,
+    linear-gradient(#e11d48, #e11d48) center / 64% 22% no-repeat,
+    #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .45);
+}
+.live-pitch__face {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--face);
+  height: var(--face);
+  margin: calc(var(--face) / -2) 0 0 calc(var(--face) / -2);
+  will-change: transform;
+  /* Its transform is its place on the pitch (set every frame): the entrance pops the image. */
+  animation: live-pitch-fade-in 220ms ease-out;
+}
+.live-pitch__face-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  animation: live-pitch-pop-in 220ms ease-out;
+  background: #1b1b2b;
+  box-shadow: 0 0 0 1.5px var(--ring), 0 2px 5px rgba(0, 0, 0, .55);
+}
+.live-pitch__face-img img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.live-pitch__name {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 2px * var(--inv, 1));
+  transform: translateX(-50%) scale(var(--inv, 1));
+  transform-origin: 50% 0;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(6, 7, 12, .7);
+  color: rgba(255, 255, 255, .92);
+  font: 700 clamp(8px, 1.2cqw, 9.5px) / 1.2 var(--font-game), sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.live-pitch__ball {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--ball, 9px);
+  height: var(--ball, 9px);
+  margin: calc(var(--ball, 9px) / -2) 0 0 calc(var(--ball, 9px) / -2);
+  border-radius: 50%;
+  will-change: transform;
+  /* Always on top: the ball is what the eye follows. */
+  z-index: 5;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, .7));
+}
+/* A real football: panels that roll, light from the top left. */
+.live-pitch__ball-skin {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, .95) 0 18%, transparent 46%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='10' fill='%23f4f5f7'/%3E%3Cpath d='M10 6.2l3.6 2.6-1.4 4.2H7.8L6.4 8.8z' fill='%23181a20'/%3E%3Cpath d='M10 0v3.4M16.6 4.4l-2.8 2.2M19.6 12l-3.4-.6M13.6 19.4l-1.2-3.4M6.4 19.4l1.2-3.4M.4 12l3.4-.6M3.4 4.4l2.8 2.2' stroke='%23181a20' stroke-width='1.1'/%3E%3Cpath d='M10 0l2.2 1.6-.8 2.4H8.6l-.8-2.4zM20 9l-1.6 2.6-2.4-.6.2-2.6 2.4-.8zM0 9l1.6 2.6 2.4-.6-.2-2.6-2.4-.8zM15.6 20l-2.8-.4-.4-2.4 2.2-1.2 2 1.6zM4.4 20l2.8-.4.4-2.4-2.2-1.2-2 1.6z' fill='%23181a20'/%3E%3C/svg%3E") center / 100% 100%;
+  box-shadow: inset -1.5px -2px 3px rgba(0, 0, 0, .35);
+}
+.live-pitch__shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--ball, 9px) * 1.15);
+  height: calc(var(--ball, 9px) * .5);
+  margin: calc(var(--ball, 9px) * -.25) 0 0 calc(var(--ball, 9px) * -.575);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .38);
+  will-change: transform;
+}
+.live-pitch__cue {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+.live-pitch__cue-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transform: translate(-50%, calc(-100% - var(--dot)));
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+  font: 900 clamp(9px, 1.7cqw, 12px) / 1.3 var(--font-game), sans-serif;
+  letter-spacing: .08em;
+  color: #fff;
+  background: rgba(8, 8, 15, .88);
+  border: 1px solid rgba(255, 255, 255, .18);
+  animation: live-pitch-fade-in 200ms ease-out, live-pitch-pop-in 200ms ease-out;
+}
+.live-pitch__card { width: 7px; height: 10px; border-radius: 1.5px; }
+.live-pitch__tactic {
+  position: absolute;
+  top: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 900 clamp(9px, 1.7cqw, 12px) / 1.3 var(--font-game), sans-serif;
+  letter-spacing: .1em;
+  color: #0b0b14;
+  animation: live-pitch-fade-in 220ms ease-out, live-pitch-pop-in 220ms ease-out;
+}
+.live-pitch__threat {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  transform-origin: left center;
+  transition: transform 800ms ease, background-color 300ms;
+}
+.live-pitch__net--ripple-right { animation: live-pitch-net 650ms ease-out; transform-box: fill-box; transform-origin: left center; }
+.live-pitch__net--ripple-left { animation: live-pitch-net 650ms ease-out; transform-box: fill-box; transform-origin: right center; }
+.live-pitch__num { pointer-events: none; }
+/* Broadcast cut: dark for a moment while everyone is re-placed. */
+.live-pitch__cut { position: absolute; inset: 0; background: #05070a; pointer-events: none; animation: live-pitch-cut 440ms ease-in-out forwards; z-index: 6; }
+@keyframes live-pitch-cut { 0% { opacity: 0; } 45%, 55% { opacity: 1; } 100% { opacity: 0; } }
+/* Slow motion while the strike travels: a vignette and a touch of desaturation. */
+.live-pitch::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 0 rgba(0, 0, 0, 0); transition: box-shadow 250ms ease; z-index: 5; }
+.live-pitch--slowmo::after { box-shadow: inset 0 0 60px 18px rgba(0, 0, 0, .55); }
+.live-pitch--slowmo .live-pitch__field { filter: saturate(.75) brightness(.92); }
+.live-pitch__field { transition: filter 250ms ease; }
+
+
+@keyframes live-pitch-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes live-pitch-pop-in { from { scale: .6; } to { scale: 1; } }
+@keyframes live-pitch-net { 0%, 100% { transform: scaleX(1); } 35% { transform: scaleX(1.9); } 65% { transform: scaleX(1.3); } }
+@keyframes live-pitch-flash { from { opacity: 1; transform: scale(.6); } to { opacity: 0; transform: scale(1.6); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .live-pitch__camera { transition: none; transform: none !important; }
+  .live-pitch__face, .live-pitch__cue-badge, .live-pitch__tactic, .live-pitch__net--ripple-left, .live-pitch__net--ripple-right { animation: none; }
+  .live-pitch__cut { animation-duration: 1ms; }
+}
+
+/* Radio view (open play): the pitch shows only the ball, the markers and who is pressing. */
+.live-pitch__dot, .live-pitch__face, .live-pitch__ball, .live-pitch__shadow { transition: opacity 450ms ease; }
+.live-pitch--radio .live-pitch__dot, .live-pitch--radio .live-pitch__ball, .live-pitch--radio .live-pitch__shadow { opacity: 0; }
+.live-pitch__zone {
+  position: absolute;
+  top: calc(2.5 / 73 * 100%);
+  height: calc(68 / 73 * 100%);
+  width: calc(35 / 111 * 100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--zone) 26%, transparent) 30%, color-mix(in srgb, var(--zone) 26%, transparent) 70%, transparent);
+  --strength: .6;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  left: calc(3 / 111 * 100%);
+  transition: transform 700ms cubic-bezier(.3, .7, .2, 1), opacity 450ms ease, background 400ms ease;
+  will-change: transform, opacity;
+}
+.live-pitch__zone { opacity: var(--strength); }
+.live-pitch__zone--off { opacity: 0 !important; }
+.live-pitch__zone-arrow { width: 26%; max-width: 72px; stroke: var(--zone); animation: live-pitch-zone-flow 1.6s ease-in-out infinite; }
+.live-pitch__zone-arrow--left { animation-name: live-pitch-zone-flow-left; }
+@keyframes live-pitch-zone-flow { 0% { transform: translateX(-18%); opacity: .25; } 50% { opacity: .95; } 100% { transform: translateX(18%); opacity: .25; } }
+@keyframes live-pitch-zone-flow-left { 0% { transform: scaleX(-1) translateX(-18%); opacity: .25; } 50% { opacity: .95; } 100% { transform: scaleX(-1) translateX(18%); opacity: .25; } }
+.live-pitch__zone-arrow--left { transform: scaleX(-1); }
+@keyframes live-pitch-zone-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes live-pitch-zone-pulse { 0%, 100% { opacity: .45; } 50% { opacity: .9; } }
+.live-pitch__zone--off { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .live-pitch__zone-arrow { animation: none; } .live-pitch__zone { transition: opacity 200ms; } }
+/* Quick events: one quiet notice at the top of the pitch. */
+.live-pitch__chip {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: calc(100% - 24px);
+  padding: 5px 12px 5px 9px;
+  border-radius: 999px;
+  background: rgba(10, 12, 20, .82);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, .1);
+  box-shadow: inset 3px 0 0 var(--team), 0 4px 14px rgba(0, 0, 0, .35);
+  color: #fff;
+  font: 800 clamp(10px, 1.8cqw, 13px) / 1.2 var(--font-game), sans-serif;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: live-pitch-chip 1800ms ease both;
+  pointer-events: none;
+}
+.live-pitch__chip-icon { display: inline-flex; color: var(--team); }
+.live-pitch__chip-card { width: 9px; height: 12px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+.live-pitch__chip-name { color: rgba(255, 255, 255, .7); font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.live-pitch__chip-name::before { content: '·'; margin-right: 7px; color: rgba(255, 255, 255, .35); }
+@keyframes live-pitch-chip {
+  0% { opacity: 0; transform: translate(-50%, -6px); }
+  10%, 86% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+@media (prefers-reduced-motion: reduce) { .live-pitch__chip { animation: none; } }
+
+.live-pitch__face-img { transform: var(--pose, none); }
+
+/* Radio view label: who has the ball and where. */
+.live-pitch__zone { grid-template-rows: 1fr auto 1fr; }
+.live-pitch__zone-arrow { grid-row: 2; }
+.live-pitch__zone-label {
+  grid-row: 3;
+  align-self: start;
+  margin-top: 6%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  max-width: 92%;
+  text-align: center;
+  font: 800 clamp(10px, 2.3cqw, 14px) / 1.2 var(--font-game), sans-serif;
+  letter-spacing: .12em;
+  color: rgba(255, 255, 255, .78);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+  white-space: nowrap;
+}
+.live-pitch__zone-team { color: var(--zone); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* The per-frame shadow opacity must not show it in the radio view. */
+.live-pitch--radio .live-pitch__shadow { opacity: 0 !important; }
+/* Names of the two sides sit on opposite edges, so a duel never stacks them. */
+.live-pitch__face--label-top .live-pitch__name { top: auto; bottom: calc(100% + 2px * var(--inv, 1)); transform-origin: 50% 100%; }
+
+/* Final whistle: the pitch dims under the result. */
+.live-pitch__final {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+  background: radial-gradient(ellipse at center, rgba(5, 7, 12, .72), rgba(5, 7, 12, .9));
+  backdrop-filter: blur(2px) saturate(.6);
+  animation: live-pitch-final 600ms ease both;
+}
+.live-pitch__final-title { font: 900 clamp(11px, 2cqw, 14px) / 1 var(--font-game), sans-serif; letter-spacing: .32em; color: #eab308; }
+.live-pitch__final-score { font: 400 clamp(22px, 5.4cqw, 44px) / 1.05 var(--font-display), sans-serif; letter-spacing: .03em; color: #fff; text-transform: uppercase; }
+.live-pitch__final-line { font: 800 clamp(10px, 1.8cqw, 13px) / 1.2 var(--font-game), sans-serif; letter-spacing: .14em; color: rgba(255, 255, 255, .7); }
+@keyframes live-pitch-final { from { opacity: 0; } to { opacity: 1; } }
+
+.live-pitch__face { z-index: 4; }
+/* The current ball carrier shares the ball's top layer, above other portraits. */
+.live-pitch__face--ball { z-index: 5; }
+
+/*
+ * Sliding tackle: the tackler is down on the grass (squashed low, a little darker) until he
+ * gets up. A lunge: a quick stretch at the ball. Both compose with the JS transform.
+ */
+/* (A dot's down and lunge shapes are drawn by the frame loop, in its transform: a scale here
+   would scale its place on the pitch too.) */
+.live-pitch__dot--down { filter: brightness(.8); }
+.live-pitch__face--down .live-pitch__face-img { filter: brightness(.9) saturate(.92); }
+.live-pitch__face--lunge .live-pitch__face-img { scale: 1.1; }
+/* The tackle's mark on the grass; a lunge leaves a thinner, quicker streak. */
+.live-pitch__skid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: calc(var(--dot, 14px) * .55);
+  margin-top: calc(var(--dot, 14px) * -.275);
+  transform-origin: 0 50%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(214, 240, 200, 0), rgba(214, 240, 200, .32) 45%, rgba(236, 250, 226, .5));
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.live-pitch__skid--lunge { height: calc(var(--dot, 14px) * .3); margin-top: calc(var(--dot, 14px) * -.15); background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .45)); }
+/* Off the ground (a hop over a slide, a header): his shadow stays on the grass below him. */
+.live-pitch__face::before {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -6%;
+  height: 18%;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .45);
+  filter: blur(2px);
+  opacity: calc(var(--air, 0) * 1.6);
+  translate: 0 calc(var(--air, 0) * 60%);
+  z-index: -1;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-pitch__dot, .live-pitch__face-img { transition: none; }
+}
+
+/* The dark cut and the final card cover everything. */
+.live-pitch__cut { z-index: 8; }
+.live-pitch__final { z-index: 9; }
+
+/* On the ball: a white halo around whoever has it at his feet. */
+.live-pitch__dot--ball { z-index: 5; box-shadow: 0 0 0 2px #fff, 0 0 8px 2px rgba(255, 255, 255, .55); }
+.live-pitch__face--ball .live-pitch__face-img { box-shadow: 0 0 0 1.5px var(--ring), 0 0 0 3.5px rgba(255, 255, 255, .9), 0 0 12px 3px rgba(255, 255, 255, .45); }
+/* One transition list each (a later rule would replace it whole): the dots keep their fade in and out. */
+.live-pitch__dot { transition: opacity 450ms ease, filter 140ms, box-shadow 120ms ease-out; }
+.live-pitch__face-img { transition: scale 140ms ease-out, translate 140ms ease-out, filter 140ms, box-shadow 120ms ease-out; }
+/* The strike burst and the save pulse: lit by the frame loop on the exact frame, at the ball. */
+.live-pitch__burst {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--burst, 40px);
+  height: var(--burst, 40px);
+  margin: calc(var(--burst, 40px) / -2) 0 0 calc(var(--burst, 40px) / -2);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.live-pitch__burst svg { width: 100%; height: 100%; overflow: visible; }
+.live-pitch__kick.live-pitch__burst--on { animation: live-pitch-kick 380ms ease-out forwards; }
+.live-pitch__kick.live-pitch__burst--on svg { animation: live-pitch-kick-ring 380ms ease-out forwards; }
+@keyframes live-pitch-kick { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes live-pitch-kick-ring { from { transform: scale(.45); } to { transform: scale(1.15); } }
+.live-pitch__flash.live-pitch__burst--on { animation: live-pitch-kick 500ms ease-out forwards; }
+.live-pitch__flash.live-pitch__burst--on svg { animation: live-pitch-flash-ring 500ms ease-out forwards; }
+@keyframes live-pitch-flash-ring { from { transform: scale(.6); } to { transform: scale(1.6); } }
+/* Trail behind a fast ball. */
+.live-pitch__ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--ball, 9px);
+  height: var(--ball, 9px);
+  margin: calc(var(--ball, 9px) / -2) 0 0 calc(var(--ball, 9px) / -2);
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  z-index: 5;
+}
+@media (prefers-reduced-motion: reduce) { .live-pitch__burst--on, .live-pitch__burst--on svg { animation: none; } .live-pitch__ghost { display: none; } }
+
+/* During the shot's flight, portraits not in it step back a little. */
+/* (The image shrinks, not the portrait: a scale on the portrait would scale its placement too and move it.) */
+.live-pitch__face { transition: opacity 450ms ease; }
+.live-pitch__face--aside { opacity: .9; }
+.live-pitch__face--aside .live-pitch__face-img { scale: .85; }
+@media (prefers-reduced-motion: reduce) { .live-pitch__face { transition: none; } }
+
+/* An epic play's slow motion: a deeper vignette with a touch of gold. */
+.live-pitch--epic::after { box-shadow: inset 0 0 80px 26px rgba(0, 0, 0, .62), inset 0 0 140px 10px rgba(245, 197, 66, .18); }
+.live-pitch--epic .live-pitch__field { filter: saturate(.7) brightness(.88) sepia(.12); }

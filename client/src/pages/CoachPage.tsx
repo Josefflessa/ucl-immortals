@@ -1,19 +1,21 @@
 // UCL Immortals — Coach Selection Page
 
 import { motion } from 'framer-motion';
+import { Brain, Flame, Heart, Scale, Shield, Star, Zap, type LucideIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { COACHES } from '@shared/game/gameData';
 import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } from '../design-system';
 
-const COACH_ICONS: Record<string, string> = {
-  guardiola: '🧠',
-  klopp: '🔥',
-  mourinho: '🛡️',
-  ancelotti: '⚖️',
-  zidane: '⭐',
-  ferguson: '❤️',
-  luis_enrique: '⚡',
+/** Shown when a coach has no photo: his style, as a line icon. */
+const COACH_ICONS: Record<string, LucideIcon> = {
+  guardiola: Brain,
+  klopp: Flame,
+  mourinho: Shield,
+  ancelotti: Scale,
+  zidane: Star,
+  ferguson: Heart,
+  luis_enrique: Zap,
 };
 
 const COACH_COLORS: Record<string, string> = {
@@ -70,7 +72,8 @@ export default function CoachPage() {
             {COACHES.map((coach) => {
               const isSelected = state.selectedCoachId === coach.id;
               const color = COACH_COLORS[coach.id] || '#C9A84C';
-              const icon = COACH_ICONS[coach.id] || '⚽';
+              const CoachStyle = COACH_ICONS[coach.id];
+              const icon = CoachStyle ? <CoachStyle size={26} strokeWidth={2.2} color={color} /> : '⚽';
 
               return (
                 <ChoiceCard
@@ -144,7 +147,7 @@ export default function CoachPage() {
 
                   {/* Special ability */}
                   <div className="flex items-start gap-2">
-                    <div className="text-sm flex-shrink-0">⚡</div>
+                    <Zap size={14} strokeWidth={2.4} color="var(--ui-brand)" className="mt-0.5 flex-shrink-0" aria-hidden="true" />
                     <div>
                       <div className="text-xs font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                         {coach.specialAbilityName}

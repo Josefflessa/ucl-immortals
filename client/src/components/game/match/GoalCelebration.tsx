@@ -19,8 +19,11 @@ export interface GoalMoment {
   minute: number;
   /** Who put the ball in: the attacker, or the defender on an own goal. */
   scorer?: Player;
+  /** Team that owns the scorer card; differs from teamId on an own goal. */
+  scorerTeamId?: string;
   scorerStats?: PlayerCardStats;
   assister?: Player;
+  assisterTeamId?: string;
   assisterStats?: PlayerCardStats;
   ownGoal: boolean;
   /** Goals by this scorer in the match, this one included. */
@@ -85,12 +88,14 @@ const KEYFRAMES = `
 
 const EASE_OUT = 'cubic-bezier(.2, .8, .2, 1)';
 
-export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, leaving = false, onSkip }: {
+export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, localTeamId, leaving = false, onSkip }: {
   goal: GoalMoment;
   homeTeam: Team;
   awayTeam: Team;
   /** The goal favours the viewer (or a neutral spectator is watching). */
   mine: boolean;
+  /** The viewer's own team, so only its locally owned cards use the local album fallback. */
+  localTeamId?: string;
   /** Fading out; the parent removes the overlay when the fade ends. */
   leaving?: boolean;
   /** Tap to dismiss early (solo only). */
@@ -98,6 +103,12 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, leavin
 }) {
   const accent = mine ? '#FFD700' : '#EF4444';
   const scoringTeam = goal.teamId === homeTeam.id ? homeTeam : awayTeam;
+  const scorerTeamId = goal.scorerTeamId ?? (goal.ownGoal
+    ? (goal.teamId === homeTeam.id ? awayTeam.id : homeTeam.id)
+    : goal.teamId);
+  const scorerTeam = scorerTeamId === homeTeam.id ? homeTeam : awayTeam;
+  const assisterTeamId = goal.assisterTeamId ?? goal.teamId;
+  const assisterTeam = assisterTeamId === homeTeam.id ? homeTeam : awayTeam;
   const narrow = typeof window !== 'undefined' && window.innerWidth < 640;
   const scorerScale = narrow ? (goal.assister ? 0.8 : 0.9) : 1.05;
   const assistScale = narrow ? 0.6 : 0.76;
@@ -183,12 +194,12 @@ export default function GoalCelebration({ goal, homeTeam, awayTeam, mine, leavin
         <div className="mt-6 flex items-end justify-center gap-4 sm:gap-8" style={{ minHeight: Math.round(324 * scorerScale) + 32 }}>
           {cardsReady && goal.scorer && (
             <CardSlot label={goal.ownGoal ? 'GOL CONTRA' : 'GOL'} accent={goal.ownGoal ? '#EF4444' : accent} delayMs={0} dir={-1}>
-              <PlayerCard player={goal.scorer} effectiveStats={goal.scorerStats} scale={scorerScale} />
+              <PlayerCard player={goal.scorer} effectiveStats={goal.scorerStats} scale={scorerScale} albumLevel={scorerTeam.albumLevels?.[goal.scorer.id]} showAlbumLevel={scorerTeam.id === localTeamId} />
             </CardSlot>
           )}
           {cardsReady && goal.assister && (
             <CardSlot label="ASSISTÊNCIA" accent="#93C5FD" delayMs={180} dir={1}>
-              <PlayerCard player={goal.assister} effectiveStats={goal.assisterStats} scale={assistScale} />
+              <PlayerCard player={goal.assister} effectiveStats={goal.assisterStats} scale={assistScale} albumLevel={assisterTeam.albumLevels?.[goal.assister.id]} showAlbumLevel={assisterTeam.id === localTeamId} />
             </CardSlot>
           )}
         </div>

@@ -2,10 +2,12 @@
 // Cinematic celebration / campaign summary after the tournament
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { Armchair, ArrowLeft, Medal, RotateCcw, Trophy, Zap } from 'lucide-react';
+import { INLINE_ICON } from '../components/game/inlineIcon';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
+import { useAlbum } from '../contexts/AlbumContext';
 import { useTeams } from '../hooks/useTeams';
 import { FORMATIONS, COACHES, type Player } from '@shared/game/gameData';
 import {
@@ -86,7 +88,7 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
     <AppShell immersive className="flex flex-col overflow-x-hidden">
       <TopBar right={onBack ? <Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO</Button> : undefined} />
       <div className="relative z-10 flex flex-col items-center justify-center px-4 py-10 text-center sm:py-14">
-        <div className="mb-4 select-none text-6xl">{entry.champion ? '🏆' : '🏅'}</div>
+        {entry.champion ? <Trophy size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" /> : <Medal size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" />}
         <h1 className="font-display text-5xl text-[var(--ui-text)] sm:text-7xl">{entry.champion ? 'CAMPEÃO!' : 'CAMPANHA ENCERRADA'}</h1>
         <div className="mt-3 flex items-center gap-3 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-5 py-2.5">
           <Crest crestId={entry.crest_id} name={entry.team_name} size={34} />
@@ -114,6 +116,7 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
 export default function ReportPage({ historyEntry, historySnapshot: providedSnapshot, onHistoryBack }: ReportPageProps = {}) {
   const { state, dispatch, leaveRoomOnline, discardSoloCampaign } = useGame();
   const { account, saveHistory, markCompetitionCompleted, getOwnAchievements } = useAccount();
+  const { receiveGrants: receiveAlbumGrants, refresh: refreshAlbum } = useAlbum();
   const historySnapshot = providedSnapshot ?? (historyEntry ? getCompetitionHistorySnapshot(historyEntry.report) : null);
   const { localTeamId: liveTeamId, allTeams: allTeamsForStats } = useTeams();
   const report = historySnapshot ? historySnapshot.report : state.report;
@@ -340,7 +343,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const [cardUnlocks, setCardUnlocks] = useState<EventCardUnlock[]>([]);
 
   // Online campaigns are saved by the room server when the report opens, so ask
-  // for the levels reached since then, a few times while that save completes.
+  // for the levels reached since then, a few times while that save completes (and
+  // sync the album, which grants that campaign's packs).
   const onlineAchievementsChecked = useRef(false);
   useEffect(() => {
     if (onlineAchievementsChecked.current || historyEntry || historySnapshot || !account || state.mode !== 'online' || games === 0) return;
@@ -350,6 +354,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     const timers: number[] = [];
     [2_000, 6_000, 12_000].forEach(delay => {
       timers.push(window.setTimeout(() => {
+        if (delay >= 6_000) void refreshAlbum();
         if (cancelled) return;
         void getOwnAchievements(since).then(result => {
           if (cancelled || result.recentlyUnlocked.length === 0) return;
@@ -359,7 +364,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       }, delay));
     });
     return () => { cancelled = true; timers.forEach(timer => window.clearTimeout(timer)); };
-  }, [account, games, getOwnAchievements, historyEntry, historySnapshot, state.mode]);
+  }, [account, games, getOwnAchievements, historyEntry, historySnapshot, refreshAlbum, state.mode]);
 
   useEffect(() => {
     if (reportDataInvalidated.current || historyEntry || historySnapshot || !account || !playerTeam || games === 0) return;
@@ -399,6 +404,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       report: {
         version: 1,
         games,
+        // The XI that started the final: the squad cannot change after it (events count it).
+        finalStarterIds: reportFinalResult ? starters.map(player => player.id) : [],
         wins,
         draws,
         losses,
@@ -452,12 +459,13 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       setAchievementUnlocks(result.achievementsUnlocked ?? []);
       setFrameUnlocks(result.framesUnlocked ?? []);
       setCardUnlocks(result.eventCardsUnlocked ?? []);
+      receiveAlbumGrants(result.albumGrants);
     }).catch(error => {
       console.error('[account] não foi possível salvar o histórico solo:', error);
       setHistorySaveError(error instanceof Error ? error.message : 'Não foi possível salvar a competição agora.');
       setHistorySaveStatus('error');
     });
-  }, [account, champion, championName, effectiveCardStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
+  }, [account, champion, championName, effectiveCardStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, receiveAlbumGrants, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
 
   if (historyEntry && !historySnapshot) {
     return <LegacyHistoryReport entry={historyEntry} onBack={onHistoryBack} />;
@@ -602,7 +610,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
                 className="flex flex-col items-center"
               >
-                <div className="text-6xl mb-4 select-none">🏅</div>
+                <Medal size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" />
                 <h1
                   className="text-5xl sm:text-6xl font-black tracking-widest"
                   style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFFFFF' }}
@@ -614,7 +622,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 </p>
                 <div className="mt-4 px-5 py-2.5 rounded-full font-bold text-sm tracking-wider"
                   style={{ background: 'var(--ui-surface-1)', border: '1px solid #C9A84C44', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-                  🏆 CAMPEÃO: {championName}
+                  <Trophy {...INLINE_ICON} />CAMPEÃO: {championName}
                 </div>
               </motion.div>
             )}
@@ -772,7 +780,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               )}
               {report && report.historicalRecreations.length > 0 && (
                 <div className="flex items-start gap-4 px-5 py-4">
-                  <div className="text-2xl">⚡</div>
+                  <Zap size={24} strokeWidth={2.2} color="var(--ui-brand)" className="mt-0.5 flex-shrink-0" aria-hidden="true" />
                   <div>
                     <div className="text-[12px] font-bold tracking-widest mb-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
                     {report.historicalRecreations.map(trio => (
@@ -846,6 +854,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <FormationField
                   formation={formation}
                   players={starters}
+                  showAlbumLevel
                   showChemLines
                   chemLinks={getChemistryLinks(starters, playerTeam.coachId)}
                   effectiveStats={effectiveStatsById}
@@ -884,6 +893,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                         player={pl}
                         compact
                         lite
+                        showAlbumLevel
                         effectiveStats={effectiveStatsById[pl.id]}
                         onClick={historyEntry ? undefined : () => setSelectedPlayer({ player: pl, positionIndex: i })}
                       />
@@ -894,7 +904,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               {/* RESERVAS / BANCO */}
               {bench.length > 0 && (
                 <div className="pt-3 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
-                  <div className="text-xs font-black tracking-widest mb-2" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>🪑 RESERVAS ({bench.length})</div>
+                  <div className="text-xs font-black tracking-widest mb-2" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}><Armchair {...INLINE_ICON} />RESERVAS ({bench.length})</div>
                   <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                     {bench.map((pl, i) => (
                       <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
@@ -902,6 +912,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                           player={pl}
                           compact
                           lite
+                          showAlbumLevel
                           effectiveStats={effectiveStatsById[pl.id]}
                           onClick={historyEntry ? undefined : () => setSelectedPlayer({ player: pl, positionIndex: starters.length + i })}
                         />
@@ -926,7 +937,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             onClick={handlePlayAgain}
             className="mt-2 w-full"
           >
-            {historyEntry ? <><ArrowLeft size={17} aria-hidden="true" /> VOLTAR AO HISTÓRICO</> : '🔄 JOGAR NOVAMENTE'}
+            {historyEntry ? <><ArrowLeft size={17} aria-hidden="true" /> VOLTAR AO HISTÓRICO</> : <><RotateCcw size={17} aria-hidden="true" /> JOGAR NOVAMENTE</>}
           </Button>
         )}
       </PageContainer>

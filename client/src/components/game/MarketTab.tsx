@@ -11,6 +11,8 @@ import PlayerCard from './PlayerCard';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 import { Button, GameModal } from '../../design-system';
 import CoinIcon from './CoinIcon';
+import { Coins, Handshake, Hourglass, Mail, Repeat, Store } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 
 export default function MarketTab() {
   const {
@@ -48,14 +50,14 @@ export default function MarketTab() {
       {/* Sub-abas (só no online; no solo só existe VENDER) */}
       {online && (
         <div className="ui-tabs">
-          {([['sell', '💰 VENDER'], ['listings', '🤝 ANUNCIAR'], ['trades', '🔄 TROCAR']] as const).map(([id, label]) => (
+          {([['sell', 'VENDER', Coins], ['listings', 'ANUNCIAR', Handshake], ['trades', 'TROCAR', Repeat]] as const).map(([id, label, Icon]) => (
             <button
               key={id}
               onClick={() => setSubTab(id)}
               className="ui-tab flex-1"
               data-active={subTab === id}
             >
-              {label}
+              <Icon {...INLINE_ICON} />{label}
             </button>
           ))}
         </div>
@@ -75,7 +77,7 @@ export default function MarketTab() {
             <div className="market-player-row flex flex-wrap gap-3">
               {bench.map(p => (
                 <div key={p.id} className="flex flex-col items-center gap-1">
-                  <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite />
+                  <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite showAlbumLevel />
                   <button
                     onClick={() => setConfirmId(p.id)}
                     className="ui-btn ui-btn--danger min-h-8 px-3 text-[13px]"
@@ -103,7 +105,7 @@ export default function MarketTab() {
               <div className="market-player-row flex flex-wrap gap-3">
                 {bench.map(p => (
                   <div key={p.id} className="flex flex-col items-center gap-1">
-                    <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite />
+                    <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite showAlbumLevel />
                     <button
                       onClick={() => { setPriceInput(marketMinPrice(p)); setListFor(p.id); }}
                       className="ui-btn ui-btn--info min-h-8 px-3 text-[13px]"
@@ -174,21 +176,21 @@ export default function MarketTab() {
             <div className="rounded-lg border border-white/10 p-4 text-center">
               {mySession.status === 'invite' && mySession.hostId === meId ? (
                 <>
-                  <div className="mb-1 text-2xl">⏳</div>
+                  <Hourglass size={26} strokeWidth={2.2} className="mx-auto mb-1" aria-hidden="true" />
                   <p className="text-sm text-[var(--ui-text-soft)]">
                     Aguardando <b className="text-[var(--ui-text)]">{mySession.guestName}</b> aceitar o convite...
                   </p>
                 </>
               ) : mySession.status === 'invite' ? (
                 <>
-                  <div className="mb-1 text-2xl">📨</div>
+                  <Mail size={26} strokeWidth={2.2} className="mx-auto mb-1" aria-hidden="true" />
                   <p className="text-sm text-[var(--ui-text-soft)]">
                     <b className="text-[var(--ui-text)]">{mySession.hostName}</b> te convidou pra trocar — veja o pop-up.
                   </p>
                 </>
               ) : (
                 <>
-                  <div className="mb-1 text-2xl">🔄</div>
+                  <Repeat size={26} strokeWidth={2.2} className="mx-auto mb-1" aria-hidden="true" />
                   <p className="text-sm text-[var(--ui-text-soft)]">
                     Negociando com <b className="text-[var(--ui-text)]">{mySession.hostId === meId ? mySession.guestName : mySession.hostName}</b> — veja o pop-up.
                   </p>
@@ -245,7 +247,7 @@ export default function MarketTab() {
       >
         {confirmPlayer && (
           <div className="text-center">
-            <div className="text-3xl mb-1">🏪</div>
+            <Store size={32} strokeWidth={2.2} className="mx-auto mb-1" aria-hidden="true" />
             <p className="mb-1 text-sm text-[var(--ui-text-soft)]">
               Vender <b className="text-[var(--ui-text)]">{confirmPlayer.shortName}</b> pra banca por <b className="text-[var(--ui-brand-strong)]"><CoinIcon />{sellValue(confirmPlayer.rarity)}</b>?
             </p>
@@ -275,7 +277,7 @@ export default function MarketTab() {
       >
         {listPlayer && (
           <div className="text-center">
-            <div className="text-3xl mb-1">🤝</div>
+            <Handshake size={32} strokeWidth={2.2} className="mx-auto mb-1" aria-hidden="true" />
             <p className="mb-3 text-sm text-[var(--ui-text-soft)]">
               Anunciar <b className="text-[var(--ui-text)]">{listPlayer.shortName}</b> pros outros. Mínimo: <b className="text-[var(--ui-brand-strong)]"><CoinIcon />{marketMinPrice(listPlayer)}</b>.
             </p>

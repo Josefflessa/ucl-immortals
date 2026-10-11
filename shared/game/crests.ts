@@ -8,6 +8,8 @@ export interface CrestDef {
   id: string;
   name: string;
   url: string;
+  /** National federation crests stay in the catalogue for legacy display, but are not playable club picks. */
+  teamType?: 'club' | 'national-team';
   /** Some legacy crest files include an opaque square around the circular badge. */
   clipToCircle?: boolean;
 }
@@ -159,7 +161,7 @@ export const CREST_CATALOG: CrestGroup[] = [
   },
   {
     league: "Brasil 🇧🇷", crests: [
-      { id: "brazil", name: "Brasil", url: "https://upload.wikimedia.org/wikipedia/commons/9/99/Brazilian_Football_Confederation_logo.svg" },
+      { id: "brazil", name: "Brasil", url: "https://upload.wikimedia.org/wikipedia/commons/9/99/Brazilian_Football_Confederation_logo.svg", teamType: 'national-team' },
       { id: "flamengo", name: "Flamengo", url: "https://upload.wikimedia.org/wikipedia/commons/9/93/Flamengo-RJ_(BRA).png" },
       { id: "palmeiras", name: "Palmeiras", url: "https://upload.wikimedia.org/wikipedia/commons/1/10/Palmeiras_logo.svg" },
       { id: "sao-paulo", name: "São Paulo", url: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Brasao_do_Sao_Paulo_Futebol_Clube.svg" },
@@ -237,6 +239,12 @@ export const CRESTS_BY_ID: Record<string, CrestDef> = Object.fromEntries(
 );
 
 export const ALL_CRESTS: CrestDef[] = CREST_CATALOG.flatMap(g => g.crests);
+
+/** Club crests offered as team identities in a new game. National crests remain displayable for legacy data. */
+export const PLAYABLE_CRESTS: CrestDef[] = ALL_CRESTS.filter(crest => crest.teamType !== 'national-team');
+export const PLAYABLE_CREST_CATALOG: CrestGroup[] = CREST_CATALOG
+  .map(group => ({ ...group, crests: group.crests.filter(crest => crest.teamType !== 'national-team') }))
+  .filter(group => group.crests.length > 0);
 
 const normalizeClubName = (value: string): string => value
   .normalize('NFD')

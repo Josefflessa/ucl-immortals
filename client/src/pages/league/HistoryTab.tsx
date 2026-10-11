@@ -2,6 +2,8 @@ import Crest from '../../components/game/Crest';
 import { knockoutRoundLabel } from '@shared/game/gameEngine';
 import { Tab, TabList, Tabs } from '../../design-system';
 import type { LeagueHub } from './useLeagueHub';
+import { Eye, House, Lock, Plane, Search } from 'lucide-react';
+import { INLINE_ICON } from '../../components/game/inlineIcon';
 
 export default function HistoryTab({ hub }: { hub: LeagueHub }) {
   const {
@@ -66,7 +68,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                     {/* adversário + mando */}
                     <div className="flex-1 min-w-0">
                       <div className="text-[12px] font-bold uppercase tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                        {isHome ? '🏠 Em casa' : '✈️ Fora'}
+                        {isHome ? <><House {...INLINE_ICON} />Em casa</> : <><Plane {...INLINE_ICON} />Fora</>}
                       </div>
                       <div className="text-sm font-black truncate" style={{ color: '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>
                         {oppName}
@@ -81,7 +83,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                         <button onClick={() => openMatchDetails(result)}
                           className="h-7 min-h-0 px-2 py-0.5 rounded-md text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                           style={{ background: 'var(--ui-surface-2)', border: '1px solid var(--ui-line)', color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>
-                          🔍 Detalhes
+                          <Search {...INLINE_ICON} />Detalhes
                         </button>
                       )}
                     </div>
@@ -145,12 +147,12 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                                     <button onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
                                       className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                                       style={{ background: 'var(--ui-surface-2)', border: '1px solid var(--ui-line)', color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>
-                                      🔍 Detalhes
+                                      <Search {...INLINE_ICON} />Detalhes
                                     </button>
                                   )}
                                 </>
                               ) : roundHidden && fixture.played ? (
-                                <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#4A4A5A' }}>🔒</span>
+                                <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#4A4A5A' }}><Lock size="1em" strokeWidth={2.5} aria-label="Resultado oculto" className="inline-block" /></span>
                               ) : (
                                 <span className="text-xs font-bold text-gray-600" style={{ fontFamily: 'var(--font-game), sans-serif' }}>—</span>
                               )}
@@ -185,7 +187,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                               </div>
                               <div className="w-20 text-center">
                                 {koRoundHidden ? (
-                                  <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#4A4A5A' }}>🔒</span>
+                                  <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#4A4A5A' }}><Lock size="1em" strokeWidth={2.5} aria-label="Resultado oculto" className="inline-block" /></span>
                                 ) : tie.result ? (
                                   <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{tie.result.homeGoals} - {tie.result.awayGoals}</span>
                                 ) : l1 ? (
@@ -202,11 +204,11 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                             {!koRoundHidden && (l1 || l2 || tie.result) && (
                               <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
                                 {single ? (
-                                  tie.result?.playerStats && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(tie.result, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}>🔍 Detalhes</button>
+                                  tie.result?.playerStats && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(tie.result, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}><Search {...INLINE_ICON} />Detalhes</button>
                                 ) : (
                                   <>
-                                    {l1 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l1, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}>👁 Ida</button>}
-                                    {l2 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l2, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}>👁 Volta</button>}
+                                    {l1 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l1, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}><Eye {...INLINE_ICON} />Ida</button>}
+                                    {l2 && <button className={detBtn} style={detStyle} onClick={() => openMatchDetails(l2, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}><Eye {...INLINE_ICON} />Volta</button>}
                                   </>
                                 )}
                                 {tie.result?.winner && (

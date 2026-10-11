@@ -28,6 +28,7 @@ const FLUSH_INTERVAL_MS = 25;
 const QUEUEABLE_EVENTS = new Set(['create_room', 'join_room', 'sync_room']);
 const RETRYABLE_GAMEPLAY_EVENTS = new Set([
   'start_setup', 'submit_setup', 'draft_pick', 'draft_veto', 'submit_squad_review',
+  'sync_album_levels',
   'set_match_roles', 'set_match_plan', 'play_round', 'advance_round',
   'play_knockout_round', 'advance_knockout_round', 'restart_room', 'leave_room', 'close_room',
   'player_match_watched', 'shop_change_coach', 'upgrade_club_project', 'evolve_coach_prime',

@@ -4,9 +4,11 @@
 import { useEffect, useId, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { motion } from 'framer-motion';
 import { Player, Formation, POS_PT } from '@shared/game/gameData';
+import type { AlbumLevel } from '@shared/game/album';
 import { positionFit, ChemLink, ChemLinkType } from '@shared/game/gameEngine';
 import PlayerCard, { type PlayerCardStats } from './PlayerCard';
 import type { GameRole, RoleMetric } from './RolesSelector';
+import { CardIcon, InjuryIcon } from './StatusIcon';
 
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 const FIELD_CARD_WIDTH = 92;
@@ -49,6 +51,10 @@ export interface EmergencyGoalkeeperDisplay {
 interface FormationFieldProps {
   formation: Formation;
   players: (Player | undefined)[];
+  /** The account's own team: its cards show their album levels. */
+  showAlbumLevel?: boolean;
+  /** Album levels that belong to this specific team (used for opponent match views). */
+  albumLevels?: Partial<Record<string, AlbumLevel>>;
   showChemLines?: boolean;
   chemLinks?: ChemLink[];
   onPlayerClick?: (player: Player, posIndex: number) => void;
@@ -94,6 +100,8 @@ const POSITION_COLORS: Record<string, string> = {
 export default function FormationField({
   formation,
   players,
+  showAlbumLevel = false,
+  albumLevels,
   showChemLines = false,
   chemLinks,
   onPlayerClick,
@@ -519,7 +527,7 @@ export default function FormationField({
               )}
               <div style={{ opacity: sentOff ? 0.42 : 1, filter: sentOff ? 'grayscale(1)' : 'none' }}>
                 {player ? (
-                  <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} />
+                  <PlayerCard player={player} compact lite effectiveStats={effectiveStats[player.id]} albumLevel={albumLevels?.[player.id]} showAlbumLevel={showAlbumLevel} />
                 ) : (
                   <div
                     className="flex flex-col items-center justify-center rounded-xl"
@@ -575,9 +583,9 @@ export default function FormationField({
               {player && disc && (disc.red || disc.injury || disc.yellow > 0) && (
                 <span
                   className="absolute leading-none"
-                  style={{ top: -9, left: -9, fontSize: 11, whiteSpace: 'nowrap', zIndex: 5 }}
+                  style={{ top: -11, left: -11, fontSize: 17, whiteSpace: 'nowrap', zIndex: 5, display: 'flex', gap: 1, filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.6))' }}
                 >
-                  {disc.red ? '🟥' : disc.yellow > 1 ? '🟨🟨' : disc.yellow === 1 ? '🟨' : ''}{disc.injury ? '🩹' : ''}
+                  {disc.red ? <CardIcon color="red" /> : disc.yellow > 1 ? <CardIcon color="yellow" count={2} /> : disc.yellow === 1 ? <CardIcon color="yellow" /> : null}{disc.injury ? <InjuryIcon /> : null}
                 </span>
               )}
               {ratingMode && isEmergencyGoalkeeperSlot && player && (

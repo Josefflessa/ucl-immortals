@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, Search, SlidersHorizontal, Users, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import PlayerCard from '../components/game/PlayerCard';
 import AccountTabBar from '../components/account/AccountTabBar';
+import AlbumCollection from '../components/album/AlbumCollection';
 import {
   getRarityColor,
   effectiveSecondaries,
@@ -182,7 +183,7 @@ function PlayerDetail({
             this reserved space the button below sits under the card's
             visually-overflowing bottom edge. */}
         <div className="md:origin-top-left md:scale-[1.2] md:mb-16">
-          <PlayerCard player={player} lite />
+          <PlayerCard player={player} lite showAlbumLevel />
         </div>
         <button
           type="button"
@@ -287,9 +288,8 @@ function PlayerDetail({
   );
 }
 
-export default function AlbumPage() {
-  const { dispatch } = useGame();
-  const { account } = useAccount();
+/** The free card catalogue: every card, its filters and its sheet. */
+function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
   const viewportWidth = useViewportWidth();
   const [search, setSearch] = useState('');
   const [positionFilter, setPositionFilter] = useState('ALL');
@@ -424,7 +424,7 @@ export default function AlbumPage() {
           className="mx-auto rounded-[18px] p-1 outline-none transition-transform duration-150 ease-out hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
           aria-label={`Ver detalhes de ${player.shortName}, versão ${canonicalClubName(player.club)}`}
         >
-          <PlayerCard player={player} lite scale={albumCardScale} />
+          <PlayerCard player={player} lite scale={albumCardScale} showAlbumLevel />
         </button>
         <div className="mt-2 w-full min-w-0 text-center">
           <h3 className="truncate text-xs font-bold text-[var(--ui-text)]">{player.shortName}</h3>
@@ -439,39 +439,19 @@ export default function AlbumPage() {
   };
 
   return (
-    <AppShell>
-      <TopBar
-        right={!account ? (
-          <div className="absolute right-[var(--ui-gutter)] top-1/2 flex -translate-y-1/2 shrink-0">
-            <Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="px-3 text-xs sm:px-4">
-              <ArrowLeft size={15} aria-hidden="true" />
-              <span className="hidden sm:inline">VOLTAR AO MENU</span>
-              <span className="sm:hidden">VOLTAR</span>
-            </Button>
-          </div>
-        ) : undefined}
-      />
+    <>
+        {showIntro ? (
+          <>
+            <SectionHeader title="Álbum de jogadores" className="mb-5" />
 
-      <PageContainer wide className={cn('pb-10 pt-7 sm:pt-10', account && 'pb-28 sm:pb-28')}>
-        <SectionHeader
-          kicker="CATÁLOGO · CONSULTA LIVRE"
-          title="Álbum de jogadores"
-          description="Explore todas as cartas disponíveis, compare versões históricas e encontre o jogador ideal para o seu próximo elenco."
-          className="mb-6"
-          actions={
-            <div className="hidden items-center gap-2 text-xs text-[var(--ui-text-muted)] lg:flex">
-              <Users size={16} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
-              <span>Catálogo atualizado com as versões do jogo</span>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Metric label="Cartas" value={ALBUM_PLAYERS.length} detail="versões disponíveis" tone="brand" />
+              <Metric label="Jogadores" value={versionCounts.size} detail="identidades no catálogo" />
+              <Metric label="Clubes" value={allClubs.length} detail="representados" />
+              <Metric label="Países dos clubes" value={clubCountries.length} detail="na hierarquia" />
             </div>
-          }
-        />
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Metric label="Cartas" value={ALBUM_PLAYERS.length} detail="versões disponíveis" tone="brand" />
-          <Metric label="Jogadores" value={versionCounts.size} detail="identidades no catálogo" />
-          <Metric label="Clubes" value={allClubs.length} detail="representados" />
-          <Metric label="Países dos clubes" value={clubCountries.length} detail="na hierarquia" />
-        </div>
+          </>
+        ) : null}
 
         <Panel density="compact" className="mt-5">
           <PanelBody className="p-4 sm:p-5">
@@ -629,7 +609,6 @@ export default function AlbumPage() {
             </>
           )}
         </div>
-      </PageContainer>
 
       <GameModal
         open={selectedPlayer !== null}
@@ -651,8 +630,36 @@ export default function AlbumPage() {
         closeLabel="Fechar zoom"
         bodyClassName="flex items-center justify-center"
       >
-        {selectedPlayer ? <PlayerCard player={selectedPlayer} scale={1.5} /> : null}
+        {selectedPlayer ? <PlayerCard player={selectedPlayer} scale={1.5} showAlbumLevel /> : null}
       </GameModal>
+    </>
+  );
+}
+
+export default function AlbumPage() {
+  const { dispatch } = useGame();
+  const { account } = useAccount();
+
+  return (
+    <AppShell>
+      <TopBar
+        right={!account ? (
+          <div className="absolute right-[var(--ui-gutter)] top-1/2 flex -translate-y-1/2 shrink-0">
+            <Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="px-3 text-xs sm:px-4">
+              <ArrowLeft size={15} aria-hidden="true" />
+              <span className="hidden sm:inline">VOLTAR AO MENU</span>
+              <span className="sm:hidden">VOLTAR</span>
+            </Button>
+          </div>
+        ) : undefined}
+      />
+
+      {/* With an account: the same shell and spacing as the other account screens. */}
+      <PageContainer wide className={account ? 'space-y-5 py-5 pb-28 sm:py-8 sm:pb-28' : 'pb-10 pt-7 sm:pt-10'}>
+        {account
+          ? <AlbumCollection catalog={<CatalogBrowser showIntro={false} />} />
+          : <CatalogBrowser showIntro />}
+      </PageContainer>
       {account ? <AccountTabBar
         active={null}
         onNavigate={destination => {

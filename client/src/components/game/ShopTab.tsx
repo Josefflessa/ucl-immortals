@@ -15,6 +15,8 @@ import UniquePackOpening from './UniquePackOpening';
 import { Button, GameModal } from '../../design-system';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 import CoinIcon, { withCoins } from './CoinIcon';
+import { Armchair, Eraser, ShoppingCart, Star } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'scout' | 'playerPacks';
 const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
@@ -555,15 +557,15 @@ export default function ShopTab() {
                       <button type="button" onClick={() => { setTurbinarView('catalog'); setVariantPage(0); }} className="mb-3 text-xs font-bold" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}>ⓘ ver características especiais</button>
                       <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o jogador que vai receber a carta especial:</p>
                       <div className="space-y-3">
-                        {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
+                        {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: 'BANCO / RESERVAS', c: '#818CF8', bench: true, list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
-                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{g.t}</div>
+                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{'bench' in g && <Armchair {...INLINE_ICON} />}{g.t}</div>
                             <div className="flex flex-wrap gap-2">
                               {g.list.map(p => (
                                 <button key={p.id} onClick={() => { if (canAddVariant(p)) { setSelPlayerId(p.id); setVariantPage(0); } }} disabled={!canAddVariant(p)}
                                   className="disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-[1.05]"
-                                  title={!canAddVariant(p) ? 'Já atingiu o máximo de características' : (variantCount(p) === 1 ? '⭐ Única: pode receber a 2ª característica' : '')}>
-                                  <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite />
+                                  title={!canAddVariant(p) ? 'Já atingiu o máximo de características' : (variantCount(p) === 1 ? 'Única: pode receber a 2ª característica' : '')}>
+                                  <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite showAlbumLevel />
                                 </button>
                               ))}
                             </div>
@@ -576,7 +578,7 @@ export default function ShopTab() {
                     <div>
                       <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                         {variantCount(selPlayer) === 1
-                          ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> ⭐ (−{COSTS.turbinar} créditos):</>
+                          ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> <Star {...INLINE_ICON} fill="currentColor" />(−{COSTS.turbinar} créditos):</>
                           : <>Carta especial para <b style={{ color: 'var(--ui-brand)' }}>{selPlayer.shortName}</b> (−{COSTS.turbinar} créditos):</>}
                       </p>
                       <div className="space-y-2">
@@ -605,7 +607,7 @@ export default function ShopTab() {
                 {active === 'removeVariant' && (() => {
                   const groups = [
                     { t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11).filter(hasVariant) },
-                    { t: '🪑 BANCO / RESERVAS', c: '#818CF8', list: team.players.slice(11).filter(hasVariant) },
+                    { t: 'BANCO / RESERVAS', c: '#818CF8', bench: true, list: team.players.slice(11).filter(hasVariant) },
                   ];
                   if (groups.every(g => g.list.length === 0)) {
                     return <p className="text-xs" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Nenhum jogador tem característica pra remover.</p>;
@@ -618,13 +620,13 @@ export default function ShopTab() {
                       <div className="space-y-3">
                         {groups.map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
-                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{g.t}</div>
+                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{'bench' in g && <Armchair {...INLINE_ICON} />}{g.t}</div>
                             <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
                               {g.list.map(p => {
                                 const vs = getCardVariants(p);
                                 return (
                                   <div key={p.id} className="flex flex-col items-center gap-1.5">
-                                    <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite />
+                                    <PlayerCard player={p} effectiveStats={ownStats[p.id]} compact lite showAlbumLevel />
                                     <div className="flex flex-wrap justify-center gap-1" style={{ maxWidth: 120 }}>
                                       {vs.map(v => {
                                         const vc = v.color === '#FFFFFF' ? '#E5E7EB' : v.color;
@@ -633,7 +635,7 @@ export default function ShopTab() {
                                             className="text-[12px] font-black px-2 py-0.5 rounded-full transition-transform hover:scale-[1.08] active:scale-95"
                                             title={`Remover ${v.label}`}
                                             style={{ background: `${vc}22`, color: vc, border: `1px solid ${vc}55`, fontFamily: 'var(--font-game), sans-serif' }}>
-                                            <span className="inline-flex items-center gap-1">🧹 <TraitIcon trait={v.key} fallback={v.icon} size={24} /> {v.label}</span>
+                                            <span className="inline-flex items-center gap-1"><Eraser size="1.1em" strokeWidth={2.5} aria-hidden="true" /> <TraitIcon trait={v.key} fallback={v.icon} size={24} /> {v.label}</span>
                                           </button>
                                         );
                                       })}
@@ -663,7 +665,7 @@ export default function ShopTab() {
             className="max-w-sm border-[var(--ui-brand)]"
             bodyClassName="text-center"
           >
-              <div className="text-3xl mb-1">🛒</div>
+              <ShoppingCart size={32} strokeWidth={2.2} className="mx-auto mb-1" aria-hidden="true" />
               <h3 className="ui-modal__title mb-2">{confirmCfg.title}</h3>
               <p className="mb-2 text-sm text-[var(--ui-text-soft)]">{withCoins(confirmCfg.message)}</p>
               <p className="mb-4 text-xs text-[var(--ui-text-muted)]">Seu saldo: <CoinIcon />{points}</p>

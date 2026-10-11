@@ -2,6 +2,8 @@
 // alguém da sala propõe negociar, em qualquer aba que ele esteja.
 import { useGame } from '../../contexts/GameContext';
 import { Button, GameModal } from '../../design-system';
+import { Handshake, Repeat } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 
 export default function TradeInviteModal() {
   const { state, tradeAcceptInviteOnline, tradeLeaveOnline } = useGame();
@@ -17,7 +19,7 @@ export default function TradeInviteModal() {
       onOpenChange={() => {}}
       dismissible={false}
       size="default"
-      title={<span className="text-[#78c4d8]">🔄 Convite de troca</span>}
+      title={<span className="text-[#78c4d8]"><Repeat {...INLINE_ICON} />Convite de troca</span>}
       footer={
         <div className="flex gap-2">
           <Button intent="ghost" className="flex-1" onClick={() => tradeLeaveOnline(invite.id)}>
@@ -30,7 +32,7 @@ export default function TradeInviteModal() {
       }
     >
       <div className="text-center">
-        <div className="mb-1 text-3xl">🤝</div>
+        <Handshake size={32} strokeWidth={2.2} className="mx-auto mb-1" aria-hidden="true" />
         <p className="text-sm text-[var(--ui-text-soft)]">
           <b className="text-[var(--ui-text)]">{invite.hostName}</b> quer negociar uma troca com você.
         </p>

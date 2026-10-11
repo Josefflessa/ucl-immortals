@@ -23,11 +23,11 @@ const ARROWS: Record<number, { txt: string; color: string }> = {
 };
 
 const STATUS: Record<number, string> = {
-  1: 'Ligeiramente mais',
+  1: 'Um pouco mais',
   2: 'Mais',
   3: 'Muito mais',
   0: 'Estável',
-  [-1]: 'Ligeiramente menos',
+  [-1]: 'Um pouco menos',
   [-2]: 'Menos',
   [-3]: 'Muito menos',
 };

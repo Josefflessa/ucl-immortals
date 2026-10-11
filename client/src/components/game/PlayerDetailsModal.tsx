@@ -6,6 +6,7 @@ import PlayerCard, { cardTexture, UNIQUE_STYLE } from './PlayerCard';
 import PlayerSheet from './player-sheet/PlayerSheet';
 import { buildPlayerSheet } from './player-sheet/playerSheetModel';
 import { GameModal } from '../../design-system';
+import { Search } from 'lucide-react';
 
 interface Props {
   player: Player;
@@ -67,7 +68,7 @@ export default function PlayerDetailsModal({
           <button onClick={() => setZoomCard(true)} title="Ver card em tela cheia" aria-label="Ver card ampliado"
             className="flex h-9 w-9 items-center justify-center rounded-lg text-lg transition-colors hover:bg-white/10"
             style={{ border: '1px solid #2E2E42', color: '#C9C9D5' }}>
-            🔍
+            <Search size={18} strokeWidth={2.4} aria-hidden="true" />
           </button>
         )}
         footer={(
@@ -94,7 +95,7 @@ export default function PlayerDetailsModal({
 
       {zoomCard && (
         <GameModal open stacked onOpenChange={open => { if (!open) setZoomCard(false); }} title={<span className="sr-only">Visualização ampliada do card</span>} closeLabel="Fechar" bodyClassName="flex items-center justify-center">
-          <PlayerCard player={player} effectiveStats={model.eff} scale={1.5} />
+          <PlayerCard player={player} effectiveStats={model.eff} scale={1.5} albumLevel={team.albumLevels?.[player.id]} showAlbumLevel />
         </GameModal>
       )}
     </>

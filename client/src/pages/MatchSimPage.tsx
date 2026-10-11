@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shirt, Eye, Play, Pause, SkipForward } from 'lucide-react';
+import { Shirt, Eye, Play, Pause, SkipForward, Volume2, VolumeX, Maximize2, Swords, Hand, Flag, ChartColumn, Repeat, Target, Megaphone, Star } from 'lucide-react';
+import { INLINE_ICON } from '../components/game/inlineIcon';
+import { matchAudio, outcomeSound, type MatchSound } from '../audio/matchAudio';
 import { useGame } from '../contexts/GameContext';
 import {
   Team, MatchResult, MatchEvent, MatchStatsDelta, PlayerMatchStat,
@@ -8,14 +10,23 @@ import {
   getTeamEffectiveStats, teamAtKickoff,
 } from '@shared/game/gameEngine';
 import GoalCelebration, { GOAL_CELEBRATION_FADE_MS, GOAL_CELEBRATION_MS, type GoalMoment } from '../components/game/match/GoalCelebration';
-import {
-  selectApproach, buildUpDesc, dangerAttemptMsg, saveCelebMsg, missCelebMsg,
-  Approach,
-} from '@shared/game/matchNarrative';
+import { leadLine, leadSteps, narrateDanger } from '@shared/game/dangerNarration';
+import { forcedPlayFor } from './dev/forcedPlay';
+import { stageLengthMs, stageStartMs, shootoutMissKind, type Side } from '@shared/game/pitch';
+import LivePitch from '../components/game/pitch/LivePitch';
+import PitchErrorBoundary from '../components/game/pitch/PitchErrorBoundary';
+import { PitchDirector } from '../components/game/pitch/PitchDirector';
+import { buildPitchSides } from '../components/game/pitch/sides';
+import NarrationStrip from '../components/game/match/NarrationStrip';
+import ShootoutPanel from '../components/game/match/ShootoutPanel';
+import { useMatchFullscreen } from '../components/game/match/useMatchFullscreen';
+import FullscreenScoreboard from '../components/game/match/FullscreenScoreboard';
+import '../components/game/match/matchStage.css';
 import { preloadPlayerPhotos } from '../components/game/PlayerPortrait';
 import MatchFieldView from '../components/game/MatchFieldView';
 import Crest from '../components/game/Crest';
 import { AppShell, Button, GameModal } from '../design-system';
+import { CardIcon, InjuryIcon } from '../components/game/StatusIcon';
 
 // One in-game minute every 222ms (about 20s for 90 minutes).
 const TICK_MS = 222;
@@ -162,18 +173,29 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
   const [squadModal, setSquadModal] = useState<'mine' | 'opponent' | null>(null);
 
-  // Suspense-based Key Attack Danger state
+  // The danger currently on screen: three narration beats, timed by the runner below.
   const [dangerState, setDangerState] = useState<{
     stage: number;
     teamId: string;
-    attacker: string;
-    defender: string;
     type: string;
     message: string;
-    approach?: Approach;
-    buildUp?: string;
-    gkName?: string;
+    /** Stage-2 line (the attempt), shown when the build-up ends. */
+    attempt: string;
+    /**
+     * Stage-1 lines still to come, at their moment (ms into the danger): a long lead-in's
+     * lines along the way, then the decisive move's line as it starts.
+     */
+    cues: { at: number; message: string }[];
+    /** Who scored, so the pitch can set up the kick-off; null for a save or a miss. */
+    goalSide: Side | null;
+    /** The crowd's reaction when the outcome is revealed (stage 3), and which danger it is. */
+    sound: MatchSound;
+    id: number;
   } | null>(null);
+  // What the narration has said lately in this match (plays and lines), so it varies.
+  const recentNarrationRef = useRef<{ plays: string[]; lines: string[] }>({ plays: [], lines: [] });
+  // Time already spent in the current stage, so a pause resumes it instead of restarting it.
+  const stageClockRef = useRef({ stage: 0, consumed: 0, startedAt: 0 });
 
   const pendingReplayGoals = useRef<any>(null); // buffered goal events for replay danger sequence
 
@@ -202,31 +224,117 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     awayText: homeIsMine ? '#a5b4fc' : '#fde047',
   };
 
+  // The viewer's team always plays on the left, attacking to the right of the screen.
+  const leftTeam = homeIsMine ? homeTeam : awayTeam;
+  const rightTeam = homeIsMine ? awayTeam : homeTeam;
+  const pitchDirector = useMemo(
+    () => new PitchDirector(
+      buildPitchSides(leftTeam, rightTeam),
+      `${homeTeam.id}|${awayTeam.id}|${replayResult.homeGoals}-${replayResult.awayGoals}|${replayResult.events.length}`,
+    ),
+    [leftTeam, rightTeam, homeTeam.id, awayTeam.id, replayResult],
+  );
+  const pitchPlayers = useMemo(
+    () => new Map([
+      ...homeTeam.players.map(p => [statKey(homeTeam.id, p.id), p] as const),
+      ...awayTeam.players.map(p => [statKey(awayTeam.id, p.id), p] as const),
+    ]),
+    [homeTeam, awayTeam],
+  );
+  const sideOfTeamId = (teamId: string): Side => (teamId === leftTeam.id ? 'left' : 'right');
+  const leftMomentum = (homeMomentum: number) => (leftTeam.id === homeTeam.id ? homeMomentum : 100 - homeMomentum);
+  // The side whose chance is coming in the next few minutes keeps the ball and pushes up,
+  // so the play starts on the pitch where open play left it.
+  // The engine's recorded run of play for a minute (who attacks, and the momentum).
+  const engineFlowAt = (minute: number): { attacking: Side; momentumLeft: number } | null => {
+    const value = replayResult.flow?.[minute - 1];
+    if (value === undefined || value === 0) return null;
+    const homeAttacks = value > 0;
+    const homeMomentum = Math.abs(value) - 1;
+    const homeIsLeft = leftTeam.id === homeTeam.id;
+    return { attacking: homeAttacks === homeIsLeft ? 'left' : 'right', momentumLeft: leftMomentum(homeMomentum) };
+  };
+  const upcomingSide = (fromMinute: number): Side | null => {
+    const next = replayResult.events.find(e => e.minute > fromMinute && e.minute <= fromMinute + 5
+      && (e.type === 'goal' || e.type === 'save' || e.type === 'miss'));
+    if (!next) return null;
+    const side = sideOfTeamId(next.teamId);
+    return next.type === 'save' ? (side === 'left' ? 'right' : 'left') : side;
+  };
+
+  useEffect(() => { pitchDirector.setPaused(userPaused); }, [pitchDirector, userPaused]);
+
+  // Sound: the crowd and the kick-off whistle when the match opens, everything holding while
+  // paused, the final whistle at full time (or after the shootout), and the crowd's reaction
+  // to each danger the moment its outcome is revealed (with the ball, the line and the picture).
+  const muted = useSyncExternalStore(matchAudio.subscribe, matchAudio.isMuted);
+  const fullscreen = useMatchFullscreen<HTMLDivElement>();
+  useEffect(() => {
+    void matchAudio.startMatch();
+    return () => matchAudio.leave();
+  }, []);
+  useEffect(() => { if (userPaused) matchAudio.pause(); else matchAudio.resume(); }, [userPaused]);
+  const matchOver = isFinished || !!penaltyWinner;
+  useEffect(() => { if (matchOver) matchAudio.endMatch(); }, [matchOver]);
+  // Full screen ends with the match: a moment on the final card, then back to the summary.
+  const { isFull: isFullscreen, exit: exitFullscreen } = fullscreen;
+  useEffect(() => {
+    if (!matchOver || !isFullscreen) return;
+    const timer = setTimeout(exitFullscreen, 2500);
+    return () => clearTimeout(timer);
+  }, [matchOver, isFullscreen, exitFullscreen]);
+  const soundedDanger = useRef(-1);
+  useEffect(() => {
+    if (!dangerState || dangerState.stage !== 3 || soundedDanger.current === dangerState.id) return;
+    soundedDanger.current = dangerState.id;
+    matchAudio.play(dangerState.sound);
+  }, [dangerState]);
+
+  // Outside a danger the narration only reads what matters: the last danger's
+  // outcome, a card, an injury or a change of tactics, whichever came last. It stays
+  // until the next one, so nothing flickers and nothing contradicts the pitch.
+  const [lastReveal, setLastReveal] = useState<{ minute: number; text: string } | null>(null);
+  const radioLine = (() => {
+    const notable = [...events].reverse().find(e => e.type === 'yellow' || e.type === 'red' || e.type === 'injury' || e.type === 'tactic');
+    if (notable && (!lastReveal || notable.minute > lastReveal.minute)) return notable.description;
+    if (lastReveal) return lastReveal.text;
+    return 'Árbitro posiciona a bola. Arquibancadas cantam forte!';
+  })();
+
   const eventFeedRef = useRef<HTMLDivElement>(null);
 
-  // 4. Suspense / Danger sequence state runner: drives stages 1→2→3 of every shot
-  // (build-up → attempt → reveal). Stage 2 applies the buffered replay goal events.
+  // 4. Danger runner: build-up (lead-in, then the decisive move) → attempt → reveal. A pause
+  // keeps the time already spent in the stage, so the narration and the pitch resume together.
   useEffect(() => {
-    // Paused mid-chance: the sequence holds and resumes its current stage on Continuar.
     if (!dangerState || userPaused) return;
-
-    if (dangerState.stage === 1) {
-      const timer = setTimeout(() => {
-        setDangerState(prev => prev ? {
-          ...prev,
-          stage: 2,
-          // Stage 2 = the decisive ATTEMPT (he shoots/heads), building on the stage-1 build-up.
-          message: prev.approach
-            ? dangerAttemptMsg(prev.approach, prev.attacker, prev.defender, prev.gkName ?? prev.defender)
-            : `⚽ A bola viaja perigosamente em direção ao gol...!`,
-        } : null);
-      }, 1500);
-      return () => clearTimeout(timer);
+    const clock = stageClockRef.current;
+    if (clock.stage !== dangerState.stage) {
+      clock.stage = dangerState.stage;
+      clock.consumed = 0;
     }
+    clock.startedAt = performance.now();
+    pitchDirector.syncStage(dangerState.stage, clock.consumed);
+    // The stage ends when the pitch's own clock gets there (it is the reference: the ball
+    // reaches the goal exactly when the reveal is read out).
+    const played = pitchDirector.playTime();
+    // This play's own clock (an epic can have a longer lead-in and strike).
+    const timing = pitchDirector.getSnapshot().timing;
+    const stageEnd = stageStartMs(dangerState.stage, timing) + stageLengthMs(dangerState.stage, timing);
+    const remaining = played >= 0 ? Math.max(0, stageEnd - played) : Math.max(0, stageLengthMs(dangerState.stage, timing) - clock.consumed);
+    // Within the build-up, each line gives way to the next at its moment (the decisive move's
+    // as it starts).
+    const now = played >= 0 ? played : clock.consumed;
+    const cueTimers = dangerState.stage === 1
+      ? dangerState.cues.map(cue => setTimeout(() => setDangerState(prev => (prev && prev.stage === 1 ? { ...prev, message: cue.message, cues: prev.cues.filter(c => c !== cue) } : prev)), Math.max(0, cue.at - now)))
+      : [];
 
-    if (dangerState.stage === 2) {
-      const timer = setTimeout(() => {
-        // Replay mode: apply the buffered goal events from pendingReplayGoals
+    const timer = setTimeout(() => {
+      if (dangerState.stage === 1) {
+        setDangerState(prev => (prev ? { ...prev, stage: 2, message: prev.attempt } : null));
+        return;
+      }
+      if (dangerState.stage === 2) {
+        // Apply the buffered shot: score, events, goal overlay and momentum.
         if (pendingReplayGoals.current) {
           const rg = pendingReplayGoals.current;
           setHomeScore(s => s + rg.homeGoalDelta);
@@ -242,26 +350,27 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             setMomentumHistory(h => [...h, next]);
             return next;
           });
-          setDangerState(prev => prev ? { ...prev, stage: 3, message: rg.messageStage3 } : null);
+          setDangerState(prev => (prev ? { ...prev, stage: 3, message: rg.messageStage3 } : null));
           pendingReplayGoals.current = null;
           return;
         }
+        pitchDirector.endDanger(null);
         setDangerState(null);
         setIsPlaying(true);
-      }, 1500);
+        return;
+      }
+      pitchDirector.endDanger(dangerState.goalSide);
+      setDangerState(null);
+      pendingReplayGoals.current = null;
+      setIsPlaying(true); // Resume the replay clock
+    }, remaining);
 
-      return () => clearTimeout(timer);
-    }
-
-    if (dangerState.stage === 3) {
-      const timer = setTimeout(() => {
-        setDangerState(null);
-        pendingReplayGoals.current = null;
-        setIsPlaying(true); // Resume the replay clock
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [dangerState, userPaused]);
+    return () => {
+      clearTimeout(timer);
+      cueTimers.forEach(clearTimeout);
+      clock.consumed += performance.now() - clock.startedAt;
+    };
+  }, [dangerState, userPaused, pitchDirector]);
 
   // 4b. REPLAY clock — steps through the server's authoritative event timeline.
   // Reveals each event at its minute and rebuilds the score from goal events, so
@@ -282,6 +391,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
         // Regular / extra time finished.
         if (replayResult.penaltyWinner) {
           // Enter penalty mode and auto-play kicks one by one (kick-by-kick narration).
+          pitchDirector.startShootout();
           setPenaltyCommentary('⚡ DISPUTA DE PÊNALTIS! Máxima tensão...');
           setPenaltyMode(true);
           setPenaltyReplayIdx(0);
@@ -307,9 +417,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
         // overlay even opens. It's added to the feed only after the overlay finishes.
         const otherEvs = evs.filter(e => e.type !== 'goal' && e.type !== 'save' && e.type !== 'miss' && e.type !== 'penalty');
 
+        let delta = 0;
         if (otherEvs.length > 0) {
           setEvents(prev => [...prev, ...otherEvs]);
-          let delta = 0;
           for (const e of otherEvs) {
             const isHome = e.teamId === homeTeam.id;
             if (e.type === 'momentum') delta += isHome ? 6 : -6;
@@ -321,10 +431,36 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             return next;
           });
         }
+        const revealed = [...events, ...otherEvs];
+        pitchDirector.onMinute(nextMin, otherEvs, leftMomentum(Math.min(95, Math.max(5, momentum + delta))), {
+          left: tacticAtMinute(leftTeam, revealed, nextMin),
+          right: tacticAtMinute(rightTeam, revealed, nextMin),
+        }, upcomingSide(nextMin), engineFlowAt(nextMin));
 
         if (shotEvs.length > 0) {
           const decisive = shotEvs[shotEvs.length - 1];
           const isGoalOutcome = shotEvs.some(e => e.type === 'goal');
+          // The goal (if any) is the play we show; otherwise the minute's last shot.
+          const featured = isGoalOutcome ? [...shotEvs].reverse().find(e => e.type === 'goal')! : decisive;
+          const featuredIndex = replayResult.events.indexOf(featured);
+          const narration = narrateDanger({
+            event: featured,
+            eventIndex: featuredIndex,
+            homeTeam,
+            awayTeam,
+            fallbackGoalkeeperName: team => activeGoalkeeperForTeam(team, undefined, replayResult.playerStats).player?.shortName ?? team.name,
+            recent: recentNarrationRef.current,
+            force: forcedPlayFor(featured, isGoalOutcome ? 'goal' : decisive.type === 'save' ? 'save' : 'miss'),
+          });
+          // Remember it, so the next dangers vary (repeats get rarer, never impossible).
+          {
+            const kind = featured.play?.kind ?? 'through';
+            const memory = recentNarrationRef.current;
+            recentNarrationRef.current = {
+              plays: [...memory.plays, `${kind}/${narration.variant}`, `${kind}/${narration.finish}`].slice(-8),
+              lines: [...memory.lines, narration.buildUp, narration.attempt, narration.reveal].slice(-12),
+            };
+          }
           const isSaveOutcome = !isGoalOutcome && decisive.type === 'save';
           // For a save the event teamId is the keeper's (defending) side; the attacker
           // is on the other team. For goals/misses teamId is the attacking team.
@@ -338,24 +474,11 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           // old check `description.includes('Contra')` wrongly flagged "Contra-ataque"
           // goals — which DO have a scorer — as own goals. Use the structural signal.
           const isOwnGoal = isGoalOutcome && !decisive.playerId;
-          const ogName = isOwnGoal
-            ? (defTeam.players.find(p => p.id === decisive.opponentId)?.shortName ?? 'um zagueiro')
-            : '';
-          const attackerName = isOwnGoal
-            ? `Gol Contra (${ogName})`
-            : isSaveOutcome
-              ? (atkTeam.players.find(p => p.id === decisive.opponentId)?.shortName ?? 'Atacante')
-              : (atkTeam.players.find(p => p.id === decisive.playerId)?.shortName ?? 'Atacante');
-          const gkName = activeGoalkeeperForTeam(defTeam, undefined, replayResult.playerStats).player?.shortName ?? defTeam.name;
           const homeDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === homeTeam.id).length;
           const awayDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === awayTeam.id).length;
           const atkIsHome = atkId === homeTeam.id;
           const momentumShift = isGoalOutcome ? (atkIsHome ? 22 : -22) : isSaveOutcome ? (atkIsHome ? -8 : 8) : (atkIsHome ? -3 : 3);
-          const messageStage3 = isOwnGoal
-            ? `😱 GOL CONTRA de ${ogName} (${defTeam.name})! Ele desviou para a própria meta e o ${atkTeam.name.toUpperCase()} agradece!`
-            : isGoalOutcome
-              ? `🔥 GOOOOL! ${attackerName} balança as redes! ${atkTeam.name.toUpperCase()} MARCA!`
-              : isSaveOutcome ? saveCelebMsg(gkName, attackerName) : missCelebMsg(attackerName);
+          const messageStage3 = narration.reveal;
 
           // The goal moment: scorer (the defender on an own goal), assist and both
           // cards with the effective stats they have at this minute.
@@ -380,8 +503,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               teamId: atkTeam.id,
               minute: nextMin,
               scorer,
+              scorerTeamId: scorerTeam.id,
               scorerStats,
               assister,
+              assisterTeamId: assister ? atkTeam.id : undefined,
               assisterStats,
               ownGoal: isOwnGoal,
               scorerGoalCount: previousGoals + 1,
@@ -400,30 +525,38 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           };
 
           setIsPlaying(false);
-          const replayApproach = selectApproach(tacticAtMinute(atkTeam, [...events, ...otherEvs], nextMin));
-          const replayBuildUp = isOwnGoal
-            ? `😬 ${ogName} tenta cortar sob pressão na área do ${defTeam.name}, mas a bola desvia em direção ao próprio gol...`
-            : buildUpDesc(replayApproach, attackerName, gkName, gkName, atkTeam.name);
+          const lead = pitchDirector.startDanger(featured, featuredIndex, isGoalOutcome ? 'goal' : isSaveOutcome ? 'save' : 'miss', narration.finish, narration.variant);
+          const timing = pitchDirector.getSnapshot().timing;
+          setLastReveal({ minute: nextMin, text: narration.reveal });
+          const attackingTeam = narration.attackTeamId === homeTeam.id ? homeTeam : awayTeam;
+          const nameOf = (id?: string) => (id ? attackingTeam.players.find(p => p.id === id)?.shortName : undefined);
+          const firstLine = leadLine(lead, nameOf, attackingTeam.name, featured.play?.kind ?? 'through', featuredIndex, recentNarrationRef.current.lines);
+          recentNarrationRef.current = { ...recentNarrationRef.current, lines: [...recentNarrationRef.current.lines, firstLine].slice(-12) };
           setDangerState({
             stage: 1,
             teamId: atkId,
-            attacker: isOwnGoal ? ogName : attackerName,
-            defender: gkName,
             type: 'attack',
-            message: replayBuildUp, // stage 1 = build-up
-            approach: isOwnGoal ? undefined : replayApproach, // own goals skip the "attempt" beat
-            gkName,
+            message: firstLine,
+            cues: [...leadSteps(lead, nameOf, attackingTeam.name, featuredIndex).map(step => ({ at: step.at, message: step.line })), { at: timing.decisiveMs, message: narration.buildUp }],
+            attempt: narration.attempt,
+            goalSide: isGoalOutcome ? sideOfTeamId(narration.attackTeamId) : null,
+            sound: outcomeSound(isGoalOutcome ? 'goal' : isSaveOutcome ? 'save' : 'miss', narration.finish),
+            id: featuredIndex,
           });
         } else if (otherEvs.length === 0) {
           setMomentumHistory(h => [...h, momentum]);
         }
       } else {
+        pitchDirector.onMinute(nextMin, [], leftMomentum(momentum), {
+          left: tacticAtMinute(leftTeam, events, nextMin),
+          right: tacticAtMinute(rightTeam, events, nextMin),
+        }, upcomingSide(nextMin), engineFlowAt(nextMin));
         setMomentumHistory(h => [...h, momentum]);
       }
     }, TICK_MS);
 
     return () => clearTimeout(timer);
-  }, [replayResult, isPlaying, userPaused, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, isFinal, homeTeam, awayTeam, momentum, events, homeScore, awayScore]);
+  }, [replayResult, isPlaying, userPaused, isFinished, penaltyMode, goalAlert, dangerState, minute, isKnockout, isFinal, homeTeam, awayTeam, momentum, events, homeScore, awayScore, pitchDirector, leftTeam, rightTeam]);
 
   // Scroll live events feed to bottom automatically
   useEffect(() => {
@@ -468,6 +601,12 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
     // Phase 1 — build-up (suspense): the taker steps up, the keeper tries to read him.
     setPenaltyKickPending(kick.teamId);
+    const kickingTeam = isHome ? homeTeam : awayTeam;
+    const keepingTeam = isHome ? awayTeam : homeTeam;
+    pitchDirector.shootoutKick(kick, penaltyReplayIdx, {
+      takerId: kick.takerId ?? kickingTeam.players.find(p => p.shortName === kick.takerName)?.id,
+      gkId: kick.gkId ?? keepingTeam.players.find(p => p.shortName === kick.gkName)?.id,
+    });
     setPenaltyCommentary(`COBRANÇA ${num} · ${teamName.toUpperCase()}\n🎯 ${kick.takerName} ajeita a bola na marca... ${kick.gkName} dança na linha tentando intimidar.`);
 
     timers.push(setTimeout(() => {
@@ -476,7 +615,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       if (kick.isGoal) {
         desc = `⚽ GOOOOL! ${kick.takerName} desloca o goleiro e estufa a rede!`;
       } else {
-        desc = penaltyReplayIdx % 2 === 0
+        desc = shootoutMissKind(penaltyReplayIdx) === 'save'
           ? `🧤 PEGOU! ${kick.gkName} voa no canto e DEFENDE a cobrança de ${kick.takerName}!`
           : `❌ PRA FORA! ${kick.takerName} pesa a perna e manda por cima do travessão!`;
       }
@@ -494,9 +633,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     }, 1900));
 
     return () => timers.forEach(clearTimeout);
-  }, [penaltyMode, replayResult, penaltyReplayIdx, penaltyWinner, homeTeam, awayTeam, isKnockout]);
+  }, [penaltyMode, replayResult, penaltyReplayIdx, penaltyWinner, homeTeam, awayTeam, isKnockout, pitchDirector]);
 
   const handleSkip = () => {
+    pitchDirector.skipToEnd(Boolean(replayResult.penaltyWinner));
     // Jump straight to the authoritative final state.
     // If already in penalty replay mode, skip to final shootout result immediately.
     if (penaltyMode && penaltyReplayIdx >= 0 && replayResult.penaltyKicks) {
@@ -686,23 +826,22 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
   // Internal stat events keep the live panel exact but should never replace the
   // human-readable broadcast headline.
-  const latestEvent = [...events].reverse().find(event => event.type !== 'stat');
 
   // Helper to format events icons
   const getEventIcon = (type: MatchEvent['type']) => {
     switch (type) {
       case 'goal': return '⚽';
-      case 'duel': return '🤺';
-      case 'save': return '🧤';
-      case 'corner': return '🚩';
-      case 'stat': return '📊';
-      case 'sub': return '🔄';
-      case 'penalty': return '🎯';
+      case 'duel': return <Swords size="1.1em" strokeWidth={2.4} />;
+      case 'save': return <Hand size="1.1em" strokeWidth={2.4} />;
+      case 'corner': return <Flag size="1.1em" strokeWidth={2.4} />;
+      case 'stat': return <ChartColumn size="1.1em" strokeWidth={2.4} />;
+      case 'sub': return <Repeat size="1.1em" strokeWidth={2.4} />;
+      case 'penalty': return <Target size="1.1em" strokeWidth={2.4} />;
       case 'tactic': return '';
-      case 'yellow': return '🟨';
-      case 'red': return '🟥';
-      case 'injury': return '🩹';
-      default: return '📢';
+      case 'yellow': return <CardIcon color="yellow" size="1.35em" />;
+      case 'red': return <CardIcon color="red" size="1.35em" />;
+      case 'injury': return <InjuryIcon size="1.25em" />;
+      default: return <Megaphone size="1.1em" strokeWidth={2.4} />;
     }
   };
 
@@ -824,39 +963,39 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                       key={idx}
                       initial={{ opacity: 0, x: isPlayerEvent ? -14 : 14 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className="flex gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all border"
+                      className="feed-card flex gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all border"
                       style={{ background: bgColor, borderColor }}
                     >
                       {/* Coloured left accent bar */}
                       <div className="w-0.5 rounded-full flex-shrink-0 self-stretch" style={{ background: accentColor }} />
 
                       <span
-                        className="font-extrabold text-xs sm:text-sm tabular-nums flex-shrink-0 w-7 sm:w-8"
+                        className="feed-card__min font-extrabold text-xs sm:text-sm tabular-nums flex-shrink-0 w-7 sm:w-8"
                         style={{ fontFamily: 'var(--font-game), sans-serif', color: accentColor }}
                       >
                         {event.minute}'
                       </span>
 
                       {isTactic ? (
-                        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center">
+                        <span className="feed-card__crest flex h-9 w-9 flex-shrink-0 items-center justify-center">
                           <Crest crestId={eventTeam?.crestId} name={eventTeam?.name ?? event.description} size={38} />
                         </span>
                       ) : (
-                        <span className="text-sm sm:text-base flex-shrink-0">
+                        <span className="feed-card__icon text-sm sm:text-base flex-shrink-0">
                           {getEventIcon(event.type)}
                         </span>
                       )}
 
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`text-xs sm:text-sm leading-snug ${negative || isGoal ? 'font-black' : 'font-semibold'}`}
+                          className={`feed-card__text text-xs sm:text-sm leading-snug ${negative || isGoal ? 'font-black' : 'font-semibold'}`}
                           style={{ fontFamily: 'var(--font-game), sans-serif', color: descColor }}
                         >
                           {stripLeadingEmoji(event.description)}
                         </p>
                         {/* Team label badge */}
                         <span
-                          className="text-[12px] font-black tracking-widest uppercase mt-0.5 inline-block px-1.5 py-0.5 rounded"
+                          className="feed-card__tag text-[12px] font-black tracking-widest uppercase mt-0.5 inline-block px-1.5 py-0.5 rounded"
                           style={{
                             fontFamily: 'var(--font-game), sans-serif',
                             color: accentColor,
@@ -876,27 +1015,30 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             )
   ), [events, playerTeamId, homeTeam, awayTeam]);
 
+  const goalSplash = goalAlert && (
+    <GoalCelebration
+      key={`${goalAlert.minute}-${goalAlert.homeScore}-${goalAlert.awayScore}`}
+      goal={goalAlert}
+      homeTeam={homeTeam}
+      awayTeam={awayTeam}
+      localTeamId={playerTeamId}
+      mine={goalFavoursViewer(goalAlert.teamId)}
+      leaving={goalLeaving}
+      onSkip={broadcastMode ? undefined : dismissGoalAlert}
+    />
+  );
+
   return (
     <AppShell className="h-dvh flex flex-col relative overflow-hidden select-none">
-      
-      {/* ── 1. GOAL SPLASH SCREEN ── */}
-      {goalAlert && (
-        <GoalCelebration
-          key={`${goalAlert.minute}-${goalAlert.homeScore}-${goalAlert.awayScore}`}
-          goal={goalAlert}
-          homeTeam={homeTeam}
-          awayTeam={awayTeam}
-          mine={goalFavoursViewer(goalAlert.teamId)}
-          leaving={goalLeaving}
-          onSkip={broadcastMode ? undefined : dismissGoalAlert}
-        />
-      )}
+
+      {/* ── 1. GOAL SPLASH SCREEN (drawn inside the pitch's full screen while it is on) ── */}
+      {!fullscreen.isFull && goalSplash}
 
       {/* ── Spectator bar: watching someone else's tie → leave whenever you want ── */}
       {state.spectating && (
         <div className="ui-topbar flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 relative z-20">
           <span className="inline-flex items-center gap-1.5 text-[13px] font-bold tracking-wider" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
-            👁️ Assistindo como espectador
+            <Eye {...INLINE_ICON} />Assistindo como espectador
           </span>
           <Button
             type="button"
@@ -964,9 +1106,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           if (homeGoals.length === 0 && awayGoals.length === 0) return null;
           // One entry per scorer with all of their minutes ("Cristiano 6', 40', 85'").
           const byScorer = (goals: MatchEvent[], team: Team) => {
+            const defendingTeam = team.id === homeTeam.id ? awayTeam : homeTeam;
             const rows = new Map<string, number[]>();
             for (const g of goals) {
-              const ogName = g.opponentId ? [...homeTeam.players, ...awayTeam.players].find(p => p.id === g.opponentId)?.shortName : null;
+              const ogName = g.opponentId ? defendingTeam.players.find(p => p.id === g.opponentId)?.shortName : null;
               const scorer = g.playerId
                 ? team.players.find(p => p.id === g.playerId)?.shortName ?? '?'
                 : ogName ? `${ogName} (Contra)` : 'Gol Contra'; // sem playerId ⇒ gol contra (autor = opponentId)
@@ -1023,103 +1166,87 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       <div className="match-scroll flex-1 min-h-0 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden relative z-10">
         
         {/* LEFT COLUMN: live feed */}
-        <div className="lg:col-span-2 flex flex-col min-h-[360px] sm:min-h-[500px] lg:min-h-0 lg:h-full rounded-2xl overflow-hidden border flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
+        <div className="match-scroll lg:col-span-2 flex flex-col min-h-[360px] sm:min-h-[500px] lg:min-h-0 h-max lg:h-full rounded-2xl overflow-hidden lg:overflow-y-auto lg:overflow-x-hidden border flex-shrink-0" style={{ background: '#0b0b14', borderColor: '#171725' }}>
           
-          {/* Live broadcast commentary banner */}
-          <div className="p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: '#171725' }}>
-            <span className="text-[12px] sm:text-[12px] font-black tracking-widest uppercase mb-0.5" style={{ fontFamily: 'var(--font-game), sans-serif', color: isFinished ? 'var(--ui-text-soft)' : '#eab308' }}>
-              {isFinished ? 'FIM DE JOGO' : userPaused ? 'PAUSADO' : 'AO VIVO'}
-            </span>
-            {isFinished ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+          <div ref={fullscreen.ref} className={`match-stage${fullscreen.isFull ? ' match-stage--full' : ''}`}>
+          <div className="match-stage__pitch">
+          <PitchErrorBoundary>
+            <LivePitch
+              director={pitchDirector}
+              players={pitchPlayers}
+              colors={{ left: '#ffd700', right: '#6366f1' }}
+              teamNames={{ left: leftTeam.name.toUpperCase(), right: rightTeam.name.toUpperCase() }}
+              finalCard={isFinished || (penaltyMode && penaltyWinner) ? {
+                title: 'FIM DE JOGO',
+                score: `${homeTeam.name} ${homeScore} × ${awayScore} ${awayTeam.name}`,
+                line: penaltyWinner
+                  ? `${(penaltyWinner === homeTeam.id ? homeTeam.name : awayTeam.name).toUpperCase()} AVANÇA NOS PÊNALTIS (${penaltyHomeScore}–${penaltyAwayScore})`
+                  : homeScore === awayScore ? 'EMPATE' : `VITÓRIA DO ${(homeScore > awayScore ? homeTeam.name : awayTeam.name).toUpperCase()}`,
+              } : null} className="flex-shrink-0 border-b border-[#171725]" />
+          </PitchErrorBoundary>
+          {fullscreen.supported && !fullscreen.isFull && (
+            <button type="button" className="match-stage__enter" onClick={() => { void fullscreen.enter(); }} aria-label="Ver o campo em tela cheia" title="Tela cheia">
+              <Maximize2 size={16} />
+            </button>
+          )}
+          </div>
+
+          <div className="match-stage__side">
+          {fullscreen.isFull && (
+            <FullscreenScoreboard
+              home={{ name: homeTeam.name, crestId: homeTeam.crestId, goals: homeScore, penalties: penaltyMode ? penaltyHomeScore : undefined, mine: homeTeam.id === playerTeamId }}
+              away={{ name: awayTeam.name, crestId: awayTeam.crestId, goals: awayScore, penalties: penaltyMode ? penaltyAwayScore : undefined, mine: awayTeam.id === playerTeamId }}
+              clock={isFinished || (penaltyMode && penaltyWinner)
+                ? { label: 'FIM DE JOGO', state: 'done' }
+                : penaltyMode ? { label: 'PÊNALTIS', state: 'live' }
+                : { label: `${userPaused ? 'PAUSADO · ' : isKnockout && minute > 90 ? 'PRORROGAÇÃO · ' : ''}${minute}'`, state: userPaused ? 'paused' : 'live' }}
+              aggregate={legNumber === 2 && firstLeg ? `Agregado ${homeScore + firstLeg.home} × ${awayScore + firstLeg.away}` : undefined}
+              muted={muted}
+              onToggleMute={() => matchAudio.setMuted(!muted)}
+              onExit={fullscreen.exit}
+            />
+          )}
+
+          {penaltyMode ? (
+            <ShootoutPanel
+              homeTeam={homeTeam}
+              awayTeam={awayTeam}
+              penaltiesHome={penaltiesHome}
+              penaltiesAway={penaltiesAway}
+              homeScore={penaltyHomeScore}
+              awayScore={penaltyAwayScore}
+              pendingTeamId={penaltyKickPending}
+              commentary={penaltyCommentary}
+              winnerId={penaltyWinner}
+              onFinish={handleFinish}
+            />
+          ) : (
+            <NarrationStrip
+              minute={minute}
+              isFinished={isFinished}
+              userPaused={userPaused}
+              danger={dangerState ? { forMe: dangerState.teamId === myTeam.id, stage: dangerState.stage, message: dangerState.message } : null}
+              text={radioLine}
+              finishedContent={(
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 <span className="text-sm sm:text-base font-extrabold uppercase text-white">
                   {homeScore > awayScore ? `Vitória do ${homeTeam.name}` : awayScore > homeScore ? `Vitória do ${awayTeam.name}` : 'Empate'} · {homeScore} × {awayScore}
                 </span>
                 {manOfTheMatch && (
                   <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] sm:text-[13px] font-black" style={{ background: 'rgba(201,168,76,.14)', color: 'var(--ui-brand)', border: '1px solid rgba(201,168,76,.35)' }}>
-                    ⭐ MELHOR EM CAMPO: {manOfTheMatch.name.toUpperCase()} · {manOfTheMatch.rating.toFixed(1)}
+                    <Star {...INLINE_ICON} fill="currentColor" />MELHOR EM CAMPO: {manOfTheMatch.name.toUpperCase()} · {manOfTheMatch.rating.toFixed(1)}
                     <span className="font-bold text-[var(--ui-text-muted)]">({manOfTheMatch.team})</span>
                   </span>
                 )}
               </div>
-            ) : (
-            <div className="flex items-center gap-2 sm:gap-3">
-              <span className="text-sm sm:text-base font-bold text-yellow-500 tabular-nums min-w-[28px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                {minute}'
-              </span>
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={latestEvent ? latestEvent.description : 'start'}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="text-sm sm:text-base font-extrabold text-white leading-tight uppercase break-words"
-                  style={{ fontFamily: 'var(--font-game), sans-serif' }}
-                >
-                  {latestEvent ? latestEvent.description : 'Árbitro posiciona a bola. Arquibancadas cantam forte!'}
-                </motion.p>
-              </AnimatePresence>
-            </div>
-            )}
-          </div>
+              )}
+            />
+          )}
 
-          {/* Live Suspense Danger / Threat Meter Overlay */}
-          <AnimatePresence>
-            {dangerState && (() => {
-              // Colour-code the threat by side: GREEN = your team is attacking (your
-              // chance), RED = the opponent is attacking your goal (defend!).
-              const dangerForMe = dangerState.teamId === myTeam.id;
-              const accent = dangerForMe ? '#22C55E' : '#EF4444';
-              const label = dangerForMe ? '⚔️ CHANCE DO SEU TIME!' : '🛡️ PERIGO NO SEU GOL!';
-              const bar = dangerForMe
-                ? 'linear-gradient(90deg,#15803d,#4ade80,#22c55e)'
-                : 'linear-gradient(90deg,#a16207,#facc15,#ef4444)';
-              return (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="border-b p-2.5 sm:p-3.5 flex flex-col flex-shrink-0 relative"
-                style={{ background: `${accent}1a`, borderColor: `${accent}4d` }}
-              >
-                <div className="absolute inset-0 animate-pulse" style={{ background: `${accent}0d` }} />
-                <div className="flex items-center justify-between mb-1.5 z-10">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full animate-ping" style={{ background: accent }} />
-                    <span className="text-[12px] sm:text-xs font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: accent }}>
-                      {label}
-                    </span>
-                  </div>
-                  <span className="flex items-center gap-1" aria-label={`Lance ${dangerState.stage} de 3`}>
-                    {[1, 2, 3].map(step => (
-                      <span key={step} className="h-2 w-2 rounded-full transition-colors"
-                        style={{ background: step <= dangerState.stage ? accent : 'transparent', border: `1px solid ${accent}` }} />
-                    ))}
-                  </span>
-                </div>
-
-                {/* Threat bar — colour reflects who the chance favours */}
-                <div className="h-2 w-full rounded-full overflow-hidden mb-2 z-10" style={{ background: '#00000055' }}>
-                  <motion.div
-                    className="h-full"
-                    style={{ background: bar }}
-                    initial={{ width: '0%' }}
-                    animate={{ width: dangerState.stage === 1 ? '35%' : dangerState.stage === 2 ? '70%' : '100%' }}
-                    transition={{ duration: 0.8 }}
-                  />
-                </div>
-
-                <p className="text-xs sm:text-sm font-black text-white uppercase tracking-wide leading-tight z-10" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  {dangerState.message}
-                </p>
-              </motion.div>
-              );
-            })()}
-          </AnimatePresence>
-
-          <div className="px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#171725', background: '#08080f' }}>
+          <div className="match-stage__feedhead px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#171725', background: '#08080f' }}>
             <span className="text-[12px] sm:text-[12px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-              TRANSMISSÃO DE LANCES
+              <span className="match-stage__feedtitle-long">TRANSMISSÃO DE LANCES</span>
+              <span className="match-stage__feedtitle-short">LANCES</span>
             </span>
             {isFinished ? (
               <span className="text-[12px] font-black tracking-widest text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>ENCERRADA</span>
@@ -1134,10 +1261,13 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           {/* FIXED HEIGHT TIMELINE FEED */}
           <div
             ref={eventFeedRef}
-            className="match-scroll flex-1 min-h-0 basis-0 overflow-y-auto overflow-x-hidden p-3 sm:p-5 space-y-2.5 sm:space-y-3.5 scroll-smooth"
+            className="match-scroll match-stage__feed flex-1 min-h-[260px] lg:min-h-[280px] basis-0 overflow-y-auto overflow-x-hidden p-3 sm:p-5 space-y-2.5 sm:space-y-3.5 scroll-smooth"
             style={{ background: '#08080f' }}
           >
             {feedContent}
+          </div>
+          </div>
+          {fullscreen.isFull && goalSplash}
           </div>
         </div>
 
@@ -1264,108 +1394,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                       isFinal={isFinal}
                       isLosing={t.id === homeTeam.id ? homeScore < awayScore : awayScore < homeScore}
                       disableEntryAnimation
+              showAlbumLevel={t.id === playerTeamId}
                     />
                   );
                 })()}
-        </GameModal>
-      )}
-
-      {/* ── 5. PENALTY SHOOTOUT OVERLAY ── */}
-      {penaltyMode && (
-        <GameModal
-          open
-          onOpenChange={() => {}}
-          dismissible={false}
-          bodyClassName="!p-0"
-          className="!w-full !max-w-xl !rounded-3xl !overflow-hidden !border !border-[rgba(255,215,0,0.28)] ![background:linear-gradient(165deg,#12121f_0%,#0a0a14_100%)] ![box-shadow:0_0_60px_rgba(255,215,0,0.12)]"
-        >
-              {/* Header */}
-              <div className="px-6 py-4 text-center" style={{ background: 'linear-gradient(135deg,#1c1636,#0f0f1e)', borderBottom: '1px solid rgba(255,215,0,0.18)' }}>
-                <div className="inline-flex items-center gap-2 mb-1.5">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-[12px] sm:text-[13px] font-black tracking-[0.22em] text-red-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                    AO VIVO · DECISÃO POR PÊNALTIS
-                  </span>
-                </div>
-                <h2 className="text-3xl sm:text-4xl font-black tracking-wider" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#ffd700' }}>
-                  DISPUTA DE PÊNALTIS
-                </h2>
-              </div>
-
-              {/* Scoreboard */}
-              <div className="px-5 sm:px-6 py-5">
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
-                  {[{ team: homeTeam, pens: penaltiesHome }, null, { team: awayTeam, pens: penaltiesAway }].map((col, ci) => {
-                    if (!col) return (
-                      <div key="score" className="text-center px-1">
-                        <div className="text-4xl sm:text-5xl font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#fff' }}>
-                          {penaltyHomeScore}<span className="text-gray-600 mx-1.5 sm:mx-2">-</span>{penaltyAwayScore}
-                        </div>
-                        <div className="text-[12px] font-bold tracking-widest text-gray-500 mt-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>PLACAR</div>
-                      </div>
-                    );
-                    const shooting = penaltyKickPending === col.team.id;
-                    const slots = Math.max(5, col.pens.length + (shooting ? 1 : 0));
-                    return (
-                      <div key={ci} className="text-center rounded-2xl py-3 px-2 transition-all"
-                        style={{ background: shooting ? 'rgba(255,215,0,0.08)' : 'transparent', border: `1px solid ${shooting ? 'rgba(255,215,0,0.4)' : 'transparent'}`, boxShadow: shooting ? '0 0 18px rgba(255,215,0,0.15)' : 'none' }}>
-                        <h3 className="text-base sm:text-lg font-black truncate leading-tight" style={{ fontFamily: 'var(--font-display), sans-serif', color: shooting ? '#ffd700' : '#fff' }}>
-                          {col.team.name.toUpperCase()}
-                        </h3>
-                        <div className="h-3.5">
-                          {shooting && <div className="text-[12px] font-black tracking-widest text-yellow-500 animate-pulse" style={{ fontFamily: 'var(--font-game), sans-serif' }}>▼ COBRANDO</div>}
-                        </div>
-                        <div className="flex gap-1 justify-center mt-1.5 flex-wrap">
-                          {Array.from({ length: slots }).map((_, i) => {
-                            const v = col.pens[i];
-                            const isNext = shooting && i === col.pens.length;
-                            return (
-                              <div key={i} className={`w-3.5 h-3.5 rounded-full ${isNext ? 'animate-pulse' : ''}`} style={{
-                                background: v === true ? '#22c55e' : v === false ? '#ef4444' : '#141426',
-                                border: `1px solid ${isNext ? '#ffd700' : '#1f1f35'}`,
-                                boxShadow: isNext ? '0 0 8px rgba(255,215,0,0.6)' : 'none',
-                              }} />
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Live narrative */}
-              <div className="px-5 sm:px-6">
-                <div className="rounded-2xl px-4 py-4 min-h-[88px] flex items-center justify-center text-center" style={{ background: '#06060d', border: '1px solid #1a1a2c' }}>
-                  <p className="text-sm sm:text-base font-bold text-gray-100 uppercase whitespace-pre-line leading-relaxed" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                    {penaltyCommentary}
-                  </p>
-                </div>
-              </div>
-
-              {/* Action / winner */}
-              <div className="px-5 sm:px-6 pb-6 pt-4 text-center">
-                {penaltyWinner ? (
-                  <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                    <div className="text-2xl sm:text-3xl font-black text-yellow-500 mb-4 tracking-wider" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
-                      🏆 {penaltyWinner === homeTeam.id ? homeTeam.name.toUpperCase() : awayTeam.name.toUpperCase()} AVANÇA!
-                    </div>
-                    <Button
-                      type="button"
-                      intent="primary"
-                      size="large"
-                      onClick={handleFinish}
-                      className="px-8"
-                    >
-                      CONCLUIR →
-                    </Button>
-                  </motion.div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 text-sm font-bold text-yellow-500/70" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                    <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" /> A DISPUTA ESTÁ SENDO DECIDIDA...
-                  </div>
-                )}
-              </div>
         </GameModal>
       )}
 
@@ -1400,9 +1432,20 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
         </div>
         )}
 
-        {/* Skip & Conclude Match Actions */}
+        {/* Sound, Skip & Conclude Match Actions */}
         <div className="flex items-center gap-2 sm:gap-3 w-auto justify-center sm:justify-end">
-          {!isFinished && !penaltyMode && !broadcastMode && state.mode !== 'online' && (
+          <Button
+            type="button"
+            intent="ghost"
+            onClick={() => matchAudio.setMuted(!muted)}
+            aria-label={muted ? 'Ligar o som' : 'Desligar o som'}
+            aria-pressed={!muted}
+            title={muted ? 'Ligar o som' : 'Desligar o som'}
+            className="border border-[var(--ui-line-subtle)] px-3"
+          >
+            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </Button>
+          {!isFinished && !(penaltyMode && penaltyWinner) && !broadcastMode && state.mode !== 'online' && (
             <Button
               type="button"
               intent="ghost"
@@ -1413,7 +1456,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             </Button>
           )}
 
-          {isFinished && (
+          {(isFinished || (penaltyMode && penaltyWinner)) && (
             <Button
               type="button"
               intent="primary"

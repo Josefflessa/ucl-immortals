@@ -1,4 +1,5 @@
-import { UserPlus, AlertTriangle } from 'lucide-react';
+import { UserPlus, AlertTriangle, Ban, Pointer, RefreshCw } from 'lucide-react';
+import { INLINE_ICON } from '../../components/game/inlineIcon';
 import PlayerCard from '../../components/game/PlayerCard';
 import MatchDetailsModal from '../../components/game/MatchDetailsModal';
 import MatchCreditsModal from '../../components/game/MatchCreditsModal';
@@ -132,14 +133,14 @@ export default function HubModals({ hub }: { hub: LeagueHub }) {
             footer={
               <div className="flex w-full items-center justify-between">
                 <span className="text-[13px] hidden sm:inline" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                  👆 Toque em um card para contratar · {recruitmentSelectionsRemaining} escolha{recruitmentSelectionsRemaining === 1 ? '' : 's'} restante{recruitmentSelectionsRemaining === 1 ? '' : 's'}
+                  <Pointer {...INLINE_ICON} />Toque em um card para contratar · {recruitmentSelectionsRemaining} escolha{recruitmentSelectionsRemaining === 1 ? '' : 's'} restante{recruitmentSelectionsRemaining === 1 ? '' : 's'}
                 </span>
                 <div className="flex items-center gap-2 ml-auto">
                   {recruitmentRerollsRemaining > 0 && (
                     <Button intent="secondary" className="text-[#f472b6] border-[#f472b6]/40"
                       onClick={() => online ? rerollReinforcementOnline() : dispatch({ type: 'REROLL_REINFORCEMENT' })}
                     >
-                      🔄 Re-sortear opções · grátis
+                      <RefreshCw {...INLINE_ICON} />Re-sortear opções · grátis
                     </Button>
                   )}
                   <Button intent="ghost"
@@ -180,6 +181,7 @@ export default function HubModals({ hub }: { hub: LeagueHub }) {
           awayName={detailsMatch.awayName}
           isKnockout={detailsMatch.isKnockout}
           isFinal={detailsMatch.isFinal}
+          localTeamId={state.playerTeam?.id}
           onClose={() => setDetailsMatch(null)}
         />
       )}
@@ -230,7 +232,7 @@ export default function HubModals({ hub }: { hub: LeagueHub }) {
             </Button>
           }
         >
-              <div className="text-4xl mb-2">🚫</div>
+              <Ban size={36} strokeWidth={2.2} className="mx-auto mb-2 text-red-400" aria-hidden="true" />
               <div className="text-lg font-black tracking-widest" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FCA5A5' }}>ESCALAÇÃO INVÁLIDA</div>
               {lineupWarning.kind === 'reserve' ? (
                 <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'var(--font-game), sans-serif' }}>

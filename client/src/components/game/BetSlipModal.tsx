@@ -16,6 +16,8 @@ import {
   normalizeBuilderSelections,
 } from '@shared/game/bets';
 import { Button, GameModal } from '../../design-system';
+import { Target, Trash2 } from 'lucide-react';
+import { INLINE_ICON } from './inlineIcon';
 
 function Stepper({ label, value, set, max }: { label: string; value: number; set: (n: number) => void; max: number }) {
   return (
@@ -160,7 +162,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
       open
       onOpenChange={next => { if (!next) onClose(); }}
       size="wide"
-      title="🎯 Bilhete de aposta"
+      title={<><Target {...INLINE_ICON} />Bilhete de aposta</>}
       subtitle="Marque uma ou mais condições no mesmo bilhete. Todas as condições marcadas precisam acontecer."
       className="max-w-2xl max-h-[92dvh]"
       bodyClassName="ui-stack"
@@ -313,7 +315,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
               {existing ? 'ATUALIZAR BILHETE' : 'CONFIRMAR BILHETE'}
             </Button>
             {existing && onCancelBet && (
-              <button type="button" onClick={onCancelBet} aria-label="Cancelar aposta" className="ui-icon-btn h-[52px] min-h-[52px] text-[var(--ui-danger)]">🗑</button>
+              <button type="button" onClick={onCancelBet} aria-label="Cancelar aposta" className="ui-icon-btn h-[52px] min-h-[52px] text-[var(--ui-danger)]"><Trash2 size={20} strokeWidth={2.2} aria-hidden="true" /></button>
             )}
           </div>
     </GameModal>

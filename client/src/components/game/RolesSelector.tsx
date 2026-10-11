@@ -11,11 +11,10 @@
 //      "Especialista em Decisões"/"Frio na Final" (+10 each). (gameEngine.simulatePenalties)
 
 import { useState } from 'react';
-import { Info } from 'lucide-react';
+import { Info, Plus } from 'lucide-react';
 import { CAPTAIN_BOOST, captainBestStatFromStarters, type EffectiveStats } from '@shared/game/gameEngine';
 import type { Player } from '@shared/game/gameData';
 import PlayerPortrait from './PlayerPortrait';
-import { IconButton } from '../../design-system';
 
 type RoleStat = 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'composure';
 type EffectiveRoleStats = Pick<EffectiveStats, RoleStat>;
@@ -196,59 +195,65 @@ export default function RolesSelector({
           FUNÇÕES DE JOGO
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-1 sm:gap-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+      <div className="grid grid-cols-3 gap-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
         {roleCards.map(card => {
           const isActive = activeRole === card.role;
+          const infoOpen = infoRole === card.role;
           return (
             <div
               key={card.role}
-              className="group flex min-w-0 items-center overflow-hidden rounded-lg"
+              className="relative min-w-0 overflow-hidden rounded-xl transition-colors"
               style={{
-                background: isActive ? `${card.color}18` : '#14142A',
-                border: `1px solid ${isActive ? `${card.color}99` : '#26263A'}`,
+                background: isActive ? `linear-gradient(180deg, ${card.color}26, ${card.color}0d)` : 'linear-gradient(180deg, #17172d, #111122)',
+                border: `1px solid ${isActive ? `${card.color}aa` : infoOpen ? `${card.color}66` : '#26263A'}`,
+                boxShadow: isActive ? `0 0 0 1px ${card.color}33, 0 4px 14px ${card.color}22` : undefined,
               }}
             >
               <button
                 type="button"
                 onClick={() => onActivateRole(card.role)}
                 aria-pressed={isActive}
-                className="min-w-0 flex-1 px-1.5 py-2 text-left transition-colors group-hover:bg-white/10 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset sm:px-2.5 sm:py-2.5"
+                className="flex w-full min-w-0 flex-col items-center gap-1.5 px-1.5 pb-2.5 pt-3 text-center transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
                 style={{ color: card.color }}
                 title={`Escolher ${card.label.toLowerCase()} no campo`}
               >
-                <span className="flex min-w-0 items-center gap-0.5 whitespace-nowrap text-[12px] font-black uppercase tracking-[0.02em] sm:gap-1 sm:text-[13px] sm:tracking-[0.08em]">
-                  <RoleArt role={card.role} size={24} />
-                  <span>{card.label}</span>
-                </span>
-                <span className="mt-1 flex min-h-7 items-center gap-1.5 truncate text-[12px] font-bold" style={{ color: card.player ? '#FFF' : '#8A8A9A' }}>
-                  {card.player ? (
-                    <>
-                      <span className="h-7 w-6 shrink-0 overflow-hidden rounded bg-[#10101d]">
-                        <PlayerPortrait
-                          playerId={card.player.id}
-                          photoUrl={card.player.photoUrl}
-                          alt=""
-                          loading="lazy"
-                          className="h-full w-full object-cover"
-                          style={{ objectPosition: 'center top' }}
-                          fallback={<span className="flex h-full w-full items-center justify-center text-[12px]">⚽</span>}
-                        />
-                      </span>
-                      <span className="truncate">{card.player.shortName}</span>
-                    </>
-                  ) : 'Escolher'}
-                </span>
+                <RoleArt role={card.role} size={38} />
+                <span className="text-[12px] font-black uppercase tracking-[0.1em] sm:text-[13px]">{card.label}</span>
+                {card.player ? (
+                  <span className="flex w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-black/25 px-1.5 py-1">
+                    <span className="size-6 shrink-0 overflow-hidden rounded-full bg-[#10101d]" style={{ boxShadow: `0 0 0 1.5px ${card.color}88` }}>
+                      <PlayerPortrait
+                        playerId={card.player.id}
+                        photoUrl={card.player.photoUrl}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                        style={{ objectPosition: 'center top' }}
+                        fallback={<span className="flex h-full w-full items-center justify-center text-[12px]">⚽</span>}
+                      />
+                    </span>
+                    <span className="truncate text-[12px] font-bold text-white">{card.player.shortName}</span>
+                  </span>
+                ) : (
+                  <span
+                    className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed px-1.5 py-1 text-[12px] font-bold"
+                    style={{ borderColor: `${card.color}55`, color: '#A3A3B8' }}
+                  >
+                    <Plus size={13} strokeWidth={2.6} aria-hidden="true" />Escolher
+                  </span>
+                )}
               </button>
-              <IconButton
-                label={`O que significa ${card.label.toLowerCase()}`}
-                onClick={() => setInfoRole(current => current === card.role ? null : card.role)}
-                aria-expanded={infoRole === card.role}
+              <button
+                type="button"
+                aria-label={`O que significa ${card.label.toLowerCase()}`}
                 title={`O que significa ${card.label.toLowerCase()}`}
-                className="mr-0.5 size-8 shrink-0 rounded-full border-[var(--ui-line-strong)] bg-[var(--ui-surface-2)] p-0 text-[var(--ui-text-soft)] shadow-sm hover:border-[var(--ui-brand)] hover:text-[var(--ui-brand-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)] sm:mr-1 sm:size-10"
-                style={{ color: card.color, borderColor: `${card.color}66` }}
+                aria-expanded={infoOpen}
+                onClick={() => setInfoRole(current => current === card.role ? null : card.role)}
+                className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2"
+                style={{ color: infoOpen ? card.color : '#6E6E86' }}
               >
-                <Info size={19} className="size-4 sm:size-[19px]" aria-hidden="true" />
-              </IconButton>
+                <Info size={15} strokeWidth={2.4} aria-hidden="true" />
+              </button>
             </div>
           );
         })}
