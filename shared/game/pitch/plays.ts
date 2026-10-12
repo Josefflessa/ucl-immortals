@@ -85,8 +85,8 @@ const REBOUND_BALL_TRAVEL_MS = 500;
 const REBOUND_CONTROL_MS = 80;
 /** A close-range follow-up should not inherit the much longer first-shot flight. */
 const REBOUND_SECOND_SHOT_MS = 420;
-const REBOUND_REACTION_MS = 100;
-const REBOUND_CHASE_BUFFER_MS = 220;
+const REBOUND_REACTION_MS = 60;
+const REBOUND_CHASE_BUFFER_MS = 120;
 const REBOUND_RUN_TARGET: Point = { x: 97.8, y: 34 };
 const DOUBLE_SAVE_OUT_MS = 420;
 
