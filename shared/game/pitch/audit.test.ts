@@ -108,8 +108,8 @@ it.runIf(process.env.AUDIT)('auditoria completa dos lances', () => {
           peaks.lead.push(leadPeak); peaks.decisive.push(decisivePeak);
           const shotPeak = peakBallSpeed(d.timeline, d.timing.contactMs - 10, d.timing.arrivalMs - 20);
           peaks.shot.push(shotPeak);
-          // Its average pace to the target: a strike in slow motion reads as a replay (epics only).
-          { const a = P(frameAt(d.timing.contactMs), BALL_SLOT), b = P(frameAt(d.timing.arrivalMs), BALL_SLOT); const pace = dist(a, b) / ((d.timing.arrivalMs - d.timing.contactMs) / 1000); paces.push(pace); if (pace < 8 && !d.epic && !['rebound', 'blocked', 'deflect', 'panenka', 'chip'].includes(d.finish) && !(kind === 'blunder' && d.variant === 'header')) flag('chute em câmera lenta', tag + ' ' + pace.toFixed(1) + ' m/s'); }
+          // Epic finishes keep the same real strike pace; only their presentation is distinctive.
+          { const a = P(frameAt(d.timing.contactMs), BALL_SLOT), b = P(frameAt(d.timing.arrivalMs), BALL_SLOT); const pace = dist(a, b) / ((d.timing.arrivalMs - d.timing.contactMs) / 1000); paces.push(pace); if (pace < 8 && !['rebound', 'blocked', 'deflect', 'panenka', 'chip'].includes(d.finish) && !(kind === 'blunder' && d.variant === 'header')) flag('chute em câmera lenta', tag + ' ' + pace.toFixed(1) + ' m/s'); }
           // A strike leaves the foot at ~120 km/h at most.
           if (shotPeak > 36) flag('chute rápido demais', tag + ' ' + shotPeak.toFixed(0) + ' m/s');
           if (Math.max(leadPeak, decisivePeak) > MAX_PASS_SPEED * 1.08) flag('bola rápida demais antes do chute', `${tag} lead ${leadPeak.toFixed(0)} decisiva ${decisivePeak.toFixed(0)} m/s`);

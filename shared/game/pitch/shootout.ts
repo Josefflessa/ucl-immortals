@@ -66,7 +66,7 @@ export function buildShootoutKick(input: ShootoutKickInput): { timeline: Timelin
   b.key(BALL_SLOT, SHOOTOUT_CONTACT_MS, 94, 34, 0, EASE_LINEAR);
   // The keeper bounces on his line and only goes as the ball is struck.
   b.key(gk, 1600, 104.7, 34, 0, EASE_LINEAR);
-  beats.push({ t: SHOOTOUT_CONTACT_MS, kind: 'slowmo', x: 94, y: 34, flightMs: SHOOTOUT_BUILDUP_MS - SHOOTOUT_CONTACT_MS });
+  beats.push({ t: SHOOTOUT_CONTACT_MS, kind: 'strike', x: 94, y: 34, flightMs: SHOOTOUT_BUILDUP_MS - SHOOTOUT_CONTACT_MS });
   beats.push({ t: SHOOTOUT_BUILDUP_MS, kind: 'normal', x: 105, y: 34 });
 
   const left = rng() < 0.5;

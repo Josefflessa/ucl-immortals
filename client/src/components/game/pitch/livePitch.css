@@ -173,12 +173,6 @@
 /* Broadcast cut: dark for a moment while everyone is re-placed. */
 .live-pitch__cut { position: absolute; inset: 0; background: #05070a; pointer-events: none; animation: live-pitch-cut 440ms ease-in-out forwards; z-index: 6; }
 @keyframes live-pitch-cut { 0% { opacity: 0; } 45%, 55% { opacity: 1; } 100% { opacity: 0; } }
-/* Slow motion while the strike travels: a vignette and a touch of desaturation. */
-/* Cheap on phones: a fixed gradient whose opacity changes (no animated shadow, no filter on the pitch). */
-.live-pitch::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0, 0, 0, .06) 45%, rgba(0, 0, 0, .55) 100%); opacity: 0; transition: opacity 250ms ease; z-index: 5; }
-.live-pitch--slowmo::after { opacity: 1; }
-
-
 @keyframes live-pitch-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes live-pitch-pop-in { from { scale: .6; } to { scale: 1; } }
 @keyframes live-pitch-net { 0%, 100% { transform: scaleX(1); } 35% { transform: scaleX(1.9); } 65% { transform: scaleX(1.3); } }
@@ -400,6 +394,3 @@
 .live-pitch__face--aside { opacity: .9; }
 .live-pitch__face--aside .live-pitch__face-img { scale: .85; }
 @media (prefers-reduced-motion: reduce) { .live-pitch__face { transition: none; } }
-
-/* An epic play's slow motion: a deeper vignette with a touch of gold. */
-.live-pitch--epic::after { opacity: 1; background: radial-gradient(ellipse at center, rgba(245, 197, 66, .05) 35%, rgba(0, 0, 0, .1) 55%, rgba(0, 0, 0, .64) 100%); }

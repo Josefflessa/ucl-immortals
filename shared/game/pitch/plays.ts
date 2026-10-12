@@ -79,12 +79,33 @@ export function dangerTiming(leadMs = LEAD_MS, flightMs = STAGE_MS - 150, entryM
 /** A strike's average pace to its target, m/s, by how it is struck. */
 const STRIKE_SPEED: Record<PlayShot, number> = { header: 13, one_on_one: 17, normal: 21, first_time: 22, long_range: 25 };
 
-/**
- * How long the strike takes to reach its target: its distance at a real ball's pace, with
- * room for what happens on the way (a block, a deflection, a parry and the follow-up). An
- * epic plays a little slower, like a replay.
- */
-function strikeFlightMs(shot: Shot, finish: FinishStyle, epic: boolean): number {
+/** A parry travels about six metres into the box before the attacker can take it. */
+const REBOUND_BALL_TRAVEL_MS = 320;
+/** A quick, but still readable, touch to set the ball for the follow-up. */
+const REBOUND_CONTROL_MS = 160;
+/** A close-range follow-up should not inherit the much longer first-shot flight. */
+const REBOUND_SECOND_SHOT_MS = 420;
+const REBOUND_REACTION_MS = 100;
+const REBOUND_CHASE_BUFFER_MS = 220;
+const REBOUND_RUN_TARGET: Point = { x: 97.8, y: 34 };
+const DOUBLE_SAVE_OUT_MS = 420;
+
+interface ReboundRunner {
+  /** Last scripted position before he can commit to the loose ball. */
+  position: Point;
+  /** Time after contact until that position is reached. */
+  readyDelayMs: number;
+}
+
+/** The same sprint budget is used by timing and choreography. */
+function reboundRunnerArrivalMs(runner: ReboundRunner, target: Point): number {
+  return runner.readyDelayMs + REBOUND_REACTION_MS
+    + Math.hypot(target.x - runner.position.x, target.y - runner.position.y) / SPEED.sprint * 1000
+    + REBOUND_CHASE_BUFFER_MS;
+}
+
+/** How long the first strike needs to reach its target at a real ball's pace. */
+function shotTravelMs(shot: Shot, finish: FinishStyle): number {
   const goal = { x: 105, y: 34 };
   const dist = shot.via
     ? Math.hypot(shot.via.x - shot.x, shot.via.y - shot.y) + Math.hypot(goal.x - shot.via.x, goal.y - shot.via.y)
@@ -96,14 +117,26 @@ function strikeFlightMs(shot: Shot, finish: FinishStyle, epic: boolean): number 
   const after = finish === 'fumble' ? 400 : finish === 'postin' ? 160 : 0;
   // Spread at the shooter's feet, the keeper meets it half way.
   let flight = Math.max(floor, ((finish === 'spread' ? dist * 0.5 : dist) / speed) * 1000 + after);
-  // A rebound needs time for the keeper's parry, the runner to reach and settle the loose ball,
-  // then a second shot and its flight. Keep that whole sequence at real pace.
-  if (finish === 'rebound') flight = Math.max(flight + 1250, (flight + 650) / 0.7);
   // Blocked a few metres out (up to ~0.65 s), then deflected on out for a corner, slower.
   if (finish === 'blocked') flight = Math.max(flight, 650 + (Math.max(0, dist - 4) / 18) * 1000);
-  return Math.round(flight * (epic ? 1.5 : 1));
+  return Math.round(flight);
 }
-/** The most the decisive move is ever stretched: past it, a play reads as slow motion. */
+
+/**
+ * Time the whole goal rebound in separate physical phases. The keeper meets the first shot
+ * just before it reaches goal; the parry travels, the attacker sprints, controls and shoots.
+ */
+function strikeFlightMs(shot: Shot, finish: FinishStyle, runner?: ReboundRunner): number {
+  const flight = shotTravelMs(shot, finish);
+  if (finish === 'rebound') {
+    const firstSaveAt = Math.max(400, flight - 100);
+    const runnerArrival = reboundRunnerArrivalMs(runner ?? { position: { x: shot.x, y: shot.y }, readyDelayMs: 0 }, REBOUND_RUN_TARGET);
+    const receiveAt = Math.max(firstSaveAt + REBOUND_BALL_TRAVEL_MS, runnerArrival);
+    return Math.round(receiveAt + REBOUND_CONTROL_MS + REBOUND_SECOND_SHOT_MS);
+  }
+  return flight;
+}
+/** The most the decisive move is ever stretched: past it, a play reads as a slow buildup. */
 const MAX_DECISIVE_STRETCH = 2;
 /**
  * The most the decisive move is stretched for the attackers' runs. Many runs are meant to
@@ -130,7 +163,7 @@ export type DangerOutcome = 'goal' | 'save' | 'miss';
 export type CastRole = 'finisher' | 'creator' | 'defender' | 'goalkeeper';
 export interface CastEntry { slot: number; role: CastRole }
 /** 'flip': a bicycle kick (upside down in the air); 'dive': a diving header (flat, head first). */
-export type BeatKind = 'net' | 'save' | 'post' | 'block' | 'tackle' | 'lunge' | 'flip' | 'dive' | 'out' | 'cut' | 'slowmo' | 'normal';
+export type BeatKind = 'net' | 'save' | 'post' | 'block' | 'tackle' | 'lunge' | 'flip' | 'dive' | 'out' | 'cut' | 'strike' | 'normal';
 /**
  * A moment of the play. A sliding tackle or a lunge also names who makes it (`slot`), for how
  * long it shows (`ms`) and its line on the grass, from (`fx`, `fy`) to (`x`, `y`).
@@ -411,6 +444,15 @@ class Kit {
   /** A plain key at script time t (a gentle reposition, no speed check). */
   keyAt(slot: number, t: number, x: number, y: number): void {
     this.b.key(slot, this.real(t), x, y, 0, EASE_SMOOTH);
+  }
+
+  /** Replaces a scripted continuation after t while keeping the player's actual position. */
+  replaceFuture(slot: number, t: number): Point {
+    const real = this.real(t);
+    const p = this.b.at(slot, real);
+    this.b.dropAfter(slot, real);
+    this.b.key(slot, real, p.x, p.y, p.z, EASE_LINEAR);
+    return p;
   }
 
   /** Someone plays the ball at script time t without it being at his feet (a header, a strike, a save). */
@@ -2444,13 +2486,42 @@ function interceptor(k: Kit, c: Ctx, P: Point, t: number): number {
   return best;
 }
 
+/** Position and realistic recovery time for the attacker following a shot. */
+function reboundRunnerState(k: Kit, slot: number): ReboundRunner {
+  const contactReal = k.real(S_CONTACT);
+  let readyReal = contactReal + (k.jumped.has(slot) ? 180 : 0);
+  // A diving or bicycle finish needs time to complete its body animation before the recovery run.
+  for (const beat of k.beats) {
+    if (beat.slot === slot && (beat.kind === 'dive' || beat.kind === 'flip')) {
+      readyReal = Math.max(readyReal, beat.t + (beat.ms ?? 0));
+    }
+  }
+  const readyAt = Math.max(S_CONTACT, k.script(readyReal));
+  const position = k.at(slot, readyAt);
+  return { position, readyDelayMs: readyAt - S_CONTACT };
+}
+
+/** Sprints for a rebound at the first physically reachable moment, then waits in control. */
+function sprintToRebound(k: Kit, slot: number, target: Point, runner: ReboundRunner, receiveAt: number): Point {
+  const readyAt = S_CONTACT + runner.readyDelayMs;
+  const from = k.replaceFuture(slot, readyAt);
+  const departAt = readyAt + REBOUND_REACTION_MS;
+  if (departAt > readyAt) k.keyAt(slot, departAt, from.x, from.y);
+  const runMs = Math.hypot(target.x - from.x, target.y - from.y) / SPEED.sprint * 1000;
+  const arriveAt = departAt + runMs;
+  const runUntil = Math.min(receiveAt, arriveAt);
+  const reached = k.run(slot, runUntil, target.x, target.y, { speed: SPEED.sprint });
+  if (runUntil < receiveAt) k.keyAt(slot, receiveAt, reached.x, reached.y);
+  return reached;
+}
+
 /** Plays the strike and its outcome; returns the slot the ball touched on the way (or -1). */
-function finishShot(k: Kit, c: Ctx, s: Shot): number {
+function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
   const A = k.sArrival;
   const f = c.finish;
   k.ball(S_CONTACT, s.x, s.y, s.z);
   k.touch(c.kind === 'own_goal' ? c.defender : c.finisher, S_CONTACT);
-  k.beat(S_CONTACT, 'slowmo', s.x, s.y, A - S_CONTACT);
+  k.beat(S_CONTACT, 'strike', s.x, s.y, A - S_CONTACT);
   k.beat(A, 'normal', 105, 34);
   // Near or far corner, inside the posts.
   const nearPost = s.y < 34 ? GOAL_Y_MIN : GOAL_Y_MAX;
@@ -2579,31 +2650,33 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
       }
       case 'rebound': {
         // Parried into the six-yard box; the finisher follows in and scores while the keeper is down.
-        const flightMs = A - S_CONTACT;
-        const followUpDelay = 650;
-        const secondFlight = Math.max(600, Math.round(flightMs * 0.3));
-        const A1 = A - followUpDelay - secondFlight;
-        const T1 = { x: Math.min(104, set.x + 0.3), y: set.y + Math.max(-2.5, Math.min(2.5, goalY - set.y)) };
+        const firstFlight = shotTravelMs(s, c.finish);
+        const A1 = S_CONTACT + Math.max(400, Math.round(firstFlight - 100));
+        // The ball meets him on the shooter-facing side; his center stays goal-side of it.
+        const T1 = { x: Math.min(103.6, set.x + 0.3), y: set.y + Math.max(-2.5, Math.min(2.5, goalY - set.y)) };
+        const keeperAtSave = { x: T1.x + 0.85, y: T1.y };
         k.ball(A1, T1.x, T1.y, 0.6, EASE_LINEAR, shotArc);
         k.run(c.gk, A1 - 380, set.x, set.y, { speed: SPEED.jog });
-        k.run(c.gk, A1, T1.x, T1.y, { speed: SPEED.sprint, z: 0.5 });
+        k.run(c.gk, A1, keeperAtSave.x, keeperAtSave.y, { speed: SPEED.sprint, z: 0.5 });
         k.run(c.gk, A1 + 260, T1.x, T1.y, { speed: SPEED.jog }); // on the ground
         k.run(c.gk, A + 250, T1.x - 0.2, T1.y, { speed: SPEED.jog, z: 0.1 });
         k.beat(A1, 'save', T1.x, T1.y);
         k.touch(c.gk, A1);
-        // It drops where the finisher, following in, gets to.
+        // It drops ahead of the finisher while he sprints in during the first shot's flight.
         const R = { x: T1.x - 5.5, y: 34 + (T1.y - 34) * 0.3 };
-        const receiveAt = A1 + followUpDelay - 200;
-        const f = k.run(c.finisher, receiveAt + 50, R.x - 0.7, R.y, { speed: SPEED.sprint });
-        const receive = k.at(c.finisher, receiveAt);
-        k.ball(receiveAt, receive.x + FOOT, receive.y + 0.3, 0.2);
+        const target = { x: R.x - 0.7, y: R.y };
+        const looseAt = A1 + REBOUND_BALL_TRAVEL_MS;
+        const receiveAt = Math.max(looseAt, S_CONTACT + reboundRunnerArrivalMs(runner, REBOUND_RUN_TARGET));
+        k.ball(looseAt, R.x, R.y, 0.2, EASE_LINEAR);
+        const f = sprintToRebound(k, c.finisher, target, runner, receiveAt);
+        k.ball(receiveAt, f.x + FOOT, f.y + 0.3, 0.2);
         k.touch(c.finisher, receiveAt);
         // Give him a brief, visible touch to settle the rebound before striking it again.
-        const strikeAt = A1 + followUpDelay;
+        const strikeAt = receiveAt + REBOUND_CONTROL_MS;
         const follow = k.run(c.finisher, strikeAt, f.x + 0.35, f.y, { speed: SPEED.run });
         k.ball(strikeAt, follow.x + FOOT, follow.y + 0.3, 0.2);
         k.touch(c.finisher, strikeAt);
-        k.beat(strikeAt, 'slowmo', follow.x + FOOT, follow.y + 0.3, A - strikeAt);
+        k.beat(strikeAt, 'strike', follow.x + FOOT, follow.y + 0.3, A - strikeAt);
         end = { x: 105.4, y: T1.y < 34 ? GOAL_Y_MAX - 1.5 : GOAL_Y_MIN + 1.5, z: 0.4 };
         endArc = 0.3;
         dive = null;
@@ -2693,23 +2766,26 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
     // A save goes where the keeper can get to from his set position in the last 0.42 s.
     const reach = SPEED.sprint * 0.4;
     let T = {
-      x: Math.min(104.1, set.x + 0.3),
+      x: Math.min(103.6, set.x + 0.3),
       y: Math.min(GOAL_Y_MAX - 0.6, Math.max(GOAL_Y_MIN + 0.6, set.y + Math.max(-reach, Math.min(reach, goalY - set.y)))),
     };
     // Point blank: it hits him almost where he stands.
-    if (f === 'reflex') T = { x: Math.min(104.1, set.x + 0.2), y: set.y + Math.max(-0.7, Math.min(0.7, goalY - set.y)) };
+    if (f === 'reflex') T = { x: Math.min(103.6, set.x + 0.2), y: set.y + Math.max(-0.7, Math.min(0.7, goalY - set.y)) };
     // Out to meet him, spread wide, half way to the shooter.
     if (f === 'spread') {
       const u = 0.5;
       T = { x: Math.max(s.x + 2.5, s.x + (105 - s.x) * u), y: s.y + (goalY - s.y) * u };
-      k.run(c.gk, A - 220, T.x + 0.8, T.y, { speed: SPEED.sprint });
+      k.run(c.gk, A - 220, T.x + 0.85, T.y, { speed: SPEED.sprint });
     }
+    // Keep the keeper goal-side at contact so the ball cannot look like it was parried
+    // from between him and the goal. In the attack frame, increasing x points at the goal.
+    const keeperAtSave = { x: Math.min(104.65, T.x + 0.85), y: T.y };
     const z = f === 'tip' ? 2.2 : f === 'onehand' ? 1.9 : f === 'feet' || f === 'spread' ? 0.3 : f === 'catch' || f === 'reflex' ? 1.1 : 0.8;
     curveTo(T.x, T.y);
     k.ball(A, T.x, T.y, z, EASE_LINEAR, shotArc);
     // He holds his ground, then dives (or sticks out a leg) to meet it exactly as it arrives.
     if (f !== 'spread') k.run(c.gk, A - 420, set.x, set.y, { speed: SPEED.jog });
-    k.run(c.gk, A, T.x, T.y, { speed: SPEED.sprint, z: f === 'tip' || f === 'onehand' ? 0.9 : f === 'feet' ? 0.1 : f === 'spread' ? 0.2 : f === 'reflex' ? 0.15 : f === 'catch' ? 0.35 : 0.5 });
+    k.run(c.gk, A, keeperAtSave.x, keeperAtSave.y, { speed: SPEED.sprint, z: f === 'tip' || f === 'onehand' ? 0.9 : f === 'feet' ? 0.1 : f === 'spread' ? 0.2 : f === 'reflex' ? 0.15 : f === 'catch' ? 0.35 : 0.5 });
     const away = T.y < 34 ? -1 : 1;
     if (f === 'onehand') {
       // At full stretch, the top hand: round the post for a corner.
@@ -2745,29 +2821,29 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
       // Parried out in front; the finisher follows in and shoots again; the keeper, back up,
       // throws himself the other way and saves that too, out for a corner.
       const R = { x: T.x - 6, y: 34 + (T.y - 34) * 0.3 };
-      const start = k.at(c.finisher, A);
-      const chaseMs = Math.max(650, Math.ceil(Math.hypot(R.x - 0.7 - start.x, R.y - start.y) / SPEED.sprint * 1000) + 160);
-      const receiveAt = A + chaseMs;
-      const strikeAt = receiveAt + 250;
-      const secondFlight = 520;
+      const target = { x: R.x - 0.7, y: R.y };
+      const looseAt = A + REBOUND_BALL_TRAVEL_MS;
+      const receiveAt = Math.max(looseAt, S_CONTACT + reboundRunnerArrivalMs(runner, REBOUND_RUN_TARGET));
+      const strikeAt = receiveAt + REBOUND_CONTROL_MS;
+      const secondFlight = REBOUND_SECOND_SHOT_MS;
       const secondSaveAt = strikeAt + secondFlight;
-      const f = k.run(c.finisher, receiveAt, R.x - 0.7, R.y, { speed: SPEED.sprint });
-      const receive = k.at(c.finisher, receiveAt);
-      k.ball(receiveAt, receive.x + FOOT, receive.y + 0.3, 0.2);
+      k.ball(looseAt, R.x, R.y, 0.2, EASE_LINEAR);
+      const f = sprintToRebound(k, c.finisher, target, runner, receiveAt);
+      k.ball(receiveAt, f.x + FOOT, f.y + 0.3, 0.2);
       k.touch(c.finisher, receiveAt);
       const f2 = k.run(c.finisher, strikeAt, f.x + 0.35, f.y, { speed: SPEED.run });
       k.ball(strikeAt, f2.x + FOOT, f2.y + 0.3, 0.2);
       k.touch(c.finisher, strikeAt);
-      k.beat(strikeAt, 'slowmo', f2.x + FOOT, f2.y + 0.3, secondFlight);
+      k.beat(strikeAt, 'strike', f2.x + FOOT, f2.y + 0.3, secondFlight);
       const toward = T.y < 34 ? 1 : -1;
-      const T2 = { x: 104.1, y: Math.min(GOAL_Y_MAX - 0.8, Math.max(GOAL_Y_MIN + 0.8, T.y + toward * 5)) };
+      const T2 = { x: 103.6, y: Math.min(GOAL_Y_MAX - 0.8, Math.max(GOAL_Y_MIN + 0.8, T.y + toward * 5)) };
       k.ball(secondSaveAt, T2.x, T2.y, 0.5, EASE_LINEAR, 0.3);
       k.run(c.gk, A + 260, T.x - 0.2, T.y, { speed: SPEED.jog, z: 0.1 }); // down, then straight back up
-      k.run(c.gk, secondSaveAt, T2.x, T2.y, { speed: SPEED.sprint, z: 0.45 });
+      k.run(c.gk, secondSaveAt, T2.x + 0.85, T2.y, { speed: SPEED.sprint, z: 0.45 });
       k.beat(secondSaveAt, 'save', T2.x, T2.y);
       k.touch(c.gk, secondSaveAt);
       k.beat(secondSaveAt, 'normal', T2.x, T2.y);
-      const outAt = secondSaveAt + 460;
+      const outAt = secondSaveAt + DOUBLE_SAVE_OUT_MS;
       const outY = T2.y < 34 ? GOAL_Y_MIN - 6 : GOAL_Y_MAX + 6;
       k.ball(outAt, 107, outY, 0.3, EASE_OUT, 1);
       k.beat(outAt - 100, 'out', 105, outY);
@@ -2779,7 +2855,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
     } else {
       // Held: the keeper gathers it and gets up with the ball.
       k.ball(A + 300, T.x - 0.4, T.y, 0.6, EASE_OUT);
-      k.run(c.gk, A + 300, T.x - 0.4, T.y, { speed: SPEED.jog, ease: EASE_OUT });
+      k.run(c.gk, A + 300, T.x + 0.4, T.y, { speed: SPEED.jog, ease: EASE_OUT });
       k.run(c.gk, A + 1200, 101.5, 34 + (T.y - 34) * 0.4, { speed: SPEED.jog, ease: EASE_SMOOTH });
       k.ball(A + 1200, 101.5 - 0.6, 34 + (T.y - 34) * 0.4, 1.1);
     }
@@ -3898,10 +3974,14 @@ export function buildDangerTimeline(input: DangerInput): DangerTimeline {
   const celebration = { x: Math.min(100, hero.x - 1), y: Math.min(65, Math.max(3, hero.y + celebrationAway * 6)) };
   const celebrationMs = 300 + Math.ceil(Math.hypot(celebration.x - hero.x, celebration.y - hero.y) / (SPEED.run / 1.5) * 1000) + 250;
   const finishBeat = finish === 'barline' ? 450 : finish === 'rebound' || finish === 'double' || finish === 'posts' ? 250 : 0;
-  // A double save includes a real chase, a controlled follow-up touch, another strike and
-  // the second save. Budget the full sequence so playback never compresses it to fit.
+  // A double save includes the run during the first shot, the loose-ball travel, control,
+  // another strike and the second save. Budget only the part that remains after the first save.
+  const runnerDistance = Math.hypot(REBOUND_RUN_TARGET.x - shotOrigin.x, REBOUND_RUN_TARGET.y - shotOrigin.y);
+  const quickestFirstSaveMs = Math.max(400, Math.max(520, (shotDistance / STRIKE_SPEED.long_range) * 1000) - 100);
+  const runnerArrivalMs = REBOUND_REACTION_MS + runnerDistance / SPEED.sprint * 1000 + REBOUND_CHASE_BUFFER_MS;
   const doubleRecoveryMs = finish === 'double'
-    ? Math.max(650, Math.ceil(Math.max(0, shotDistance - 7.2) / SPEED.sprint * 1000) + 160) + 1500
+    ? Math.max(REBOUND_BALL_TRAVEL_MS, runnerArrivalMs - quickestFirstSaveMs)
+      + REBOUND_CONTROL_MS + REBOUND_SECOND_SHOT_MS + DOUBLE_SAVE_OUT_MS + 250
     : 0;
   const aftermathMs = outcome === 'goal'
     ? Math.max(STAGE_MS, celebrationMs)
@@ -3921,19 +4001,20 @@ export function buildDangerTimeline(input: DangerInput): DangerTimeline {
     const probe = assemble(scale, flightMs, false);
     tapePos = replayFrom;
     probed = scale;
-    flightMs = strikeFlightMs(probe.shot, finish, epic);
+    flightMs = strikeFlightMs(probe.shot, finish, probe.runner);
     if (scale >= MAX_DECISIVE_STRETCH) break;
     const need = decisiveStretch(probe.k, probe.timing, scale);
     if (need <= scale * 1.02) break;
     scale = Math.min(MAX_DECISIVE_STRETCH, need);
   }
   if (probed !== scale) {
-    flightMs = strikeFlightMs(assemble(scale, flightMs, false).shot, finish, epic);
+    const probe = assemble(scale, flightMs, false);
+    flightMs = strikeFlightMs(probe.shot, finish, probe.runner);
     tapePos = replayFrom;
   }
   return assemble(scale, flightMs, true).danger!;
 
-  function assemble(decisiveScale: number, flight: number, full: boolean): { k: Kit; timing: DangerTiming; shot: Shot; danger?: DangerTimeline } {
+  function assemble(decisiveScale: number, flight: number, full: boolean): { k: Kit; timing: DangerTiming; shot: Shot; runner: ReboundRunner; danger?: DangerTimeline } {
   const timing = dangerTiming(leadMs, flight, entryMs, aftermathMs, decisiveScale);
   const k = new Kit(start, rng, timing);
   const layout = lead.layout;
@@ -3972,9 +4053,10 @@ export function buildDangerTimeline(input: DangerInput): DangerTimeline {
 
   const shot = SCRIPTS[c.base](k, c);
   k.glueCarries();
-  const touched = finishShot(k, c, shot);
+  const runner = reboundRunnerState(k, c.finisher);
+  const touched = finishShot(k, c, shot, runner);
   k.strikeBurst(k.tm.contactMs);
-  if (!full) return { k, timing, shot };
+  if (!full) return { k, timing, shot, runner };
 
   // Featured with a portrait: only who really takes part.
   const own = kind === 'own_goal';
@@ -4035,6 +4117,6 @@ export function buildDangerTimeline(input: DangerInput): DangerTimeline {
     loserId: idOf(lead.actors.loser),
     ...(lead.steps ? { steps: lead.steps.map(s => ({ at: k.start + s.at, beatenId: s.beaten === undefined ? undefined : idOf(s.beaten) })) } : {}),
   };
-  return { k, timing, shot, danger: { timeline, cast, beats, focus, strikeFocus, attackSide, entry: input.entry, variant, finish, lead: leadIn, touches: k.touchLog(), timing, epic } };
+  return { k, timing, shot, runner, danger: { timeline, cast, beats, focus, strikeFocus, attackSide, entry: input.entry, variant, finish, lead: leadIn, touches: k.touchLog(), timing, epic } };
   }
 }

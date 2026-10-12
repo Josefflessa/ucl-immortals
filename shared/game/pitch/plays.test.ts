@@ -75,7 +75,8 @@ describe('roteiros de lance perigoso', () => {
               }
               before.set(out);
             }
-            expect(d.beats.some(b => b.kind === 'slowmo' && b.t === d.timing.contactMs)).toBe(true);
+            expect(d.beats.some(b => b.kind === 'strike' && b.t === d.timing.contactMs)).toBe(true);
+            expect(d.beats.some(b => (b.kind as string) === 'slowmo')).toBe(false);
             // The clock fits the play: passes and crosses at a real ball's pace, strikes ~120 km/h at most.
             expect(peakBallSpeed(d.timeline, FADE_ENTRY_MS + 40, d.timing.contactMs - 30), `${variant}/${finish}: pass`).toBeLessThanOrEqual(MAX_PASS_SPEED * 1.08);
             expect(peakBallSpeed(d.timeline, d.timing.contactMs - 10, d.timing.arrivalMs - 20), `${variant}/${finish}: strike`).toBeLessThanOrEqual(36);
@@ -95,6 +96,23 @@ describe('roteiros de lance perigoso', () => {
             const gkSlot = d.cast.find(c => c.role === 'goalkeeper')!.slot;
             const gk = toAttack(attackSide, out[gkSlot * 3], out[gkSlot * 3 + 1]);
             const label = `${variant}/${finish} seed ${seed}`;
+            for (const save of d.beats.filter(beat => beat.kind === 'save')) {
+              sampleTimeline(d.timeline, save.t, out);
+              const saveBall = toAttack(attackSide, out[BALL_SLOT * 3], out[BALL_SLOT * 3 + 1]);
+              const keeper = toAttack(attackSide, out[gkSlot * 3], out[gkSlot * 3 + 1]);
+              // At contact, the ball must still be on the shooter's side of the keeper.
+              expect(keeper.x - saveBall.x, `${label}: keeper must be goal-side at ${save.t} ms`).toBeGreaterThanOrEqual(0.65);
+              expect(keeper.x - saveBall.x, `${label}: keeper must stay within reach at ${save.t} ms`).toBeLessThanOrEqual(1.4);
+            }
+            if (finish === 'rebound' || finish === 'double') {
+              const firstSave = d.beats.find(beat => beat.kind === 'save')!;
+              sampleTimeline(d.timeline, firstSave.t, out);
+              const atContact = toAttack(attackSide, out[BALL_SLOT * 3], out[BALL_SLOT * 3 + 1]);
+              sampleTimeline(d.timeline, firstSave.t + 320, out);
+              const afterParry = toAttack(attackSide, out[BALL_SLOT * 3], out[BALL_SLOT * 3 + 1]);
+              // The loose ball moves out toward the shooter, away from the goal, immediately.
+              expect(afterParry.x, `${label}: rebound must leave the goal side`).toBeLessThan(atContact.x - 3.5);
+            }
             if (finish === 'post' || finish === 'bar' || finish === 'posts' || finish === 'barline') {
               expect(ball.x).toBeGreaterThan(104.5);
               const onPost = Math.min(Math.abs(ball.y - GOAL_Y_MIN), Math.abs(ball.y - GOAL_Y_MAX)) < 0.5;

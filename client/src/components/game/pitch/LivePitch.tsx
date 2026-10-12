@@ -196,8 +196,8 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
   if (snap.zone) lastZone.current = snap.zone;
 
 
-  // Beats: cut (fade), slow motion, net ripple, save and post flashes.
-  const [effects, setEffects] = useState({ cutId: 0, slowmo: false, strike: false, tackle: null as PitchBeat | null, lunge: null as PitchBeat | null, pose: null as PitchBeat | null });
+  // Beats: cut (fade), strike contact, net ripple, save and post flashes.
+  const [effects, setEffects] = useState({ cutId: 0, strike: false, tackle: null as PitchBeat | null, lunge: null as PitchBeat | null, pose: null as PitchBeat | null });
   // A sliding tackle: who is on the ground, until he gets up. A lunge: who darts in, briefly.
   const [downSlot, setDownSlot] = useState(-1);
   const [lungeSlot, setLungeSlot] = useState(-1);
@@ -249,8 +249,8 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
       const next = { ...prev };
       for (const b of fresh) {
         if (b.kind === 'cut') { next.cutId = b.id; next.strike = false; }
-        else if (b.kind === 'slowmo') { next.slowmo = true; next.strike = true; }
-        else if (b.kind === 'normal' || b.kind === 'save') { next.slowmo = false; next.strike = false; }
+        else if (b.kind === 'strike') next.strike = true;
+        else if (b.kind === 'normal' || b.kind === 'save') next.strike = false;
         else if (b.kind === 'tackle') next.tackle = b;
         else if (b.kind === 'lunge') next.lunge = b;
         else if (b.kind === 'flip' || b.kind === 'dive') next.pose = b;
@@ -259,7 +259,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
     });
   }, [snap.beats]);
   useEffect(() => {
-    setEffects(prev => (prev.slowmo || prev.strike ? { ...prev, slowmo: false, strike: false } : prev));
+    setEffects(prev => (prev.strike ? { ...prev, strike: false } : prev));
   }, [snap.mode, snap.cast]);
 
 
@@ -384,7 +384,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         if (b.id <= instantBeat.current) continue;
         instantBeat.current = b.id;
         // The strike burst and the save pulse fire below, where the ball is drawn on this frame.
-        if (b.kind === 'slowmo') {
+        if (b.kind === 'strike') {
           pendingKick = true;
           shotInFlight = true;
           strikeContactPending = true;
@@ -396,7 +396,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         else if (b.kind === 'normal' || b.kind === 'cut') { shotInFlight = false; strikeContactPending = false; }
         else if (b.kind === 'save') {
           // The first flight is over; a rebound is loose until another player controls it.
-          // A later slowmo beat starts a fresh strike (and a fresh contact anchor).
+          // A later strike beat starts a fresh shot (and a fresh contact anchor).
           shotInFlight = false;
           strikeContactPending = false;
           pendingFlash = true;
@@ -948,7 +948,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
   strikeRef.current = effects.strike ? snap.strikeFocus : null;
 
   return (
-    <div ref={frameRef} className={`live-pitch${effects.slowmo ? ' live-pitch--slowmo' : ''}${effects.slowmo && snap.epic ? ' live-pitch--epic' : ''}${radio ? ' live-pitch--radio' : ''} ${className ?? ''}`} role="img" aria-label="Campo ao vivo da partida">
+    <div ref={frameRef} className={`live-pitch${radio ? ' live-pitch--radio' : ''} ${className ?? ''}`} role="img" aria-label="Campo ao vivo da partida">
       <div ref={cameraRef} className="live-pitch__camera">
         <svg className="live-pitch__field" viewBox="-3 -2.5 111 73" preserveAspectRatio="none" overflow="visible" aria-hidden="true">
           <defs>

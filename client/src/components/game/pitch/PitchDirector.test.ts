@@ -43,7 +43,7 @@ describe('PitchDirector', () => {
     void SHOT_ARRIVAL_MS;
   });
 
-  it('o lance entra sem corte, tem câmera lenta e volta à zona do meio após o gol', () => {
+  it('o lance entra sem corte, mostra o chute em velocidade normal e volta à zona do meio após o gol', () => {
     const { director, advance } = setup();
     director.startDanger(goal, 3, 'goal');
     expect(director.getSnapshot().mode).toBe('danger');
@@ -51,7 +51,8 @@ describe('PitchDirector', () => {
     advance(director.getSnapshot().timing.arrivalMs + 200);
     const kinds = director.getSnapshot().beats.map(b => b.kind);
     expect(kinds).not.toContain('cut');
-    expect(kinds).toContain('slowmo');
+    expect(kinds).toContain('strike');
+    expect(kinds.map(kind => kind as string)).not.toContain('slowmo');
     expect(kinds).toContain('net');
     director.endDanger('left');
     expect(director.getSnapshot().mode).toBe('flow');
