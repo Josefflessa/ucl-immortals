@@ -119,7 +119,7 @@ function ChoiceOption({ choice, selectable, onPick }: { choice: EventChoiceState
  * club's challenges to unlock its Carta Única in its own Pacote Único.
  */
 export function ChoiceEventCard({ event, onChoose }: { event: GameEventState; onChoose: (choice: string) => Promise<void> }) {
-  const [expanded, setExpanded] = useState(event.status === 'active' && !event.chosenKey);
+  const [expanded, setExpanded] = useState(false);
   const [confirming, setConfirming] = useState<EventChoiceState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

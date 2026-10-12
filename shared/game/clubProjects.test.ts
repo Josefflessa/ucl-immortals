@@ -70,8 +70,8 @@ describe('estrutura dos Projetos do Clube', () => {
     expect(medicalInjuryDuration(5)).toBe(1);
     expect(medicalReturnBoost(1)).toBe(0);
     expect(medicalReturnBoost(3)).toBe(0);
-    expect(medicalReturnBoost(4)).toBe(5);
-    expect(medicalReturnBoost(5)).toBe(10);
+    expect(medicalReturnBoost(4)).toBe(4);
+    expect(medicalReturnBoost(5)).toBe(8);
   });
 
   it('calcula a progressão da Central de Palpites', () => {

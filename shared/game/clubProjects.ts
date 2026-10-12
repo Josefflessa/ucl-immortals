@@ -82,8 +82,8 @@ export function medicalInjuryDuration(level: number): number {
 
 export function medicalReturnBoost(level: number): number {
   const safeLevel = validLevel(level);
-  if (safeLevel >= 5) return 10;
-  if (safeLevel >= 4) return 5;
+  if (safeLevel >= 5) return 8;
+  if (safeLevel >= 4) return 4;
   return 0;
 }
 
@@ -185,8 +185,8 @@ export const CLUB_PROJECT_DEFINITIONS: readonly ClubProjectDefinition[] = [
       '1 uso gratuito de Fisioterapia por competição.',
       'O preço da Fisioterapia passa a ser 100 créditos; novas lesões duram 2 partidas.',
       'O preço da Fisioterapia passa a ser 50 créditos; novas lesões duram 1 partida.',
-      'Ao voltar de uma lesão, o jogador recebe +5 em todos os atributos. O bônus acumula.',
-      'Ao voltar de uma lesão, o jogador recebe +10 em todos os atributos. O bônus acumula.',
+      'Ao voltar de uma lesão, o jogador recebe +4 em todos os atributos. O bônus acumula.',
+      'Ao voltar de uma lesão, o jogador recebe +8 em todos os atributos. O bônus acumula.',
     ],
   },
   {
