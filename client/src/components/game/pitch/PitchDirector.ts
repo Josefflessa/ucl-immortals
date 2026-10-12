@@ -26,7 +26,7 @@ export interface PitchSnapshot {
   cast: CastEntry[];
   cue: (Cue & { id: number }) | null;
   tactic: (Cue & { id: number }) | null;
-  /** The latest beats (cut, slow motion, net, save…), newest last. */
+  /** The latest beats (cut, strike, net, save…), newest last. */
   beats: readonly PitchBeat[];
   /** Who plays the ball and when, in the current play (empty in the radio view). */
   touches: readonly Touch[];

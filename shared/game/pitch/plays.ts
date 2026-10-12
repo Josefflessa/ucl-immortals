@@ -79,10 +79,10 @@ export function dangerTiming(leadMs = LEAD_MS, flightMs = STAGE_MS - 150, entryM
 /** A strike's average pace to its target, m/s, by how it is struck. */
 const STRIKE_SPEED: Record<PlayShot, number> = { header: 13, one_on_one: 17, normal: 21, first_time: 22, long_range: 25 };
 
-/** A parry travels about six metres into the box before the attacker can take it. */
-const REBOUND_BALL_TRAVEL_MS = 320;
-/** A quick, but still readable, touch to set the ball for the follow-up. */
-const REBOUND_CONTROL_MS = 160;
+/** A parry kicks away from the keeper, then settles in the box for the attacker to chase. */
+const REBOUND_BALL_TRAVEL_MS = 500;
+/** The attacker takes one short touch into the follow-up strike, without stopping over the ball. */
+const REBOUND_CONTROL_MS = 80;
 /** A close-range follow-up should not inherit the much longer first-shot flight. */
 const REBOUND_SECOND_SHOT_MS = 420;
 const REBOUND_REACTION_MS = 100;
@@ -102,6 +102,27 @@ function reboundRunnerArrivalMs(runner: ReboundRunner, target: Point): number {
   return runner.readyDelayMs + REBOUND_REACTION_MS
     + Math.hypot(target.x - runner.position.x, target.y - runner.position.y) / SPEED.sprint * 1000
     + REBOUND_CHASE_BUFFER_MS;
+}
+
+/** The same save animation is used for a rebound goal and for the first half of a double save. */
+function parryIntoBox(k: Kit, at: number, contact: Point): { point: Point; landsAt: number } {
+  const side = contact.y < 34 ? -1 : 1;
+  const point = {
+    x: contact.x - 4.4,
+    // Send the ball diagonally into a side channel. That makes the keeper's touch read as a
+    // parry the attacker has to chase, instead of a straight pass to his feet.
+    y: Math.max(25, Math.min(43, contact.y + side * 2.2)),
+  };
+  const burstAt = at + 90;
+  const bounceAt = at + 220;
+  const burst = { x: contact.x - 1, y: contact.y + side * 0.9 };
+  const bounce = { x: contact.x - 2.8, y: contact.y + side * 1.8 };
+  const landsAt = at + REBOUND_BALL_TRAVEL_MS;
+  // Show the punch off the keeper, one short skip, then a slowing roll across the grass.
+  k.ball(burstAt, burst.x, burst.y, 1.1, EASE_LINEAR, 0.25);
+  k.ball(bounceAt, bounce.x, bounce.y, 0.5, EASE_OUT, 0.25);
+  k.ball(landsAt, point.x, point.y, 0.1, EASE_ROLL);
+  return { point, landsAt };
 }
 
 /** How long the first strike needs to reach its target at a real ball's pace. */
@@ -130,7 +151,7 @@ function strikeFlightMs(shot: Shot, finish: FinishStyle, runner?: ReboundRunner)
   const flight = shotTravelMs(shot, finish);
   if (finish === 'rebound') {
     const firstSaveAt = Math.max(400, flight - 100);
-    const runnerArrival = reboundRunnerArrivalMs(runner ?? { position: { x: shot.x, y: shot.y }, readyDelayMs: 0 }, REBOUND_RUN_TARGET);
+    const runnerArrival = reboundRunnerArrivalMs(runner ?? { position: { x: shot.x, y: shot.y }, readyDelayMs: 0 }, shot.reboundTarget ?? REBOUND_RUN_TARGET);
     const receiveAt = Math.max(firstSaveAt + REBOUND_BALL_TRAVEL_MS, runnerArrival);
     return Math.round(receiveAt + REBOUND_CONTROL_MS + REBOUND_SECOND_SHOT_MS);
   }
@@ -684,7 +705,7 @@ class Kit {
 
   /**
    * The strike at full speed (real time t): the ball leaves the foot fast, covering a
-   * fifth of its way in the first 150 ms, and only then floats on in slow motion.
+   * fifth of its way in the first 150 ms, then follows the authored flight at normal speed.
    */
   strikeBurst(t: number, share = 0.2, ms = 150): void {
     const next = this.ballTimes.filter(x => x > t + 1).sort((a, b) => a - b)[0];
@@ -815,6 +836,8 @@ interface Shot {
   /** Sideways bend of a curled shot, in metres, and its height half way. */
   curve?: number;
   curveZ?: number;
+  /** Derived by the save choreography so rebound timing follows the actual loose-ball spot. */
+  reboundTarget?: Point;
   /** Which corner it is struck at (near or far from the shooter's side). */
   aim?: 'near' | 'far';
   /** Where the keeper sets himself (off his line when one on one). */
@@ -2531,7 +2554,9 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
   // A penalty down the middle; one tucked right into the corner.
   const spotKick = c.base === 'penalty';
   const goalY = spotKick && c.variant === 'center' ? 34 + (k.rng() - 0.5) * 1.2 : post + inward * (spotKick && c.variant === 'corner' ? 1 : 1.3);
-  const arc = s.arc ?? (s.shot === 'header' ? 0.3 : s.shot === 'long_range' ? 1.1 : 0.5);
+  // A driven long shot should stay composed. Lobs (halfway, chips and authored variants)
+  // carry their own larger arc instead of every long-range strike dipping by default.
+  const arc = s.arc ?? (s.shot === 'header' ? 0.3 : s.shot === 'long_range' ? 0.45 : 0.5);
   const sprint = { speed: SPEED.sprint };
 
   // The keeper sets himself, facing the shot.
@@ -2600,6 +2625,18 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
   const curveTo = (x: number, y: number) => {
     if (touched >= 0) return;
     if (s.via) { k.ball(Math.round((from.t + A) / 2), s.via.x, s.via.y, s.via.z); return; }
+    if (c.kind === 'screamer' && c.variant === 'dipping') {
+      // The authored folha-seca rises over the first part of its flight and drops late,
+      // close to the keeper. Other long shots use the flatter default trajectory.
+      const progress = 0.68;
+      k.ball(
+        Math.round(from.t + (A - from.t) * progress),
+        s.x + (x - s.x) * progress,
+        s.y + (y - s.y) * progress,
+        4.1,
+      );
+      return;
+    }
     if (s.curve === undefined) return;
     k.ball((from.t + A) / 2, (from.x + x) / 2, (from.y + y) / 2 + s.curve, s.curveZ ?? 2.4);
   };
@@ -2614,7 +2651,9 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     let endArc = shotArc;
     switch (f) {
       case 'high':
-        end = { x: 105.4, y: post + inward * 1.9, z: 1.9 };
+        // The ground view projects height toward smaller y. Offset both targets so the
+        // airborne ball remains close to its chosen post in the rendered goalmouth.
+        end = { x: 105.4, y: post < 34 ? post + 1.9 : post + 0.25, z: 2.05 };
         dive = { t: A + 100, y: end.y - inward * 1.3, z: 0.95 };
         break;
       case 'chip':
@@ -2663,11 +2702,10 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
         k.beat(A1, 'save', T1.x, T1.y);
         k.touch(c.gk, A1);
         // It drops ahead of the finisher while he sprints in during the first shot's flight.
-        const R = { x: T1.x - 5.5, y: 34 + (T1.y - 34) * 0.3 };
-        const target = { x: R.x - 0.7, y: R.y };
-        const looseAt = A1 + REBOUND_BALL_TRAVEL_MS;
-        const receiveAt = Math.max(looseAt, S_CONTACT + reboundRunnerArrivalMs(runner, REBOUND_RUN_TARGET));
-        k.ball(looseAt, R.x, R.y, 0.2, EASE_LINEAR);
+        const parry = parryIntoBox(k, A1, T1);
+        const target = { x: parry.point.x - 0.7, y: parry.point.y };
+        s.reboundTarget = target;
+        const receiveAt = Math.max(parry.landsAt, S_CONTACT + reboundRunnerArrivalMs(runner, target));
         const f = sprintToRebound(k, c.finisher, target, runner, receiveAt);
         k.ball(receiveAt, f.x + FOOT, f.y + 0.3, 0.2);
         k.touch(c.finisher, receiveAt);
@@ -2771,6 +2809,13 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     };
     // Point blank: it hits him almost where he stands.
     if (f === 'reflex') T = { x: Math.min(103.6, set.x + 0.2), y: set.y + Math.max(-0.7, Math.min(0.7, goalY - set.y)) };
+    if (f === 'tip' || f === 'onehand') {
+      const post = goalY < 34 ? GOAL_Y_MIN : GOAL_Y_MAX;
+      T = {
+        x: Math.min(103.6, set.x + 0.3),
+        y: post < 34 ? post + 1.9 : post + 0.25,
+      };
+    }
     // Out to meet him, spread wide, half way to the shooter.
     if (f === 'spread') {
       const u = 0.5;
@@ -2820,14 +2865,13 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     } else if (f === 'double') {
       // Parried out in front; the finisher follows in and shoots again; the keeper, back up,
       // throws himself the other way and saves that too, out for a corner.
-      const R = { x: T.x - 6, y: 34 + (T.y - 34) * 0.3 };
-      const target = { x: R.x - 0.7, y: R.y };
-      const looseAt = A + REBOUND_BALL_TRAVEL_MS;
-      const receiveAt = Math.max(looseAt, S_CONTACT + reboundRunnerArrivalMs(runner, REBOUND_RUN_TARGET));
+      const parry = parryIntoBox(k, A, T);
+      const target = { x: parry.point.x - 0.7, y: parry.point.y };
+      s.reboundTarget = target;
+      const receiveAt = Math.max(parry.landsAt, S_CONTACT + reboundRunnerArrivalMs(runner, target));
       const strikeAt = receiveAt + REBOUND_CONTROL_MS;
       const secondFlight = REBOUND_SECOND_SHOT_MS;
       const secondSaveAt = strikeAt + secondFlight;
-      k.ball(looseAt, R.x, R.y, 0.2, EASE_LINEAR);
       const f = sprintToRebound(k, c.finisher, target, runner, receiveAt);
       k.ball(receiveAt, f.x + FOOT, f.y + 0.3, 0.2);
       k.touch(c.finisher, receiveAt);
