@@ -56,6 +56,16 @@ const PUSH_IN_SPRING = 8;
 /** How far (in metres) the camera may look past the drawing's ends, to frame a goal with grass behind it. */
 const CAMERA_SLACK_M = 10;
 
+/** Distance from the centre to a posed portrait's edge along a screen-space direction. */
+function faceSurfaceRadius(dx: number, dy: number, rx: number, ry: number, angle = 0): number {
+  const length = Math.hypot(dx, dy);
+  if (length < 0.001) return Math.min(rx, ry);
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  const ux = (dx * cos + dy * sin) / length;
+  const uy = (-dx * sin + dy * cos) / length;
+  return 1 / Math.sqrt((ux / rx) ** 2 + (uy / ry) ** 2);
+}
+
 
 const CHIP_TEXT: Record<Cue['kind'], string> = {
   foul: 'Falta', yellow: 'Cartão amarelo', red: 'Expulso', injury: 'Lesão',
@@ -240,7 +250,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
       for (const b of fresh) {
         if (b.kind === 'cut') { next.cutId = b.id; next.strike = false; }
         else if (b.kind === 'slowmo') { next.slowmo = true; next.strike = true; }
-        else if (b.kind === 'normal') next.slowmo = false;
+        else if (b.kind === 'normal' || b.kind === 'save') { next.slowmo = false; next.strike = false; }
         else if (b.kind === 'tackle') next.tackle = b;
         else if (b.kind === 'lunge') next.lunge = b;
         else if (b.kind === 'flip' || b.kind === 'dive') next.pose = b;
@@ -330,6 +340,10 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
     const lungeW = new Float32Array(BALL_SLOT);
     const flipW = new Float32Array(BALL_SLOT);
     const diveW = new Float32Array(BALL_SLOT);
+    const faceScaleX = new Float32Array(BALL_SLOT);
+    const faceScaleY = new Float32Array(BALL_SLOT);
+    const faceAngle = new Float32Array(BALL_SLOT);
+    const faceShiftY = new Float32Array(BALL_SLOT);
     for (let s = 0; s < BALL_SLOT; s++) facing[s * 2] = s < 11 ? 1 : -1;
     // The touch rhythm of a carry, and the spring that places the ball at the holder's feet.
     let stridePhase = 0;
@@ -380,7 +394,14 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
           strikeAt = time;
         }
         else if (b.kind === 'normal' || b.kind === 'cut') { shotInFlight = false; strikeContactPending = false; }
-        else if (b.kind === 'save' || b.kind === 'post' || b.kind === 'block') pendingFlash = true;
+        else if (b.kind === 'save') {
+          // The first flight is over; a rebound is loose until another player controls it.
+          // A later slowmo beat starts a fresh strike (and a fresh contact anchor).
+          shotInFlight = false;
+          strikeContactPending = false;
+          pendingFlash = true;
+        }
+        else if (b.kind === 'post' || b.kind === 'block') pendingFlash = true;
         else if ((b.kind === 'tackle' || b.kind === 'lunge') && b.slot !== undefined && b.fx !== undefined && b.fy !== undefined) {
           const lunge = b.kind === 'lunge';
           // A slide moves for its launch and glide (560 ms); a lunge for its dart and brake.
@@ -535,6 +556,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         const height = pos[s * 3 + 2];
         const vx = primed ? (x - prev[s * 2]) / dt : 0;
         const vy = primed ? (y - prev[s * 2 + 1]) / dt : 0;
+        let shapeX = 1, shapeY = 1, angle = 0, shiftY = 0;
         prev[s * 2] = x;
         prev[s * 2 + 1] = y;
         // A keeper in the air with lateral speed is diving: lean the body into it.
@@ -542,7 +564,11 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         if (keeperSlots.current.has(s) && height > 0.12) {
           const lean = Math.max(-75, Math.min(75, vy * 9));
           pose = ` rotate(${Math.abs(vy) > 1 ? lean : 0}deg) scaleY(1.12)`;
+          shapeY *= 1.12;
+          angle = Math.abs(vy) > 1 ? lean * Math.PI / 180 : 0;
         } else if (height > 0.05) {
+          shapeX *= 1 + height * 0.3;
+          shapeY *= 1 + height * 0.3;
           pose = ` scale(${1 + height * 0.3})`;
         }
         // Down on the grass after a slide, or stretching into a lunge (eased in and out over ~140 ms).
@@ -554,10 +580,27 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         flipW[s] += ((poseNow?.slot === s && poseNow.kind === 'flip' ? 1 : 0) - flipW[s]) * Math.min(1, dt / 0.12);
         diveW[s] += ((poseNow?.slot === s && poseNow.kind === 'dive' ? 1 : 0) - diveW[s]) * Math.min(1, dt / 0.1);
         if (flipW[s] > 0.01) pose += ` rotate(${(flipW[s] * 180).toFixed(1)}deg)`;
-        if (diveW[s] > 0.01) pose += ` scale(${(1 + 0.25 * diveW[s]).toFixed(3)},${(1 - 0.14 * diveW[s]).toFixed(3)})`;
+        if (diveW[s] > 0.01) {
+          shapeX *= 1 + 0.25 * diveW[s];
+          shapeY *= 1 - 0.14 * diveW[s];
+          pose += ` scale(${(1 + 0.25 * diveW[s]).toFixed(3)},${(1 - 0.14 * diveW[s]).toFixed(3)})`;
+        }
         // A slide should read as a low, stretched movement, not a portrait crushed flat.
         if (downW[s] > 0.01) pose += ` translateY(${(downW[s] * 11).toFixed(1)}%) scale(${(1 + 0.14 * downW[s]).toFixed(3)},${(1 - 0.16 * downW[s]).toFixed(3)})`;
         else if (lungeW[s] > 0.01) pose += ` scale(${(1 + 0.22 * lungeW[s]).toFixed(3)})`;
+        if (downW[s] > 0.01) {
+          shapeX *= 1 + 0.14 * downW[s];
+          shapeY *= 1 - 0.16 * downW[s];
+          shiftY = facePx * downW[s] * 0.11;
+        } else if (lungeW[s] > 0.01) {
+          // The frame-loop stretch composes with the CSS 1.1 scale on the portrait image.
+          shapeX *= (1 + 0.22 * lungeW[s]) * 1.1;
+          shapeY *= (1 + 0.22 * lungeW[s]) * 1.1;
+        }
+        faceScaleX[s] = shapeX;
+        faceScaleY[s] = shapeY;
+        faceAngle[s] = angle;
+        faceShiftY[s] = shiftY;
         const follow = 1 - Math.pow(1 - 0.25, dt * 60);
         velX[s] += (vx - velX[s]) * follow;
         velY[s] += (vy - velY[s]) * follow;
@@ -640,10 +683,22 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
           anchor.x /= alen; anchor.y /= alen;
         }
         fx = anchor.x; fy = anchor.y;
-        const radius = (off ? facePx : dotPx) / 2;
-        const reach = radius + ballPx * 0.45 + Math.max(0, touch) * pxPerM;
-        adjX = X(pos[holder * 3]) + (off?.x ?? 0) + fx * reach - X(pos[BALL_SLOT * 3]);
-        adjY = Y(pos[holder * 3 + 1]) + (off?.y ?? 0) + fy * reach - Y(pos[BALL_SLOT * 3 + 1]);
+        const holderX = X(pos[holder * 3]) + (off?.x ?? 0);
+        const playerLift = pos[holder * 3 + 2] * sy * z * 0.5;
+        const holderY = Y(pos[holder * 3 + 1]) + (off?.y ?? 0) - playerLift + faceShiftY[holder];
+        const holderSize = faceRefs.current.has(holder) ? facePx : dotPx;
+        const radius = faceSurfaceRadius(
+          fx,
+          fy,
+          holderSize * faceScaleX[holder] / 2,
+          holderSize * faceScaleY[holder] / 2,
+          faceAngle[holder],
+        );
+        const ballLift = pos[BALL_SLOT * 3 + 2] * sy * z * 0.5;
+        const ballRadius = ballPx * (1 + pos[BALL_SLOT * 3 + 2] * 0.12) / 2;
+        const reach = radius + ballRadius + Math.max(0, touch) * pxPerM;
+        adjX = holderX + fx * reach - X(pos[BALL_SLOT * 3]);
+        adjY = holderY + fy * reach + ballLift - Y(pos[BALL_SLOT * 3 + 1]);
       }
       // A header or a volley: a ball in the air reaching a featured player is drawn meeting
       // his portrait (its height lift compensated), drawn in as it arrives and released as it
@@ -671,17 +726,31 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
       if (toucher >= 0 && touchWeight > 0) {
         const off = faceOffsets.current.get(toucher);
         const px = X(pos[toucher * 3]) + (off?.x ?? 0);
-        const py = Y(pos[toucher * 3 + 1]) + (off?.y ?? 0);
+        const playerLift = pos[toucher * 3 + 2] * sy * z * 0.5;
+        const py = Y(pos[toucher * 3 + 1]) + (off?.y ?? 0) - playerLift + faceShiftY[toucher];
         const bxTrue = X(pos[BALL_SLOT * 3]);
         const byTrue = Y(pos[BALL_SLOT * 3 + 1]);
-        let dx = bxTrue - X(pos[toucher * 3]);
-        let dy = byTrue - Y(pos[toucher * 3 + 1]);
-        const dlen = Math.hypot(dx, dy) || 1;
+        const ballLift = pos[BALL_SLOT * 3 + 2] * sy * z * 0.5;
+        let dx = bxTrue - px;
+        let dy = byTrue - ballLift - py;
+        let dlen = Math.hypot(dx, dy);
+        if (dlen < 0.001) {
+          dx = facing[toucher * 2] * sx * z;
+          dy = facing[toucher * 2 + 1] * sy * z;
+          dlen = Math.hypot(dx, dy) || 1;
+        }
         dx /= dlen; dy /= dlen;
-        const reach = facePx / 2 + ballPx * 0.3;
-        const lift = pos[BALL_SLOT * 3 + 2] * sy * z * 0.5;
+        const toucherSize = faceRefs.current.has(toucher) ? facePx : dotPx;
+        const faceReach = faceSurfaceRadius(
+          dx,
+          dy,
+          toucherSize * faceScaleX[toucher] / 2,
+          toucherSize * faceScaleY[toucher] / 2,
+          faceAngle[toucher],
+        );
+        const reach = faceReach + ballPx * (1 + pos[BALL_SLOT * 3 + 2] * 0.12) / 2;
         adjX = (px + dx * reach - bxTrue) * touchWeight;
-        adjY = (py + dy * reach + lift - byTrue) * touchWeight;
+        adjY = (py + dy * reach + ballLift - byTrue) * touchWeight;
       }
       const springW = holder >= 0 || toucher >= 0 ? 24 : shotInFlight ? 34 : 16;
       // Who glows: the holder; or whoever just touched the ball (a one-touch pass, a header, a
@@ -715,19 +784,31 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
           const face = faceRefs.current.has(striker);
           const off = face ? faceOffsets.current.get(striker) : undefined;
           const playerX = X(pos[striker * 3]) + (off?.x ?? 0);
-          const playerY = Y(pos[striker * 3 + 1]) + (off?.y ?? 0);
+          const playerLift = pos[striker * 3 + 2] * sy * z * 0.5;
+          const playerY = Y(pos[striker * 3 + 1]) + (off?.y ?? 0) - playerLift + faceShiftY[striker];
           const ballX = X(pos[BALL_SLOT * 3]);
           const ballY = Y(pos[BALL_SLOT * 3 + 1]) - pos[BALL_SLOT * 3 + 2] * sy * z * 0.5;
-          let dx = ballX - playerX;
-          let dy = ballY - playerY;
+          // Keep the side the ball was visibly on while the player controlled or met it.
+          // The authored pitch point is often close to the marker's centre, so deriving the
+          // contact side from it alone can make the ball jump around the portrait on impact.
+          let dx = ballX + ballAdj.x - playerX;
+          let dy = ballY + ballAdj.y - playerY;
           let distance = Math.hypot(dx, dy);
-          if (distance < 0.001) {
+          if (distance < 1) {
             dx = facing[striker * 2] * sx * z;
             dy = facing[striker * 2 + 1] * sy * z;
             distance = Math.hypot(dx, dy) || 1;
           }
           const ballScale = 1 + pos[BALL_SLOT * 3 + 2] * 0.12;
-          const contactRadius = (face ? facePx : dotPx) / 2 + ballPx * ballScale / 2;
+          const strikerSize = face ? facePx : dotPx;
+          const surfaceRadius = faceSurfaceRadius(
+            dx,
+            dy,
+            strikerSize * faceScaleX[striker] / 2,
+            strikerSize * faceScaleY[striker] / 2,
+            faceAngle[striker],
+          );
+          const contactRadius = surfaceRadius + ballPx * ballScale / 2;
           const contactX = playerX + (dx / distance) * contactRadius;
           const contactY = playerY + (dy / distance) * contactRadius;
           // The ball's true contact point is authored in pitch metres, while the portrait is
