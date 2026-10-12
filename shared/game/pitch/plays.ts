@@ -17,7 +17,7 @@ import {
   type PitchSides, type Point, type Side,
 } from './geometry';
 import { BALL_SPEED, CUT_MS, CUT_SNAP_MS, MAX_PLAYER_SPEED, SPEED } from './motion';
-import { createPositionBuffer, EASE_LINEAR, EASE_OUT, EASE_ROLL, EASE_SMOOTH, mirrorBuffer, mirrorTimeline, TimelineBuilder, type Ease, type Key, type Timeline } from './timeline';
+import { createPositionBuffer, EASE_LINEAR, EASE_OUT, EASE_ROLL, EASE_SMOOTH, mirrorBuffer, mirrorTimeline, sampleTrack, TimelineBuilder, type Ease, type Key, type Timeline } from './timeline';
 
 /** The narration's stages 2 (the strike) and 3 (the outcome). */
 export const STAGE_MS = 1500;
@@ -89,15 +89,16 @@ function strikeFlightMs(shot: Shot, finish: FinishStyle, epic: boolean): number 
   const dist = shot.via
     ? Math.hypot(shot.via.x - shot.x, shot.via.y - shot.y) + Math.hypot(goal.x - shot.via.x, goal.y - shot.via.y)
     : Math.hypot(goal.x - shot.x, goal.y - shot.y);
-  const speed = finish === 'panenka' ? 10 : finish === 'chip' ? 12 : STRIKE_SPEED[shot.shot];
+  const speed = finish === 'panenka' ? 10 : finish === 'chip' ? 12 : finish === 'scuffed' ? 11 : STRIKE_SPEED[shot.shot];
   const floor = finish === 'blocked' ? 900 : finish === 'deflect' ? 800 : 520;
   // A fumble reaches the keeper 400 ms before it squirms over the line; a shot in off the
   // post hits it 160 ms before.
   const after = finish === 'fumble' ? 400 : finish === 'postin' ? 160 : 0;
-  let flight = Math.max(floor, (dist / speed) * 1000 + after);
-  // A rebound: the first flight to the keeper, the follow-up 360 ms later, then its own flight
-  // (at least 500 ms, or 30% of the whole).
-  if (finish === 'rebound') flight = Math.max(flight + 860, (flight + 360) / 0.7);
+  // Spread at the shooter's feet, the keeper meets it half way.
+  let flight = Math.max(floor, ((finish === 'spread' ? dist * 0.5 : dist) / speed) * 1000 + after);
+  // A rebound needs time for the keeper's parry, the runner to reach and settle the loose ball,
+  // then a second shot and its flight. Keep that whole sequence at real pace.
+  if (finish === 'rebound') flight = Math.max(flight + 1250, (flight + 650) / 0.7);
   // Blocked a few metres out (up to ~0.65 s), then deflected on out for a corner, slower.
   if (finish === 'blocked') flight = Math.max(flight, 650 + (Math.max(0, dist - 4) / 18) * 1000);
   return Math.round(flight * (epic ? 1.5 : 1));
@@ -205,9 +206,9 @@ const FOOT = 0.8;
 const MAX_ZOOM = 2.2;
 
 /** Frames everything the ball and the cast do in the decisive part of the play. */
-export function viewOfPlay(timeline: Timeline, slots: number[], timing: DangerTiming = DEFAULT_TIMING): PitchView {
+export function viewOfPlay(timeline: Timeline, slots: number[], timing: DangerTiming = DEFAULT_TIMING, includeAftermath = false): PitchView {
   const VIEW_FROM_MS = timing.decisiveMs + 150;
-  const VIEW_TO_MS = timing.arrivalMs + 600;
+  const VIEW_TO_MS = includeAftermath ? timing.endMs : timing.arrivalMs + 600;
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const slot of [BALL_SLOT, ...slots]) {
     for (const k of timeline.tracks[slot]) {
@@ -693,10 +694,25 @@ type Base = 'cross' | 'through' | 'dribble' | 'longrange' | 'counter' | 'corner'
 
 function scriptOf(kind: PlayKind, variant: PlayVariant): { base: Base; variant: string } {
   switch (kind) {
-    case 'own_goal': return { base: 'cross', variant: variant === 'clearance' ? 'driven' : variant };
-    case 'blunder': return variant === 'longshot' ? { base: 'longrange', variant: 'layoff' } : { base: 'dribble', variant: 'single' };
-    case 'deflected': return variant === 'dribble' ? { base: 'dribble', variant: 'single' } : { base: 'longrange', variant: 'layoff' };
-    case 'woodwork': return variant === 'curler' ? { base: 'dribble', variant: 'cutinside' } : { base: 'longrange', variant };
+    // A short corner swung in, and a defender heads it into his own net.
+    case 'own_goal': return variant === 'corner' ? { base: 'corner', variant: 'short' } : { base: 'cross', variant: variant === 'clearance' ? 'driven' : variant };
+    case 'blunder':
+      if (variant === 'longshot') return { base: 'longrange', variant: 'layoff' };
+      if (variant === 'header') return { base: 'cross', variant: 'byline' };
+      if (variant === 'freekick') return { base: 'freekick', variant: 'curl' };
+      return { base: 'dribble', variant: 'single' };
+    case 'deflected':
+      if (variant === 'dribble') return { base: 'dribble', variant: 'single' };
+      // Off the wall, or a corner played to the edge of the box and struck through the crowd.
+      if (variant === 'freekick') return { base: 'freekick', variant: 'power' };
+      if (variant === 'edge') return { base: 'corner', variant: 'edge' };
+      return { base: 'longrange', variant: 'layoff' };
+    case 'woodwork':
+      if (variant === 'curler') return { base: 'dribble', variant: 'cutinside' };
+      if (variant === 'header') return { base: 'cross', variant: 'byline' };
+      // Through on goal, dinked over the keeper coming out.
+      if (variant === 'chip') return { base: 'through', variant: 'chip' };
+      return { base: 'longrange', variant };
     default: return { base: kind as Base, variant };
   }
 }
@@ -711,6 +727,11 @@ function helperRoles(base: Base, variant: string): string[] | null {
   if (base === 'longrange' && variant === 'knockdown') return ['CB', 'CDM', 'CM', 'LB', 'RB'];
   if (base === 'corner' && variant === 'backpost') return ['CB', 'ST', 'CF', 'CDM'];
   if (base === 'freekick' && variant === 'routine') return ['CM', 'CAM', 'CDM', 'LM', 'RM'];
+  if (base === 'freekick' && variant === 'dummyrun') return ['CAM', 'CM', 'LW', 'RW', 'ST', 'CF'];
+  if (base === 'cross' && variant === 'firsttime') return ['CM', 'CAM', 'CDM', 'LM', 'RM', 'LW', 'RW'];
+  if (base === 'cross' && variant === 'farknock') return ['ST', 'CF', 'CB', 'CAM', 'CM'];
+  if (base === 'through' && variant === 'thirdman') return ['CDM', 'CM', 'CAM', 'LM', 'RM'];
+  if (base === 'corner' && variant === 'decoy') return ['CB', 'ST', 'CF', 'CDM', 'CM'];
   return null;
 }
 
@@ -770,6 +791,15 @@ interface Shot {
 type SupportMode = 'open' | 'box' | 'penalty' | 'wall';
 interface Setup { creator?: Point; finisher?: Point; defender?: Point; helper?: Point; /** A second defender in the move. */ second?: Point; ball: Point; mode: SupportMode }
 
+/**
+ * A free kick dinked over the wall: the line from the ball to the middle of the goal, and
+ * the side of the wall the runner peels off (towards the far post).
+ */
+function chipLine(c: Ctx): { dir: Point; side: 1 | -1 } {
+  const len = Math.hypot(105 - c.spot.x, 34 - c.spot.y) || 1;
+  return { dir: { x: (105 - c.spot.x) / len, y: (34 - c.spot.y) / len }, side: c.spot.y < 34 ? 1 : -1 };
+}
+
 function setupFor(c: Ctx, rng: () => number): Setup {
   const y = (offset: number) => 34 + c.wing * offset;
   const at = (p: Point): Point => ({ x: p.x + FOOT, y: p.y + 0.3 });
@@ -794,6 +824,27 @@ function setupFor(c: Ctx, rng: () => number): Setup {
       if (c.variant === 'cutback') {
         const creator = { x: 92, y: c.W };
         return { creator, finisher: { x: 82, y: y(2) }, defender: { x: 86, y: y(4) }, ball: at(creator), mode: 'open' };
+      }
+      if (c.variant === 'deep') {
+        // From deep on the flank, some 40 metres out, a few metres in from the touchline.
+        const creator = { x: 66, y: c.W - c.wing * 4 };
+        return { creator, finisher: { x: 85.5, y: y(-1) }, defender: { x: 87, y: y(0) }, ball: at(creator), mode: 'open' };
+      }
+      if (c.variant === 'farknock') {
+        // The target man waits at the far post; the finisher lurks around the penalty spot.
+        const creator = { x: 82, y: c.W };
+        return { creator, helper: { x: 95.5, y: y(-6) }, finisher: { x: 90.5, y: y(1.5) }, defender: { x: 92, y: y(2.5) }, ball: at(creator), mode: 'open' };
+      }
+      if (c.variant === 'firsttime') {
+        // The winger and a team-mate in the half-space, a few metres apart, for the one-two.
+        const creator = { x: 79, y: c.W - c.wing * 1 };
+        return { creator, helper: { x: 80.5, y: y(21.5) }, finisher: { x: 85, y: y(-4) }, defender: { x: 87, y: y(-3) }, ball: at(creator), mode: 'open' };
+      }
+      if (c.variant === 'scorpion') {
+        // In the six-yard box, facing goal: the cross will come in a little behind him.
+        const creator = { x: 76, y: c.W };
+        // (His marker goal-side of him, so he is onside as it is crossed.)
+        return { creator, finisher: { x: 92.8, y: y(-0.5) }, defender: { x: 94.2, y: y(-2) }, ball: at(creator), mode: 'open' };
       }
       if (c.variant === 'overlap') {
         const helper = { x: 81, y: y(21) };
@@ -823,6 +874,23 @@ function setupFor(c: Ctx, rng: () => number): Setup {
         const lineAt = (x: number) => cy + ((py - cy) * (x - 69)) / (92 - 69);
         return { creator, helper: { x: 80.5, y: lineAt(80.5) }, finisher: { x: 81.5, y: py + away * -2.6 }, defender: { x: 85.5, y: py + away * 1.5 }, ball: at(creator), mode: 'open' };
       }
+      if (c.variant === 'thirdman') {
+        // The ball starts with a midfielder; the target, back to goal, waits on the edge of the
+        // area; the third man is a few metres behind him and off to one side.
+        const helper = { x: 73, y: cy };
+        const target = { x: 83.5, y: cy + c.wing * 1.5 };
+        return { helper, creator: target, finisher: { x: 81.5, y: py - c.wing * 4 }, defender: { x: 85.5, y: py - c.wing * 4 + away * 1.5 }, ball: at(helper), mode: 'open' };
+      }
+      if (c.variant === 'blindside') {
+        // Out wide on the full-back's shoulder (the full-back inside him, goal-side).
+        const pc = { x: 70, y: 34 + c.wing * 4 };
+        return { creator: pc, finisher: { x: 82.5, y: y(15.5) }, defender: { x: 84.6, y: y(13.6) }, ball: at(pc), mode: 'open' };
+      }
+      if (c.variant === 'scoop') {
+        // On the edge of the box with the ball; the finisher level with the last man.
+        const pc = { x: 78.5, y: cy };
+        return { creator: pc, finisher: { x: 84.5, y: py }, defender: { x: 86.2, y: py + away * 1.3 }, ball: at(pc), mode: 'open' };
+      }
       return { creator, finisher: { x: c.variant === 'onetwo' ? 87 : 83, y: py }, defender: { x: c.variant === 'onetwo' ? 88.5 : 85, y: py + away * 1.5 }, ball: at(creator), mode: 'open' };
     }
     case 'dribble': {
@@ -842,6 +910,24 @@ function setupFor(c: Ctx, rng: () => number): Setup {
         // He arrives here at full tilt from his own half (the long lead-in).
         const finisher = { x: 81.5, y: y(4) };
         return { finisher, defender: { x: 86.8, y: y(2.6) }, ball: at(finisher), mode: 'open' };
+      }
+      if (c.variant === 'roulette') {
+        const finisher = { x: 81.5, y: y(5) };
+        return { finisher, defender: { x: 86, y: y(4.6) }, ball: at(finisher), mode: 'open' };
+      }
+      if (c.variant === 'stepover') {
+        const finisher = { x: 82, y: y(8) };
+        return { finisher, defender: { x: 86.4, y: y(7.6) }, ball: at(finisher), mode: 'open' };
+      }
+      if (c.variant === 'cruyff') {
+        // Wide in the box, heading for the byline; the defender goal-side, between him and the cross.
+        const finisher = { x: 89.5, y: y(16) };
+        return { finisher, defender: { x: 94, y: y(13.4) }, ball: at(finisher), mode: 'open' };
+      }
+      if (c.variant === 'rabona') {
+        // Wide of the area; the defender goal-side and outside him, showing him inside.
+        const finisher = { x: 84, y: y(12.5) };
+        return { finisher, defender: { x: 90.5, y: y(14.6) }, ball: at(finisher), mode: 'open' };
       }
       const y0 = y(6 + rng() * 6);
       const finisher = { x: 81, y: y0 };
@@ -864,6 +950,16 @@ function setupFor(c: Ctx, rng: () => number): Setup {
       if (c.variant === 'square') {
         const creator = { x: 85, y: y(-7) };
         return { creator, finisher: { x: 79, y: y(6) }, defender: { x: 84, y: y(2.5) }, ball: at(creator), mode: 'open' };
+      }
+      if (c.variant === 'chest') {
+        // A lofted ball from midfield to the finisher, waiting outside the area.
+        const creator = { x: 67, y: y(-5) };
+        return { creator, finisher: { x: 79, y: y(3) }, defender: { x: 84.5, y: y(2) }, ball: at(creator), mode: 'open' };
+      }
+      if (c.variant === 'turn') {
+        // Back to goal outside the box, the defender tight on his back.
+        const creator = { x: 69, y: y(1.5) };
+        return { creator, finisher: { x: 80.5, y: y(3) }, defender: { x: 82.6, y: y(3.3) }, ball: at(creator), mode: 'open' };
       }
       const fy = y(3 + rng() * 5);
       const creator = { x: 83, y: fy - c.wing * 7 };
@@ -889,6 +985,16 @@ function setupFor(c: Ctx, rng: () => number): Setup {
       if (c.variant === 'carry') {
         const creator = { x: 70, y: y(6) };
         return { creator, finisher: { x: 79, y: y(11) }, defender: { x: 75, y: y(9) }, ball: at(creator), mode: 'open' };
+      }
+      if (c.variant === 'switch') {
+        // The ball on one side, the finisher alone on the far flank, the full-back coming across.
+        const creator = { x: 74, y: y(-3) };
+        return { creator, finisher: { x: 81, y: y(17) }, defender: { x: 85.5, y: y(13) }, ball: at(creator), mode: 'open' };
+      }
+      if (c.variant === 'cutback') {
+        // The winger already clear down the flank, his marker chasing from behind and inside.
+        const creator = { x: 90, y: y(19) };
+        return { creator, finisher: { x: 80.5, y: y(3.5) }, defender: { x: 84.5, y: y(17) }, ball: at(creator), mode: 'open' };
       }
       const creator = { x: 68, y: y(6) };
       return { creator, finisher: { x: 81, y: y(14) }, defender: { x: 78, y: y(11) }, ball: at(creator), mode: 'open' };
@@ -926,6 +1032,14 @@ function setupFor(c: Ctx, rng: () => number): Setup {
         // The finisher takes it himself.
         return { finisher: flagSpot, defender: { x: 98, y: top ? 31.5 : 36.5 }, ball: c.spot, mode: 'box' };
       }
+      if (c.variant === 'decoy') {
+        // The finisher on the far side of the box, his marker on him; the screener between them and the spot.
+        return { creator: flagSpot, helper: { x: 93.8, y: top ? 36.2 : 31.8 }, finisher: { x: 91.6, y: top ? 38.6 : 29.4 }, defender: { x: 92.2, y: top ? 39.6 : 28.4 }, ball: c.spot, mode: 'box' };
+      }
+      if (c.variant === 'late') {
+        // He waits on the edge of the area, away from the crowd; a defender minds the penalty spot.
+        return { creator: flagSpot, finisher: { x: 86.5, y: 34 + (top ? 2.5 : -2.5) }, defender: { x: 93, y: 34 + (top ? 4 : -4) }, ball: c.spot, mode: 'box' };
+      }
       return { creator: flagSpot, finisher: { x: 93, y: 34 + (rng() - 0.5) * 8 }, defender: { x: 94, y: 35 }, ball: c.spot, mode: 'box' };
     }
     case 'freekick':
@@ -937,6 +1051,17 @@ function setupFor(c: Ctx, rng: () => number): Setup {
         // Out wide: the creator crosses it into the box.
         const top = c.spot.y < 34;
         return { creator: { x: c.spot.x - 0.8, y: c.spot.y }, finisher: { x: 92.5, y: top ? 36 : 32 }, defender: { x: 93.6, y: top ? 34.8 : 33.2 }, ball: c.spot, mode: 'wall' };
+      }
+      if (c.variant === 'dummyrun') {
+        // Two over the ball: the one who runs over it on one side, the one who strikes it on the other.
+        return { helper: { x: c.spot.x - 2.6, y: c.spot.y + c.wing * 1.3 }, finisher: { x: c.spot.x - 2.8, y: c.spot.y - c.wing * 1.0 }, ball: c.spot, mode: 'wall' };
+      }
+      if (c.variant === 'chipped') {
+        // The taker on the ball; the finisher level with the end of the wall, his marker goal-side.
+        const { dir, side } = chipLine(c);
+        const centre = { x: c.spot.x + dir.x * 9.15, y: c.spot.y + dir.y * 9.15 };
+        const fin = { x: centre.x - dir.y * side * 2.8 - dir.x * 0.4, y: centre.y + dir.x * side * 2.8 - dir.y * 0.4 };
+        return { creator: { x: c.spot.x - 0.8, y: c.spot.y }, finisher: fin, defender: { x: fin.x + dir.x * 1.2, y: fin.y + dir.y * 1.2 }, ball: c.spot, mode: 'wall' };
       }
       return { finisher: { x: c.spot.x - 2.5, y: c.spot.y - c.wing * 0.8 }, ball: c.spot, mode: 'wall' };
     case 'penalty':
@@ -1238,6 +1363,88 @@ function cross(k: Kit, c: Ctx): Shot {
     k.ball(1600, B.x, B.y, 0.05);
     return { x: B.x, y: B.y, z: 0.15, shot: 'first_time' };
   }
+  if (c.variant === 'scorpion') {
+    // Crossed in behind him at waist height: he throws himself forward and, falling, flicks
+    // it over his own back with his heels (o escorpião).
+    k.run(wide, 760, 84, c.W - c.wing * 1.2, { speed: SPEED.run });
+    k.feet(wide, Math.max(k.t0 + 100, 600));
+    k.feet(wide, 760);
+    const start = k.at(c.finisher, k.t0);
+    // Drifting towards goal as it is crossed: the ball arrives a stride behind him.
+    const fin = k.run(c.finisher, 1600, start.x + 0.8, start.y, { speed: SPEED.jog });
+    // His marker, beside him, can only watch it go over.
+    k.run(c.defender, 1600, fin.x - 0.3, fin.y - c.wing * 1.7, { speed: SPEED.jog });
+    const B = { x: fin.x - 0.7, y: fin.y, z: 1.0 };
+    k.ball(1600, B.x, B.y, B.z, EASE_LINEAR, 2.8);
+    // Head first towards goal, heels up over his back, then down on the grass.
+    k.run(c.finisher, 1900, fin.x + 1.4, fin.y, { speed: SPEED.sprint });
+    k.jump(c.finisher, S_CONTACT, 0.45);
+    k.pose(c.finisher, S_CONTACT - 180, 'dive', 680);
+    return { x: B.x, y: B.y, z: B.z, shot: 'first_time' };
+  }
+  if (c.variant === 'deep') {
+    // From deep on the flank, without breaking stride, a long curling ball over everyone to
+    // the far side of the six-yard box (the Beckham cross).
+    const p = k.at(wide, k.t0);
+    k.feet(wide, k.t0 + 80);
+    k.run(wide, 620, p.x + 2.4, p.y, { speed: SPEED.run });
+    k.feet(wide, 620);
+    const H = { x: 96, y: y(-2.5) };
+    const meet = attackTheCross(k, c, H, 1600);
+    const from = k.at(BALL_SLOT, 620);
+    // It bends away from the keeper, out and then in, dropping on the finisher's head.
+    const mid = { x: (from.x + meet.x) / 2 - 1.5, y: (from.y + meet.y) / 2 + c.wing * 1.8 };
+    const d1 = Math.hypot(mid.x - from.x, mid.y - from.y), d2 = Math.hypot(meet.x + 0.4 - mid.x, meet.y - mid.y);
+    k.ball(Math.round(620 + (980 * d1) / (d1 + d2)), mid.x, mid.y, 5.2);
+    k.ball(1600, meet.x + 0.4, meet.y, 1.9, EASE_LINEAR, 1.2);
+    return { x: meet.x + 0.4, y: meet.y, z: 1.9, shot: 'header' };
+  }
+  if (c.variant === 'farknock') {
+    // Crossed long to the far post, where the target man rises and heads it back across the
+    // six-yard box; the finisher, arriving, hits it first time.
+    k.run(wide, 560, 84.5, c.W - c.wing * 1.2, { speed: SPEED.run });
+    k.feet(wide, Math.max(k.t0 + 40, 480));
+    k.feet(wide, 560);
+    const F = { x: 97.6, y: y(-5.5) };
+    const h = k.run(c.helper, 1400, F.x - 0.5, F.y, { speed: SPEED.sprint });
+    k.jump(c.helper, 1400);
+    k.ball(1400, h.x + 0.3, h.y, 2.2, EASE_LINEAR, 4.2);
+    k.touch(c.helper, 1400);
+    // The far-post defender goes up with him, a fraction late.
+    const tall = spareDefender(k, c, F);
+    if (tall >= 0) {
+      k.run(tall, 1400, h.x - 0.8, h.y - c.wing * 0.9, { speed: SPEED.run });
+      k.jump(tall, 1400, 0.55);
+    }
+    const M = { x: 95, y: y(0.5) };
+    const fin = k.run(c.finisher, 1600, M.x - 0.7, M.y, { speed: SPEED.sprint });
+    // His marker is a step behind him, on the side the cross came from.
+    k.run(c.defender, 1600, fin.x - 1.2, fin.y + c.wing * 1.3, { speed: SPEED.sprint });
+    k.ball(1600, fin.x + 0.6, fin.y, 0.5, EASE_LINEAR, 0.7);
+    return { x: fin.x + 0.6, y: fin.y, z: 0.5, shot: 'first_time' };
+  }
+  if (c.variant === 'firsttime') {
+    // A one-two on the wing: inside to the team-mate in the half-space, straight back into
+    // his stride, and crossed first time, before the full-back can get to him.
+    const h = c.helper;
+    const p = k.at(wide, k.t0);
+    k.feet(wide, k.t0 + 40);
+    k.run(wide, 520, p.x + 1.2, p.y, { speed: SPEED.run });
+    k.feet(wide, 520);
+    const hp = k.at(h, k.t0);
+    const hh = k.run(h, 720, hp.x + 0.8, hp.y, { speed: SPEED.jog });
+    k.ball(720, hh.x + FOOT, hh.y + 0.3);
+    k.touch(h, 720);
+    const cr = k.run(wide, 940, 84.5, c.W - c.wing * 1.5, { speed: SPEED.sprint });
+    k.ball(940, cr.x + FOOT, cr.y + 0.3);
+    k.touch(wide, 940);
+    k.run(wide, 1500, cr.x + 3, cr.y, { speed: SPEED.run });
+    k.run(h, 1600, hh.x + 5.5, hh.y + (34 - hh.y) * 0.25, { speed: SPEED.run });
+    const H = crossTarget(k, c);
+    const meet = attackTheCross(k, c, H, 1600);
+    k.ball(1600, meet.x + 0.4, meet.y, 1.9, EASE_LINEAR, 3.2);
+    return { x: meet.x + 0.4, y: meet.y, z: 1.9, shot: own ? 'normal' : 'header' };
+  }
   const H = c.variant === 'trivela' ? { x: 97.8, y: c.W < 34 ? 37 : 31 } : crossTarget(k, c);
   if (c.variant === 'trivela') {
     // Whipped in with the outside of the foot from deep and wide: it bends in towards the far post.
@@ -1275,6 +1482,28 @@ function through(k: Kit, c: Ctx): Shot {
   // He receives in line with where he starts (a little either way): the marker's side was
   // chosen from that same line.
   const P = { x: 92, y: k.at(c.finisher, k.t0).y + (k.rng() - 0.5) * 3 };
+  // Behind the full-back: in from the flank, towards the near side of the goal.
+  if (c.variant === 'blindside') { P.x = 90.5; P.y = 34 + c.wing * 9; }
+  if (c.variant === 'scoop') {
+    // On the edge of the area he dinks it over the defence; the finisher, holding the line
+    // until it is struck, runs on to it and volleys before it lands.
+    const cr = k.at(c.creator, k.t0);
+    k.feet(c.creator, k.t0 + 80);
+    k.run(c.creator, 900, cr.x + 2.2, cr.y, { speed: SPEED.run });
+    k.feet(c.creator, 900);
+    const f0 = k.at(c.finisher, k.t0);
+    const V = { x: 92, y: f0.y + (34 - f0.y) * 0.2 };
+    k.run(c.finisher, 900, f0.x + 0.6, f0.y, { speed: SPEED.jog });
+    const fin = k.run(c.finisher, 1620, V.x - 0.7, V.y, { speed: SPEED.sprint });
+    k.ball(1620, fin.x + 0.6, fin.y, 0.7, EASE_LINEAR, 3.4);
+    // The defender watches it go over his head and turns, a stride behind.
+    const d0 = k.at(c.defender, k.t0);
+    k.run(c.defender, 1080, d0.x + 0.3, d0.y, { speed: SPEED.jog });
+    k.jump(c.defender, 1080, 0.3);
+    const side = d0.y >= fin.y ? 1 : -1;
+    k.run(c.defender, 1620, fin.x - 1.5, fin.y + side * 1.4, { speed: SPEED.sprint });
+    return { x: fin.x + 0.6, y: fin.y, z: 0.7, shot: 'first_time' };
+  }
   if (c.variant === 'roundkeeper') {
     // Through on goal, the keeper rushes out and is taken round.
     const R = { x: 92.5, y: P.y };
@@ -1329,6 +1558,38 @@ function through(k: Kit, c: Ctx): Shot {
     k.run(c.helper, over - 120, h.x, from.y + (to.y - from.y) * u + 0.35, { speed: SPEED.jog });
     k.jump(c.helper, over, 0.2);
     k.run(c.helper, 1700, h.x + 4, h.y + (34 - h.y) * 0.2, { speed: SPEED.run });
+  } else if (c.variant === 'thirdman') {
+    // The third man: in to the target, back to goal on the edge of the area, who lays it first
+    // time round the corner for the runner who set off as the first pass was played.
+    const hp = k.at(c.helper, k.t0);
+    k.feet(c.helper, k.t0 + 60);
+    k.run(c.helper, 600, hp.x + 1, hp.y, { speed: SPEED.jog });
+    k.feet(c.helper, 600);
+    const tp = k.at(c.creator, k.t0);
+    // He comes short to meet it, facing his own goal, his marker on his back.
+    const lay = k.run(c.creator, 980, tp.x - 1.2, tp.y, { speed: SPEED.jog });
+    k.ball(980, lay.x - 0.6, lay.y + 0.3);
+    k.touch(c.creator, 980);
+    const back = spareDefender(k, c, tp);
+    if (back >= 0) k.run(back, 980, lay.x + 1.2, lay.y + 0.4, { speed: SPEED.run });
+    const fin = k.run(c.finisher, 1350, P.x - 0.6, P.y);
+    k.ball(1350, fin.x + FOOT, fin.y + 0.3);
+    k.run(c.helper, 1700, hp.x + 7, hp.y, { speed: SPEED.run });
+    k.run(c.creator, 1650, lay.x + 2.5, lay.y + (34 - lay.y) * 0.3, { speed: SPEED.jog });
+  } else if (c.variant === 'blindside') {
+    // Out wide, he checks a step towards the ball to drag the full-back with him, then darts
+    // in behind him on his blind side; the pass is slid into his path.
+    k.feet(c.creator, Math.max(k.t0 + 100, 700));
+    k.feet(c.creator, 820);
+    const fs = k.at(c.finisher, k.t0);
+    k.run(c.finisher, 820, fs.x + 0.8, fs.y + c.wing * 0.3, { speed: SPEED.jog });
+    // Round the outside of him first, then in.
+    k.run(c.finisher, 1080, fs.x + 2.8, fs.y - c.wing * 0.1, { speed: SPEED.sprint });
+    const fin = k.run(c.finisher, 1350, P.x - 0.6, P.y);
+    k.ball(1350, fin.x + FOOT, fin.y + 0.3);
+    // The full-back, watching the ball, turns too late.
+    const d0 = k.at(c.defender, k.t0);
+    k.run(c.defender, 1000, d0.x + 0.4, d0.y + c.wing * 0.6, { speed: SPEED.jog }); // follows him outside
   } else {
     if (c.variant === 'channel') k.run(c.creator, 700, 72, 34 + c.wing * 17, { speed: SPEED.run }); // into the channel
     if (c.variant === 'split') {
@@ -1355,12 +1616,27 @@ function through(k: Kit, c: Ctx): Shot {
   // The marker is on the far side from where the pass comes, so it never runs through him.
   const passFrom = k.at(c.creator, 800).y;
   const farSide = P.y >= passFrom ? 1 : -1;
-  k.run(c.defender, 1350, P.x - 3, P.y + farSide * 1.8, { speed: SPEED.run });
+  if (c.variant === 'blindside') {
+    // The full-back chases him in from the flank, behind and outside him (never across the pass).
+    const f = k.at(c.finisher, 1350);
+    k.run(c.defender, 1350, f.x - 2.8, f.y + farSide * 2.4, { speed: SPEED.run });
+  } else k.run(c.defender, 1350, P.x - 3, P.y + farSide * 1.8, { speed: SPEED.run });
   const S = { x: 96, y: 34 + (P.y - 34) * 0.5 };
   const shooter = k.run(c.finisher, 1620, S.x - FOOT, S.y, { speed: SPEED.run });
   k.feet(c.finisher, 1500);
   k.feet(c.finisher, 1620);
-  k.run(c.defender, 1620, shooter.x - 2.5, shooter.y + farSide * 1.4, { speed: SPEED.run });
+  if (c.variant === 'blindside') {
+    // Chasing him in from the flank: right behind him, along his run (never across it).
+    const len = Math.hypot(shooter.x - P.x, shooter.y - P.y) || 1;
+    const dx = (shooter.x - P.x) / len, dy = (shooter.y - P.y) / len;
+    // A step behind him and to the flank side of his run, then pulling up as he shoots.
+    const n = farSide === 1 ? { x: -dy, y: dx } : { x: dy, y: -dx };
+    const end = { x: shooter.x - dx * 2.4 + n.x * 1.4, y: shooter.y - dy * 2.4 + n.y * 1.4 };
+    k.run(c.defender, 1620, end.x, end.y, { speed: SPEED.run });
+    k.run(c.defender, 1950, end.x + dx * 0.6, end.y + dy * 0.6, { speed: SPEED.jog, ease: EASE_OUT });
+  } else k.run(c.defender, 1620, shooter.x - 2.5, shooter.y + farSide * 1.4, { speed: SPEED.run });
+  // A dink over the keeper rushing out (it comes down on the woodwork).
+  if (c.variant === 'chip') return { x: shooter.x + FOOT, y: shooter.y + 0.3, z: 0.2, shot: 'one_on_one', arc: 3.4, keeperAt: { x: 100.6, y: 34 + (shooter.y - 34) * 0.5 } };
   return { x: shooter.x + FOOT, y: shooter.y + 0.3, z: 0.2, shot: 'one_on_one', keeperAt: { x: 102.2, y: 34 + (shooter.y - 34) * 0.4 } };
 }
 
@@ -1486,6 +1762,100 @@ function dribble(k: Kit, c: Ctx): Shot {
     k.feet(c.finisher, 1620);
     return { x: shooter.x + FOOT, y: shooter.y + 0.3, z: 0.2, shot: 'normal' };
   }
+  if (c.variant === 'roulette') {
+    // He runs at him, stops on the ball and spins over it (the roulette, Zidane's turn): the
+    // defender's lunge meets only air and he comes out on the other side.
+    const start = k.at(c.finisher, k.t0);
+    takeTheBall(k, c, k.t0 + 100);
+    const a = k.run(c.finisher, 900, 84.3, start.y, { speed: SPEED.run });
+    k.feet(c.finisher, 700);
+    k.feet(c.finisher, 900);
+    // The spin: round in a tight arc towards the middle, his back to the defender halfway round.
+    const s = -c.wing;
+    k.run(c.finisher, 1010, a.x + 0.35, a.y + s * 0.75, { speed: SPEED.run });
+    k.feet(c.finisher, 1010);
+    k.run(c.finisher, 1120, a.x + 1.05, a.y + s * 1.25, { speed: SPEED.run });
+    k.feet(c.finisher, 1120);
+    k.lunge(c.defender, 1040, { x: a.x + 1.3, y: a.y + c.wing * 0.15 }); // into where the ball was
+    k.run(c.finisher, 1330, 88.6, a.y + s * 1.6, { speed: SPEED.sprint });
+    k.feet(c.finisher, 1330);
+    const sh = k.run(c.finisher, 1620, 91.3, 34 + c.wing * 2.4, { speed: SPEED.sprint });
+    k.feet(c.finisher, 1480);
+    k.feet(c.finisher, 1620);
+    k.run(c.defender, 1620, 87.8, a.y + c.wing * 0.9, { speed: SPEED.jog }); // turns, beaten
+    return { x: sh.x + FOOT, y: sh.y + 0.3, z: 0.2, shot: 'normal' };
+  }
+  if (c.variant === 'stepover') {
+    // He slows in front of him and rolls his feet over the ball (pedaladas): three times, the
+    // defender swaying with each; then he explodes past him on the outside.
+    const start = k.at(c.finisher, k.t0);
+    takeTheBall(k, c, k.t0 + 60);
+    const a = k.run(c.finisher, 700, 84, start.y, { speed: SPEED.run });
+    k.feet(c.finisher, 700);
+    // The ball stays put while his feet go round it, a half-step each way.
+    const ball = { x: a.x + FOOT, y: a.y + 0.3 };
+    const d0 = k.at(c.defender, k.t0);
+    for (let i = 0; i < 3; i++) {
+      const t = 780 + i * 100;
+      const lean = i % 2 === 0 ? 1 : -1;
+      k.run(c.finisher, t, a.x + 0.08 * (i + 1), a.y + lean * 0.4, { speed: SPEED.run });
+      k.run(c.defender, t + 60, d0.x - 0.4 - 0.1 * i, d0.y + lean * 0.3, { speed: SPEED.run });
+    }
+    k.ball(780, ball.x, ball.y);
+    k.ball(980, ball.x + 0.05, ball.y);
+    k.touch(c.finisher, 980);
+    // The burst: past him on the outside, then in towards goal.
+    const out = c.wing;
+    k.run(c.finisher, 1180, a.x + 1.5, a.y + out * 1.5, { speed: SPEED.sprint });
+    k.feet(c.finisher, 1180);
+    k.run(c.finisher, 1400, a.x + 3.5, a.y + out * 1.1, { speed: SPEED.sprint });
+    k.feet(c.finisher, 1400);
+    const sh = k.run(c.finisher, 1620, a.x + 5.4, a.y - out * 0.2, { speed: SPEED.sprint });
+    k.feet(c.finisher, 1620);
+    k.run(c.defender, 1400, d0.x - 0.3, d0.y + out * 0.9, { speed: SPEED.jog }); // turns, too late
+    k.run(c.defender, 1620, sh.x - 2.2, sh.y + out * 1.9, { speed: SPEED.run });
+    return { x: sh.x + FOOT, y: sh.y + 0.3, z: 0.2, shot: 'normal' };
+  }
+  if (c.variant === 'cruyff') {
+    // Heading for the byline he shapes to cross; the defender slides in to block it, and he
+    // drags the ball back behind his standing leg (the Cruyff turn) and turns inside.
+    const y = (offset: number) => 34 + c.wing * offset;
+    takeTheBall(k, c);
+    const a = k.run(c.finisher, 1000, 94.4, y(16.4), { speed: SPEED.sprint });
+    k.feet(c.finisher, 760);
+    k.feet(c.finisher, 1000);
+    k.run(c.defender, 1000, 96.6, y(15), { speed: SPEED.run });
+    // Behind his standing leg and away: the ball goes back the way he came, then inside.
+    k.ball(1130, a.x - 0.5, a.y - c.wing * 0.3);
+    k.run(c.finisher, 1180, a.x - 0.5, a.y - c.wing * 0.7, { speed: SPEED.run });
+    k.feet(c.finisher, 1180);
+    const up = k.slideTackle(c.defender, 1150, { x: a.x + 1.4, y: a.y + c.wing * 0.4 });
+    k.run(c.finisher, 1400, 93.6, y(13), { speed: SPEED.sprint });
+    k.feet(c.finisher, 1400);
+    const sh = k.run(c.finisher, 1620, 95, y(10.6), { speed: SPEED.sprint });
+    k.feet(c.finisher, 1620);
+    k.run(c.defender, Math.max(2200, up + 500), a.x + 1.6, y(14.8), { speed: SPEED.jog }); // up, too late
+    return { x: sh.x + FOOT, y: sh.y + 0.3, z: 0.2, shot: 'normal', aim: 'near' };
+  }
+  if (c.variant === 'rabona') {
+    // Shown inside, onto his weaker foot, he wraps his good one round the back of his standing
+    // leg (a rabona) and bends it towards the far post.
+    const y = (offset: number) => 34 + c.wing * offset;
+    takeTheBall(k, c, k.t0 + 100);
+    k.run(c.finisher, 900, 87.2, y(13), { speed: SPEED.run });
+    k.feet(c.finisher, 700);
+    k.feet(c.finisher, 900);
+    k.run(c.defender, 900, 92, y(14.2), { speed: SPEED.run }); // shows him inside
+    k.run(c.finisher, 1250, 89.4, y(12.8), { speed: SPEED.run });
+    k.feet(c.finisher, 1080);
+    k.feet(c.finisher, 1250);
+    // He steps in to block the near post... the ball goes round the back of the standing leg.
+    k.lunge(c.defender, 1420, { x: 92.6, y: y(13.9) });
+    const sh = k.run(c.finisher, 1620, 90.8, y(12.6), { speed: SPEED.jog });
+    k.feet(c.finisher, 1450);
+    k.feet(c.finisher, 1620);
+    return { x: sh.x + FOOT, y: sh.y + 0.3, z: 0.2, shot: 'normal', aim: 'far', curve: -c.wing * 1.3, curveZ: 1.1 };
+  }
   const start = k.at(c.finisher, k.t0);
   takeTheBall(k, c, k.t0 + 100);
   k.run(c.finisher, 900, 85, start.y - c.wing * 2.5, { speed: SPEED.sprint });
@@ -1570,6 +1940,48 @@ function longrange(k: Kit, c: Ctx): Shot {
     k.feet(c.finisher, 1620);
     return { x: sh.x + FOOT, y: sh.y + 0.3, z: 0.2, shot: 'long_range', arc: 6.5, keeperAt: k.at(c.gk, k.t0) };
   }
+  if (c.variant === 'chest') {
+    // A lofted ball from midfield: he kills it on his chest outside the area and, before it
+    // touches the grass, volleys it.
+    const cp = k.at(c.creator, k.t0);
+    k.feet(c.creator, k.t0 + 80);
+    k.run(c.creator, 700, cp.x + 1.5, cp.y, { speed: SPEED.jog });
+    k.feet(c.creator, 700);
+    const f0 = k.at(c.finisher, k.t0);
+    const f = k.run(c.finisher, 1240, f0.x + 1.2, f0.y, { speed: SPEED.jog });
+    k.ball(1240, f.x + 0.45, f.y, 1.3, EASE_LINEAR, 5.5);
+    k.touch(c.finisher, 1240);
+    // Off his chest it drops in front of him; he steps on to it.
+    k.ball(1480, f.x + 1.5, f.y + 0.15, 0.9, EASE_OUT);
+    const v = k.run(c.finisher, 1620, f.x + 1.1, f.y, { speed: SPEED.jog });
+    k.ball(1620, v.x + FOOT, v.y + 0.25, 0.55);
+    closeDown(k, c, v, 1620);
+    return { x: v.x + FOOT, y: v.y + 0.25, z: 0.55, shot: 'long_range' };
+  }
+  if (c.variant === 'turn') {
+    // Back to goal with the defender tight behind him: he takes the pass on the half-turn,
+    // rolls him and shoots before he can recover.
+    const cp = k.at(c.creator, k.t0);
+    k.feet(c.creator, k.t0 + 80);
+    k.run(c.creator, 760, cp.x + 1.5, cp.y, { speed: SPEED.jog });
+    k.feet(c.creator, 760);
+    const f0 = k.at(c.finisher, k.t0);
+    // He comes short to meet it, facing his own goal.
+    const f = k.run(c.finisher, 1080, f0.x - 1.2, f0.y, { speed: SPEED.run });
+    k.ball(1080, f.x - 0.6, f.y + 0.3);
+    k.touch(c.finisher, 1080);
+    k.run(c.defender, 1080, f.x + 1, f.y + 0.3, { speed: SPEED.run }); // right on his back
+    // Rolls round him on the outside and opens his body to the goal.
+    const away = -c.wing;
+    k.run(c.finisher, 1300, f.x + 0.5, f.y + away * 1.3, { speed: SPEED.run });
+    k.feet(c.finisher, 1300);
+    k.lunge(c.defender, 1280, { x: f.x + 0.5, y: f.y + away * 0.2 }); // reaches for it, too late
+    const sh = k.run(c.finisher, 1620, f.x + 2.8, f.y + away * 1.9, { speed: SPEED.run });
+    k.feet(c.finisher, 1460);
+    k.feet(c.finisher, 1620);
+    k.run(c.defender, 1700, f.x + 1.6, f.y - away * 0.6, { speed: SPEED.jog });
+    return { x: sh.x + FOOT, y: sh.y + 0.3, z: 0.2, shot: 'long_range' };
+  }
   if (c.variant === 'square') {
     // Worked across the edge of the box to the finisher arriving.
     k.feet(c.creator, k.t0 + 80);
@@ -1591,12 +2003,50 @@ function longrange(k: Kit, c: Ctx): Shot {
   k.feet(c.finisher, 1400);
   k.feet(c.finisher, 1620);
   closeDown(k, c, shooter, 1620);
+  // With the outside of the foot: it starts out wide of the far post and bends back in.
+  if (c.variant === 'outside') return { x: shooter.x + FOOT, y: shooter.y + 0.3, z: 0.2, shot: 'long_range', aim: 'far', curve: c.wing * 1.9, curveZ: 1.2 };
   return { x: shooter.x + FOOT, y: shooter.y + 0.3, z: 0.2, shot: 'long_range' };
 }
 
 // Counter: a ball over the top, a carry and a square pass, a two-on-one, or a breakaway.
 function counter(k: Kit, c: Ctx): Shot {
   const y = (offset: number) => 34 + c.wing * offset;
+  if (c.variant === 'switch') {
+    // Won back on one side, switched at once to the other: the winger, all alone on the far
+    // flank, takes it in his stride, cuts inside the full-back and bends it at the far post.
+    const cp = k.at(c.creator, k.t0);
+    k.feet(c.creator, k.t0 + 80);
+    k.run(c.creator, 560, cp.x + 1.5, cp.y, { speed: SPEED.run });
+    k.feet(c.creator, 560);
+    const R = { x: 86, y: y(16) };
+    const fin = k.run(c.finisher, 1250, R.x - 0.6, R.y, { speed: SPEED.sprint });
+    k.ball(1250, fin.x + FOOT, fin.y + 0.3, 0.2, EASE_LINEAR, 4.5);
+    k.feet(c.finisher, 1250);
+    // The full-back comes across to meet him, goal-side; he is gone inside him.
+    k.run(c.defender, 1250, R.x + 2.4, R.y - c.wing * 1.6, { speed: SPEED.sprint });
+    k.run(c.finisher, 1450, R.x + 1.8, y(13), { speed: SPEED.sprint });
+    k.feet(c.finisher, 1450);
+    const sh = k.run(c.finisher, 1620, R.x + 3.4, y(11.2), { speed: SPEED.sprint });
+    k.feet(c.finisher, 1620);
+    k.lunge(c.defender, 1380, { x: R.x + 1.6, y: y(15.2) }); // bites on the outside
+    k.run(c.defender, 1800, sh.x - 1.8, sh.y + c.wing * 2.2, { speed: SPEED.jog });
+    return { x: sh.x + FOOT, y: sh.y + 0.3, z: 0.2, shot: 'normal', aim: 'far', curve: -c.wing * 1.3, curveZ: 0.9 };
+  }
+  if (c.variant === 'cutback') {
+    // Clear down the flank at full speed, he gets to the edge of the six-yard box and pulls
+    // it back for the finisher arriving at the penalty spot.
+    k.feet(c.creator, k.t0 + 60);
+    const w = k.run(c.creator, 1140, 96.2, y(16), { speed: SPEED.sprint });
+    for (const t of [700, 940]) k.feet(c.creator, t);
+    k.feet(c.creator, 1140);
+    k.run(c.defender, 1140, w.x - 2.2, w.y - c.wing * 0.6, { speed: SPEED.sprint }); // chasing, a step behind
+    const fin = k.run(c.finisher, 1560, 92.2, y(2.4), { speed: SPEED.sprint });
+    k.ball(1560, fin.x + FOOT, fin.y + 0.3);
+    k.run(c.defender, 1620, w.x - 0.4, y(13.2), { speed: SPEED.run }); // too late to cut it out
+    const sh = k.run(c.finisher, 1620, fin.x + 0.5, fin.y, { speed: SPEED.run });
+    k.feet(c.finisher, 1620);
+    return { x: sh.x + FOOT, y: sh.y + 0.3, z: 0.2, shot: 'first_time' };
+  }
   if (c.variant === 'threevtwo') {
     // Three on two: the carrier draws a defender, the decoy takes the other away, and it is
     // switched to the runner on the far side, who hits it first time.
@@ -1794,6 +2244,48 @@ function corner(k: Kit, c: Ctx): Shot {
     k.jump(c.defender, S_CONTACT);
     return { x: fin.x + 0.4, y: fin.y, z: 1.6, shot: 'header' };
   }
+  if (c.variant === 'decoy') {
+    // Rehearsed on the training ground: a team-mate steps into the marker's path (o bloqueio)
+    // and the finisher, curling round it, arrives unmarked at the penalty spot.
+    k.run(c.creator, 760, 103.6, top ? 1.4 : 66.6, { speed: SPEED.jog });
+    k.ball(800, flag.x, flag.y);
+    k.touch(c.creator, 800);
+    const M = { x: 95, y: top ? 34.8 : 33.2 };
+    const f0 = k.at(c.finisher, k.t0);
+    // Round the back of the screen, then in to the spot.
+    k.run(c.finisher, 1150, f0.x + 1.6, top ? 37.4 : 30.6, { speed: SPEED.run });
+    const fin = k.run(c.finisher, 1600, M.x - 0.6, M.y, { speed: SPEED.sprint });
+    const h0 = k.at(c.helper, k.t0);
+    const screen = k.run(c.helper, 1080, h0.x - 0.6, top ? 38.6 : 29.4, { speed: SPEED.run });
+    k.run(c.helper, 1600, screen.x - 0.2, screen.y, { speed: SPEED.jog });
+    // The marker follows him... and runs into the screen.
+    k.run(c.defender, 1120, screen.x - 0.2, top ? 39.5 : 28.5, { speed: SPEED.run });
+    // Round it, free again, too late.
+    k.run(c.defender, 1350, screen.x - 1.2, top ? 38.4 : 29.6, { speed: SPEED.run });
+    k.run(c.defender, 1600, fin.x - 1.6, top ? 36.6 : 31.4, { speed: SPEED.run });
+    k.ball(1200, 101.5, top ? 18 : 50, 4.6, EASE_LINEAR, 1.6);
+    k.ball(1600, fin.x + 0.4, fin.y, 2);
+    k.jump(c.finisher, S_CONTACT);
+    return { x: fin.x + 0.4, y: fin.y, z: 2, shot: 'header' };
+  }
+  if (c.variant === 'late') {
+    // Aimed at the penalty spot, where a late runner from the edge of the area meets it at
+    // full speed, ahead of the defender minding the zone.
+    k.run(c.creator, 760, 103.6, top ? 1.4 : 66.6, { speed: SPEED.jog });
+    k.ball(800, flag.x, flag.y);
+    k.touch(c.creator, 800);
+    const L = { x: 94, y: top ? 33.4 : 34.6 };
+    const f0 = k.at(c.finisher, k.t0);
+    k.run(c.finisher, 900, f0.x - 0.6, f0.y, { speed: SPEED.jog }); // waits, out of the crowd
+    const fin = k.run(c.finisher, 1600, L.x - 0.6, L.y, { speed: SPEED.sprint });
+    // The zonal defender is drawn to the ball's flight and caught under it, a step behind.
+    k.run(c.defender, 1600, fin.x - 1, fin.y + (top ? -1.3 : 1.3), { speed: SPEED.run });
+    k.ball(1200, 101, top ? 17 : 51, 4.8, EASE_LINEAR, 1.6);
+    k.ball(1600, fin.x + 0.4, fin.y, 2);
+    k.jump(c.finisher, S_CONTACT, 0.9);
+    k.jump(c.defender, S_CONTACT + 40, 0.5);
+    return { x: fin.x + 0.4, y: fin.y, z: 2, shot: 'header' };
+  }
   const nearPost = c.variant === 'near';
   const nearY = top ? 31 : 37;
   const H = nearPost ? { x: 99.2, y: nearY } : { x: 97 - k.rng() * 0.6, y: 34 + (top ? 3 : -3) + (k.rng() - 0.5) };
@@ -1835,6 +2327,47 @@ function freekick(k: Kit, c: Ctx): Shot {
     const meet = attackTheCross(k, c, H, 1600);
     k.ball(1600, meet.x + 0.4, meet.y, 1.9, EASE_LINEAR, 4);
     return { x: meet.x + 0.4, y: meet.y, z: 1.9, shot: 'header' };
+  }
+  if (c.variant === 'dummyrun') {
+    // Two over the ball: the first runs up and steps over it, the wall flinches, and the
+    // second, a moment later, bends it over.
+    const h0 = k.at(c.helper, k.t0);
+    k.run(c.helper, 1150, h0.x, h0.y, { speed: SPEED.jog });
+    k.run(c.helper, 1400, c.spot.x - 0.3, c.spot.y + c.wing * 0.4, { speed: SPEED.run });
+    k.jump(c.helper, 1400, 0.22);
+    // On past it, out to the side, out of the way of the strike.
+    k.run(c.helper, 1700, c.spot.x + 1.2, c.spot.y + c.wing * 2.8, { speed: SPEED.run });
+    const f0 = k.at(c.finisher, k.t0);
+    k.run(c.finisher, 1300, f0.x, f0.y, { speed: SPEED.jog });
+    k.run(c.finisher, 1620, c.spot.x - 0.6, c.spot.y, { speed: SPEED.run });
+    k.ball(1620, c.spot.x, c.spot.y);
+    // The wall twitches as the first one shapes to shoot, then jumps for real.
+    for (const s of c.wall) k.jump(s, 1400, 0.15);
+    wallJumps(k, c, c.spot);
+    return { x: c.spot.x, y: c.spot.y, z: 0.1, shot: 'normal', curve: -c.wing * 2, curveZ: 2.6 };
+  }
+  if (c.variant === 'chipped') {
+    // No shot: the taker dinks it over the wall for the finisher, who has peeled off the end
+    // of it, to volley on the run.
+    const { dir, side } = chipLine(c);
+    const cr = k.at(c.creator, k.t0);
+    k.run(c.creator, 900, cr.x - 1.2, cr.y, { speed: SPEED.jog });
+    k.run(c.creator, 1150, c.spot.x - 0.6, c.spot.y, { speed: SPEED.run });
+    k.ball(1150, c.spot.x, c.spot.y);
+    k.touch(c.creator, 1150);
+    const V = { x: c.spot.x + dir.x * 14.5 - dir.y * side * 1.6, y: c.spot.y + dir.y * 14.5 + dir.x * side * 1.6 };
+    const f0 = k.at(c.finisher, k.t0);
+    k.run(c.finisher, 1000, f0.x, f0.y, { speed: SPEED.jog });
+    // Inside his marker first (who is goal-side of him), then on to where it drops.
+    k.run(c.finisher, 1250, c.spot.x + dir.x * 10.2 - dir.y * side * 1.3, c.spot.y + dir.y * 10.2 + dir.x * side * 1.3, { speed: SPEED.sprint });
+    const fin = k.run(c.finisher, 1620, V.x - 0.7, V.y, { speed: SPEED.sprint });
+    k.ball(1620, fin.x + 0.6, fin.y, 0.7, EASE_LINEAR, 3.4);
+    // His marker turns with him, a stride behind; the wall goes up as the ball goes over.
+    const d0 = k.at(c.defender, k.t0);
+    k.run(c.defender, 1000, d0.x, d0.y, { speed: SPEED.jog });
+    k.run(c.defender, 1620, fin.x - 1.3, fin.y + side * 1.3, { speed: SPEED.sprint });
+    for (const s of c.wall) k.jump(s, 1300, 0.5);
+    return { x: fin.x + 0.6, y: fin.y, z: 0.7, shot: 'first_time' };
   }
   if (c.variant === 'routine') {
     // Rolled a few yards aside by the team-mate on the ball; the finisher runs on and hits it.
@@ -1924,13 +2457,18 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
   const farPost = s.y < 34 ? GOAL_Y_MAX : GOAL_Y_MIN;
   const post = (s.aim ? s.aim === 'far' : k.rng() < 0.55) ? farPost : nearPost;
   const inward = post < 34 ? 1 : -1;
-  const goalY = post + inward * 1.3;
+  // A penalty down the middle; one tucked right into the corner.
+  const spotKick = c.base === 'penalty';
+  const goalY = spotKick && c.variant === 'center' ? 34 + (k.rng() - 0.5) * 1.2 : post + inward * (spotKick && c.variant === 'corner' ? 1 : 1.3);
   const arc = s.arc ?? (s.shot === 'header' ? 0.3 : s.shot === 'long_range' ? 1.1 : 0.5);
   const sprint = { speed: SPEED.sprint };
 
   // The keeper sets himself, facing the shot.
-  const setTo = s.keeperAt ?? { x: 103.8, y: 34 + (s.y - 34) * 0.25 };
-  k.run(c.gk, S_CONTACT, setTo.x, setTo.y, { speed: SPEED.run, ease: EASE_SMOOTH });
+  // (Spreading himself at the shooter's feet, he is already rushing out as it is struck.)
+  const setTo = f === 'spread' ? { x: Math.min(101.5, Math.max(s.x + 3.2, 99.5)), y: s.y + (34 - s.y) * 0.45 } : s.keeperAt ?? { x: 103.8, y: 34 + (s.y - 34) * 0.25 };
+  // (He reads it early and sets off from his line before the strike.)
+  if (f === 'spread') k.run(c.gk, S_CONTACT - 420, 103.6, 34 + (s.y - 34) * 0.2, { speed: SPEED.run, ease: EASE_SMOOTH });
+  k.run(c.gk, S_CONTACT, setTo.x, setTo.y, { speed: f === 'spread' ? SPEED.sprint : SPEED.run, ease: EASE_SMOOTH });
   let set = k.at(c.gk, S_CONTACT);
   if (c.variant === 'halfway') {
     // Caught off his line: he turns and sprints back towards his goal as the ball flies.
@@ -1975,7 +2513,8 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
     const p = touch(blocker, tB, dist, c.base === 'freekick' ? 1.5 : 0.5);
     k.beat(tB, 'block', p.x, p.y);
   } else if (f === 'deflect' && c.kind === 'deflected') {
-    const dist = Math.min(8, Math.max(4, strikeDist * 0.35));
+    // A free kick off the wall; anything else off a body a few metres out.
+    const dist = c.base === 'freekick' ? 9.15 : Math.min(8, Math.max(4, strikeDist * 0.35));
     touch(interceptor(k, c, viaPoint(dist), S_CONTACT + 420), S_CONTACT + 420, dist, 0.7);
   } else if (f === 'fumble') {
     // Straight at the keeper, who lets it squirm through.
@@ -2041,8 +2580,9 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
       case 'rebound': {
         // Parried into the six-yard box; the finisher follows in and scores while the keeper is down.
         const flightMs = A - S_CONTACT;
-        const secondFlight = Math.max(500, Math.round(flightMs * 0.3));
-        const A1 = A - 360 - secondFlight;
+        const followUpDelay = 650;
+        const secondFlight = Math.max(600, Math.round(flightMs * 0.3));
+        const A1 = A - followUpDelay - secondFlight;
         const T1 = { x: Math.min(104, set.x + 0.3), y: set.y + Math.max(-2.5, Math.min(2.5, goalY - set.y)) };
         k.ball(A1, T1.x, T1.y, 0.6, EASE_LINEAR, shotArc);
         k.run(c.gk, A1 - 380, set.x, set.y, { speed: SPEED.jog });
@@ -2053,11 +2593,17 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
         k.touch(c.gk, A1);
         // It drops where the finisher, following in, gets to.
         const R = { x: T1.x - 5.5, y: 34 + (T1.y - 34) * 0.3 };
-        const f = k.run(c.finisher, A1 + 330, R.x - 0.7, R.y, { speed: SPEED.sprint });
-        k.ball(A1 + 300, f.x + 0.9, f.y, 0.3, EASE_LINEAR, 0.6);
-        k.ball(A1 + 360, f.x + 0.6, f.y, 0.2);
-        k.touch(c.finisher, A1 + 360);
-        k.beat(A1 + 360, 'slowmo', f.x + 0.6, f.y, A - (A1 + 360));
+        const receiveAt = A1 + followUpDelay - 200;
+        const f = k.run(c.finisher, receiveAt + 50, R.x - 0.7, R.y, { speed: SPEED.sprint });
+        const receive = k.at(c.finisher, receiveAt);
+        k.ball(receiveAt, receive.x + FOOT, receive.y + 0.3, 0.2);
+        k.touch(c.finisher, receiveAt);
+        // Give him a brief, visible touch to settle the rebound before striking it again.
+        const strikeAt = A1 + followUpDelay;
+        const follow = k.run(c.finisher, strikeAt, f.x + 0.35, f.y, { speed: SPEED.run });
+        k.ball(strikeAt, follow.x + FOOT, follow.y + 0.3, 0.2);
+        k.touch(c.finisher, strikeAt);
+        k.beat(strikeAt, 'slowmo', follow.x + FOOT, follow.y + 0.3, A - strikeAt);
         end = { x: 105.4, y: T1.y < 34 ? GOAL_Y_MAX - 1.5 : GOAL_Y_MIN + 1.5, z: 0.4 };
         endArc = 0.3;
         dive = null;
@@ -2069,6 +2615,50 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
         dive = null;
         k.run(c.gk, A + 400, 104.4, end.y, { speed: SPEED.jog, ease: EASE_SMOOTH }); // turns and watches it in
         break;
+      case 'nutmeg': {
+        // He comes out and spreads himself; it goes through his legs and in.
+        end = { x: 105.4, y: 34 + (goalY - 34) * 0.4, z: 0.12 };
+        const u = Math.min(0.75, Math.max(0.4, (Math.min(102.6, set.x) - s.x) / (end.x - s.x)));
+        const K = { x: s.x + (end.x - s.x) * u, y: s.y + (end.y - s.y) * u };
+        const tK = Math.round(S_CONTACT + (A - S_CONTACT) * u);
+        k.run(c.gk, tK - 160, K.x + 0.4, K.y, { speed: SPEED.sprint });
+        k.run(c.gk, tK, K.x + 0.2, K.y, { speed: SPEED.run, z: 0.15 }); // down, legs apart
+        k.run(c.gk, A + 400, K.x + 0.5, K.y + 0.3, { speed: SPEED.jog }); // turns to see it go in
+        k.ball(tK, K.x + 0.2, K.y, 0.04);
+        endArc = 0;
+        dive = null;
+        break;
+      }
+      case 'barin': {
+        // Off the underside of the bar and straight down over the line.
+        const hitY = 34 + (goalY - 34) * 0.55;
+        end = { x: 105.05, y: hitY, z: GOAL_HEIGHT - 0.06 };
+        k.beat(A, 'post', 105, hitY);
+        dive = { t: A + 80, y: hitY + (set.y < hitY ? -0.9 : 0.9), z: 0.9 };
+        break;
+      }
+      case 'bounce': {
+        // It bounces just in front of him and skids up over his arm.
+        end = { x: 105.4, y: goalY, z: 0.55 };
+        const bx = Math.max(s.x + 3, 101.6);
+        const u = (bx - s.x) / (end.x - s.x);
+        k.ball(Math.round(A - (A - S_CONTACT) * (1 - u)), bx, s.y + (end.y - s.y) * u, 0, EASE_LINEAR, shotArc);
+        endArc = 0.25;
+        // Down low for it, and it comes up over him.
+        dive = { t: A + 40, y: goalY - inward * 1.2, z: 0.2 };
+        break;
+      }
+      case 'middle': {
+        // Down the middle, firmly, as he dives to one side.
+        const side = k.rng() < 0.5 ? -1 : 1;
+        k.run(c.gk, A - 420, set.x, set.y, { speed: SPEED.jog });
+        k.run(c.gk, A - 40, 104.3, 34 + side * 3, { speed: SPEED.sprint, z: 0.5 });
+        k.run(c.gk, A + 300, 104.3, 34 + side * 3.3, { speed: SPEED.jog, ease: EASE_OUT });
+        end = { x: 105.4, y: 34 - side * 0.3, z: 1.1 };
+        endArc = 0.4;
+        dive = null;
+        break;
+      }
       case 'panenka': {
         // The keeper commits to a side; the ball is dinked down the middle.
         const side = k.rng() < 0.5 ? -1 : 1;
@@ -2085,8 +2675,14 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
     // Rounded keeper: he stays down; nobody dives.
     if (c.variant === 'roundkeeper') dive = null;
     k.ball(A, end.x, end.y, end.z, EASE_LINEAR, endArc);
-    // Into the back of the net, where it drops.
-    k.ball(A + 260, 106.5, end.y + (f === 'postin' ? inward * 0.4 : 0), 0.1, EASE_OUT);
+    if (f === 'barin') {
+      // Down off the bar, over the line, and up into the roof of the net.
+      k.ball(A + 260, 105.7, end.y, 0.1, EASE_LINEAR);
+      k.ball(A + 520, 106.4, end.y, 0.35, EASE_OUT);
+    } else {
+      // Into the back of the net, where it drops.
+      k.ball(A + 260, 106.5, end.y + (f === 'postin' ? inward * 0.4 : 0), 0.1, EASE_OUT);
+    }
     if (dive) {
       // Beaten: he holds his ground, reads it late and dives a fraction behind the ball.
       k.run(c.gk, A - 300, set.x, set.y, { speed: SPEED.jog });
@@ -2096,18 +2692,46 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
   } else if (c.outcome === 'save') {
     // A save goes where the keeper can get to from his set position in the last 0.42 s.
     const reach = SPEED.sprint * 0.4;
-    const T = {
+    let T = {
       x: Math.min(104.1, set.x + 0.3),
       y: Math.min(GOAL_Y_MAX - 0.6, Math.max(GOAL_Y_MIN + 0.6, set.y + Math.max(-reach, Math.min(reach, goalY - set.y)))),
     };
-    const z = f === 'tip' ? 2.2 : f === 'feet' ? 0.2 : f === 'catch' ? 1 : 0.8;
+    // Point blank: it hits him almost where he stands.
+    if (f === 'reflex') T = { x: Math.min(104.1, set.x + 0.2), y: set.y + Math.max(-0.7, Math.min(0.7, goalY - set.y)) };
+    // Out to meet him, spread wide, half way to the shooter.
+    if (f === 'spread') {
+      const u = 0.5;
+      T = { x: Math.max(s.x + 2.5, s.x + (105 - s.x) * u), y: s.y + (goalY - s.y) * u };
+      k.run(c.gk, A - 220, T.x + 0.8, T.y, { speed: SPEED.sprint });
+    }
+    const z = f === 'tip' ? 2.2 : f === 'onehand' ? 1.9 : f === 'feet' || f === 'spread' ? 0.3 : f === 'catch' || f === 'reflex' ? 1.1 : 0.8;
     curveTo(T.x, T.y);
     k.ball(A, T.x, T.y, z, EASE_LINEAR, shotArc);
     // He holds his ground, then dives (or sticks out a leg) to meet it exactly as it arrives.
-    k.run(c.gk, A - 420, set.x, set.y, { speed: SPEED.jog });
-    k.run(c.gk, A, T.x, T.y, { speed: SPEED.sprint, z: f === 'tip' ? 0.9 : f === 'feet' ? 0.1 : f === 'catch' ? 0.35 : 0.5 });
+    if (f !== 'spread') k.run(c.gk, A - 420, set.x, set.y, { speed: SPEED.jog });
+    k.run(c.gk, A, T.x, T.y, { speed: SPEED.sprint, z: f === 'tip' || f === 'onehand' ? 0.9 : f === 'feet' ? 0.1 : f === 'spread' ? 0.2 : f === 'reflex' ? 0.15 : f === 'catch' ? 0.35 : 0.5 });
     const away = T.y < 34 ? -1 : 1;
-    if (f === 'tip') {
+    if (f === 'onehand') {
+      // At full stretch, the top hand: round the post for a corner.
+      const outY = away < 0 ? GOAL_Y_MIN - 1.8 : GOAL_Y_MAX + 1.8;
+      k.ball(A + 450, 106.6, outY, 1, EASE_OUT);
+      k.ball(A + 900, 108.6, outY + away * 0.8, 0.1, EASE_OUT);
+      k.beat(A + 350, 'out', 105, outY);
+      k.run(c.gk, A + 500, T.x - 0.2, T.y + away * 0.4, { speed: SPEED.jog, ease: EASE_OUT });
+    } else if (f === 'reflex') {
+      // Off his body, straight up in the air; he gathers it as it comes down.
+      k.ball(A + 420, T.x - 1.3, T.y, 3.4, EASE_OUT);
+      k.ball(A + 880, T.x - 0.8, T.y, 1.5, EASE_LINEAR);
+      k.run(c.gk, A + 880, T.x - 0.8 - 0.4, T.y, { speed: SPEED.run, z: 0.45 });
+      k.touch(c.gk, A + 880);
+      k.run(c.gk, A + 1250, T.x - 1.4, T.y, { speed: SPEED.jog, ease: EASE_OUT });
+      k.ball(A + 1250, T.x - 1.4 + 0.5, T.y, 1.1);
+    } else if (f === 'spread') {
+      // Off his body and away into the box; he is down.
+      const side = T.y < 34 ? -1 : 1;
+      k.ball(A + 450, T.x - 2.5, T.y + side * 4, 0.3, EASE_OUT, 0.8);
+      k.run(c.gk, A + 500, T.x + 0.1, T.y, { speed: SPEED.jog, z: 0.1 });
+    } else if (f === 'tip') {
       // Fingertips over the crossbar.
       const tipY = T.y + away;
       k.ball(A + 450, 107.5, tipY, 3.4, EASE_OUT);
@@ -2121,20 +2745,33 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
       // Parried out in front; the finisher follows in and shoots again; the keeper, back up,
       // throws himself the other way and saves that too, out for a corner.
       const R = { x: T.x - 6, y: 34 + (T.y - 34) * 0.3 };
-      k.ball(A + 380, R.x, R.y, 0.3, EASE_OUT, 0.8);
-      const f2 = k.run(c.finisher, A + 380, R.x - 0.7, R.y, { speed: SPEED.sprint });
-      k.ball(A + 420, f2.x + 0.7, f2.y, 0.25);
-      k.touch(c.finisher, A + 420);
+      const start = k.at(c.finisher, A);
+      const chaseMs = Math.max(650, Math.ceil(Math.hypot(R.x - 0.7 - start.x, R.y - start.y) / SPEED.sprint * 1000) + 160);
+      const receiveAt = A + chaseMs;
+      const strikeAt = receiveAt + 250;
+      const secondFlight = 520;
+      const secondSaveAt = strikeAt + secondFlight;
+      const f = k.run(c.finisher, receiveAt, R.x - 0.7, R.y, { speed: SPEED.sprint });
+      const receive = k.at(c.finisher, receiveAt);
+      k.ball(receiveAt, receive.x + FOOT, receive.y + 0.3, 0.2);
+      k.touch(c.finisher, receiveAt);
+      const f2 = k.run(c.finisher, strikeAt, f.x + 0.35, f.y, { speed: SPEED.run });
+      k.ball(strikeAt, f2.x + FOOT, f2.y + 0.3, 0.2);
+      k.touch(c.finisher, strikeAt);
+      k.beat(strikeAt, 'slowmo', f2.x + FOOT, f2.y + 0.3, secondFlight);
       const toward = T.y < 34 ? 1 : -1;
       const T2 = { x: 104.1, y: Math.min(GOAL_Y_MAX - 0.8, Math.max(GOAL_Y_MIN + 0.8, T.y + toward * 5)) };
-      k.ball(A + 780, T2.x, T2.y, 0.5, EASE_LINEAR, 0.3);
+      k.ball(secondSaveAt, T2.x, T2.y, 0.5, EASE_LINEAR, 0.3);
       k.run(c.gk, A + 260, T.x - 0.2, T.y, { speed: SPEED.jog, z: 0.1 }); // down, then straight back up
-      k.run(c.gk, A + 780, T2.x, T2.y, { speed: SPEED.sprint, z: 0.45 });
-      k.beat(A + 780, 'save', T2.x, T2.y);
-      k.touch(c.gk, A + 780);
-      k.ball(A + 1250, 107, T2.y < 34 ? GOAL_Y_MIN - 6 : GOAL_Y_MAX + 6, 0.3, EASE_OUT, 1);
-      k.beat(A + 1150, 'out', 105, T2.y < 34 ? GOAL_Y_MIN - 6 : GOAL_Y_MAX + 6);
-      k.run(c.gk, A + 1300, T2.x - 0.3, T2.y, { speed: SPEED.jog, ease: EASE_OUT });
+      k.run(c.gk, secondSaveAt, T2.x, T2.y, { speed: SPEED.sprint, z: 0.45 });
+      k.beat(secondSaveAt, 'save', T2.x, T2.y);
+      k.touch(c.gk, secondSaveAt);
+      k.beat(secondSaveAt, 'normal', T2.x, T2.y);
+      const outAt = secondSaveAt + 460;
+      const outY = T2.y < 34 ? GOAL_Y_MIN - 6 : GOAL_Y_MAX + 6;
+      k.ball(outAt, 107, outY, 0.3, EASE_OUT, 1);
+      k.beat(outAt - 100, 'out', 105, outY);
+      k.run(c.gk, outAt + 50, T2.x - 0.3, T2.y, { speed: SPEED.jog, ease: EASE_OUT });
     } else if (f === 'feet') {
       // Off his leg and back out into the box.
       k.ball(A + 500, T.x - 6, T.y + away * 5, 0.2, EASE_OUT, 0.6);
@@ -2148,6 +2785,43 @@ function finishShot(k: Kit, c: Ctx, s: Shot): number {
     }
     k.beat(A, 'save', T.x, T.y);
     k.touch(c.gk, A);
+  } else if (f === 'sidenet') {
+    // From the angle, into the side netting: for a moment the crowd thinks it is in.
+    const side = nearPost < 34 ? -1 : 1;
+    const T = { x: 105.5, y: nearPost + side * 0.35 };
+    curveTo(T.x, T.y);
+    k.ball(A, T.x, T.y, 0.7, EASE_LINEAR, shotArc);
+    k.ball(A + 250, 106.5, T.y + side * 0.15, 0.4, EASE_OUT);
+    k.ball(A + 700, 106.7, T.y + side * 0.2, 0, EASE_OUT);
+    k.run(c.gk, A - 300, set.x, set.y, { speed: SPEED.jog });
+    k.run(c.gk, A + 60, Math.max(set.x, 104.2), nearPost - side * 1.1, { speed: SPEED.sprint, z: 0.35 });
+    k.beat(A, 'net', 105, nearPost - side * 0.3);
+  } else if (f === 'scuffed') {
+    // Mishit: it rolls, slowly, wide of the post.
+    const side = goalY < 34 ? -1 : 1;
+    const T = { x: 105.6, y: (goalY < 34 ? GOAL_Y_MIN : GOAL_Y_MAX) + side * 2.2 };
+    k.ball(A, T.x, T.y, 0, EASE_LINEAR);
+    k.ball(A + 600, 107.2, T.y + side * 0.4, 0, EASE_OUT);
+    k.run(c.gk, A, Math.max(set.x, 103.9), set.y + (T.y - set.y) * 0.3, { speed: SPEED.jog, ease: EASE_SMOOTH });
+    k.beat(A, 'out', 105, T.y);
+  } else if (f === 'barline') {
+    // Off the underside of the bar, down onto the line... and back out, where the keeper,
+    // back on his feet, smothers it.
+    const hitY = 34 + (goalY - 34) * 0.45;
+    const back = hitY < 34 ? 1 : -1;
+    curveTo(105, hitY);
+    k.ball(A, 105, hitY, GOAL_HEIGHT, EASE_LINEAR, shotArc);
+    k.beat(A, 'post', 105, hitY);
+    k.ball(A + 260, 104.75, hitY + back * 0.2, 0, EASE_LINEAR);
+    k.ball(A + 700, 102.2, hitY + back * 0.8, 1.5, EASE_LINEAR);
+    k.ball(A + 1050, 101.6, hitY + back * 1, 0.8, EASE_LINEAR);
+    k.run(c.gk, A - 300, set.x, set.y, { speed: SPEED.jog });
+    k.run(c.gk, A + 80, Math.max(set.x, 104.2), hitY + (set.y < hitY ? -0.8 : 0.8), { speed: SPEED.sprint, z: 0.9 });
+    k.run(c.gk, A + 600, 103.2, hitY + back * 0.6, { speed: SPEED.jog });
+    k.run(c.gk, A + 1050, 101.6 + 0.4, hitY + back * 1, { speed: SPEED.run, z: 0.3 });
+    k.touch(c.gk, A + 1050);
+    k.run(c.gk, A + 1300, 101.8, hitY + back * 1, { speed: SPEED.jog, ease: EASE_OUT });
+    k.ball(A + 1300, 101.8 - 0.5, hitY + back * 1, 0.9);
   } else if (f === 'posts') {
     // Off the inside of one post, along the line, off the other post and out.
     const other = post === GOAL_Y_MIN ? GOAL_Y_MAX : GOAL_Y_MIN;
@@ -2454,11 +3128,18 @@ function separatePlayers(k: Kit, c: Ctx, keepAlways: ReadonlySet<number>, keepUn
   const xs = new Float32Array(BALL_SLOT * steps);
   const ys = new Float32Array(BALL_SLOT * steps);
   const ground = new Uint8Array(BALL_SLOT * steps);
+  // How many times each player has been resampled (moved): a pair checked since neither of
+  // them moved would give the same answer again, so it is skipped.
+  const version = new Uint16Array(BALL_SLOT);
+  const checked = new Map<number, number>();
+  const point = new Float32Array(3);
   const sample = (s: number) => {
+    const track = k.b.track(s) as Key[];
     for (let i = 0; i < steps; i++) {
-      const p = k.b.at(s, from + i * STEP);
-      xs[s * steps + i] = p.x; ys[s * steps + i] = p.y; ground[s * steps + i] = p.z < 0.05 ? 1 : 0;
+      sampleTrack(track, from + i * STEP, point, 0);
+      xs[s * steps + i] = point[0]; ys[s * steps + i] = point[1]; ground[s * steps + i] = point[2] < 0.05 ? 1 : 0;
     }
+    version[s]++;
   };
   for (const s of all) sample(s);
   for (let pass = 0; pass < 3; pass++) {
@@ -2466,10 +3147,15 @@ function separatePlayers(k: Kit, c: Ctx, keepAlways: ReadonlySet<number>, keepUn
       for (let j = i + 1; j < all.length; j++) {
         const a = all[i], b = all[j];
         if (keepAlways.has(a) && keepAlways.has(b)) continue;
+        const pair = a * 32 + b;
+        const stamp = version[a] * 65536 + version[b];
+        if (checked.get(pair) === stamp) continue;
+        checked.set(pair, stamp);
         let start = -1;
         for (let n = 0; n < steps; n++) {
           const ia = a * steps + n, ib = b * steps + n;
-          const close = ground[ia] && ground[ib] && Math.hypot(xs[ia] - xs[ib], ys[ia] - ys[ib]) < 0.7;
+          const dx = xs[ia] - xs[ib], dy = ys[ia] - ys[ib];
+          const close = ground[ia] && ground[ib] && dx * dx + dy * dy < 0.49;
           const last = n === steps - 1;
           if (close && start < 0) start = n;
           if ((!close || last) && start >= 0) {
@@ -3211,10 +3897,15 @@ export function buildDangerTimeline(input: DangerInput): DangerTimeline {
   const celebrationAway = hero.y < 34 ? -1 : 1;
   const celebration = { x: Math.min(100, hero.x - 1), y: Math.min(65, Math.max(3, hero.y + celebrationAway * 6)) };
   const celebrationMs = 300 + Math.ceil(Math.hypot(celebration.x - hero.x, celebration.y - hero.y) / (SPEED.run / 1.5) * 1000) + 250;
-  const finishBeat = finish === 'rebound' || finish === 'double' || finish === 'posts' ? 250 : 0;
+  const finishBeat = finish === 'barline' ? 450 : finish === 'rebound' || finish === 'double' || finish === 'posts' ? 250 : 0;
+  // A double save includes a real chase, a controlled follow-up touch, another strike and
+  // the second save. Budget the full sequence so playback never compresses it to fit.
+  const doubleRecoveryMs = finish === 'double'
+    ? Math.max(650, Math.ceil(Math.max(0, shotDistance - 7.2) / SPEED.sprint * 1000) + 160) + 1500
+    : 0;
   const aftermathMs = outcome === 'goal'
     ? Math.max(STAGE_MS, celebrationMs)
-    : Math.max(1200, 1100 + Math.ceil(shotDistance * 14) + finishBeat);
+    : Math.max(1200, 1100 + Math.ceil(shotDistance * 14) + finishBeat, doubleRecoveryMs);
   const entryMs = input.entry === 'cut' ? CUT_MS : FADE_ENTRY_MS;
   // The decisive move is built at its scripted pace first. If a ball would travel faster
   // than a real one or an attacker cannot reach his spot, it is built again with its clock
@@ -3321,7 +4012,9 @@ export function buildDangerTimeline(input: DangerInput): DangerTimeline {
   clearPassingLanes(k, c, new Set([finisher, gk, touched, ...c.wall, ...(own ? [defender] : [])]), k.tm.contactMs + 60, k.tm.arrivalMs, [...c.atkLive, ...c.defLive], 1.9, 3);
 
   let timeline = k.b.build(k.tm.endMs);
-  let focus = viewOfPlay(timeline, cast.map(entry => entry.slot), timing);
+  // A double save keeps the decisive action alive after the first arrival, so frame the
+  // whole chase and follow-up instead of cutting the camera range off at the first save.
+  let focus = viewOfPlay(timeline, cast.map(entry => entry.slot), timing, finish === 'double');
   let strikeFocus = viewOfStrike(shot);
   let beats = [...k.beats].sort((a, b) => a.t - b.t);
   if (mirror) {

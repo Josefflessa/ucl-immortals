@@ -95,7 +95,7 @@ describe('roteiros de lance perigoso', () => {
             const gkSlot = d.cast.find(c => c.role === 'goalkeeper')!.slot;
             const gk = toAttack(attackSide, out[gkSlot * 3], out[gkSlot * 3 + 1]);
             const label = `${variant}/${finish} seed ${seed}`;
-            if (finish === 'post' || finish === 'bar' || finish === 'posts') {
+            if (finish === 'post' || finish === 'bar' || finish === 'posts' || finish === 'barline') {
               expect(ball.x).toBeGreaterThan(104.5);
               const onPost = Math.min(Math.abs(ball.y - GOAL_Y_MIN), Math.abs(ball.y - GOAL_Y_MAX)) < 0.5;
               const onBar = ball.y > GOAL_Y_MIN && ball.y < GOAL_Y_MAX && Math.abs(z - GOAL_HEIGHT) < 0.1;
@@ -172,9 +172,9 @@ describe('roteiros de lance perigoso', () => {
   }
 
   it('só chute de longe, falta e bomba saem de fora da área; o resto finaliza dentro dela', () => {
-    const fromOutside = new Set(['longrange', 'freekick', 'screamer', 'woodwork/layoff', 'woodwork/clearance', 'blunder/longshot', 'deflected/layoff']);
+    const fromOutside = new Set(['longrange', 'freekick', 'screamer', 'woodwork/layoff', 'woodwork/clearance', 'blunder/longshot', 'blunder/freekick', 'deflected/layoff', 'deflected/freekick']);
     // A free kick out wide is crossed in and headed from inside the box.
-    const insideAnyway = new Set(['freekick/flank']);
+    const insideAnyway = new Set(['freekick/flank', 'freekick/chipped']);
     for (const kind of DANGER_KINDS) {
       for (const variant of PLAY_VARIANTS[kind] as readonly PlayVariant[]) {
         const outside = (fromOutside.has(kind) || fromOutside.has(`${kind}/${variant}`)) && !insideAnyway.has(`${kind}/${variant}`);

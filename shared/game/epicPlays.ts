@@ -1,6 +1,6 @@
 /**
  * The epic roll: whether a danger plays as one of the rare, memorable plays (a bicycle kick,
- * a goal from the halfway line, a run from his own half, a double save...), and which.
+ * a scorpion kick, a goal from the halfway line, a run from his own half, a double save...), and which.
  * Rare by design — about one every three or four matches between good teams — and more
  * likely the better the player is at what the play needs (and with the trait for it).
  * The engine still decides who scores and whether it goes in; this only picks how.
@@ -39,6 +39,7 @@ const avg = (...values: number[]) => values.reduce((sum, v) => sum + v, 0) / val
 function weightOf(option: EpicPick, ctx: EpicContext): number {
   const p = ctx.shooter;
   if (option.finish === 'posts') return 0.5; // pure luck: the same for everyone, and rarer
+  if (option.finish === 'barline') return 0.4; // luck too, and rarer still
   if (option.finish === 'double') {
     const gk = ctx.keeper;
     return gk ? skillWeight(gk.defending) * (hasTrait(gk, ['Reflexo Felino']) ? TRAIT_BONUS : 1) : 1;
@@ -49,6 +50,8 @@ function weightOf(option: EpicPick, ctx: EpicContext): number {
     case 'bicycle': return skillWeight(avg(p.physical, p.dribbling));
     case 'diving': return skillWeight(avg(p.physical, p.shooting)) * trait('Cabeceador', 'Cabeceador Implacável');
     case 'backheel': return skillWeight(avg(p.dribbling, p.composure));
+    case 'scorpion': return 0.8 * skillWeight(avg(p.dribbling, p.physical, p.composure));
+    case 'rabona': return skillWeight(avg(p.dribbling, p.composure)) * trait('Dribblador Técnico', 'Dribblador Nato');
     case 'halfway': return skillWeight(avg(p.shooting, p.vision)) * trait('Chute de Longe');
     case 'olimpico': return skillWeight(p.shooting) * trait('Cobrador de Falta');
     // (Free kicks are frequent, so a 35-metre one stays rarer per kick.)

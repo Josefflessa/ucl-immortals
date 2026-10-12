@@ -7,19 +7,19 @@
 import type { PlayKind } from './engine/teamModel';
 
 export const PLAY_VARIANTS = {
-  cross: ['byline', 'early', 'cutback', 'overlap', 'driven', 'volley', 'trivela', 'lowfar', 'bicycle', 'diving', 'backheel'],
-  through: ['straight', 'onetwo', 'channel', 'lofted', 'split', 'roundkeeper', 'heelpass', 'dummy', 'tikitaka'],
-  dribble: ['single', 'double', 'cutinside', 'solo', 'hurdle', 'nutmeg', 'elastico', 'chapeu', 'slalom'],
-  longrange: ['layoff', 'clearance', 'square', 'carryshot', 'knockdown', 'halfway'],
-  counter: ['long', 'carry', 'twoonone', 'breakaway', 'recovery', 'threevtwo', 'overlap'],
-  corner: ['near', 'far', 'short', 'flick', 'edge', 'backpost', 'nearpower', 'olimpico'],
-  freekick: ['curl', 'power', 'under', 'routine', 'flank', 'distance'],
-  penalty: ['normal', 'stutter', 'power', 'panenka'],
-  own_goal: ['byline', 'cutback', 'clearance'],
-  blunder: ['single', 'longshot'],
-  deflected: ['layoff', 'dribble'],
-  screamer: ['strike', 'volley'],
-  woodwork: ['layoff', 'clearance', 'curler'],
+  cross: ['byline', 'early', 'cutback', 'overlap', 'driven', 'volley', 'trivela', 'lowfar', 'deep', 'farknock', 'firsttime', 'bicycle', 'diving', 'backheel', 'scorpion'],
+  through: ['straight', 'onetwo', 'channel', 'lofted', 'split', 'roundkeeper', 'heelpass', 'dummy', 'thirdman', 'blindside', 'scoop', 'tikitaka'],
+  dribble: ['single', 'double', 'cutinside', 'solo', 'hurdle', 'nutmeg', 'elastico', 'chapeu', 'roulette', 'stepover', 'cruyff', 'slalom', 'rabona'],
+  longrange: ['layoff', 'clearance', 'square', 'carryshot', 'knockdown', 'chest', 'outside', 'turn', 'halfway'],
+  counter: ['long', 'carry', 'twoonone', 'breakaway', 'recovery', 'threevtwo', 'overlap', 'switch', 'cutback'],
+  corner: ['near', 'far', 'short', 'flick', 'edge', 'backpost', 'nearpower', 'decoy', 'late', 'olimpico'],
+  freekick: ['curl', 'power', 'under', 'routine', 'flank', 'dummyrun', 'chipped', 'distance'],
+  penalty: ['normal', 'stutter', 'power', 'panenka', 'center', 'corner'],
+  own_goal: ['byline', 'cutback', 'clearance', 'corner'],
+  blunder: ['single', 'longshot', 'header', 'freekick'],
+  deflected: ['layoff', 'dribble', 'freekick', 'edge'],
+  screamer: ['strike', 'volley', 'outside', 'dipping'],
+  woodwork: ['layoff', 'clearance', 'curler', 'header', 'chip'],
 } as const satisfies Record<PlayKind, readonly string[]>;
 
 export type PlayVariant = (typeof PLAY_VARIANTS)[PlayKind][number];
@@ -29,15 +29,15 @@ export type PlayVariant = (typeof PLAY_VARIANTS)[PlayKind][number];
  * only from the epic roll (see epicPlays.ts), weighted by how good the player is.
  */
 export const EPIC_VARIANTS: Partial<Record<PlayKind, readonly PlayVariant[]>> = {
-  cross: ['bicycle', 'diving', 'backheel'],
+  cross: ['bicycle', 'diving', 'backheel', 'scorpion'],
   through: ['tikitaka'],
-  dribble: ['slalom'],
+  dribble: ['slalom', 'rabona'],
   longrange: ['halfway'],
   corner: ['olimpico'],
   freekick: ['distance'],
 };
 /** Epic finishes: they can crown any fitting play (see epicFinishesFor). */
-export const EPIC_FINISHES: readonly FinishStyle[] = ['double', 'posts'];
+export const EPIC_FINISHES: readonly FinishStyle[] = ['double', 'posts', 'barline'];
 
 export function isEpicVariant(kind: PlayKind, variant: PlayVariant): boolean {
   return (EPIC_VARIANTS[kind] ?? []).includes(variant);
@@ -52,6 +52,8 @@ export function isEpic(kind: PlayKind, variant: PlayVariant, finish: FinishStyle
  * assist instead (see the pitch scripts).
  */
 const UNASSISTED: Partial<Record<PlayKind, readonly string[]>> = {
+  // The far-post knock-down: the last touch is the header back across, not the cross.
+  cross: ['farknock'],
   counter: ['breakaway', 'recovery'],
   longrange: ['clearance', 'carryshot', 'halfway'],
   dribble: ['slalom'],
@@ -89,30 +91,45 @@ export function serverRolesFor(kind: PlayKind): readonly string[] {
   return kind === 'cross' || kind === 'corner' || kind === 'own_goal' ? SERVER_ROLES.wide : SERVER_ROLES.playmaker;
 }
 
-/** How a goal goes in. */
-export type GoalStyle = 'low' | 'high' | 'chip' | 'postin' | 'deflect' | 'fumble' | 'panenka' | 'rebound';
-/** How the keeper stops it ('double': the shot and then the follow-up, both saved — an epic). */
-export type SaveStyle = 'parry' | 'catch' | 'tip' | 'feet' | 'double';
+/**
+ * How a goal goes in ('nutmeg': through the keeper's legs as he comes out; 'barin': off the
+ * underside of the bar and down over the line; 'bounce': it bounces just in front of the
+ * keeper and over his arm; 'middle': a penalty struck down the middle as he dives).
+ */
+export type GoalStyle = 'low' | 'high' | 'chip' | 'postin' | 'deflect' | 'fumble' | 'panenka' | 'rebound' | 'nutmeg' | 'barin' | 'bounce' | 'middle';
+/**
+ * How the keeper stops it ('double': the shot and then the follow-up, both saved — an epic;
+ * 'onehand': at full stretch with the top hand, round the post; 'reflex': point blank, off
+ * his body and up, then claimed; 'spread': out to the shooter, spread wide, and it hits him).
+ */
+export type SaveStyle = 'parry' | 'catch' | 'tip' | 'feet' | 'double' | 'onehand' | 'reflex' | 'spread';
 /**
  * Where a miss goes ('blocked': off a defender, or the wall, and out; 'cleared': off the line;
- * 'posts': off one post, along the line and off the other — an epic).
+ * 'posts': off one post, along the line and off the other — an epic; 'sidenet': into the
+ * side netting from an angle; 'scuffed': mishit and rolling wide;
+ * 'barline': off the bar, down on the line and back out — an epic).
  */
-export type MissStyle = 'wide' | 'over' | 'post' | 'bar' | 'blocked' | 'cleared' | 'posts';
+export type MissStyle = 'wide' | 'over' | 'post' | 'bar' | 'blocked' | 'cleared' | 'posts' | 'sidenet' | 'scuffed' | 'barline';
 export type FinishStyle = GoalStyle | SaveStyle | MissStyle;
 export type Outcome = 'goal' | 'save' | 'miss';
 
 /** What the strike is: it decides which finishes make sense. */
 export type StrikeClass = 'header' | 'close' | 'long' | 'setpiece' | 'penalty';
 
+const HEADED_CROSSES: readonly string[] = ['byline', 'early', 'overlap', 'trivela', 'diving', 'deep', 'firsttime'];
+
 export function strikeClassOf(kind: PlayKind, variant: PlayVariant): StrikeClass {
   switch (kind) {
-    case 'cross': return variant === 'byline' || variant === 'early' || variant === 'overlap' || variant === 'trivela' || variant === 'diving' ? 'header' : 'close';
+    case 'cross': return HEADED_CROSSES.includes(variant) ? 'header' : 'close';
     case 'corner': return variant === 'edge' ? 'long' : variant === 'nearpower' ? 'close' : variant === 'olimpico' ? 'setpiece' : 'header';
-    case 'freekick': return variant === 'flank' ? 'header' : 'setpiece';
+    case 'freekick': return variant === 'flank' ? 'header' : variant === 'chipped' ? 'close' : 'setpiece';
     case 'own_goal': return 'close';
-    case 'through': case 'counter': case 'dribble': case 'blunder': return 'close';
+    case 'blunder': return variant === 'header' ? 'header' : variant === 'freekick' ? 'setpiece' : 'close';
+    case 'through': case 'counter': case 'dribble': return 'close';
     case 'penalty': return 'penalty';
-    default: return 'long'; // longrange, deflected, screamer, woodwork
+    case 'woodwork': return variant === 'header' ? 'header' : variant === 'chip' ? 'close' : 'long';
+    case 'deflected': return variant === 'freekick' ? 'setpiece' : 'long';
+    default: return 'long'; // longrange, screamer
   }
 }
 
@@ -124,25 +141,47 @@ const OWN_FINISHES: Record<string, Record<Outcome, readonly FinishStyle[]>> = {
   'cross/bicycle': { goal: ['low', 'high'], save: ['parry', 'tip'], miss: ['over', 'wide', 'bar'] },
   'cross/diving': { goal: ['low', 'high'], save: ['parry', 'catch', 'feet'], miss: ['wide', 'post'] },
   'cross/backheel': { goal: ['low', 'postin'], save: ['catch', 'parry'], miss: ['wide', 'post'] },
+  'cross/scorpion': { goal: ['low', 'high'], save: ['parry', 'catch'], miss: ['wide', 'over', 'bar'] },
   'longrange/halfway': { goal: ['high', 'low'], save: ['tip'], miss: ['over', 'wide', 'bar'] },
   'corner/olimpico': { goal: ['postin', 'high'], save: ['tip', 'parry'], miss: ['post', 'bar'] },
   'freekick/distance': { goal: ['high', 'postin'], save: ['tip', 'parry'], miss: ['over', 'bar'] },
   'freekick/flank': { goal: ['low', 'high', 'rebound'], save: ['parry', 'catch', 'tip'], miss: ['wide', 'over', 'post', 'bar', 'cleared'] },
   'freekick/routine': { goal: ['high', 'low', 'postin'], save: ['parry', 'catch', 'tip'], miss: ['over', 'wide', 'blocked', 'post'] },
+  'freekick/dummyrun': { goal: ['high', 'postin', 'barin'], save: ['parry', 'tip', 'onehand'], miss: ['over', 'wide', 'blocked', 'post'] },
+  // Dinked over the wall to a runner, who volleys it: nobody is set to block it.
+  'freekick/chipped': { goal: ['low', 'high', 'rebound'], save: ['parry', 'catch', 'reflex'], miss: ['wide', 'over', 'post'] },
   'dribble/slalom': { goal: ['low', 'high', 'chip', 'rebound'], save: ['parry', 'catch', 'feet'], miss: ['wide', 'over', 'post'] },
+  'dribble/rabona': { goal: ['low', 'high', 'postin'], save: ['parry', 'catch', 'feet'], miss: ['wide', 'over', 'post'] },
+  // A volley on the run after a ball dinked over the defence.
+  'through/scoop': { goal: ['low', 'high', 'rebound'], save: ['parry', 'catch', 'reflex'], miss: ['wide', 'over', 'post'] },
+  // A dink over the keeper coming out: it can only come down on the woodwork.
+  'woodwork/chip': { goal: [], save: [], miss: ['bar', 'post'] },
 };
 
 /**
  * The epic finishes a play can have for an outcome (on top of its ordinary ones): the double
- * save after a close-range shot or a header, the ball off both posts after a shot on the
- * ground. Only from the epic roll.
+ * save after a close-range shot, a header or a penalty; the ball off both posts after a shot
+ * on the ground; off the bar and down on the line after a header or a shot from distance.
+ * Only from the epic roll.
  */
 export function epicFinishesFor(kind: PlayKind, variant: PlayVariant, outcome: Outcome): readonly FinishStyle[] {
-  if (kind === 'penalty' || kind === 'freekick' || variant === 'roundkeeper' || isEpicVariant(kind, variant)) return [];
+  // A penalty saved, and the follow-up too (never after a panenka: he stays on his feet).
+  if (kind === 'penalty') return outcome === 'save' && variant !== 'panenka' ? ['double'] : [];
+  if (kind === 'freekick' || variant === 'roundkeeper' || variant === 'chip' || isEpicVariant(kind, variant)) return [];
   const cls = strikeClassOf(kind, variant);
   if (outcome === 'save') return cls === 'close' || cls === 'header' ? ['double'] : [];
-  if (outcome === 'miss') return cls === 'close' || cls === 'long' ? ['posts'] : [];
+  if (outcome === 'miss') {
+    const out: FinishStyle[] = [];
+    if (cls === 'close' || cls === 'long') out.push('posts');
+    if (cls === 'header' || cls === 'long') out.push('barline');
+    return out;
+  }
   return [];
+}
+
+/** Through on goal with the keeper coming out to meet him (a chip, or his legs, are on). */
+function oneOnOne(kind: PlayKind, variant: PlayVariant): boolean {
+  return (kind === 'through' || kind === 'counter' || variant === 'solo') && variant !== 'scoop';
 }
 
 /** Every finish a play can have for an outcome, so each one is a real option. */
@@ -154,31 +193,45 @@ export function finishesFor(kind: PlayKind, variant: PlayVariant, outcome: Outco
   if (outcome === 'goal') {
     if (kind === 'own_goal' || kind === 'deflected') return ['deflect'];
     if (kind === 'blunder') return ['fumble'];
-    if (kind === 'screamer') return ['high', 'postin'];
-    if (kind === 'penalty') return variant === 'panenka' ? ['panenka'] : variant === 'power' ? ['high'] : variant === 'stutter' ? ['low'] : ['low', 'high'];
-    if (kind === 'freekick') return variant === 'under' ? ['low'] : variant === 'power' ? ['high', 'low'] : ['high', 'postin'];
+    if (kind === 'screamer') return ['high', 'postin', 'barin'];
+    if (kind === 'penalty') {
+      if (variant === 'panenka') return ['panenka'];
+      if (variant === 'center') return ['middle'];
+      if (variant === 'corner') return ['low', 'postin'];
+      return variant === 'power' ? ['high'] : variant === 'stutter' ? ['low'] : ['low', 'high'];
+    }
+    if (kind === 'freekick') return variant === 'under' ? ['low'] : variant === 'power' ? ['high', 'low', 'barin'] : ['high', 'postin', 'barin'];
     // Round the keeper: rolled into the empty net.
     if (variant === 'roundkeeper') return ['low'];
     if (cls === 'header') return ['low', 'high', 'rebound'];
-    if (cls === 'long') return ['high', 'low', 'postin'];
-    // A chip needs the keeper coming out: only when through on goal.
-    const oneOnOne = kind === 'through' || kind === 'counter' || variant === 'solo';
-    return oneOnOne ? ['low', 'high', 'chip', 'rebound'] : ['low', 'high', 'rebound'];
+    if (cls === 'long') return ['high', 'low', 'postin', 'barin', 'bounce'];
+    return oneOnOne(kind, variant) ? ['low', 'high', 'chip', 'rebound', 'nutmeg'] : ['low', 'high', 'rebound'];
   }
   if (variant === 'roundkeeper') return outcome === 'miss' ? ['wide'] : [];
   if (outcome === 'save') {
-    if (kind === 'penalty') return variant === 'panenka' ? ['catch'] : ['parry', 'catch', 'feet'];
-    if (cls === 'close') return ['parry', 'catch', 'feet'];
+    if (kind === 'penalty') {
+      if (variant === 'panenka') return ['catch'];
+      // Down the middle he stays up; tucked into the corner he has to get down to it.
+      if (variant === 'center') return ['catch', 'feet'];
+      if (variant === 'corner') return ['parry', 'feet'];
+      return ['parry', 'catch', 'feet'];
+    }
+    if (cls === 'close') return oneOnOne(kind, variant) ? ['parry', 'catch', 'feet', 'reflex', 'spread'] : ['parry', 'catch', 'feet', 'reflex'];
     if (kind === 'freekick' && variant === 'under') return ['parry', 'catch'];
-    return ['parry', 'catch', 'tip'];
+    if (cls === 'header') return ['parry', 'catch', 'tip', 'reflex'];
+    return ['parry', 'catch', 'tip', 'onehand'];
   }
   if (kind === 'woodwork') return ['post', 'bar'];
-  if (kind === 'penalty') return variant === 'panenka' ? ['over', 'bar'] : ['wide', 'over', 'post', 'bar'];
+  if (kind === 'penalty') {
+    if (variant === 'panenka' || variant === 'center') return ['over', 'bar'];
+    if (variant === 'corner') return ['post', 'wide'];
+    return ['wide', 'over', 'post', 'bar'];
+  }
   if (kind === 'freekick') return variant === 'under' ? ['blocked', 'wide'] : ['over', 'wide', 'blocked', 'post', 'bar'];
   if (cls === 'header') return ['wide', 'over', 'post', 'bar', 'cleared'];
   // Through on goal (a counter, a solo run) nobody is in front of him: no block, nobody on the line.
-  if (cls === 'close') return kind === 'counter' || variant === 'solo' ? ['wide', 'over', 'post'] : ['wide', 'over', 'post', 'blocked', 'cleared'];
-  return ['wide', 'over', 'blocked', 'post', 'bar', 'cleared'];
+  if (cls === 'close') return kind === 'counter' || variant === 'solo' ? ['wide', 'over', 'post', 'sidenet', 'scuffed'] : ['wide', 'over', 'post', 'blocked', 'cleared', 'sidenet', 'scuffed'];
+  return ['wide', 'over', 'blocked', 'post', 'bar', 'cleared', 'scuffed'];
 }
 
 /** A finish for the outcome, from a [0, 1) draw. */

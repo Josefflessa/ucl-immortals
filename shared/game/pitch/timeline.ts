@@ -39,8 +39,13 @@ export function sampleTrack(track: Key[], t: number, out: Float32Array, offset: 
     out[offset] = last.x; out[offset + 1] = last.y; out[offset + 2] = last.z;
     return;
   }
-  let i = 1;
-  while (track[i].t < t) i++;
+  // The first key at or after t (a binary search: off-ball runs carry a key every 100 ms).
+  let lo = 1, hi = track.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (track[mid].t < t) lo = mid + 1; else hi = mid;
+  }
+  const i = lo;
   const a = track[i - 1];
   const b = track[i];
   const raw = (t - a.t) / (b.t - a.t);

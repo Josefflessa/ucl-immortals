@@ -83,6 +83,8 @@ it.runIf(process.env.AUDIT)('auditoria completa dos lances', () => {
             ? { x: buf[s * 3], y: buf[s * 3 + 1], z: buf[s * 3 + 2] }
             : { x: 105 - buf[s * 3], y: 68 - buf[s * 3 + 1], z: buf[s * 3 + 2] };
           const slotOf = (id?: string) => (id ? [...sides.left.playerIds, ...sides.right.playerIds].indexOf(id) : -1);
+          // The lead-in is the attackers' (a legend can be in both bot squads).
+          const atkSlotOf = (id?: string) => { const i = id ? sides[attackSide].playerIds.indexOf(id) : -1; return i < 0 ? -1 : i + atkSlot; };
           const fin = d.cast.find(c => c.role === 'finisher')!.slot;
           const gk = d.cast.find(c => c.role === 'goalkeeper')!.slot;
           const creator = slotOf(assisted ? event.assisterId : event.play?.wideId ?? event.play?.creatorId);
@@ -107,7 +109,7 @@ it.runIf(process.env.AUDIT)('auditoria completa dos lances', () => {
           const shotPeak = peakBallSpeed(d.timeline, d.timing.contactMs - 10, d.timing.arrivalMs - 20);
           peaks.shot.push(shotPeak);
           // Its average pace to the target: a strike in slow motion reads as a replay (epics only).
-          { const a = P(frameAt(d.timing.contactMs), BALL_SLOT), b = P(frameAt(d.timing.arrivalMs), BALL_SLOT); const pace = dist(a, b) / ((d.timing.arrivalMs - d.timing.contactMs) / 1000); paces.push(pace); if (pace < 8 && !d.epic && !['rebound', 'blocked', 'deflect', 'panenka', 'chip'].includes(d.finish)) flag('chute em câmera lenta', tag + ' ' + pace.toFixed(1) + ' m/s'); }
+          { const a = P(frameAt(d.timing.contactMs), BALL_SLOT), b = P(frameAt(d.timing.arrivalMs), BALL_SLOT); const pace = dist(a, b) / ((d.timing.arrivalMs - d.timing.contactMs) / 1000); paces.push(pace); if (pace < 8 && !d.epic && !['rebound', 'blocked', 'deflect', 'panenka', 'chip'].includes(d.finish) && !(kind === 'blunder' && d.variant === 'header')) flag('chute em câmera lenta', tag + ' ' + pace.toFixed(1) + ' m/s'); }
           // A strike leaves the foot at ~120 km/h at most.
           if (shotPeak > 36) flag('chute rápido demais', tag + ' ' + shotPeak.toFixed(0) + ' m/s');
           if (Math.max(leadPeak, decisivePeak) > MAX_PASS_SPEED * 1.08) flag('bola rápida demais antes do chute', `${tag} lead ${leadPeak.toFixed(0)} decisiva ${decisivePeak.toFixed(0)} m/s`);
@@ -119,7 +121,9 @@ it.runIf(process.env.AUDIT)('auditoria completa dos lances', () => {
             const ball = P(b, BALL_SLOT), ballPrev = P(a, BALL_SLOT);
             const ballSpeed = dist(ball, ballPrev) / (STEP / 1000);
             // Loose ball lying alone in the build-up.
-            const atSpot = ['corner', 'freekick', 'penalty'].includes(kind) && t < (kind === 'corner' ? d.timing.decisiveMs + 300 : d.timing.contactMs);
+            // (A deflection off the wall or a fumbled free kick also starts from a dead ball.)
+            const deadBall = ['corner', 'freekick', 'penalty'].includes(kind) || (kind === 'deflected' && (d.variant === 'freekick' || d.variant === 'edge')) || (kind === 'blunder' && d.variant === 'freekick');
+            const atSpot = deadBall && t < (kind === 'corner' || d.variant === 'edge' ? d.timing.decisiveMs + 300 : d.timing.contactMs);
             if (t < d.timing.contactMs && ball.z < 0.3 && ballSpeed < 2 && !atSpot) {
               const nearest = Math.min(...[...attackers, ...defenders].map(s => dist(P(b, s), ball)));
               if (nearest > 3) { flag('bola parada sozinha na construção', `${tag} t=${t} (${nearest.toFixed(1)} m do mais próximo)`); break; }
@@ -201,8 +205,8 @@ it.runIf(process.env.AUDIT)('auditoria completa dos lances', () => {
           }
           if (kind === 'freekick') {
             const a = P(frameAt(d.timing.decisiveMs), BALL_SLOT), b = P(frameAt(d.timing.contactMs - 40), BALL_SLOT);
-            // (A routine rolls it aside first; a free kick out wide is crossed in.)
-            if (dist(a, b) > 0.3 && d.variant !== 'routine' && d.variant !== 'flank') flag('falta: bola andou antes da cobrança', `${tag}`);
+            // (A routine rolls it aside first; a free kick out wide is crossed in; a chipped one dinked over the wall.)
+            if (dist(a, b) > 0.3 && d.variant !== 'routine' && d.variant !== 'flank' && d.variant !== 'chipped') flag('falta: bola andou antes da cobrança', `${tag}`);
           }
           // An assisted goal: the assist provider plays the last pass to the finisher.
           if (assisted && kind !== 'own_goal') {
@@ -234,11 +238,11 @@ it.runIf(process.env.AUDIT)('auditoria completa dos lances', () => {
           }
           // The lead-in line against who really had the ball.
           {
-            const touchedLead = (id?: string) => { const s = slotOf(id); return s >= 0 && frames.some(({ t, pos }) => t >= FADE_ENTRY_MS && t <= d.timing.decisiveMs + 40 && dist(P(pos, s), P(pos, BALL_SLOT)) < 1.4); };
-            if (['pass', 'switch', 'combo', 'wall', 'longball', 'pivot', 'throwin'].includes(d.lead.pattern) && !touchedLead(d.lead.passerId)) { const ps = slotOf(d.lead.passerId); const md = Math.min(...frames.filter(({ t }) => t >= FADE_ENTRY_MS && t <= d.timing.decisiveMs + 40).map(({ pos }) => dist(P(pos, ps), P(pos, BALL_SLOT)))); flag('preparação: quem passa não toca na bola', `${tag} slot ${ps} min ${md.toFixed(2)} m "${lead}"`); }
+            const touchedLead = (id?: string) => { const s = atkSlotOf(id); return s >= 0 && frames.some(({ t, pos }) => t >= FADE_ENTRY_MS && t <= d.timing.decisiveMs + 40 && dist(P(pos, s), P(pos, BALL_SLOT)) < 1.4); };
+            if (['pass', 'switch', 'combo', 'wall', 'longball', 'pivot', 'throwin'].includes(d.lead.pattern) && !touchedLead(d.lead.passerId)) { const ps = atkSlotOf(d.lead.passerId); const md = Math.min(...frames.filter(({ t }) => t >= FADE_ENTRY_MS && t <= d.timing.decisiveMs + 40).map(({ pos }) => dist(P(pos, ps), P(pos, BALL_SLOT)))); flag('preparação: quem passa não toca na bola', `${tag} slot ${ps} min ${md.toFixed(2)} m "${lead}"`); }
             if ((d.lead.pattern === 'combo' || d.lead.pattern === 'pivot') && !touchedLead(d.lead.secondId)) flag('preparação: segundo da troca não toca', `${tag} "${lead}"`);
             if (d.lead.pattern !== 'settle' && d.lead.ownerId) {
-              const s = slotOf(d.lead.ownerId);
+              const s = atkSlotOf(d.lead.ownerId);
               const pos = frameAt(d.timing.decisiveMs);
               if (dist(P(pos, s), P(pos, BALL_SLOT)) > 1.5) flag('preparação: bola não está com quem inicia a jogada', `${tag} ${dist(P(pos, s), P(pos, BALL_SLOT)).toFixed(1)} m`);
             }
