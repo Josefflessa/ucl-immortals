@@ -191,7 +191,7 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'decimoHomem', icon: '🪑', label: '12º Homem', color: '#14B8A6', desc: 'No banco, dá +1 em todos os atributos a todo o time.' },
   { key: 'pipoqueiro', icon: '🍿', label: 'Pipoqueiro', color: '#EC4899', desc: '+7 em todos os atributos na fase de liga, mas −7 em tudo no mata-mata.' },
   { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: '+20 em tudo NELE e +50 na química geral — SÓ enquanto for o único titular com característica.' },
-  { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: '+10 em tudo quando é o único titular do seu país E do seu clube.' },
+  { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: '+9 em tudo quando é o único titular do seu país E do seu clube.' },
   { key: 'colecionador', icon: '🧩', label: 'Colecionador', color: '#C084FC', desc: '+1 em todos os atributos por jogador que estiver na reserva.' },
   { key: 'estribado', icon: '💰', label: 'Estribado', color: '#FACC15', desc: '+1 em todos os atributos a cada 100 créditos que você possui.' },
   { key: 'todosPorUm', icon: '🤝', label: 'Todos por um', color: '#4ADE80', desc: 'Sozinha não faz nada. Se os 11 titulares tiverem, todos ganham +20 em tudo e o time recebe +50 de química geral.' },

@@ -50,8 +50,8 @@ export const PIPOQUEIRO_KO_PENALTY = 7;     // −7 em cada atributo no MATA-MAT
 // (atributos) e calculateChemistry (o +50). O custo é estrutural: abrir mão de toda outra característica.
 export const NOE_STAT_BOOST = 20;
 export const NOE_CHEM_BONUS = 50;
-// 🧳 Forasteiro — o anti-química: +10 em tudo quando é o ÚNICO titular do seu país E do seu clube.
-export const FORASTEIRO_STAT_BOOST = 10;
+// 🧳 Forasteiro — o anti-química: +9 em tudo quando é o ÚNICO titular do seu país E do seu clube.
+export const FORASTEIRO_STAT_BOOST = 9;
 /** ❤️ Ídolo: +N em cada atributo para os outros titulares do mesmo clube. */
 export const IDOLO_STAT_BOOST = 3;
 // 🧩 Colecionador — +1 em todos os atributos por jogador que estiver na reserva.

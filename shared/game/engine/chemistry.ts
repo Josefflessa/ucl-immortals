@@ -676,7 +676,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     const n = carded[0];
     contribute(n.id, { type: 'noe', fromId: n.id, fromName: n.shortName, flatAll: NOE_STAT_BOOST, perStat: {}, self: true });
   }
-  // 🧳 Forasteiro — +10 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
+  // 🧳 Forasteiro — +9 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
   for (const f of xi) {
     if (!f.forasteiro) continue;
     const soloNation = xi.filter(p => p.nation === f.nation).length === 1;

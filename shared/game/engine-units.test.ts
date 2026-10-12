@@ -676,10 +676,10 @@ describe('🛟 Noé — só rende como ÚNICO titular com característica (+20 e
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🧳 Forasteiro — +10 como único do país E do clube', () => {
+describe('🧳 Forasteiro — +9 como único do país E do clube', () => {
   const filler = () => mkP({ nation: 'Fillerland', club: 'Filler FC' }); // todos iguais entre si
 
-  it('+10 quando ninguém compartilha nação nem clube', () => {
+  it('+9 quando ninguém compartilha nação nem clube', () => {
     const f = mkP({ id: 'f', forasteiro: true, nation: 'Solônia', club: 'Solo FC' });
     const xi = [f, ...Array.from({ length: 10 }, filler)];
     // fillers compartilham nação/clube entre si, mas não com o Forasteiro
