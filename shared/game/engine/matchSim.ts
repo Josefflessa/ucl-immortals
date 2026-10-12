@@ -187,8 +187,8 @@ export function formationProfile(formationId: string): FormationProfile {
 export function tacticBuffMultiplierForAnalysisLevel(level: number): number {
   if (!Number.isFinite(level)) return 1;
   const safeLevel = Math.max(1, Math.floor(level));
-  if (safeLevel >= 4) return 2;
-  if (safeLevel >= 2) return 1.5;
+  if (safeLevel >= 4) return 3;
+  if (safeLevel >= 2) return 2;
   return 1;
 }
 

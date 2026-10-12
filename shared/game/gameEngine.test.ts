@@ -75,15 +75,15 @@ describe('formation matchup analysis bonus', () => {
     expect(formationAdvantageLabelForAnalysisLevel(5)).toBe('Vantagem forte');
   });
 
-  it('amplifies each existing tactic buff by 50% at levels 2 and 4', () => {
+  it('doubles tactic buffs at level 2 and triples them at level 4', () => {
     expect(tacticBuffMultiplierForAnalysisLevel(1)).toBe(1);
-    expect(tacticBuffMultiplierForAnalysisLevel(2)).toBe(1.5);
-    expect(tacticBuffMultiplierForAnalysisLevel(4)).toBe(2);
+    expect(tacticBuffMultiplierForAnalysisLevel(2)).toBe(2);
+    expect(tacticBuffMultiplierForAnalysisLevel(4)).toBe(3);
     expect(tacticStatBonus('balanced', 'pace', 1)).toBe(2);
-    expect(tacticStatBonus('balanced', 'pace', 2)).toBe(3);
-    expect(tacticStatBonus('balanced', 'pace', 4)).toBe(4);
-    expect(tacticStatBonus('possession', 'passing', 2)).toBe(8);
-    expect(tacticStatBonus('possession', 'passing', 4)).toBe(10);
+    expect(tacticStatBonus('balanced', 'pace', 2)).toBe(4);
+    expect(tacticStatBonus('balanced', 'pace', 4)).toBe(6);
+    expect(tacticStatBonus('possession', 'passing', 2)).toBe(10);
+    expect(tacticStatBonus('possession', 'passing', 4)).toBe(15);
   });
 });
 

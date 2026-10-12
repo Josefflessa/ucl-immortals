@@ -1017,15 +1017,15 @@ function variantDesc(player: Player): string {
   if (player.nomade) return 'NÔMADE: conta como qualquer nação na química';
   if (player.pilar) return `PILAR: +${PILAR_CHEM_BONUS} na QUÍMICA GERAL do time`;
   if (player.martir) return `MÁRTIR: −6 em cada atributo nele, mas dá +${MARTIR_TARGET_BOOST} em tudo a 2 titulares`;
-  if (player.idolo) return 'ÍDOLO: +2 em cada atributo aos OUTROS titulares do mesmo clube (não a ele)';
+  if (player.idolo) return 'ÍDOLO: +3 em cada atributo aos OUTROS titulares do mesmo clube (não a ele)';
   if (player.decimoHomem) return `12º HOMEM: no banco, dá +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time`;
   if (player.pipoqueiro) return `PIPOQUEIRO: +${PIPOQUEIRO_LEAGUE_BOOST} em cada atributo na FASE DE LIGA, mas −${PIPOQUEIRO_KO_PENALTY} no MATA-MATA`;
   if (player.noe) return `NOÉ: +${NOE_STAT_BOOST} em cada atributo NELE e +${NOE_CHEM_BONUS} na química geral — só enquanto for o ÚNICO titular com característica`;
-  if (player.forasteiro) return 'FORASTEIRO: +8 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
+  if (player.forasteiro) return 'FORASTEIRO: +10 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   if (player.colecionador) return 'COLECIONADOR: +1 em cada atributo por jogador que estiver na reserva';
   if (player.estribado) return 'ESTRIBADO: +1 em cada atributo a cada 100 créditos disponíveis';
   if (player.todosPorUm) return `TODOS POR UM: se os 11 titulares tiverem a característica, +${TODOS_POR_UM_STAT_BOOST} em cada atributo e +${TODOS_POR_UM_CHEM_BONUS} na química geral`;
-  if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão vem DOBRADO';
+  if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão é TRIPLICADO';
   if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida por 1,5 na liga e no mata-mata (mas −7 em cada atributo nele)';
   if (player.fragil) return `FRÁGIL: +${FRAGIL_STAT_BOOST} em cada atributo, mas aumenta drasticamente a chance de se machucar`;
   if (player.prodigio) {

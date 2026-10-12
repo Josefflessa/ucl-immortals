@@ -32,10 +32,10 @@ export function captainBestStatFromStarters(starters: Player[], captainId?: stri
 export function captainBoostFromStarters(starters: Player[], captainId?: string): { stat: string; amount: number } | null {
   const stat = captainBestStatFromStarters(starters, captainId);
   if (!stat) return null;
-  // 🗣️ Capitão Nato: se o capitão do time tem a característica, o bônus vem DOBRADO.
+  // 🗣️ Capitão Nato: se o capitão do time tem a característica, o bônus é TRIPLICADO.
   let cap = captainId ? starters.find(p => p.id === captainId) : undefined;
   if (!cap) cap = [...starters].sort((a, b) => b.overall - a.overall)[0];
-  return { stat: stat as string, amount: CAPTAIN_BOOST * (cap?.capitaoNato ? 2 : 1) };
+  return { stat: stat as string, amount: CAPTAIN_BOOST * (cap?.capitaoNato ? 3 : 1) };
 }
 // Mesmo bônus, a partir de um Team (usado pelo motor e pelo display).
 export function captainBoostForTeam(team: Team): { stat: string; amount: number } | null {
@@ -58,7 +58,7 @@ export function calculateTeamStrength(
   if (disc?.sentOff && disc.sentOff.size > 0) starters = starters.filter(p => !isExcludedPlayer(team, p, disc.sentOff));
   // Guard against an empty lineup (would otherwise divide by zero → NaN strength).
   if (starters.length === 0) return 0;
-  // Captain leadership: +CAPTAIN_BOOST on the captain's best stat, for every teammate (🗣️ Capitão Nato dobra).
+  // Captain leadership: +CAPTAIN_BOOST on the captain's best stat, for every teammate (🗣️ Capitão Nato triplica).
   const captainBoost = captainBoostForTeam(team) ?? undefined;
   const charBoosts = computeCharacteristicBoosts(team.players);
   const avgStrength = starters.reduce((sum, p) => {

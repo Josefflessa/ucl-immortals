@@ -100,7 +100,7 @@ function MissionCard({
               title={!canRemove ? 'Você não tem créditos suficientes para remover esta missão.' : undefined}
               onClick={onRemove}
             >
-              <Trash2 size={14} /> Remover por <CoinIcon />{removalCost}
+              <Trash2 size={14} /> {removalCost === 0 ? 'Remover grátis' : <>Remover por <CoinIcon />{removalCost}</>}
             </Button>
           </div>
         </>
@@ -264,7 +264,11 @@ export default function MissionsTab() {
         open={!!removeTarget}
         onOpenChange={open => { if (!open) setRemoveTarget(null); }}
         title="Remover missão?"
-        description={removeTarget ? <>Essa missão será encerrada antes do prazo. O custo é de <b style={{ color: '#F0C674' }}>{missionRemovalCost(removeTarget, missionsProjectLevel)} créditos</b>.</> : ''}
+        description={removeTarget ? (
+          missionRemovalCost(removeTarget, missionsProjectLevel) === 0
+            ? <>Essa missão será encerrada antes do prazo, sem custo.</>
+            : <>Essa missão será encerrada antes do prazo. O custo é de <b style={{ color: '#F0C674' }}>{missionRemovalCost(removeTarget, missionsProjectLevel)} créditos</b>.</>
+        ) : ''}
         confirmLabel="Remover missão"
         onConfirm={() => removeTarget && remove(removeTarget)}
         intent="danger"

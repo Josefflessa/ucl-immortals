@@ -462,8 +462,9 @@ export function missionReward(missionId: string, missionsProjectLevel = 1): numb
 export function missionRemovalCost(missionId: string, missionsProjectLevel = 1): number {
   const definition = MISSION_MAP[missionId];
   if (!definition) return Number.POSITIVE_INFINITY;
+  if (missionsProjectLevel >= 3) return 0;
   const baseCost = MISSION_REMOVE_COSTS[definition.rarity];
-  return missionsProjectLevel >= 3 ? Math.ceil(baseCost / 2) : baseCost;
+  return baseCost;
 }
 
 function buildBoard(seed: string, cycleKey: string, excludedIds: Set<string> = new Set()): string[] {

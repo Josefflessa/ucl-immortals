@@ -225,7 +225,7 @@ describe('mission board', () => {
     expect(missionReward('clean_sheet_win', 1)).toBe(55);
     expect(missionReward('clean_sheet_win', 5)).toBe(85);
     expect(missionRemovalCost('hat_trick', 1)).toBe(125);
-    expect(missionRemovalCost('hat_trick', 3)).toBe(63);
+    expect(missionRemovalCost('hat_trick', 3)).toBe(0);
     const accepted = acceptMission(state, 'first_win', 4);
     expect(accepted?.active[0].matchesRemaining).toBe(2);
     expect(extendActiveMissionDeadlines(accepted!, 3, 4).active[0].matchesRemaining).toBe(3);

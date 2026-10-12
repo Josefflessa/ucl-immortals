@@ -89,15 +89,15 @@ export interface Player {
   // ── Team-effect characteristics (buff OTHER players — see gameEngine.computeCharacteristicBoosts) ──
   martir?: boolean;     // 🩸 Mártir — −6 em tudo nele; dá +5 em tudo a 2 titulares escolhidos (acumulável)
   martirTargets?: string[]; // ids dos (até 2) titulares que recebem o +5 do Mártir; vazio → 2 maiores overalls
-  idolo?: boolean;      // ❤️ Ídolo — +2 em tudo a cada OUTRO titular do mesmo clube (não a ele)
+  idolo?: boolean;      // ❤️ Ídolo — +3 em tudo a cada OUTRO titular do mesmo clube (não a ele)
   decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 em todos os atributos a todo o XI
   pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +7 em tudo na FASE DE LIGA, −7 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
   noe?: boolean;         // 🛟 Noé — só quando é o ÚNICO titular do XI com característica: +20 em tudo NELE + 50 na química geral
-  forasteiro?: boolean;  // 🧳 Forasteiro — +8 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
+  forasteiro?: boolean;  // 🧳 Forasteiro — +10 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
   colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva
   estribado?: boolean;    // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
   todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +20 em tudo e +50 de química geral
-  capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão vem DOBRADO
+  capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão é TRIPLICADO
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida por 1,5, mas −7 em tudo nele
   fragil?: boolean;      // 🩹 Frágil — +7 em tudo, mas aumenta drasticamente o risco de lesão
   prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada titularidade acumulada

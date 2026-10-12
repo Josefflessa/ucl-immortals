@@ -151,7 +151,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'todosPorUm':
       return { chips: [{ text: `+${TODOS_POR_UM_STAT_BOOST} EM TUDO · +${TODOS_POR_UM_CHEM_BONUS} QUÍMICA GERAL`, color: GREEN }], description: 'Só funciona quando os 11 titulares têm a característica.' };
     case 'capitaoNato':
-      return { chips: [{ text: 'BÔNUS DE CAPITÃO DOBRADO', color: GREEN }], description: 'Vale quando ele é o capitão: o bônus que o capitão dá ao time inteiro dobra.' };
+      return { chips: [{ text: 'BÔNUS DE CAPITÃO TRIPLICADO', color: GREEN }], description: 'Vale quando ele é o capitão: o bônus que o capitão dá ao time inteiro é triplicado.' };
     case 'magnata':
       return { chips: [{ text: `CRÉDITOS DA PARTIDA ×${String(MAGNATA_POINT_MULT).replace('.', ',')}`, color: GREEN }, { text: `−${MAGNATA_STAT_PENALTY} EM TUDO`, color: RED }], description: 'Como titular, multiplica os créditos da partida; a perda própria já está nos valores da carta.' };
     case 'fragil':

@@ -600,7 +600,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     for (const k in src.perStat) b.perStat[k as AttrKey] = (b.perStat[k as AttrKey] ?? 0) + (src.perStat[k as AttrKey] ?? 0);
     b.sources.push(src);
   };
-  // ❤️ Ídolo — +2 em todos os atributos a cada OUTRO titular do MESMO CLUBE (NÃO a ele: o ídolo
+  // ❤️ Ídolo — +3 em todos os atributos a cada OUTRO titular do MESMO CLUBE (NÃO a ele: o ídolo
   // inspira os companheiros de clube, não a si mesmo).
   for (const idol of xi) {
     if (!idol.idolo) continue;
@@ -676,7 +676,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     const n = carded[0];
     contribute(n.id, { type: 'noe', fromId: n.id, fromName: n.shortName, flatAll: NOE_STAT_BOOST, perStat: {}, self: true });
   }
-  // 🧳 Forasteiro — +8 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
+  // 🧳 Forasteiro — +10 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
   for (const f of xi) {
     if (!f.forasteiro) continue;
     const soloNation = xi.filter(p => p.nation === f.nation).length === 1;

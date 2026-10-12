@@ -551,24 +551,24 @@ describe('getChemistryLinks — link typing & priority', () => {
 describe('computeCharacteristicBoosts — team-effect characteristics', () => {
   const xiOf = (players: Player[]) => players; // helper for readability
 
-  it('❤️ Ídolo gives +2 to every OTHER same-club starter (NOT himself)', () => {
+  it('❤️ Ídolo gives +3 to every OTHER same-club starter (NOT himself)', () => {
     const idol = mkP({ id: 'idol', club: 'ACME', idolo: true });
     const mate = mkP({ id: 'mate', club: 'ACME' });
     const other = mkP({ id: 'other', club: 'OTHER' });
     const rest = Array.from({ length: 8 }, () => mkP({ club: 'OTHER' }));
     const map = computeCharacteristicBoosts(xiOf([idol, mate, other, ...rest]));
-    expect(map['mate'].flatAll).toBe(2);
+    expect(map['mate'].flatAll).toBe(3);
     expect(map['idol']?.flatAll ?? 0).toBe(0);   // NÃO buffa ele mesmo
     expect(map['other']?.flatAll ?? 0).toBe(0);
-    expect(map['mate'].sources[0]).toMatchObject({ type: 'idolo', fromId: 'idol', flatAll: 2 });
+    expect(map['mate'].sources[0]).toMatchObject({ type: 'idolo', fromId: 'idol', flatAll: 3 });
   });
 
-  it('🗣️ Capitão Nato DOBRA o bônus de capitão quando é o capitão', () => {
+  it('🗣️ Capitão Nato TRIPLICA o bônus de capitão quando é o capitão', () => {
     const cap = mkP({ id: 'cap', capitaoNato: true, pace: 90 }); // pace = melhor stat
     const rest = Array.from({ length: 10 }, (_, i) => mkP({ id: `p${i}` }));
     const starters = [cap, ...rest];
-    // Ele é o capitão → dobrado.
-    expect(captainBoostFromStarters(starters, 'cap')?.amount).toBe(CAPTAIN_BOOST * 2);
+    // Ele é o capitão → triplicado.
+    expect(captainBoostFromStarters(starters, 'cap')?.amount).toBe(CAPTAIN_BOOST * 3);
     // Outro é o capitão → normal (a característica só vale se ELE for o capitão).
     expect(captainBoostFromStarters(starters, 'p0')?.amount).toBe(CAPTAIN_BOOST);
   });
@@ -676,10 +676,10 @@ describe('🛟 Noé — só rende como ÚNICO titular com característica (+20 e
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🧳 Forasteiro — +8 como único do país E do clube', () => {
+describe('🧳 Forasteiro — +10 como único do país E do clube', () => {
   const filler = () => mkP({ nation: 'Fillerland', club: 'Filler FC' }); // todos iguais entre si
 
-  it('+8 quando ninguém compartilha nação nem clube', () => {
+  it('+10 quando ninguém compartilha nação nem clube', () => {
     const f = mkP({ id: 'f', forasteiro: true, nation: 'Solônia', club: 'Solo FC' });
     const xi = [f, ...Array.from({ length: 10 }, filler)];
     // fillers compartilham nação/clube entre si, mas não com o Forasteiro
