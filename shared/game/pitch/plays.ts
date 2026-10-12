@@ -78,6 +78,9 @@ export function dangerTiming(leadMs = LEAD_MS, flightMs = STAGE_MS - 150, entryM
 
 /** A strike's average pace to its target, m/s, by how it is struck. */
 const STRIKE_SPEED: Record<PlayShot, number> = { header: 13, one_on_one: 17, normal: 21, first_time: 22, long_range: 25 };
+/** The ball must clear the full goal line before the score is shown, then settle in the net. */
+const GOAL_NET_ENTRY_X = PITCH_LENGTH + 1.5;
+const GOAL_NET_SETTLE_X = PITCH_LENGTH + 1.8;
 
 /** A parry kicks away from the keeper, then settles in the box for the attacker to chase. */
 const REBOUND_BALL_TRAVEL_MS = 500;
@@ -108,31 +111,29 @@ function reboundRunnerArrivalMs(runner: ReboundRunner, target: Point): number {
 function parryIntoBox(k: Kit, at: number, contact: Point): { point: Point; landsAt: number } {
   const side = contact.y < 34 ? -1 : 1;
   const point = {
-    x: contact.x - 4.4,
+    x: contact.x - 5,
     // Send the ball diagonally into a side channel. That makes the keeper's touch read as a
     // parry the attacker has to chase, instead of a straight pass to his feet.
-    y: Math.max(25, Math.min(43, contact.y + side * 2.2)),
+    y: Math.max(25, Math.min(43, contact.y + side * 2.4)),
   };
-  const burstAt = at + 90;
   const bounceAt = at + 220;
-  const burst = { x: contact.x - 1, y: contact.y + side * 0.9 };
   const bounce = { x: contact.x - 2.8, y: contact.y + side * 1.8 };
   const landsAt = at + REBOUND_BALL_TRAVEL_MS;
-  // Show the punch off the keeper, one short skip, then a slowing roll across the grass.
-  k.ball(burstAt, burst.x, burst.y, 1.1, EASE_LINEAR, 0.25);
-  k.ball(bounceAt, bounce.x, bounce.y, 0.5, EASE_OUT, 0.25);
+  // The parry keeps one continuous pace into the skip, then rolls away toward the shooter.
+  // Matching the roll easing on both legs avoids the old speed jump at the bounce.
+  k.ball(bounceAt, bounce.x, bounce.y, 0.9, EASE_ROLL, 0.25);
   k.ball(landsAt, point.x, point.y, 0.1, EASE_ROLL);
   return { point, landsAt };
 }
 
 /** How long the first strike needs to reach its target at a real ball's pace. */
 function shotTravelMs(shot: Shot, finish: FinishStyle): number {
-  const goal = { x: 105, y: 34 };
+  const goal = { x: GOAL_NET_ENTRY_X, y: 34 };
   const dist = shot.via
     ? Math.hypot(shot.via.x - shot.x, shot.via.y - shot.y) + Math.hypot(goal.x - shot.via.x, goal.y - shot.via.y)
     : Math.hypot(goal.x - shot.x, goal.y - shot.y);
   const speed = finish === 'panenka' ? 10 : finish === 'chip' ? 12 : finish === 'scuffed' ? 11 : STRIKE_SPEED[shot.shot];
-  const floor = finish === 'blocked' ? 900 : finish === 'deflect' ? 800 : 520;
+  const floor = finish === 'blocked' ? 900 : finish === 'deflect' ? 900 : 520;
   // A fumble reaches the keeper 400 ms before it squirms over the line; a shot in off the
   // post hits it 160 ms before.
   const after = finish === 'fumble' ? 400 : finish === 'postin' ? 160 : 0;
@@ -701,22 +702,6 @@ class Kit {
       }
       if (near >= 0 && !this.touches.some(x => x.slot === near && Math.abs(x.t - k.t) <= 200)) this.touches.push({ slot: near, t: k.t });
     }
-  }
-
-  /**
-   * The strike at full speed (real time t): the ball leaves the foot fast, covering a
-   * fifth of its way in the first 150 ms, then follows the authored flight at normal speed.
-   */
-  strikeBurst(t: number, share = 0.2, ms = 150): void {
-    const next = this.ballTimes.filter(x => x > t + 1).sort((a, b) => a - b)[0];
-    // A quick touch on the way (a block, the wall) is already fast: one speed is enough.
-    if (next === undefined || next - t < 600) return;
-    const p0 = this.b.at(BALL_SLOT, t);
-    const p1 = this.b.at(BALL_SLOT, next);
-    // Never past a hard strike's pace, ~120 km/h (a lob from the halfway line covers far more ground).
-    const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-    share = Math.min(share, (34 * ms) / 1000 / Math.max(1, dist));
-    this.b.key(BALL_SLOT, t + ms, p0.x + (p1.x - p0.x) * share, p0.y + (p1.y - p0.y) * share, p0.z + (p1.z - p0.z) * share, EASE_LINEAR);
   }
 
   /**
@@ -2623,28 +2608,93 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     from = { t, x: 103.9, y: gy };
     touched = c.gk;
   }
-  const curveTo = (x: number, y: number) => {
+  const curveTo = (x: number, y: number, z: number, targetAt = A) => {
     if (touched >= 0) return;
-    if (s.via) { k.ball(Math.round((from.t + A) / 2), s.via.x, s.via.y, s.via.z); return; }
-    if (c.kind === 'screamer' && c.variant === 'dipping') {
-      // The authored folha-seca rises over the first part of its flight and drops late,
-      // close to the keeper. Other long shots use the flatter default trajectory.
-      const progress = 0.68;
-      k.ball(
-        Math.round(from.t + (A - from.t) * progress),
-        s.x + (x - s.x) * progress,
-        s.y + (y - s.y) * progress,
-        4.1,
-      );
-      return;
+    const startZ = k.at(BALL_SLOT, from.t).z;
+    const start = { x: from.x, y: from.y, z: startZ };
+    const end = { x, y, z };
+    let through: { x: number; y: number; z: number } | null = null;
+    let progress = 0.5;
+    let dipping = false;
+    if (s.via) {
+      through = s.via;
+    } else if (c.kind === 'screamer' && c.variant === 'dipping') {
+      // Keep the folha-seca's late drop, but make it one continuous bend rather than
+      // changing direction at a single high waypoint.
+      progress = 0.68;
+      dipping = true;
+      through = {
+        x: start.x + (end.x - start.x) * progress,
+        y: start.y + (end.y - start.y) * progress,
+        z: 4.1,
+      };
+    } else if (s.curve !== undefined) {
+      through = {
+        x: (start.x + end.x) / 2,
+        y: (start.y + end.y) / 2 + s.curve,
+        z: s.curveZ ?? 2.4,
+      };
     }
-    if (s.curve === undefined) return;
-    k.ball((from.t + A) / 2, (from.x + x) / 2, (from.y + y) / 2 + s.curve, s.curveZ ?? 2.4);
+    if (!through) return;
+
+    // Fit a cubic through the authored bend. Sampling it into short linear segments keeps
+    // the rendered path smooth and avoids a visible kink at the old halfway key.
+    const linearAt = (a: number, b: number, u: number) => a + (b - a) * u;
+    const cubicAt = (a: number, b: number, c: number, d: number, u: number) => {
+      const v = 1 - u;
+      return v * v * v * a + 3 * v * v * u * b + 3 * v * u * u * c + u * u * u * d;
+    };
+    let c1 = start;
+    let c2 = end;
+    if (!dipping) {
+      const divisor = 3 * progress * (1 - progress);
+      const offset = {
+        x: (through.x - linearAt(start.x, end.x, progress)) / divisor,
+        y: (through.y - linearAt(start.y, end.y, progress)) / divisor,
+        z: (through.z - linearAt(start.z, end.z, progress)) / divisor,
+      };
+      c1 = {
+        x: start.x + (end.x - start.x) / 3 + offset.x,
+        y: start.y + (end.y - start.y) / 3 + offset.y,
+        z: start.z + (end.z - start.z) / 3 + offset.z,
+      };
+      c2 = {
+        x: start.x + (end.x - start.x) * 2 / 3 + offset.x,
+        y: start.y + (end.y - start.y) * 2 / 3 + offset.y,
+        z: start.z + (end.z - start.z) * 2 / 3 + offset.z,
+      };
+    }
+    const duration = targetAt - from.t;
+    const segments = Math.max(6, Math.min(16, Math.round(duration / 90)));
+    const sampleTimes = new Set(Array.from({ length: segments - 1 }, (_, i) => (i + 1) / segments));
+    sampleTimes.add(progress);
+    for (const u of Array.from(sampleTimes).sort((a, b) => a - b)) {
+      const t = from.t + duration * u;
+      let sample: { x: number; y: number; z: number };
+      if (dipping) {
+        const phase = u <= progress ? u / progress : (u - progress) / (1 - progress);
+        const eased = phase * phase * (3 - 2 * phase);
+        sample = {
+          x: linearAt(start.x, end.x, u),
+          y: linearAt(start.y, end.y, u),
+          z: u <= progress
+            ? start.z + (through.z - start.z) * eased
+            : through.z + (end.z - through.z) * eased,
+        };
+      } else {
+        sample = {
+          x: cubicAt(start.x, c1.x, c2.x, end.x, u),
+          y: cubicAt(start.y, c1.y, c2.y, end.y, u),
+          z: cubicAt(start.z, c1.z, c2.z, end.z, u),
+        };
+      }
+      k.b.key(BALL_SLOT, k.real(t), sample.x, sample.y, sample.z, EASE_LINEAR);
+    }
   };
   const shotArc = (s.curve !== undefined || s.via) && touched < 0 ? 0 : arc;
 
   if (c.outcome === 'goal') {
-    let end = { x: 105.4, y: goalY, z: s.shot === 'header' ? 0.4 : 0.25 };
+    let end = { x: GOAL_NET_ENTRY_X, y: goalY, z: s.shot === 'header' ? 0.4 : 0.25 };
     // Beaten: a fraction behind the ball, or (a penalty) the wrong way altogether.
     let dive: { t: number; y: number; z: number } | null = c.base === 'penalty'
       ? { t: A + 60, y: 34 + inward * 3.4, z: 0.45 }
@@ -2652,26 +2702,26 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     let endArc = shotArc;
     switch (f) {
       case 'high':
-        // The ground view projects height toward smaller y. Offset both targets so the
-        // airborne ball remains close to its chosen post in the rendered goalmouth.
-        end = { x: 105.4, y: post < 34 ? post + 1.9 : post + 0.25, z: 2.05 };
+        // Height projects toward smaller y. Leave room for the enlarged airborne ball to
+        // clear the post stroke instead of visually sitting on the frame.
+        end = { x: GOAL_NET_ENTRY_X, y: post + inward * 2.4, z: 2.05 };
         dive = { t: A + 100, y: end.y - inward * 1.3, z: 0.95 };
         break;
       case 'chip':
         // He rushes out; the ball goes up and over him.
         k.run(c.gk, A - 450, Math.min(set.x, 101.5), 34 + (s.y - 34) * 0.5, { speed: SPEED.sprint, ease: EASE_SMOOTH });
         k.jump(c.gk, A - 280, 0.7);
-        end = { x: 105.4, y: 34 + (goalY - 34) * 0.5, z: 1.4 };
+        end = { x: GOAL_NET_ENTRY_X, y: 34 + (goalY - 34) * 0.5, z: 1.4 };
         endArc = 3.2;
         dive = null;
         break;
       case 'postin': {
         // Off the inside of the post and in.
         const hit = { x: 105, y: post + inward * 0.15, z: s.shot === 'header' ? 1.5 : 0.9 };
-        curveTo(hit.x, hit.y);
+        curveTo(hit.x, hit.y, hit.z, A - 160);
         k.ball(A - 160, hit.x, hit.y, hit.z, EASE_LINEAR, shotArc);
         k.beat(A - 160, 'post', 105, post);
-        end = { x: 105.7, y: post + inward * 2.4, z: 0.5 };
+        end = { x: GOAL_NET_ENTRY_X, y: post + inward * 2.4, z: 0.5 };
         endArc = 0;
         dive = { t: A + 40, y: post + inward * 1.7, z: 0.6 };
         break;
@@ -2680,7 +2730,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
         // Off a body and the keeper is wrong-footed.
         const other = 34 - (goalY - 34);
         if (touched >= 0) {
-          end = { x: 105.4, y: other, z: 0.4 };
+          end = { x: GOAL_NET_ENTRY_X, y: other, z: 0.4 };
           dive = { t: A + 150, y: set.y + (goalY - set.y) * 0.9, z: 0.4 };
         } else {
           dive = { t: A + 150, y: other, z: 0.4 };
@@ -2716,20 +2766,20 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
         k.ball(strikeAt, follow.x + FOOT, follow.y + 0.3, 0.2);
         k.touch(c.finisher, strikeAt);
         k.beat(strikeAt, 'strike', follow.x + FOOT, follow.y + 0.3, A - strikeAt);
-        end = { x: 105.4, y: T1.y < 34 ? GOAL_Y_MAX - 1.5 : GOAL_Y_MIN + 1.5, z: 0.4 };
+        end = { x: GOAL_NET_ENTRY_X, y: T1.y < 34 ? GOAL_Y_MAX - 1.5 : GOAL_Y_MIN + 1.5, z: 0.4 };
         endArc = 0.3;
         dive = null;
         break;
       }
       case 'fumble':
-        end = { x: 105.4, y: from.y + (from.y < 34 ? -0.4 : 0.4), z: 0.12 };
+        end = { x: GOAL_NET_ENTRY_X, y: from.y + (from.y < 34 ? -0.4 : 0.4), z: 0.12 };
         endArc = 0;
         dive = null;
         k.run(c.gk, A + 400, 104.4, end.y, { speed: SPEED.jog, ease: EASE_SMOOTH }); // turns and watches it in
         break;
       case 'nutmeg': {
         // He comes out and spreads himself; it goes through his legs and in.
-        end = { x: 105.4, y: 34 + (goalY - 34) * 0.4, z: 0.12 };
+        end = { x: GOAL_NET_ENTRY_X, y: 34 + (goalY - 34) * 0.4, z: 0.12 };
         const u = Math.min(0.75, Math.max(0.4, (Math.min(102.6, set.x) - s.x) / (end.x - s.x)));
         const K = { x: s.x + (end.x - s.x) * u, y: s.y + (end.y - s.y) * u };
         const tK = Math.round(S_CONTACT + (A - S_CONTACT) * u);
@@ -2744,14 +2794,14 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
       case 'barin': {
         // Off the underside of the bar and straight down over the line.
         const hitY = 34 + (goalY - 34) * 0.55;
-        end = { x: 105.05, y: hitY, z: GOAL_HEIGHT - 0.06 };
+        end = { x: GOAL_NET_ENTRY_X, y: hitY, z: GOAL_HEIGHT - 0.06 };
         k.beat(A, 'post', 105, hitY);
         dive = { t: A + 80, y: hitY + (set.y < hitY ? -0.9 : 0.9), z: 0.9 };
         break;
       }
       case 'bounce': {
         // It bounces just in front of him and skids up over his arm.
-        end = { x: 105.4, y: goalY, z: 0.55 };
+        end = { x: GOAL_NET_ENTRY_X, y: goalY, z: 0.55 };
         const bx = Math.max(s.x + 3, 101.6);
         const u = (bx - s.x) / (end.x - s.x);
         k.ball(Math.round(A - (A - S_CONTACT) * (1 - u)), bx, s.y + (end.y - s.y) * u, 0, EASE_LINEAR, shotArc);
@@ -2766,7 +2816,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
         k.run(c.gk, A - 420, set.x, set.y, { speed: SPEED.jog });
         k.run(c.gk, A - 40, 104.3, 34 + side * 3, { speed: SPEED.sprint, z: 0.5 });
         k.run(c.gk, A + 300, 104.3, 34 + side * 3.3, { speed: SPEED.jog, ease: EASE_OUT });
-        end = { x: 105.4, y: 34 - side * 0.3, z: 1.1 };
+        end = { x: GOAL_NET_ENTRY_X, y: 34 - side * 0.3, z: 1.1 };
         endArc = 0.4;
         dive = null;
         break;
@@ -2777,23 +2827,23 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
         k.run(c.gk, A - 650, set.x, set.y, { speed: SPEED.jog });
         k.run(c.gk, A - 250, 104.3, 34 + side * 3.2, { speed: SPEED.sprint, z: 0.5 });
         k.run(c.gk, A + 200, 104.3, 34 + side * 3.4, { speed: SPEED.jog, ease: EASE_OUT });
-        end = { x: 105.4, y: 34 - side * 0.5, z: 1.3 };
+        end = { x: GOAL_NET_ENTRY_X, y: 34 - side * 0.5, z: 1.3 };
         endArc = 2.4;
         dive = null;
         break;
       }
     }
-    if (f !== 'postin' && f !== 'rebound') curveTo(end.x, end.y);
+    if (f !== 'postin' && f !== 'rebound' && f !== 'bounce') curveTo(end.x, end.y, end.z);
     // Rounded keeper: he stays down; nobody dives.
     if (c.variant === 'roundkeeper') dive = null;
     k.ball(A, end.x, end.y, end.z, EASE_LINEAR, endArc);
     if (f === 'barin') {
       // Down off the bar, over the line, and up into the roof of the net.
-      k.ball(A + 260, 105.7, end.y, 0.1, EASE_LINEAR);
-      k.ball(A + 520, 106.4, end.y, 0.35, EASE_OUT);
+      k.ball(A + 260, GOAL_NET_ENTRY_X + 0.2, end.y, 0.1, EASE_LINEAR);
+      k.ball(A + 520, GOAL_NET_SETTLE_X, end.y, 0.35, EASE_OUT);
     } else {
       // Into the back of the net, where it drops.
-      k.ball(A + 260, 106.5, end.y + (f === 'postin' ? inward * 0.4 : 0), 0.1, EASE_OUT);
+      k.ball(A + 260, GOAL_NET_SETTLE_X, end.y + (f === 'postin' ? inward * 0.4 : 0), 0.1, EASE_OUT);
     }
     if (dive) {
       // Beaten: he holds his ground, reads it late and dives a fraction behind the ball.
@@ -2823,14 +2873,29 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
       T = { x: Math.max(s.x + 2.5, s.x + (105 - s.x) * u), y: s.y + (goalY - s.y) * u };
       k.run(c.gk, A - 220, T.x + 0.85, T.y, { speed: SPEED.sprint });
     }
-    // Keep the keeper goal-side at contact so the ball cannot look like it was parried
-    // from between him and the goal. In the attack frame, increasing x points at the goal.
+    // Keep him behind the contact point in the attack frame, where increasing x points at
+    // goal. Give him the time the actual diagonal run needs, instead of forcing every save
+    // into an arbitrary last 0.42 s; if a corner is unreachable, move the contact point to
+    // the edge of his real reach so his hands and the ball meet there.
     const keeperAtSave = { x: Math.min(104.65, T.x + 0.85), y: T.y };
+    const keeperReadyAt = Math.max(S_CONTACT, k.lastTime(c.gk));
+    const keeperAvailableMs = Math.max(0, A - keeperReadyAt);
+    const keeperReach = SPEED.sprint * keeperAvailableMs / 1000;
+    const keeperDx = keeperAtSave.x - set.x;
+    const keeperDy = T.y - set.y;
+    const keeperDistance = Math.hypot(keeperDx, keeperDy);
+    if (f !== 'spread' && keeperDistance > keeperReach && keeperReach > Math.abs(keeperDx)) {
+      const reachableDy = Math.sqrt(keeperReach * keeperReach - keeperDx * keeperDx);
+      T.y = Math.max(set.y - reachableDy, Math.min(set.y + reachableDy, T.y));
+      keeperAtSave.y = T.y;
+    }
     const z = f === 'tip' ? 2.2 : f === 'onehand' ? 1.9 : f === 'feet' || f === 'spread' ? 0.3 : f === 'catch' || f === 'reflex' ? 1.1 : 0.8;
-    curveTo(T.x, T.y);
+    curveTo(T.x, T.y, z);
     k.ball(A, T.x, T.y, z, EASE_LINEAR, shotArc);
-    // He holds his ground, then dives (or sticks out a leg) to meet it exactly as it arrives.
-    if (f !== 'spread') k.run(c.gk, A - 420, set.x, set.y, { speed: SPEED.jog });
+    if (f !== 'spread') {
+      const runMs = Math.hypot(keeperAtSave.x - set.x, keeperAtSave.y - set.y) / SPEED.sprint * 1000 + 40;
+      k.run(c.gk, Math.max(keeperReadyAt, A - Math.min(keeperAvailableMs, runMs)), set.x, set.y, { speed: SPEED.jog });
+    }
     k.run(c.gk, A, keeperAtSave.x, keeperAtSave.y, { speed: SPEED.sprint, z: f === 'tip' || f === 'onehand' ? 0.9 : f === 'feet' ? 0.1 : f === 'spread' ? 0.2 : f === 'reflex' ? 0.15 : f === 'catch' ? 0.35 : 0.5 });
     const away = T.y < 34 ? -1 : 1;
     if (f === 'onehand') {
@@ -2910,7 +2975,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     // From the angle, into the side netting: for a moment the crowd thinks it is in.
     const side = nearPost < 34 ? -1 : 1;
     const T = { x: 105.5, y: nearPost + side * 0.35 };
-    curveTo(T.x, T.y);
+    curveTo(T.x, T.y, 0.7);
     k.ball(A, T.x, T.y, 0.7, EASE_LINEAR, shotArc);
     k.ball(A + 250, 106.5, T.y + side * 0.15, 0.4, EASE_OUT);
     k.ball(A + 700, 106.7, T.y + side * 0.2, 0, EASE_OUT);
@@ -2930,7 +2995,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     // back on his feet, smothers it.
     const hitY = 34 + (goalY - 34) * 0.45;
     const back = hitY < 34 ? 1 : -1;
-    curveTo(105, hitY);
+    curveTo(105, hitY, GOAL_HEIGHT);
     k.ball(A, 105, hitY, GOAL_HEIGHT, EASE_LINEAR, shotArc);
     k.beat(A, 'post', 105, hitY);
     k.ball(A + 260, 104.75, hitY + back * 0.2, 0, EASE_LINEAR);
@@ -2947,7 +3012,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     // Off the inside of one post, along the line, off the other post and out.
     const other = post === GOAL_Y_MIN ? GOAL_Y_MAX : GOAL_Y_MIN;
     const back = other < 34 ? -1 : 1;
-    curveTo(105, post);
+    curveTo(105, post, 0.6);
     k.ball(A, 104.9, post + inward * 0.2, 0.6, EASE_LINEAR, shotArc);
     k.beat(A, 'post', 105, post);
     k.ball(A + 480, 104.85, other - inward * 0.25, 0.25, EASE_LINEAR);
@@ -2962,7 +3027,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     // The post, or the crossbar.
     const bar = f === 'bar';
     const hitY = bar ? 34 + (goalY - 34) * 0.4 : post;
-    curveTo(105, hitY);
+    curveTo(105, hitY, bar ? GOAL_HEIGHT : 1.3);
     k.ball(A, 105, hitY, bar ? GOAL_HEIGHT : 1.3, EASE_LINEAR, shotArc);
     k.ball(A + 500, 97, hitY + (hitY < 34 ? -4 : 4), bar ? 0.2 : 0.4, EASE_OUT, bar ? 1.6 : 0.8);
     k.run(c.gk, A - 300, set.x, set.y, { speed: SPEED.jog });
@@ -2977,7 +3042,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     const approachAt = Math.max(A - 700, Math.min(A, k.lastTime(saver)));
     k.run(saver, approachAt, linePoint.x, linePoint.y, { speed: SPEED.sprint });
     const p = k.run(saver, A, linePoint.x, linePoint.y, { speed: SPEED.sprint, z: 0.3 });
-    curveTo(p.x, p.y);
+    curveTo(p.x, p.y, 0.4);
     k.ball(A, p.x - 0.12, p.y, 0.4, EASE_LINEAR, shotArc);
     const side = lineY < 34 ? -1 : 1;
     k.ball(A + 550, 106, side < 0 ? GOAL_Y_MIN - 5 : GOAL_Y_MAX + 5, 1.2, EASE_OUT, 1.5);
@@ -3001,7 +3066,7 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
     const T = over ? { x: 106, y: 34 + (k.rng() - 0.5) * 5 } : { x: 106, y: goalY < 34 ? GOAL_Y_MIN - 1.4 : GOAL_Y_MAX + 1.4 };
     const z = over ? 3.1 : 0.6;
     const outY = T.y + (T.y - s.y) * 0.15;
-    curveTo(T.x, T.y);
+    curveTo(T.x, T.y, z);
     k.ball(A, T.x, T.y, z, EASE_LINEAR, shotArc);
     k.ball(A + 500, 110, outY, z * 0.6, EASE_OUT);
     if (over) k.ball(A + 1150, 111.5, outY, 0.1, EASE_OUT);
@@ -3705,9 +3770,9 @@ function planLead(c: Ctx, setup: Setup, decisive: Float32Array, rng: () => numbe
           k.run(passer, kick, Q.x + 1.5, Q.y, { speed: SPEED.jog });
           k.feet(passer, kick);
           k.run(owner, to, Lo.x, Lo.y, { speed: SPEED.run });
-          const p = k.at(owner, to);
-          k.ball(to, p.x + FOOT, p.y + 0.3, 0, EASE_LINEAR, switching ? 3.5 : long ? 6 : 0);
-          k.feet(owner, to);
+          // `feet()` writes the exact receiving touch at the same timestamp. Keep the
+          // authored loft on that endpoint so the pass doesn't flatten out mid-flight.
+          k.feet(owner, to, 0, switching ? 3.5 : long ? 6 : 0);
           k.run(passer, to + 500, at(passer).x, at(passer).y, { speed: SPEED.run });
         },
       };
@@ -3813,9 +3878,9 @@ function planLead(c: Ctx, setup: Setup, decisive: Float32Array, rng: () => numbe
           k.ball(from + throwAt, ball.x, ball.y, 2.1);
           k.touch(thrower, from + throwAt);
           k.run(owner, to, Lo.x, Lo.y, { speed: SPEED.run });
-          const p = k.at(owner, to);
-          k.ball(to, p.x + FOOT, p.y + 0.3, 0, EASE_LINEAR, 1.2);
-          k.feet(owner, to);
+          // Preserve the throw's loft through the receiver's touch; a plain feet() key at the
+          // same time would replace this arc and flatten the last part of the flight.
+          k.feet(owner, to, 0, 1.2);
           k.run(thrower, to + 700, at(thrower).x, at(thrower).y, { speed: SPEED.run });
         },
       };
@@ -4100,7 +4165,6 @@ export function buildDangerTimeline(input: DangerInput): DangerTimeline {
   k.glueCarries();
   const runner = reboundRunnerState(k, c.finisher);
   const touched = finishShot(k, c, shot, runner);
-  k.strikeBurst(k.tm.contactMs);
   if (!full) return { k, timing, shot, runner };
 
   // Featured with a portrait: only who really takes part.
