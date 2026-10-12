@@ -2554,9 +2554,10 @@ function finishShot(k: Kit, c: Ctx, s: Shot, runner: ReboundRunner): number {
   // A penalty down the middle; one tucked right into the corner.
   const spotKick = c.base === 'penalty';
   const goalY = spotKick && c.variant === 'center' ? 34 + (k.rng() - 0.5) * 1.2 : post + inward * (spotKick && c.variant === 'corner' ? 1 : 1.3);
-  // A driven long shot should stay composed. Lobs (halfway, chips and authored variants)
-  // carry their own larger arc instead of every long-range strike dipping by default.
-  const arc = s.arc ?? (s.shot === 'header' ? 0.3 : s.shot === 'long_range' ? 0.45 : 0.5);
+  // Ordinary strikes follow their authored start and target heights. A generic sine arc on
+  // the final key was applied only after the opening burst, making a flat shot suddenly rise
+  // near the keeper and dip again. Lobs and dipping shots add their own explicit trajectory.
+  const arc = s.arc ?? 0;
   const sprint = { speed: SPEED.sprint };
 
   // The keeper sets himself, facing the shot.
