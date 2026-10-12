@@ -2453,10 +2453,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (idx < 11) return; // só reserva (índice ≥ 11); -1 ou titular bloqueia
       const player = seller.team.players[idx];
       if (!Number.isSafeInteger(price) || price < marketMinPrice(player)) return;
-      // escrow: tira do elenco e limpa a disciplina do jogador
+      // escrow: tira do elenco; a disciplina (suspensão, lesão, cartões) vai junto com o anúncio
       seller.team.players = seller.team.players.filter((_, i) => i !== idx);
+      const availability = room.discipline[`${seller.team.id}:${playerId}`];
       delete room.discipline[`${seller.team.id}:${playerId}`];
-      room.market.push({ id: `m${++marketSeq}`, sellerId: seller.id, sellerName: seller.name, player, price });
+      room.market.push({ id: `m${++marketSeq}`, sellerId: seller.id, sellerName: seller.name, player, price, ...(availability ? { availability } : {}) });
       invalidateReady(room, seller.id);
       emitRoomUpdate(io, room);
     });
@@ -2473,6 +2474,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         { ...seller.team, players: [...seller.team.players, { ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard] },
         completedMissionCount(seller.missions ?? createMissionState(`${room.code}:${seller.id}`, 'L1')),
       );
+      // De volta ao banco com a mesma suspensão/lesão de quando foi anunciado.
+      if (li.availability) room.discipline[`${seller.team.id}:${li.player.id}`] = li.availability;
       room.market = room.market.filter(l => l.id !== listingId);
       invalidateReady(room, seller.id);
       emitRoomUpdate(io, room);
@@ -2510,6 +2513,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         { ...buyer.team, players: [...buyer.team.players, { ...li.player, chemistryScore: 0, isOOP: false } as PlayerCard] },
         completedMissionCount(buyer.missions ?? createMissionState(`${room.code}:${buyer.id}`, 'L1')),
       );
+      // O comprador recebe o jogador com a suspensão/lesão que ele tinha.
+      if (li.availability) room.discipline[`${buyer.team.id}:${li.player.id}`] = li.availability;
       room.market = room.market.filter(l => l.id !== listingId);
       invalidateReady(room, buyer.id);
       emitRoomUpdate(io, room);
@@ -2660,8 +2665,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
         { ...guest.team, players: [...guest.team.players, ...hostPlayers.map(player => ({ ...player, chemistryScore: 0, isOOP: false } as PlayerCard))] },
         completedMissionCount(guest.missions ?? createMissionState(`${room.code}:${guest.id}`, 'L1')),
       );
-      for (const player of hostPlayers) delete room.discipline[`${host.team.id}:${player.id}`];
-      for (const player of guestPlayers) delete room.discipline[`${guest.team.id}:${player.id}`];
+      // Suspensão, lesão e cartões vão junto com cada jogador para o time novo.
+      const moveAvailability = (fromTeamId: string, toTeamId: string, players: PlayerCard[]) => {
+        for (const player of players) {
+          const availability = room.discipline[`${fromTeamId}:${player.id}`];
+          delete room.discipline[`${fromTeamId}:${player.id}`];
+          if (availability) room.discipline[`${toTeamId}:${player.id}`] = availability;
+        }
+      };
+      moveAvailability(host.team.id, guest.team.id, hostPlayers);
+      moveAvailability(guest.team.id, host.team.id, guestPlayers);
       host.points += session.guest.creditsDelta - session.host.creditsDelta;
       guest.points += session.host.creditsDelta - session.guest.creditsDelta;
       room.trades = room.trades.filter(t => t.id !== tradeId);

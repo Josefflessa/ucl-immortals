@@ -20,6 +20,7 @@ import type { ClubProjectId } from '@shared/game/clubProjects';
 import CoinIcon from './CoinIcon';
 import { Dumbbell } from 'lucide-react';
 import { INLINE_ICON } from './inlineIcon';
+import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
 
 function ProjectLevelBar({ level, color }: { level: number; color: string }) {
   return (
@@ -87,6 +88,11 @@ export default function ClubProjectsTab() {
   const trainingPlayer = trainingPlayerId
     ? state.playerTeam?.players.find(player => player.id === trainingPlayerId) ?? null
     : null;
+  // The values each player has in Meu Time (training already done included), as the cards show there.
+  const effectiveById = useMemo(
+    () => (state.playerTeam ? teamEffectiveStats(state.playerTeam, state.phase === 'knockout', state.points) : {}),
+    [state.playerTeam, state.phase, state.points],
+  );
   const firstTrainingForPlayer = !!trainingPlayer && (trainingPlayer.trainCount ?? 0) === 0;
   const trainingCost = trainingPlayer
     ? trainingCostForProject(trainingLevel, trainingPlayer.trainCount ?? 0)
@@ -280,7 +286,7 @@ export default function ClubProjectsTab() {
                               className="flex min-w-0 flex-col items-center gap-1.5 rounded-xl border border-[#242436] bg-[#07070F] p-2 transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-45"
                               title={!affordable ? `Faltam ${cost - state.points} créditos` : `Treinar ${player.shortName}`}
                             >
-                              <PlayerCard player={player} compact lite />
+                              <PlayerCard player={player} effectiveStats={effectiveById[player.id]} compact lite showAlbumLevel />
                               <span className="text-[12px] font-black tracking-wide" style={{ color: affordable ? '#34D399' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>
                                 <CoinIcon />{cost}
                               </span>
@@ -295,7 +301,7 @@ export default function ClubProjectsTab() {
                 <div className="space-y-4">
                   <button type="button" onClick={() => setTrainingPlayerId(null)} className="text-xs font-black tracking-wider text-[#A0A0B0]">← ESCOLHER OUTRO JOGADOR</button>
                   <div className="flex flex-col items-center gap-3 rounded-xl border border-[#FBBF2444] bg-[#07070F] p-3 sm:flex-row sm:items-start">
-                    <PlayerCard player={trainingPlayer} compact lite />
+                    <PlayerCard player={trainingPlayer} effectiveStats={effectiveById[trainingPlayer.id]} compact lite showAlbumLevel />
                     <div className="min-w-0 text-center sm:text-left">
                       <div className="text-lg font-black text-white" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{trainingPlayer.shortName}</div>
                       <div className="mt-1 text-xs text-[#B0B0BE]">Treinos realizados: {trainingPlayer.trainCount ?? 0}</div>
@@ -315,7 +321,9 @@ export default function ClubProjectsTab() {
                         style={{ fontFamily: 'var(--font-game), sans-serif' }}
                       >
                         {attribute.label}
-                        <span className="mt-1 block text-[12px] text-[#9A9AAA]">+{trainingBoost}</span>
+                        <span className="mt-1 block text-[12px] text-[#9A9AAA]">
+                          {effectiveById[trainingPlayer.id] ? <><span className="tabular-nums text-white">{Math.round(effectiveById[trainingPlayer.id][attribute.key])}</span> </> : null}+{trainingBoost}
+                        </span>
                       </button>
                     ))}
                   </div>

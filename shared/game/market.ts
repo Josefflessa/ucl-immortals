@@ -2,6 +2,7 @@
 // (O servidor importa daqui, como faz com bets.ts.)
 import { Player } from './gameData';
 import { sellValue } from './shop';
+import type { PlayerAvailability } from './discipline';
 
 export interface MarketListing {
   id: string;          // id único do anúncio
@@ -9,6 +10,8 @@ export interface MarketListing {
   sellerName: string;  // nome do vendedor (exibição)
   player: Player;      // jogador em escrow (fora do elenco enquanto anunciado)
   price: number;       // preço pedido (≥ piso)
+  /** Suspensão, lesão e cartões do jogador: vão junto com ele (para quem comprar, ou de volta ao vendedor). */
+  availability?: PlayerAvailability;
 }
 
 // Piso de preço = valor "pra banca" da raridade (reaproveita a Fase 1). Não dá pra dar de graça.
