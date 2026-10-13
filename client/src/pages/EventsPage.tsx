@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { useAccount, type EventsPayload, type GameEventState } from '../contexts/AccountContext';
 import AccountTabBar from '../components/account/AccountTabBar';
-import { CardRewardEventCard, ChoiceEventCard, EventCard, NameStyleEventCard } from '../components/account/GameEvents';
-import { AppShell, Button, EmptyState, PageContainer, SectionHeader, Skeleton, StatusBanner, Tab, TabList, TabPanel, Tabs, TopBar } from '../design-system';
+import { CardRewardEventCard, ChoiceEventCard, CrestRewardEventCard, EventCard, NameStyleEventCard } from '../components/account/GameEvents';
+import { AppShell, Button, EmptyState, PageContainer, SectionHeader, Skeleton, StatusBanner, Tab, TabList, TabPanel, Tabs } from '../design-system';
 
 type EventStatus = GameEventState['status'];
 
@@ -52,7 +52,6 @@ export default function EventsPage() {
 
   return (
     <AppShell>
-      <TopBar title="UCL IMMORTALS" />
       {/* Same shell and header as the other account screens. */}
       <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
         <SectionHeader title="Eventos" />
@@ -83,6 +82,8 @@ export default function EventsPage() {
                       ? <NameStyleEventCard key={event.id} event={event} playerName={account?.displayName ?? ''} onChoose={choice => choose(event.id, choice)} />
                       : event.choices
                       ? <ChoiceEventCard key={event.id} event={event} onChoose={choice => choose(event.id, choice)} />
+                      : event.rewardCrestId
+                      ? <CrestRewardEventCard key={event.id} event={event} />
                       : event.rewardCardId
                       ? <CardRewardEventCard key={event.id} event={event} />
                       : <EventCard key={event.id} event={event} equippedFrame={payload.equippedFrame} onEquip={equip} />)}
@@ -97,6 +98,10 @@ export default function EventsPage() {
         onNavigate={destination => {
           if (destination === 'home') {
             dispatch({ type: 'SET_PHASE', phase: 'menu' });
+            return;
+          }
+          if (destination === 'store') {
+            dispatch({ type: 'SET_PHASE', phase: 'store' });
             return;
           }
           dispatch({ type: 'SET_ACCOUNT_SECTION', section: destination });

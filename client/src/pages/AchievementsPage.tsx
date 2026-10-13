@@ -8,7 +8,7 @@ import { useAccount, type AchievementsPayload } from '../contexts/AccountContext
 import AccountTabBar from '../components/account/AccountTabBar';
 import { AchievementsSection } from '../components/account/Achievements';
 import { ACHIEVEMENTS } from '@shared/game/achievements';
-import { AppShell, Button, PageContainer, SectionHeader, Skeleton, StatusBanner, TopBar } from '../design-system';
+import { AppShell, Button, PageContainer, SectionHeader, Skeleton, StatusBanner } from '../design-system';
 import { cn } from '../lib/utils';
 
 export default function AchievementsPage() {
@@ -38,7 +38,6 @@ export default function AchievementsPage() {
 
   return (
     <AppShell>
-      <TopBar title="UCL IMMORTALS" />
       {/* Same shell and header as the other account screens (history, friends). */}
       <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
         <SectionHeader
@@ -67,6 +66,10 @@ export default function AchievementsPage() {
         onNavigate={destination => {
           if (destination === 'home') {
             dispatch({ type: 'SET_PHASE', phase: 'menu' });
+            return;
+          }
+          if (destination === 'store') {
+            dispatch({ type: 'SET_PHASE', phase: 'store' });
             return;
           }
           dispatch({ type: 'SET_ACCOUNT_SECTION', section: destination });

@@ -2,7 +2,7 @@
 
 import { Player, PLAYERS, COACHES, FORMATIONS, HISTORICAL_TRIOS } from '../gameData';
 import { rollPlayerTraits } from '../traits';
-import { PLAYABLE_CRESTS, BOT_CREST_MAP, crestIdForClub, sameClub } from '../crests';
+import { PLAYABLE_CRESTS, BOT_CREST_MAP, canonicalClubName, crestIdForClub, sameClub } from '../crests';
 import { random } from '../random';
 import { type PlayerCard, type Team, type MatchResult } from './teamModel';
 import { calculateChemistry } from './chemistry';
@@ -80,8 +80,8 @@ function pickChemAware(cands: Player[], selected: Player[], chemBias: number): P
 export const BOT_NAMES = [
   'Real Madrid', 'Manchester City', 'Bayern München', 'Paris Saint-Germain', 'Liverpool FC',
   'Inter de Milão', 'Arsenal FC', 'FC Barcelona', 'Borussia Dortmund', 'Juventus FC',
-  'Atlético de Madrid', 'Bayer Leverkusen', 'AC Milan', 'Benfica Glorioso', 'Sporting CP',
-  'FC Porto', 'Ajax Legends', 'PSV Eindhoven', 'Feyenoord Roterdã', 'Aston Villa',
+  'Atlético de Madrid', 'Bayer Leverkusen', 'AC Milan', 'Benfica', 'Sporting CP',
+  'FC Porto', 'Ajax', 'PSV Eindhoven', 'Feyenoord Roterdã', 'Aston Villa',
   'Atalanta Bergamo', 'AS Monaco', 'Lille OSC', 'VfB Stuttgart', 'Bologna FC', 'Girona FC',
   'Celtic FC', 'Club Brugge', 'Shakhtar Donetsk', 'Dinamo Zagreb', 'RB Salzburg',
   'Sparta Praga', 'Young Boys Bern', 'Estrela Vermelha', 'Lazio Roma',
@@ -124,6 +124,7 @@ export function pickBotNames(count: number, humans: HumanTeamIdentity[]): string
 }
 
 export function generateBotTeam(name: string, difficulty: number): Team {
+  const teamName = canonicalClubName(name);
   const prof = difficultyProfile(difficulty);
   const formation = FORMATIONS[Math.floor(random() * FORMATIONS.length)];
   // 🎩 Técnico: nos níveis altos, tende a escolher um que COMBINA com a formação (senão aleatório).
@@ -203,8 +204,8 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   }));
 
   return {
-    id: `bot_${name.toLowerCase().replace(/\s/g, '_')}`,
-    name,
+    id: `bot_${teamName.toLowerCase().replace(/\s/g, '_')}`,
+    name: teamName,
     coachId: coach.id,
     formationId: formation.id,
     playStyle: pickBotTactic(formation.id, difficulty),
@@ -212,7 +213,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
     totalChemistry: chemData.total,
     isBot: true,
     botStrength: difficulty,
-    crestId: botCrestId(name),
+    crestId: botCrestId(teamName),
   };
 }
 

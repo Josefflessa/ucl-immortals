@@ -6,7 +6,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { useGame, KnockoutMatch } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
-import { getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, statKey } from '@shared/game/gameEngine';
+import { getPlayerSeasonStats, getAllPlayedMatchResults, getActiveKnockoutMatches, computeGroupStandings, knockoutRoundLabel, statKey, MIN_MATCHES_FOR_RATING_LEADER } from '@shared/game/gameEngine';
 import { preloadPlayerPhotos } from '../../components/game/PlayerPortrait';
 import { roundStakeUsed, BET_ROUND_CAP, Bet } from '@shared/game/bets';
 import { bettingStakeCapBonus, projectLevel } from '@shared/game/clubProjects';
@@ -243,7 +243,7 @@ export function useLeagueHub() {
   const { topScorers, topAssists, topRatings, topKeepers, topTacklers, topCards } = useMemo(() => ({
     topScorers: [...allPlayers].filter(p => p.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals),
     topAssists: [...allPlayers].filter(p => p.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists),
-    topRatings: [...allPlayers].filter(p => p.stats.played >= 1).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg),
+    topRatings: [...allPlayers].filter(p => p.stats.played >= MIN_MATCHES_FOR_RATING_LEADER).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg),
     topKeepers: [...allPlayers].filter(p => p.position === 'GK' && p.stats.played > 0).sort((a, b) => b.stats.saves - a.stats.saves),
     topTacklers: [...allPlayers].filter(p => p.stats.tackles > 0).sort((a, b) => b.stats.tackles - a.stats.tackles),
     topCards: [...allPlayers].filter(p => (p.stats.yellowCards + p.stats.redCards) > 0)

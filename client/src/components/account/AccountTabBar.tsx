@@ -1,9 +1,9 @@
-import { Clock3, House, Trophy, Users } from 'lucide-react';
+import { House, ShoppingBag, Trophy, Users } from 'lucide-react';
 import { Button } from '../../design-system';
 import type { AccountSection } from '../../contexts/GameContext';
 import { cn } from '../../lib/utils';
 
-type AccountNavigationTab = 'home' | AccountSection;
+type AccountNavigationTab = 'home' | 'store' | AccountSection;
 
 interface AccountTabBarProps {
   active: AccountNavigationTab | null;
@@ -13,7 +13,7 @@ interface AccountTabBarProps {
 
 const NAV_ITEMS: Array<{ id: AccountNavigationTab; label: string; ariaLabel: string; icon: typeof House }> = [
   { id: 'home', label: 'INÍCIO', ariaLabel: 'Ir para o início', icon: House },
-  { id: 'history', label: 'HISTÓRICO', ariaLabel: 'Abrir histórico', icon: Clock3 },
+  { id: 'store', label: 'LOJA', ariaLabel: 'Abrir loja geral', icon: ShoppingBag },
   { id: 'records', label: 'RANKINGS', ariaLabel: 'Abrir rankings', icon: Trophy },
   { id: 'friends', label: 'AMIGOS', ariaLabel: 'Abrir amigos', icon: Users },
 ];

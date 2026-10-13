@@ -239,6 +239,8 @@ export const CRESTS_BY_ID: Record<string, CrestDef> = Object.fromEntries(
 );
 
 export const ALL_CRESTS: CrestDef[] = CREST_CATALOG.flatMap(g => g.crests);
+/** National teams are offered in their own picker section and may be event-locked. */
+export const NATIONAL_TEAM_CRESTS: CrestDef[] = ALL_CRESTS.filter(crest => crest.teamType === 'national-team');
 
 /** Club crests offered as team identities in a new game. National crests remain displayable for legacy data. */
 export const PLAYABLE_CRESTS: CrestDef[] = ALL_CRESTS.filter(crest => crest.teamType !== 'national-team');

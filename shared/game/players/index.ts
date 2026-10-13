@@ -25,6 +25,7 @@ import { FIFAINDEX_VERSION_ADDITIONS } from './fifaIndexVersionsExpansion';
 import { FIFAINDEX_ALBUM_CLUB_ADDITIONS } from './fifaIndexAlbumClubsExpansion';
 import { ORIGINAL_PLAYERS } from './originalCatalog';
 import { EVENT_UNIQUE_CARD_LIST, UNIQUE_CARD_LIST } from './uniqueCards';
+import { WEEKLY_BANNER_UNIQUE_CARDS } from './weeklyBannerCards';
 
 export interface PlayerSource {
   /** File in shared/game/players that holds the cards. */
@@ -67,5 +68,12 @@ export const PLAYERS: Player[] = PLAYER_SOURCES
 export const UNIQUE_CARDS: Player[] = UNIQUE_CARD_LIST.map(withCanonicalClub);
 /** Event Únicas: only in the Pacote Único pool of the accounts that unlocked them. */
 export const EVENT_UNIQUE_CARDS: Player[] = EVENT_UNIQUE_CARD_LIST.map(withCanonicalClub);
+/** Únicas outside the general pool, available through weekly store banners (never event rewards). */
+export const STORE_UNIQUE_CARDS: Player[] = WEEKLY_BANNER_UNIQUE_CARDS.map(withCanonicalClub);
+const nonUniqueBannerCard = STORE_UNIQUE_CARDS.find(card => card.rarity !== 'unique');
+if (nonUniqueBannerCard) throw new Error(`Weekly banner card ${nonUniqueBannerCard.id} must have Única rarity.`);
+const existingExclusiveIds = new Set([...PLAYERS, ...UNIQUE_CARDS, ...EVENT_UNIQUE_CARDS].map(card => card.id));
+const reusedExclusiveCard = STORE_UNIQUE_CARDS.find(card => existingExclusiveIds.has(card.id));
+if (reusedExclusiveCard) throw new Error(`Weekly banner card ${reusedExclusiveCard.id} must be a new, non-event card.`);
 /** Every Única, for lookups (offers, claims, album). */
-export const ALL_UNIQUE_CARDS: Player[] = [...UNIQUE_CARDS, ...EVENT_UNIQUE_CARDS];
+export const ALL_UNIQUE_CARDS: Player[] = [...UNIQUE_CARDS, ...EVENT_UNIQUE_CARDS, ...STORE_UNIQUE_CARDS];

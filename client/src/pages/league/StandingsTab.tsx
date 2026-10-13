@@ -63,6 +63,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                         {group.entries.map((entry, i) => {
                           const isPlayer = entry.teamId === playerTeam?.id;
                           const isQualified = i < state.competitionFormat.qualifiedPerGroup;
+                          const entryTeam = allTeams.find(team => team.id === entry.teamId);
                           return (
                             <div
                               key={entry.teamId}
@@ -81,9 +82,9 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                               </div>
                               <div className="flex min-w-0 items-center gap-1.5">
                                 <div className="h-1 w-1 shrink-0 rounded-full sm:h-1.5 sm:w-1.5" style={{ background: isQualified ? 'var(--ui-success)' : 'var(--ui-danger)' }} />
-                                <Crest crestId={allTeams.find(t => t.id === entry.teamId)?.crestId} name={entry.teamName} size={18} />
+                                <Crest crestId={entryTeam?.crestId} name={entryTeam?.name ?? entry.teamName} size={18} />
                                 <span className="truncate text-xs font-semibold sm:text-sm" style={{ fontFamily: 'var(--font-game), sans-serif', color: isPlayer ? 'var(--ui-brand)' : '#FFFFFF', fontWeight: isPlayer ? 'bold' : 'normal' }}>
-                                  {entry.teamName}
+                                  {entryTeam?.name ?? entry.teamName}
                                 </span>
                               </div>
                               {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (
@@ -121,6 +122,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
 
             {leagueStandings.map((entry, i) => {
               const isPlayer = entry.teamId === playerTeam?.id;
+              const entryTeam = allTeams.find(team => team.id === entry.teamId);
               const isDirectQual = !isLeagueOnly && !isGroupStage && i < directTeams;
               const isPlayoff = !isLeagueOnly && playoffTeams > 0 && i >= directTeams && i < qualifiedTeams;
               const isGroupQual = isGroupStage && groupQualifiedIds.has(entry.teamId);
@@ -153,14 +155,14 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                     {isGroupQual && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ui-success)' }} />}
                     {isPlayoff && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: '#3B82F6' }} />}
                     {isEliminated && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ui-danger)' }} />}
-                    <Crest crestId={allTeams.find(t => t.id === entry.teamId)?.crestId} name={entry.teamName} size={18} />
+                    <Crest crestId={entryTeam?.crestId} name={entryTeam?.name ?? entry.teamName} size={18} />
                     <span className="text-xs sm:text-sm font-semibold truncate"
                       style={{
                         fontFamily: 'var(--font-game), sans-serif',
                         color: isPlayer ? 'var(--ui-brand)' : '#FFFFFF',
                         fontWeight: isPlayer ? 'bold' : 'normal',
                       }}>
-                      {entry.teamName}
+                      {entryTeam?.name ?? entry.teamName}
                     </span>
                   </div>
                   {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (

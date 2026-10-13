@@ -9,7 +9,12 @@ import { applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout }
 import { createInitialClubProjects, projectLevel, calculateClubReward, bettingLossRefundPercent } from '@shared/game/clubProjects';
 import { DEFAULT_REWARDS_CONFIG, normalizeCompetitionFormat, validateCompetitionFormat } from '@shared/game/competition';
 import { createMissionMatchContext, createMissionState, missionCycleKey, normalizeMissionState, rotateMissionBoard, updateMissionsAfterMatch, completedMissionCount } from '@shared/game/missions';
+import { canonicalClubName } from '@shared/game/crests';
 import { type GameState, type KnockoutBracket, type GameAction, initialState } from './state';
+
+function normalizeBotTeamNames(teams: Team[] | undefined): Team[] {
+  return (teams ?? []).map(team => ({ ...team, name: canonicalClubName(team.name) }));
+}
 
 /**
  * Replay markers only make sense inside one room session. Carrying them into
@@ -1195,7 +1200,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         phase: targetPhase,
         difficulty: roomState.difficulty,
         competitionFormat: normalizeCompetitionFormat(roomState.competitionFormat),
-        botTeams: roomState.botTeams || [],
+        botTeams: normalizeBotTeamNames(roomState.botTeams),
         leagueFixtures: roomFixtures,
         leagueStandings: roomState.leagueStandings || [],
         leagueResults: roomLeagueResults,
@@ -1322,7 +1327,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'RESTORE_SOLO_CAMPAIGN':
       // A saved solo campaign never carries an online session.
-      return { ...initialState, ...action.state, mode: 'solo', roomCode: null, socketId: null, isHost: false, onlinePlayers: [] };
+      return {
+        ...initialState,
+        ...action.state,
+        botTeams: normalizeBotTeamNames(action.state.botTeams),
+        mode: 'solo', roomCode: null, socketId: null, isHost: false, onlinePlayers: [],
+      };
 
     default:
       return state;

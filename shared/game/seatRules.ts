@@ -6,7 +6,7 @@
 // upgrade or an evolution choice follows exactly the same rule everywhere.
 // Network-input validation (ids, enums) stays at the server boundary.
 
-import { ALL_UNIQUE_CARDS, EVENT_UNIQUE_CARDS, FORMATIONS, PLAYERS, TACTICS, UNIQUE_CARDS, type Player, type PlayerSpecialization } from './gameData';
+import { ALL_UNIQUE_CARDS, EVENT_UNIQUE_CARDS, FORMATIONS, PLAYERS, STORE_UNIQUE_CARDS, TACTICS, UNIQUE_CARDS, type Player, type PlayerSpecialization } from './gameData';
 import {
   applyEvolvePoint, applyMercenarioProgress, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, getActiveKnockoutMatches, validateMatchPlan, applyShopVariant, canAddVariant, canUnlockSpecialization,
   choosePlayerSpecialization, drawPlayerPackCard, drawUniquePackCard, evolvePointsBudget,
@@ -41,7 +41,7 @@ export interface PlayerSeat {
   pendingUniquePack: Player | null;
   uniquePackOfferIds?: string[];
   uniquePackOfferRoundKey?: string | null;
-  /** Event Únicas the account unlocked: they can show up in its Pacote Único. */
+  /** Exclusive cards owned by the account; event Únicas also join its Pacote Único. */
   eventUniqueIds?: string[];
   playerPackOfferIds?: Partial<Record<RegularPlayerPackRarity, string[]>>;
   playerPackOfferRoundKeys?: Partial<Record<RegularPlayerPackRarity, string | null>>;
@@ -106,7 +106,8 @@ export function ensureUniquePackOffer(seat: PlayerSeat, ctx: SeatContext): Playe
   const excluded = seat.pendingUniquePack ? [seat.pendingUniquePack.id] : [];
   const stored = seat.uniquePackOfferIds;
   const eventIds = seat.eventUniqueIds ?? [];
-  const pool = [...UNIQUE_CARDS, ...EVENT_UNIQUE_CARDS.filter(card => eventIds.includes(card.id))];
+  const accountExclusiveCards = [...EVENT_UNIQUE_CARDS, ...STORE_UNIQUE_CARDS].filter(card => eventIds.includes(card.id));
+  const pool = [...UNIQUE_CARDS, ...accountExclusiveCards];
   const validStored = Array.isArray(stored) && stored.every(id => pool.some(card => card.id === id));
   const unavailable = new Set([...owned, ...excluded]);
   const anyLeft = pool.some(card => !unavailable.has(card.id));

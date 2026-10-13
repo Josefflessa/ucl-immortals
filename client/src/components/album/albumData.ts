@@ -12,12 +12,12 @@ import {
   type AlbumPackTier,
   type AlbumRegionId,
 } from '@shared/game/album';
-import type { Player, Rarity } from '@shared/game/gameData';
+import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS, type Player, type Rarity } from '@shared/game/gameData';
 import type { AlbumState } from '../../contexts/AlbumContext';
 
 export const CATALOG = albumCatalog();
 
-const CARD_BY_ID = new Map<string, Player>(albumCards().map(card => [card.id, card]));
+const CARD_BY_ID = new Map<string, Player>([...albumCards(), ...EVENT_UNIQUE_CARDS, ...STORE_UNIQUE_CARDS].map(card => [card.id, card]));
 
 export function albumCard(id: string): Player | undefined {
   return CARD_BY_ID.get(id);
@@ -41,7 +41,7 @@ export function pageProgress(page: AlbumPage, album: AlbumState | null): PagePro
 
 export function albumProgress(album: AlbumState | null): { owned: number; total: number; pages: number } {
   let owned = 0;
-  album?.stickers.forEach((_, id) => { if (CATALOG.stickers.has(id)) owned++; });
+  album?.stickers.forEach((_, id) => { if (CATALOG.stickers.get(id)?.pageId != null) owned++; });
   const pages = album ? CATALOG.pages.filter(page => pageProgress(page, album).complete).length : 0;
   return { owned, total: CATALOG.total, pages };
 }

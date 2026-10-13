@@ -35,6 +35,26 @@ export function PageContainer({ className, narrow = false, wide = false, ...prop
   return <div className={cn('ui-page', narrow && 'ui-page--narrow', wide && 'ui-page--wide', className)} {...props} />;
 }
 
+export function FixedActionBar({
+  children,
+  narrow = false,
+  contentClassName,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { narrow?: boolean; contentClassName?: string }) {
+  return (
+    <div
+      {...props}
+      className={cn('fixed inset-x-0 bottom-0 z-30 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-bg)]/95 pt-3 backdrop-blur-md', className)}
+      style={{ ...props.style, paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+    >
+      <div className={cn('mx-auto flex w-full gap-3 px-[var(--ui-gutter)]', narrow ? 'max-w-[760px]' : 'max-w-[1280px]', contentClassName)}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function TopBar({ className, logoUrl = '/icons/logo_ucl.png', title = 'UCL IMMORTALS', playerName, center, right, ...props }: HTMLAttributes<HTMLDivElement> & { logoUrl?: string; title?: string; playerName?: string; center?: ReactNode; right?: ReactNode }) {
   return (
     <header className={cn('ui-topbar', className)} {...props}>

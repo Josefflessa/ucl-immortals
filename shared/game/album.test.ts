@@ -17,6 +17,7 @@ import {
   SELL_VALUE,
   TIER_GUARANTEE,
 } from './album';
+import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS } from './gameData';
 import { seededRandom } from './random';
 import type { Rarity } from './gameData';
 
@@ -27,12 +28,13 @@ describe('Álbum de figurinhas — catálogo', () => {
 
   it('cada carta do álbum tem exatamente uma vaga, numerada em sequência', () => {
     const cards = albumCards();
+    const allCards = [...cards, ...EVENT_UNIQUE_CARDS, ...STORE_UNIQUE_CARDS];
     expect(catalog.total).toBe(cards.length);
-    expect(catalog.stickers.size).toBe(cards.length);
+    expect(catalog.stickers.size).toBe(allCards.length);
     const numbers = [...catalog.stickers.values()].map(s => s.number).sort((a, b) => a - b);
     expect(numbers[0]).toBe(1);
-    expect(numbers[numbers.length - 1]).toBe(cards.length);
-    expect(new Set(numbers).size).toBe(cards.length);
+    expect(numbers[numbers.length - 1]).toBe(allCards.length);
+    expect(new Set(numbers).size).toBe(allCards.length);
     // Every page's stickers point back to it.
     for (const page of catalog.pages) for (const id of page.stickers) expect(catalog.stickers.get(id)!.pageId).toBe(page.id);
   });
@@ -122,9 +124,8 @@ describe('Álbum de figurinhas — pacotes', () => {
     expect(parseItemKey('envelope:immortal')).toEqual({ kind: 'envelope', tier: 'immortal' });
     expect(parseItemKey('pack:diamond')).toBeNull();
     expect(parseItemKey('coins:gold')).toBeNull();
-    expect(campaignGrant('silver', false, false)).toEqual(['envelope:silver']);
-    expect(campaignGrant('gold', true, false)).toEqual(['envelope:gold', 'pack:gold']);
-    expect(campaignGrant('gold', true, true)).toEqual(['envelope:gold', 'pack:gold', 'pack:gold']);
+    expect(campaignGrant('silver', false)).toEqual(['envelope:silver']);
+    expect(campaignGrant('gold', true)).toEqual(['envelope:gold', 'pack:gold']);
   });
 });
 

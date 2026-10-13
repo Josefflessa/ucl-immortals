@@ -5,7 +5,7 @@ import { Brain, Flame, Heart, Scale, Shield, Star, Zap, type LucideIcon } from '
 import { useGame } from '../contexts/GameContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { COACHES } from '@shared/game/gameData';
-import { AppShell, Button, ChoiceCard, PageContainer, SectionHeader, TopBar } from '../design-system';
+import { AppShell, Button, ChoiceCard, FixedActionBar, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 /** Shown when a coach has no photo: his style, as a line icon. */
 const COACH_ICONS: Record<string, LucideIcon> = {
@@ -54,7 +54,7 @@ export default function CoachPage() {
     <AppShell>
       <TopBar right={<CompetitionExitControl />} />
 
-      <PageContainer wide>
+      <PageContainer wide className="pb-32">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -183,22 +183,21 @@ export default function CoachPage() {
             })}
           </div>
 
-          {/* Continue */}
-          <div className="mt-8 flex gap-3">
-            <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
-              ← VOLTAR
-            </Button>
-            <Button
-              intent="primary"
-              size="large"
-              onClick={handleContinue}
-              className="flex-1"
-            >
-              ESCOLHER FORMAÇÃO →
-            </Button>
-          </div>
         </motion.div>
       </PageContainer>
+      <FixedActionBar contentClassName="max-w-4xl">
+        <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
+          ← VOLTAR
+        </Button>
+        <Button
+          intent="primary"
+          size="large"
+          onClick={handleContinue}
+          className="flex-1"
+        >
+          ESCOLHER FORMAÇÃO →
+        </Button>
+      </FixedActionBar>
     </AppShell>
   );
 }

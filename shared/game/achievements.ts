@@ -43,6 +43,8 @@ export interface CareerCompetition {
   topPlayerOverall: number;
   /** Card ids of the XI that started the final (empty when there was no final or it was not recorded). */
   finalStarterIds: string[];
+  /** Brazilian players in the final's starting XI, derived server-side from finalStarterIds. */
+  finalBrazilianStarterCount?: number;
 }
 
 /** A title "conceding few goals" (Muralha) allows at most this many. */

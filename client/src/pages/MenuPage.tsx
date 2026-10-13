@@ -3,27 +3,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Check, Gamepad2, Medal, Play, Trophy, Plus, LogIn, LibraryBig, Send, UserRound, Users, X } from 'lucide-react';
+import { Check, Gamepad2, Medal, Play, Trophy, Plus, LogIn, LibraryBig, Send, UserRound, Users } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import AccountTabBar from '../components/account/AccountTabBar';
 import { useGame, type SavedSoloCampaign } from '../contexts/GameContext';
 import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
-import { competitionStagePoints, type RankedDifficultyId } from '@shared/game/competitionRanking';
-import { COMPETITION_FORMAT_PRESETS, competitionFormatSummary, createCompetitionFormat } from '@shared/game/competition';
+import { competitionFormatSummary, createCompetitionFormat } from '@shared/game/competition';
 import { cn } from '../lib/utils';
-import { resolveProfileAvatarImage } from '../lib/profileAvatars';
-import { getProfileAvatarBackground } from '@shared/profileAppearance';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
 import StyledName from '../components/account/StyledName';
-import FramedAvatar from '../components/account/AvatarFrame';
-import { clubOfRewardKey } from '@shared/game/clubRewards';
-import { EventsHomeButton } from '../components/account/GameEvents';
-import DailyRewardsHomeButton from '../components/account/DailyRewards';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
-const COMPETITIVE_FORMAT = createCompetitionFormat('league_knockout');
 
 function friendIdentity(friendship: FriendshipEntry, accountId: string | undefined) {
   if (friendship.requester_id === accountId) {
@@ -53,6 +45,7 @@ export default function MenuPage() {
     transferHostOnline,
     removePlayerOnline,
     savedSoloCampaign,
+    soloCampaignSyncStatus,
     continueSoloCampaign,
     discardSoloCampaign,
   } = useGame();
@@ -61,31 +54,14 @@ export default function MenuPage() {
     loading: accountLoading,
     getFriends,
     inviteFriendToRoom,
-    updateFriendship,
-    getEvents,
   } = useAccount();
-  // Running events the player has not completed yet: the badge on the events shortcut.
-  const [pendingEvents, setPendingEvents] = useState(0);
-  const accountIdForEvents = account?.id ?? null;
-  useEffect(() => {
-    if (!accountIdForEvents) { setPendingEvents(0); return; }
-    let active = true;
-    void getEvents()
-      .then(result => { if (active) setPendingEvents(result.events.filter(event => event.status === 'active' && !event.completed).length); })
-      .catch(() => { if (active) setPendingEvents(0); });
-    return () => { active = false; };
-  }, [accountIdForEvents, getEvents]);
   const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
   const [soloSaveConfirm, setSoloSaveConfirm] = useState<'choose' | 'new' | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomAction, setRoomAction] = useState<RoomMenuAction | null>(null);
-  const [guestModeInfoOpen, setGuestModeInfoOpen] = useState(false);
   const [friendships, setFriendships] = useState<FriendshipEntry[]>([]);
   const [incomingFriendRequestCount, setIncomingFriendRequestCount] = useState(0);
-  const [friendNotificationsOpen, setFriendNotificationsOpen] = useState(false);
-  const [friendNotificationError, setFriendNotificationError] = useState('');
-  const [friendActionId, setFriendActionId] = useState<string | null>(null);
   const [roomInviteActionId, setRoomInviteActionId] = useState<string | null>(null);
   const [roomInviteFriendsOpen, setRoomInviteFriendsOpen] = useState(false);
   const [sentRoomInviteFriendships, setSentRoomInviteFriendships] = useState<string[]>([]);
@@ -147,26 +123,9 @@ export default function MenuPage() {
     };
   }, [account?.id, getFriends]);
 
-  const incomingFriendRequests = account
-    ? friendships.filter(friendship => friendship.status === 'pending' && friendship.addressee_id === account.id)
-    : [];
-  const profileImage = account ? account.avatarUrl || resolveProfileAvatarImage(account.avatarKey) : null;
   const acceptedFriends = account
     ? friendships.filter(friendship => friendship.status === 'accepted')
     : [];
-
-  const handleFriendNotification = async (friendshipId: string, action: 'accept' | 'decline') => {
-    setFriendActionId(friendshipId);
-    setFriendNotificationError('');
-    try {
-      await updateFriendship(friendshipId, action);
-      await refreshInbox();
-    } catch (error) {
-      setFriendNotificationError(error instanceof Error ? error.message : 'Não foi possível atualizar o pedido de amizade.');
-    } finally {
-      setFriendActionId(null);
-    }
-  };
 
   const inviteFriendToCurrentRoom = async (friendshipId: string) => {
     if (!state.roomCode) return;
@@ -474,60 +433,7 @@ export default function MenuPage() {
     <AppShell immersive backgroundImage={HERO_BG} className="relative overflow-hidden">
 
       {/* Content */}
-      {account ? (
-        <>
-          <div className="absolute left-4 top-4 z-20 flex items-center gap-1.5 sm:left-6 sm:top-6">
-            <Button
-              type="button"
-              intent="ghost"
-              aria-label={incomingFriendRequestCount > 0
-                ? `Solicitações de amizade, ${incomingFriendRequestCount} pendentes`
-                : 'Solicitações de amizade'}
-              title="Solicitações de amizade"
-              onClick={() => {
-                setFriendNotificationError('');
-                setFriendNotificationsOpen(true);
-                void refreshInbox();
-              }}
-              className="relative size-11 min-h-11 w-11 justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 p-0"
-            >
-              <Bell size={19} aria-hidden="true" />
-              {incomingFriendRequestCount > 0 ? (
-                <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-danger)] px-1 text-[12px] font-bold leading-none tabular-nums text-white">
-                  {incomingFriendRequestCount > 9 ? '9+' : incomingFriendRequestCount}
-                </span>
-              ) : null}
-            </Button>
-            <EventsHomeButton pending={pendingEvents} onOpen={() => dispatch({ type: 'SET_PHASE', phase: 'events' })} />
-            <DailyRewardsHomeButton />
-          </div>
-          {/* The profile lives here instead of the tab bar: photo + name, top right. */}
-          <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
-            <button
-              type="button"
-              aria-label="Abrir perfil"
-              onClick={() => dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'profile' })}
-              className="flex min-h-11 max-w-[11rem] items-center gap-2 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 py-1 pl-1 pr-3.5 transition-colors hover:border-[var(--ui-brand)]/50 sm:max-w-[14rem]"
-            >
-              <FramedAvatar frameKey={account.avatarFrameKey} compact><span
-                aria-hidden="true"
-                // A club frame's band goes around the photo: it is a bit smaller so the pill keeps its height.
-                className={cn('relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-brand)]/60 text-xs font-bold text-[var(--ui-text)]', clubOfRewardKey(account.avatarFrameKey) ? 'size-8' : 'size-9')}
-                style={{ backgroundColor: getProfileAvatarBackground(account.avatarBackgroundKey).color }}
-              >
-                {/* Initial only when there is no portrait (they have transparent backgrounds). */}
-                <span hidden={!!profileImage}>{account.displayName.trim().charAt(0).toUpperCase()}</span>
-                {profileImage ? <img key={profileImage} src={profileImage} alt="" className={cn('absolute inset-0 size-full', account.avatarUrl ? 'object-cover' : 'object-contain')} onError={event => {
-                  event.currentTarget.style.display = 'none';
-                  const fallback = event.currentTarget.previousElementSibling as HTMLElement | null;
-                  if (fallback) fallback.hidden = false;
-                }} /> : null}
-              </span></FramedAvatar>
-              <span className="block min-w-0 max-w-full text-xs font-bold text-[var(--ui-text)]"><StyledName name={account.displayName} styleKey={account.nameStyleKey} size="sm" /></span>
-            </button>
-          </div>
-        </>
-      ) : (
+      {!account ? (
         <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-end gap-2 sm:inset-x-6 sm:top-6">
           <div className="shrink-0">
             <Button
@@ -541,9 +447,9 @@ export default function MenuPage() {
             </Button>
           </div>
         </div>
-      )}
+      ) : null}
 
-      <div className={cn('relative z-10 flex min-h-dvh flex-col items-center px-4 pt-20 sm:pt-24', account ? 'pb-24' : 'pb-4')}>
+      <div className={cn('relative z-10 flex flex-col items-center px-4', account ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24')}>
         {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
         <div aria-hidden="true" className="flex-1" />
 
@@ -575,6 +481,7 @@ export default function MenuPage() {
                 intent="primary"
                 size="large"
                 onClick={() => (savedSoloCampaign ? setSoloSaveConfirm('choose') : setMenuMode('solo'))}
+                disabled={accountLoading || (!!account && soloCampaignSyncStatus === 'syncing')}
                 className="w-full"
               >
                 <span className="flex flex-col items-center justify-center leading-tight">
@@ -583,7 +490,7 @@ export default function MenuPage() {
                   </span>
                   {savedSoloCampaign ? (
                     <span className="mt-0.5 max-w-full truncate text-[12px] font-semibold normal-case tracking-normal opacity-80" style={{ fontFamily: "var(--font-ui), sans-serif" }}>
-                      Campanha salva · {savedSoloCampaign.teamName}
+                      Campanha salva · {savedSoloCampaign.teamName}{account && soloCampaignSyncStatus !== 'error' ? ` · ${soloCampaignSyncStatus === 'synced' ? 'salva na conta' : soloCampaignSyncStatus === 'syncing' ? 'sincronizando…' : 'neste dispositivo'}` : ''}
                     </span>
                   ) : null}
                 </span>
@@ -633,6 +540,10 @@ export default function MenuPage() {
                 incomingFriendRequestCount={incomingFriendRequestCount}
                 onNavigate={tab => {
                   if (tab === 'home') return;
+                  if (tab === 'store') {
+                    dispatch({ type: 'SET_PHASE', phase: 'store' });
+                    return;
+                  }
                   dispatch({ type: 'SET_ACCOUNT_SECTION', section: tab });
                 }}
               /> : null}
@@ -829,101 +740,6 @@ export default function MenuPage() {
         </footer>
       </div>
 
-
-      <GameModal
-        open={guestModeInfoOpen}
-        onOpenChange={setGuestModeInfoOpen}
-        title="DUAS FORMAS DE JOGAR"
-        subtitle="O modo livre é independente da conta; o modo competitivo registra sua trajetória."
-        size="wide"
-        footer={(
-          <div className="flex w-full flex-col gap-1.5 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              intent="primary"
-              onClick={() => {
-                setGuestModeInfoOpen(false);
-                dispatch({ type: 'SET_PHASE', phase: 'account' });
-              }}
-            >
-              <UserRound size={15} aria-hidden="true" /> ENTRAR OU CRIAR CONTA
-            </Button>
-            <Button type="button" intent="ghost" onClick={() => setGuestModeInfoOpen(false)}>
-              CONTINUAR NO MODO LIVRE
-            </Button>
-          </div>
-        )}
-      >
-        <div className="space-y-2.5">
-          <Panel tone="inset" className="space-y-1.5 p-3">
-            <div className="ui-kicker">MODO LIVRE</div>
-            <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">
-              Jogue solo ou multiplayer sem conta. Suas competições no modo livre não aparecem no perfil, no histórico, nos rankings ou nos recordes.
-            </p>
-          </Panel>
-
-          <Panel tone="accent" className="space-y-1.5 p-3">
-            <div className="ui-kicker">MODO COMPETITIVO · COM CONTA</div>
-            <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">
-              Entre ou crie uma conta para registrar seu progresso no modo oficial. Suas competições concluídas formam seu histórico e alimentam o perfil, os rankings e os recordes.
-            </p>
-            <p className="pt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
-              O formato é fixo para todos e você escolhe a dificuldade. Quanto mais difícil, mais pontos cada fase vale no ranking:
-            </p>
-            <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
-              <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
-                <div className="ui-kicker">FORMATO FIXO</div>
-                <div className="mt-1 text-sm font-bold text-[var(--ui-text)]">{COMPETITION_FORMAT_PRESETS[COMPETITIVE_FORMAT.id].name}</div>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{competitionFormatSummary(COMPETITIVE_FORMAT)}</p>
-              </div>
-              <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
-                <div className="ui-kicker">DIFICULDADE À SUA ESCOLHA</div>
-                <div className="mt-1 text-sm font-bold text-[var(--ui-brand-strong)]">Bronze a Imortal</div>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
-                  Um título vale {DIFFICULTY_LEVELS.map(level => `${competitionStagePoints('champion', level.id as RankedDifficultyId)} no ${level.name}`).join(', ')}.
-                </p>
-              </div>
-            </div>
-          </Panel>
-        </div>
-      </GameModal>
-
-      <GameModal
-        open={friendNotificationsOpen}
-        onOpenChange={setFriendNotificationsOpen}
-        title="NOTIFICAÇÕES"
-        subtitle="Avisos e solicitações da sua conta."
-        size="wide"
-      >
-        <div className="space-y-3">
-          {friendNotificationError ? <StatusBanner tone="danger" role="alert">{friendNotificationError}</StatusBanner> : null}
-          {incomingFriendRequests.length === 0 ? (
-            <EmptyState title="Tudo em dia" description="Não há notificações pendentes no momento." />
-          ) : incomingFriendRequests.map(friendship => {
-            const friend = friendIdentity(friendship, account?.id);
-            const busy = friendActionId === friendship.id;
-            return (
-              <div key={friendship.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] p-3 sm:flex-nowrap">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--ui-brand)]/15 text-sm font-bold text-[var(--ui-brand-strong)]">
-                  {friend.displayName.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="min-w-0 max-w-full text-sm font-semibold text-[var(--ui-text)]"><StyledName name={friend.displayName} styleKey={friend.nameStyleKey} size="sm" /></div>
-                  <div className="truncate text-xs text-[var(--ui-text-muted)]">@{friend.username} quer adicionar você</div>
-                </div>
-                <div className="flex w-full gap-2 sm:w-auto">
-                  <Button type="button" intent="ghost" disabled={friendActionId !== null} onClick={() => void handleFriendNotification(friendship.id, 'decline')} className="flex-1 px-3 text-xs sm:flex-none">
-                    <X size={14} /> RECUSAR
-                  </Button>
-                  <Button type="button" intent="primary" loading={busy} disabled={friendActionId !== null} onClick={() => void handleFriendNotification(friendship.id, 'accept')} className="flex-1 px-3 text-xs sm:flex-none">
-                    {!busy ? <Check size={14} /> : null} ACEITAR
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </GameModal>
 
     </AppShell>
   );

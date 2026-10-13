@@ -67,6 +67,45 @@
   text-shadow: 2px 2px 0 #3d2410, 0 0 12px rgba(234, 179, 8, .45);
 }
 
+/* Tático: condensed stadium lettering with a subtle gold edge. */
+.styled-name--tatico {
+  font-size: .9em;
+  font-weight: 700;
+  letter-spacing: .025em;
+  color: #f5d76e;
+  text-shadow: 0 2px 0 #392a08, 0 0 8px rgba(245, 215, 110, .25);
+}
+
+/* Futurista: geometric cyan lettering. */
+.styled-name--futurista {
+  font-size: .76em;
+  font-weight: 700;
+  letter-spacing: .035em;
+  color: #70e5ff;
+  text-shadow: 0 0 8px rgba(40, 190, 255, .55), 0 2px 0 #0b2540;
+}
+
+/* Estádio: clean cutout lettering with a cool metal tone. */
+.styled-name--estadio {
+  font-weight: 400;
+  letter-spacing: .025em;
+  color: #d5e4f3;
+  text-shadow: 0 2px 0 #243144, 0 0 8px rgba(154, 199, 238, .25);
+}
+
+/* Comando: compact military display lettering in olive green. */
+.styled-name--comando {
+  font-weight: 400;
+  color: #c6db8c;
+  text-shadow: 0 2px 0 #263019, 0 0 8px rgba(174, 204, 110, .25);
+}
+
+/* Product previews use a shared size so the shop compares typefaces fairly. */
+.styled-name.font-shop-preview { font-size: 1.5rem; }
+@media (min-width: 640px) {
+  .styled-name.font-shop-preview { font-size: 1.875rem; }
+}
+
 /* Small size: same font and colour, lighter effects, no motion. */
 .styled-name--sm, .styled-name--sm .styled-name__text { animation: none; }
 .styled-name--sm.styled-name--lendario { filter: drop-shadow(0 1px 0 #2a1902); }
@@ -75,6 +114,7 @@
 .styled-name--sm.styled-name--assombrado { filter: drop-shadow(0 1px 0 #052e16); }
 .styled-name--sm.styled-name--neon { text-shadow: none; font-size: .82em; }
 .styled-name--sm.styled-name--pirata { -webkit-text-stroke: 0; text-shadow: 1px 1px 0 #3d2410; }
+.styled-name--sm.styled-name--futurista { font-size: .82em; text-shadow: 0 1px 0 #0b2540; }
 
 @media (prefers-reduced-motion: reduce) {
   .styled-name, .styled-name__text { animation: none; }

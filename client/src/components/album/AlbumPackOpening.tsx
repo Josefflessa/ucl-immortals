@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Check, Copy, Sparkles, X } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, Copy, Sparkles } from 'lucide-react';
 import { parseItemKey, type AlbumItemKey } from '@shared/game/album';
 import { getCrest } from '@shared/game/crests';
 import { Button } from '../../design-system';
@@ -101,14 +101,14 @@ function RevealedCard({ id, isNew, index, scale }: { id: string; isNew: boolean;
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: .5 + index * .32, type: 'spring', stiffness: 420, damping: 18 }}
-          className="absolute left-1/2 top-0 z-[5] inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold tracking-[0.14em] text-[#0B0C12] shadow-lg"
+          className="absolute left-1/2 top-0 z-[5] inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-[0.12em] text-[#0B0C12] shadow-lg"
           style={{ background: tagColor, ...FONT }}
         >
           {isNew ? <Sparkles size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />}
           {isNew ? 'NOVA' : 'REPETIDA'}
         </motion.span>
       </div>
-      <div className="mt-1.5 text-center text-[11px] font-semibold leading-tight text-white/60" style={{ ...FONT, maxWidth: Math.max(200 * scale, 84) }}>
+      <div className="mt-1.5 text-center text-xs font-semibold leading-tight text-white/65" style={{ ...FONT, maxWidth: Math.max(200 * scale, 84) }}>
         Nº {sticker?.number ?? '—'} · {RARITY_LABEL[card.rarity]}
       </div>
     </motion.div>
@@ -211,21 +211,18 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
       role="dialog"
       aria-modal="true"
       aria-label={`Abrindo ${itemLabel(itemKey)}`}
-      className="fixed inset-0 z-[80] flex flex-col overflow-y-auto text-white"
+      className="fixed inset-0 z-[80] flex flex-col overflow-hidden text-white"
       style={{ background: 'radial-gradient(circle at 50% 40%, #181827 0%, #090A12 50%, #05060B 100%)' }}
     >
-      <header className="flex shrink-0 items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-8 sm:py-5">
-        <div className="min-w-0 whitespace-nowrap text-[11px] font-bold tracking-[0.12em] sm:text-[12px] sm:tracking-[0.2em]" style={{ color: accent, ...FONT }}>
+      <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:gap-3 sm:px-8 sm:py-5">
+        <div className="min-w-0 whitespace-nowrap text-sm font-bold tracking-[0.12em] sm:text-base sm:tracking-[0.2em]" style={{ color: accent, ...FONT }}>
           {itemLabel(itemKey).toUpperCase()}
           {items.length > 1 ? <span className="ml-2 text-white/45">{index + 1}/{items.length}</span> : null}
         </div>
-        <button type="button" onClick={onClose} disabled={stage === 'tearing'} aria-label="Fechar" className="flex size-9 shrink-0 items-center justify-center rounded-full text-[#B9B5C4] transition-colors hover:bg-white/[.06] disabled:opacity-40 sm:size-10">
-          <X size={22} strokeWidth={1.6} />
-        </button>
       </header>
 
       <main
-        className={`flex min-h-0 flex-1 shrink-0 flex-col items-center px-3 sm:px-4 ${stage === 'revealed' ? 'justify-start pb-8 pt-3 sm:justify-center sm:pb-10 sm:pt-0' : 'justify-center py-8'}`}
+        className={`flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-3 sm:px-4 ${stage === 'revealed' ? 'justify-start pb-6 pt-3' : 'justify-center py-8'}`}
         style={{ touchAction: 'pan-y' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -263,11 +260,11 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
           ) : (
             <motion.section key={`revealed-${index}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex w-full max-w-[1000px] shrink-0 flex-col items-center">
               <div className="mb-4 w-full max-w-[26rem] px-2 text-center sm:mb-6">
-                <div className="mx-auto max-w-full break-words text-[11px] font-bold leading-snug tracking-[0.14em] sm:text-[13px] sm:tracking-[0.24em]" style={{ color: accent, ...FONT }}>
+                <div className="mx-auto max-w-full break-words text-sm font-bold leading-snug tracking-[0.1em] sm:text-base sm:tracking-[0.18em]" style={{ color: accent, ...FONT }}>
                   {newCount > 0 ? `${newCount} CARTA${newCount > 1 ? 'S' : ''} NOVA${newCount > 1 ? 'S' : ''} PARA O ÁLBUM` : 'TODAS REPETIDAS'}
                 </div>
-                <p className="mx-auto mt-1.5 max-w-[22rem] text-xs leading-snug" style={{ color: MUTED, ...FONT }}>
-                  {cards.length - newCount > 0 ? 'As cartas repetidas ficam guardadas: use uma para subir o nível ou venda por pontos.' : 'Já adicionadas ao seu álbum.'}
+                <p className="mx-auto mt-2 max-w-[26rem] text-sm leading-relaxed" style={{ color: MUTED, ...FONT }}>
+                  {cards.length - newCount > 0 ? 'As cartas repetidas ficam guardadas: use uma para subir o nível ou venda por moedas.' : 'Já adicionadas ao seu álbum.'}
                 </p>
               </div>
               {/* Keep the wrapped rows' full height so flex shrinking cannot move the buttons over the last card. */}
@@ -279,20 +276,24 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
                   {result.pageRewards.map(reward => <PageRewardCard key={reward.pageId} reward={reward} />)}
                 </motion.div>
               ) : null}
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .3 + cards.length * .32 }} className="mt-8 flex w-full max-w-[420px] shrink-0 flex-col gap-2.5">
-                {remaining > 0 ? (
-                  <Button intent="primary" size="large" onClick={next} className="flex w-full items-center justify-center gap-2">
-                    Abrir próximo <span className="opacity-70">({remaining})</span> <ArrowRight size={17} aria-hidden="true" />
-                  </Button>
-                ) : null}
-                <Button intent={remaining > 0 ? 'ghost' : 'primary'} size={remaining > 0 ? 'default' : 'large'} onClick={onClose} className="w-full">
-                  {remaining > 0 ? 'Guardar o resto' : 'Concluir'}
-                </Button>
-              </motion.div>
             </motion.section>
           )}
         </AnimatePresence>
       </main>
+      {stage === 'revealed' ? (
+        <footer className="z-10 shrink-0 border-t border-white/10 bg-[#080911]/95 px-3 pt-3 backdrop-blur sm:px-8 sm:pt-4" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+          <div className="mx-auto flex w-full max-w-[420px] flex-col gap-2.5">
+            {remaining > 0 ? (
+              <Button intent="primary" size="large" onClick={next} className="flex w-full items-center justify-center gap-2">
+                Abrir próximo <span className="opacity-70">({remaining})</span> <ArrowRight size={17} aria-hidden="true" />
+              </Button>
+            ) : null}
+            <Button intent={remaining > 0 ? 'ghost' : 'primary'} size={remaining > 0 ? 'default' : 'large'} onClick={onClose} className="w-full">
+              {remaining > 0 ? 'Guardar o resto' : 'Concluir'}
+            </Button>
+          </div>
+        </footer>
+      ) : null}
     </div>,
     document.body,
   );

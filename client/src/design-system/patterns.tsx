@@ -73,6 +73,8 @@ interface GameModalProps {
   headerExtra?: ReactNode;
   /** .ui-modal__footer content — action buttons. */
   footer?: ReactNode;
+  /** Uses the whole viewport for immersive previews and similar views. */
+  fullscreen?: boolean;
   /** Content pinned between the header and the scrollable body — e.g. a row
    * of section tabs that should stay visible while the body scrolls. */
   stickyTop?: ReactNode;
@@ -102,7 +104,7 @@ interface GameModalProps {
  * consistent close button (40px, top-right, always labeled).
  */
 export function GameModal({
-  open, onOpenChange, title, subtitle, headerExtra, footer, stickyTop,
+  open, onOpenChange, title, subtitle, headerExtra, footer, stickyTop, fullscreen = false,
   size = 'default', stacked = false, dismissible = true, closeLabel = 'Fechar',
   bodyClassName, bodyStyle, className, children,
 }: GameModalProps) {
@@ -110,11 +112,11 @@ export function GameModal({
     <DialogPrimitive.Root open={open} onOpenChange={next => { if (dismissible || next) onOpenChange(next); }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
-          className={cn('ui-modal-backdrop', stacked ? 'z-[60]' : 'z-50')}
+          className={cn('ui-modal-backdrop', stacked ? 'z-[60]' : 'z-50', fullscreen && 'ui-modal-backdrop--fullscreen')}
           onClick={event => { if (!dismissible) event.preventDefault(); }}
         >
           <DialogPrimitive.Content
-            className={cn('ui-modal', size === 'wide' && 'ui-modal--wide', 'flex flex-col', className)}
+            className={cn('ui-modal', size === 'wide' && 'ui-modal--wide', fullscreen && 'ui-modal--fullscreen', 'flex flex-col', className)}
             aria-describedby={undefined}
             onPointerDownOutside={event => {
               // On touch, Radix only decides "outside" on the click that follows the tap. A tap

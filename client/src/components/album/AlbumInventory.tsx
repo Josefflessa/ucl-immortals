@@ -113,7 +113,7 @@ export default function AlbumInventory() {
           </div>
         </div>
         {spares.length === 0 ? (
-          <EmptyState title="Nenhuma carta repetida" description="As cópias extras que saírem nos pacotes aparecem aqui. Use-as para evoluir cartas ou venda-as por pontos." />
+          <EmptyState title="Nenhuma carta repetida" description="As cópias extras que saírem nos pacotes aparecem aqui. Use-as para evoluir cartas ou venda-as por moedas." />
         ) : (
           <>
             <div className="mb-4 flex flex-col gap-2.5">
@@ -157,17 +157,17 @@ export default function AlbumInventory() {
                   const albumLevel = levelForCopies(s.copies);
                   const toNext = copiesToNextLevel(s.copies);
                   return (
-                    <button key={s.id} type="button" onClick={() => setSelected(s.id)} aria-label={`${card.shortName}, carta número ${s.number}, ${s.spare} ${s.spare === 1 ? 'cópia repetida' : 'cópias repetidas'}${toNext === null ? ', nível máximo' : `, ${s.copies} de ${s.copies + toNext} cópias no álbum para nível ${albumLevel + 1}`}`} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] px-3 py-2 text-left transition-colors hover:border-[var(--ui-line-strong)] hover:bg-white/[.03]">
-                      <div className="shrink-0"><PlayerCard player={card} lite scale={0.24} albumLevel={albumLevel >= 2 ? albumLevel as AlbumLevel : undefined} /></div>
+                    <button key={s.id} type="button" onClick={() => setSelected(s.id)} aria-label={`${card.shortName}, carta número ${s.number}, ${s.spare} ${s.spare === 1 ? 'cópia repetida' : 'cópias repetidas'}${toNext === null ? ', nível máximo' : `, ${s.copies} de ${s.copies + toNext} cópias no álbum para nível ${albumLevel + 1}`}`} className="flex min-w-0 items-center gap-3.5 rounded-xl border border-[var(--ui-line-subtle)] px-3 py-2.5 text-left transition-colors hover:border-[var(--ui-line-strong)] hover:bg-white/[.03]">
+                      <div className="shrink-0"><PlayerCard player={card} lite scale={0.28} albumLevel={albumLevel >= 2 ? albumLevel as AlbumLevel : undefined} /></div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-bold leading-snug text-[var(--ui-text)] [overflow-wrap:anywhere]">{card.shortName}</div>
-                        <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--ui-text-muted)]">
+                        <div className="text-base font-bold leading-snug text-[var(--ui-text)] [overflow-wrap:anywhere]">{card.shortName}</div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[13px] text-[var(--ui-text-muted)]">
                           <span>Nº {s.number} · {RARITY_LABEL[card.rarity]}</span>
-                          <LevelStars level={levelForCopies(s.copies)} size={10} />
+                          <LevelStars level={levelForCopies(s.copies)} size={11} />
                         </div>
-                        <div className="mt-0.5 text-[11px] text-[var(--ui-text-faint)]">{card.club} · {toNext === null ? 'Nível máximo: venda as cópias' : `${s.copies}/${s.copies + toNext} no álbum para ★${albumLevel + 1}`}</div>
+                        <div className="mt-0.5 text-xs leading-snug text-[var(--ui-text-faint)]">{card.club} · {toNext === null ? 'Nível máximo: venda as cópias' : `${s.copies}/${s.copies + toNext} no álbum para ★${albumLevel + 1}`}</div>
                       </div>
-                      <span className="shrink-0 rounded-full bg-[#E9C46A] px-2 py-0.5 text-xs font-bold tabular-nums text-[#171208]" aria-hidden="true">+{s.spare}</span>
+                      <span className="shrink-0 rounded-full bg-[#E9C46A] px-2.5 py-1 text-sm font-bold tabular-nums text-[#171208]" aria-hidden="true">+{s.spare}</span>
                     </button>
                   );
                 })}

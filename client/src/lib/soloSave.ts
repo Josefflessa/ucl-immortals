@@ -20,6 +20,7 @@ const STORE = 'solo';
 // Saves written before the split live under the single legacy key.
 const LEGACY_KEY = 'campaign';
 const slotKey = (accountId: string | null) => `campaign:${accountId ?? 'guest'}`;
+const deletePendingKey = (accountId: string) => `campaign-delete-pending:${accountId}`;
 
 function openDb(): Promise<IDBDatabase | null> {
   return new Promise(resolve => {
@@ -43,9 +44,10 @@ async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStor
     try {
       const tx = db.transaction(STORE, mode);
       const request = run(tx.objectStore(STORE));
-      request.onsuccess = () => resolve(request.result ?? null);
+      let result: T | null = null;
+      request.onsuccess = () => { result = request.result ?? null; };
       request.onerror = () => resolve(null);
-      tx.oncomplete = () => db.close();
+      tx.oncomplete = () => { db.close(); resolve(result); };
       tx.onabort = () => { db.close(); resolve(null); };
     } catch {
       db.close();
@@ -72,12 +74,28 @@ export async function loadSoloSave<State>(accountId: string | null): Promise<Sol
   return legacy;
 }
 
-export async function writeSoloSave<State>(state: State, accountId: string | null): Promise<void> {
-  const save: SoloSave<State> = { version: SOLO_SAVE_VERSION, savedAt: Date.now(), accountId, state };
-  await withStore('readwrite', store => store.put(save, slotKey(accountId)));
+export async function writeSoloSave<State>(state: State, accountId: string | null, savedAt = Date.now()): Promise<void> {
+  const save: SoloSave<State> = { version: SOLO_SAVE_VERSION, savedAt, accountId, state };
+  await withStore('readwrite', store => {
+    const request = store.put(save, slotKey(accountId));
+    if (accountId) store.delete(deletePendingKey(accountId));
+    return request;
+  });
 }
 
-/** Deletes only this owner's campaign; other profiles' saves are untouched. */
+/** Deletes only this owner's campaign; account deletions remain queued until cloud sync succeeds. */
 export async function clearSoloSave(accountId: string | null): Promise<void> {
-  await withStore('readwrite', store => store.delete(slotKey(accountId)));
+  await withStore('readwrite', store => {
+    const request = store.delete(slotKey(accountId));
+    if (accountId) store.put(true, deletePendingKey(accountId));
+    return request;
+  });
+}
+
+export async function hasPendingSoloSaveDeletion(accountId: string): Promise<boolean> {
+  return (await withStore<boolean>('readonly', store => store.get(deletePendingKey(accountId)))) === true;
+}
+
+export async function clearPendingSoloSaveDeletion(accountId: string): Promise<void> {
+  await withStore('readwrite', store => store.delete(deletePendingKey(accountId)));
 }

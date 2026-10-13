@@ -43,8 +43,10 @@ export function getPlayerPhotoDirectory(playerId: string): string {
   // Variantes técnicas que não possuem uma carta própria podem reutilizar o
   // diretório da carta-base. IDs sem cadastro continuam procurando na raiz,
   // permitindo adicionar um retrato local sem alterar este mapa.
-  const baseId = playerId.split('_')[0];
-  return PLAYER_PHOTO_DIRECTORY_BY_ID[baseId] ?? LOCAL_PLAYER_PHOTO_ROOT;
+  const baseId = Object.keys(PLAYER_PHOTO_DIRECTORY_BY_ID)
+    .sort((a, b) => b.length - a.length)
+    .find(id => playerId.startsWith(`${id}_`));
+  return baseId ? PLAYER_PHOTO_DIRECTORY_BY_ID[baseId] : LOCAL_PLAYER_PHOTO_ROOT;
 }
 
 export function getPlayerPhotoFilename(playerId: string): string | null {

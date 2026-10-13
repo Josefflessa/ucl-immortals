@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats } from '../shared/game/gameEngine.js';
+import { generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats, MIN_MATCHES_FOR_RATING_LEADER } from '../shared/game/gameEngine.js';
 import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '../shared/game/competitionRanking.js';
 import type { MatchResult, PlayerCard, Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
@@ -49,7 +49,7 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
     stats: getPlayerSeasonStats(card.id, team.id, results),
   })));
   const leader = (metric: 'goals' | 'assists' | 'ratingAvg') => {
-    const minimumPlayed = metric === 'ratingAvg' ? 3 : 0;
+    const minimumPlayed = metric === 'ratingAvg' ? MIN_MATCHES_FOR_RATING_LEADER : 0;
     const minimumValue = metric === 'ratingAvg' ? -Infinity : 1;
     const row = allSeasonRows
       .filter(candidate => candidate.stats.played >= minimumPlayed && candidate.stats[metric] > minimumValue)

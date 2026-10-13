@@ -8,7 +8,7 @@ import FormationField from '../components/game/FormationField';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import ImpactMeter from '../components/game/ImpactMeter';
-import { AppShell, Button, ChoiceCard, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
+import { AppShell, Button, ChoiceCard, FixedActionBar, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 import { Star } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 
@@ -51,7 +51,7 @@ export default function FormationPage() {
     <AppShell>
       <TopBar right={<CompetitionExitControl />} />
 
-      <PageContainer wide className="flex flex-col gap-6">
+      <PageContainer wide className="flex flex-col gap-6 pb-32">
         <div className="flex flex-col gap-6 lg:flex-row">
         {/* Left: Formation list */}
         <div className="flex-1">
@@ -185,21 +185,20 @@ export default function FormationPage() {
         </div>
         </div>
 
-        {/* Mesmo padrão de ações das etapas de técnico e escudo. */}
-        <div className="mt-8 flex gap-3">
-          <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
-            ← VOLTAR
-          </Button>
-          <Button
-            intent="primary"
-            size="large"
-            onClick={handleContinue}
-            className="flex-1"
-          >
-            INICIAR DRAFT →
-          </Button>
-        </div>
       </PageContainer>
+      <FixedActionBar>
+        <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
+          ← VOLTAR
+        </Button>
+        <Button
+          intent="primary"
+          size="large"
+          onClick={handleContinue}
+          className="flex-1"
+        >
+          INICIAR DRAFT →
+        </Button>
+      </FixedActionBar>
 
     </AppShell>
   );

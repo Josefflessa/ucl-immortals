@@ -14,6 +14,8 @@ import {
   calculateChemistry,
   getAllPlayedMatchResults,
   getPlayerSeasonStats,
+  MIN_MATCHES_FOR_RATING_LEADER,
+  statKey,
   getTeamEffectiveStats,
   getChemistryLinks,
   type EffectiveStats,
@@ -64,6 +66,7 @@ interface ReportPageProps {
   historyEntry?: CompetitionHistoryEntry;
   historySnapshot?: CompetitionHistorySnapshot | null;
   onHistoryBack?: () => void;
+  hideTopBar?: boolean;
 }
 
 function reportNumber(report: Record<string, unknown>, key: string): number | null {
@@ -71,7 +74,7 @@ function reportNumber(report: Record<string, unknown>, key: string): number | nu
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry; onBack?: () => void }) {
+function LegacyHistoryReport({ entry, onBack, hideTopBar = false }: { entry: CompetitionHistoryEntry; onBack?: () => void; hideTopBar?: boolean }) {
   const report = entry.report ?? {};
   const wins = reportNumber(report, 'wins');
   const draws = reportNumber(report, 'draws');
@@ -86,7 +89,8 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
   ] as const;
   return (
     <AppShell immersive className="flex flex-col overflow-x-hidden">
-      <TopBar right={onBack ? <Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO</Button> : undefined} />
+      {!hideTopBar ? <TopBar right={onBack ? <Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO</Button> : undefined} /> : null}
+      {hideTopBar && onBack ? <div className="mx-auto w-full max-w-3xl px-4 pt-4"><Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button></div> : null}
       <div className="relative z-10 flex flex-col items-center justify-center px-4 py-10 text-center sm:py-14">
         {entry.champion ? <Trophy size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" /> : <Medal size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" />}
         <h1 className="font-display text-5xl text-[var(--ui-text)] sm:text-7xl">{entry.champion ? 'CAMPEÃO!' : 'CAMPANHA ENCERRADA'}</h1>
@@ -113,7 +117,7 @@ function LegacyHistoryReport({ entry, onBack }: { entry: CompetitionHistoryEntry
   );
 }
 
-export default function ReportPage({ historyEntry, historySnapshot: providedSnapshot, onHistoryBack }: ReportPageProps = {}) {
+export default function ReportPage({ historyEntry, historySnapshot: providedSnapshot, onHistoryBack, hideTopBar = false }: ReportPageProps = {}) {
   const { state, dispatch, leaveRoomOnline, discardSoloCampaign } = useGame();
   const { account, saveHistory, markCompetitionCompleted, getOwnAchievements } = useAccount();
   const { receiveGrants: receiveAlbumGrants, refresh: refreshAlbum } = useAlbum();
@@ -137,6 +141,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const allResults = useMemo(
     () => historySnapshot ? [] : getAllPlayedMatchResults(leagueResults, knockoutBracket) as any[],
     [historySnapshot, leagueResults, knockoutBracket]
+  );
+
+  // Online room snapshots compact old match details. Their complete cumulative
+  // stats arrive separately from the server and must drive season leaders.
+  const getSeasonStats = useMemo(
+    () => (playerId: string, teamId: string) => state.mode === 'online'
+      ? state.onlineSeasonPlayerStats[statKey(teamId, playerId)] ?? getPlayerSeasonStats(playerId, teamId, allResults)
+      : getPlayerSeasonStats(playerId, teamId, allResults),
+    [allResults, state.mode, state.onlineSeasonPlayerStats]
   );
 
   const playerResults = useMemo(
@@ -179,11 +192,11 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     const rows = allPlayers.flatMap(pl => {
       const team = allTeamsForStats.find(t => t.players.some(p => p.id === pl.id));
       if (!team) return [];
-      const stats = getPlayerSeasonStats(pl.id, team.id, allResults);
+      const stats = getSeasonStats(pl.id, team.id);
       return [{ pl, team, stats }];
     });
     return rows.filter(x => x.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals)[0] ?? null;
-  }, [allResults, allTeamsForStats, historySnapshot]);
+  }, [allTeamsForStats, getSeasonStats, historySnapshot]);
 
   const topRating = useMemo(() => {
     if (historySnapshot) {
@@ -194,11 +207,11 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     const rows = allPlayers.flatMap(pl => {
       const team = allTeamsForStats.find(t => t.players.some(p => p.id === pl.id));
       if (!team) return [];
-      const stats = getPlayerSeasonStats(pl.id, team.id, allResults);
+      const stats = getSeasonStats(pl.id, team.id);
       return [{ pl, team, stats }];
     });
-    return rows.filter(x => x.stats.played >= 3).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg)[0] ?? null;
-  }, [allResults, allTeamsForStats, historySnapshot]);
+    return rows.filter(x => x.stats.played >= MIN_MATCHES_FOR_RATING_LEADER).sort((a, b) => b.stats.ratingAvg - a.stats.ratingAvg)[0] ?? null;
+  }, [allTeamsForStats, getSeasonStats, historySnapshot]);
 
   const topAssister = useMemo(() => {
     if (historySnapshot) {
@@ -209,11 +222,11 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     const rows = allPlayers.flatMap(pl => {
       const team = allTeamsForStats.find(t => t.players.some(p => p.id === pl.id));
       if (!team) return [];
-      const stats = getPlayerSeasonStats(pl.id, team.id, allResults);
+      const stats = getSeasonStats(pl.id, team.id);
       return [{ pl, team, stats }];
     });
     return rows.filter(x => x.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists)[0] ?? null;
-  }, [allResults, allTeamsForStats, historySnapshot]);
+  }, [allTeamsForStats, getSeasonStats, historySnapshot]);
 
   // ── Champion team name (works for bot or any human in online mode) ─────────
   const championName = useMemo(() => {
@@ -308,9 +321,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     : null;
   const localSeasonRows = useMemo(
     () => playerTeam && !historySnapshot
-      ? playerTeam.players.map(player => ({ player, stats: getPlayerSeasonStats(player.id, playerTeam.id, allResults) }))
+      ? playerTeam.players.map(player => ({ player, stats: getSeasonStats(player.id, playerTeam.id) }))
       : [],
-    [allResults, historySnapshot, playerTeam],
+    [getSeasonStats, historySnapshot, playerTeam],
   );
   const soloRecordCandidates = useMemo(() => {
     const candidates: Array<{
@@ -468,7 +481,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   }, [account, champion, championName, effectiveCardStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, receiveAlbumGrants, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
 
   if (historyEntry && !historySnapshot) {
-    return <LegacyHistoryReport entry={historyEntry} onBack={onHistoryBack} />;
+    return <LegacyHistoryReport entry={historyEntry} onBack={onHistoryBack} hideTopBar={hideTopBar} />;
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -476,14 +489,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     <AppShell immersive className="flex flex-col overflow-x-hidden">
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <TopBar
+      {!hideTopBar ? <TopBar
         title={historyEntry ? undefined : 'UCL IMMORTALS — FIM DE TEMPORADA'}
         right={historyEntry && onHistoryBack ? (
           <Button type="button" intent="ghost" onClick={onHistoryBack}>
             <ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO
           </Button>
         ) : undefined}
-      />
+      /> : null}
+      {hideTopBar && historyEntry && onHistoryBack ? <div className="mx-auto w-full max-w-5xl px-4 pt-3"><Button type="button" intent="ghost" onClick={onHistoryBack}><ArrowLeft size={15} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button></div> : null}
 
       {!historyEntry && account && state.mode === 'solo' && games > 0 && historySaveStatus !== 'idle' && (
         <div className="mx-auto w-full max-w-5xl px-4 pt-3" aria-live="polite">

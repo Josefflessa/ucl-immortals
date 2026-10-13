@@ -38,7 +38,7 @@ export function EventsHomeButton({ pending, onOpen }: { pending: number; onOpen:
       aria-label={pending > 0 ? `Eventos: ${pending} em andamento` : 'Eventos'}
       title="Eventos"
       onClick={onOpen}
-      className="relative size-11 min-h-11 w-11 justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 p-0"
+      className="relative size-10 min-h-10 w-10 justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 p-0 sm:size-11 sm:min-h-11 sm:w-11"
     >
       <PartyPopper size={19} aria-hidden="true" />
       {pending > 0 ? (
@@ -257,6 +257,64 @@ export function CardRewardEventCard({ event }: { event: GameEventState }) {
         <ObjectiveList objectives={event.objectives} color={CHOICE_COLOR} />
         {!event.cardUnlocked && event.status !== 'ended' ? (
           <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Vale qualquer competição concluída com a conta durante o evento, solo ou online.</p>
+        ) : null}
+      </div> : null}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        onClick={() => setExpanded(value => !value)}
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        style={{ fontFamily: 'var(--font-game), sans-serif' }}
+      >
+        <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>
+        <ChevronDown size={15} aria-hidden="true" className={cn('transition-transform', expanded && 'rotate-180')} />
+      </button>
+    </article>
+  );
+}
+
+/** A regular event that permanently unlocks a national-team crest. */
+export function CrestRewardEventCard({ event }: { event: GameEventState }) {
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
+  const crest = event.rewardCrestId ? getCrest(event.rewardCrestId) : null;
+  const color = '#39B86A';
+  const done = event.objectives.filter(objective => objective.done).length;
+  return (
+    <article
+      className={cn('overflow-hidden rounded-2xl border bg-[var(--ui-surface-inset)]', event.status === 'ended' && !event.crestUnlocked && 'opacity-75')}
+      style={{ borderColor: `color-mix(in srgb, ${color} 45%, var(--ui-line-subtle))` }}
+      aria-label={`Evento ${event.name}`}
+    >
+      <div className="flex items-center gap-4 p-4" style={{ background: `linear-gradient(120deg, color-mix(in srgb, ${color} 15%, transparent), transparent 70%)` }}>
+        <RewardSlot>
+          {crest ? <img src={crest.url} alt="" className="size-16 object-contain" /> : <Lock size={30} aria-hidden="true" className="text-[var(--ui-text-faint)]" />}
+        </RewardSlot>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-2xl leading-none text-[var(--ui-text)] sm:text-3xl">{event.name}</h2>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--ui-text-muted)]"><Clock size={12} aria-hidden="true" /> {eventTimeLabel(event)}</p>
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color }}>
+            {event.crestUnlocked ? <Check size={13} aria-hidden="true" /> : <Lock size={12} aria-hidden="true" />}
+            Recompensa: escudo {crest?.name ?? 'da seleção'}{event.crestUnlocked ? ' · conquistado' : ''}
+          </p>
+          <p className="mt-1 text-xs font-bold tabular-nums text-[var(--ui-text-soft)]">{done}/{event.objectives.length} desafios concluídos</p>
+        </div>
+      </div>
+      {expanded ? <div id={detailsId} className="space-y-3 border-t border-[var(--ui-line-subtle)] p-4">
+        <p className="text-pretty text-sm leading-relaxed text-[var(--ui-text-muted)]">{event.description}</p>
+        {event.crestUnlocked ? (
+          <StatusBanner tone="success" title={`${crest?.name ?? 'Escudo da seleção'} desbloqueado`}>
+            O escudo está disponível para sempre na seção Seleções ao criar uma competição.
+          </StatusBanner>
+        ) : null}
+        <div className="flex items-center justify-between gap-2">
+          <span className="ui-kicker">Desafios</span>
+          <span className="text-xs font-bold tabular-nums text-[var(--ui-text-soft)]">{done}/{event.objectives.length}</span>
+        </div>
+        <ObjectiveList objectives={event.objectives} color={color} />
+        {!event.crestUnlocked && event.status !== 'ended' ? (
+          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">As competições precisam ser concluídas com a conta durante o evento. O escudo conquistado fica disponível permanentemente.</p>
         ) : null}
       </div> : null}
       <button

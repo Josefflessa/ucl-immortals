@@ -16,6 +16,7 @@ Não há recuperação automática de senha por e-mail. Se o jogador perder a se
 ## Persistência
 
 - O D1 `ucl-immortals-prod` guarda perfis, sessões, amizades e histórico privado.
+- Campanhas solo em andamento são mantidas no IndexedDB local e sincronizadas com a conta em blocos compactados; ao entrar em outro dispositivo, a cópia mais recente fica disponível para continuar.
 - Amigos aceitos podem trocar mensagens diretas, que deixam de aparecer após 24 horas e são apagadas periodicamente pelo Worker.
 - Trocas do álbum negociam somente cópias extras: a oferta fica pendente até a outra pessoa escolher uma carta repetida e aceitar.
 - Remover um amigo apaga a conversa e as ofertas abertas, além da curtida que a própria conta deu ao perfil dele.

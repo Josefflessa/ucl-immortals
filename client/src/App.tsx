@@ -9,11 +9,13 @@ import InstallPrompt from "./components/InstallPrompt";
 import MenuPage from "./pages/MenuPage";
 import { createCompetitionFormat } from "@shared/game/competition";
 import RoomInvitationPrompt from "./components/account/RoomInvitationPrompt";
+import AccountHeader from "./components/account/AccountHeader";
 
 // Every screen is imported statically on purpose: per-screen code-splitting
 // showed an empty screen for a moment on every phase change, which
 // happens all the time in a session (see commit 4b629b4).
 import AlbumPage from "./pages/AlbumPage";
+import StorePage from "./pages/StorePage";
 import AchievementsPage from "./pages/AchievementsPage";
 import EventsPage from "./pages/EventsPage";
 import SetupPage from "./pages/SetupPage";
@@ -122,10 +124,18 @@ function GameRouter() {
   // state points at the guest-only format page, go straight to the difficulty.
   if (accountOnLegacySetup) return renderPhase('setup');
 
-  return renderPhase(state.phase);
+  const accountPages = ['menu', 'account', 'album', 'store', 'achievements', 'events'];
+  const showAccountHeader = !!account && accountPages.includes(state.phase);
+
+  return (
+    <>
+      {showAccountHeader ? <AccountHeader /> : null}
+      {renderPhase(state.phase)}
+    </>
+  );
 }
 
-/** The account's event Únicas feed its Pacote Único in solo games. */
+/** The account's exclusive cards feed its draft and Única pack offers in solo games. */
 function EventCardsSync() {
   const { eventCards } = useAccount();
   const { state, dispatch } = useGame();
@@ -142,6 +152,7 @@ function renderPhase(phase: string) {
     case 'lobby': return <MenuPage />;
     case 'account': return <AccountPage />;
     case 'album': return <AlbumPage />;
+    case 'store': return <StorePage />;
     case 'achievements': return <AchievementsPage />;
     case 'events': return <EventsPage />;
     case 'format': return <TournamentFormatPage />;

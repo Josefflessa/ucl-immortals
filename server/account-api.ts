@@ -1,4 +1,5 @@
 import { DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, isProfileAvatarBackgroundKey } from '../shared/profileAppearance';
+import { PROFILE_COVER_BY_KEY } from '../shared/profileCovers.js';
 import { getTeamEffectiveStats, type Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
 import {
@@ -14,7 +15,7 @@ import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, loadOwnedNameS
 import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { isAvatarFrameKey } from '../shared/game/events.js';
 import { isClubRewardKey } from '../shared/game/clubRewards.js';
-import { albumSummary, applyCopy, buyPack, ensureAlbum, loadOwnedCovers, openItem, sellCopies, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, type ItemGrant } from './album.js';
+import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItem, sellCopies, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
 import { albumCatalog } from '../shared/game/album.js';
 import { WEEKLY_PACK_REWARDS } from '../shared/game/dailyRewards.js';
 import {
@@ -360,6 +361,174 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
   }
 }
 
+const SOLO_CAMPAIGN_VERSION = 1;
+const MAX_SOLO_CAMPAIGN_JSON_BYTES = 32 * 1024 * 1024;
+const MAX_SOLO_CAMPAIGN_COMPRESSED_BYTES = 16 * 1024 * 1024;
+const SOLO_CAMPAIGN_CHUNK_BYTES = 900_000;
+const SOLO_CAMPAIGN_PHASES = new Set([
+  'crest', 'coach', 'formation', 'draft', 'squad_review', 'league', 'knockout', 'match_sim', 'report',
+]);
+
+async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
+  const declaredLength = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new RangeError('request_too_large');
+  const reader = request.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new RangeError('request_too_large');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+function exactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+async function gzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  const compressed = new Blob([exactArrayBuffer(bytes)]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(compressed).arrayBuffer());
+}
+
+async function gunzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  const expanded = new Blob([exactArrayBuffer(bytes)]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(expanded).arrayBuffer());
+}
+
+function splitBytes(bytes: Uint8Array, chunkSize: number): Uint8Array[] {
+  const chunks: Uint8Array[] = [];
+  for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
+    chunks.push(bytes.subarray(offset, Math.min(offset + chunkSize, bytes.byteLength)));
+  }
+  return chunks;
+}
+
+function blobBytes(value: unknown): Uint8Array | null {
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  return null;
+}
+
+async function accountSoloCampaign(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  const row = await env.DB.prepare(`SELECT version, saved_at, chunk_count
+    FROM solo_campaign_saves WHERE user_id = ?`).bind(account.id)
+    .first<{ version: number; saved_at: number; chunk_count: number }>();
+  if (!row) return json({ campaign: null });
+  try {
+    const chunkCount = Number(row.chunk_count);
+    if (!Number.isSafeInteger(chunkCount) || chunkCount < 1 || chunkCount > 32) {
+      return json({ error: 'solo_campaign_unavailable' }, 500);
+    }
+    const chunkRows = await env.DB.prepare(`SELECT chunk_index, chunk_data
+      FROM solo_campaign_save_chunks WHERE user_id = ? AND saved_at = ? ORDER BY chunk_index`)
+      .bind(account.id, Number(row.saved_at)).all<{ chunk_index: number; chunk_data: unknown }>();
+    if (chunkRows.results.length !== chunkCount) return json({ error: 'solo_campaign_unavailable' }, 500);
+    const chunks = chunkRows.results.map((chunk, index) => {
+      if (Number(chunk.chunk_index) !== index) throw new Error('missing campaign chunk');
+      const bytes = blobBytes(chunk.chunk_data);
+      if (!bytes || bytes.byteLength > SOLO_CAMPAIGN_CHUNK_BYTES) throw new Error('invalid campaign chunk');
+      return bytes;
+    });
+    const compressedLength = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+    if (compressedLength > MAX_SOLO_CAMPAIGN_COMPRESSED_BYTES) throw new Error('campaign exceeds compressed limit');
+    const compressed = new Uint8Array(compressedLength);
+    let compressedOffset = 0;
+    for (const chunk of chunks) {
+      compressed.set(chunk, compressedOffset);
+      compressedOffset += chunk.byteLength;
+    }
+    const stateBytes = await gunzipBytes(compressed);
+    if (stateBytes.byteLength > MAX_SOLO_CAMPAIGN_JSON_BYTES) return json({ error: 'solo_campaign_unavailable' }, 500);
+    const state = JSON.parse(new TextDecoder().decode(stateBytes)) as Record<string, unknown>;
+    return json({ campaign: { accountId: account.id, version: Number(row.version), savedAt: Number(row.saved_at), state } });
+  } catch (error) {
+    console.error('[solo-campaign] failed to read saved campaign:', error);
+    return json({ error: 'solo_campaign_unavailable' }, 500);
+  }
+}
+
+async function accountSoloCampaignSave(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  let body: Record<string, unknown> | null;
+  try {
+    const text = await readBoundedText(request, MAX_SOLO_CAMPAIGN_JSON_BYTES);
+    const parsed = JSON.parse(text);
+    body = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+  } catch (error) {
+    if (error instanceof RangeError) return json({ error: 'solo_campaign_too_large', message: 'A campanha salva excede o limite.' }, 413);
+    return json({ error: 'invalid_json' }, 400);
+  }
+  const state = body?.state;
+  if (!body || body.accountId !== account.id || body.version !== SOLO_CAMPAIGN_VERSION
+    || !state || typeof state !== 'object' || Array.isArray(state)) {
+    return json({ error: 'invalid_solo_campaign' }, 400);
+  }
+  const gameState = state as Record<string, unknown>;
+  if (gameState.mode !== 'solo' || typeof gameState.phase !== 'string' || !SOLO_CAMPAIGN_PHASES.has(gameState.phase)) {
+    return json({ error: 'invalid_solo_campaign' }, 400);
+  }
+  let stateBytes: Uint8Array;
+  try {
+    stateBytes = new TextEncoder().encode(JSON.stringify(gameState));
+  } catch {
+    return json({ error: 'invalid_solo_campaign' }, 400);
+  }
+  const compressed = await gzipBytes(stateBytes);
+  if (compressed.byteLength > MAX_SOLO_CAMPAIGN_COMPRESSED_BYTES) {
+    return json({ error: 'solo_campaign_too_large', message: 'A campanha salva excede o limite da conta.' }, 413);
+  }
+  const chunks = splitBytes(compressed, SOLO_CAMPAIGN_CHUNK_BYTES);
+  const now = Date.now();
+  const requestedSavedAt = Number(body.savedAt);
+  const savedAt = Number.isSafeInteger(requestedSavedAt) && requestedSavedAt > 0
+    ? Math.min(requestedSavedAt, now + 5 * 60_000)
+    : now;
+  const statements = chunks.map((chunk, chunkIndex) => env.DB.prepare(`INSERT INTO solo_campaign_save_chunks
+    (user_id, saved_at, chunk_index, chunk_data) VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, saved_at, chunk_index) DO UPDATE SET chunk_data = excluded.chunk_data`)
+    .bind(account.id, savedAt, chunkIndex, exactArrayBuffer(chunk)));
+  statements.push(env.DB.prepare(`INSERT INTO solo_campaign_saves (user_id, version, saved_at, updated_at, chunk_count)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      version = excluded.version,
+      saved_at = excluded.saved_at,
+      updated_at = excluded.updated_at,
+      chunk_count = excluded.chunk_count
+    WHERE excluded.saved_at >= solo_campaign_saves.saved_at`)
+    .bind(account.id, SOLO_CAMPAIGN_VERSION, savedAt, now, chunks.length));
+  statements.push(env.DB.prepare(`DELETE FROM solo_campaign_save_chunks
+    WHERE user_id = ? AND saved_at <> (SELECT saved_at FROM solo_campaign_saves WHERE user_id = ?)`)
+    .bind(account.id, account.id));
+  await env.DB.batch(statements);
+  const latest = await env.DB.prepare('SELECT saved_at FROM solo_campaign_saves WHERE user_id = ?')
+    .bind(account.id).first<{ saved_at: number }>();
+  if (latest && Number(latest.saved_at) > savedAt) {
+    return json({ error: 'solo_campaign_conflict', message: 'Outra sessão salvou uma campanha mais recente.' }, 409);
+  }
+  return json({ campaign: { accountId: account.id, version: SOLO_CAMPAIGN_VERSION, savedAt, state: gameState } });
+}
+
+async function accountSoloCampaignDelete(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM solo_campaign_save_chunks WHERE user_id = ?').bind(account.id),
+    env.DB.prepare('DELETE FROM solo_campaign_saves WHERE user_id = ?').bind(account.id),
+  ]);
+  return json({ ok: true });
+}
+
 async function authRateKey(request: Request, username: string): Promise<string> {
   const address = request.headers.get('CF-Connecting-IP') ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   return sha256(`password-login:${address}:${username}`);
@@ -510,6 +679,7 @@ async function profileUpdate(request: Request, env: AccountEnv, account: Authent
   if (!/^[a-z0-9-]{3,40}$/.test(avatarKey) || !/^[a-z0-9-]{3,40}$/.test(coverKey) || !isProfileAvatarBackgroundKey(avatarBackgroundKey)) return json({ error: 'invalid_profile_asset' }, 400);
   // A club's cover is earned in the album: only an account that completed the club may use it.
   if (coverKey !== account.coverKey && isClubRewardKey(coverKey) && !(await loadOwnedCovers(env.DB, account.id)).includes(coverKey)) return json({ error: 'cover_not_owned' }, 403);
+  if (PROFILE_COVER_BY_KEY.get(coverKey)?.shopPrice !== undefined && !(await loadOwnedCovers(env.DB, account.id)).includes(coverKey)) return json({ error: 'cover_not_owned' }, 403);
   await env.DB.prepare(`UPDATE profiles SET display_name = ?, bio = ?, avatar_key = ?, avatar_background_key = ?, avatar_frame_key = ?, name_style_key = ?, cover_key = ?, avatar_url = ?, cover_url = ?, favorite_crest_id = ?, updated_at = ? WHERE user_id = ?`)
     .bind(displayName, bio, avatarKey, avatarBackgroundKey, avatarFrameKey, nameStyleKey, coverKey, avatarUrl, coverUrl, favoriteCrestId, Date.now(), account.id).run();
   const updated = await accountById(env.DB, account.id);
@@ -688,7 +858,7 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     return { unlocked: [], cardsUnlocked: [] };
   });
   // Album packs for campaigns saved since this account's album rewards were initialized.
-  const albumGrants = await grantCampaignAlbumPacks(env, account.id);
+  const albumGrants = await grantCampaignRewards(env, account.id);
   return json({ id, duplicate: false, achievementsUnlocked, framesUnlocked: eventRewards.unlocked, eventCardsUnlocked: eventRewards.cardsUnlocked, albumGrants }, 201);
 }
 
@@ -1580,9 +1750,9 @@ async function updateFriendTradeSelection(
   return json({ trade: { ...current, requester_ready: Boolean(current.requester_ready), addressee_ready: Boolean(current.addressee_ready) } });
 }
 
-/** Events with the account's progress, plus the frames and event Únicas it owns. */
+/** Events with the account's progress, plus its frames and exclusive cards. */
 async function accountEvents(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
-  const { states, unlocked, cardsUnlocked } = await syncEventRewards(env.DB, account.id);
+  const { states, unlocked, cardsUnlocked, crests, crestsUnlocked } = await syncEventRewards(env.DB, account.id);
   return json({
     events: states,
     frames: await loadOwnedFrames(env.DB, account.id),
@@ -1591,6 +1761,8 @@ async function accountEvents(env: AccountEnv, account: AuthenticatedAccount): Pr
     equippedFrame: account.avatarFrameKey,
     unlocked,
     cardsUnlocked,
+    crests,
+    crestsUnlocked,
   });
 }
 
@@ -1602,8 +1774,8 @@ async function chooseEvent(request: Request, env: AccountEnv, account: Authentic
   return accountEvents(env, account);
 }
 
-/** Album packs due for finished campaigns; never turns a saved campaign into an error. */
-async function grantCampaignAlbumPacks(env: AccountEnv, userId: string): Promise<ItemGrant[]> {
+/** Album and coin rewards due for finished campaigns; never turns a saved campaign into an error. */
+async function grantCampaignRewards(env: AccountEnv, userId: string): Promise<ItemGrant[]> {
   try {
     const album = await env.DB.prepare('SELECT created_at FROM user_album WHERE user_id = ?').bind(userId).first<{ created_at: number }>();
     return album ? await syncCampaignGrants(env.DB, userId, album.created_at) : [];
@@ -1615,7 +1787,7 @@ async function grantCampaignAlbumPacks(env: AccountEnv, userId: string): Promise
 
 const ALBUM_ERROR_STATUS: Record<string, number> = {
   invalid_item: 400, invalid_card: 400, invalid_quantity: 400, not_for_sale: 400,
-  item_not_owned: 409, no_spare_copy: 409, max_level: 409, not_enough_coins: 409,
+  item_not_owned: 409, no_spare_copy: 409, max_level: 409, already_owned: 409, not_enough_coins: 409, banner_unavailable: 503,
 };
 
 /** The album state (after granting what is due) and the profile covers it won, plus whatever the operation returned. */
@@ -1633,6 +1805,11 @@ async function albumAction(request: Request, env: AccountEnv, account: Authentic
     case 'apply': result = await applyCopy(env.DB, account.id, String(body.cardId ?? '')); break;
     case 'sell': result = await sellCopies(env.DB, account.id, String(body.cardId ?? ''), Number(body.quantity ?? 1)); break;
     case 'buy-pack': result = await buyPack(env.DB, account.id, String(body.tier ?? '')); break;
+    case 'buy-frame': result = await buyAvatarFrame(env.DB, account.id, String(body.frameKey ?? '')); break;
+    case 'buy-cover': result = await buyProfileCover(env.DB, account.id, String(body.coverKey ?? '')); break;
+    case 'buy-name-style': result = await buyNameStyle(env.DB, account.id, String(body.styleKey ?? '')); break;
+    case 'buy-daily-banner': result = await buyDailyBannerCard(env.DB, account.id); break;
+    case 'buy-weekly-banner': result = await buyWeeklyBannerCard(env.DB, account.id); break;
     default: return json({ error: 'not_found' }, 404);
   }
   if ('error' in result) return json(result, ALBUM_ERROR_STATUS[String(result.error)] ?? 400);
@@ -1788,6 +1965,9 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (!account) return json({ error: 'authentication_required' }, 401);
     if (url.pathname === '/api/account/profile' && request.method === 'GET') return json({ account: publicAccount(account) });
     if (url.pathname === '/api/account/profile' && request.method === 'PATCH') return profileUpdate(request, env, account);
+    if (url.pathname === '/api/account/solo-campaign' && request.method === 'GET') return accountSoloCampaign(env, account);
+    if (url.pathname === '/api/account/solo-campaign' && request.method === 'PUT') return accountSoloCampaignSave(request, env, account);
+    if (url.pathname === '/api/account/solo-campaign' && request.method === 'DELETE') return accountSoloCampaignDelete(env, account);
     if (url.pathname === '/api/account/leaderboards/score-position' && request.method === 'GET') return scoreLeaderboardPosition(env, account, url);
     if (url.pathname === '/api/account/records' && request.method === 'GET') return accountRecordHighlights(env, account);
     if (url.pathname === '/api/account/achievements' && request.method === 'GET') return accountAchievements(env, account, url);
@@ -1795,8 +1975,10 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (url.pathname === '/api/account/events' && request.method === 'GET') return accountEvents(env, account);
     if (url.pathname === '/api/account/daily-rewards' && request.method === 'GET') return weeklyPackRewardsResponse(env, account.id, Date.now());
     if (url.pathname === '/api/account/daily-rewards/claim' && request.method === 'POST') return claimWeeklyPackReward(env, account.id);
+    if (url.pathname === '/api/account/album/daily-banner' && request.method === 'GET') return json(dailyBannerRotations());
+    if (url.pathname === '/api/account/album/weekly-banner' && request.method === 'GET') return json(weeklyBannerRotations());
     if (url.pathname === '/api/account/album' && request.method === 'GET') return albumResponse(env, account.id);
-    const albumRoute = url.pathname.match(/^\/api\/account\/album\/(open|apply|sell|buy-pack)$/);
+    const albumRoute = url.pathname.match(/^\/api\/account\/album\/(open|apply|sell|buy-pack|buy-frame|buy-cover|buy-name-style|buy-daily-banner|buy-weekly-banner)$/);
     if (albumRoute && request.method === 'POST') return albumAction(request, env, account, albumRoute[1]);
     const eventChoice = url.pathname.match(/^\/api\/account\/events\/([a-z0-9-]+)\/choice$/);
     if (eventChoice && request.method === 'POST') return chooseEvent(request, env, account, eventChoice[1]);

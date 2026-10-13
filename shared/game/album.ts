@@ -3,7 +3,7 @@
 // is the only one to grant, open, sell or buy anything) and the client (which draws the album).
 // Design: docs/design/features/album-dos-imortais.md
 
-import { PLAYERS, UNIQUE_CARDS, type Player, type Rarity } from './gameData';
+import { EVENT_UNIQUE_CARDS, PLAYERS, STORE_UNIQUE_CARDS, UNIQUE_CARDS, type Player, type Rarity } from './gameData';
 import { CREST_CATALOG, clubIdForName, getCrest } from './crests';
 import { RANKED_DIFFICULTY_IDS, type RankedDifficultyId } from './competitionRanking';
 import { clubRewardKeys } from './clubRewards';
@@ -46,7 +46,8 @@ export interface AlbumSticker {
   number: number;
   rarity: Rarity;
   clubId: string;
-  pageId: string;
+  /** Null for event/store exclusives, which live outside the country and club pages. */
+  pageId: string | null;
 }
 
 export interface AlbumPage {
@@ -149,7 +150,20 @@ export function buildAlbumCatalog(cards: readonly Player[] = albumCards()): Albu
 let cached: AlbumCatalog | null = null;
 /** The album of the current card catalogue (built once). */
 export function albumCatalog(): AlbumCatalog {
-  cached ??= buildAlbumCatalog();
+  if (!cached) {
+    cached = buildAlbumCatalog();
+    let number = cached.total;
+    for (const card of [...EVENT_UNIQUE_CARDS, ...STORE_UNIQUE_CARDS]) {
+      number++;
+      cached.stickers.set(card.id, {
+        id: card.id,
+        number,
+        rarity: card.rarity,
+        clubId: card.clubId ?? clubIdForName(card.club) ?? 'unknown',
+        pageId: null,
+      });
+    }
+  }
   return cached;
 }
 
@@ -252,24 +266,79 @@ export function rollItem(key: AlbumItemKey, rand: () => number, catalog: AlbumCa
   });
 }
 
-// ── Economy (album coins: an account currency, separate from campaign credits) ──
+// ── Account coins (shared across the store, separate from match/campaign credits) ──
 
 /** Coins for selling one spare copy, by the card's rarity. */
-export const SELL_VALUE: Record<Rarity, number> = { bronze: 5, silver: 10, gold: 20, legendary: 50, immortal: 120, unique: 300 };
+export const SELL_VALUE: Record<Rarity, number> = { bronze: 8, silver: 15, gold: 30, legendary: 75, immortal: 180, unique: 300 };
 
 /** A specific missing sticker in the shop: four times what a copy sells for. */
 
 
-/** Packs the shop sells (the Lendário and Imortal ones only come with a title). */
-export const SHOP_PACK_PRICE: Partial<Record<AlbumPackTier, number>> = { bronze: 60, silver: 120, gold: 250 };
+/** Account-store prices. Premium tiers cost more and remain available as competition rewards. */
+export const SHOP_PACK_PRICE: Partial<Record<AlbumPackTier, number>> = {
+  bronze: 60,
+  silver: 120,
+  gold: 250,
+  legendary: 450,
+  immortal: 800,
+};
+
+/** One card from the rotating weekly banner. Rates sum to 100%. */
+export const WEEKLY_BANNER_PRICE = 50;
+export const WEEKLY_BANNER_ODDS: Readonly<Record<Rarity, number>> = {
+  bronze: 40,
+  silver: 30,
+  gold: 18,
+  legendary: 8,
+  immortal: 3,
+  unique: 1,
+};
+
+/** A cheaper daily draw with lower odds for the premium rarities. */
+export const DAILY_BANNER_PRICE = 25;
+export const DAILY_BANNER_ODDS: Readonly<Record<Rarity, number>> = {
+  bronze: 48,
+  silver: 35,
+  gold: 12,
+  legendary: 4,
+  immortal: 1,
+  unique: 0,
+};
+
+export interface DailyBannerOffer {
+  dayStart: string;
+  endsAt: number;
+  price: number;
+  odds: Readonly<Record<Rarity, number>>;
+  /** Four Gold, four Legendary and one Immortal card featured for this São Paulo day. */
+  cards: Record<Rarity, string[]>;
+}
+
+export interface DailyBannerRotations {
+  current: DailyBannerOffer;
+  next: DailyBannerOffer;
+}
+
+export interface WeeklyBannerOffer {
+  dayStart: string;
+  endsAt: number;
+  price: number;
+  odds: Readonly<Record<Rarity, number>>;
+  /** Banner 2 highlights: normal-catalogue Lendárias/Imortais plus the authored banner Única. */
+  cards: Record<Rarity, string[]>;
+}
+
+export interface WeeklyBannerRotations {
+  current: WeeklyBannerOffer;
+  next: WeeklyBannerOffer;
+}
 
 // ── Grants ──────────────────────────────────────────────────────────────────
 
-/** What one finished campaign at a difficulty is worth (the first title there doubles the pack). */
-export function campaignGrant(tier: AlbumPackTier, champion: boolean, firstTitleHere: boolean): AlbumItemKey[] {
+/** What one finished campaign at a difficulty is worth. */
+export function campaignGrant(tier: AlbumPackTier, champion: boolean): AlbumItemKey[] {
   const items: AlbumItemKey[] = [`envelope:${tier}`];
   if (champion) items.push(`pack:${tier}`);
-  if (champion && firstTitleHere) items.push(`pack:${tier}`);
   return items;
 }
 

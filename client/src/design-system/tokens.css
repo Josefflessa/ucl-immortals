@@ -69,7 +69,7 @@
   /* Layout */
   --ui-content-max: 1200px;
   --ui-gutter: 16px;
-  --ui-page-top: 28px;
+  --ui-page-top: 20px;
   --ui-page-bottom: 48px;
 
   /* Shape */
@@ -96,14 +96,14 @@
 @media (min-width: 640px) {
   :root {
     --ui-gutter: 24px;
-    --ui-page-top: 36px;
+    --ui-page-top: 32px;
   }
 }
 
 @media (min-width: 1024px) {
   :root {
     --ui-gutter: 32px;
-    --ui-page-top: 48px;
+    --ui-page-top: 32px;
   }
 }
 
@@ -550,6 +550,10 @@
     touch-action: none;
   }
 
+  .ui-modal-backdrop--fullscreen {
+    padding: 0;
+  }
+
   .ui-modal {
     width: min(100%, 560px);
     max-height: 92dvh;
@@ -562,6 +566,49 @@
   }
 
   .ui-modal--wide { width: min(100%, 760px); }
+
+  .ui-modal--fullscreen {
+    position: relative;
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .ui-modal--fullscreen .ui-modal__header {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 2;
+    min-height: 0;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 0;
+    border: 0;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .ui-modal--fullscreen .ui-modal__header > :last-child {
+    pointer-events: auto;
+  }
+
+  .ui-modal--fullscreen .ui-modal__header .ui-icon-btn {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+  }
+
+  .profile-preview-stage {
+    width: 100%;
+    height: 100%;
+  }
+
+  @media (pointer: coarse) {
+    .profile-preview-stage {
+      width: min(100vw, 138.144dvh);
+      height: auto;
+      aspect-ratio: 1072 / 776;
+    }
+  }
 
   .ui-modal__header {
     display: flex;

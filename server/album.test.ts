@@ -95,20 +95,20 @@ describe('Álbum de figurinhas — servidor', () => {
     const { cookie } = await register('campeao');
     // The first saved competition initializes album rewards and is paid immediately.
     const beforeAlbumVisit = await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('gold', { champion: true, finishStage: 'champion' }) });
-    expect(beforeAlbumVisit.body.albumGrants.map((g: any) => g.key)).toEqual(['envelope:gold', 'pack:gold', 'pack:gold']);
+    expect(beforeAlbumVisit.body.albumGrants.map((g: any) => g.key)).toEqual(['envelope:gold', 'pack:gold']);
     const start = (await call('/api/account/album', { cookie })).body;
     expect(start.grants).toEqual([]);
-    expect(start.inventory).toEqual({ 'envelope:gold': 1, 'pack:gold': 2 });
+    expect(start.inventory).toEqual({ 'envelope:gold': 1, 'pack:gold': 1 });
 
     // A gold campaign lost in the semi-final: an envelope.
     const lost = await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('gold', { finishStage: 'semifinalist' }) });
     expect(lost.body.albumGrants.map((g: any) => g.key)).toEqual(['envelope:gold']);
-    // The first legendary title: envelope + pack + the first-title pack. The second: one pack.
+    // Every title gives one pack, regardless of previous titles at that difficulty.
     const title = await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('legendary', { champion: true, finishStage: 'champion' }) });
-    expect(title.body.albumGrants.map((g: any) => g.key)).toEqual(['envelope:legendary', 'pack:legendary', 'pack:legendary']);
+    expect(title.body.albumGrants.map((g: any) => g.key)).toEqual(['envelope:legendary', 'pack:legendary']);
     const second = await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('legendary', { champion: true, finishStage: 'champion' }) });
     expect(second.body.albumGrants.map((g: any) => g.key)).toEqual(['envelope:legendary', 'pack:legendary']);
-    // The gold title before the album still counts as the first gold title: a new gold one is worth one pack.
+    // Every gold title gives one pack.
     const goldAgain = await call('/api/account/history', { method: 'POST', cookie, body: soloHistory('gold', { champion: true, finishStage: 'champion' }) });
     expect(goldAgain.body.albumGrants.map((g: any) => g.key)).toEqual(['envelope:gold', 'pack:gold']);
 
@@ -116,8 +116,27 @@ describe('Álbum de figurinhas — servidor', () => {
     const state = (await call('/api/account/album', { cookie })).body;
     expect(state.grants).toEqual([]);
     expect(state.inventory['envelope:gold']).toBe(3);
-    expect(state.inventory['pack:legendary']).toBe(3);
-    expect(state.inventory['pack:gold']).toBe(3);
+    expect(state.inventory['pack:legendary']).toBe(2);
+    expect(state.inventory['pack:gold']).toBe(2);
+  });
+
+  it('entrega o envelope correspondente à dificuldade de cada campanha concluída', async () => {
+    const { call, register } = api(database());
+    const { cookie } = await register('dificuldades');
+    const tiers = ['bronze', 'silver', 'gold', 'legendary', 'immortal'] as const;
+
+    for (const difficultyId of tiers) {
+      const result = await call('/api/account/history', {
+        method: 'POST',
+        cookie,
+        body: soloHistory(difficultyId, { finishStage: 'semifinalist' }),
+      });
+      expect(result.status).toBe(201);
+      expect(result.body.albumGrants.map((grant: any) => grant.key)).toEqual([`envelope:${difficultyId}`]);
+    }
+
+    const state = (await call('/api/account/album', { cookie })).body;
+    expect(state.inventory).toEqual(Object.fromEntries(tiers.map(tier => [`envelope:${tier}`, 1])));
   });
 
   it('abre pacotes do inventário: figurinhas novas entram, repetidas viram cópias de sobra', async () => {
@@ -161,13 +180,20 @@ describe('Álbum de figurinhas — servidor', () => {
     expect((await call('/api/account/album/apply', { method: 'POST', cookie, body: { cardId: card } })).status).toBe(409);
     expect((await call('/api/account/album/sell', { method: 'POST', cookie, body: { cardId: card, quantity: 1 } })).status).toBe(409);
 
-    // Not enough coins for an Ouro pack yet; with them, it goes to the inventory.
+    // The store accepts all five pack tiers; an empty balance cannot buy one.
     expect((await call('/api/account/album/buy-pack', { method: 'POST', cookie, body: { tier: 'gold' } })).status).toBe(409);
-    expect((await call('/api/account/album/buy-pack', { method: 'POST', cookie, body: { tier: 'legendary' } })).status).toBe(400);
-    await env.DB.prepare('UPDATE user_album SET coins = 1000 WHERE user_id = ?').bind(userId).run();
+    expect((await call('/api/account/album/buy-pack', { method: 'POST', cookie, body: { tier: 'legendary' } })).status).toBe(409);
+    expect((await call('/api/account/album/buy-pack', { method: 'POST', cookie, body: { tier: 'immortal' } })).status).toBe(409);
+    await env.DB.prepare('UPDATE user_album SET coins = 3000 WHERE user_id = ?').bind(userId).run();
     const bought = await call('/api/account/album/buy-pack', { method: 'POST', cookie, body: { tier: 'gold' } });
-    expect(bought.body.coins).toBe(1000 - SHOP_PACK_PRICE.gold!);
+    expect(bought.body.coins).toBe(3000 - SHOP_PACK_PRICE.gold!);
     expect(bought.body.inventory['pack:gold']).toBe(1);
+    const legendary = await call('/api/account/album/buy-pack', { method: 'POST', cookie, body: { tier: 'legendary' } });
+    expect(legendary.body.coins).toBe(3000 - SHOP_PACK_PRICE.gold! - SHOP_PACK_PRICE.legendary!);
+    expect(legendary.body.inventory['pack:legendary']).toBe(1);
+    const immortal = await call('/api/account/album/buy-pack', { method: 'POST', cookie, body: { tier: 'immortal' } });
+    expect(immortal.body.coins).toBe(3000 - SHOP_PACK_PRICE.gold! - SHOP_PACK_PRICE.legendary! - SHOP_PACK_PRICE.immortal!);
+    expect(immortal.body.inventory['pack:immortal']).toBe(1);
     // A specific sticker cannot be bought: stickers only come from packs and envelopes.
     expect((await call('/api/account/album/buy-sticker', { method: 'POST', cookie, body: { cardId: card } })).status).toBe(404);
   });

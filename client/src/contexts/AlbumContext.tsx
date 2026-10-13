@@ -1,13 +1,14 @@
 // UCL Immortals — the account's album on the client: its state (stickers, inventory,
-// points), the actions (open, apply a copy, sell, buy), the album level of each card
+// coins), the actions (open, apply a copy, sell, buy), the album level of each card
 // (read by PlayerCard), and the packs just granted (shown by AlbumGrantsPrompt). The server does
 // every change and answers with the whole state, which simply replaces this one.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { levelForCopies, type AlbumItemKey, type AlbumLevel } from '@shared/game/album';
+import type { Rarity } from '@shared/game/gameData';
 import { api, useAccount } from './AccountContext';
 
 export type GrantSource = 'campaign' | 'page' | 'shop';
-export interface ItemGrant { key: AlbumItemKey; source: GrantSource; competitionId?: string; pageId?: string }
+export interface ItemGrant { key: AlbumItemKey; source: GrantSource; competitionId?: string; pageId?: string; coinsAwarded?: number }
 export interface PageReward { pageId: string; frameKey: string | null; coverKey: string | null; items: AlbumItemKey[]; recompleted: boolean }
 export interface OpenResult { item: AlbumItemKey; cards: { id: string; isNew: boolean }[]; pageRewards: PageReward[] }
 
@@ -43,7 +44,12 @@ interface AlbumContextValue {
   applyCopy: (cardId: string) => Promise<void>;
   sell: (cardId: string, quantity: number) => Promise<number>;
   buyPack: (tier: string) => Promise<void>;
-  /** Packs granted and not yet acknowledged (the prompt offers to open them now or keep them). */
+  buyFrame: (frameKey: string) => Promise<{ frameKey: string; price: number }>;
+  buyCover: (coverKey: string) => Promise<{ coverKey: string; price: number }>;
+  buyNameStyle: (styleKey: string) => Promise<{ styleKey: string; price: number }>;
+  buyDailyBannerCard: () => Promise<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[] }>;
+  buyWeeklyBannerCard: () => Promise<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[] }>;
+  /** Campaign rewards not yet acknowledged (the prompt offers to open granted packs or keep them). */
   pendingGrants: ItemGrant[];
   receiveGrants: (grants: readonly ItemGrant[] | undefined) => void;
   dismissGrants: () => void;
@@ -54,8 +60,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   item_not_owned: 'Este pacote já foi aberto.',
   no_spare_copy: 'Você não tem cópias extras desta carta.',
   max_level: 'Esta carta já está no nível máximo.',
-  not_enough_coins: 'Pontos insuficientes.',
-  not_for_sale: 'Este pacote não está à venda.',
+  not_enough_coins: 'Moedas insuficientes.',
+  already_owned: 'Você já possui este item.',
+  banner_unavailable: 'Este banner está temporariamente indisponível.',
+  not_for_sale: 'Este item não está à venda.',
 };
 
 const AlbumContext = createContext<AlbumContextValue | null>(null);
@@ -65,8 +73,9 @@ const AlbumLevelsContext = createContext<ReadonlyMap<string, AlbumLevel>>(new Ma
 const NO_LEVELS: ReadonlyMap<string, AlbumLevel> = new Map();
 
 export function AlbumProvider({ children }: { children: ReactNode }) {
-  const { account } = useAccount();
+  const { account, eventCards } = useAccount();
   const accountKey = account?.id ?? null;
+  const eventCardKey = eventCards.join('\u0000');
   const [album, setAlbum] = useState<AlbumState | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +131,7 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
       return;
     }
     void refresh();
-  }, [accountKey, refresh]);
+  }, [accountKey, eventCardKey, refresh]);
 
   const levels = useMemo<ReadonlyMap<string, AlbumLevel>>(() => {
     if (!album) return NO_LEVELS;
@@ -143,6 +152,11 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
     applyCopy: async cardId => { await post('apply', { cardId }); },
     sell: async (cardId, quantity) => (await post<{ coins: number }>('sell', { cardId, quantity })).coins,
     buyPack: async tier => { await post('buy-pack', { tier }); },
+    buyFrame: frameKey => post<{ frameKey: string; price: number }>('buy-frame', { frameKey }),
+    buyCover: coverKey => post<{ coverKey: string; price: number }>('buy-cover', { coverKey }),
+    buyNameStyle: styleKey => post<{ styleKey: string; price: number }>('buy-name-style', { styleKey }),
+    buyDailyBannerCard: async () => post<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[] }>('buy-daily-banner', {}),
+    buyWeeklyBannerCard: async () => post<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[] }>('buy-weekly-banner', {}),
     pendingGrants,
     receiveGrants,
     dismissGrants: () => setPendingGrants([]),

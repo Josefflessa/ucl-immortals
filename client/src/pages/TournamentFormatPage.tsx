@@ -30,7 +30,7 @@ import {
   type CompetitionFormatId,
   type LeagueLegs,
 } from '@shared/game/competition';
-import { AppShell, Button, ChoiceCard, Input, PageContainer, SectionHeader, TopBar } from '../design-system';
+import { AppShell, Button, ChoiceCard, FixedActionBar, Input, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 const labelClass = 'text-[12px] font-bold uppercase tracking-[0.11em] text-[var(--ui-text-muted)]';
 const inputClass = 'ui-input mt-2 w-full text-left sm:text-center';
@@ -241,7 +241,7 @@ export default function TournamentFormatPage() {
   return (
     <AppShell>
       <TopBar right={<CompetitionExitControl />} />
-      <PageContainer wide className="flex flex-col gap-6 py-8 sm:py-10">
+      <PageContainer wide className="flex flex-col gap-6 pt-5 pb-32 sm:pt-8 sm:pb-32">
         <SectionHeader
           title="Formato do torneio"
           description="Escolha um modelo pronto e personalize apenas o que faz sentido para aquela estrutura."
@@ -451,11 +451,11 @@ export default function TournamentFormatPage() {
 
         {error && <div className="flex items-start gap-2 rounded-xl border border-[var(--ui-danger)] bg-[var(--ui-danger)]12 px-4 py-3 text-xs font-bold text-[var(--ui-danger)]" role="alert"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> {error}</div>}
 
-        <div className="mt-8 flex gap-3">
-          <Button onClick={() => { dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null }); dispatch({ type: 'SET_PHASE', phase: 'menu' }); }} intent="ghost" className="border border-[var(--ui-line-subtle)]">← VOLTAR</Button>
-          <Button intent="primary" size="large" onClick={() => handleContinue()} disabled={Boolean(validationError)} className="flex-1">ESCOLHER DIFICULDADE →</Button>
-        </div>
       </PageContainer>
+      <FixedActionBar>
+        <Button onClick={() => { dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null }); dispatch({ type: 'SET_PHASE', phase: 'menu' }); }} intent="ghost" className="border border-[var(--ui-line-subtle)]">← VOLTAR</Button>
+        <Button intent="primary" size="large" onClick={() => handleContinue()} disabled={Boolean(validationError)} className="flex-1">ESCOLHER DIFICULDADE →</Button>
+      </FixedActionBar>
     </AppShell>
   );
 }

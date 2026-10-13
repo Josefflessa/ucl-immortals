@@ -795,6 +795,9 @@ export interface PlayerSeasonStats {
   redCards: number;
 }
 
+/** Minimum appearances required to qualify for the season average-rating leaderboard. */
+export const MIN_MATCHES_FOR_RATING_LEADER = 3;
+
 export function getPlayerSeasonStats(
   playerId: string,
   teamId: string,

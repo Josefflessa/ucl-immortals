@@ -126,7 +126,7 @@ export default function DailyRewardsHomeButton() {
         aria-label={!claimedToday && state ? 'Recompensa diária disponível' : 'Recompensas diárias'}
         title="Recompensas diárias"
         onClick={() => { setOpen(true); setSuccess(''); void load(); }}
-        className="relative size-11 min-h-11 w-11 justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 p-0"
+        className="relative size-10 min-h-10 w-10 justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 p-0 sm:size-11 sm:min-h-11 sm:w-11"
       >
         <Gift size={19} aria-hidden="true" />
         {!claimedToday && state ? <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-[var(--ui-bg)] bg-[var(--ui-brand-strong)]" /> : null}

@@ -4,6 +4,7 @@ export {
   Button,
   ChoiceCard,
   EmptyState,
+  FixedActionBar,
   IconButton,
   Input,
   Metric,

@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 
 export default function StatsTab({ hub }: { hub: LeagueHub }) {
   const {
-    activeTab, spoilerLock, spoilerWaiting, statsSubTab, setStatsSubTab, playerTeam,
+    activeTab, spoilerLock, spoilerWaiting, statsSubTab, setStatsSubTab, playerTeam, allTeams,
     topScorers, topAssists, topRatings, topKeepers, topTacklers, topCards,
   } = hub;
   return (
@@ -54,7 +54,7 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                 <span className="text-[12px] font-black tracking-widest text-[#6A6A7A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   {statsSubTab === 'goals' && 'ARTILHARIA DO CAMPEONATO'}
                   {statsSubTab === 'assists' && 'LÍDERES EM ASSISTÊNCIAS'}
-                  {statsSubTab === 'ratings' && 'MELHORES NOTAS DA TEMPORADA (MÍN. 1 JOGO)'}
+                  {statsSubTab === 'ratings' && 'MELHORES NOTAS DA TEMPORADA (MÍN. 3 JOGOS)'}
                   {statsSubTab === 'keepers' && 'GOLEIROS COM MAIS DEFESAS REALIZADAS'}
                   {statsSubTab === 'tackles' && 'LÍDERES EM DESARMES DO CAMPEONATO'}
                   {statsSubTab === 'cards' && 'DISCIPLINA — MAIS CARTÕES DA TEMPORADA'}
@@ -141,7 +141,7 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                               {player.shortName}
                             </div>
                             <div className="text-[12px] text-[#6A6A7A] font-semibold truncate" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                              {player.teamName} · <span className="text-[#8A8A9A]">{player.stats.played} {player.stats.played === 1 ? 'jogo' : 'jogos'}</span>
+                              {allTeams.find(team => team.id === player.teamId)?.name ?? player.teamName} · <span className="text-[#8A8A9A]">{player.stats.played} {player.stats.played === 1 ? 'jogo' : 'jogos'}</span>
                             </div>
                           </div>
 

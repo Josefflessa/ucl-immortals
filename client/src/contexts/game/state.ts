@@ -18,6 +18,7 @@ export type GamePhase =
   | 'menu'           // Home screen
   | 'account'        // Account, profile, records and friends
   | 'album'          // Player album / catalog
+  | 'store'          // Universal account store (separate from match credits)
   | 'achievements'   // Account achievements
   | 'events'         // Account events and their rewards
   | 'lobby'          // Multiplayer lobby
@@ -121,7 +122,8 @@ export interface GameState {
   // quando uma é adquirida, o card apenas passa a exibir "JÁ POSSUI".
   uniquePackOfferIds: string[];
   uniquePackOfferRoundKey: string | null;
-  // ⭐ Cartas Únicas de evento da conta: entram no pool do Pacote Único dela (solo).
+  // ⭐ Cartas exclusivas conquistadas na conta: Únicas entram no pacote Único;
+  // versões exclusivas de raridade normal entram apenas nos drafts dessa conta.
   eventUniqueIds: string[];
   playerPackOfferIds: Partial<Record<RegularPlayerPackRarity, string[]>>;
   playerPackOfferRoundKeys: Partial<Record<RegularPlayerPackRarity, string | null>>;

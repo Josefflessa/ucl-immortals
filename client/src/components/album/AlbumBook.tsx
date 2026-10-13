@@ -2,9 +2,9 @@
 // shared page for its smaller clubs) with their progress, and a page open with its slots.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Gift, Globe, Lock, Search, Sparkles, X } from 'lucide-react';
-import { EVENT_UNIQUE_CARDS, getRarityColor, type Player, type Rarity } from '@shared/game/gameData';
+import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import { GAME_EVENTS } from '@shared/game/events';
-import { clubIdForName, getCrest } from '@shared/game/crests';
+import { getCrest } from '@shared/game/crests';
 import { CLUB_PAGE_RECOMPLETE, regionPageReward, type AlbumItemKey, type AlbumPage, type AlbumRegionId } from '@shared/game/album';
 import { Button, EmptyState, Input, Progress } from '../../design-system';
 import { ClubCover, ClubFrameRing } from '../account/ClubRewards';
@@ -106,6 +106,7 @@ function PageRewardBanner({ page, complete, completionCount, missing }: { page: 
 }
 
 type SlotStatus = 'all' | 'owned' | 'missing' | 'spare';
+type AlbumSectionId = AlbumRegionId | 'exclusive';
 
 const RARITY_ORDER: Rarity[] = ['unique', 'immortal', 'legendary', 'gold', 'silver', 'bronze'];
 
@@ -131,59 +132,111 @@ for (const event of GAME_EVENTS) {
   if (event.rewardCardId) EVENT_OF_CARD.set(event.rewardCardId, event.name);
   for (const choice of event.choices ?? []) EVENT_OF_CARD.set(choice.cardId, event.name);
 }
+const WEEKLY_BANNER_CARD_IDS = new Set(STORE_UNIQUE_CARDS.map(card => card.id));
+const EXCLUSIVE_CARDS = [...EVENT_UNIQUE_CARDS, ...STORE_UNIQUE_CARDS];
 
-/** The page an event Única is shown on: its club's own page, or the shared page with its club. */
-function eventCardPageId(card: Player): string | null {
-  const clubId = card.clubId ?? clubIdForName(card.club);
-  if (CATALOG.pageById.has(`club:${clubId}`)) return `club:${clubId}`;
-  const shared = CATALOG.pages.find(page => page.kind === 'region' && page.stickers.some(id => CATALOG.stickers.get(id)?.clubId === clubId));
-  return shared?.id ?? null;
+function exclusiveCardSource(card: (typeof EXCLUSIVE_CARDS)[number]) {
+  return EVENT_OF_CARD.get(card.id) ?? (WEEKLY_BANNER_CARD_IDS.has(card.id) ? 'Banner' : card.club);
 }
 
-const EVENT_CARDS_BY_PAGE = new Map<string, Player[]>();
-for (const card of EVENT_UNIQUE_CARDS) {
-  const pageId = eventCardPageId(card);
-  if (!pageId) continue;
-  EVENT_CARDS_BY_PAGE.set(pageId, [...(EVENT_CARDS_BY_PAGE.get(pageId) ?? []), card]);
-}
-
-/**
- * The page's event Únicas: won only by completing their event (never in packs, never bought),
- * placed here as soon as the account unlocks them. They do not count towards the page, so a
- * club stays completable after the event is over.
- */
-function EventCardsSection({ page, scale }: { page: AlbumPage; scale: number }) {
+/** Event and store cards are kept outside the country/club page progress. */
+function ExclusiveCardsView({ scale }: { scale: number }) {
   const { eventCards } = useAccount();
-  const cards = EVENT_CARDS_BY_PAGE.get(page.id) ?? [];
-  if (cards.length === 0) return null;
-  const owned = new Set(eventCards);
+  const { album } = useAlbum();
+  const [selected, setSelected] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<'all' | 'owned' | 'missing'>('all');
+  const [pageNumber, setPageNumber] = useState(1);
+  const perPage = useSlotsPerPage();
+  const gridTop = useRef<HTMLDivElement | null>(null);
+  const owned = useMemo(() => new Set([...eventCards, ...(album ? Array.from(album.stickers.keys()) : [])]), [eventCards, album]);
+  const counts = useMemo(() => ({
+    all: EXCLUSIVE_CARDS.length,
+    owned: EXCLUSIVE_CARDS.filter(card => owned.has(card.id)).length,
+    missing: EXCLUSIVE_CARDS.filter(card => !owned.has(card.id)).length,
+  }), [owned]);
+  const filtered = useMemo(() => {
+    const query = normalize(search);
+    return EXCLUSIVE_CARDS.filter(card => {
+      const has = owned.has(card.id);
+      if (status === 'owned' && !has) return false;
+      if (status === 'missing' && has) return false;
+      if (query && !normalize(`${card.shortName} ${card.fullName ?? ''} ${card.club} ${exclusiveCardSource(card)}`).includes(query)) return false;
+      return true;
+    });
+  }, [owned, search, status]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const current = Math.min(pageNumber, totalPages);
+  const visible = filtered.slice((current - 1) * perPage, current * perPage);
+  const hasFilters = search.trim() !== '' || status !== 'all';
+
+  useEffect(() => { setPageNumber(1); }, [search, status, perPage]);
+  const goTo = (value: number) => {
+    setPageNumber(value);
+    gridTop.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  const clearFilters = () => { setSearch(''); setStatus('all'); };
+
   return (
-    <section className="mt-8 rounded-2xl border border-[var(--ui-brand)]/35 p-4" style={{ background: 'linear-gradient(160deg, rgba(232,200,74,.08), transparent 60%)' }}>
-      <div className="flex items-center gap-2">
-        <Sparkles size={15} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
-        <h3 className="text-[12px] font-bold uppercase tracking-[0.16em] text-[var(--ui-brand-strong)]">Cartas de evento</h3>
+    <section aria-label="Cartas Exclusivas">
+      <div ref={gridTop} className="mb-4 flex scroll-mt-4 flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+        <label className="relative min-w-0 sm:w-64">
+          <span className="sr-only">Buscar carta exclusiva</span>
+          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
+          <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, clube ou evento" className="w-full pl-9" />
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <SelectMenu
+            label="Situação das cartas exclusivas"
+            value={status}
+            onChange={setStatus}
+            options={([
+              ['all', 'Todas'],
+              ['owned', 'Conquistadas'],
+              ['missing', 'Faltando'],
+            ] as ['all' | 'owned' | 'missing', string][]).map(([value, text]) => ({
+              value,
+              text: `${text}, ${counts[value]}`,
+              dimmed: counts[value] === 0,
+              label: <span className="flex min-w-[9.5rem] items-center gap-2 pl-1"><span className="text-[var(--ui-text)]">{text}</span><span className="ml-auto pl-3 text-xs tabular-nums text-[var(--ui-text-muted)]">{counts[value]}</span></span>,
+            }))}
+          />
+          {hasFilters ? <Button intent="ghost" onClick={clearFilters} className="min-h-9 px-2.5 text-xs"><X size={14} aria-hidden="true" /> Limpar</Button> : null}
+        </div>
       </div>
-      <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Só saem completando o evento delas. Não contam para completar a página.</p>
-      <div className="mt-4 grid justify-items-center gap-x-3 gap-y-5 sm:gap-x-5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(200 * scale * 1.2)}px, 1fr))` }}>
-        {cards.map(card => {
-          const has = owned.has(card.id);
-          return (
-            <div key={card.id} className="flex min-w-0 flex-col items-center" style={{ paddingTop: Math.round(324 * scale * 0.12) }}>
-              <div className={cn('pointer-events-none', !has && 'opacity-50 grayscale')}>
-                <PlayerCard player={card} lite scale={scale} />
-              </div>
-              <span className={cn('mt-1.5 line-clamp-2 text-center text-[12px] font-bold leading-tight', has ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')} style={{ maxWidth: Math.max(200 * scale, 96) }}>{card.shortName}</span>
-              {has ? (
-                <span className="mt-0.5 text-center text-[11px] font-semibold text-[var(--ui-text-faint)]">Conquistada</span>
-              ) : (
-                <span className="mt-1 rounded-md border border-[var(--ui-brand)]/40 bg-[var(--ui-brand)]/10 px-2 py-0.5 text-center text-[11px] font-bold leading-tight text-[var(--ui-brand-strong)]" style={{ maxWidth: Math.max(200 * scale, 96) + 16 }}>
-                  {EVENT_OF_CARD.get(card.id) ?? 'Evento'}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+
+      {visible.length === 0 ? <EmptyState className="mt-6" title="Nenhuma carta encontrada" description="Tente outro nome ou remova algum filtro." action={<Button intent="secondary" onClick={clearFilters}>Limpar filtros</Button>} /> : null}
+
+      {visible.length > 0 ? (
+        <div className="mt-5 grid justify-items-center gap-x-3 gap-y-5 sm:gap-x-5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(200 * scale * 1.2)}px, 1fr))` }}>
+          {visible.map(card => {
+            const has = owned.has(card.id);
+            return (
+              <article key={card.id} className="flex min-w-0 flex-col items-center" style={{ paddingTop: Math.round(324 * scale * 0.12) }}>
+                <button type="button" onClick={() => setSelected(card.id)} aria-label={`${card.shortName}, ${has ? 'ver carta e cópias' : 'ver carta exclusiva'}`} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)]">
+                  <span className={cn('block', !has && 'opacity-50 grayscale')}>
+                    <PlayerCard player={card} lite scale={scale} albumLevel={stickerLevel(album, card.id) >= 2 ? stickerLevel(album, card.id) as 2 | 3 | 4 | 5 : undefined} />
+                  </span>
+                </button>
+                <span className={cn('mt-1.5 line-clamp-2 text-center text-[12px] font-bold leading-tight', has ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')} style={{ maxWidth: Math.max(200 * scale, 96) }}>{card.shortName}</span>
+                <span className="mt-0.5 text-center text-[11px] text-[var(--ui-text-muted)]" style={{ maxWidth: Math.max(200 * scale, 96) }}>{exclusiveCardSource(card)}</span>
+                <span className={cn('mt-1 text-center text-[11px] font-semibold', has ? 'text-[#55CBA0]' : 'text-[var(--ui-text-faint)]')}>{has ? `No álbum · ★${stickerLevel(album, card.id) || 1}${(album?.stickers.get(card.id)?.spare ?? 0) > 0 ? ` · ${album!.stickers.get(card.id)!.spare} repetida${album!.stickers.get(card.id)!.spare === 1 ? '' : 's'}` : ''}` : 'Ainda não conquistada'}</span>
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {totalPages > 1 ? (
+        <nav aria-label="Paginação das cartas exclusivas" className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-4 sm:flex-row">
+          <span className="text-xs text-[var(--ui-text-muted)]">Página <strong className="tabular-nums text-[var(--ui-text)]">{current}</strong> de <strong className="tabular-nums text-[var(--ui-text)]">{totalPages}</strong><span className="text-[var(--ui-text-faint)]"> · {filtered.length} cartas</span></span>
+          <div className="flex items-center gap-2">
+            <Button intent="secondary" onClick={() => goTo(current - 1)} disabled={current === 1} className="min-h-9 px-3 text-xs"><ChevronLeft size={15} aria-hidden="true" /> Anterior</Button>
+            <Button intent="secondary" onClick={() => goTo(current + 1)} disabled={current === totalPages} className="min-h-9 px-3 text-xs">Próxima <ChevronRight size={15} aria-hidden="true" /></Button>
+          </div>
+        </nav>
+      ) : null}
+      <StickerSheet cardId={selected} onClose={() => setSelected(null)} />
     </section>
   );
 }
@@ -370,8 +423,6 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
         </nav>
       ) : null}
 
-      <EventCardsSection page={page} scale={scale} />
-
       <StickerSheet cardId={selected} onClose={() => setSelected(null)} />
     </div>
   );
@@ -407,7 +458,9 @@ function PageRow({ page, onOpen }: { page: AlbumPage; onOpen: () => void }) {
 
 export default function AlbumBook() {
   const { album } = useAlbum();
-  const [regionId, setRegionId] = useState<AlbumRegionId>(REGIONS[0]?.id ?? 'england');
+  const { eventCards } = useAccount();
+  const scale = useSlotScale();
+  const [sectionId, setSectionId] = useState<AlbumSectionId>(REGIONS[0]?.id ?? 'england');
   const [pageId, setPageId] = useState<string | null>(null);
   const page = pageId ? CATALOG.pageById.get(pageId) : undefined;
 
@@ -415,34 +468,44 @@ export default function AlbumBook() {
 
   if (page) return <PageView key={page.id} page={page} onBack={() => setPageId(null)} />;
 
-  const region = REGIONS.find(r => r.id === regionId) ?? REGIONS[0];
+  const region = REGIONS.find(r => r.id === sectionId) ?? REGIONS[0];
+  const exclusiveOwned = EXCLUSIVE_CARDS.filter(card => eventCards.includes(card.id) || album?.stickers.has(card.id)).length;
   return (
     <div>
       <div className="mb-4">
         <SelectMenu
-          label="Região do álbum"
-          value={region.id}
-          onChange={setRegionId}
-          options={REGIONS.map(r => {
-            const owned = r.pages.reduce((n, p) => n + pageProgress(p, album).owned, 0);
-            const total = r.pages.reduce((n, p) => n + p.stickers.length, 0);
-            return {
-              value: r.id,
-              text: `${r.name}, ${owned} de ${total}`,
-              label: (
-                <span className="flex min-w-[13rem] items-center gap-2.5 pr-2">
-                  <RegionFlag regionId={r.id} />
-                  <span className="text-[var(--ui-text)]">{r.name}</span>
-                  <span className="ml-auto pl-3 text-xs tabular-nums text-[var(--ui-text-muted)]">{owned}/{total}</span>
-                </span>
-              ),
-            };
-          })}
+          label="Seção do álbum"
+          value={sectionId}
+          onChange={value => setSectionId(value as AlbumSectionId)}
+          options={[
+            ...REGIONS.map(r => {
+              const owned = r.pages.reduce((n, p) => n + pageProgress(p, album).owned, 0);
+              const total = r.pages.reduce((n, p) => n + p.stickers.length, 0);
+              return {
+                value: r.id,
+                text: `${r.name}, ${owned} de ${total}`,
+                label: (
+                  <span className="flex min-w-[13rem] items-center gap-2.5 pr-2">
+                    <RegionFlag regionId={r.id} />
+                    <span className="text-[var(--ui-text)]">{r.name}</span>
+                    <span className="ml-auto pl-3 text-xs tabular-nums text-[var(--ui-text-muted)]">{owned}/{total}</span>
+                  </span>
+                ),
+              };
+            }),
+            {
+              value: 'exclusive',
+              text: `Cartas Exclusivas, ${exclusiveOwned} de ${EXCLUSIVE_CARDS.length}`,
+              label: <span className="flex min-w-[13rem] items-center gap-2.5 pr-2"><Sparkles size={17} className="shrink-0 text-[var(--ui-brand-strong)]" aria-hidden="true" /><span className="text-[var(--ui-text)]">Cartas Exclusivas</span><span className="ml-auto pl-3 text-xs tabular-nums text-[var(--ui-text-muted)]">{exclusiveOwned}/{EXCLUSIVE_CARDS.length}</span></span>,
+            },
+          ]}
         />
       </div>
-      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-        {region.pages.map(p => <PageRow key={p.id} page={p} onOpen={() => setPageId(p.id)} />)}
-      </div>
+      {sectionId === 'exclusive' ? <ExclusiveCardsView scale={scale} /> : (
+        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+          {region.pages.map(p => <PageRow key={p.id} page={p} onOpen={() => setPageId(p.id)} />)}
+        </div>
+      )}
     </div>
   );
 }

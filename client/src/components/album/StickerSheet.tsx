@@ -1,5 +1,5 @@
 // A sticker of the album, up close: its level and the copies towards the next one, and what to do
-// with the spare copies (paste one to level up, or sell them for album coins); or, when it is
+// with the spare copies (paste one to level up, or sell them for account coins); or, when it is
 // missing, where it comes from (packs and envelopes only: a sticker is never bought).
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -41,7 +41,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
   const card = cardId ? albumCard(cardId) : undefined;
   const sticker = cardId ? CATALOG.stickers.get(cardId) : undefined;
   const owned = cardId ? album?.stickers.get(cardId) : undefined;
-  const page = sticker ? CATALOG.pageById.get(sticker.pageId) : undefined;
+  const page = sticker?.pageId ? CATALOG.pageById.get(sticker.pageId) : undefined;
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -107,7 +107,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
                         <span className="w-6 text-center text-sm font-bold tabular-nums">{sellQuantity}</span>
                         <button type="button" aria-label="Mais" disabled={sellQuantity >= spare} onClick={() => setQuantity(value => Math.min(spare, value + 1))} className="flex size-9 items-center justify-center text-[var(--ui-text-muted)] disabled:opacity-30"><Plus size={14} /></button>
                       </div>
-                      <Button intent="secondary" disabled={busy} onClick={() => run(async () => { const earned = await sell(card.id, sellQuantity); setQuantity(1); toast.success(`Vendida${sellQuantity > 1 ? 's' : ''} por ${earned} pontos.`); })} className="min-w-0 flex-1">
+                      <Button intent="secondary" disabled={busy} onClick={() => run(async () => { const earned = await sell(card.id, sellQuantity); setQuantity(1); toast.success(`Vendida${sellQuantity > 1 ? 's' : ''} por ${earned} moedas.`); })} className="min-w-0 flex-1">
                         Vender por <CoinAmount value={SELL_VALUE[card.rarity] * sellQuantity} size={14} className="text-inherit" />
                       </Button>
                     </div>
@@ -120,7 +120,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
           ) : (
             <section className="rounded-xl border border-[var(--ui-line-subtle)] p-4">
               <div className="text-sm font-bold text-[var(--ui-text)]">Carta faltando</div>
-              <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Ela pode sair em qualquer pacote ou envelope{card.rarity === 'bronze' || card.rarity === 'silver' ? '' : ' (as mais raras saem mais nos pacotes de dificuldades maiores)'}.</p>
+                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">{sticker.pageId === null ? 'Esta carta exclusiva pode ser conquistada em eventos ou no banner semanal da Loja.' : `Ela pode sair em qualquer pacote ou envelope${card.rarity === 'bronze' || card.rarity === 'silver' ? '' : ' (as mais raras saem mais nos pacotes de dificuldades maiores)'}.`}</p>
             </section>
           )}
         </div>

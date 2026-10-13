@@ -1094,10 +1094,9 @@ function currentLeagueFixtureForPlayer(room: RoomState, player: RoomPlayer): Lea
 }
 
 /**
- * Reveal one league match. A player's own match reward is released when that
- * player watches (or abandons) it; bets on the same match are released for all
- * bettors at that moment. This is deliberately independent from the global
- * "everyone watched" gate used only by advance_round.
+ * Reveal one league match. A player's own match reward and tickets are released
+ * when that player watches (or abandons) it. Bot-only fixtures use the global
+ * round watch gate because they have no replay owner.
  */
 function revealLeagueMatch(room: RoomState, fixture: LeagueFixture): void {
   if (!fixture.result) return;
@@ -1147,6 +1146,7 @@ function revealAbandonedPlayerMatch(room: RoomState, player: RoomPlayer): void {
     if (fixture) {
       if (!room.watchedRoundPlayers.includes(player.id)) room.watchedRoundPlayers.push(player.id);
       releaseLeaguePlayerMatch(room, player);
+      revealBotOnlyLeagueMatches(room);
     }
     return;
   }
@@ -1155,12 +1155,15 @@ function revealAbandonedPlayerMatch(room: RoomState, player: RoomPlayer): void {
     if (match) {
       if (!room.watchedKnockoutLegPlayers.includes(player.id)) room.watchedKnockoutLegPlayers.push(player.id);
       releaseKnockoutPlayerMatch(room, player);
+      revealBotOnlyKnockoutMatches(room, match.leg);
     }
   }
 }
 
 function revealBotOnlyLeagueMatches(room: RoomState): void {
-  const humanTeamIds = new Set(room.players.map(player => player.team?.id).filter((id): id is string => !!id));
+  const allWatched = leagueParticipantIds(room).every(id => room.watchedRoundPlayers.includes(id));
+  if (!allWatched) return;
+  const humanTeamIds = new Set(room.players.flatMap(player => [player.id, player.team?.id]).filter((id): id is string => !!id));
   room.leagueFixtures
     .filter(fixture => fixture.round === room.leagueRound && fixture.played && fixture.result)
     .filter(fixture => !humanTeamIds.has(fixture.homeTeamId) && !humanTeamIds.has(fixture.awayTeamId))
@@ -1168,8 +1171,8 @@ function revealBotOnlyLeagueMatches(room: RoomState): void {
 }
 
 function revealBotOnlyKnockoutMatches(room: RoomState, leg: number): void {
-  if (!room.knockoutBracket) return;
-  const humanTeamIds = new Set(room.players.map(player => player.team?.id).filter((id): id is string => !!id));
+  if (!room.knockoutBracket || !knockoutWatchStatus(room).allWatched) return;
+  const humanTeamIds = new Set(room.players.flatMap(player => [player.id, player.team?.id]).filter((id): id is string => !!id));
   (getActiveKnockoutMatches(room.knockoutBracket) as any[]).forEach(tie => {
     if (humanTeamIds.has(tie.homeTeamId) || humanTeamIds.has(tie.awayTeamId)) return;
     const singleLeg = tie.isSingleLeg === true;
@@ -2992,8 +2995,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         // result as revealed for that player and for tickets targeting the
         // same fixture, while keeping the collective advance gate separate.
         room.players.filter(player => !player.connected).forEach(player => revealAbandonedPlayerMatch(room, player));
-        // Bot-only fixtures have no human replay to wait for, so their tickets
-        // are safe to settle as soon as the authoritative result exists.
+        // Bot-only fixtures have no replay owner. Their tickets wait until all
+        // connected participants have watched the round, like the score reveal.
         revealBotOnlyLeagueMatches(room);
 
         // 🔥 Resiliente também cresce nas equipes controladas pelo servidor, sempre que
@@ -3338,8 +3341,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
         });
       });
 
-      // Release each disconnected participant's own leg and tickets targeting
-      // that leg. A bot-only tie has no replay owner, so it is revealed now.
+      // Release each disconnected participant's own leg. Bot-only tickets wait
+      // for every connected participant to watch the leg.
       room.players.filter(player => !player.connected).forEach(player => revealAbandonedPlayerMatch(room, player));
       revealBotOnlyKnockoutMatches(room, legPlayed);
 
@@ -3412,8 +3415,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
           room.watchedRoundPlayers.push(player.id);
         }
         // Only this player's own reward is released here. Tickets targeting
-        // another match are released when that match's owner reveals it.
+        // a human match are released when its owner reveals it. Bot-only tickets
+        // wait until every connected participant has watched the round.
         releaseLeaguePlayerMatch(room, player);
+        revealBotOnlyLeagueMatches(room);
       } else if (type === 'knockout') {
         if (room.phase !== 'knockout' || !room.knockoutBracket) return;
         const activeTies = getActiveKnockoutMatches(room.knockoutBracket) as any[];
@@ -3433,8 +3438,9 @@ export function registerSocketHandlers(io: RealtimeServer) {
           room.watchedKnockoutLegPlayers.push(player.id);
         }
         // Same rule for a knockout leg: release this participant's reward and
-        // every ticket targeting this exact leg, without waiting for the room.
+        // tickets for this human match. Bot-only tickets wait for all watchers.
         releaseKnockoutPlayerMatch(room, player);
+        revealBotOnlyKnockoutMatches(room, requestedLeg as 1 | 2);
       } else {
         return;
       }

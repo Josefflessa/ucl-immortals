@@ -642,8 +642,8 @@ export default function AlbumPage() {
 
   return (
     <AppShell>
-      <TopBar
-        right={!account ? (
+      {!account ? <TopBar
+        right={(
           <div className="absolute right-[var(--ui-gutter)] top-1/2 flex -translate-y-1/2 shrink-0">
             <Button intent="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })} className="px-3 text-xs sm:px-4">
               <ArrowLeft size={15} aria-hidden="true" />
@@ -651,11 +651,11 @@ export default function AlbumPage() {
               <span className="sm:hidden">VOLTAR</span>
             </Button>
           </div>
-        ) : undefined}
-      />
+        )}
+      /> : null}
 
       {/* With an account: the same shell and spacing as the other account screens. */}
-      <PageContainer wide className={account ? 'space-y-5 py-5 pb-28 sm:py-8 sm:pb-28' : 'pb-10 pt-7 sm:pt-10'}>
+      <PageContainer wide className={account ? 'space-y-5 py-5 pb-28 sm:py-8 sm:pb-28' : 'pb-10 pt-5 sm:pt-8'}>
         {account
           ? <AlbumCollection catalog={<CatalogBrowser showIntro={false} />} />
           : <CatalogBrowser showIntro />}
@@ -665,6 +665,10 @@ export default function AlbumPage() {
         onNavigate={destination => {
           if (destination === 'home') {
             dispatch({ type: 'SET_PHASE', phase: 'menu' });
+            return;
+          }
+          if (destination === 'store') {
+            dispatch({ type: 'SET_PHASE', phase: 'store' });
             return;
           }
           dispatch({ type: 'SET_ACCOUNT_SECTION', section: destination });

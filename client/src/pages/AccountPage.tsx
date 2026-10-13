@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, Lock, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Heart, Image as ImageIcon, Info, Layers, LogIn, LogOut, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, CalendarDays, Check, Lock, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Heart, Image as ImageIcon, Info, Layers, LogIn, LogOut, Maximize2, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useAccount, type AccountStats, type AchievementsPayload, type CompetitionHistoryEntry, type FinishCounts, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
@@ -25,6 +25,7 @@ import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gam
 import DifficultyEmblem from '../components/game/DifficultyEmblem';
 import SelectMenu, { type SelectMenuOption } from '../components/account/SelectMenu';
 import FramedAvatar, { FrameImage } from '../components/account/AvatarFrame';
+import GalleryPagination from '../components/account/GalleryPagination';
 import StyledName from '../components/account/StyledName';
 import { NAME_STYLES } from '@shared/game/nameStyles';
 import { AVATAR_FRAMES, GAME_EVENTS } from '@shared/game/events';
@@ -32,7 +33,6 @@ import { clubOfRewardKey } from '@shared/game/clubRewards';
 import { getCrest } from '@shared/game/crests';
 import { ClubCover } from '../components/account/ClubRewards';
 import { useAlbum } from '../contexts/AlbumContext';
-import ProfileAlbumSummary from '../components/album/ProfileAlbumSummary';
 import ReportPage from './ReportPage';
 import { cn } from '../lib/utils';
 import {
@@ -58,6 +58,7 @@ import {
 } from '../design-system';
 
 const AVATARS_PER_PAGE = 12;
+const APPEARANCE_ITEMS_PER_PAGE = 4;
 const RECORD_LABELS: Record<PublicRecordEntry['category'], { label: string; description: string; icon: typeof Trophy; suffix: string }> = {
   goals: { label: 'Mais gols', description: 'Mais gols marcados por um jogador em uma competição.', icon: Trophy, suffix: 'gols' },
   assists: { label: 'Mais assistências', description: 'Mais assistências dadas por um jogador em uma competição.', icon: Sparkles, suffix: 'assist.' },
@@ -183,31 +184,6 @@ function profileAvatar(avatarUrl: string | null, avatarKey: string, name: string
       <span aria-hidden="true" hidden={!!image}>{initials(name)}</span>
       {image ? <img key={image} src={image} alt="" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={showAvatarFallback} /> : null}
     </div></FramedAvatar>
-  );
-}
-
-function GalleryPagination({ page, pageCount, label, onPageChange }: { page: number; pageCount: number; label: string; onPageChange: (page: number) => void }) {
-  if (pageCount < 2) return null;
-  return (
-    <nav aria-label={label} className="flex items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-3">
-      <Button type="button" intent="ghost" aria-label="Página anterior" disabled={page === 0} onClick={() => onPageChange(Math.max(0, page - 1))} className="size-9 min-h-9 px-0">
-        <ChevronLeft size={17} aria-hidden="true" />
-      </Button>
-      <div className="flex items-center gap-1.5">
-        {Array.from({ length: pageCount }, (_, index) => <Button
-          type="button"
-          key={index}
-          intent="ghost"
-          aria-label={`Página ${index + 1}`}
-          aria-current={page === index ? 'page' : undefined}
-          onClick={() => onPageChange(index)}
-          className={cn('size-9 min-h-9 px-0 text-xs tabular-nums', page === index && 'border border-[var(--ui-brand)] text-[var(--ui-brand-strong)]')}
-        >{index + 1}</Button>)}
-      </div>
-      <Button type="button" intent="ghost" aria-label="Próxima página" disabled={page === pageCount - 1} onClick={() => onPageChange(Math.min(pageCount - 1, page + 1))} className="size-9 min-h-9 px-0">
-        <ChevronRight size={17} aria-hidden="true" />
-      </Button>
-    </nav>
   );
 }
 
@@ -504,8 +480,6 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
         </div>
       </section>
 
-      {data.album ? <ProfileAlbumSummary album={data.album} /> : null}
-
       <ProfileCareerContent
         scorePosition={data.scorePosition}
         competitionsCompleted={profile.stats.competitionsCompleted}
@@ -669,15 +643,62 @@ export default function AccountPage() {
     }
   };
   const friendProfileRequestId = useRef(0);
+  const [profilePreviewOpen, setProfilePreviewOpen] = useState(false);
+  const profilePreviewOpenRef = useRef(false);
+  const profilePreviewOwnsFullscreen = useRef(false);
+  const releaseProfileFullscreen = useCallback(() => {
+    if (!profilePreviewOwnsFullscreen.current) return;
+    profilePreviewOwnsFullscreen.current = false;
+    try { (screen.orientation as ScreenOrientation & { unlock?: () => void } | undefined)?.unlock?.(); } catch { /* orientation lock may already be gone */ }
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  }, []);
+  const openProfilePreview = () => {
+    profilePreviewOpenRef.current = true;
+    setProfilePreviewOpen(true);
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> } | undefined;
+    if (!document.fullscreenEnabled || document.fullscreenElement || typeof orientation?.lock !== 'function') return;
+    void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(async () => {
+      profilePreviewOwnsFullscreen.current = true;
+      if (!profilePreviewOpenRef.current) {
+        releaseProfileFullscreen();
+        return;
+      }
+      await orientation.lock?.('landscape').catch(() => {});
+    }).catch(() => {});
+  };
+  const changeProfilePreview = (open: boolean) => {
+    profilePreviewOpenRef.current = open;
+    setProfilePreviewOpen(open);
+    if (!open) releaseProfileFullscreen();
+  };
+  useEffect(() => () => releaseProfileFullscreen(), [releaseProfileFullscreen]);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [appearanceTab, setAppearanceTab] = useState<'avatar' | 'frame' | 'cover'>('avatar');
   const [ownedFrames, setOwnedFrames] = useState<string[]>([]);
   // Profile covers won in the album (a completed club's).
   const albumCovers = useAlbum().album?.covers ?? [];
-  const [appearancePage, setAppearancePage] = useState(0);
+  const [appearancePages, setAppearancePages] = useState({ avatar: 0, frame: 0, cover: 0 });
   const [appearanceDraft, setAppearanceDraft] = useState<{ avatarKey: string; avatarBackgroundKey: string; avatarFrameKey: string | null; coverKey: string }>({ avatarKey: 'mark-evans', avatarBackgroundKey: DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, avatarFrameKey: null, coverKey: 'cover-01' });
   const [appearanceBusy, setAppearanceBusy] = useState(false);
   const [appearanceError, setAppearanceError] = useState('');
+  const [nameStylePage, setNameStylePage] = useState(0);
+  const nameStyleOptions = [null, ...NAME_STYLES] as const;
+  const frameItems = [null, ...AVATAR_FRAMES.map(frame => frame.key), ...ownedFrames.filter(key => clubOfRewardKey(key))];
+  const coverPresetItems = PROFILE_COVER_PRESETS.map(cover => ({
+    kind: 'preset' as const,
+    key: cover.key,
+    cover,
+    owned: cover.shopPrice === undefined || albumCovers.includes(cover.key) || account?.coverKey === cover.key || appearanceDraft.coverKey === cover.key,
+  }));
+  const albumCoverItems = albumCovers.flatMap(coverKey => {
+    const clubId = clubOfRewardKey(coverKey);
+    return clubId ? [{ kind: 'club' as const, key: coverKey, clubId }] : [];
+  });
+  const coverItems = [
+    ...coverPresetItems.filter(item => item.owned),
+    ...albumCoverItems,
+    ...coverPresetItems.filter(item => !item.owned),
+  ];
   const [nameEditorOpen, setNameEditorOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [nameStyleDraft, setNameStyleDraft] = useState<string | null>(null);
@@ -789,6 +810,8 @@ export default function AccountPage() {
     if (!account) return;
     setNameDraft(account.displayName);
     setNameStyleDraft(account.nameStyleKey ?? null);
+    const selectedStyleIndex = nameStyleOptions.findIndex(style => style?.key === (account.nameStyleKey ?? null));
+    setNameStylePage(Math.floor(Math.max(0, selectedStyleIndex) / APPEARANCE_ITEMS_PER_PAGE));
     setNameError('');
     setNameEditorOpen(true);
     void getEvents().then(result => setOwnedNameStyles(result.nameStyles ?? [])).catch(() => setOwnedNameStyles(account.nameStyleKey ? [account.nameStyleKey] : []));
@@ -817,11 +840,22 @@ export default function AccountPage() {
     if (!account) return;
     const avatarKey = normalizeProfileAvatarKey(account.avatarKey);
     const currentAvatarIndex = PROFILE_AVATARS.findIndex(avatar => avatar.key === avatarKey);
+    const currentFrameIndex = frameItems.indexOf(account.avatarFrameKey ?? null);
+    const currentCoverIndex = coverItems.findIndex(item => item.key === account.coverKey);
     setAppearanceDraft({ avatarKey, avatarBackgroundKey: normalizeProfileAvatarBackgroundKey(account.avatarBackgroundKey), avatarFrameKey: account.avatarFrameKey ?? null, coverKey: account.coverKey });
     // Frames come from events; the list is only needed while editing.
-    void getEvents().then(result => setOwnedFrames(result.frames)).catch(() => setOwnedFrames(account.avatarFrameKey ? [account.avatarFrameKey] : []));
+    void getEvents().then(result => {
+      setOwnedFrames(result.frames);
+      const loadedFrameItems = [null, ...AVATAR_FRAMES.map(frame => frame.key), ...result.frames.filter(key => clubOfRewardKey(key))];
+      const frameIndex = loadedFrameItems.indexOf(account.avatarFrameKey ?? null);
+      setAppearancePages(current => ({ ...current, frame: Math.floor(Math.max(0, frameIndex) / APPEARANCE_ITEMS_PER_PAGE) }));
+    }).catch(() => setOwnedFrames(account.avatarFrameKey ? [account.avatarFrameKey] : []));
     setAppearanceTab('avatar');
-    setAppearancePage(Math.max(0, Math.floor(currentAvatarIndex / AVATARS_PER_PAGE)));
+    setAppearancePages({
+      avatar: Math.floor(Math.max(0, currentAvatarIndex) / AVATARS_PER_PAGE),
+      frame: Math.floor(Math.max(0, currentFrameIndex) / APPEARANCE_ITEMS_PER_PAGE),
+      cover: Math.floor(Math.max(0, currentCoverIndex) / APPEARANCE_ITEMS_PER_PAGE),
+    });
     setAppearanceError('');
     setAppearanceOpen(true);
   };
@@ -888,7 +922,7 @@ export default function AccountPage() {
   };
 
   if (loading) {
-    return <AppShell><TopBar title="UCL IMMORTALS" /><PageContainer narrow className="space-y-4 py-8"><Skeleton className="h-40 w-full" /><Skeleton className="h-16 w-full" /><Skeleton className="h-64 w-full" /></PageContainer></AppShell>;
+    return <AppShell>{account ? null : <TopBar title="UCL IMMORTALS" />}<PageContainer narrow className="space-y-4 py-8"><Skeleton className="h-40 w-full" /><Skeleton className="h-16 w-full" /><Skeleton className="h-64 w-full" /></PageContainer></AppShell>;
   }
 
   if (!account) {
@@ -947,6 +981,7 @@ export default function AccountPage() {
     return <ReportPage
       key={selectedHistory.id}
       historyEntry={selectedHistory}
+    hideTopBar
       onHistoryBack={() => setSelectedHistory(null)}
     />;
   }
@@ -960,30 +995,22 @@ export default function AccountPage() {
 
   return (
     <AppShell>
-      {/* Leaving the account is rare, so it lives on the profile (top right), not on the home screen. */}
-      <TopBar
-        title="UCL IMMORTALS"
-        right={tab === 'profile' ? (
-          <Button
-            type="button"
-            intent="ghost"
-            loading={logoutBusy}
-            onClick={() => setLogoutConfirmOpen(true)}
-            aria-label="Sair da conta"
-            className="min-h-9 border border-[var(--ui-danger)]/40 px-3 text-xs text-[var(--ui-danger)] hover:bg-[var(--ui-danger)]/10"
-          >
-            {!logoutBusy ? <LogOut size={15} aria-hidden="true" /> : null} SAIR
-          </Button>
-        ) : undefined}
-      />
       <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
         {logoutError ? <StatusBanner tone="danger" title="Não foi possível sair">{logoutError}</StatusBanner> : null}
         {tab === 'profile' ? <Panel className="relative isolate overflow-hidden" style={coverStyle}>
           <ProfileCoverLayer coverKey={account.coverKey} coverUrl={account.coverUrl} />
           <div className="relative h-36 sm:h-44">
-            <Button type="button" intent="ghost" onClick={openAppearanceEditor} className="absolute right-4 top-4 z-10 min-h-9 border border-white/20 bg-black/60 px-3 text-xs text-white hover:bg-black/75">
-              <Pencil size={14} aria-hidden="true" /> EDITAR
+            <Button type="button" intent="ghost" onClick={openProfilePreview} aria-label="Visualizar perfil em tela cheia" title="Visualizar perfil em tela cheia" className="absolute left-2 top-2 z-10 size-10 min-h-10 w-10 justify-center border border-white/20 bg-black/60 p-0 text-white hover:bg-black/75">
+              <Maximize2 size={16} aria-hidden="true" />
             </Button>
+            <div className="absolute right-4 top-4 z-10 flex gap-2">
+              <Button type="button" intent="ghost" onClick={openAppearanceEditor} className="min-h-9 border border-white/20 bg-black/60 px-3 text-xs text-white hover:bg-black/75">
+                <Pencil size={14} aria-hidden="true" /> EDITAR
+              </Button>
+              <Button type="button" intent="ghost" loading={logoutBusy} onClick={() => setLogoutConfirmOpen(true)} aria-label="Sair da conta" className="min-h-9 border border-red-300/30 bg-black/60 px-3 text-xs text-red-200 hover:bg-red-950/70">
+                {!logoutBusy ? <LogOut size={14} aria-hidden="true" /> : null} SAIR
+              </Button>
+            </div>
           </div>
           <PanelBody className="relative -mt-12 px-5 pb-5 sm:px-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -994,6 +1021,11 @@ export default function AccountPage() {
               </div>
               <div className="flex items-center gap-3 pb-1 text-xs text-[var(--ui-text-faint)]"><span className="flex items-center gap-2"><Users size={14} /> {acceptedFriends.length} {acceptedFriends.length === 1 ? "amigo" : "amigos"}</span><span className="flex items-center gap-1.5" aria-label={`${account.likeCount ?? 0} curtidas no perfil`}><Heart size={14} aria-hidden="true" className="text-rose-300" /> {account.likeCount ?? 0} {(account.likeCount ?? 0) === 1 ? "curtida" : "curtidas"}</span></div>
             </div>
+            <div className="mt-3">
+              <Button type="button" intent="secondary" onClick={() => dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'history' })} className="w-full sm:w-auto">
+                ABRIR HISTÓRICO DE COMPETIÇÕES <ArrowRight size={15} aria-hidden="true" />
+              </Button>
+            </div>
           </PanelBody>
         </Panel> : null}
 
@@ -1001,7 +1033,7 @@ export default function AccountPage() {
         {notice ? <StatusBanner tone="success" title="Tudo certo">{notice}</StatusBanner> : null}
 
         <Tabs value={tab}>
-          <TabPanel value="profile" className="space-y-5 pt-5">
+          <TabPanel value="profile" className="space-y-5 pt-0">
             <ProfileCareerContent
               scorePosition={scorePosition}
               scorePositionLoading={scorePositionLoading}
@@ -1037,7 +1069,7 @@ export default function AccountPage() {
             />
           </TabPanel>
 
-          <TabPanel value="records" className="space-y-5 pt-5">
+          <TabPanel value="records" className="space-y-5 pt-0">
             <SectionHeader title="Rankings" actions={<div className="flex w-10 justify-end sm:w-36">{rankingTab === 'overall' ? <Button type="button" intent="ghost" aria-label="Como funciona o ranking geral" title="Como funciona o ranking geral" onClick={() => setPointsInfoOpen(true)} className="min-h-9 gap-2 px-2 text-xs"><Info size={16} aria-hidden="true" /><span className="hidden sm:inline">COMO FUNCIONA</span></Button> : <span aria-hidden="true" className="size-9 shrink-0" />}</div>} />
             <Tabs value={rankingTab} onValueChange={value => setRankingTab(value as RankingTab)}>
               <TabList aria-label="Seções do ranking" className="ui-tabs--equal">
@@ -1080,7 +1112,7 @@ export default function AccountPage() {
             </Tabs>
           </TabPanel>
 
-          <TabPanel value="history" className="space-y-5 pt-5">
+          <TabPanel value="history" className="space-y-5 pt-0">
             <SectionHeader title="Histórico de competições" actions={<span role="status" aria-label={`${historyTotal} ${historyTotal === 1 ? 'competição salva' : 'competições salvas'}`} aria-atomic="true" className={cn('font-display whitespace-nowrap text-[clamp(30px,5vw,46px)] font-normal leading-[0.98] tabular-nums', historyTotal > 0 ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text-muted)]')}>{historyTotal}</span>} />
             {historyLoading ? <div className="space-y-2" aria-label="Carregando histórico">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-[96px] w-full rounded-xl" />)}</div>
               : history.length === 0 ? <EmptyState title="Nenhuma competição salva" description="Suas competições concluídas aparecerão aqui." />
@@ -1096,7 +1128,7 @@ export default function AccountPage() {
                 </>}
           </TabPanel>
 
-          <TabPanel value="friends" className="space-y-5 pt-5">
+          <TabPanel value="friends" className="space-y-5 pt-0">
             <SectionHeader title="Amigos" />
             <div className="mx-auto w-full max-w-3xl space-y-5">
               <Panel density="compact"><PanelBody className="p-3 sm:p-4"><form className="flex flex-col gap-2 sm:flex-row" onSubmit={event => { event.preventDefault(); void addFriend(); }}><label className="relative min-w-0 flex-1"><span className="sr-only">Nome de usuário</span><Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-[var(--ui-text-faint)]" /><Input className="pl-9" value={friendUsername} placeholder="Buscar por nome de usuário" onChange={event => setFriendUsername(event.target.value)} /></label><Button type="submit" intent="primary" loading={busy} disabled={!friendUsername.trim()} className="sm:min-w-40"><UserPlus size={16} aria-hidden="true" /> ADICIONAR</Button></form></PanelBody></Panel>
@@ -1159,39 +1191,43 @@ export default function AccountPage() {
         subtitle="Esse é o nome que aparece no seu perfil, no ranking e para seus amigos."
         size="wide"
         closeLabel="Fechar edição do nome"
-        footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" intent="ghost" disabled={nameBusy} onClick={() => setNameEditorOpen(false)}>CANCELAR</Button><Button type="button" intent="primary" loading={nameBusy} onClick={() => void saveDisplayName()}><Check size={15} /> SALVAR NOME</Button></div>}
+        footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" intent="ghost" disabled={nameBusy} onClick={() => setNameEditorOpen(false)} className="w-full sm:w-auto">CANCELAR</Button><Button type="button" intent="primary" loading={nameBusy} onClick={() => void saveDisplayName()} className="w-full sm:w-auto"><Check size={15} /> SALVAR NOME</Button></div>}
       >
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           {nameError ? <StatusBanner tone="danger" title="Não foi possível salvar">{nameError}</StatusBanner> : null}
-          <label className="block space-y-2"><span className="ui-kicker">NOME DE EXIBIÇÃO</span><Input autoFocus value={nameDraft} maxLength={40} onChange={event => setNameDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void saveDisplayName(); }} /></label>
+          <label className="block min-w-0 space-y-2"><span className="ui-kicker">NOME DE EXIBIÇÃO</span><Input autoFocus value={nameDraft} maxLength={40} onChange={event => setNameDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void saveDisplayName(); }} /></label>
           {/* Live preview: big as on the profile, small as in the ranking. */}
-          <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-4 text-center">
-            <div className="font-ui text-4xl font-bold text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} /></div>
-            <div className="mt-2 text-sm font-bold text-[var(--ui-text)]"><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} size="sm" /></div>
+          <div className="w-full min-w-0 overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 text-center sm:p-4">
+            <div className="w-full min-w-0 overflow-hidden font-ui text-[clamp(1.5rem,8vw,2.25rem)] font-bold leading-tight text-[var(--ui-text)]">{nameStyleDraft ? <StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} className="w-full" /> : <span className="block w-full truncate">{nameDraft.trim() || 'Seu nome'}</span>}</div>
+            <div className="mt-2 w-full min-w-0 overflow-hidden text-sm font-bold text-[var(--ui-text)]">{nameStyleDraft ? <StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={nameStyleDraft} size="sm" className="w-full" /> : <span className="block w-full truncate">{nameDraft.trim() || 'Seu nome'}</span>}</div>
           </div>
           <div className="space-y-2">
             <span className="ui-kicker">ESTILO DO NOME</span>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <button type="button" aria-pressed={nameStyleDraft === null} onClick={() => setNameStyleDraft(null)} className={cn('flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border p-2 text-center transition-colors', nameStyleDraft === null ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] hover:border-[var(--ui-line-strong)]')}>
-                <span className="truncate font-ui text-xl font-bold text-[var(--ui-text)]">{nameDraft.trim() || 'Seu nome'}</span>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">Padrão</span>
-              </button>
-              {NAME_STYLES.map(style => {
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3">
+              {nameStyleOptions.slice(nameStylePage * APPEARANCE_ITEMS_PER_PAGE, (nameStylePage + 1) * APPEARANCE_ITEMS_PER_PAGE).map(style => {
+                if (style === null) return (
+                  <button key="default" type="button" aria-pressed={nameStyleDraft === null} onClick={() => setNameStyleDraft(null)} className={cn('flex min-h-20 min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border p-2 text-center transition-colors', nameStyleDraft === null ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] hover:border-[var(--ui-line-strong)]')}>
+                    <span className="block w-full truncate font-ui text-xl font-bold text-[var(--ui-text)]">{nameDraft.trim() || 'Seu nome'}</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">Padrão</span>
+                  </button>
+                );
                 const owned = ownedNameStyles.includes(style.key);
                 const selected = nameStyleDraft === style.key;
                 const source = GAME_EVENTS.find(event => event.rewardNameStyles?.includes(style.key));
+                const lockedLabel = style.shopPrice !== undefined ? 'Disponível na loja' : source?.name ? `Prêmio de ${source.name}` : 'Desbloqueie na loja';
                 return (
-                  <button key={style.key} type="button" disabled={!owned} aria-pressed={selected} title={owned ? style.name : `Prêmio do evento ${source?.name ?? ''}`} onClick={() => setNameStyleDraft(style.key)}
-                    className={cn('relative flex min-h-20 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border p-2 text-center transition-colors', selected ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]', owned ? 'hover:border-[var(--ui-line-strong)]' : 'cursor-not-allowed')}>
-                    <span className={cn('max-w-full font-display text-xl', !owned && 'opacity-35 grayscale')}><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={style.key} size="sm" /></span>
-                    <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">
+                  <button key={style.key} type="button" disabled={!owned} aria-pressed={selected} title={owned ? style.name : lockedLabel} onClick={() => setNameStyleDraft(style.key)}
+                    className={cn('relative flex min-h-20 min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border p-2 text-center transition-colors', selected ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]', owned ? 'hover:border-[var(--ui-line-strong)]' : 'cursor-not-allowed')}>
+                    <span className={cn('block w-full min-w-0 overflow-hidden font-display text-xl', !owned && 'opacity-35 grayscale')}><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={style.key} size="sm" className="w-full" /></span>
+                    <span className="flex max-w-full items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">
                       {owned ? (selected ? <Check size={11} aria-hidden="true" /> : null) : <Lock size={11} aria-hidden="true" />}{style.name}
                     </span>
-                    {!owned && source ? <span className="text-[10px] leading-tight text-[var(--ui-text-faint)]">{source.name}</span> : null}
+                    {!owned ? <span className="max-w-full text-[10px] leading-tight text-[var(--ui-text-faint)]">{lockedLabel}</span> : null}
                   </button>
                 );
               })}
             </div>
+            <GalleryPagination page={nameStylePage} pageCount={Math.ceil(nameStyleOptions.length / APPEARANCE_ITEMS_PER_PAGE)} label="Paginação dos estilos de nome" onPageChange={setNameStylePage} />
           </div>
         </div>
       </GameModal>
@@ -1199,7 +1235,6 @@ export default function AccountPage() {
         open={appearanceOpen}
         onOpenChange={open => { setAppearanceOpen(open); if (!open) setAppearanceError(''); }}
         title="PERSONALIZAR PERFIL"
-        subtitle="Personalize sua foto e sua capa."
         size="wide"
         closeLabel="Fechar personalização"
         footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" intent="ghost" disabled={appearanceBusy} onClick={() => setAppearanceOpen(false)}>CANCELAR</Button><Button type="button" intent="primary" loading={appearanceBusy} onClick={() => void saveAppearance()}><Check size={15} /> SALVAR ALTERAÇÕES</Button></div>}
@@ -1213,9 +1248,9 @@ export default function AccountPage() {
               <Tab value="cover" className="inline-flex items-center justify-center gap-2"><ImageIcon size={15} aria-hidden="true" /> CAPA</Tab>
             </TabList>
             <TabPanel value="frame" className="pt-4">
-              {/* Frames are earned in events; locked ones say which event grants them. */}
+              {/* Event and shop frames can be equipped after they have been unlocked or bought. */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {[null, ...AVATAR_FRAMES.map(frame => frame.key), ...ownedFrames.filter(key => clubOfRewardKey(key))].map(frameKey => {
+                {frameItems.slice(appearancePages.frame * APPEARANCE_ITEMS_PER_PAGE, (appearancePages.frame + 1) * APPEARANCE_ITEMS_PER_PAGE).map(frameKey => {
                   const frame = AVATAR_FRAMES.find(item => item.key === frameKey);
                   const owned = frameKey === null || ownedFrames.includes(frameKey);
                   const selected = appearanceDraft.avatarFrameKey === frameKey;
@@ -1239,11 +1274,12 @@ export default function AccountPage() {
                       {frameKey ? <FrameImage frameKey={frameKey} className="absolute inset-0 size-full" /> : null}
                     </span>
                     <span className="text-xs font-bold text-[var(--ui-text)]">{label}</span>
-                    {!owned ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Complete o evento {event?.name ?? ''}</span> : frameClub ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Página completa no álbum</span> : null}
+                    {!owned ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">{frame?.shopPrice !== undefined ? 'Disponível na loja' : `Complete o evento ${event?.name ?? ''}`}</span> : frameClub ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Página completa no álbum</span> : null}
                     {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
                   </Button>;
                 })}
               </div>
+              <GalleryPagination page={appearancePages.frame} pageCount={Math.ceil(frameItems.length / APPEARANCE_ITEMS_PER_PAGE)} label="Paginação das molduras" onPageChange={page => setAppearancePages(current => ({ ...current, frame: page }))} />
             </TabPanel>
             <TabPanel value="avatar" className="space-y-4 pt-4">
               <fieldset className="min-w-0 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
@@ -1266,7 +1302,7 @@ export default function AccountPage() {
                   </div>
               </fieldset>
               <div className="grid grid-cols-4 gap-3 p-3 sm:gap-4">
-                {PROFILE_AVATARS.slice(appearancePage * AVATARS_PER_PAGE, (appearancePage + 1) * AVATARS_PER_PAGE).map(avatar => {
+                {PROFILE_AVATARS.slice(appearancePages.avatar * AVATARS_PER_PAGE, (appearancePages.avatar + 1) * AVATARS_PER_PAGE).map(avatar => {
                   const selected = appearanceDraft.avatarKey === avatar.key;
                   return <Button
                     type="button"
@@ -1283,45 +1319,33 @@ export default function AccountPage() {
                   </Button>;
                 })}
               </div>
-              <GalleryPagination page={appearancePage} pageCount={Math.ceil(PROFILE_AVATARS.length / AVATARS_PER_PAGE)} label="Paginação das fotos de perfil" onPageChange={setAppearancePage} />
+              <GalleryPagination page={appearancePages.avatar} pageCount={Math.ceil(PROFILE_AVATARS.length / AVATARS_PER_PAGE)} label="Paginação das fotos de perfil" onPageChange={page => setAppearancePages(current => ({ ...current, avatar: page }))} />
             </TabPanel>
             <TabPanel value="cover" className="pt-4">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {PROFILE_COVER_PRESETS.map(cover => {
-                  const selected = appearanceDraft.coverKey === cover.key;
+                {coverItems.slice(appearancePages.cover * APPEARANCE_ITEMS_PER_PAGE, (appearancePages.cover + 1) * APPEARANCE_ITEMS_PER_PAGE).map(item => {
+                  const cover = item.kind === 'preset' ? item.cover : null;
+                  const owned = item.kind === 'club' || item.owned;
+                  const selected = appearanceDraft.coverKey === item.key;
+                  const name = cover?.name ?? (item.kind === 'club' ? getCrest(item.clubId)?.name : null) ?? 'Clube';
                   return <Button
                     type="button"
-                    key={cover.key}
+                    key={item.key}
                     intent="ghost"
-                    aria-label={`Selecionar fundo: ${cover.name}`}
+                    disabled={!owned}
+                    aria-label={owned ? `Selecionar fundo: ${name}` : `${name}: bloqueado, disponível na loja por ${cover?.shopPrice} moedas`}
                     aria-pressed={selected}
-                    onClick={() => setAppearanceDraft(draft => ({ ...draft, coverKey: cover.key }))}
-                    className={cn('relative aspect-[3/2] h-auto min-h-0 w-full overflow-hidden rounded-xl border p-0', selected ? 'border-[var(--ui-brand)] ring-2 ring-[var(--ui-brand)]/40' : 'border-[var(--ui-line-subtle)]')}
+                    onClick={() => setAppearanceDraft(draft => ({ ...draft, coverKey: item.key }))}
+                    className={cn('relative aspect-[3/2] h-auto min-h-0 w-full overflow-hidden rounded-xl border p-0 disabled:opacity-100', selected ? 'border-[var(--ui-brand)] ring-2 ring-[var(--ui-brand)]/40' : 'border-[var(--ui-line-subtle)]')}
                   >
-                    <img src={cover.src} alt="" loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover" />
-                    {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
-                  </Button>;
-                })}
-                {albumCovers.map(coverKey => {
-                  const clubId = clubOfRewardKey(coverKey);
-                  if (!clubId) return null;
-                  const selected = appearanceDraft.coverKey === coverKey;
-                  const name = getCrest(clubId)?.name ?? 'Clube';
-                  return <Button
-                    type="button"
-                    key={coverKey}
-                    intent="ghost"
-                    aria-label={`Selecionar fundo: ${name}`}
-                    aria-pressed={selected}
-                    onClick={() => setAppearanceDraft(draft => ({ ...draft, coverKey }))}
-                    className={cn('relative aspect-[3/2] h-auto min-h-0 w-full overflow-hidden rounded-xl border p-0', selected ? 'border-[var(--ui-brand)] ring-2 ring-[var(--ui-brand)]/40' : 'border-[var(--ui-line-subtle)]')}
-                  >
-                    <ClubCover clubId={clubId} className="absolute inset-0" />
-                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-4 text-left text-[11px] font-bold text-white">{name}</span>
+                    {cover ? <img src={cover.src} alt="" loading="lazy" decoding="async" className={cn('absolute inset-0 size-full object-cover', !owned && 'grayscale opacity-40')} /> : item.kind === 'club' ? <ClubCover clubId={item.clubId} className="absolute inset-0" /> : null}
+                    {item.kind === 'club' ? <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-4 text-left text-[11px] font-bold text-white">{name}</span> : null}
+                    {!owned ? <span className="absolute inset-0 grid place-items-center bg-black/40"><span className="flex items-center gap-1 rounded-full border border-white/25 bg-black/70 px-2.5 py-1 text-[10px] font-bold text-white"><Lock size={11} aria-hidden="true" /> Disponível na loja</span></span> : null}
                     {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
                   </Button>;
                 })}
               </div>
+              <GalleryPagination page={appearancePages.cover} pageCount={Math.ceil(coverItems.length / APPEARANCE_ITEMS_PER_PAGE)} label="Paginação das capas" onPageChange={page => setAppearancePages(current => ({ ...current, cover: page }))} />
             </TabPanel>
           </Tabs>
         </div>
@@ -1369,12 +1393,36 @@ export default function AccountPage() {
           : friendProfileError ? <StatusBanner tone="danger" title="Não foi possível abrir o perfil">{friendProfileError}</StatusBanner>
             : friendProfileData ? <FriendProfileView data={friendProfileData} /> : null}
       </GameModal>
+      <GameModal
+        open={profilePreviewOpen}
+        onOpenChange={changeProfilePreview}
+        fullscreen
+        title={<span className="sr-only">Perfil em tela cheia</span>}
+        closeLabel="Fechar visualização do perfil"
+        bodyClassName="!p-0"
+      >
+        <div className="relative flex size-full min-h-full items-center justify-center overflow-hidden bg-black">
+          <div className="profile-preview-stage relative isolate flex items-center justify-center overflow-hidden" style={profileCoverStyle(account.coverKey, account.coverUrl)}>
+            <ProfileCoverLayer coverKey={account.coverKey} coverUrl={account.coverUrl} />
+            <div className="relative z-10 flex size-full flex-col items-center justify-center gap-4 px-5 py-4 text-center sm:gap-10 sm:px-8 sm:py-24">
+              {profileAvatar(account.avatarUrl, account.avatarKey, account.displayName, account.avatarBackgroundKey, account.avatarFrameKey, 'size-28 sm:size-56')}
+              <h1 className="max-w-[90vw] font-ui text-3xl font-bold text-white drop-shadow-[0_3px_16px_rgba(0,0,0,.85)] sm:text-6xl">
+                <StyledName name={account.displayName} styleKey={account.nameStyleKey} className="text-3xl sm:text-6xl" />
+              </h1>
+            </div>
+          </div>
+        </div>
+      </GameModal>
       <AccountTabBar
         active={tab}
         incomingFriendRequestCount={pendingIncoming.length}
         onNavigate={destination => {
           if (destination === 'home') {
             dispatch({ type: 'SET_PHASE', phase: 'menu' });
+            return;
+          }
+          if (destination === 'store') {
+            dispatch({ type: 'SET_PHASE', phase: 'store' });
             return;
           }
           dispatch({ type: 'SET_ACCOUNT_SECTION', section: destination });

@@ -17,6 +17,7 @@ import {
   type ShowcaseItem,
 } from '../shared/game/achievements.js';
 import { RANKED_DIFFICULTY_IDS } from '../shared/game/competitionRanking.js';
+import { ALL_UNIQUE_CARDS, PLAYERS } from '../shared/game/gameData.js';
 
 export interface AchievementState {
   id: string;
@@ -72,6 +73,11 @@ function starterIds(value: unknown): string[] {
   }
 }
 
+const normalizeNation = (nation: string) => nation.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+const BRAZILIAN_CARD_IDS = new Set([...PLAYERS, ...ALL_UNIQUE_CARDS]
+  .filter(card => ['brasil', 'brazil'].includes(normalizeNation(card.nation)))
+  .map(card => card.id));
+
 const toNumber = (value: unknown): number => {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -100,28 +106,32 @@ export async function loadCareer(db: D1Database, userId: string): Promise<Career
     WHERE h.user_id = ?
     GROUP BY h.id
     ORDER BY h.completed_at ASC, h.id ASC`).bind(userId).all<CareerRow>();
-  return rows.results.map(row => ({
-    difficultyId: String(row.difficulty_id),
-    mode: row.mode === 'online' ? 'online' : 'solo',
-    finishStage: careerFinishStage(row.finish_stage),
-    champion: Number(row.champion) === 1,
-    wins: toNumber(row.wins),
-    draws: toNumber(row.draws),
-    losses: toNumber(row.losses),
-    games: toNumber(row.games),
-    goals: toNumber(row.goals),
-    goalsAgainst: toNumber(row.goals_against),
-    humanPlayers: row.human_players == null ? null : toNumber(row.human_players),
-    coachId: row.coach_id ?? null,
-    crestId: row.crest_id ?? null,
-    completedAt: toNumber(row.completed_at),
-    rankingPoints: toNumber(row.competition_points),
-    topPlayerGoals: toNumber(row.top_goals),
-    topPlayerAssists: toNumber(row.top_assists),
-    topKeeperSaves: toNumber(row.top_saves),
-    topPlayerOverall: toNumber(row.top_overall),
-    finalStarterIds: starterIds(row.final_starters),
-  }));
+  return rows.results.map(row => {
+    const finalStarterIds = starterIds(row.final_starters);
+    return {
+      difficultyId: String(row.difficulty_id),
+      mode: row.mode === 'online' ? 'online' : 'solo',
+      finishStage: careerFinishStage(row.finish_stage),
+      champion: Number(row.champion) === 1,
+      wins: toNumber(row.wins),
+      draws: toNumber(row.draws),
+      losses: toNumber(row.losses),
+      games: toNumber(row.games),
+      goals: toNumber(row.goals),
+      goalsAgainst: toNumber(row.goals_against),
+      humanPlayers: row.human_players == null ? null : toNumber(row.human_players),
+      coachId: row.coach_id ?? null,
+      crestId: row.crest_id ?? null,
+      completedAt: toNumber(row.completed_at),
+      rankingPoints: toNumber(row.competition_points),
+      topPlayerGoals: toNumber(row.top_goals),
+      topPlayerAssists: toNumber(row.top_assists),
+      topKeeperSaves: toNumber(row.top_saves),
+      topPlayerOverall: toNumber(row.top_overall),
+      finalStarterIds,
+      finalBrazilianStarterCount: finalStarterIds.filter(id => BRAZILIAN_CARD_IDS.has(id)).length,
+    };
+  });
 }
 
 export async function loadAchievements(db: D1Database, userId: string): Promise<AchievementState[]> {

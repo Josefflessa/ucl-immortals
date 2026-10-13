@@ -5,7 +5,7 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useRef, 
 import { io } from 'socket.io-client';
 import { useAccount } from '../AccountContext';
 import { useAlbumLevels } from '../AlbumContext';
-import { clearSoloSave, loadSoloSave, writeSoloSave } from '../../lib/soloSave';
+import { clearPendingSoloSaveDeletion, clearSoloSave, hasPendingSoloSaveDeletion, loadSoloSave, SOLO_SAVE_VERSION, writeSoloSave, type SoloSave } from '../../lib/soloSave';
 import { Player, type PlayerSpecialization } from '@shared/game/gameData';
 import { Team, MatchResult, type MatchPlan, type VariantFlag } from '@shared/game/gameEngine';
 import { type AttrKey } from '@shared/game/traits';
@@ -58,6 +58,7 @@ export interface GameContextType {
   notifyMatchWatchedOnline: (type: 'league' | 'knockout', knockout?: { matchId: string; leg?: number }) => void;
   /** The solo campaign saved on this device for the current account (null = none). */
   savedSoloCampaign: SavedSoloCampaign | null;
+  soloCampaignSyncStatus: 'local' | 'syncing' | 'synced' | 'error';
   continueSoloCampaign: () => Promise<void>;
   discardSoloCampaign: () => Promise<void>;
   shopChangeCoachOnline: (coachId: string) => void;
@@ -783,20 +784,99 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   // Auto reconnect to room if details exist in localStorage on mount.
   // Guard against double-joining: only reconnect when no socket is active yet.
   // ── Solo campaign autosave ────────────────────────────────────────────────
-  const { account, loading: accountLoading } = useAccount();
+  const { account, loading: accountLoading, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign } = useAccount();
   const accountId = account?.id ?? null;
+  const currentAccountIdRef = useRef(accountId);
+  currentAccountIdRef.current = accountId;
   const [savedSoloCampaign, setSavedSoloCampaign] = useState<SavedSoloCampaign | null>(null);
+  const [soloCampaignSyncStatus, setSoloCampaignSyncStatus] = useState<'local' | 'syncing' | 'synced' | 'error'>('local');
   const discardedSaveRef = useRef(false);
+  const readyCloudAccountRef = useRef<string | null>(null);
+  const latestSoloSavedAtRef = useRef(0);
+  const cloudRequestQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const cloudSyncInFlightRef = useRef(new Map<string, Promise<void>>());
+
+  const enqueueCloudRequest = useCallback(<Result,>(owner: string, operation: () => Promise<Result>) => {
+    const request = cloudRequestQueueRef.current.catch(() => undefined).then(() => {
+      if (currentAccountIdRef.current !== owner) throw new Error('account_changed');
+      return operation();
+    });
+    cloudRequestQueueRef.current = request.then(() => undefined, () => undefined);
+    return request;
+  }, []);
+
+  const uploadSoloCampaign = useCallback(async (owner: string, save: SoloSave<GameState>) => {
+    setSoloCampaignSyncStatus('syncing');
+    try {
+      const stored = await enqueueCloudRequest(owner, () => saveSoloCampaign(save));
+      if (latestSoloSavedAtRef.current <= save.savedAt) latestSoloSavedAtRef.current = stored.savedAt;
+      else latestSoloSavedAtRef.current = Math.max(latestSoloSavedAtRef.current, stored.savedAt);
+      readyCloudAccountRef.current = owner;
+      if (currentAccountIdRef.current === owner && latestSoloSavedAtRef.current === stored.savedAt) setSoloCampaignSyncStatus('synced');
+    } catch (error) {
+      readyCloudAccountRef.current = null;
+      if (currentAccountIdRef.current === owner) setSoloCampaignSyncStatus('error');
+      throw error;
+    }
+  }, [enqueueCloudRequest, saveSoloCampaign]);
+
+  const reconcileSoloCampaign = useCallback((owner: string): Promise<void> => {
+    const ongoing = cloudSyncInFlightRef.current.get(owner);
+    if (ongoing) return ongoing;
+    const sync = Promise.resolve().then(async () => {
+      if (currentAccountIdRef.current === owner) setSoloCampaignSyncStatus('syncing');
+      const pendingDelete = await hasPendingSoloSaveDeletion(owner);
+      if (pendingDelete) {
+        await enqueueCloudRequest(owner, deleteSoloCampaign);
+        await clearPendingSoloSaveDeletion(owner);
+      }
+      const remote = await enqueueCloudRequest(owner, getSoloCampaign);
+      if (remote && remote.accountId !== owner) throw new Error('solo_campaign_owner_mismatch');
+      let local = await loadSoloSave<GameState>(owner);
+      if (remote && remote.version === SOLO_SAVE_VERSION && (!local || remote.savedAt > local.savedAt)) {
+        const restored = remote as SoloSave<GameState>;
+        await writeSoloSave(restored.state, owner, restored.savedAt);
+        local = restored;
+      } else if (local) {
+        await uploadSoloCampaign(owner, local);
+      }
+      if (local) latestSoloSavedAtRef.current = Math.max(latestSoloSavedAtRef.current, local.savedAt);
+      readyCloudAccountRef.current = owner;
+      if (currentAccountIdRef.current === owner) {
+        setSavedSoloCampaign(local ? savedCampaignSummary(local.state, local.savedAt) : null);
+        setSoloCampaignSyncStatus('synced');
+      }
+    }).catch(error => {
+      if (currentAccountIdRef.current === owner) {
+        void loadSoloSave<GameState>(owner).then(save => {
+          if (currentAccountIdRef.current === owner) setSavedSoloCampaign(save ? savedCampaignSummary(save.state, save.savedAt) : null);
+        });
+        setSoloCampaignSyncStatus('error');
+      }
+      throw error;
+    }).finally(() => {
+      cloudSyncInFlightRef.current.delete(owner);
+    });
+    cloudSyncInFlightRef.current.set(owner, sync);
+    return sync;
+  }, [deleteSoloCampaign, enqueueCloudRequest, getSoloCampaign, uploadSoloCampaign]);
 
   useEffect(() => {
     if (accountLoading) return;
     let cancelled = false;
-    loadSoloSave<GameState>(accountId).then(save => {
-      if (cancelled) return;
-      setSavedSoloCampaign(save ? savedCampaignSummary(save.state, save.savedAt) : null);
-    });
+    readyCloudAccountRef.current = null;
+    latestSoloSavedAtRef.current = 0;
+    if (!accountId) {
+      setSoloCampaignSyncStatus('local');
+      void loadSoloSave<GameState>(null).then(save => {
+        if (!cancelled) setSavedSoloCampaign(save ? savedCampaignSummary(save.state, save.savedAt) : null);
+      });
+      return () => { cancelled = true; };
+    }
+    setSoloCampaignSyncStatus('syncing');
+    void reconcileSoloCampaign(accountId).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [accountId, accountLoading]);
+  }, [accountId, accountLoading, reconcileSoloCampaign]);
 
   useEffect(() => {
     if (accountLoading || state.mode !== 'solo' || !SOLO_CAMPAIGN_PHASES.has(state.phase)) return;
@@ -804,12 +884,37 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     // Debounced: a burst of actions (draft picks, shop clicks) becomes one write.
     const timer = window.setTimeout(() => {
       if (discardedSaveRef.current) return;
-      const savedAt = Date.now();
-      void writeSoloSave(state, accountId);
-      setSavedSoloCampaign(savedCampaignSummary(state, savedAt));
+      void (async () => {
+        const savedAt = Math.max(Date.now(), latestSoloSavedAtRef.current + 1);
+        latestSoloSavedAtRef.current = savedAt;
+        const save: SoloSave<GameState> = { version: SOLO_SAVE_VERSION, savedAt, accountId, state };
+        await writeSoloSave(state, accountId, savedAt);
+        setSavedSoloCampaign(savedCampaignSummary(state, savedAt));
+        if (accountId) {
+          if (readyCloudAccountRef.current === accountId) {
+            void uploadSoloCampaign(accountId, save).catch(() => undefined);
+          } else {
+            void reconcileSoloCampaign(accountId).then(async () => {
+              if (currentAccountIdRef.current === accountId && readyCloudAccountRef.current === accountId) {
+                const newestSave = save.savedAt < latestSoloSavedAtRef.current
+                  ? { ...save, savedAt: Math.max(Date.now(), latestSoloSavedAtRef.current + 1) }
+                  : save;
+                if (newestSave !== save) {
+                  latestSoloSavedAtRef.current = newestSave.savedAt;
+                  await writeSoloSave(newestSave.state, accountId, newestSave.savedAt);
+                  setSavedSoloCampaign(savedCampaignSummary(newestSave.state, newestSave.savedAt));
+                }
+                await uploadSoloCampaign(accountId, newestSave);
+              }
+            }).catch(() => undefined);
+          }
+        } else {
+          setSoloCampaignSyncStatus('local');
+        }
+      })();
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [state, accountId, accountLoading]);
+  }, [state, accountId, accountLoading, reconcileSoloCampaign, uploadSoloCampaign]);
 
   const continueSoloCampaign = useCallback(async () => {
     const save = await loadSoloSave<GameState>(accountId);
@@ -821,7 +926,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     discardedSaveRef.current = true;
     setSavedSoloCampaign(null);
     await clearSoloSave(accountId);
-  }, [accountId]);
+    latestSoloSavedAtRef.current = 0;
+    if (accountId) {
+      readyCloudAccountRef.current = null;
+      setSoloCampaignSyncStatus('syncing');
+      try {
+        await enqueueCloudRequest(accountId, deleteSoloCampaign);
+        await clearPendingSoloSaveDeletion(accountId);
+        readyCloudAccountRef.current = accountId;
+        if (currentAccountIdRef.current === accountId) setSoloCampaignSyncStatus('synced');
+      } catch {
+        if (currentAccountIdRef.current === accountId) setSoloCampaignSyncStatus('error');
+      }
+    } else {
+      setSoloCampaignSyncStatus('local');
+    }
+  }, [accountId, deleteSoloCampaign, enqueueCloudRequest]);
 
   useEffect(() => {
     if (socketRef.current) return;
@@ -842,9 +962,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     shopChangeCoachOnline, upgradeClubProjectOnline, evolveCoachPrimeOnline, shopOpenUniquePackOnline, shopClaimUniquePackOnline, ensurePlayerPackOffersOnline, shopOpenPlayerPackOnline, shopClaimPlayerPackOnline, shopOpenPackOnline, shopPickPackOnline, shopTurbinarOnline, shopRemoveVariantOnline, shopPlaceBetOnline, shopCancelBetOnline, healInjuryOnline, emergencyReplaceOnline, marketSellOnline, marketListOnline, marketCancelOnline, marketBuyOnline, tradeInviteOnline, tradeLeaveOnline, tradeAcceptInviteOnline, tradeSelectOnline, tradeReadyOnline, playerReadyOnline, playerUnreadyOnline, shopTrainOnline,
     swapPlayerTeamOnline, martirTargetsOnline, padrinhoTargetOnline, setEvolvePointOnline, setAutoEvolveAttributeOnline, unlockSpecializationOnline, chooseSpecializationOnline, resetEvolvePointsOnline, rerollReinforcementOnline,
     pickReinforcementOnline, dismissReinforcementOnline, requestMatchResultOnline, acceptMissionOnline, rerollMissionsOnline, removeMissionOnline, dismissMissionResolutionOnline,
-    savedSoloCampaign, continueSoloCampaign, discardSoloCampaign,
+    savedSoloCampaign, soloCampaignSyncStatus, continueSoloCampaign, discardSoloCampaign,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [state, dispatch, savedSoloCampaign, continueSoloCampaign, discardSoloCampaign]);
+  }), [state, dispatch, savedSoloCampaign, soloCampaignSyncStatus, continueSoloCampaign, discardSoloCampaign]);
 
   return (
     <GameContext.Provider value={contextValue}>

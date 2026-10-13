@@ -13,7 +13,8 @@ import {
   type EventObjectiveProgress,
   type GameEventStatus,
 } from '../shared/game/events.js';
-import { EVENT_UNIQUE_CARDS } from '../shared/game/gameData.js';
+import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS } from '../shared/game/gameData.js';
+import { NATIONAL_TEAM_CRESTS } from '../shared/game/crests.js';
 import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { loadCareer } from './achievements.js';
 
@@ -24,6 +25,11 @@ export interface FrameUnlock {
 
 export interface EventCardUnlock {
   cardId: string;
+  eventId: string;
+}
+
+export interface EventCrestUnlock {
+  crestId: string;
   eventId: string;
 }
 
@@ -56,19 +62,29 @@ export interface GameEventState {
   /** Regular events that give an event Única (null = not that kind of event). */
   rewardCardId: string | null;
   cardUnlocked: boolean;
+  /** National-team crest rewarded by a regular event (null = not that kind of event). */
+  rewardCrestId: string | null;
+  crestUnlocked: boolean;
 }
 
-const EVENT_CARD_IDS = new Set(EVENT_UNIQUE_CARDS.map(card => card.id));
+const ACCOUNT_EXCLUSIVE_CARD_IDS = new Set([...EVENT_UNIQUE_CARDS, ...STORE_UNIQUE_CARDS].map(card => card.id));
 
 export async function loadOwnedFrames(db: D1Database, userId: string): Promise<string[]> {
   const rows = await db.prepare('SELECT frame_key FROM user_frames WHERE user_id = ? ORDER BY unlocked_at').bind(userId).all<{ frame_key: string }>();
   return rows.results.map(row => row.frame_key).filter(isAvatarFrameKey);
 }
 
-/** Event Únicas this account unlocked: they join its Pacote Único pool. */
+/** Exclusive cards this account owns: event Únicas and weekly-store cards. */
 export async function loadOwnedEventCards(db: D1Database, userId: string): Promise<string[]> {
   const rows = await db.prepare('SELECT card_id FROM user_event_cards WHERE user_id = ? ORDER BY unlocked_at').bind(userId).all<{ card_id: string }>();
-  return rows.results.map(row => row.card_id).filter(id => EVENT_CARD_IDS.has(id));
+  return rows.results.map(row => row.card_id).filter(id => ACCOUNT_EXCLUSIVE_CARD_IDS.has(id));
+}
+
+/** National-team crests the account permanently unlocked through events. */
+export async function loadOwnedEventCrests(db: D1Database, userId: string): Promise<string[]> {
+  const nationalIds = new Set(NATIONAL_TEAM_CRESTS.map(crest => crest.id));
+  const rows = await db.prepare('SELECT crest_id FROM user_event_crests WHERE user_id = ? ORDER BY unlocked_at').bind(userId).all<{ crest_id: string }>();
+  return rows.results.map(row => row.crest_id).filter(id => nationalIds.has(id));
 }
 
 /** Name styles this account unlocked. */
@@ -115,18 +131,21 @@ export async function chooseEventOption(db: D1Database, userId: string, eventId:
  * all done. Only competitions inside each window count, so checking after the
  * end still rewards what was achieved in time. Returns what was unlocked now.
  */
-export async function syncEventRewards(db: D1Database, userId: string, now = Date.now()): Promise<{ states: GameEventState[]; unlocked: FrameUnlock[]; cardsUnlocked: EventCardUnlock[] }> {
+export async function syncEventRewards(db: D1Database, userId: string, now = Date.now()): Promise<{ states: GameEventState[]; unlocked: FrameUnlock[]; cardsUnlocked: EventCardUnlock[]; crests: string[]; crestsUnlocked: EventCrestUnlock[] }> {
   const started = GAME_EVENTS.filter(event => event.startsAt <= now);
-  const [ownedFrameList, ownedCardList, choices] = await Promise.all([
+  const [ownedFrameList, ownedCardList, ownedCrestList, choices] = await Promise.all([
     loadOwnedFrames(db, userId),
     loadOwnedEventCards(db, userId),
+    loadOwnedEventCrests(db, userId),
     loadChoices(db, userId),
   ]);
   const ownedFrames = new Set(ownedFrameList);
   const ownedCards = new Set(ownedCardList);
+  const ownedCrests = new Set(ownedCrestList);
   const career = started.length > 0 ? await loadCareer(db, userId) : [];
   const unlocked: FrameUnlock[] = [];
   const cardsUnlocked: EventCardUnlock[] = [];
+  const crestsUnlocked: EventCrestUnlock[] = [];
   const states: GameEventState[] = GAME_EVENTS.map(event => {
     const status = gameEventStatus(event, now);
     const chosenKey = event.choices || event.rewardNameStyles ? choices.get(event.id) ?? null : null;
@@ -144,6 +163,10 @@ export async function syncEventRewards(db: D1Database, userId: string, now = Dat
       cardsUnlocked.push({ cardId: rewardCard, eventId: event.id });
       ownedCards.add(rewardCard);
     }
+    if (evaluation.completed && event.rewardCrestId && !ownedCrests.has(event.rewardCrestId)) {
+      crestsUnlocked.push({ crestId: event.rewardCrestId, eventId: event.id });
+      ownedCrests.add(event.rewardCrestId);
+    }
     return {
       id: event.id,
       name: event.name,
@@ -159,6 +182,8 @@ export async function syncEventRewards(db: D1Database, userId: string, now = Dat
       frameUnlocked: !!event.frameKey && ownedFrames.has(event.frameKey),
       rewardCardId: event.rewardCardId ?? null,
       cardUnlocked: !!rewardCard && ownedCards.has(rewardCard),
+      rewardCrestId: event.rewardCrestId ?? null,
+      crestUnlocked: !!event.rewardCrestId && ownedCrests.has(event.rewardCrestId),
     };
   });
   const writes = [
@@ -168,7 +193,12 @@ export async function syncEventRewards(db: D1Database, userId: string, now = Dat
     ...cardsUnlocked.map(unlock => db.prepare(
       'INSERT OR IGNORE INTO user_event_cards (user_id, card_id, event_id, unlocked_at) VALUES (?, ?, ?, ?)',
     ).bind(userId, unlock.cardId, unlock.eventId, now)),
+    ...crestsUnlocked.map(unlock => db.prepare(
+      'INSERT OR IGNORE INTO user_event_crests (user_id, crest_id, event_id, unlocked_at) VALUES (?, ?, ?, ?)',
+    ).bind(userId, unlock.crestId, unlock.eventId, now)),
+    ...cardsUnlocked.map(unlock => db.prepare(`INSERT INTO user_stickers (user_id, card_id, copies, spare, first_at, updated_at)
+      VALUES (?, ?, 1, 0, ?, ?) ON CONFLICT(user_id, card_id) DO NOTHING`).bind(userId, unlock.cardId, now, now)),
   ];
   if (writes.length > 0) await db.batch(writes);
-  return { states, unlocked, cardsUnlocked };
+  return { states, unlocked, cardsUnlocked, crests: Array.from(ownedCrests), crestsUnlocked };
 }

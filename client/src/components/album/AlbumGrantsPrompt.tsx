@@ -1,5 +1,4 @@
-// The packs the album just granted for a finished campaign: open them now or keep
-// them in the inventory. Shown when returning to the home menu.
+// The rewards the album just granted for a finished campaign. Shown when returning to the home menu.
 import { useEffect, useRef, useState } from 'react';
 import { Package } from 'lucide-react';
 import type { AlbumItemKey } from '@shared/game/album';
@@ -7,14 +6,16 @@ import { Button, GameModal } from '../../design-system';
 import { useAlbum, type ItemGrant } from '../../contexts/AlbumContext';
 import { useGame } from '../../contexts/GameContext';
 import { groupKeys, itemColor, itemLabel } from './albumData';
-import { ItemArt } from './AlbumPieces';
+import { CoinAmount, ItemArt } from './AlbumPieces';
 import AlbumPackOpening from './AlbumPackOpening';
 
 function headline(grants: readonly ItemGrant[]): { title: string; text: string } {
   const titles = grants.filter(grant => grant.source === 'campaign' && grant.key.startsWith('pack:')).length;
   return {
-    title: titles > 0 ? 'Campeão! Pacotes para o álbum' : 'Cartas da campanha',
-    text: titles > 0 ? 'O título rendeu pacotes da dificuldade em que você jogou:' : 'Toda campanha concluída rende um envelope de cartas:',
+    title: titles > 0 ? 'Campeão! Recompensas para o álbum' : 'Cartas da campanha',
+    text: titles > 0
+      ? 'Você recebeu um envelope da dificuldade disputada e pacotes pelo título:'
+      : 'Toda campanha concluída rende um envelope da dificuldade disputada:',
   };
 }
 
@@ -46,6 +47,7 @@ export default function AlbumGrantsPrompt() {
   if (!album || pendingGrants.length === 0 || state.phase !== 'menu') return null;
 
   const { title, text } = headline(pendingGrants);
+  const coinsAwarded = pendingGrants.reduce((sum, grant) => sum + (grant.coinsAwarded ?? 0), 0);
   // Only what is still in the inventory can be opened (another tab may have opened it already).
   const left = { ...album.inventory };
   const keys = pendingGrants.map(grant => grant.key).filter(key => {
@@ -71,6 +73,12 @@ export default function AlbumGrantsPrompt() {
       )}
     >
       <p className="text-sm text-[var(--ui-text-muted)]">{text}</p>
+      {coinsAwarded > 0 ? (
+        <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-3 text-sm font-semibold text-[var(--ui-text)]">
+          <CoinAmount value={coinsAwarded} className="text-[var(--ui-brand-strong)]" />
+          <span>adicionadas à sua carteira</span>
+        </div>
+      ) : null}
       <div className="mt-5 flex flex-wrap items-end justify-center gap-5">
         {grouped.map(([key, count]) => (
           <div key={key} className="flex flex-col items-center gap-2">

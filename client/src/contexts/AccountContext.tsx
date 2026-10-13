@@ -4,6 +4,7 @@ import type { CompetitionFinishStage, RankedDifficultyId } from '@shared/game/co
 import type { AchievementLevel, ShowcaseItem } from '@shared/game/achievements';
 import type { ItemGrant } from './AlbumContext';
 import type { AlbumSummary } from '../components/album/ProfileAlbumSummary';
+import type { SoloSave } from '../lib/soloSave';
 
 export interface AchievementState {
   id: string;
@@ -66,10 +67,18 @@ export interface GameEventState {
   /** Regular events that give an event Única. */
   rewardCardId: string | null;
   cardUnlocked: boolean;
+  /** National-team crest rewarded by a regular event. */
+  rewardCrestId: string | null;
+  crestUnlocked: boolean;
 }
 
 export interface EventCardUnlock {
   cardId: string;
+  eventId: string;
+}
+
+export interface EventCrestUnlock {
+  crestId: string;
   eventId: string;
 }
 
@@ -81,9 +90,12 @@ export interface EventsPayload {
   eventCards: string[];
   /** Name styles the account unlocked. */
   nameStyles: string[];
+  /** National-team crests the account unlocked through events. */
+  crests: string[];
   equippedFrame: string | null;
   unlocked: FrameUnlock[];
   cardsUnlocked: EventCardUnlock[];
+  crestsUnlocked: EventCrestUnlock[];
 }
 
 export interface AchievementsPayload {
@@ -308,6 +320,9 @@ interface AccountContextValue {
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'nameStyleKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
   getHistory: (page?: number) => Promise<CompetitionHistoryPage>;
+  getSoloCampaign: () => Promise<SoloSave<unknown> | null>;
+  saveSoloCampaign: (save: SoloSave<unknown>) => Promise<SoloSave<unknown>>;
+  deleteSoloCampaign: () => Promise<void>;
   saveHistory: (payload: {
     mode: 'solo' | 'online';
     difficultyId: string;
@@ -496,6 +511,23 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   }, [accountId, readCacheFor]);
 
+  const getSoloCampaign = useCallback(async () => {
+    const result = await api<{ campaign: SoloSave<unknown> | null }>('/api/account/solo-campaign');
+    return result.campaign;
+  }, []);
+
+  const saveSoloCampaign = useCallback(async (save: SoloSave<unknown>) => {
+    const result = await api<{ campaign: SoloSave<unknown> }>('/api/account/solo-campaign', {
+      method: 'PUT',
+      body: JSON.stringify(save),
+    });
+    return result.campaign;
+  }, []);
+
+  const deleteSoloCampaign = useCallback(async () => {
+    await api('/api/account/solo-campaign', { method: 'DELETE' });
+  }, []);
+
   const saveHistory = useCallback(async (payload: Parameters<AccountContextValue['saveHistory']>[0]) => {
     let result: { id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[]; albumGrants?: ItemGrant[] } | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -530,7 +562,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setEventCards(payload.eventCards ?? []);
     return payload;
   }, []);
-  // The account's event Únicas feed its Pacote Único in solo games.
+  // The account's exclusive cards feed its draft and Única pack offers in solo games.
   const accountKey = account?.id ?? null;
   useEffect(() => {
     if (!accountKey) { setEventCards([]); return; }
@@ -644,9 +676,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, chooseEventOption, eventCards, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile,
+    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, getEvents, chooseEventOption, eventCards, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile,
     getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, saveHistory, getOwnAchievements, getEvents, chooseEventOption, eventCards, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, getEvents, chooseEventOption, eventCards, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

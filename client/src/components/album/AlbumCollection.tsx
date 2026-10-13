@@ -8,10 +8,9 @@ import { cn } from '../../lib/utils';
 import { albumProgress, CATALOG, sortedItems } from './albumData';
 import AlbumBook from './AlbumBook';
 import AlbumInventory from './AlbumInventory';
-import AlbumShop from './AlbumShop';
 import AlbumPackOpening from './AlbumPackOpening';
 
-type AlbumTab = 'album' | 'inventory' | 'shop' | 'catalog';
+type AlbumTab = 'album' | 'inventory' | 'catalog';
 
 export default function AlbumCollection({ catalog }: { catalog: ReactNode }) {
   const { album, loading, error, refresh } = useAlbum();
@@ -47,11 +46,10 @@ export default function AlbumCollection({ catalog }: { catalog: ReactNode }) {
         )
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {/* Same composition in all four: a short label, a plain number, and an explanation. */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {/* Same composition: a short label, a plain number, and an explanation. */}
             <Metric label="Progresso" className="min-w-0" value={<span className="tabular-nums">{percent}%</span>} detail={<span className="block">das cartas do álbum já conquistadas</span>} />
             <Metric label="Páginas" className="min-w-0" value={<span className="tabular-nums">{progress.pages}<span className="text-base text-[var(--ui-text-faint)]">/{CATALOG.pages.length}</span></span>} detail={<span className="block">com todas as cartas conquistadas</span>} />
-            <Metric label="Pontos" className="min-w-0" value={<span className="tabular-nums">{album.coins.toLocaleString('pt-BR')}</span>} detail={<span className="block">disponíveis para comprar pacotes</span>} />
             <Metric label="Inventário" className="min-w-0" value={<span className="tabular-nums">{itemCount}</span>} detail={<span className="block">pacotes e envelopes que você pode abrir</span>} />
           </div>
 
@@ -60,15 +58,13 @@ export default function AlbumCollection({ catalog }: { catalog: ReactNode }) {
               <Tab value="album">Álbum</Tab>
               <Tab value="inventory" aria-label={itemCount > 0 ? `Inventário, ${itemCount} pacotes e envelopes para abrir` : 'Inventário'}>
                 Inventário
-                {/* The count where there is room (on phones the four equal tabs have none; the metric above shows it). */}
+                {/* The count where there is room (on phones the three equal tabs have none). */}
                 {itemCount > 0 ? <span aria-hidden="true" className="ml-1.5 hidden rounded-full bg-[var(--ui-brand)] px-1.5 text-[11px] font-bold tabular-nums text-[var(--ui-brand-ink)] sm:inline">{itemCount}</span> : null}
               </Tab>
-              <Tab value="shop">Loja</Tab>
               <Tab value="catalog">Catálogo</Tab>
             </TabList>
             <TabPanel value="album" className="pt-5"><AlbumBook /></TabPanel>
             <TabPanel value="inventory" className="pt-5"><AlbumInventory /></TabPanel>
-            <TabPanel value="shop" className="pt-5"><AlbumShop /></TabPanel>
             <TabPanel value="catalog" className="pt-5">{catalog}</TabPanel>
           </Tabs>
         </>

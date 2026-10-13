@@ -1,8 +1,8 @@
 // UCL Immortals — time-limited account events.
 // An event has a window and a few objectives counted from the competitions an
-// account completes inside that window. Completing every objective unlocks the
-// event's avatar frame for good. Progress is derived from competition_history on
-// the server (see server/events.ts), so the browser can never grant a frame.
+// account completes inside that window. Completing every objective unlocks its
+// configured account reward. Progress is derived from competition_history on the
+// server (see server/events.ts), so the browser can never grant a reward.
 
 import type { CareerCompetition } from './achievements';
 import { isClubRewardKey } from './clubRewards';
@@ -15,15 +15,21 @@ export interface AvatarFrame {
   image: string;
   /** Accent used around the frame in the UI. */
   color: string;
+  /** Account coins required to buy this frame in the profile shop. Absent for event rewards. */
+  shopPrice?: number;
 }
 
 export const AVATAR_FRAMES: readonly AvatarFrame[] = [
   { key: 'noite-dos-imortais', name: 'Noite dos Imortais', image: '/frames/noite-dos-imortais.webp', color: '#A855F7' },
+  { key: 'brasa-eterna', name: 'Brasa Eterna', image: '/frames/brasa-eterna.webp', color: '#FF642E', shopPrice: 300 },
+  { key: 'constelacao', name: 'Constelação', image: '/frames/constelacao.webp', color: '#65A7FF', shopPrice: 300 },
+  { key: 'nucleo-cibernetico', name: 'Núcleo Cibernético', image: '/frames/nucleo-cibernetico.webp', color: '#A855F7', shopPrice: 300 },
+  { key: 'mare-celeste', name: 'Maré Celeste', image: '/frames/mare-celeste.webp', color: '#32C7E9', shopPrice: 300 },
 ];
 
 export const AVATAR_FRAME_BY_KEY = new Map(AVATAR_FRAMES.map(frame => [frame.key, frame]));
 
-/** An event frame, or a club's frame from the album (drawn in code). */
+/** A registered profile frame, or a club frame from the album (drawn in code). */
 export function isAvatarFrameKey(key: unknown): key is string {
   return typeof key === 'string' && (AVATAR_FRAME_BY_KEY.has(key) || isClubRewardKey(key));
 }
@@ -64,6 +70,8 @@ export interface GameEvent {
   rewardNameStyles?: readonly string[];
   /** Regular event whose reward is an event Única (EVENT_UNIQUE_CARDS), unlocked for every account that completes it. */
   rewardCardId?: string;
+  /** National-team crest permanently unlocked by completing the event. */
+  rewardCrestId?: string;
 }
 
 const SEMIFINAL_OR_BETTER = new Set<CompetitionFinishStage>(['semifinalist', 'runnerUp', 'champion']);
@@ -121,7 +129,7 @@ export const GAME_EVENTS: readonly GameEvent[] = [
     name: 'O Príncipe',
     description: 'Seja campeão 4 vezes no Ouro ou acima com alguma versão do Neymar como titular na final e ganhe a Carta Única do Neymar no Barcelona para o seu Pacote Único.',
     startsAt: brasiliaMidnight(2026, 10, 11),
-    endsAt: brasiliaMidnight(2026, 11, 11),
+    endsAt: brasiliaMidnight(2026, 11, 1),
     rewardCardId: 'neymar_barca_unico',
     objectives: [
       { id: 'titles', label: 'Seja campeão 4 vezes no Ouro ou acima com o Neymar titular na final', target: 4, counts: c => goldOrAbove(c) && isChampion(c) && neymarStartedFinal(c) },
@@ -132,7 +140,7 @@ export const GAME_EVENTS: readonly GameEvent[] = [
     name: 'Clássicos de São Paulo',
     description: 'Escolha o seu clube e cumpra as missões para liberar a Carta Única dele no seu Pacote Único. A escolha é definitiva.',
     startsAt: brasiliaMidnight(2026, 10, 12),
-    endsAt: brasiliaMidnight(2026, 12, 1),
+    endsAt: brasiliaMidnight(2026, 11, 1),
     objectives: [],
     choices: [
       {
@@ -167,6 +175,17 @@ export const GAME_EVENTS: readonly GameEvent[] = [
           clubTitle('santos', 'Santos'),
         ],
       },
+    ],
+  },
+  {
+    id: 'brasil-em-campo-2026',
+    name: 'Brasil em Campo',
+    description: 'Vença quatro competições no Ouro ou acima com pelo menos seis jogadores brasileiros titulares e desbloqueie o escudo da Seleção Brasileira para usar nas competições.',
+    startsAt: brasiliaMidnight(2026, 10, 15),
+    endsAt: brasiliaMidnight(2026, 11, 1),
+    rewardCrestId: 'brazil',
+    objectives: [
+      { id: 'titles', label: 'Seja campeão 4 vezes no Ouro ou acima com pelo menos 6 brasileiros titulares na final', target: 4, counts: c => goldOrAbove(c) && isChampion(c) && (c.finalBrazilianStarterCount ?? 0) >= 6 },
     ],
   },
 ];

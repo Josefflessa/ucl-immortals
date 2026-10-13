@@ -38,7 +38,7 @@ export type {
   ImmortalReport,
 } from './engine/bots';
 export {
-  generateLeagueFixtures, generateRandomLeagueFixtures, generateGroupFixtures, generateRandomGroupFixtures, computeStandings, computeGroupStandings, computeGroupQualifiedStandings, createKnockoutBracket, getActiveKnockoutMatches, isKnockoutTeamAlive, playActiveKnockoutLeg, advanceKnockoutBracket, knockoutRoundLabel, getAllPlayedMatchResults, getPlayerSeasonStats,
+  generateLeagueFixtures, generateRandomLeagueFixtures, generateGroupFixtures, generateRandomGroupFixtures, computeStandings, computeGroupStandings, computeGroupQualifiedStandings, createKnockoutBracket, getActiveKnockoutMatches, isKnockoutTeamAlive, playActiveKnockoutLeg, advanceKnockoutBracket, knockoutRoundLabel, getAllPlayedMatchResults, getPlayerSeasonStats, MIN_MATCHES_FOR_RATING_LEADER,
 } from './engine/tournament';
 export type {
   LeagueFixture, KnockoutBracket, PlayerSeasonStats,

@@ -59,6 +59,15 @@ export function competitionStagePoints(stage: CompetitionFinishStage, difficulty
 }
 
 /**
+ * Account coins awarded for a finished competition. It follows the ranking's
+ * difficulty and finish-stage curve, with a small floor so an early exit still
+ * gives a useful participation reward.
+ */
+export function competitionCoinReward(stage: CompetitionFinishStage, difficultyId: RankedDifficultyId): number {
+  return Math.max(10, Math.round(competitionStagePoints(stage, difficultyId) * 2.5));
+}
+
+/**
  * Stage of a campaign stored before stages were recorded. Those campaigns were
  * all scored with the full table, so the stored points identify the stage.
  */
