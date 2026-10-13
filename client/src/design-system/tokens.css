@@ -602,14 +602,6 @@
     height: 100%;
   }
 
-  @media (pointer: coarse) {
-    .profile-preview-stage {
-      width: min(100vw, 138.144dvh);
-      height: auto;
-      aspect-ratio: 1072 / 776;
-    }
-  }
-
   .ui-modal__header {
     display: flex;
     align-items: center;

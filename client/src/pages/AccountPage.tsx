@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, CalendarDays, Check, Lock, ChevronLeft, ChevronRight, Crown, Eye, EyeOff, Heart, Image as ImageIcon, Info, Layers, LogIn, LogOut, Maximize2, Pencil, Search, Shield, Sparkles, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
-import { useAccount, type AccountStats, type AchievementsPayload, type CompetitionHistoryEntry, type FinishCounts, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
+import { useAccount, type AccountProfile, type AccountStats, type AchievementsPayload, type CompetitionHistoryEntry, type FinishCounts, type FriendshipEntry, type ProfileRecordEntry, type PublicProfileData, type PublicRecordEntry, type RecordCardEffectiveStats, type ScoreLeaderboardEntry, type ScoreLeaderboardPosition } from '../contexts/AccountContext';
 import { useGame, type AccountSection } from '../contexts/GameContext';
 import AccountTabBar from '../components/account/AccountTabBar';
 import FriendActions from '../components/account/FriendActions';
@@ -457,7 +457,7 @@ function ProfileLikeButton({ username, initialLiked, initialCount }: { username:
   );
 }
 
-function FriendProfileView({ data }: { data: PublicProfileData }) {
+function FriendProfileView({ data, onViewFullscreen }: { data: PublicProfileData; onViewFullscreen: (profile: AccountProfile) => void }) {
   const { profile, records } = data;
   const coverStyle = profileCoverStyle(profile.coverKey, profile.coverUrl);
 
@@ -466,6 +466,11 @@ function FriendProfileView({ data }: { data: PublicProfileData }) {
       <section className="relative isolate overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]" aria-label={`Perfil de ${profile.displayName}`} style={coverStyle}>
         <ProfileCoverLayer coverKey={profile.coverKey} coverUrl={profile.coverUrl} />
         <div aria-hidden="true" className="relative h-36 sm:h-44" />
+        <div className="absolute left-4 top-4 z-10">
+          <Button type="button" intent="ghost" onClick={() => onViewFullscreen(profile)} aria-label={`Ver perfil de ${profile.displayName} em tela cheia`} title="Ver perfil em tela cheia" className="size-10 min-h-10 w-10 justify-center border border-white/20 bg-black/60 p-0 text-white hover:bg-black/75">
+            <Maximize2 size={16} aria-hidden="true" />
+          </Button>
+        </div>
         {/* Like: top right of the cover, where the own profile has its edit button. */}
         <div className="absolute right-4 top-4 z-10"><ProfileLikeButton key={profile.username} username={profile.username} initialLiked={Boolean(data.likedByViewer)} initialCount={profile.likeCount ?? 0} /></div>
         <div className="relative -mt-12 flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:px-8 sm:pb-8">
@@ -643,33 +648,31 @@ export default function AccountPage() {
     }
   };
   const friendProfileRequestId = useRef(0);
-  const [profilePreviewOpen, setProfilePreviewOpen] = useState(false);
+  const [profilePreviewProfile, setProfilePreviewProfile] = useState<AccountProfile | null>(null);
   const profilePreviewOpenRef = useRef(false);
   const profilePreviewOwnsFullscreen = useRef(false);
   const releaseProfileFullscreen = useCallback(() => {
     if (!profilePreviewOwnsFullscreen.current) return;
     profilePreviewOwnsFullscreen.current = false;
-    try { (screen.orientation as ScreenOrientation & { unlock?: () => void } | undefined)?.unlock?.(); } catch { /* orientation lock may already be gone */ }
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   }, []);
-  const openProfilePreview = () => {
+  const openProfilePreview = (profile: AccountProfile) => {
     profilePreviewOpenRef.current = true;
-    setProfilePreviewOpen(true);
-    const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> } | undefined;
-    if (!document.fullscreenEnabled || document.fullscreenElement || typeof orientation?.lock !== 'function') return;
-    void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(async () => {
+    setProfilePreviewProfile(profile);
+    if (!document.fullscreenEnabled || document.fullscreenElement) return;
+    void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => {
       profilePreviewOwnsFullscreen.current = true;
       if (!profilePreviewOpenRef.current) {
         releaseProfileFullscreen();
-        return;
       }
-      await orientation.lock?.('landscape').catch(() => {});
     }).catch(() => {});
   };
   const changeProfilePreview = (open: boolean) => {
     profilePreviewOpenRef.current = open;
-    setProfilePreviewOpen(open);
-    if (!open) releaseProfileFullscreen();
+    if (!open) {
+      setProfilePreviewProfile(null);
+      releaseProfileFullscreen();
+    }
   };
   useEffect(() => () => releaseProfileFullscreen(), [releaseProfileFullscreen]);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -1000,7 +1003,7 @@ export default function AccountPage() {
         {tab === 'profile' ? <Panel className="relative isolate overflow-hidden" style={coverStyle}>
           <ProfileCoverLayer coverKey={account.coverKey} coverUrl={account.coverUrl} />
           <div className="relative h-36 sm:h-44">
-            <Button type="button" intent="ghost" onClick={openProfilePreview} aria-label="Visualizar perfil em tela cheia" title="Visualizar perfil em tela cheia" className="absolute left-2 top-2 z-10 size-10 min-h-10 w-10 justify-center border border-white/20 bg-black/60 p-0 text-white hover:bg-black/75">
+            <Button type="button" intent="ghost" onClick={() => openProfilePreview(account)} aria-label="Visualizar perfil em tela cheia" title="Visualizar perfil em tela cheia" className="absolute left-2 top-2 z-10 size-10 min-h-10 w-10 justify-center border border-white/20 bg-black/60 p-0 text-white hover:bg-black/75">
               <Maximize2 size={16} aria-hidden="true" />
             </Button>
             <div className="absolute right-4 top-4 z-10 flex gap-2">
@@ -1391,27 +1394,27 @@ export default function AccountPage() {
       >
         {friendProfileLoading ? <div className="space-y-3" aria-label="Carregando perfil do amigo"><Skeleton className="h-36 w-full rounded-xl" /><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-20 rounded-xl" />)}</div></div>
           : friendProfileError ? <StatusBanner tone="danger" title="Não foi possível abrir o perfil">{friendProfileError}</StatusBanner>
-            : friendProfileData ? <FriendProfileView data={friendProfileData} /> : null}
+          : friendProfileData ? <FriendProfileView data={friendProfileData} onViewFullscreen={openProfilePreview} /> : null}
       </GameModal>
       <GameModal
-        open={profilePreviewOpen}
+        open={profilePreviewProfile !== null}
         onOpenChange={changeProfilePreview}
         fullscreen
-        title={<span className="sr-only">Perfil em tela cheia</span>}
+        title={<span className="sr-only">Perfil de {profilePreviewProfile?.displayName ?? 'jogador'} em tela cheia</span>}
         closeLabel="Fechar visualização do perfil"
         bodyClassName="!p-0"
       >
-        <div className="relative flex size-full min-h-full items-center justify-center overflow-hidden bg-black">
-          <div className="profile-preview-stage relative isolate flex items-center justify-center overflow-hidden" style={profileCoverStyle(account.coverKey, account.coverUrl)}>
-            <ProfileCoverLayer coverKey={account.coverKey} coverUrl={account.coverUrl} />
+        {profilePreviewProfile ? <div className="relative flex size-full min-h-full items-center justify-center overflow-hidden bg-black">
+          <div className="profile-preview-stage relative isolate flex items-center justify-center overflow-hidden" style={profileCoverStyle(profilePreviewProfile.coverKey, profilePreviewProfile.coverUrl)}>
+            <ProfileCoverLayer coverKey={profilePreviewProfile.coverKey} coverUrl={profilePreviewProfile.coverUrl} />
             <div className="relative z-10 flex size-full flex-col items-center justify-center gap-4 px-5 py-4 text-center sm:gap-10 sm:px-8 sm:py-24">
-              {profileAvatar(account.avatarUrl, account.avatarKey, account.displayName, account.avatarBackgroundKey, account.avatarFrameKey, 'size-28 sm:size-56')}
+              {profileAvatar(profilePreviewProfile.avatarUrl, profilePreviewProfile.avatarKey, profilePreviewProfile.displayName, profilePreviewProfile.avatarBackgroundKey, profilePreviewProfile.avatarFrameKey, 'size-28 sm:size-56')}
               <h1 className="max-w-[90vw] font-ui text-3xl font-bold text-white drop-shadow-[0_3px_16px_rgba(0,0,0,.85)] sm:text-6xl">
-                <StyledName name={account.displayName} styleKey={account.nameStyleKey} className="text-3xl sm:text-6xl" />
+                <StyledName name={profilePreviewProfile.displayName} styleKey={profilePreviewProfile.nameStyleKey} className="text-3xl sm:text-6xl" />
               </h1>
             </div>
           </div>
-        </div>
+        </div> : null}
       </GameModal>
       <AccountTabBar
         active={tab}

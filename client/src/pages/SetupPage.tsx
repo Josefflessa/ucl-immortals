@@ -99,7 +99,7 @@ export default function SetupPage() {
                     selected={isSelected}
                     onClick={() => handleDifficultyClick(diff.id)}
                     title="Clique duas vezes para escolher e continuar"
-                    className="ui-choice flex w-full items-center gap-3.5 px-4 py-3.5 pr-14"
+                    className={cn('ui-choice flex w-full items-center gap-3.5 px-4 py-3.5', canViewDifficultyRewards ? 'pr-14' : 'pr-4')}
                     style={{
                       background: isSelected ? `${color}14` : undefined,
                       border: `1.5px solid ${isSelected ? color : '#1A1A2A'}`,
@@ -113,7 +113,7 @@ export default function SetupPage() {
                       </span>
                     </div>
                     {isSelected ? (
-                      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full" style={{ background: color, color: 'var(--ui-bg)', fontSize: 13, fontWeight: 900 }} aria-hidden="true">
+                      <div className={cn('flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full', !canViewDifficultyRewards && 'absolute right-2 top-1/2 -translate-y-1/2')} style={{ background: color, color: 'var(--ui-bg)', fontSize: 13, fontWeight: 900 }} aria-hidden="true">
                         ✓
                       </div>
                     ) : null}

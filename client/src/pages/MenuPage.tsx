@@ -518,7 +518,7 @@ export default function MenuPage() {
                 >
                   <span className="inline-flex min-w-0 items-center justify-center gap-2">
                     <LibraryBig size={16} strokeWidth={2.5} className="shrink-0" />
-                    {account ? 'ÁLBUM' : 'ÁLBUM DE JOGADORES'}
+                    {account ? 'ÁLBUM' : 'CATÁLOGO'}
                   </span>
                 </Button>
                 {account ? (
