@@ -1,6 +1,6 @@
 // Small visual pieces of the album: a pack or envelope, an album slot (the sticker
 // or its numbered silhouette), the level stars and the coin amount.
-import { Coins, Star } from 'lucide-react';
+import { Coins, Minus, Plus, Star } from 'lucide-react';
 import { parseItemKey, type AlbumItemKey } from '@shared/game/album';
 import type { Player } from '@shared/game/gameData';
 import PlayerCard from '../game/PlayerCard';
@@ -42,6 +42,24 @@ export function CoinAmount({ value, className, size = 15 }: { value: number; cla
       <Coins size={size} aria-hidden="true" />
       {value.toLocaleString('pt-BR')}
     </span>
+  );
+}
+
+export function QuantityStepper({ value, onChange, label, min = 1, max = 10, canIncrease = true, disabled = false }: {
+  value: number;
+  onChange: (value: number) => void;
+  label: string;
+  min?: number;
+  max?: number;
+  canIncrease?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex h-10 shrink-0 items-center rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]" role="group" aria-label={`Quantidade de ${label}`}>
+      <button type="button" aria-label={`Diminuir ${label}`} disabled={disabled || value <= min} onClick={() => onChange(Math.max(min, value - 1))} className="flex size-9 items-center justify-center rounded-l-lg text-[var(--ui-text-muted)] transition-colors hover:bg-white/[.04] disabled:cursor-not-allowed disabled:opacity-30"><Minus size={14} aria-hidden="true" /></button>
+      <span aria-live="polite" aria-atomic="true" className="min-w-7 text-center text-sm font-bold tabular-nums text-[var(--ui-text)]">{value}</span>
+      <button type="button" aria-label={`Aumentar ${label}`} disabled={disabled || value >= max || !canIncrease} onClick={() => onChange(Math.min(max, value + 1))} className="flex size-9 items-center justify-center rounded-r-lg text-[var(--ui-text-muted)] transition-colors hover:bg-white/[.04] disabled:cursor-not-allowed disabled:opacity-30"><Plus size={14} aria-hidden="true" /></button>
+    </div>
   );
 }
 

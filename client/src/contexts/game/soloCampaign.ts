@@ -2,8 +2,9 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player } from '@shared/game/gameData';
-import { Team, MatchResult, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, generateImmortalReport, LeagueFixture, getAllPlayedMatchResults, buildUniquePackRoundKey } from '@shared/game/gameEngine';
-import { applyMedicalReturnBoost, resolveAvailableLineup } from '@shared/game/discipline';
+import { Team, MatchResult, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, generateImmortalReport, LeagueFixture, getAllPlayedMatchResults, buildUniquePackRoundKey, advanceKnockoutBracket, applyDefeatGrowth, applyMatchStatGrowth, getActiveKnockoutMatches, isKnockoutTeamAlive, playActiveKnockoutLeg, stampMatchStartingLineups } from '@shared/game/gameEngine';
+import { applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup } from '@shared/game/discipline';
+import { buildKnockoutMatchKey } from '@shared/game/bets';
 import { createRecruitmentOfferMeta, getRecruitmentOfferConfig, medicalInjuryDuration, medicalReturnBoost, projectLevel, type RecruitmentEventKind, type RecruitmentOfferMeta } from '@shared/game/clubProjects';
 import { type GamePhase, type GameState } from './state';
 
@@ -169,8 +170,8 @@ export function applyMedicalRecoveries(team: Team, recoveredInjuries: { teamId: 
     .reduce((current, recovery) => applyMedicalReturnBoost(current, recovery.playerId, boost), team);
 }
 
-/** Creates a partial report from matches already played when a player exits after elimination. */
-export function finishEliminatedSoloCampaign(state: GameState): GameState {
+/** Keeps the online exit path partial: those results are authoritative on the room server. */
+function createEliminatedPartialReport(state: GameState): GameState {
   if (state.mode !== 'solo' || !state.playerTeam) return state;
 
   const report = generateImmortalReport(
@@ -194,11 +195,124 @@ export function finishEliminatedSoloCampaign(state: GameState): GameState {
   };
 }
 
-/** Online rooms use the same partial report when a player leaves after elimination. */
+/**
+ * Solo can finish the tournament without keeping the eliminated player waiting. Complete the
+ * remaining bot-only knockout rounds now, so the result screen contains the real champion and
+ * competition leaders instead of labelling an offline, fully simulated competition as partial.
+ */
+export function finishEliminatedSoloCampaign(state: GameState): GameState {
+  if (
+    state.mode !== 'solo'
+    || !state.playerTeam
+    || !state.knockoutBracket
+    || isKnockoutTeamAlive(state.knockoutBracket, state.playerTeam.id)
+  ) return state;
+
+  const bracket = JSON.parse(JSON.stringify(state.knockoutBracket)) as NonNullable<GameState['knockoutBracket']>;
+  let botTeams = state.botTeams;
+  let discipline = state.discipline;
+  let champion: string | null = null;
+
+  // A competition has at most five knockout stages, each with up to two legs. The wider guard
+  // protects against malformed restored brackets without manufacturing an incomplete final.
+  for (let step = 0; step < 20 && !champion; step++) {
+    const active = getActiveKnockoutMatches(bracket) as any[];
+    if (active.length === 0) break;
+
+    if (active.every(tie => tie.played && tie.result)) {
+      champion = advanceKnockoutBracket(bracket);
+      continue;
+    }
+
+    const leg = bracket.currentLeg;
+    const allTeams = [state.playerTeam, ...botTeams];
+    const resolvedTeams = new Map<string, Team>();
+    const resolve = (teamId: string): Team | undefined => {
+      const cached = resolvedTeams.get(teamId);
+      if (cached) return cached;
+      const team = allTeams.find(candidate => candidate.id === teamId);
+      if (!team) return undefined;
+      const resolved = resolveAvailableLineup(team, discipline).team;
+      resolvedTeams.set(teamId, resolved);
+      return resolved;
+    };
+
+    playActiveKnockoutLeg(bracket, resolve);
+
+    const currentTies = getActiveKnockoutMatches(bracket) as any[];
+    const legResults = currentTies.map(tie => {
+      const result = tie.isSingleLeg ? tie.result : leg === 2 ? tie.leg2 : tie.leg1;
+      if (!result) return null;
+      const home = resolvedTeams.get(result.homeTeamId) ?? allTeams.find(team => team.id === result.homeTeamId);
+      const away = resolvedTeams.get(result.awayTeamId) ?? allTeams.find(team => team.id === result.awayTeamId);
+      if (!home || !away) return null;
+      const stamped = stampMatchStartingLineups(result, home, away);
+      if (tie.isSingleLeg) tie.result = stamped;
+      else if (leg === 2) tie.leg2 = stamped;
+      else tie.leg1 = stamped;
+      return stamped;
+    }).filter((result): result is MatchResult => Boolean(result));
+
+    if (legResults.length === 0) break;
+
+    const playedTeamIds = Array.from(new Set(legResults.flatMap(result => [result.homeTeamId, result.awayTeamId])));
+    const nameOf = (teamId: string, playerId: string) =>
+      allTeams.find(team => team.id === teamId)?.players.find(player => player.id === playerId)?.shortName ?? '?';
+    const disciplineResult = applyMatchDiscipline(
+      discipline,
+      playedTeamIds,
+      legResults,
+      nameOf,
+      Math.random,
+      teamId => medicalInjuryDurationForTeam(allTeams.find(team => team.id === teamId) ?? state.playerTeam!),
+    );
+    discipline = disciplineResult.next;
+
+    const matchKeyForResult = (result: MatchResult) => {
+      const tie = currentTies.find(candidate => candidate.homeTeamId === result.homeTeamId || candidate.awayTeamId === result.homeTeamId);
+      return tie ? buildKnockoutMatchKey(tie.id, leg) : undefined;
+    };
+    botTeams = botTeams.map(team => {
+      const grown = legResults.reduce(
+        (current, result) => applyMatchStatGrowth(applyDefeatGrowth(current, result), result, matchKeyForResult(result)),
+        team,
+      );
+      return applyMedicalRecoveries(grown, disciplineResult.recoveredInjuries);
+    });
+  }
+
+  if (!champion) return createEliminatedPartialReport(state);
+
+  const championName = [state.playerTeam, ...botTeams].find(team => team.id === champion)?.name ?? 'Campeão';
+  const report = generateImmortalReport(
+    state.playerTeam,
+    getAllPlayedMatchResults(state.leagueResults, bracket),
+    championName,
+  );
+
+  return {
+    ...state,
+    botTeams,
+    discipline,
+    knockoutBracket: bracket,
+    champion,
+    report,
+    partialReport: false,
+    phase: 'report',
+    activeKnockoutMatch: null,
+    currentMatchTeams: null,
+    currentMatchResult: null,
+    spectating: false,
+    reinforcementOptions: null,
+    reinforcementOffer: null,
+  };
+}
+
+/** Online rooms use a partial report because the room server owns the remaining competition. */
 export function finishEliminatedOnlineCampaign(state: GameState): GameState {
   if (state.mode !== 'online' || !state.playerTeam) return state;
   return {
-    ...finishEliminatedSoloCampaign({ ...state, mode: 'solo' }),
+    ...createEliminatedPartialReport({ ...state, mode: 'solo' }),
     mode: 'online',
     roomCode: null,
     onlineHostId: null,

@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, Copy, Sparkles } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { DAILY_BANNER_PITY_LIMIT, DAILY_BANNER_PRICE, type DailyBannerOffer, type DailyBannerRotations } from '@shared/game/album';
 import { getRarityColor, type Rarity } from '@shared/game/gameData';
 import { api } from '../../contexts/AccountContext';
-import { useAlbum } from '../../contexts/AlbumContext';
+import { useAlbum, type BannerBatchResult } from '../../contexts/AlbumContext';
 import { Button, GameModal, StatusBanner } from '../../design-system';
 import PlayerCard from '../game/PlayerCard';
 import { albumCard, RARITY_LABEL, stickerLevel } from '../album/albumData';
 import { CoinAmount } from '../album/AlbumPieces';
 import BannerHero from './BannerHero';
 import BannerPityMeter from './BannerPityMeter';
+import BannerBatchResultModal from './BannerBatchResultModal';
 import { formatBannerRotation } from './bannerDates';
 
 const FILTERS = ['gold', 'legendary', 'immortal'] as const satisfies readonly Rarity[];
@@ -37,7 +38,7 @@ function loadDailyRotations() {
 }
 
 export default function DailyBannerShop() {
-  const { album, buyDailyBannerCard } = useAlbum();
+  const { album, buyDailyBannerCards } = useAlbum();
   const [rotations, setRotations] = useState<DailyBannerRotations | null>(() => dailyRotationCache?.value ?? null);
   const [loading, setLoading] = useState(() => !dailyRotationCache?.value);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,8 @@ export default function DailyBannerShop() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('gold');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [drawn, setDrawn] = useState<{ id: string; isNew: boolean; rarity: Rarity; pityTriggered: boolean } | null>(null);
+  const [drawCount, setDrawCount] = useState(1);
+  const [drawn, setDrawn] = useState<BannerBatchResult | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -78,7 +80,6 @@ export default function DailyBannerShop() {
     }
     return undefined;
   }, [visibleOffer]);
-  const selectedCard = drawn ? albumCard(drawn.id) : undefined;
   const price = currentOffer?.price ?? DAILY_BANNER_PRICE;
   const coins = album?.coins ?? 0;
 
@@ -86,10 +87,9 @@ export default function DailyBannerShop() {
     if (busy || drawn) return;
     setBusy(true);
     try {
-      const result = await buyDailyBannerCard();
+      const result = await buyDailyBannerCards(drawCount);
       setConfirmOpen(false);
-      const resultCard = { ...result.card, rarity: result.rarity };
-      setDrawn({ ...resultCard, pityTriggered: result.pityTriggered });
+      setDrawn(result);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Não foi possível concluir a compra.');
     } finally {
@@ -105,7 +105,7 @@ export default function DailyBannerShop() {
 
   return (
     <div className="space-y-5">
-      <BannerHero bannerNumber={1} rotationDate={rotationDate} preview={previewTomorrow} featuredCard={topPrize} price={price} coins={coins} busy={busy} onDraw={() => setConfirmOpen(true)} />
+      <BannerHero bannerNumber={1} rotationDate={rotationDate} preview={previewTomorrow} featuredCard={topPrize} price={price} drawCount={drawCount} onDrawCountChange={setDrawCount} coins={coins} busy={busy} onDraw={() => setConfirmOpen(true)} />
       <BannerPityMeter
         misses={album?.bannerPity.daily ?? 0}
         limit={DAILY_BANNER_PITY_LIMIT}
@@ -163,30 +163,15 @@ export default function DailyBannerShop() {
       <GameModal
         open={confirmOpen && !previewTomorrow}
         onOpenChange={open => { if (!busy) setConfirmOpen(open); }}
-        title="Sortear uma carta?"
-        subtitle="O resultado vai direto para o Álbum."
+        title={`Sortear ${drawCount === 1 ? 'uma carta' : `${drawCount} cartas`}?`}
+        subtitle="O resultado vai direto para o Álbum; cada sorteio avança o pity separadamente."
         closeLabel="Fechar confirmação"
-        footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button intent="ghost" disabled={busy} onClick={() => setConfirmOpen(false)}>Cancelar</Button><Button intent="primary" className="w-full sm:w-auto" loading={busy} disabled={coins < price} onClick={() => void buy()}><span>Confirmar</span><CoinAmount value={price} size={14} className="text-inherit" /></Button></div>}
+        footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button intent="ghost" disabled={busy} onClick={() => setConfirmOpen(false)}>Cancelar</Button><Button intent="primary" className="w-full sm:w-auto" loading={busy} disabled={coins < price * drawCount} onClick={() => void buy()}><span>Confirmar</span><CoinAmount value={price * drawCount} size={14} className="text-inherit" /></Button></div>}
       >
-        <p className="text-center text-sm text-[var(--ui-text-soft)]">Uma carta aleatória por <strong className="inline-flex items-center gap-1 text-[var(--ui-text)]"><CoinAmount value={price} size={14} /></strong> moedas.</p>
+        <p className="text-center text-sm text-[var(--ui-text-soft)]">{drawCount} {drawCount === 1 ? 'sorteio' : 'sorteios'} de {price.toLocaleString('pt-BR')} moedas cada. Total: <strong className="inline-flex items-center gap-1 text-[var(--ui-text)]"><CoinAmount value={price * drawCount} size={14} /></strong>.</p>
       </GameModal>
 
-      <GameModal open={drawn !== null} onOpenChange={open => { if (!open) setDrawn(null); }} title={selectedCard?.shortName ?? 'Carta recebida'} subtitle={drawn ? `${RARITY_LABEL[drawn.rarity]} · ${drawn.isNew ? 'nova no Álbum' : 'já estava no Álbum'}${drawn.pityTriggered ? ' · garantia ativada' : ''}` : ''} closeLabel="Fechar resultado">
-        {selectedCard && drawn ? (
-          <div className="flex flex-col items-center gap-3 py-2">
-            <div className="relative">
-              <PlayerCard player={selectedCard} lite scale={0.72} albumLevel={stickerLevel(album, selectedCard.id) >= 2 ? stickerLevel(album, selectedCard.id) as 2 | 3 | 4 | 5 : undefined} />
-              <span className="absolute left-1/2 top-0 z-[5] inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-[#0B0C12] shadow-lg" style={{ backgroundColor: drawn.isNew ? '#7BD88F' : '#E9C46A' }}>
-                {drawn.isNew ? <Sparkles size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />}
-                {drawn.isNew ? 'NOVA' : 'REPETIDA'}
-              </span>
-            </div>
-            <p className={`text-sm font-semibold ${drawn.isNew ? 'text-[var(--ui-success)]' : 'text-[#E9C46A]'}`}>
-              Adicionada ao seu Álbum
-            </p>
-          </div>
-        ) : null}
-      </GameModal>
+      <BannerBatchResultModal draws={drawn} onClose={() => setDrawn(null)} />
     </div>
   );
 }

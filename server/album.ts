@@ -410,6 +410,13 @@ interface BannerDrawResult {
   pityTriggered: boolean;
 }
 
+export interface BannerBatchDrawResult {
+  cards: Array<{ card: { id: string; isNew: boolean }; rarity: Rarity; pityTriggered: boolean }>;
+  dayStart: string;
+  price: number;
+  pageRewards: PageReward[];
+}
+
 type BannerKind = 'daily' | 'weekly';
 const BANNER_PITY: Record<BannerKind, {
   counter: 'daily_banner_pity' | 'weekly_banner_pity';
@@ -456,51 +463,59 @@ async function releaseBannerLock(db: D1Database, userId: string, kind: BannerKin
     WHERE user_id = ? AND ${settings.lockToken} = ?`).bind(userId, token).run();
 }
 
-async function buyBannerDraw(
+async function buyBannerDraws(
   db: D1Database,
   userId: string,
   kind: BannerKind,
   offer: DailyBannerOffer | WeeklyBannerOffer,
+  quantity: number,
   now: number,
   rand: () => number,
-): Promise<BannerDrawResult | { error: string }> {
+): Promise<BannerBatchDrawResult | { error: string }> {
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 10) return { error: 'invalid_quantity' };
   const settings = BANNER_PITY[kind];
   const lockToken = await acquireBannerLock(db, userId, kind, now);
   if (!lockToken) return { error: 'banner_purchase_in_progress' };
   let charged = false;
   try {
-    if (!(await spendCoins(db, userId, offer.price, now))) return { error: 'not_enough_coins' };
-    charged = true;
-
     const pityRow = await db.prepare(`SELECT ${settings.counter} AS misses FROM user_album WHERE user_id = ?`)
       .bind(userId).first<{ misses: number }>();
-    const misses = pityRow?.misses ?? 0;
+    let misses = pityRow?.misses ?? 0;
     const targetAvailable = kind !== 'weekly' || offer.cards.unique.length > 0;
-    const pityTriggered = targetAvailable && misses >= settings.limit - 1;
-    const rarity = rollBannerRarity(offer.odds, rand, pityTriggered ? settings.guaranteedRarities : undefined);
-    const pool = rarity === 'bronze' || rarity === 'silver' || rarity === 'gold'
-      ? PLAYERS.filter(card => card.rarity === rarity).map(card => card.id)
-      : offer.cards[rarity];
-    if (!pool.length) {
-      await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price, now, userId).run();
-      charged = false;
-      return { error: 'banner_unavailable' };
+    const draws: Array<{ id: string; rarity: Rarity; pityTriggered: boolean }> = [];
+    for (let index = 0; index < quantity; index++) {
+      const pityTriggered = targetAvailable && misses >= settings.limit - 1;
+      const rarity = rollBannerRarity(offer.odds, rand, pityTriggered ? settings.guaranteedRarities : undefined);
+      const pool = rarity === 'bronze' || rarity === 'silver' || rarity === 'gold'
+        ? PLAYERS.filter(card => card.rarity === rarity).map(card => card.id)
+        : offer.cards[rarity];
+      if (!pool.length) return { error: 'banner_unavailable' };
+      const id = pool[Math.floor(rand() * pool.length)];
+      draws.push({ id, rarity, pityTriggered });
+      if (targetAvailable) misses = settings.guaranteedRarities.includes(rarity) ? 0 : misses + 1;
     }
 
-    const cardId = pool[Math.floor(rand() * pool.length)];
-    const earnedPityRarity = settings.guaranteedRarities.includes(rarity);
-    const nextMisses = !targetAvailable ? misses : earnedPityRarity ? 0 : misses + 1;
+    const totalPrice = offer.price * quantity;
+    if (!(await spendCoins(db, userId, totalPrice, now))) return { error: 'not_enough_coins' };
+    charged = true;
     const pityUpdate = db.prepare(`UPDATE user_album SET ${settings.counter} = ?, updated_at = ?
-      WHERE user_id = ? AND ${settings.lockToken} = ?`).bind(nextMisses, now, userId, lockToken);
+      WHERE user_id = ? AND ${settings.lockToken} = ?`).bind(misses, now, userId, lockToken);
     const extra: Statement[] = [pityUpdate];
-    if (rarity === 'unique' && kind === 'weekly') extra.push(db.prepare(
-      'INSERT OR IGNORE INTO user_event_cards (user_id, card_id, event_id, unlocked_at) VALUES (?, ?, ?, ?)',
-    ).bind(userId, cardId, `banner-2-${offer.dayStart}`, now));
-    const result = await placeStickers(db, userId, [cardId], now, extra);
+    for (const draw of draws) {
+      if (draw.rarity === 'unique' && kind === 'weekly') extra.push(db.prepare(
+        'INSERT OR IGNORE INTO user_event_cards (user_id, card_id, event_id, unlocked_at) VALUES (?, ?, ?, ?)',
+      ).bind(userId, draw.id, `banner-2-${offer.dayStart}`, now));
+    }
+    const result = await placeStickers(db, userId, draws.map(draw => draw.id), now, extra);
     charged = false;
-    return { card: result.cards[0], rarity, dayStart: offer.dayStart, price: offer.price, pageRewards: result.pageRewards, pityTriggered };
+    return {
+      cards: result.cards.map((card, index) => ({ ...draws[index], card })),
+      dayStart: offer.dayStart,
+      price: totalPrice,
+      pageRewards: result.pageRewards,
+    };
   } catch (error) {
-    if (charged) await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price, now, userId).run();
+    if (charged) await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price * quantity, now, userId).run();
     throw error;
   } finally {
     try { await releaseBannerLock(db, userId, kind, lockToken); } catch (error) {
@@ -509,20 +524,37 @@ async function buyBannerDraw(
   }
 }
 
+/** Buys several cards from Banner 2 as one locked, all-or-nothing draw. */
+export async function buyWeeklyBannerCards(db: D1Database, userId: string, quantity: number, now = Date.now(), rand = secureRandom): Promise<BannerBatchDrawResult | { error: string }> {
+  return buyBannerDraws(db, userId, 'weekly', weeklyBannerOffer(now), quantity, now, rand);
+}
+
+/** Buys several cards from Banner 1 as one locked, all-or-nothing draw. */
+export async function buyDailyBannerCards(db: D1Database, userId: string, quantity: number, now = Date.now(), rand = secureRandom): Promise<BannerBatchDrawResult | { error: string }> {
+  return buyBannerDraws(db, userId, 'daily', dailyBannerOffer(now), quantity, now, rand);
+}
+
 /** Buys one card from the current rotating Banner 2 and adds it directly to the album. */
 export async function buyWeeklyBannerCard(db: D1Database, userId: string, now = Date.now(), rand = secureRandom): Promise<BannerDrawResult | { error: string }> {
-  return buyBannerDraw(db, userId, 'weekly', weeklyBannerOffer(now), now, rand);
+  const result = await buyWeeklyBannerCards(db, userId, 1, now, rand);
+  if ('error' in result) return result;
+  const draw = result.cards[0];
+  return { card: draw.card, rarity: draw.rarity, pityTriggered: draw.pityTriggered, dayStart: result.dayStart, price: result.price, pageRewards: result.pageRewards };
 }
 
 /** Buys one card from the current daily banner and adds it directly to the album. */
 export async function buyDailyBannerCard(db: D1Database, userId: string, now = Date.now(), rand = secureRandom): Promise<BannerDrawResult | { error: string }> {
-  return buyBannerDraw(db, userId, 'daily', dailyBannerOffer(now), now, rand);
+  const result = await buyDailyBannerCards(db, userId, 1, now, rand);
+  if ('error' in result) return result;
+  const draw = result.cards[0];
+  return { card: draw.card, rarity: draw.rarity, pityTriggered: draw.pityTriggered, dayStart: result.dayStart, price: result.price, pageRewards: result.pageRewards };
 }
 
 /** Applies one spare copy of a card to it (its album level goes up at 2, 4, 7 and 10 copies). */
-export async function applyCopy(db: D1Database, userId: string, cardId: string, now = Date.now()): Promise<{ ok: true } | { error: string }> {
-  const result = await db.prepare('UPDATE user_stickers SET copies = copies + 1, spare = spare - 1, updated_at = ? WHERE user_id = ? AND card_id = ? AND spare > 0 AND copies < ?')
-    .bind(now, userId, cardId, MAX_COPIES).run();
+export async function applyCopy(db: D1Database, userId: string, cardId: string, quantity = 1, now = Date.now()): Promise<{ ok: true } | { error: string }> {
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_COPIES) return { error: 'invalid_quantity' };
+  const result = await db.prepare('UPDATE user_stickers SET copies = copies + ?, spare = spare - ?, updated_at = ? WHERE user_id = ? AND card_id = ? AND spare >= ? AND copies + ? <= ?')
+    .bind(quantity, quantity, now, userId, cardId, quantity, quantity, MAX_COPIES).run();
   if ((result.meta?.changes ?? 0) === 0) {
     const row = await db.prepare('SELECT copies, spare FROM user_stickers WHERE user_id = ? AND card_id = ?').bind(userId, cardId).first<{ copies: number; spare: number }>();
     if (!row || row.spare <= 0) return { error: 'no_spare_copy' };
@@ -549,24 +581,72 @@ export async function sellCopies(db: D1Database, userId: string, cardId: string,
   return { coins: earned };
 }
 
+/** Sells a selection of spare cards atomically: either every selected quantity is sold, or none. */
+export async function sellCopiesBatch(
+  db: D1Database,
+  userId: string,
+  sales: readonly { cardId: string; quantity: number }[],
+  now = Date.now(),
+): Promise<{ coins: number; copies: number } | { error: string }> {
+  if (sales.length < 1 || sales.length > 100) return { error: 'invalid_quantity' };
+  const seen = new Set<string>();
+  let coins = 0;
+  let copies = 0;
+  for (const sale of sales) {
+    const sticker = albumCatalog().stickers.get(sale.cardId);
+    if (!sticker) return { error: 'invalid_card' };
+    if (seen.has(sale.cardId) || !Number.isSafeInteger(sale.quantity) || sale.quantity < 1 || sale.quantity > 999) return { error: 'invalid_quantity' };
+    seen.add(sale.cardId);
+    copies += sale.quantity;
+    coins += SELL_VALUE[sticker.rarity] * sale.quantity;
+  }
+
+  const placeholders = sales.map(() => '?').join(', ');
+  const casePairs = sales.map(() => 'WHEN ? THEN ?').join(' ');
+  const availability = sales.map(() => '(card_id = ? AND spare >= ?)').join(' OR ');
+  const update = db.prepare(`UPDATE user_stickers
+    SET spare = spare - CASE card_id ${casePairs} ELSE 0 END, updated_at = ?
+    WHERE user_id = ? AND card_id IN (${placeholders})
+      AND (SELECT COUNT(*) FROM user_stickers WHERE user_id = ? AND (${availability})) = ?`)
+    .bind(
+      ...sales.flatMap(({ cardId, quantity }) => [cardId, quantity]),
+      now,
+      userId,
+      ...sales.map(({ cardId }) => cardId),
+      userId,
+      ...sales.flatMap(({ cardId, quantity }) => [cardId, quantity]),
+      sales.length,
+    );
+  const credit = db.prepare(`UPDATE user_album SET coins = coins + ?, updated_at = ?
+    WHERE user_id = ? AND changes() = ?`).bind(coins, now, userId, sales.length);
+  const [updated, credited] = await db.batch([update, credit]);
+  if ((updated.meta?.changes ?? 0) !== sales.length) return { error: 'no_spare_copy' };
+  if ((credited.meta?.changes ?? 0) !== 1) return { error: 'operation_failed' };
+  return { coins, copies };
+}
+
 async function spendCoins(db: D1Database, userId: string, price: number, now: number): Promise<boolean> {
   const paid = await db.prepare('UPDATE user_album SET coins = coins - ?, updated_at = ? WHERE user_id = ? AND coins >= ?').bind(price, now, userId, price).run();
   return (paid.meta?.changes ?? 0) > 0;
 }
 
 /** Buys a pack from the album shop (Bronze, Prata or Ouro). It goes to the inventory. */
-export async function buyPack(db: D1Database, userId: string, tier: string, now = Date.now()): Promise<{ item: AlbumItemKey } | { error: string }> {
+export async function buyPack(db: D1Database, userId: string, tier: string, quantity = 1, now = Date.now()): Promise<{ item: AlbumItemKey; quantity: number } | { error: string }> {
   const price = (SHOP_PACK_PRICE as Record<string, number | undefined>)[tier];
   if (!price) return { error: 'not_for_sale' };
-  if (!(await spendCoins(db, userId, price, now))) return { error: 'not_enough_coins' };
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 10) return { error: 'invalid_quantity' };
   const key = `pack:${tier}` as AlbumItemKey;
-  try {
-    await addItemStatement(db, userId, key, 1, now).run();
-  } catch (error) {
-    await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(price, now, userId).run();
-    throw error;
-  }
-  return { item: key };
+  const totalPrice = price * quantity;
+  const [debit, grant] = await db.batch([
+    db.prepare('UPDATE user_album SET coins = coins - ?, updated_at = ? WHERE user_id = ? AND coins >= ?').bind(totalPrice, now, userId, totalPrice),
+    db.prepare(`INSERT INTO user_inventory (user_id, item_key, quantity, updated_at)
+      SELECT ?, ?, ?, ? WHERE changes() = 1
+      ON CONFLICT(user_id, item_key) DO UPDATE SET quantity = user_inventory.quantity + excluded.quantity, updated_at = excluded.updated_at`)
+      .bind(userId, key, quantity, now),
+  ]);
+  if ((debit.meta?.changes ?? 0) === 0) return { error: 'not_enough_coins' };
+  if ((grant.meta?.changes ?? 0) !== 1) return { error: 'operation_failed' };
+  return { item: key, quantity };
 }
 
 /** Buys a profile frame with account coins. Event and album frames are never sold here. */

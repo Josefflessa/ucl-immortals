@@ -345,9 +345,6 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                 )}
                 {state.mode === 'online' && !isLeagueOnly && !qualifies && leagueRound >= leagueRounds && allFixturesPlayed && (
                   <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--ui-surface-3)' }}>
-                    <p className="mb-2 text-xs text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                      Seu time não se classificou. Você pode sair agora e receber um resumo parcial da campanha.
-                    </p>
                     <button
                       type="button"
                       onClick={() => leaveRoomOnline({ partialReport: true })}

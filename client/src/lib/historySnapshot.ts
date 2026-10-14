@@ -23,6 +23,8 @@ export interface CompetitionHistorySnapshot {
   matches: HistoryMatchSnapshot[];
   championId: string | null;
   championName: string;
+  /** Optional for older saved reports. */
+  championCrestId?: string | null;
   formatId: CompetitionFormatId;
   finalResult: HistoryMatchSnapshot | null;
   playStyle: string | null;
@@ -31,6 +33,10 @@ export interface CompetitionHistorySnapshot {
     topScorer: HistoryLeaderSnapshot | null;
     topRating: HistoryLeaderSnapshot | null;
     topAssister: HistoryLeaderSnapshot | null;
+    /** Optional for older saved reports. */
+    topSaver?: HistoryLeaderSnapshot | null;
+    topTackler?: HistoryLeaderSnapshot | null;
+    topCards?: (HistoryLeaderSnapshot & { yellowCards: number; redCards: number }) | null;
   };
 }
 
@@ -80,11 +86,16 @@ export function getCompetitionHistorySnapshot(report: Record<string, unknown>): 
   if (!Array.isArray(value.matches) || !value.matches.every(isMatch)) return null;
   if (typeof value.championName !== 'string' || !isCompetitionFormatId(value.formatId)) return null;
   if (value.championId !== null && typeof value.championId !== 'string') return null;
+  if (value.championCrestId !== undefined && value.championCrestId !== null && typeof value.championCrestId !== 'string') return null;
   if (value.finalResult !== null && !isMatch(value.finalResult)) return null;
   if (value.playStyle !== null && typeof value.playStyle !== 'string') return null;
   if (!isRecord(value.leaders)) return null;
-  for (const key of ['topScorer', 'topRating', 'topAssister'] as const) {
-    if (value.leaders[key] !== null && !isLeader(value.leaders[key])) return null;
+  for (const key of ['topScorer', 'topRating', 'topAssister', 'topSaver', 'topTackler', 'topCards'] as const) {
+    const leader = value.leaders[key];
+    if (leader !== undefined && leader !== null && !isLeader(leader)) return null;
+    if (key === 'topCards' && leader !== undefined && leader !== null
+      && (!isRecord(leader) || typeof leader.yellowCards !== 'number' || !Number.isFinite(leader.yellowCards)
+        || typeof leader.redCards !== 'number' || !Number.isFinite(leader.redCards))) return null;
   }
   if (value.report !== null && (!isRecord(value.report)
     || !Array.isArray(value.report.historicalRecreations)

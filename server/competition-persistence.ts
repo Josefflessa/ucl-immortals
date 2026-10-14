@@ -96,11 +96,13 @@ async function persistCompetitionForPlayers(
     team,
     stats: getPlayerSeasonStats(card.id, team.id, results),
   })));
-  const leader = (metric: 'goals' | 'assists' | 'ratingAvg') => {
+  const leader = (metric: 'goals' | 'assists' | 'ratingAvg' | 'saves' | 'tackles') => {
     const minimumPlayed = metric === 'ratingAvg' ? MIN_MATCHES_FOR_RATING_LEADER : 0;
-    const minimumValue = metric === 'ratingAvg' ? -Infinity : 1;
+    const minimumValue = metric === 'ratingAvg' ? -Infinity : 0;
     const row = allSeasonRows
-      .filter(candidate => candidate.stats.played >= minimumPlayed && candidate.stats[metric] > minimumValue)
+      .filter(candidate => candidate.stats.played >= minimumPlayed
+        && candidate.stats[metric] > minimumValue
+        && (metric !== 'saves' || (candidate.card.position === 'GK' && candidate.stats.played > 0)))
       .sort((a, b) => b.stats[metric] - a.stats[metric])[0];
     return row ? {
       player: {
@@ -118,6 +120,25 @@ async function persistCompetitionForPlayers(
     topScorer: leader('goals'),
     topRating: leader('ratingAvg'),
     topAssister: leader('assists'),
+    topSaver: leader('saves'),
+    topTackler: leader('tackles'),
+    topCards: (() => {
+      const row = allSeasonRows
+        .filter(candidate => candidate.stats.yellowCards + candidate.stats.redCards > 0)
+        .sort((a, b) => (b.stats.redCards * 10 + b.stats.yellowCards) - (a.stats.redCards * 10 + a.stats.yellowCards))[0];
+      return row ? {
+        player: {
+          id: row.card.id,
+          shortName: row.card.shortName,
+          photoUrl: row.card.photoUrl,
+          rarity: row.card.rarity,
+        },
+        teamName: row.team.name,
+        value: row.stats.redCards * 10 + row.stats.yellowCards,
+        yellowCards: row.stats.yellowCards,
+        redCards: row.stats.redCards,
+      } : null;
+    })(),
   };
   const championTeam = allTeams.find(team => team.id === room.champion);
   const championPlayer = room.players.find(player => player.id === room.champion);
@@ -240,11 +261,19 @@ async function persistCompetitionForPlayers(
         })),
         championId: playerPartial ? null : room.champion,
         championName: playerPartial ? '' : championName,
+        championCrestId: playerPartial ? null : championTeam?.crestId ?? null,
         formatId: room.competitionFormat.id,
         finalResult: playerFinalResult,
         playStyle,
         report: playerPartial ? null : generateImmortalReport(team, results, championName),
-        leaders: playerPartial ? { topScorer: null, topRating: null, topAssister: null } : leaders,
+        leaders: playerPartial ? {
+          topScorer: null,
+          topRating: null,
+          topAssister: null,
+          topSaver: null,
+          topTackler: null,
+          topCards: null,
+        } : leaders,
       },
     };
     const statements = [env.DB.prepare(`INSERT INTO competition_history

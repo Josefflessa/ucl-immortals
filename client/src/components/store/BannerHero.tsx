@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { Button } from '../../design-system';
 import PlayerCard from '../game/PlayerCard';
 import { RARITY_LABEL } from '../album/albumData';
-import { CoinAmount } from '../album/AlbumPieces';
+import { CoinAmount, QuantityStepper } from '../album/AlbumPieces';
 
 interface BannerHeroProps {
   bannerNumber: 1 | 2;
@@ -13,15 +13,18 @@ interface BannerHeroProps {
   preview: boolean;
   featuredCard?: Player;
   price: number;
+  drawCount: number;
   coins: number;
   busy: boolean;
   onDraw: () => void;
+  onDrawCountChange: (count: number) => void;
 }
 
-export default function BannerHero({ bannerNumber, rotationDate, preview, featuredCard, price, coins, busy, onDraw }: BannerHeroProps) {
+export default function BannerHero({ bannerNumber, rotationDate, preview, featuredCard, price, drawCount, coins, busy, onDraw, onDrawCountChange }: BannerHeroProps) {
   const rarity = featuredCard?.rarity ?? 'legendary';
   const rarityColor = getRarityColor(rarity);
-  const shortfall = Math.max(0, price - coins);
+  const totalPrice = price * drawCount;
+  const shortfall = Math.max(0, totalPrice - coins);
 
   return (
     <section
@@ -60,10 +63,14 @@ export default function BannerHero({ bannerNumber, rotationDate, preview, featur
           <p className="text-xs font-medium text-[var(--ui-text-soft)]">Prévia da próxima rotação</p>
         ) : (
           <div className="w-full">
-            <Button intent="primary" disabled={busy || coins < price} onClick={onDraw} className="w-full">
-              <span className="flex w-full items-center justify-between gap-2">
-                <span className="truncate">Sortear carta</span>
-                <CoinAmount value={price} size={14} className="shrink-0 text-inherit" />
+            <div className="mb-2 flex w-full items-center justify-between gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--ui-text-faint)]">Sorteios</span>
+              <QuantityStepper value={drawCount} onChange={onDrawCountChange} label="sorteios" max={10} canIncrease={coins >= price * (drawCount + 1)} disabled={busy} />
+            </div>
+            <Button intent="primary" aria-label={`Sortear ${drawCount} ${drawCount === 1 ? 'carta' : 'cartas'} por ${totalPrice.toLocaleString('pt-BR')} moedas`} disabled={busy || coins < totalPrice} onClick={onDraw} className="w-full px-2">
+              <span className="flex w-full min-w-0 items-center justify-center gap-2 whitespace-nowrap">
+                <span>Sortear</span>
+                <CoinAmount value={totalPrice} size={13} className="shrink-0 text-inherit" />
               </span>
             </Button>
             {shortfall > 0 ? <p className="mt-1.5 text-[10px] text-[var(--ui-text-muted)]">Faltam {shortfall.toLocaleString('pt-BR')} moedas</p> : null}

@@ -535,7 +535,7 @@ export default function KnockoutTiesTab() {
                   boxShadow: '0 0 25px rgba(34,197,94,0.3)',
                 }}
               >
-                {isFinal ? <><Trophy {...INLINE_ICON} />VER O CAMPEÃO →</> : 'AVANÇAR PARA A PRÓXIMA FASE →'}
+                {isFinal ? <><Trophy {...INLINE_ICON} />ENCERRAR COMPETIÇÃO</> : 'AVANÇAR PARA A PRÓXIMA FASE →'}
               </button>
             )
           ) : (
@@ -585,9 +585,6 @@ export default function KnockoutTiesTab() {
           )}
             {wasEliminated && (
             <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--ui-surface-3)' }}>
-              <p className="mb-2 text-xs text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                Você pode acompanhar as próximas fases ou encerrar sua participação agora.
-              </p>
               <button
                 type="button"
                 onClick={() => online
@@ -596,7 +593,7 @@ export default function KnockoutTiesTab() {
                 className="w-full rounded-xl border px-4 py-3 text-sm font-black tracking-wider transition-colors hover:bg-white/5"
                 style={{ fontFamily: 'var(--font-game), sans-serif', borderColor: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}
               >
-                <LogOut {...INLINE_ICON} />{online ? 'SAIR E VER RESUMO PARCIAL' : 'ENCERRAR COM RESUMO PARCIAL'}
+                <LogOut {...INLINE_ICON} />{online ? 'SAIR E VER RESUMO PARCIAL' : 'ENCERRAR E VER RESULTADO FINAL'}
               </button>
             </div>
           )}

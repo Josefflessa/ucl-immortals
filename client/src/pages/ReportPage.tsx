@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Armchair, ArrowLeft, Home, Medal, Trophy, Zap } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
@@ -36,16 +37,19 @@ import type { AchievementUnlock, EventCardUnlock, FrameUnlock } from '../context
 import { ALL_UNIQUE_CARDS } from '@shared/game/gameData';
 import { AVATAR_FRAME_BY_KEY } from '@shared/game/events';
 import { FrameImage } from '../components/account/AvatarFrame';
+import { CardIcon } from '../components/game/StatusIcon';
 
 type SavedEffectiveCardStats = Pick<EffectiveStats,
   'overall' | 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure'>;
 
-function playerInitials(player: Player): string {
+type HighlightPlayer = Pick<Player, 'id' | 'shortName' | 'photoUrl' | 'rarity'>;
+
+function playerInitials(player: Pick<Player, 'shortName'>): string {
   const parts = player.shortName.trim().split(/\s+/).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : parts[0]?.slice(0, 2) ?? '?').toUpperCase();
 }
 
-function HighlightPortrait({ player, color }: { player: Player; color: string }) {
+function HighlightPortrait({ player, color }: { player: HighlightPlayer; color: string }) {
   return (
     <PlayerAvatar
       playerId={player.id}
@@ -60,6 +64,17 @@ function HighlightPortrait({ player, color }: { player: Player; color: string })
       }
     />
   );
+}
+
+interface SeasonHighlight {
+  key: string;
+  label: string;
+  player: HighlightPlayer;
+  teamName: string;
+  detail?: string;
+  value: ReactNode;
+  unit: string;
+  color: string;
 }
 
 interface ReportPageProps {
@@ -234,6 +249,53 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     return rows.filter(x => x.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists)[0] ?? null;
   }, [allTeamsForStats, getSeasonStats, historySnapshot]);
 
+  const topSaver = useMemo(() => {
+    if (historySnapshot) {
+      const leader = historySnapshot.leaders.topSaver;
+      return leader ? { pl: leader.player as Player, team: { name: leader.teamName }, stats: { saves: leader.value } } : null;
+    }
+    const rows = allTeamsForStats.flatMap(team => team.players.map(pl => ({ pl, team, stats: getSeasonStats(pl.id, team.id) })));
+    return rows.filter(row => row.pl.position === 'GK' && row.stats.played > 0)
+      .sort((a, b) => b.stats.saves - a.stats.saves)[0] ?? null;
+  }, [allTeamsForStats, getSeasonStats, historySnapshot]);
+
+  const topTackler = useMemo(() => {
+    if (historySnapshot) {
+      const leader = historySnapshot.leaders.topTackler;
+      return leader ? { pl: leader.player as Player, team: { name: leader.teamName }, stats: { tackles: leader.value } } : null;
+    }
+    const rows = allTeamsForStats.flatMap(team => team.players.map(pl => ({ pl, team, stats: getSeasonStats(pl.id, team.id) })));
+    return rows.filter(row => row.stats.tackles > 0).sort((a, b) => b.stats.tackles - a.stats.tackles)[0] ?? null;
+  }, [allTeamsForStats, getSeasonStats, historySnapshot]);
+
+  const topCards = useMemo(() => {
+    if (historySnapshot) {
+      const leader = historySnapshot.leaders.topCards;
+      return leader ? {
+        pl: leader.player as Player,
+        team: { name: leader.teamName },
+        stats: { yellowCards: leader.yellowCards, redCards: leader.redCards },
+      } : null;
+    }
+    const rows = allTeamsForStats.flatMap(team => team.players.map(pl => ({ pl, team, stats: getSeasonStats(pl.id, team.id) })));
+    return rows.filter(row => row.stats.yellowCards + row.stats.redCards > 0)
+      .sort((a, b) => (b.stats.redCards * 10 + b.stats.yellowCards) - (a.stats.redCards * 10 + a.stats.yellowCards))[0] ?? null;
+  }, [allTeamsForStats, getSeasonStats, historySnapshot]);
+
+  const seasonHighlights = ([
+    topScorer && { key: 'goals', label: 'ARTILHEIRO', player: topScorer.pl, teamName: topScorer.team.name, value: topScorer.stats.goals, unit: 'gols', color: 'var(--ui-brand)' },
+    topRating && { key: 'rating', label: 'MELHOR NOTA MÉDIA', player: topRating.pl, teamName: topRating.team.name, detail: `${topRating.stats.played} jogos`, value: topRating.stats.ratingAvg.toFixed(1), unit: 'nota', color: 'var(--ui-success)' },
+    topAssister && { key: 'assists', label: 'REI DAS ASSISTÊNCIAS', player: topAssister.pl, teamName: topAssister.team.name, value: topAssister.stats.assists, unit: 'assist.', color: '#4FC3F7' },
+    topSaver && { key: 'saves', label: 'GOLEIRO COM MAIS DEFESAS', player: topSaver.pl, teamName: topSaver.team.name, value: topSaver.stats.saves, unit: 'defesas', color: '#A78BFA' },
+    topTackler && { key: 'tackles', label: 'MAIS DESARMES', player: topTackler.pl, teamName: topTackler.team.name, value: topTackler.stats.tackles, unit: 'desarmes', color: '#FB923C' },
+    topCards && { key: 'cards', label: 'MAIS CARTÕES', player: topCards.pl, teamName: topCards.team.name, value: (
+      <span className="inline-flex items-center justify-end gap-2 text-xl">
+        {topCards.stats.yellowCards > 0 && <span className="inline-flex items-center gap-1">{topCards.stats.yellowCards}<CardIcon color="yellow" size={16} /></span>}
+        {topCards.stats.redCards > 0 && <span className="inline-flex items-center gap-1">{topCards.stats.redCards}<CardIcon color="red" size={16} /></span>}
+      </span>
+    ), unit: 'amarelos · vermelhos', color: '#F87171' },
+  ].filter(Boolean)) as SeasonHighlight[];
+
   // ── Champion team name (works for bot or any human in online mode) ─────────
   const championName = useMemo(() => {
     if (historySnapshot) return historySnapshot.championName;
@@ -242,6 +304,14 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     if (onlineP) return onlineP.team?.name ?? onlineP.name;
     return state.botTeams.find(t => t.id === champion)?.name ?? 'Campeão';
   }, [champion, historySnapshot, state.onlinePlayers, state.botTeams]);
+
+  const championTeam = useMemo(
+    () => !historySnapshot && champion ? allTeamsForStats.find(team => team.id === champion) ?? null : null,
+    [allTeamsForStats, champion, historySnapshot],
+  );
+  const championCrestId = historySnapshot
+    ? historySnapshot.championCrestId ?? (historySnapshot.championId === historySnapshot.playerTeam.id ? historySnapshot.playerTeam.crestId ?? null : null)
+    : championTeam?.crestId ?? null;
 
   // ── Cinematic reveal phases ────────────────────────────────────────────────
   const [phase, setPhase] = useState(0);
@@ -458,6 +528,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             winner: result.winner,
           })),
           championId: state.partialReport ? null : champion ?? null,
+          championCrestId: state.partialReport ? null : championCrestId,
           competitionPoints,
           finishStage,
           difficultyId: state.difficulty,
@@ -476,6 +547,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             topScorer: state.partialReport ? null : topScorer ? { player: topScorer.pl, teamName: topScorer.team.name, value: topScorer.stats.goals } : null,
             topRating: state.partialReport ? null : topRating ? { player: topRating.pl, teamName: topRating.team.name, value: topRating.stats.ratingAvg, played: topRating.stats.played } : null,
             topAssister: state.partialReport ? null : topAssister ? { player: topAssister.pl, teamName: topAssister.team.name, value: topAssister.stats.assists } : null,
+            topSaver: state.partialReport ? null : topSaver ? { player: topSaver.pl, teamName: topSaver.team.name, value: topSaver.stats.saves } : null,
+            topTackler: state.partialReport ? null : topTackler ? { player: topTackler.pl, teamName: topTackler.team.name, value: topTackler.stats.tackles } : null,
+            topCards: state.partialReport ? null : topCards ? {
+              player: topCards.pl,
+              teamName: topCards.team.name,
+              value: topCards.stats.redCards * 10 + topCards.stats.yellowCards,
+              yellowCards: topCards.stats.yellowCards,
+              redCards: topCards.stats.redCards,
+            } : null,
           },
         },
       },
@@ -491,7 +571,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       setHistorySaveError(error instanceof Error ? error.message : 'Não foi possível salvar a competição agora.');
       setHistorySaveStatus('error');
     });
-  }, [account, champion, championName, effectiveCardStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, receiveAlbumGrants, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, state.partialReport, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
+  }, [account, champion, championCrestId, championName, effectiveCardStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, receiveAlbumGrants, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, state.partialReport, teamOverall, topAssister, topCards, topRating, topSaver, topScorer, topTackler, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
 
   if (historyEntry && !historySnapshot) {
     return <LegacyHistoryReport entry={historyEntry} onBack={onHistoryBack} hideTopBar={hideTopBar} />;
@@ -523,8 +603,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             }}
           >
             <div className="text-sm" style={{ color: historySaveStatus === 'error' ? '#FCA5A5' : historySaveStatus === 'saved' ? '#86EFAC' : '#D4D4D8' }}>
-              {historySaveStatus === 'saving' ? (partialReport ? 'Salvando seu resumo da campanha até a eliminação…' : 'Salvando histórico, recordes e dados do perfil…')
-                : historySaveStatus === 'saved' ? (partialReport ? 'Resumo parcial salvo. Recompensas da fase alcançada foram registradas.' : 'Competição salva. Histórico, recordes e perfil foram atualizados.')
+              {historySaveStatus === 'saving' ? (partialReport ? 'Salvando resumo parcial…' : 'Salvando competição…')
+                : historySaveStatus === 'saved' ? (partialReport ? 'Resumo parcial salvo.' : 'Competição salva.')
                   : `Não foi possível salvar esta competição. ${historySaveError}`}
             </div>
             {historySaveStatus === 'error' && (
@@ -613,15 +693,16 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   >
                     CAMPEÃO!
                   </h1>
-                  <motion.p
+                  <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="text-xl sm:text-2xl font-black mt-2 tracking-wide"
+                    className="mt-3 inline-flex items-center gap-3 text-xl font-black tracking-wide sm:text-2xl"
                     style={{ fontFamily: 'var(--font-game), sans-serif', color: '#fff' }}
                   >
-                    {playerTeam?.name}
-                  </motion.p>
+                    <Crest crestId={playerTeam?.crestId} name={playerTeam?.name ?? championName} size={34} />
+                    <span>{playerTeam?.name}</span>
+                  </motion.div>
                   <motion.p
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -655,9 +736,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <p className="text-base mt-3 font-bold" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                   {partialReport ? 'Sua participação terminou antes do fim da competição. Estes são seus resultados até a eliminação.' : 'Você deu tudo, mas não chegou até o topo desta vez.'}
                 </p>
-                {!partialReport && <div className="mt-4 px-5 py-2.5 rounded-full font-bold text-sm tracking-wider"
-                  style={{ background: 'var(--ui-surface-1)', border: '1px solid #C9A84C44', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-                  <Trophy {...INLINE_ICON} />CAMPEÃO: {championName}
+                {!partialReport && <div className="mt-5 flex w-full max-w-sm items-center gap-4 rounded-2xl border px-4 py-3 text-left shadow-[0_8px_28px_rgba(201,168,76,0.08)]"
+                  style={{ background: 'linear-gradient(110deg, rgba(201,168,76,0.12), var(--ui-surface-1) 55%)', borderColor: '#C9A84C55' }}>
+                  <Crest crestId={championCrestId ?? undefined} name={championName} size={46} className="shrink-0 drop-shadow-[0_0_10px_rgba(201,168,76,0.25)]" />
+                  <div className="min-w-0">
+                    <div className="inline-flex items-center gap-1.5 text-[11px] font-black tracking-[0.16em]" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
+                      <Trophy size={13} strokeWidth={2.5} aria-hidden="true" />CAMPEÃO DA COMPETIÇÃO
+                    </div>
+                    <div className="truncate text-lg font-black" style={{ color: '#fff', fontFamily: 'var(--font-display), sans-serif' }}>{championName}</div>
+                  </div>
                 </div>}
               </motion.div>
             )}
@@ -759,7 +846,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         )}
 
         {/* Top performers */}
-        {!partialReport && phase >= 3 && (topScorer || topRating || topAssister) && (
+        {!partialReport && phase >= 3 && seasonHighlights.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -771,48 +858,22 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESTAQUES DA TEMPORADA</span>
             </div>
             <div className="divide-y" style={{ borderColor: 'var(--ui-surface-3)' }}>
-              {topScorer && (
-                <div className="flex items-center gap-4 px-5 py-4">
-                  <HighlightPortrait player={topScorer.pl} color="#C9A84C" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>ARTILHEIRO</div>
-                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{topScorer.pl.shortName}</div>
-                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{topScorer.team.name}</div>
+              {seasonHighlights.map(highlight => (
+                <div key={highlight.key} className="flex items-center gap-4 px-5 py-4">
+                  <HighlightPortrait player={highlight.player} color={highlight.color} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.label}</div>
+                    <div className="truncate text-base font-black" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.player.shortName}</div>
+                    <div className="truncate text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
+                      {highlight.teamName}{highlight.detail ? ` · ${highlight.detail}` : ''}
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand)' }}>{topScorer.stats.goals}</div>
-                    <div className="text-[12px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>gols</div>
-                  </div>
-                </div>
-              )}
-              {topRating && (
-                <div className="flex items-center gap-4 px-5 py-4">
-                  <HighlightPortrait player={topRating.pl} color="#22C55E" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>MELHOR NOTA MÉDIA</div>
-                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{topRating.pl.shortName}</div>
-                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{topRating.team.name} · {topRating.stats.played} jogos</div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-success)' }}>{topRating.stats.ratingAvg.toFixed(1)}</div>
-                    <div className="text-[12px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>nota</div>
+                  <div className="flex-shrink-0 text-right">
+                    <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: highlight.color }}>{highlight.value}</div>
+                    <div className="text-[12px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.unit}</div>
                   </div>
                 </div>
-              )}
-              {topAssister && (
-                <div className="flex items-center gap-4 px-5 py-4">
-                  <HighlightPortrait player={topAssister.pl} color="#4FC3F7" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>REI DAS ASSISTÊNCIAS</div>
-                    <div className="text-base font-black truncate" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{topAssister.pl.shortName}</div>
-                    <div className="text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>{topAssister.team.name}</div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-3xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#4FC3F7' }}>{topAssister.stats.assists}</div>
-                    <div className="text-[12px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>assist.</div>
-                  </div>
-                </div>
-              )}
+              ))}
               {report && report.historicalRecreations.length > 0 && (
                 <div className="flex items-start gap-4 px-5 py-4">
                   <Zap size={24} strokeWidth={2.2} color="var(--ui-brand)" className="mt-0.5 flex-shrink-0" aria-hidden="true" />
@@ -855,8 +916,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             style={{ background: '#0F0F1A', border: `1px solid ${isChampion ? '#C9A84C55' : '#1A1A2A'}` }}
           >
             <div className="border-b px-5 py-4" style={{ borderColor: 'var(--ui-surface-3)', background: isChampion ? '#C9A84C11' : 'transparent' }}>
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-                <div className="flex min-w-[180px] flex-1 items-center gap-3">
+              <div className="flex items-center gap-3">
                   <Crest
                     crestId={playerTeam.crestId}
                     name={playerTeam.name}
@@ -864,22 +924,18 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     className="flex-shrink-0 drop-shadow-[0_0_10px_rgba(201,168,76,0.25)]"
                   />
                   <div className="min-w-0">
-                <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{partialReport ? 'ELENCO DA CAMPANHA' : 'ESCALAÇÃO FINAL'}</div>
+                    <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{partialReport ? 'ELENCO DA CAMPANHA' : 'ESCALAÇÃO FINAL'}</div>
                     <div className="truncate text-base font-black" style={{ color: '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>{playerTeam.name}</div>
                   </div>
+              </div>
+              <div className="mt-4 grid w-full grid-cols-2 border-t pt-3" style={{ borderColor: 'var(--ui-surface-3)' }}>
+                <div className="flex flex-col items-center justify-center gap-1 px-2 text-center">
+                  <span className="text-[12px] font-black tracking-widest" style={{ color: '#7A8A7F', fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA</span>
+                  <strong className="text-2xl leading-none" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-display), sans-serif' }}>{chemData?.total ?? '—'}</strong>
                 </div>
-                <div className="flex items-center gap-4">
-                  {chemData && (
-                    <div className="flex items-baseline gap-2 whitespace-nowrap">
-                      <span className="text-[12px] font-black tracking-widest" style={{ color: '#7A8A7F', fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA</span>
-                      <strong className="text-xl leading-none" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-display), sans-serif' }}>{chemData.total}%</strong>
-                    </div>
-                  )}
-                  <div className="h-5 w-px" style={{ background: 'var(--ui-line)' }} />
-                  <div className="flex items-baseline gap-2 whitespace-nowrap">
-                    <span className="text-[12px] font-black tracking-widest" style={{ color: '#8A8290', fontFamily: 'var(--font-game), sans-serif' }}>GERAL DO TIME</span>
-                    <strong className="text-xl leading-none" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-display), sans-serif' }}>{teamOverall ?? '—'}</strong>
-                  </div>
+                <div className="flex flex-col items-center justify-center gap-1 border-l px-2 text-center" style={{ borderColor: 'var(--ui-surface-3)' }}>
+                  <span className="text-[12px] font-black tracking-widest" style={{ color: '#8A8290', fontFamily: 'var(--font-game), sans-serif' }}>GERAL DO TIME</span>
+                  <strong className="text-2xl leading-none" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-display), sans-serif' }}>{teamOverall ?? '—'}</strong>
                 </div>
               </div>
             </div>

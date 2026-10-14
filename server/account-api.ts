@@ -15,7 +15,7 @@ import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, loadOwnedNameS
 import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { isAvatarFrameKey } from '../shared/game/events.js';
 import { isClubRewardKey } from '../shared/game/clubRewards.js';
-import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItem, sellCopies, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
+import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyDailyBannerCards, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, buyWeeklyBannerCards, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItem, sellCopies, sellCopiesBatch, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
 import { albumCatalog } from '../shared/game/album.js';
 import { WEEKLY_PACK_REWARDS } from '../shared/game/dailyRewards.js';
 import { isPushConfigured, isValidPushEndpoint, sendPushToUser, type PushEnvironment, type PushNotice } from './push.js';
@@ -1923,7 +1923,7 @@ async function grantCampaignRewards(env: AccountEnv, userId: string): Promise<It
 const ALBUM_ERROR_STATUS: Record<string, number> = {
   invalid_item: 400, invalid_card: 400, invalid_quantity: 400, not_for_sale: 400,
   item_not_owned: 409, no_spare_copy: 409, max_level: 409, already_owned: 409, not_enough_coins: 409, banner_unavailable: 503,
-  banner_purchase_in_progress: 409,
+  banner_purchase_in_progress: 409, operation_failed: 500,
 };
 
 /** The album state (after granting what is due) and the profile covers it won, plus whatever the operation returned. */
@@ -1938,14 +1938,20 @@ async function albumAction(request: Request, env: AccountEnv, account: Authentic
   let result: Record<string, unknown>;
   switch (action) {
     case 'open': result = await openItem(env.DB, account.id, String(body.item ?? '')) as unknown as Record<string, unknown>; break;
-    case 'apply': result = await applyCopy(env.DB, account.id, String(body.cardId ?? '')); break;
+    case 'apply': result = await applyCopy(env.DB, account.id, String(body.cardId ?? ''), Number(body.quantity ?? 1)); break;
     case 'sell': result = await sellCopies(env.DB, account.id, String(body.cardId ?? ''), Number(body.quantity ?? 1)); break;
-    case 'buy-pack': result = await buyPack(env.DB, account.id, String(body.tier ?? '')); break;
+    case 'sell-batch': result = await sellCopiesBatch(env.DB, account.id, Array.isArray(body.sales) ? body.sales.map((sale: unknown) => ({
+      cardId: typeof sale === 'object' && sale !== null && 'cardId' in sale ? String(sale.cardId) : '',
+      quantity: typeof sale === 'object' && sale !== null && 'quantity' in sale ? Number(sale.quantity) : 0,
+    })) : []); break;
+    case 'buy-pack': result = await buyPack(env.DB, account.id, String(body.tier ?? ''), Number(body.quantity ?? 1)); break;
     case 'buy-frame': result = await buyAvatarFrame(env.DB, account.id, String(body.frameKey ?? '')); break;
     case 'buy-cover': result = await buyProfileCover(env.DB, account.id, String(body.coverKey ?? '')); break;
     case 'buy-name-style': result = await buyNameStyle(env.DB, account.id, String(body.styleKey ?? '')); break;
     case 'buy-daily-banner': result = { ...await buyDailyBannerCard(env.DB, account.id) }; break;
     case 'buy-weekly-banner': result = { ...await buyWeeklyBannerCard(env.DB, account.id) }; break;
+    case 'buy-daily-banner-batch': result = { ...await buyDailyBannerCards(env.DB, account.id, Number(body.quantity ?? 1)) }; break;
+    case 'buy-weekly-banner-batch': result = { ...await buyWeeklyBannerCards(env.DB, account.id, Number(body.quantity ?? 1)) }; break;
     default: return json({ error: 'not_found' }, 404);
   }
   if ('error' in result) return json(result, ALBUM_ERROR_STATUS[String(result.error)] ?? 400);
@@ -2122,7 +2128,7 @@ export async function handleAccountRequest(
     if (url.pathname === '/api/account/album/daily-banner' && request.method === 'GET') return json(dailyBannerRotations());
     if (url.pathname === '/api/account/album/weekly-banner' && request.method === 'GET') return json(weeklyBannerRotations());
     if (url.pathname === '/api/account/album' && request.method === 'GET') return albumResponse(env, account.id);
-    const albumRoute = url.pathname.match(/^\/api\/account\/album\/(open|apply|sell|buy-pack|buy-frame|buy-cover|buy-name-style|buy-daily-banner|buy-weekly-banner)$/);
+    const albumRoute = url.pathname.match(/^\/api\/account\/album\/(open|apply|sell|sell-batch|buy-pack|buy-frame|buy-cover|buy-name-style|buy-daily-banner|buy-weekly-banner|buy-daily-banner-batch|buy-weekly-banner-batch)$/);
     if (albumRoute && request.method === 'POST') return albumAction(request, env, account, albumRoute[1]);
     const eventChoice = url.pathname.match(/^\/api\/account\/events\/([a-z0-9-]+)\/choice$/);
     if (eventChoice && request.method === 'POST') return chooseEvent(request, env, account, eventChoice[1]);

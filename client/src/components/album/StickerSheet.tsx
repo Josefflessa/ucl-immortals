@@ -66,6 +66,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
   const spare = owned?.spare ?? 0;
   const sellQuantity = Math.min(quantity, Math.max(1, spare));
   const maxed = owned ? owned.copies >= MAX_COPIES : false;
+  const applyQuantity = owned ? Math.min(sellQuantity, MAX_COPIES - owned.copies) : 0;
 
   return (
     <GameModal
@@ -76,49 +77,58 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
       subtitle={`Nº ${sticker.number} · ${page?.title ?? canonicalClubName(card.club)} · ${RARITY_LABEL[card.rarity]}`}
       closeLabel="Fechar carta"
     >
-      <div className="grid gap-6 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
-        <div className={cn('mx-auto pt-4', !owned && 'opacity-45 grayscale')}>
-          <PlayerCard player={card} lite scale={0.9} albumLevel={level >= 2 ? level as AlbumLevel : undefined} />
+      <div className="grid gap-4 sm:grid-cols-[minmax(150px,220px)_minmax(0,1fr)] sm:items-start sm:gap-5">
+        <div className={cn('mx-auto pt-1 sm:pt-0', !owned && 'opacity-45 grayscale')}>
+          <PlayerCard player={card} lite scale={0.76} albumLevel={level >= 2 ? level as AlbumLevel : undefined} />
         </div>
 
-        <div className="min-w-0 space-y-5">
+        <div className="min-w-0 space-y-3.5">
           {owned ? (
             <>
-              <section>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Nível no álbum</div>
-                    <LevelStars level={level} size={18} className="mt-1" />
+              <section className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Nível do álbum</div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="shrink-0 rounded-md bg-[#E9C46A]/10 px-2 py-0.5 text-sm font-black tabular-nums text-[#E9C46A]">★{level}</span>
+                      <LevelStars level={level} size={15} />
+                    </div>
                   </div>
                   <div className="text-right text-xs text-[var(--ui-text-muted)]">
-                    <div><strong className="tabular-nums text-[var(--ui-text)]">{owned.copies}</strong> {owned.copies === 1 ? 'cópia no álbum' : 'cópias no álbum'}</div>
-                    <div>{toNext === null ? 'Nível máximo' : <>{toNext === 1 ? 'Falta' : 'Faltam'} <strong className="tabular-nums text-[var(--ui-text)]">{toNext}</strong> {toNext === 1 ? 'cópia' : 'cópias'} no álbum para ★{level + 1}</>}</div>
+                    <div><strong className="tabular-nums text-[var(--ui-text)]">{owned.copies}</strong> {owned.copies === 1 ? 'cópia aplicada' : 'cópias aplicadas'}</div>
+                    <div className="mt-0.5">{toNext === null ? 'Nível máximo' : <>{toNext === 1 ? 'Falta' : 'Faltam'} <strong className="tabular-nums text-[var(--ui-text)]">{toNext}</strong> para ★{level + 1}</>}</div>
                   </div>
                 </div>
                 <div className="mt-3"><LevelTrack copies={owned.copies} /></div>
-                <p className="mt-2 text-xs leading-relaxed text-[var(--ui-text-faint)]">Em competições, cada estrela soma +1 em todos os atributos. O nível fica congelado ao começar a competição e acompanha a carta se ela for negociada.</p>
+                <p className="mt-2 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">Cada estrela dá +1 em todos os atributos nas competições. O nível é fixado quando a competição começa.</p>
               </section>
 
-              <section className="rounded-xl border border-[var(--ui-line-subtle)] p-4">
+              <section className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-3.5">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-bold text-[var(--ui-text)]">Cópias repetidas</div>
-                  <div className="text-sm font-bold tabular-nums text-[var(--ui-text)]">{spare}</div>
+                  <div>
+                    <div className="text-sm font-bold text-[var(--ui-text)]">Cópias repetidas</div>
+                    <div className="mt-0.5 text-[11px] text-[var(--ui-text-muted)]">Aplique para evoluir ou venda por moedas.</div>
+                  </div>
+                  <div className="rounded-lg bg-[var(--ui-surface-3)] px-2.5 py-1 text-sm font-bold tabular-nums text-[var(--ui-text)]">{spare}</div>
                 </div>
                 {spare > 0 ? (
-                  <div className="mt-3 flex flex-col gap-2.5">
+                  <div className="mt-3 flex flex-col gap-2">
                     {!maxed ? (
-                      <Button intent="primary" disabled={busy} onClick={() => run(async () => { await applyCopy(card.id); toast.success('Cópia aplicada ao progresso da carta.'); })} className="w-full">
-                        <ArrowUpCircle size={16} aria-hidden="true" /> Aplicar 1 cópia repetida
+                      <Button intent="primary" disabled={busy || applyQuantity < 1} onClick={() => run(async () => { await applyCopy(card.id, applyQuantity); setQuantity(1); toast.success(`${applyQuantity} ${applyQuantity === 1 ? 'cópia aplicada' : 'cópias aplicadas'} ao nível da carta.`); })} className="w-full">
+                        <ArrowUpCircle size={16} aria-hidden="true" /> Aplicar {applyQuantity} {applyQuantity === 1 ? 'cópia' : 'cópias'}
                       </Button>
                     ) : null}
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center rounded-lg border border-[var(--ui-line-subtle)]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex h-10 items-center rounded-lg border border-[var(--ui-line-subtle)]">
                         <button type="button" aria-label="Menos" disabled={sellQuantity <= 1} onClick={() => setQuantity(value => Math.max(1, value - 1))} className="flex size-9 items-center justify-center text-[var(--ui-text-muted)] disabled:opacity-30"><Minus size={14} /></button>
-                        <span className="w-6 text-center text-sm font-bold tabular-nums">{sellQuantity}</span>
+                        <span aria-live="polite" className="min-w-7 text-center text-sm font-bold tabular-nums">{sellQuantity}</span>
                         <button type="button" aria-label="Mais" disabled={sellQuantity >= spare} onClick={() => setQuantity(value => Math.min(spare, value + 1))} className="flex size-9 items-center justify-center text-[var(--ui-text-muted)] disabled:opacity-30"><Plus size={14} /></button>
                       </div>
-                      <Button intent="secondary" disabled={busy} onClick={() => run(async () => { const earned = await sell(card.id, sellQuantity); setQuantity(1); toast.success(`Vendida${sellQuantity > 1 ? 's' : ''} por ${earned} moedas.`); })} className="min-w-0 flex-1">
-                        Vender por <CoinAmount value={SELL_VALUE[card.rarity] * sellQuantity} size={14} className="text-inherit" />
+                      <Button intent="secondary" disabled={busy} onClick={() => run(async () => { const earned = await sell(card.id, sellQuantity); setQuantity(1); toast.success(`Vendida${sellQuantity > 1 ? 's' : ''} por ${earned} moedas.`); })} className="min-w-0 flex-1 px-2">
+                        <span className="flex w-full min-w-0 items-center justify-center gap-2 whitespace-nowrap">
+                          <span>Vender {sellQuantity === spare ? 'todas' : sellQuantity}</span>
+                          <CoinAmount value={SELL_VALUE[card.rarity] * sellQuantity} size={13} className="shrink-0 text-inherit" />
+                        </span>
                       </Button>
                     </div>
                   </div>

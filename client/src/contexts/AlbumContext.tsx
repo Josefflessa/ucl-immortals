@@ -11,6 +11,8 @@ export type GrantSource = 'campaign' | 'page' | 'shop';
 export interface ItemGrant { key: AlbumItemKey; source: GrantSource; competitionId?: string; pageId?: string; coinsAwarded?: number }
 export interface PageReward { pageId: string; frameKey: string | null; coverKey: string | null; items: AlbumItemKey[]; recompleted: boolean }
 export interface OpenResult { item: AlbumItemKey; cards: { id: string; isNew: boolean }[]; pageRewards: PageReward[] }
+export interface BannerDraw { card: { id: string; isNew: boolean }; rarity: Rarity; pityTriggered: boolean }
+export interface BannerBatchResult { cards: BannerDraw[]; dayStart: string; price: number; pageRewards: PageReward[] }
 
 export interface StickerState { copies: number; spare: number }
 
@@ -46,14 +48,17 @@ interface AlbumContextValue {
   /** Current account levels, freshly loaded if needed, for freezing a new competition. */
   captureCompetitionLevels: () => Promise<ReadonlyMap<string, AlbumLevel>>;
   open: (item: AlbumItemKey) => Promise<OpenResult>;
-  applyCopy: (cardId: string) => Promise<void>;
+  applyCopy: (cardId: string, quantity?: number) => Promise<void>;
   sell: (cardId: string, quantity: number) => Promise<number>;
-  buyPack: (tier: string) => Promise<void>;
+  sellBatch: (sales: readonly { cardId: string; quantity: number }[]) => Promise<{ coins: number; copies: number }>;
+  buyPack: (tier: string, quantity?: number) => Promise<void>;
   buyFrame: (frameKey: string) => Promise<{ frameKey: string; price: number }>;
   buyCover: (coverKey: string) => Promise<{ coverKey: string; price: number }>;
   buyNameStyle: (styleKey: string) => Promise<{ styleKey: string; price: number }>;
   buyDailyBannerCard: () => Promise<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[]; pityTriggered: boolean }>;
   buyWeeklyBannerCard: () => Promise<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[]; pityTriggered: boolean }>;
+  buyDailyBannerCards: (quantity: number) => Promise<BannerBatchResult>;
+  buyWeeklyBannerCards: (quantity: number) => Promise<BannerBatchResult>;
   /** Campaign rewards not yet acknowledged (the prompt offers to open granted packs or keep them). */
   pendingGrants: ItemGrant[];
   receiveGrants: (grants: readonly ItemGrant[] | undefined) => void;
@@ -231,14 +236,17 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
     refreshIfStale,
     captureCompetitionLevels,
     open: item => post<OpenResult>('open', { item }),
-    applyCopy: async cardId => { await post('apply', { cardId }); },
+    applyCopy: async (cardId, quantity = 1) => { await post('apply', { cardId, quantity }); },
     sell: async (cardId, quantity) => (await post<{ coins: number }>('sell', { cardId, quantity })).coins,
-    buyPack: async tier => { await post('buy-pack', { tier }); },
+    sellBatch: sales => post<{ coins: number; copies: number }>('sell-batch', { sales }),
+    buyPack: async (tier, quantity = 1) => { await post('buy-pack', { tier, quantity }); },
     buyFrame: frameKey => post<{ frameKey: string; price: number }>('buy-frame', { frameKey }),
     buyCover: coverKey => post<{ coverKey: string; price: number }>('buy-cover', { coverKey }),
     buyNameStyle: styleKey => post<{ styleKey: string; price: number }>('buy-name-style', { styleKey }),
     buyDailyBannerCard: async () => post<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[]; pityTriggered: boolean }>('buy-daily-banner', {}),
     buyWeeklyBannerCard: async () => post<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[]; pityTriggered: boolean }>('buy-weekly-banner', {}),
+    buyDailyBannerCards: quantity => post<BannerBatchResult>('buy-daily-banner-batch', { quantity }),
+    buyWeeklyBannerCards: quantity => post<BannerBatchResult>('buy-weekly-banner-batch', { quantity }),
     pendingGrants,
     receiveGrants,
     dismissGrants: () => setPendingGrants([]),

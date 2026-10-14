@@ -1,7 +1,7 @@
 // The album itself: its regions, the pages of each region (a club's own page, or the region's
 // shared page for its smaller clubs) with their progress, and a page open with its slots.
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Gift, Globe, Lock, Search, Sparkles, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronLeft, ChevronRight, Gift, Globe, Lock, Search, Sparkles, X } from 'lucide-react';
 import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import { GAME_EVENTS } from '@shared/game/events';
 import { getCrest } from '@shared/game/crests';
@@ -148,7 +148,6 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
   const [status, setStatus] = useState<'all' | 'owned' | 'missing'>('all');
   const [pageNumber, setPageNumber] = useState(1);
   const perPage = useSlotsPerPage();
-  const gridTop = useRef<HTMLDivElement | null>(null);
   const owned = useMemo(() => new Set([...eventCards, ...(album ? Array.from(album.stickers.keys()) : [])]), [eventCards, album]);
   const counts = useMemo(() => ({
     all: EXCLUSIVE_CARDS.length,
@@ -173,13 +172,12 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
   useEffect(() => { setPageNumber(1); }, [search, status, perPage]);
   const goTo = (value: number) => {
     setPageNumber(value);
-    gridTop.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   };
   const clearFilters = () => { setSearch(''); setStatus('all'); };
 
   return (
     <section aria-label="Cartas Exclusivas">
-      <div ref={gridTop} className="mb-4 flex scroll-mt-4 flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="mb-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
         <label className="relative min-w-0 sm:w-64">
           <span className="sr-only">Buscar carta exclusiva</span>
           <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
@@ -250,7 +248,6 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
   const [status, setStatus] = useState<SlotStatus>('all');
   const [rarity, setRarity] = useState<'all' | Rarity>('all');
   const [pageNumber, setPageNumber] = useState(1);
-  const gridTop = useRef<HTMLDivElement | null>(null);
   const progress = pageProgress(page, album);
 
   const counts = useMemo(() => {
@@ -288,7 +285,6 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
   useEffect(() => { setPageNumber(1); }, [search, status, rarity, perPage]);
   const goTo = (value: number) => {
     setPageNumber(value);
-    gridTop.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   };
   const clearFilters = () => { setSearch(''); setStatus('all'); setRarity('all'); };
 
@@ -324,7 +320,7 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
       <PageRewardBanner page={page} complete={progress.complete} completionCount={album?.pageCompletionCounts[page.id] ?? 0} missing={counts.missing} />
 
       {/* Filters: by name or number, by whether it is in the album, by rarity. */}
-      <div ref={gridTop} className="mt-5 flex scroll-mt-4 flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
         <label className="relative min-w-0 sm:w-64">
           <span className="sr-only">Buscar carta</span>
           <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
@@ -428,6 +424,103 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
   );
 }
 
+type OwnedSort = 'number' | 'name' | 'level' | 'spares' | 'rarity';
+type OwnedDirection = 'asc' | 'desc';
+const OWNED_RARITIES: Rarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique'];
+
+/** A searchable, flat view of the cards already in the account's collection. */
+function OwnedCardsView() {
+  const { album } = useAlbum();
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<OwnedSort>('number');
+  const [direction, setDirection] = useState<OwnedDirection>('asc');
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<string | null>(null);
+  const scale = useSlotScale();
+  const perPage = useSlotsPerPage();
+
+  const cards = useMemo(() => {
+    if (!album) return [];
+    const query = normalize(search);
+    return Array.from(album.stickers.entries())
+      .flatMap(([id, copies]) => {
+        const sticker = CATALOG.stickers.get(id);
+        const card = albumCard(id);
+        if (!sticker || sticker.pageId === null || !card) return [];
+        const albumPage = CATALOG.pageById.get(sticker.pageId);
+        if (query && !normalize(`${card.shortName} ${card.fullName ?? ''} ${card.club} ${sticker.number} ${albumPage?.title ?? ''} ${card.position} ${RARITY_LABEL[card.rarity]}`).includes(query)) return [];
+        return [{ id, card, sticker, copies, pageTitle: albumPage?.title ?? card.club }];
+      })
+      .sort((a, b) => {
+        let result = 0;
+        if (sort === 'name') result = a.card.shortName.localeCompare(b.card.shortName, 'pt-BR');
+        else if (sort === 'level') result = stickerLevel(album, a.id) - stickerLevel(album, b.id);
+        else if (sort === 'spares') result = a.copies.spare - b.copies.spare;
+        else if (sort === 'rarity') result = OWNED_RARITIES.indexOf(a.card.rarity) - OWNED_RARITIES.indexOf(b.card.rarity);
+        else result = a.sticker.number - b.sticker.number;
+        if (result === 0) result = a.sticker.number - b.sticker.number;
+        return direction === 'asc' ? result : -result;
+      });
+  }, [album, search, sort, direction]);
+
+  const totalPages = Math.max(1, Math.ceil(cards.length / perPage));
+  const currentPage = Math.min(page, totalPages);
+  const visible = cards.slice((currentPage - 1) * perPage, currentPage * perPage);
+  const repeatedCopies = cards.reduce((total, entry) => total + entry.copies.spare, 0);
+  useEffect(() => { setPage(1); }, [search, sort, direction, perPage]);
+
+  return (
+    <section aria-label="Minhas cartas no álbum">
+      <div className="mb-4 grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_176px_40px] sm:items-center">
+        <label className="relative min-w-0 flex-1">
+          <span className="sr-only">Buscar nas minhas cartas</span>
+          <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
+          <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar jogador, clube ou nº do álbum" className="w-full pl-9" />
+        </label>
+        <div className="grid grid-cols-[minmax(0,1fr)_40px] gap-2 sm:contents">
+          <select aria-label="Ordenar minhas cartas por" value={sort} onChange={event => setSort(event.target.value as OwnedSort)} className="ui-input h-10 min-w-0 w-full py-1 text-xs">
+            <option value="number">Nº do álbum</option>
+            <option value="name">Nome</option>
+            <option value="level">Nível</option>
+            <option value="spares">Repetidas</option>
+            <option value="rarity">Raridade</option>
+          </select>
+          <button type="button" title={`Ordem ${direction === 'asc' ? 'crescente' : 'decrescente'}`} aria-label={`Mudar para ordem ${direction === 'asc' ? 'decrescente' : 'crescente'}`} onClick={() => setDirection(value => value === 'asc' ? 'desc' : 'asc')} className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] text-[var(--ui-text-soft)] transition-colors hover:border-[var(--ui-line-strong)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-focus)]">
+            {direction === 'asc' ? <ArrowUp size={17} aria-hidden="true" /> : <ArrowDown size={17} aria-hidden="true" />}
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--ui-text-muted)]" aria-live="polite">
+        <span><strong className="text-[var(--ui-text)]">{cards.length}</strong> {cards.length === 1 ? 'carta' : 'cartas'} encontradas</span>
+        {repeatedCopies > 0 ? <span>{repeatedCopies} {repeatedCopies === 1 ? 'cópia repetida' : 'cópias repetidas'}</span> : null}
+      </div>
+
+      {visible.length === 0 ? (
+        <EmptyState title={search ? 'Nenhuma carta encontrada' : 'Seu álbum ainda está vazio'} description={search ? 'Tente buscar por outro nome, clube ou número.' : 'As cartas conquistadas aparecem aqui. Use a busca para encontrar uma específica ou explore as páginas do álbum.'} />
+      ) : (
+        <>
+          <div className="grid justify-items-center gap-x-3 gap-y-5 sm:gap-x-5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(200 * scale * 1.2)}px, 1fr))` }}>
+            {visible.map(({ id, card, sticker, copies }) => (
+              <AlbumSlot key={id} card={card} number={sticker.number} owned level={stickerLevel(album, id)} spare={copies.spare} scale={scale} onClick={() => setSelected(id)} />
+            ))}
+          </div>
+          {totalPages > 1 ? (
+            <nav aria-label="Paginação das minhas cartas" className="mt-7 flex flex-col items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-4 sm:flex-row">
+              <span className="text-xs text-[var(--ui-text-muted)]">Página <strong className="tabular-nums text-[var(--ui-text)]">{currentPage}</strong> de <strong className="tabular-nums text-[var(--ui-text)]">{totalPages}</strong></span>
+              <div className="flex items-center gap-2">
+                <Button intent="secondary" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={currentPage === 1} className="min-h-9 px-3 text-xs"><ChevronLeft size={15} aria-hidden="true" /> Anterior</Button>
+                <Button intent="secondary" onClick={() => setPage(value => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages} className="min-h-9 px-3 text-xs">Próxima <ChevronRight size={15} aria-hidden="true" /></Button>
+              </div>
+            </nav>
+          ) : null}
+        </>
+      )}
+      <StickerSheet cardId={selected} onClose={() => setSelected(null)} />
+    </section>
+  );
+}
+
 function PageRow({ page, onOpen }: { page: AlbumPage; onOpen: () => void }) {
   const { album } = useAlbum();
   const progress = pageProgress(page, album);
@@ -461,8 +554,13 @@ export default function AlbumBook() {
   const { eventCards } = useAccount();
   const scale = useSlotScale();
   const [sectionId, setSectionId] = useState<AlbumSectionId>(REGIONS[0]?.id ?? 'england');
+  const [view, setView] = useState<'collection' | 'pages'>('collection');
   const [pageId, setPageId] = useState<string | null>(null);
   const page = pageId ? CATALOG.pageById.get(pageId) : undefined;
+  const ownedCount = album ? Array.from(album.stickers.keys()).filter(id => {
+    const sticker = CATALOG.stickers.get(id);
+    return sticker !== undefined && sticker.pageId !== null;
+  }).length : 0;
 
   useEffect(() => { if (pageId) window.scrollTo({ top: 0 }); }, [pageId]);
 
@@ -472,6 +570,15 @@ export default function AlbumBook() {
   const exclusiveOwned = EXCLUSIVE_CARDS.filter(card => eventCards.includes(card.id) || album?.stickers.has(card.id)).length;
   return (
     <div>
+      <div role="group" aria-label="Modo de visualização do álbum" className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-1">
+        <button type="button" aria-pressed={view === 'collection'} onClick={() => setView('collection')} className={cn('min-h-10 rounded-lg px-3 text-sm font-bold transition-colors', view === 'collection' ? 'bg-[var(--ui-surface-3)] text-[var(--ui-text)] shadow-sm' : 'text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]')}>
+          Minhas cartas <span className="ml-1 text-xs tabular-nums opacity-70">{ownedCount}</span>
+        </button>
+        <button type="button" aria-pressed={view === 'pages'} onClick={() => setView('pages')} className={cn('min-h-10 rounded-lg px-3 text-sm font-bold transition-colors', view === 'pages' ? 'bg-[var(--ui-surface-3)] text-[var(--ui-text)] shadow-sm' : 'text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]')}>
+          Explorar páginas
+        </button>
+      </div>
+      {view === 'collection' ? <OwnedCardsView /> : <>
       <div className="mb-4">
         <SelectMenu
           label="Seção do álbum"
@@ -506,6 +613,7 @@ export default function AlbumBook() {
           {region.pages.map(p => <PageRow key={p.id} page={p} onOpen={() => setPageId(p.id)} />)}
         </div>
       )}
+      </>}
     </div>
   );
 }

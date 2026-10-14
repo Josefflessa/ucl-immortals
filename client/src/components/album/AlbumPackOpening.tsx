@@ -284,7 +284,7 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
         <footer className="z-10 shrink-0 border-t border-white/10 bg-[#080911]/95 px-3 pt-3 backdrop-blur sm:px-8 sm:pt-4" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
           <div className="mx-auto flex w-full max-w-[420px] flex-col gap-2.5">
             {remaining > 0 ? (
-              <Button intent="primary" size="large" onClick={next} className="flex w-full items-center justify-center gap-2">
+              <Button intent="primary" size="large" onClick={next} className="flex min-h-[64px] w-full items-center justify-center gap-2 py-3.5 text-[22px]">
                 Abrir próximo <span className="opacity-70">({remaining})</span> <ArrowRight size={17} aria-hidden="true" />
               </Button>
             ) : null}

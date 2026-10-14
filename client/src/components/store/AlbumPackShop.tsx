@@ -8,7 +8,7 @@ import { getRarityColor, type Rarity } from '@shared/game/gameData';
 import { Button, GameModal } from '../../design-system';
 import { useAlbum } from '../../contexts/AlbumContext';
 import { RARITY_LABEL } from '../album/albumData';
-import { CoinAmount, ItemArt } from '../album/AlbumPieces';
+import { CoinAmount, ItemArt, QuantityStepper } from '../album/AlbumPieces';
 import AlbumPackOpening from '../album/AlbumPackOpening';
 
 const FOR_SALE = (Object.keys(SHOP_PACK_PRICE) as AlbumPackTier[]);
@@ -17,6 +17,7 @@ export default function AlbumPackShop() {
   const { album, buyPack } = useAlbum();
   const [busy, setBusy] = useState<AlbumPackTier | null>(null);
   const [confirming, setConfirming] = useState<AlbumPackTier | null>(null);
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [oddsTier, setOddsTier] = useState<AlbumPackTier | null>(null);
   const [opening, setOpening] = useState<AlbumItemKey[] | null>(null);
   const coins = album?.coins ?? 0;
@@ -27,13 +28,14 @@ export default function AlbumPackShop() {
     : [];
 
   const buy = async (tier: AlbumPackTier) => {
+    const quantity = purchaseQuantity;
     setBusy(tier);
     try {
-      await buyPack(tier);
+      await buyPack(tier, quantity);
       const key: AlbumItemKey = `pack:${tier}`;
       setConfirming(null);
-      toast.success(`Pacote ${ALBUM_TIER_META[tier].label} guardado no inventário.`, {
-        action: { label: 'Abrir agora', onClick: () => setOpening([key]) },
+      toast.success(`${quantity} ${quantity === 1 ? 'pacote guardado' : 'pacotes guardados'} no inventário.`, {
+        action: { label: quantity === 1 ? 'Abrir agora' : `Abrir todos (${quantity})`, onClick: () => setOpening(Array.from({ length: quantity }, () => key)) },
       });
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Não foi possível comprar agora.');
@@ -84,7 +86,7 @@ export default function AlbumPackShop() {
                 </div>
 
                 <div className="mt-auto pt-4">
-                  <Button intent="primary" disabled={busy !== null || coins < price} onClick={() => setConfirming(tier)} className="w-full">
+                  <Button intent="primary" disabled={busy !== null || coins < price} onClick={() => { setPurchaseQuantity(1); setConfirming(tier); }} className="w-full">
                     <span className="flex w-full items-center justify-between gap-3"><span>Comprar pacote</span><CoinAmount value={price} size={14} className="text-inherit" /></span>
                   </Button>
                   {coins < price ? <p className="mt-2 text-center text-[11px] text-[var(--ui-text-muted)]">Faltam <strong className="tabular-nums text-[var(--ui-text-soft)]">{(price - coins).toLocaleString('pt-BR')}</strong> moedas para este pacote.</p> : null}
@@ -150,17 +152,20 @@ export default function AlbumPackShop() {
       <GameModal
         open={confirming !== null}
         onOpenChange={open => { if (!open && busy === null) setConfirming(null); }}
-        title={confirming ? `Comprar Pacote ${ALBUM_TIER_META[confirming].label}?` : 'Confirmar compra'}
+        title={confirming ? `Comprar pacote ${ALBUM_TIER_META[confirming].label}` : 'Confirmar compra'}
         closeLabel="Cancelar compra"
         footer={confirming ? (
-          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button intent="ghost" disabled={busy !== null} onClick={() => setConfirming(null)}>Cancelar</Button>
-            <Button intent="primary" className="w-full sm:w-auto" disabled={busy !== null || coins < SHOP_PACK_PRICE[confirming]!} loading={busy === confirming} onClick={() => void buy(confirming)}>
-              <span className="whitespace-nowrap">Confirmar compra</span>
-              <span className="inline-flex items-center rounded-full bg-black/10 px-2 py-1 text-xs tracking-normal">
-                <CoinAmount value={SHOP_PACK_PRICE[confirming]!} size={14} className="text-[var(--ui-brand-ink)]" />
-              </span>
-            </Button>
+          <div className="flex w-full flex-col gap-2">
+            <div className="flex w-full items-center gap-2">
+              <QuantityStepper value={purchaseQuantity} onChange={setPurchaseQuantity} label="pacotes" max={10} canIncrease={coins >= SHOP_PACK_PRICE[confirming]! * (purchaseQuantity + 1)} disabled={busy !== null} />
+              <Button intent="primary" className="min-w-0 flex-1 px-2" disabled={busy !== null || coins < SHOP_PACK_PRICE[confirming]! * purchaseQuantity} loading={busy === confirming} onClick={() => void buy(confirming)}>
+                <span className="flex w-full min-w-0 items-center justify-center gap-2 whitespace-nowrap">
+                  <span className="truncate">Comprar {purchaseQuantity}</span>
+                  <CoinAmount value={SHOP_PACK_PRICE[confirming]! * purchaseQuantity} size={13} className="shrink-0 text-inherit" />
+                </span>
+              </Button>
+            </div>
+            <Button intent="ghost" disabled={busy !== null} onClick={() => setConfirming(null)} className="w-full">Cancelar</Button>
           </div>
         ) : null}
       >
@@ -169,10 +174,11 @@ export default function AlbumPackShop() {
             <div className="flex justify-center">
               <ItemArt itemKey={`pack:${confirming}`} height={105} />
             </div>
-            <p className="mt-3 text-sm text-[var(--ui-text-soft)]">
-              Comprar o Pacote {ALBUM_TIER_META[confirming].label} por <strong className="text-[var(--ui-text)]"><CoinAmount value={SHOP_PACK_PRICE[confirming]!} size={14} /></strong> moedas?
-            </p>
-            <p className="mt-2 text-xs text-[var(--ui-text-muted)]">Ele ficará no seu inventário para abrir quando quiser. Saldo depois da compra: <CoinAmount value={Math.max(0, coins - SHOP_PACK_PRICE[confirming]!)} size={13} /> moedas.</p>
+            <p className="mt-3 text-sm text-[var(--ui-text-soft)]">Escolha a quantidade. Os pacotes ficam no inventário e podem ser abertos juntos depois.</p>
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-3 py-2.5 text-xs">
+              <span className="text-[var(--ui-text-muted)]">Saldo após a compra</span>
+              <CoinAmount value={Math.max(0, coins - SHOP_PACK_PRICE[confirming]! * purchaseQuantity)} size={13} />
+            </div>
           </div>
         ) : null}
       </GameModal>
