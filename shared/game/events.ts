@@ -80,6 +80,7 @@ const LEGENDARY_OR_ABOVE = new Set(['legendary', 'immortal']);
 
 const isChampion = (c: CareerCompetition) => c.champion || c.finishStage === 'champion';
 const goldOrAbove = (c: CareerCompetition) => GOLD_OR_ABOVE.has(c.difficultyId);
+const legendaryOrAbove = (c: CareerCompetition) => LEGENDARY_OR_ABOVE.has(c.difficultyId);
 const withCrest = (crestId: string) => (c: CareerCompetition) => c.crestId === crestId;
 /** The same final challenge for every club: a title with its crest on Ouro or above. */
 const clubTitle = (crestId: string, club: string): EventObjective => ({
@@ -138,12 +139,12 @@ export const GAME_EVENTS: readonly GameEvent[] = [
   {
     id: 'aranha-negra-2026',
     name: 'A Aranha Negra',
-    description: 'Conquiste 4 competições no Ouro ou acima sofrendo no máximo 5 gols em cada uma e desbloqueie a Carta Única do Yashin.',
+    description: 'Conquiste 4 competições no Lendário ou acima sofrendo no máximo 5 gols em cada uma e desbloqueie a Carta Única do Yashin.',
     startsAt: brasiliaMidnight(2026, 10, 14),
     endsAt: brasiliaMidnight(2026, 11, 1),
     rewardCardId: 'yashin_unico',
     objectives: [
-      { id: 'titulos-com-defesa', label: 'Seja campeão 4 vezes no Ouro ou acima sofrendo no máximo 5 gols em cada competição', target: 4, counts: c => goldOrAbove(c) && isChampion(c) && c.goalsAgainst <= 5 },
+      { id: 'titulos-com-defesa', label: 'Seja campeão 4 vezes no Lendário ou acima sofrendo no máximo 5 gols em cada competição', target: 4, counts: c => legendaryOrAbove(c) && isChampion(c) && c.goalsAgainst <= 5 },
     ],
   },
   {

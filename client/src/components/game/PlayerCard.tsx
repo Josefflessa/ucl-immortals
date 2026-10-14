@@ -1148,13 +1148,6 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
 
         {/* conteúdo (layout original): OVR+POS no topo, emoji, foto, nome embaixo */}
         <div className="absolute inset-0 flex flex-col" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 4 }}>
-          {player.competitionAlbumLevel != null && player.competitionAlbumLevel > 0 && (
-            <div aria-label={`Nível do Álbum: ${player.competitionAlbumLevel} estrelas`} title={`Bônus do Álbum: +${player.competitionAlbumLevel} em todos os atributos nesta competição`}
-              className="absolute inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 font-black leading-none"
-              style={{ top: '8%', right: '16%', zIndex: 7, color: '#17120a', background: 'linear-gradient(135deg,#ffe783,#d0a93a)', border: '1px solid #fff1af', boxShadow: '0 1px 4px #000b', fontSize: 7.5 }}>
-              <Star size={8} fill="currentColor" />{player.competitionAlbumLevel}
-            </div>
-          )}
           {/* Topo: OVR + POS (esq) e emoji da característica (dir) — descido um tiquinho */}
           <div className="flex items-start justify-between flex-shrink-0" style={{ paddingTop: '19%', paddingLeft: '13%', paddingRight: '10%' }}>
             <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
@@ -1252,13 +1245,6 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
 
       {/* CONTEÚDO (layout FUT) */}
       <div className="absolute inset-0" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 5 }}>
-        {player.competitionAlbumLevel != null && player.competitionAlbumLevel > 0 && (
-          <div aria-label={`Nível do Álbum: ${player.competitionAlbumLevel} estrelas`} title={`Bônus do Álbum: +${player.competitionAlbumLevel} em todos os atributos nesta competição`}
-            className="absolute inline-flex items-center gap-1 rounded-full px-2 py-1 font-black leading-none"
-            style={{ top: '4%', right: '11%', zIndex: 7, color: '#17120a', background: 'linear-gradient(135deg,#ffe783,#d0a93a)', border: '1px solid #fff1af', boxShadow: '0 2px 6px #000b', fontSize: 10 }}>
-            <Star size={10} fill="currentColor" />{player.competitionAlbumLevel}
-          </div>
-        )}
         {/* ⭐ selo do nível de evolução (discreto, topo-centro) */}
         {evolved && !lite && (
           <div className="absolute" style={{ top: '2.5%', left: '50%', transform: 'translateX(-50%)', padding: '2px 8px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.14em', whiteSpace: 'nowrap', color: '#04120a', background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success),#0a7a2f)', border: '1px solid rgba(0,0,0,.4)', boxShadow: '0 2px 8px rgba(0,0,0,.5)', fontFamily: 'var(--font-game), sans-serif', zIndex: 6 }}>
