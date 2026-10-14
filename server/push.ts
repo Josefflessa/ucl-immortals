@@ -73,7 +73,7 @@ export async function sendPushToUser(
       };
       try {
         const payload = await buildPushPayload({
-          data: notice,
+          data: { ...notice },
           options: { ttl: Math.max(60, Math.min(ttlSeconds, 2_419_200)), urgency: 'high' },
         }, subscription, {
           subject: env.VAPID_SUBJECT,

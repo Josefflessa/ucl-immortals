@@ -18,7 +18,7 @@ import {
   PRODIGIO_STARTS_PER_BOOST, prodigioStatBoost, GOLEADOR_GOALS_PER_BOOST, GARCOM_ASSISTS_PER_BOOST, goleadorStatBoost, garcomStatBoost,
   ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, arroganteStatBoost, arroganteTeamPenalty,
   ESTRIBADO_CREDITS_PER_BOOST, ESTRIBADO_STAT_BOOST, estribadoStatBoost,
-  TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS,
+  TODOS_POR_UM_STAT_BOOST,
   positionFit, SECONDARY_STAT_MULT, playerMatchDiscipline,
   draftSlotIndex, getNeededPositions, DRAFT_RARITY_CHANCES,
   type Team, type PlayerCard, type MatchResult, type LeagueFixture, type MatchEvent,
@@ -718,7 +718,7 @@ describe('🤝 Todos por um — só ativa quando os 11 titulares têm a caracter
     const active = computeCharacteristicBoosts(completeXI);
     expect(active['plain0']?.flatAll).toBe(TODOS_POR_UM_STAT_BOOST);
     expect(active['plain10']?.sources[0]).toMatchObject({ type: 'todosPorUm', self: true });
-    expect(calculateChemistry(completeXI, 'default').total - calculateChemistry(plainXI, 'default').total).toBe(TODOS_POR_UM_CHEM_BONUS);
+    expect(calculateChemistry(completeXI, 'default').total).toBe(calculateChemistry(plainXI, 'default').total);
 
     const base = getPlayerEffectiveStats(plainXI[0], 0, false, '', 0, '__neutral__');
     const boosted = getPlayerEffectiveStats(completeXI[0], 0, false, '', 0, '__neutral__', { charBoosts: active });

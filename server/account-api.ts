@@ -1923,6 +1923,7 @@ async function grantCampaignRewards(env: AccountEnv, userId: string): Promise<It
 const ALBUM_ERROR_STATUS: Record<string, number> = {
   invalid_item: 400, invalid_card: 400, invalid_quantity: 400, not_for_sale: 400,
   item_not_owned: 409, no_spare_copy: 409, max_level: 409, already_owned: 409, not_enough_coins: 409, banner_unavailable: 503,
+  banner_purchase_in_progress: 409,
 };
 
 /** The album state (after granting what is due) and the profile covers it won, plus whatever the operation returned. */
@@ -1943,8 +1944,8 @@ async function albumAction(request: Request, env: AccountEnv, account: Authentic
     case 'buy-frame': result = await buyAvatarFrame(env.DB, account.id, String(body.frameKey ?? '')); break;
     case 'buy-cover': result = await buyProfileCover(env.DB, account.id, String(body.coverKey ?? '')); break;
     case 'buy-name-style': result = await buyNameStyle(env.DB, account.id, String(body.styleKey ?? '')); break;
-    case 'buy-daily-banner': result = await buyDailyBannerCard(env.DB, account.id); break;
-    case 'buy-weekly-banner': result = await buyWeeklyBannerCard(env.DB, account.id); break;
+    case 'buy-daily-banner': result = { ...await buyDailyBannerCard(env.DB, account.id) }; break;
+    case 'buy-weekly-banner': result = { ...await buyWeeklyBannerCard(env.DB, account.id) }; break;
     default: return json({ error: 'not_found' }, 404);
   }
   if ('error' in result) return json(result, ALBUM_ERROR_STATUS[String(result.error)] ?? 400);

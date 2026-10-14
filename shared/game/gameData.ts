@@ -69,6 +69,7 @@ export interface Player {
   shooting: number;
   passing: number;
   dribbling: number;
+  /** For GK cards, this is the game's shot-stopping score, not the outfield DEF rating. */
   defending: number;
   physical: number;
   composure: number;
@@ -102,7 +103,7 @@ export interface Player {
   forasteiro?: boolean;  // 🧳 Forasteiro — +9 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
   colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva
   estribado?: boolean;    // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
-  todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +20 em tudo e +50 de química geral
+  todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +20 em todos os atributos
   capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão é TRIPLICADO
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida por 1,5, mas −7 em tudo nele
   fragil?: boolean;      // 🩹 Frágil — +7 em tudo, mas aumenta drasticamente o risco de lesão

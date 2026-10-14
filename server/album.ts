@@ -8,6 +8,7 @@ import {
   campaignGrant,
   CLUB_PAGE_RECOMPLETE,
   clubRewardKeys,
+  DAILY_BANNER_PITY_LIMIT,
   DAILY_BANNER_ODDS,
   DAILY_BANNER_PRICE,
   MAX_COPIES,
@@ -17,6 +18,7 @@ import {
   rollItem,
   SELL_VALUE,
   SHOP_PACK_PRICE,
+  WEEKLY_BANNER_PITY_LIMIT,
   WEEKLY_BANNER_ODDS,
   WEEKLY_BANNER_PRICE,
   type AlbumItemKey,
@@ -48,6 +50,8 @@ export interface PageReward {
 
 export interface AlbumState {
   coins: number;
+  /** Misses tracked independently per banner; kept across daily rotations. */
+  bannerPity: { daily: number; weekly: number };
   inventory: Record<string, number>;
   /** [cardId, copies applied, spare copies]. */
   stickers: [string, number, number][];
@@ -70,7 +74,6 @@ export function secureRandom(): number {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BANNER_RARITIES: readonly Rarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique'];
-const DAILY_RARITIES: readonly Rarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal'];
 const DAILY_FEATURED_COUNTS: Partial<Record<Rarity, number>> = { gold: 4, legendary: 4, immortal: 1 };
 const FEATURED_LEGENDARY_COUNT = 4;
 const FEATURED_IMMORTAL_COUNT = 4;
@@ -271,20 +274,21 @@ export async function loadAlbumLevelSnapshots(
   for (const row of rows.results) {
     if (!catalogue.has(row.card_id)) continue;
     const level = levelForCopies(row.copies);
-    if (level > 0) snapshots.get(row.user_id)![row.card_id] = level;
+    if (level !== 0) snapshots.get(row.user_id)![row.card_id] = level;
   }
   return snapshots;
 }
 
 export async function loadAlbumState(db: D1Database, userId: string): Promise<AlbumState> {
   const [album, inventory, stickers, pages] = await Promise.all([
-    db.prepare('SELECT coins FROM user_album WHERE user_id = ?').bind(userId).first<{ coins: number }>(),
+    db.prepare('SELECT coins, daily_banner_pity, weekly_banner_pity FROM user_album WHERE user_id = ?').bind(userId).first<{ coins: number; daily_banner_pity: number; weekly_banner_pity: number }>(),
     db.prepare('SELECT item_key, quantity FROM user_inventory WHERE user_id = ? AND quantity > 0').bind(userId).all<{ item_key: string; quantity: number }>(),
     loadStickers(db, userId),
     db.prepare('SELECT page_id, completions FROM user_album_pages WHERE user_id = ?').bind(userId).all<{ page_id: string; completions: number }>(),
   ]);
   return {
     coins: album?.coins ?? 0,
+    bannerPity: { daily: album?.daily_banner_pity ?? 0, weekly: album?.weekly_banner_pity ?? 0 },
     inventory: Object.fromEntries(inventory.results.filter(r => parseItemKey(r.item_key)).map(r => [r.item_key, r.quantity])),
     stickers: Array.from(stickers.entries()).map(([id, s]) => [id, s.copies, s.spare]),
     completedPages: pages.results.map(r => r.page_id),
@@ -397,75 +401,122 @@ export async function placeStickers(db: D1Database, userId: string, drawn: reado
   return { cards, pageRewards: pages.rewards };
 }
 
-/** Buys one card from the current Banner 2 offer and adds it directly to the album. */
-export async function buyWeeklyBannerCard(db: D1Database, userId: string, now = Date.now(), rand = secureRandom): Promise<{
+interface BannerDrawResult {
   card: { id: string; isNew: boolean };
   rarity: Rarity;
   dayStart: string;
   price: number;
   pageRewards: PageReward[];
-} | { error: string }> {
-  const offer = weeklyBannerOffer(now);
-  if (!(await spendCoins(db, userId, offer.price, now))) return { error: 'not_enough_coins' };
+  pityTriggered: boolean;
+}
 
-  let roll = rand() * 100;
-  let rarity = BANNER_RARITIES[BANNER_RARITIES.length - 1];
-  for (const candidate of BANNER_RARITIES) {
-    roll -= offer.odds[candidate];
-    if (roll < 0) { rarity = candidate; break; }
+type BannerKind = 'daily' | 'weekly';
+const BANNER_PITY: Record<BannerKind, {
+  counter: 'daily_banner_pity' | 'weekly_banner_pity';
+  lockToken: 'daily_banner_lock_token' | 'weekly_banner_lock_token';
+  lockUntil: 'daily_banner_lock_until' | 'weekly_banner_lock_until';
+  limit: number;
+  guaranteedRarities: readonly Rarity[];
+}> = {
+  daily: {
+    counter: 'daily_banner_pity', lockToken: 'daily_banner_lock_token', lockUntil: 'daily_banner_lock_until',
+    limit: DAILY_BANNER_PITY_LIMIT, guaranteedRarities: ['legendary', 'immortal'],
+  },
+  weekly: {
+    counter: 'weekly_banner_pity', lockToken: 'weekly_banner_lock_token', lockUntil: 'weekly_banner_lock_until',
+    limit: WEEKLY_BANNER_PITY_LIMIT, guaranteedRarities: ['unique'],
+  },
+};
+
+/** Weighted draw; when pity is due, renormalize only over its guaranteed rarity group. */
+function rollBannerRarity(odds: Readonly<Record<Rarity, number>>, rand: () => number, guaranteed?: readonly Rarity[]): Rarity {
+  const eligible = BANNER_RARITIES.filter(rarity => odds[rarity] > 0 && (!guaranteed || guaranteed.includes(rarity)));
+  const total = eligible.reduce((sum, rarity) => sum + odds[rarity], 0);
+  let roll = rand() * total;
+  for (const rarity of eligible) {
+    roll -= odds[rarity];
+    if (roll < 0) return rarity;
   }
-  const pool = rarity === 'bronze' || rarity === 'silver' || rarity === 'gold'
-    ? PLAYERS.filter(card => card.rarity === rarity).map(card => card.id)
-    : offer.cards[rarity];
-  if (!pool.length) {
-    await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price, now, userId).run();
-    return { error: 'banner_unavailable' };
-  }
-  const cardId = pool[Math.floor(rand() * pool.length)];
-  const extra = rarity === 'unique' ? [db.prepare(
-    'INSERT OR IGNORE INTO user_event_cards (user_id, card_id, event_id, unlocked_at) VALUES (?, ?, ?, ?)',
-  ).bind(userId, cardId, `banner-2-${offer.dayStart}`, now)] : [];
+  return eligible[eligible.length - 1] ?? 'bronze';
+}
+
+/** A short-lived per-account lock makes the pity counter and draw order safe across tabs/retries. */
+async function acquireBannerLock(db: D1Database, userId: string, kind: BannerKind, now: number): Promise<string | null> {
+  const settings = BANNER_PITY[kind];
+  const token = crypto.randomUUID();
+  const result = await db.prepare(`UPDATE user_album SET ${settings.lockToken} = ?, ${settings.lockUntil} = ?
+    WHERE user_id = ? AND (${settings.lockUntil} IS NULL OR ${settings.lockUntil} <= ?)`)
+    .bind(token, now + 120_000, userId, now).run();
+  return (result.meta?.changes ?? 0) > 0 ? token : null;
+}
+
+async function releaseBannerLock(db: D1Database, userId: string, kind: BannerKind, token: string): Promise<void> {
+  const settings = BANNER_PITY[kind];
+  await db.prepare(`UPDATE user_album SET ${settings.lockToken} = NULL, ${settings.lockUntil} = NULL
+    WHERE user_id = ? AND ${settings.lockToken} = ?`).bind(userId, token).run();
+}
+
+async function buyBannerDraw(
+  db: D1Database,
+  userId: string,
+  kind: BannerKind,
+  offer: DailyBannerOffer | WeeklyBannerOffer,
+  now: number,
+  rand: () => number,
+): Promise<BannerDrawResult | { error: string }> {
+  const settings = BANNER_PITY[kind];
+  const lockToken = await acquireBannerLock(db, userId, kind, now);
+  if (!lockToken) return { error: 'banner_purchase_in_progress' };
+  let charged = false;
   try {
+    if (!(await spendCoins(db, userId, offer.price, now))) return { error: 'not_enough_coins' };
+    charged = true;
+
+    const pityRow = await db.prepare(`SELECT ${settings.counter} AS misses FROM user_album WHERE user_id = ?`)
+      .bind(userId).first<{ misses: number }>();
+    const misses = pityRow?.misses ?? 0;
+    const targetAvailable = kind !== 'weekly' || offer.cards.unique.length > 0;
+    const pityTriggered = targetAvailable && misses >= settings.limit - 1;
+    const rarity = rollBannerRarity(offer.odds, rand, pityTriggered ? settings.guaranteedRarities : undefined);
+    const pool = rarity === 'bronze' || rarity === 'silver' || rarity === 'gold'
+      ? PLAYERS.filter(card => card.rarity === rarity).map(card => card.id)
+      : offer.cards[rarity];
+    if (!pool.length) {
+      await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price, now, userId).run();
+      charged = false;
+      return { error: 'banner_unavailable' };
+    }
+
+    const cardId = pool[Math.floor(rand() * pool.length)];
+    const earnedPityRarity = settings.guaranteedRarities.includes(rarity);
+    const nextMisses = !targetAvailable ? misses : earnedPityRarity ? 0 : misses + 1;
+    const pityUpdate = db.prepare(`UPDATE user_album SET ${settings.counter} = ?, updated_at = ?
+      WHERE user_id = ? AND ${settings.lockToken} = ?`).bind(nextMisses, now, userId, lockToken);
+    const extra: Statement[] = [pityUpdate];
+    if (rarity === 'unique' && kind === 'weekly') extra.push(db.prepare(
+      'INSERT OR IGNORE INTO user_event_cards (user_id, card_id, event_id, unlocked_at) VALUES (?, ?, ?, ?)',
+    ).bind(userId, cardId, `banner-2-${offer.dayStart}`, now));
     const result = await placeStickers(db, userId, [cardId], now, extra);
-    return { card: result.cards[0], rarity, dayStart: offer.dayStart, price: offer.price, pageRewards: result.pageRewards };
+    charged = false;
+    return { card: result.cards[0], rarity, dayStart: offer.dayStart, price: offer.price, pageRewards: result.pageRewards, pityTriggered };
   } catch (error) {
-    await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price, now, userId).run();
+    if (charged) await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price, now, userId).run();
     throw error;
+  } finally {
+    try { await releaseBannerLock(db, userId, kind, lockToken); } catch (error) {
+      console.error(`[album] failed to release ${kind} banner lock:`, error);
+    }
   }
 }
 
-/** Buys one card from the current daily banner and adds it directly to the album. */
-export async function buyDailyBannerCard(db: D1Database, userId: string, now = Date.now(), rand = secureRandom): Promise<{
-  card: { id: string; isNew: boolean };
-  rarity: Rarity;
-  dayStart: string;
-  price: number;
-  pageRewards: PageReward[];
-} | { error: string }> {
-  const offer = dailyBannerOffer(now);
-  if (!(await spendCoins(db, userId, offer.price, now))) return { error: 'not_enough_coins' };
+/** Buys one card from the current rotating Banner 2 and adds it directly to the album. */
+export async function buyWeeklyBannerCard(db: D1Database, userId: string, now = Date.now(), rand = secureRandom): Promise<BannerDrawResult | { error: string }> {
+  return buyBannerDraw(db, userId, 'weekly', weeklyBannerOffer(now), now, rand);
+}
 
-  let roll = rand() * 100;
-  let rarity = DAILY_RARITIES[DAILY_RARITIES.length - 1];
-  for (const candidate of DAILY_RARITIES) {
-    roll -= offer.odds[candidate];
-    if (roll < 0) { rarity = candidate; break; }
-  }
-  const pool = rarity === 'bronze' || rarity === 'silver'
-    ? PLAYERS.filter(card => card.rarity === rarity).map(card => card.id)
-    : offer.cards[rarity];
-  if (!pool.length) {
-    await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price, now, userId).run();
-    return { error: 'banner_unavailable' };
-  }
-  const cardId = pool[Math.floor(rand() * pool.length)];
-  try {
-    const result = await placeStickers(db, userId, [cardId], now);
-    return { card: result.cards[0], rarity, dayStart: offer.dayStart, price: offer.price, pageRewards: result.pageRewards };
-  } catch (error) {
-    await db.prepare('UPDATE user_album SET coins = coins + ?, updated_at = ? WHERE user_id = ?').bind(offer.price, now, userId).run();
-    throw error;
-  }
+/** Buys one card from the current daily banner and adds it directly to the album. */
+export async function buyDailyBannerCard(db: D1Database, userId: string, now = Date.now(), rand = secureRandom): Promise<BannerDrawResult | { error: string }> {
+  return buyBannerDraw(db, userId, 'daily', dailyBannerOffer(now), now, rand);
 }
 
 /** Applies one spare copy of a card to it (its album level goes up at 2, 4, 7 and 10 copies). */

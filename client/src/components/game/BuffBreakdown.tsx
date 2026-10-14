@@ -13,7 +13,7 @@ import {
   INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_STAT_PENALTY,
   LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
   PILAR_CHEM_BONUS, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST,
-  TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
+  TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
   garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, padrinhoStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
 } from '@shared/game/gameEngine';
 import { getTacticById, type Player } from '@shared/game/gameData';
@@ -149,7 +149,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'estribado':
       return { chips: [{ text: `+${estribadoStatBoost(model.credits)} EM CADA ATRIBUTO`, color: GREEN }], description: `+1 em cada atributo a cada ${ESTRIBADO_CREDITS_PER_BOOST} créditos disponíveis. Saldo atual: ${model.credits} créditos.` };
     case 'todosPorUm':
-      return { chips: [{ text: `+${TODOS_POR_UM_STAT_BOOST} EM TUDO · +${TODOS_POR_UM_CHEM_BONUS} QUÍMICA GERAL`, color: GREEN }], description: 'Só funciona quando os 11 titulares têm a característica.' };
+      return { chips: [{ text: `+${TODOS_POR_UM_STAT_BOOST} EM TODOS OS ATRIBUTOS`, color: GREEN }], description: 'Só funciona quando os 11 titulares têm a característica.' };
     case 'capitaoNato':
       return { chips: [{ text: 'BÔNUS DE CAPITÃO TRIPLICADO', color: GREEN }], description: 'Vale quando ele é o capitão: o bônus que o capitão dá ao time inteiro é triplicado.' };
     case 'magnata':

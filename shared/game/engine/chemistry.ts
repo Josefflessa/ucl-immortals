@@ -9,7 +9,7 @@ import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedP
 import { getEffectiveAttribute, SECONDARY_STAT_MULT, positionFit, specializationAttributeBonus } from './attributes';
 import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
-import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, TODOS_POR_UM_CHEM_BONUS, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost } from './draft';
+import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost } from './draft';
 
 // Playing in the coach's preferred formation gels the side: a flat bonus to the team's
 // TOTAL chemistry, which can push it into a higher global-bonus tier (passe/ritmo/especial).
@@ -104,14 +104,8 @@ export function calculateChemistry(
   // 🛟 Noé — +50 na química geral, SÓ quando ele é o único titular com característica (põe o time na arca).
   const cardedXI = players.slice(0, 11).filter((p): p is Player => !!p && hasVariant(p));
   const noeBonus = (cardedXI.length === 1 && cardedXI[0].noe) ? NOE_CHEM_BONUS : 0;
-  // 🤝 Todos por um — só ativa com os 11 titulares marcados; quando fecha o XI,
-  // a união vira um bônus forte de química geral.
-  const todosPorUmBonus = players.length === 11 && players.every(player => player.todosPorUm)
-    ? TODOS_POR_UM_CHEM_BONUS
-    : 0;
-
   const total = Math.max(0,
-    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus + todosPorUmBonus);
+    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus);
 
   return { individual, total, trios, outOfPosition, secondaryPos };
 }

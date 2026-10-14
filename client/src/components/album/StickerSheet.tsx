@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { ArrowUpCircle, Minus, Plus } from 'lucide-react';
 import { copiesToNextLevel, LEVEL_COPIES, levelForCopies, MAX_COPIES, SELL_VALUE } from '@shared/game/album';
 import { canonicalClubName } from '@shared/game/crests';
+import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS } from '@shared/game/gameData';
 import { Button, GameModal } from '../../design-system';
 import PlayerCard from '../game/PlayerCard';
 import type { AlbumLevel } from '../game/AlbumLevelFrame';
@@ -13,6 +14,15 @@ import { useAlbum } from '../../contexts/AlbumContext';
 import { cn } from '../../lib/utils';
 import { albumCard, CATALOG, RARITY_LABEL } from './albumData';
 import { CoinAmount, LevelStars } from './AlbumPieces';
+
+const EVENT_UNIQUE_CARD_IDS = new Set(EVENT_UNIQUE_CARDS.map(card => card.id));
+const STORE_UNIQUE_CARD_IDS = new Set(STORE_UNIQUE_CARDS.map(card => card.id));
+
+function exclusiveAvailability(cardId: string): string {
+  if (EVENT_UNIQUE_CARD_IDS.has(cardId)) return 'Esta carta exclusiva é conquistada em eventos e não sai no banner nem em pacotes.';
+  if (STORE_UNIQUE_CARD_IDS.has(cardId)) return 'Esta carta exclusiva pode ser conquistada no banner diário da Loja.';
+  return 'Esta carta exclusiva pode ser conquistada em eventos ou no banner diário da Loja.';
+}
 
 function LevelTrack({ copies }: { copies: number }) {
   const level = levelForCopies(copies);
@@ -120,7 +130,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
           ) : (
             <section className="rounded-xl border border-[var(--ui-line-subtle)] p-4">
               <div className="text-sm font-bold text-[var(--ui-text)]">Carta faltando</div>
-                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">{sticker.pageId === null ? 'Esta carta exclusiva pode ser conquistada em eventos ou no banner semanal da Loja.' : `Ela pode sair em qualquer pacote ou envelope${card.rarity === 'bronze' || card.rarity === 'silver' ? '' : ' (as mais raras saem mais nos pacotes de dificuldades maiores)'}.`}</p>
+                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">{sticker.pageId === null ? exclusiveAvailability(card.id) : `Ela pode sair em qualquer pacote ou envelope${card.rarity === 'bronze' || card.rarity === 'silver' ? '' : ' (as mais raras saem mais nos pacotes de dificuldades maiores)'}.`}</p>
             </section>
           )}
         </div>

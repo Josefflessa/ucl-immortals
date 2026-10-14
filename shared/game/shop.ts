@@ -194,7 +194,7 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: '+9 em tudo quando é o único titular do seu país E do seu clube.' },
   { key: 'colecionador', icon: '🧩', label: 'Colecionador', color: '#C084FC', desc: '+1 em todos os atributos por jogador que estiver na reserva.' },
   { key: 'estribado', icon: '💰', label: 'Estribado', color: '#FACC15', desc: '+1 em todos os atributos a cada 100 créditos que você possui.' },
-  { key: 'todosPorUm', icon: '🤝', label: 'Todos por um', color: '#4ADE80', desc: 'Sozinha não faz nada. Se os 11 titulares tiverem, todos ganham +20 em tudo e o time recebe +50 de química geral.' },
+  { key: 'todosPorUm', icon: '🤝', label: 'Todos por um', color: '#4ADE80', desc: 'Só ativa quando os 11 titulares têm a característica: todos recebem +20 em todos os atributos.' },
   { key: 'capitaoNato', icon: '🗣️', label: 'Capitão Nato', color: '#F97316', desc: 'Se for o CAPITÃO do time, o bônus de capitão é TRIPLICADO.' },
   { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Titular: multiplica os créditos da partida por 1,5, na liga e no mata-mata. Mas −7 em todos os atributos nele.' },
   { key: 'fragil', icon: '🩹', label: 'Frágil', color: '#F59E0B', desc: '+7 em todos os atributos, mas aumenta drasticamente a chance de se machucar.' },

@@ -2,7 +2,7 @@ import { useEffect, useState, memo } from 'react';
 import TraitIcon from './TraitIcon';
 import { motion } from 'framer-motion';
 import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
-import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
+import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
 import { canonicalClubName, crestIdForClub } from '@shared/game/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -1025,7 +1025,7 @@ function variantDesc(player: Player): string {
   if (player.forasteiro) return 'FORASTEIRO: +9 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   if (player.colecionador) return 'COLECIONADOR: +1 em cada atributo por jogador que estiver na reserva';
   if (player.estribado) return 'ESTRIBADO: +1 em cada atributo a cada 100 créditos disponíveis';
-  if (player.todosPorUm) return `TODOS POR UM: se os 11 titulares tiverem a característica, +${TODOS_POR_UM_STAT_BOOST} em cada atributo e +${TODOS_POR_UM_CHEM_BONUS} na química geral`;
+  if (player.todosPorUm) return `TODOS POR UM: se os 11 titulares tiverem a característica, todos recebem +${TODOS_POR_UM_STAT_BOOST} em cada atributo`;
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão é TRIPLICADO';
   if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida por 1,5 na liga e no mata-mata (mas −7 em cada atributo nele)';
   if (player.fragil) return `FRÁGIL: +${FRAGIL_STAT_BOOST} em cada atributo, mas aumenta drasticamente a chance de se machucar`;
@@ -1071,7 +1071,7 @@ function variantDesc(player: Player): string {
 function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, effectiveStats, scale = 1, albumLevel: albumLevelProp, showAlbumLevel = false }: PlayerCardProps) {
   const ownAlbumLevel = useAlbumLevel(player.id);
   const albumLevel = player.competitionAlbumLevel !== undefined
-    ? (player.competitionAlbumLevel > 0 ? player.competitionAlbumLevel : undefined)
+    ? (player.competitionAlbumLevel > 0 ? player.competitionAlbumLevel as AlbumLevel : undefined)
     : albumLevelProp ?? (showAlbumLevel ? ownAlbumLevel : undefined);
   // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.

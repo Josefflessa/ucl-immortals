@@ -286,24 +286,29 @@ export const SHOP_PACK_PRICE: Partial<Record<AlbumPackTier, number>> = {
 /** One card from the rotating weekly banner. Rates sum to 100%. */
 export const WEEKLY_BANNER_PRICE = 50;
 export const WEEKLY_BANNER_ODDS: Readonly<Record<Rarity, number>> = {
-  bronze: 40,
+  bronze: 34,
   silver: 30,
-  gold: 18,
-  legendary: 8,
-  immortal: 3,
-  unique: 1,
+  gold: 20,
+  legendary: 10,
+  immortal: 4,
+  unique: 2,
 };
 
 /** A cheaper daily draw with lower odds for the premium rarities. */
 export const DAILY_BANNER_PRICE = 25;
 export const DAILY_BANNER_ODDS: Readonly<Record<Rarity, number>> = {
-  bronze: 48,
-  silver: 35,
-  gold: 12,
-  legendary: 4,
-  immortal: 1,
+  bronze: 46,
+  silver: 31,
+  gold: 15,
+  legendary: 6,
+  immortal: 2,
   unique: 0,
 };
+
+/** After this many misses, Banner 1 guarantees a Lendária or better on the next draw. */
+export const DAILY_BANNER_PITY_LIMIT = 15;
+/** After this many misses, Banner 2 guarantees an Única on the next draw. */
+export const WEEKLY_BANNER_PITY_LIMIT = 40;
 
 export interface DailyBannerOffer {
   dayStart: string;

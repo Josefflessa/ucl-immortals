@@ -16,6 +16,7 @@ export interface StickerState { copies: number; spare: number }
 
 export interface AlbumState {
   coins: number;
+  bannerPity: { daily: number; weekly: number };
   inventory: Partial<Record<AlbumItemKey, number>>;
   stickers: ReadonlyMap<string, StickerState>;
   completedPages: ReadonlySet<string>;
@@ -25,6 +26,7 @@ export interface AlbumState {
 
 interface AlbumPayload {
   coins: number;
+  bannerPity?: { daily: number; weekly: number };
   inventory: Partial<Record<AlbumItemKey, number>>;
   stickers: [string, number, number][];
   completedPages: string[];
@@ -50,8 +52,8 @@ interface AlbumContextValue {
   buyFrame: (frameKey: string) => Promise<{ frameKey: string; price: number }>;
   buyCover: (coverKey: string) => Promise<{ coverKey: string; price: number }>;
   buyNameStyle: (styleKey: string) => Promise<{ styleKey: string; price: number }>;
-  buyDailyBannerCard: () => Promise<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[] }>;
-  buyWeeklyBannerCard: () => Promise<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[] }>;
+  buyDailyBannerCard: () => Promise<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[]; pityTriggered: boolean }>;
+  buyWeeklyBannerCard: () => Promise<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[]; pityTriggered: boolean }>;
   /** Campaign rewards not yet acknowledged (the prompt offers to open granted packs or keep them). */
   pendingGrants: ItemGrant[];
   receiveGrants: (grants: readonly ItemGrant[] | undefined) => void;
@@ -66,6 +68,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   not_enough_coins: 'Moedas insuficientes.',
   already_owned: 'Você já possui este item.',
   banner_unavailable: 'Este banner está temporariamente indisponível.',
+  banner_purchase_in_progress: 'Seu sorteio já está sendo processado. Aguarde um instante.',
   not_for_sale: 'Este item não está à venda.',
 };
 
@@ -108,6 +111,7 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
   const apply = useCallback((payload: AlbumPayload) => {
     const next: AlbumState = {
       coins: payload.coins,
+      bannerPity: payload.bannerPity ?? albumRef.current?.bannerPity ?? { daily: 0, weekly: 0 },
       inventory: payload.inventory,
       stickers: new Map(payload.stickers.map(([id, copies, spare]) => [id, { copies, spare }])),
       completedPages: new Set(payload.completedPages),
@@ -233,8 +237,8 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
     buyFrame: frameKey => post<{ frameKey: string; price: number }>('buy-frame', { frameKey }),
     buyCover: coverKey => post<{ coverKey: string; price: number }>('buy-cover', { coverKey }),
     buyNameStyle: styleKey => post<{ styleKey: string; price: number }>('buy-name-style', { styleKey }),
-    buyDailyBannerCard: async () => post<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[] }>('buy-daily-banner', {}),
-    buyWeeklyBannerCard: async () => post<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[] }>('buy-weekly-banner', {}),
+    buyDailyBannerCard: async () => post<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[]; pityTriggered: boolean }>('buy-daily-banner', {}),
+    buyWeeklyBannerCard: async () => post<{ card: { id: string; isNew: boolean }; rarity: Rarity; dayStart: string; price: number; pageRewards: PageReward[]; pityTriggered: boolean }>('buy-weekly-banner', {}),
     pendingGrants,
     receiveGrants,
     dismissGrants: () => setPendingGrants([]),
