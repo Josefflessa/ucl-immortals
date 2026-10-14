@@ -11,9 +11,12 @@ import ImpactMeter from '../components/game/ImpactMeter';
 import { AppShell, Button, ChoiceCard, FixedActionBar, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 import { Star } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
+import { useAlbum } from '../contexts/AlbumContext';
+import type { AlbumLevel } from '@shared/game/album';
 
 export default function FormationPage() {
   const { state, dispatch, submitSetupOnline } = useGame();
+  const { captureCompetitionLevels, loading: albumLoading, error: albumError } = useAlbum();
   const selectedCoach = COACHES.find(c => c.id === state.selectedCoachId);
 
   const me = state.mode === 'online' ? state.onlinePlayers.find(p => p.socketId === state.socketId) : null;
@@ -30,11 +33,19 @@ export default function FormationPage() {
     handleContinue();
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (state.mode === 'online') {
       submitSetupOnline(state.selectedCoachId, state.selectedFormationId, state.selectedCrestId);
     } else {
-      dispatch({ type: 'START_DRAFT' });
+      if (albumLoading) return;
+      try {
+        const accountAlbumLevels = await captureCompetitionLevels();
+        const albumLevelSnapshot: Partial<Record<string, AlbumLevel>> = Object.fromEntries(accountAlbumLevels);
+        dispatch({ type: 'START_DRAFT', albumLevelSnapshot });
+      } catch {
+        // The Album provider keeps the error visible; do not start a competition
+        // with an incomplete snapshot. The button can retry the load.
+      }
     }
   };
 
@@ -185,6 +196,11 @@ export default function FormationPage() {
         </div>
         </div>
 
+        {state.mode === 'solo' && albumError && (
+          <div role="status" className="mt-4 rounded-lg border px-3 py-2 text-xs leading-relaxed" style={{ borderColor: '#F59E0B55', color: '#FCD34D', background: '#F59E0B12' }}>
+            Não foi possível confirmar os níveis do Álbum. Tente iniciar novamente para carregar o progresso antes do draft.
+          </div>
+        )}
       </PageContainer>
       <FixedActionBar>
         <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
@@ -193,10 +209,11 @@ export default function FormationPage() {
         <Button
           intent="primary"
           size="large"
+          disabled={state.mode === 'solo' && albumLoading}
           onClick={handleContinue}
           className="flex-1"
         >
-          INICIAR DRAFT →
+          {state.mode === 'solo' && albumLoading ? 'CARREGANDO ÁLBUM…' : 'INICIAR DRAFT →'}
         </Button>
       </FixedActionBar>
 

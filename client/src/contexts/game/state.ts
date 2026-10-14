@@ -10,6 +10,7 @@ import { type ClubProjectId, type RecruitmentOfferMeta } from '@shared/game/club
 import { MarketListing, TradeSession } from '@shared/game/market';
 import { DEFAULT_COMPETITION_FORMAT, type CompetitionFormat } from '@shared/game/competition';
 import { createMissionState, type MissionState } from '@shared/game/missions';
+import type { AlbumLevel } from '@shared/game/album';
 
 // ============================================================
 // GAME PHASES
@@ -76,6 +77,8 @@ export interface GameState {
   playerName: string;
   difficulty: string;
   competitionFormat: CompetitionFormat;
+  /** Frozen account Album levels captured before the solo draft; missing legacy saves resolve to zero. */
+  competitionAlbumLevelSnapshot?: Partial<Record<string, AlbumLevel>>;
   playerTeam: Team | null;
   botTeams: Team[];
   draftState: DraftState | null;
@@ -91,6 +94,8 @@ export interface GameState {
   // Online: authoritative result (from server) being watched as a replay
   currentMatchResult: MatchResult | null;
   report: ImmortalReport | null;
+  /** True when the player ended their own run before the competition finished. */
+  partialReport: boolean;
   champion: string | null;
   draftedPlayers: (Player | undefined)[];
   selectedCrestId: string | null;
@@ -216,7 +221,7 @@ export type GameAction =
   | { type: 'SET_MATCH_PLAN'; plan: MatchPlan }
   | { type: 'SET_PLAYER_TEAM_PLAY_STYLE'; playStyle: string }
   | { type: 'SET_PLAYER_TEAM_MATCH_PLAN'; plan: MatchPlan }
-  | { type: 'START_DRAFT' }
+  | { type: 'START_DRAFT'; albumLevelSnapshot: Partial<Record<string, AlbumLevel>> }
   | { type: 'DRAFT_PLAYER'; player: Player }
   | { type: 'VETO_DRAFT' }
   | { type: 'SET_CAPTAIN'; playerId: string }
@@ -273,6 +278,7 @@ export type GameAction =
   | { type: 'SET_EVENT_UNIQUE_IDS'; ids: string[] }
   | { type: 'WATCH_ONLINE_MATCH'; teams: [Team, Team]; result: MatchResult; knockout?: { matchId: string; round: string; leg?: number; firstLeg?: { home: number; away: number } }; spectator?: boolean }
   | { type: 'FINISH_ELIMINATED_CAMPAIGN' }
+  | { type: 'FINISH_ONLINE_PARTIAL_CAMPAIGN' }
   | { type: 'FINISH_GAME'; champion: string }
   | { type: 'RESET_GAME' }
   | { type: 'RESTORE_SOLO_CAMPAIGN'; state: GameState }
@@ -292,6 +298,7 @@ export const initialState: GameState = {
   playerName: '',
   difficulty: 'gold',
   competitionFormat: { ...DEFAULT_COMPETITION_FORMAT },
+  competitionAlbumLevelSnapshot: {},
   playerTeam: null,
   botTeams: [],
   draftState: null,
@@ -305,6 +312,7 @@ export const initialState: GameState = {
   currentMatchTeams: null,
   currentMatchResult: null,
   report: null,
+  partialReport: false,
   champion: null,
   draftedPlayers: [],
   selectedCrestId: null,

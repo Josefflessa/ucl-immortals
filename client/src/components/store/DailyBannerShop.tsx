@@ -15,11 +15,30 @@ import { formatBannerRotation } from './bannerDates';
 const FILTERS = ['gold', 'legendary', 'immortal'] as const satisfies readonly Rarity[];
 const FEATURED_COUNT: Record<(typeof FILTERS)[number], number> = { gold: 4, legendary: 4, immortal: 1 };
 const ODDS_RARITIES: readonly Rarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal'];
+const ROTATION_CACHE_TTL_MS = 60_000;
+let dailyRotationCache: { value?: DailyBannerRotations; updatedAt: number; request?: Promise<DailyBannerRotations> } | undefined;
+
+function loadDailyRotations() {
+  if (dailyRotationCache?.value && Date.now() - dailyRotationCache.updatedAt < ROTATION_CACHE_TTL_MS) return Promise.resolve(dailyRotationCache.value);
+  if (dailyRotationCache?.request) return dailyRotationCache.request;
+  const entry = dailyRotationCache ?? { updatedAt: 0 };
+  let request: Promise<DailyBannerRotations>;
+  request = api<DailyBannerRotations>('/api/account/album/daily-banner').then(value => {
+    entry.value = value;
+    entry.updatedAt = Date.now();
+    return value;
+  }).finally(() => {
+    if (entry.request === request) entry.request = undefined;
+  });
+  entry.request = request;
+  dailyRotationCache = entry;
+  return request;
+}
 
 export default function DailyBannerShop() {
   const { album, buyDailyBannerCard } = useAlbum();
-  const [rotations, setRotations] = useState<DailyBannerRotations | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [rotations, setRotations] = useState<DailyBannerRotations | null>(() => dailyRotationCache?.value ?? null);
+  const [loading, setLoading] = useState(() => !dailyRotationCache?.value);
   const [error, setError] = useState<string | null>(null);
   const [previewTomorrow, setPreviewTomorrow] = useState(false);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('gold');
@@ -29,10 +48,17 @@ export default function DailyBannerShop() {
 
   useEffect(() => {
     let active = true;
-    void api<DailyBannerRotations>('/api/account/album/daily-banner').then(result => {
+    const cached = dailyRotationCache?.value ?? null;
+    if (cached) {
+      setRotations(cached);
+      setLoading(false);
+      setError(null);
+    }
+    if (cached && Date.now() - (dailyRotationCache?.updatedAt ?? 0) < ROTATION_CACHE_TTL_MS) return () => { active = false; };
+    void loadDailyRotations().then(result => {
       if (active) { setRotations(result); setError(null); }
     }).catch(cause => {
-      if (active) setError(cause instanceof Error ? cause.message : 'Não foi possível carregar o banner diário.');
+      if (active && !cached) setError(cause instanceof Error ? cause.message : 'Não foi possível carregar o banner diário.');
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);

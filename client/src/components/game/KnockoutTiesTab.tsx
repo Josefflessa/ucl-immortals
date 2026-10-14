@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame, KnockoutMatch } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
-import { MAX_RESERVE_PLAYERS, MatchResult, Team, getActiveKnockoutMatches, knockoutRoundLabel, reservePlayerCount } from '@shared/game/gameEngine';
+import { MAX_RESERVE_PLAYERS, MatchResult, Team, getActiveKnockoutMatches, isKnockoutTeamAlive, knockoutRoundLabel, reservePlayerCount } from '@shared/game/gameEngine';
 import MatchDetailsModal from './MatchDetailsModal';
 import Crest from './Crest';
 import BetSlipModal, { type BetSlipSubmission } from './BetSlipModal';
@@ -15,12 +15,12 @@ import { bettingStakeCapBonus, projectLevel } from '@shared/game/clubProjects';
 import { unavailableStarters } from '@shared/game/discipline';
 import { getOnlineKnockoutParticipantIds, getReadinessStatus, isOnlineHumanMatch, sortMatchesForOnlineDisplay } from '@shared/game/onlineReadiness';
 import { GameModal } from '../../design-system';
-import { Ban, CircleCheck, CircleX, Crown, Eye, Hourglass, Play, Star, Target, Trophy, Users } from 'lucide-react';
+import { Ban, CircleCheck, CircleX, Crown, Eye, Hourglass, LogOut, Play, Star, Target, Trophy, Users } from 'lucide-react';
 import { INLINE_ICON } from './inlineIcon';
 
 
 export default function KnockoutTiesTab() {
-  const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
+  const { state, dispatch, playKnockoutRoundOnline, advanceKnockoutRoundOnline, leaveRoomOnline, getTeamById, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline } = useGame();
   const { knockoutBracket, playerTeam } = state;
   const online = state.mode === 'online';
   const { allTeams, localTeamId, getTeamName: resolveTeamName } = useTeams();
@@ -95,6 +95,7 @@ export default function KnockoutTiesTab() {
   );
 
   const round = knockoutBracket.currentRound;
+  const wasEliminated = !!playerTeam && !isKnockoutTeamAlive(knockoutBracket, playerTeam.id);
 
   // 🟥🩹 Escalação: bloqueia jogar a perna com titular indisponível (sem troca automática).
   const iPlayThisRound = matches.some(m => isPlayerTeam(m.homeTeamId) || isPlayerTeam(m.awayTeamId));
@@ -580,6 +581,23 @@ export default function KnockoutTiesTab() {
           {state.advanceBlocked && state.advanceBlocked.length > 0 && (
             <div className="mt-2 text-center text-[13px] font-bold text-yellow-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
               <Hourglass {...INLINE_ICON} />Aguardando assistirem: {state.advanceBlocked.join(', ')}
+            </div>
+          )}
+            {wasEliminated && (
+            <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--ui-surface-3)' }}>
+              <p className="mb-2 text-xs text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                Você pode acompanhar as próximas fases ou encerrar sua participação agora.
+              </p>
+              <button
+                type="button"
+                onClick={() => online
+                  ? leaveRoomOnline({ partialReport: true })
+                  : dispatch({ type: 'FINISH_ELIMINATED_CAMPAIGN' })}
+                className="w-full rounded-xl border px-4 py-3 text-sm font-black tracking-wider transition-colors hover:bg-white/5"
+                style={{ fontFamily: 'var(--font-game), sans-serif', borderColor: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}
+              >
+                <LogOut {...INLINE_ICON} />{online ? 'SAIR E VER RESUMO PARCIAL' : 'ENCERRAR COM RESUMO PARCIAL'}
+              </button>
             </div>
           )}
         </motion.div>

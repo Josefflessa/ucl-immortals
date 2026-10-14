@@ -16,7 +16,7 @@ export default function RoomInvitationPrompt() {
   const dismissedIds = useRef(new Set<string>());
   const presenceId = useRef<string | null>(null);
   const presenceRevision = useRef(0);
-  const canReceiveRef = useRef(false);
+  const presenceStatusRef = useRef<'available' | 'busy' | 'away'>('busy');
   if (!presenceId.current) {
     presenceId.current = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
@@ -32,9 +32,14 @@ export default function RoomInvitationPrompt() {
 
   const canReceiveInvitation = !!account
     && !state.roomCode
-    && (state.phase === 'menu' || state.phase === 'account' || state.phase === 'album');
-  canReceiveRef.current = canReceiveInvitation;
-  const desiredPresence = !isVisible ? 'away' : canReceiveInvitation ? 'available' : 'busy';
+    && (state.phase === 'menu'
+      || state.phase === 'account'
+      || state.phase === 'album'
+      || state.phase === 'store'
+      || state.phase === 'achievements'
+      || state.phase === 'events');
+  const desiredPresence = !canReceiveInvitation ? 'busy' : isVisible ? 'available' : 'away';
+  presenceStatusRef.current = desiredPresence;
 
   useEffect(() => {
     if (!account) return;
@@ -47,9 +52,8 @@ export default function RoomInvitationPrompt() {
   useEffect(() => {
     if (!account) return;
     const heartbeat = () => {
-      if (document.visibilityState !== 'visible') return;
       const revision = ++presenceRevision.current;
-      const status = canReceiveRef.current ? 'available' : 'busy';
+      const status = presenceStatusRef.current;
       void setPresence(presenceId.current!, status, revision).catch(() => {
         // The server stops considering this tab online when heartbeats go stale.
       });
@@ -75,6 +79,10 @@ export default function RoomInvitationPrompt() {
         // A transient inbox error should not interrupt the current screen.
       });
     };
+    const onServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'room-invitation') refresh();
+    };
+    navigator.serviceWorker?.addEventListener('message', onServiceWorkerMessage);
 
     refresh();
     const interval = window.setInterval(refresh, 10_000);
@@ -83,6 +91,7 @@ export default function RoomInvitationPrompt() {
       active = false;
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', refresh);
+      navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
     };
   }, [account?.id, getRoomInvitations]);
 
@@ -140,7 +149,7 @@ export default function RoomInvitationPrompt() {
       open
       onOpenChange={open => { if (!open && !busy) dismiss(invitation); }}
       title={step === 'invite' ? 'CONVITE PARA PARTIDA' : 'NOME DO SEU TIME'}
-      subtitle={step === 'invite' ? 'Convite válido por 1 minuto.' : 'Escolha como seu time aparecerá na sala.'}
+      subtitle={step === 'invite' ? 'Convite válido por 5 minutos.' : 'Escolha como seu time aparecerá na sala.'}
       size="default"
       stacked
       dismissible={!busy}

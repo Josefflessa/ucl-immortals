@@ -18,6 +18,81 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  if (!data || typeof data !== 'object') data = {};
+
+  const title = typeof data.title === 'string' && data.title.trim()
+    ? data.title.slice(0, 100)
+    : 'UCL Immortals';
+  const body = typeof data.body === 'string' ? data.body.slice(0, 240) : '';
+  const url = typeof data.url === 'string' ? data.url : '/';
+  const tag = typeof data.tag === 'string' ? data.tag.slice(0, 100) : 'ucl-notification';
+
+  event.waitUntil((async () => {
+    await self.registration.showNotification(title, {
+      body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag,
+      data: { url },
+    });
+    if (tag.startsWith('friend-message:')) {
+      const friendshipId = tag.slice('friend-message:'.length);
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      windows.forEach((client) => {
+        if (new URL(client.url).origin === self.location.origin) {
+          client.postMessage({ type: 'friend-message-received', friendshipId });
+        }
+      });
+    }
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    let target = new URL('/', self.location.origin);
+    try {
+      const candidate = new URL(event.notification.data?.url || '/', self.location.origin);
+      if (candidate.origin === self.location.origin) target = candidate;
+    } catch {
+      // Keep the safe home destination.
+    }
+
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      if (new URL(client.url).origin !== self.location.origin) continue;
+      try {
+        if (event.notification.tag.startsWith('room-invitation:')) {
+          client.postMessage({ type: 'room-invitation' });
+          await client.focus();
+          return;
+        }
+        if (event.notification.tag.startsWith('friend-message:')) {
+          client.postMessage({
+            type: 'friend-message',
+            friendshipId: event.notification.tag.slice('friend-message:'.length),
+          });
+          await client.focus();
+          return;
+        }
+        await client.navigate(target.href);
+        await client.focus();
+        return;
+      } catch {
+        // Try another app window before opening a fresh one.
+      }
+    }
+    await self.clients.openWindow(target.href);
+  })());
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   // Only handle top-level page navigations (the HTML shell). Leave assets/API/ws alone.

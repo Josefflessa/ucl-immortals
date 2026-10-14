@@ -8,6 +8,7 @@ import AlbumCollection from '../components/album/AlbumCollection';
 import {
   getRarityColor,
   effectiveSecondaries,
+  EVENT_UNIQUE_CARDS,
   POS_PT,
   POSITION_GROUPS,
   type Player,
@@ -35,6 +36,7 @@ import { cn } from '../lib/utils';
 type AlbumPlayer = CatalogPlayer;
 type SortMode = 'name' | 'overall' | 'rarity';
 type GridColumns = 3 | 4 | 5;
+const EVENT_UNIQUE_CARD_IDS = new Set(EVENT_UNIQUE_CARDS.map(player => player.id));
 
 const RARITY_LABELS: Record<Rarity, string> = {
   bronze: 'Bronze',
@@ -270,7 +272,7 @@ function PlayerDetail({
           <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
             <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Disponibilidade</div>
             <p className="mt-1 text-sm text-[var(--ui-text)]">
-              {player.isUnique ? 'Carta única da loja' : 'Carta regular do catálogo'}
+              {EVENT_UNIQUE_CARD_IDS.has(player.id) ? 'Carta Única exclusiva de evento' : player.isUnique ? 'Carta Única da loja' : 'Carta regular do catálogo'}
             </p>
           </div>
         </div>

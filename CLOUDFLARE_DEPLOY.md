@@ -13,6 +13,8 @@ O frontend, o multiplayer e as contas são publicados pelo mesmo Worker
 
 O endereço continua `ucl-immortals.josefflessa.workers.dev`. Não há servidor de
 backend separado: em produção o cliente fala com `/api/realtime` no mesmo host.
+As notificações push precisam das chaves VAPID do Worker; veja
+[`docs/WEB_PUSH_SETUP.md`](docs/WEB_PUSH_SETUP.md) antes de ativá-las.
 
 ## Publicar
 

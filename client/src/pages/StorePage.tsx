@@ -32,7 +32,7 @@ function StoreCategoryTab({ value, title, description, children }: {
 export default function StorePage() {
   const { dispatch } = useGame();
   const { account, loading: accountLoading } = useAccount();
-  const { album, loading: albumLoading, error: albumError, refresh } = useAlbum();
+  const { album, loading: albumLoading, error: albumError, refresh, refreshIfStale } = useAlbum();
   const [category, setCategory] = useState<StoreCategory>('packs');
   const accountId = account?.id ?? null;
 
@@ -41,8 +41,8 @@ export default function StorePage() {
   }, [accountId, accountLoading, dispatch]);
 
   useEffect(() => {
-    if (accountId) void refresh();
-  }, [accountId, refresh]);
+    if (accountId) void refreshIfStale();
+  }, [accountId, refreshIfStale]);
 
   return (
     <AppShell>
@@ -59,6 +59,11 @@ export default function StorePage() {
         ) : !album ? (
           <Skeleton className="h-72 w-full rounded-2xl" aria-label="Carregando loja" />
         ) : (
+          <>
+          {albumError ? <StatusBanner tone="warning" title="Exibindo os últimos dados salvos">
+            {albumError}{' '}
+            <Button type="button" intent="ghost" onClick={() => void refresh()} className="ml-1 min-h-8 px-2 text-xs">TENTAR NOVAMENTE</Button>
+          </StatusBanner> : null}
           <Tabs value={category} onValueChange={value => setCategory(value as StoreCategory)}>
             <TabList aria-label="Categorias da loja" className="ui-tabs--equal">
               <Tab value="packs" className="inline-flex items-center gap-2"><PackageOpen size={15} aria-hidden="true" /><span>Pacotes</span></Tab>
@@ -78,6 +83,7 @@ export default function StorePage() {
               <AppearanceShop />
             </StoreCategoryTab>
           </Tabs>
+          </>
         )}
       </PageContainer>
       {account ? <AccountTabBar

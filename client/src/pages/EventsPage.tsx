@@ -19,8 +19,8 @@ const SECTIONS: { status: EventStatus; title: string; emptyTitle: string; empty:
 
 export default function EventsPage() {
   const { dispatch } = useGame();
-  const { account, loading, getEvents, chooseEventOption, updateProfile } = useAccount();
-  const [payload, setPayload] = useState<EventsPayload | null>(null);
+  const { account, loading, getEvents, peekEvents, chooseEventOption, updateProfile } = useAccount();
+  const [payload, setPayload] = useState<EventsPayload | null>(() => peekEvents());
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [tab, setTab] = useState<EventStatus>('active');
@@ -34,12 +34,14 @@ export default function EventsPage() {
   useEffect(() => {
     if (!accountId) return;
     let active = true;
+    const cached = peekEvents();
+    setPayload(cached);
     setError('');
     void getEvents()
       .then(result => { if (active) setPayload(result); })
       .catch(err => { if (active) setError(err instanceof Error ? err.message : 'Não foi possível carregar os eventos.'); });
     return () => { active = false; };
-  }, [accountId, attempt, getEvents]);
+  }, [accountId, attempt, getEvents, peekEvents]);
 
   const choose = async (eventId: string, choice: string) => {
     setPayload(await chooseEventOption(eventId, choice));
@@ -55,7 +57,7 @@ export default function EventsPage() {
       {/* Same shell and header as the other account screens. */}
       <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
         <SectionHeader title="Eventos" />
-        {error ? (
+        {error && !payload ? (
           <StatusBanner tone="danger" title="Não foi possível carregar os eventos">
             {error}{' '}
             <Button type="button" intent="ghost" onClick={() => setAttempt(value => value + 1)} className="ml-1 min-h-8 px-2 text-xs">TENTAR NOVAMENTE</Button>
@@ -63,6 +65,11 @@ export default function EventsPage() {
         ) : !payload ? (
           <div className="space-y-3" aria-label="Carregando eventos"><Skeleton className="h-[320px] w-full rounded-2xl" /></div>
         ) : (
+          <>
+          {error ? <StatusBanner tone="warning" title="Os eventos podem estar desatualizados">
+            {error}{' '}
+            <Button type="button" intent="ghost" onClick={() => setAttempt(value => value + 1)} className="ml-1 min-h-8 px-2 text-xs">TENTAR NOVAMENTE</Button>
+          </StatusBanner> : null}
           <Tabs value={tab} onValueChange={value => setTab(value as EventStatus)}>
             <TabList aria-label="Situação dos eventos" className="ui-tabs--equal">
               {SECTIONS.map(section => {
@@ -91,6 +98,7 @@ export default function EventsPage() {
               );
             })}
           </Tabs>
+          </>
         )}
       </PageContainer>
       {account ? <AccountTabBar

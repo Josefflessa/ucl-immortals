@@ -1,6 +1,6 @@
 import { getTeamEffectiveStats, type Team } from '../shared/game/gameEngine.js';
 
-/** Keep compact history rows permanently while retaining only recent full reports. */
+/** Keep compact history rows and partial squad summaries permanently while retaining only recent full reports. */
 export async function retainRecentCompetitionSnapshots(db: D1Database, userId: string): Promise<void> {
   // Materialize effective card values before discarding a full snapshot. New
   // campaigns already save these values on every record card; this also upgrades
@@ -10,6 +10,7 @@ export async function retainRecentCompetitionSnapshots(db: D1Database, userId: s
     const rows = await db.prepare(`SELECT id, report_json FROM competition_history
       WHERE user_id = ?
         AND CASE WHEN json_valid(report_json) THEN json_type(report_json, '$.historySnapshot') ELSE NULL END IS NOT NULL
+        AND CASE WHEN json_valid(report_json) THEN COALESCE(json_extract(report_json, '$.partial'), 0) ELSE 0 END != 1
       ORDER BY completed_at DESC, id DESC
       LIMIT 10 OFFSET ?`).bind(userId, offset).all<{ id: string; report_json: string }>();
     if (rows.results.length === 0) break;
@@ -53,6 +54,7 @@ export async function retainRecentCompetitionSnapshots(db: D1Database, userId: s
       AND id IN (
         SELECT id FROM competition_history
         WHERE user_id = ?
+          AND CASE WHEN json_valid(report_json) THEN COALESCE(json_extract(report_json, '$.partial'), 0) ELSE 0 END != 1
           AND CASE
             WHEN json_valid(report_json) THEN json_type(report_json, '$.historySnapshot')
             ELSE NULL

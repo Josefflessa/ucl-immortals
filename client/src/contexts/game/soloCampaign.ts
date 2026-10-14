@@ -2,10 +2,10 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player } from '@shared/game/gameData';
-import { Team, MatchResult, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, generateImmortalReport, LeagueFixture, computeGroupQualifiedStandings, getAllPlayedMatchResults, createKnockoutBracket, buildUniquePackRoundKey, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches } from '@shared/game/gameEngine';
+import { Team, MatchResult, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, generateImmortalReport, LeagueFixture, getAllPlayedMatchResults, buildUniquePackRoundKey } from '@shared/game/gameEngine';
 import { applyMedicalReturnBoost, resolveAvailableLineup } from '@shared/game/discipline';
 import { createRecruitmentOfferMeta, getRecruitmentOfferConfig, medicalInjuryDuration, medicalReturnBoost, projectLevel, type RecruitmentEventKind, type RecruitmentOfferMeta } from '@shared/game/clubProjects';
-import { type GamePhase, type GameState, type KnockoutBracket } from './state';
+import { type GamePhase, type GameState } from './state';
 
 function currentUniquePackRoundKey(state: Pick<GameState, 'phase' | 'leagueRound' | 'knockoutBracket'>): string | null {
   if (state.phase === 'league') {
@@ -74,19 +74,30 @@ export function applySoloSeatRule(state: GameState, rule: (seat: seatRules.Playe
   const result = rule(seat);
   if (!result.ok) return state;
   const next = result.seat;
+  const lockAlbumLevel = <T extends Player>(player: T): T => player.competitionAlbumLevel !== undefined
+    ? player
+    : { ...player, competitionAlbumLevel: state.competitionAlbumLevelSnapshot?.[player.id] ?? 0 };
+  // Stamp any card entering the roster (recruitment, packs, emergency replacement)
+  // with this campaign's frozen level. Existing instances keep their own value so a
+  // transferred card can never inherit or stack with the receiver's Album level.
+  const team = {
+    ...next.team,
+    players: next.team.players.map(lockAlbumLevel),
+  };
+  const reinforcementOptions = next.reinforcementOptions === undefined ? state.reinforcementOptions : next.reinforcementOptions;
   return {
     ...state,
-    playerTeam: next.team,
+    playerTeam: team,
     points: next.points,
     missions: next.missions ?? state.missions,
     bets: next.bets ?? state.bets,
     medicalFreeTreatmentsUsed: next.medicalFreeTreatmentsUsed ?? state.medicalFreeTreatmentsUsed,
-    reinforcementOptions: next.reinforcementOptions === undefined ? state.reinforcementOptions : next.reinforcementOptions,
+    reinforcementOptions: reinforcementOptions?.map(lockAlbumLevel) ?? null,
     reinforcementOffer: next.reinforcementOffer === undefined ? state.reinforcementOffer : next.reinforcementOffer,
     discipline: 'discipline' in result ? result.discipline : state.discipline,
-    pendingPack: next.pendingPack,
-    pendingPackReveal: next.pendingPackReveal,
-    pendingUniquePack: next.pendingUniquePack,
+    pendingPack: next.pendingPack ? { ...next.pendingPack, options: next.pendingPack.options.map(lockAlbumLevel) } : null,
+    pendingPackReveal: next.pendingPackReveal ? { ...next.pendingPackReveal, card: lockAlbumLevel(next.pendingPackReveal.card) } : null,
+    pendingUniquePack: next.pendingUniquePack ? lockAlbumLevel(next.pendingUniquePack) : null,
     uniquePackOfferIds: next.uniquePackOfferIds ?? [],
     uniquePackOfferRoundKey: next.uniquePackOfferRoundKey ?? null,
     playerPackOfferIds: next.playerPackOfferIds ?? {},
@@ -158,58 +169,21 @@ export function applyMedicalRecoveries(team: Team, recoveredInjuries: { teamId: 
     .reduce((current, recovery) => applyMedicalReturnBoost(current, recovery.playerId, boost), team);
 }
 
-/**
- * Ends a solo campaign when the player misses the knockout qualification line.
- * The player no longer has a tie to play, so the remaining bracket is resolved
- * in the background and the normal end-of-season report receives the complete
- * league + knockout result set.
- */
+/** Creates a partial report from matches already played when a player exits after elimination. */
 export function finishEliminatedSoloCampaign(state: GameState): GameState {
   if (state.mode !== 'solo' || !state.playerTeam) return state;
 
-  const allTeams = [state.playerTeam, ...state.botTeams];
-  const format = state.competitionFormat;
-  let bracket = state.knockoutBracket;
-  let champion: string | null = null;
-
-  if (format.id !== 'league') {
-    const qualifiedStandings = format.id === 'groups_knockout'
-      ? computeGroupQualifiedStandings(allTeams, state.leagueFixtures, format)
-      : state.leagueStandings;
-    bracket = (bracket
-      ? JSON.parse(JSON.stringify(bracket))
-      : createKnockoutBracket(qualifiedStandings, format)) as KnockoutBracket;
-
-    const teamById = new Map(allTeams.map(team => [team.id, team]));
-    for (let guard = 0; guard < 64 && !champion; guard++) {
-      const active = getActiveKnockoutMatches(bracket);
-      if (active.length === 0) break;
-
-      playActiveKnockoutLeg(
-        bracket,
-        (teamId: string) => {
-          const team = teamById.get(teamId);
-          return team ? resolveAvailableLineup(team, state.discipline).team : undefined;
-        },
-      );
-      champion = advanceKnockoutBracket(bracket);
-    }
-  }
-
-  const fallbackChampion = state.leagueStandings[0]?.teamId ?? state.playerTeam.id;
-  const championId = champion ?? fallbackChampion;
-  const championTeam = allTeams.find(team => team.id === championId);
   const report = generateImmortalReport(
     state.playerTeam,
-    getAllPlayedMatchResults(state.leagueResults, bracket),
-    championTeam?.name ?? 'Campeão',
+    getAllPlayedMatchResults(state.leagueResults, state.knockoutBracket),
+    'Resultado ainda não definido',
   );
 
   return {
     ...state,
-    knockoutBracket: bracket,
-    champion: championId,
+    champion: null,
     report,
+    partialReport: true,
     phase: 'report',
     activeKnockoutMatch: null,
     currentMatchTeams: null,
@@ -217,5 +191,17 @@ export function finishEliminatedSoloCampaign(state: GameState): GameState {
     spectating: false,
     reinforcementOptions: null,
     reinforcementOffer: null,
+  };
+}
+
+/** Online rooms use the same partial report when a player leaves after elimination. */
+export function finishEliminatedOnlineCampaign(state: GameState): GameState {
+  if (state.mode !== 'online' || !state.playerTeam) return state;
+  return {
+    ...finishEliminatedSoloCampaign({ ...state, mode: 'solo' }),
+    mode: 'online',
+    roomCode: null,
+    onlineHostId: null,
+    isHost: false,
   };
 }

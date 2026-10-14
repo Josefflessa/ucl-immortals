@@ -497,6 +497,12 @@ export function useLeagueHub() {
     }
   };
 
+  const handleWatchRemainingCompetition = () => {
+    if (state.mode === 'solo' && !qualifies) {
+      dispatch({ type: 'START_KNOCKOUT' });
+    }
+  };
+
   // ONLINE: when the host plays the round, the server simulates every match and
   // broadcasts the authoritative results. As soon as the local player's fixture
   // for the current round is resolved, auto-open it as a synchronized live replay
@@ -677,7 +683,7 @@ export function useLeagueHub() {
     isPlayerMatchPlayed,
     // Handlers
     handlePlayPlayerMatch, handlePlayRound, handleReadyToggle, handleEmergencySelection,
-    handleAdvanceRound, handleAdvanceKnockout, handleFinishEliminatedCampaign,
+    handleAdvanceRound, handleAdvanceKnockout, handleFinishEliminatedCampaign, handleWatchRemainingCompetition,
   };
 }
 

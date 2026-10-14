@@ -2,6 +2,7 @@ import CompetitionExitControl from '../../components/game/CompetitionExitControl
 import CreditsWallet from '../../components/game/CreditsWallet';
 import Crest from '../../components/game/Crest';
 import { Tab, TabList, Tabs, TopBar } from '../../design-system';
+import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
 import SpoilerLock from './SpoilerLock';
 import type { LeagueHub } from './useLeagueHub';
 
@@ -12,10 +13,12 @@ export function HubHeader({ hub }: { hub: LeagueHub }) {
     state, isKnockout, isGroupStage, isLeagueOnly, playerStanding, qualifies, playerPosition,
     knockoutLabel, leagueRound, leagueRounds, qualifiedTeams,
   } = hub;
+  const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
   return (
     <>
       <TopBar
         title={isKnockout ? 'MATA-MATA' : isGroupStage ? 'FASE DE GRUPOS' : 'FASE DE LIGA'}
+        subtitle={`DIFICULDADE · ${difficultyName}`}
         center={<CreditsWallet points={state.points} />}
         right={
           <div className="flex items-center gap-2 sm:gap-3">

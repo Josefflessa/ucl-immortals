@@ -14,6 +14,25 @@ import { formatBannerRotation } from './bannerDates';
 
 const FILTERS = ['legendary', 'immortal', 'unique'] as const satisfies readonly Rarity[];
 const FEATURED_COUNT: Record<(typeof FILTERS)[number], number> = { legendary: 4, immortal: 4, unique: 1 };
+const ROTATION_CACHE_TTL_MS = 60_000;
+let weeklyRotationCache: { value?: WeeklyBannerRotations; updatedAt: number; request?: Promise<WeeklyBannerRotations> } | undefined;
+
+function loadWeeklyRotations() {
+  if (weeklyRotationCache?.value && Date.now() - weeklyRotationCache.updatedAt < ROTATION_CACHE_TTL_MS) return Promise.resolve(weeklyRotationCache.value);
+  if (weeklyRotationCache?.request) return weeklyRotationCache.request;
+  const entry = weeklyRotationCache ?? { updatedAt: 0 };
+  let request: Promise<WeeklyBannerRotations>;
+  request = api<WeeklyBannerRotations>('/api/account/album/weekly-banner').then(value => {
+    entry.value = value;
+    entry.updatedAt = Date.now();
+    return value;
+  }).finally(() => {
+    if (entry.request === request) entry.request = undefined;
+  });
+  entry.request = request;
+  weeklyRotationCache = entry;
+  return request;
+}
 
 function BannerCardPlaceholder() {
   return (
@@ -30,8 +49,8 @@ function BannerCardPlaceholder() {
 export default function WeeklyBannerShop() {
   const { album, buyWeeklyBannerCard } = useAlbum();
   const { getEvents } = useAccount();
-  const [rotations, setRotations] = useState<WeeklyBannerRotations | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [rotations, setRotations] = useState<WeeklyBannerRotations | null>(() => weeklyRotationCache?.value ?? null);
+  const [loading, setLoading] = useState(() => !weeklyRotationCache?.value);
   const [error, setError] = useState<string | null>(null);
   const [previewNext, setPreviewNext] = useState(false);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('legendary');
@@ -41,10 +60,17 @@ export default function WeeklyBannerShop() {
 
   useEffect(() => {
     let active = true;
-    void api<WeeklyBannerRotations>('/api/account/album/weekly-banner').then(result => {
+    const cached = weeklyRotationCache?.value ?? null;
+    if (cached) {
+      setRotations(cached);
+      setLoading(false);
+      setError(null);
+    }
+    if (cached && Date.now() - (weeklyRotationCache?.updatedAt ?? 0) < ROTATION_CACHE_TTL_MS) return () => { active = false; };
+    void loadWeeklyRotations().then(result => {
       if (active) { setRotations(result); setError(null); }
     }).catch(cause => {
-      if (active) setError(cause instanceof Error ? cause.message : 'Não foi possível carregar os banners.');
+      if (active && !cached) setError(cause instanceof Error ? cause.message : 'Não foi possível carregar os banners.');
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);

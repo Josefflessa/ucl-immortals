@@ -58,7 +58,7 @@ import {
 } from '../design-system';
 
 const AVATARS_PER_PAGE = 12;
-const APPEARANCE_ITEMS_PER_PAGE = 4;
+const APPEARANCE_ITEMS_PER_PAGE = 6;
 const RECORD_LABELS: Record<PublicRecordEntry['category'], { label: string; description: string; icon: typeof Trophy; suffix: string }> = {
   goals: { label: 'Mais gols', description: 'Mais gols marcados por um jogador em uma competição.', icon: Trophy, suffix: 'gols' },
   assists: { label: 'Mais assistências', description: 'Mais assistências dadas por um jogador em uma competição.', icon: Sparkles, suffix: 'assist.' },
@@ -109,6 +109,8 @@ function difficultyColor(id: string | null | undefined): string {
 type DifficultyFilterValue = RankedDifficultyId | 'all';
 type RankingTab = 'overall' | 'records';
 type FriendsTab = 'friends' | 'incoming' | 'outgoing';
+const AUTH_USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,23}$/i;
+const AUTH_PASSWORD_MIN_LENGTH = 8;
 
 const FRIEND_ERROR_MESSAGES: Record<string, string> = {
   invalid_friend: 'Confira o nome de usuário. Você só pode adicionar outra pessoa.',
@@ -511,12 +513,13 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
     ? entry.finish_stage
     : finishStageFromLegacyPoints(competitionPoints, entry.champion);
   const champion = Boolean(entry.champion) || finishStage === 'champion';
+  const partial = report.partial === true;
   const hasFinishStage = finishStage !== null;
   const summaryOnly = report.snapshotArchived === true;
   const finishLabel = finishStage
     ? HISTORY_FINISH_LABELS[finishStage]
     : entry.mode === 'online' && entry.placement ? `${entry.placement}º na liga` : entry.placement ? `Terminou em ${entry.placement}º lugar` : 'Campanha concluída';
-  const title = `Ver resultado final: ${entry.team_name}, ${finishLabel}, ${difficultyName(entry.difficulty_id)}, ${formatDate(entry.completed_at)}`;
+  const title = `${partial ? 'Ver resumo parcial' : 'Ver resultado final'}: ${entry.team_name}, ${finishLabel}, ${difficultyName(entry.difficulty_id)}, ${formatDate(entry.completed_at)}`;
 
   return (
     <Panel density="compact" className="overflow-hidden p-0 transition-colors hover:border-[var(--ui-line-strong)]">
@@ -539,6 +542,7 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
                 </span>
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                   <Badge tone={champion ? 'brand' : 'default'} className="px-2 py-1 text-[12px]">{finishLabel}</Badge>
+                  {partial ? <Badge className="px-2 py-1 text-[12px]">PARCIAL</Badge> : null}
                   {summaryOnly ? <Badge className="px-2 py-1 text-[12px]">RESUMO</Badge> : null}
                 </span>
                 {/* Difficulty always on its own line, with the points right after it. */}
@@ -600,24 +604,36 @@ function CareerFinishBreakdown({ counts, filter }: { counts: AccountStats['finis
 
 export default function AccountPage() {
   const { state, dispatch } = useGame();
-  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, getEvents, updateShowcase, getHistory, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, peekOwnAchievements, getEvents, updateShowcase, getHistory, peekHistory, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
   const accountId = account?.id ?? null;
-  const [history, setHistory] = useState<CompetitionHistoryEntry[]>([]);
+  const [history, setHistory] = useState<CompetitionHistoryEntry[]>(() => peekHistory(1)?.history ?? []);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyTotalPages, setHistoryTotalPages] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<CompetitionHistoryEntry | null>(null);
-  const [records, setRecords] = useState<PublicRecordEntry[]>([]);
-  const [scoreRanking, setScoreRanking] = useState<ScoreLeaderboardEntry[]>([]);
-  const [scorePosition, setScorePosition] = useState<ScoreLeaderboardPosition | null>(null);
-  const [ownRecords, setOwnRecords] = useState<ProfileRecordEntry[]>([]);
+  const [records, setRecords] = useState<PublicRecordEntry[]>(() => peekRecords({ difficulty: 'immortal' }) ?? []);
+  const [scoreRanking, setScoreRanking] = useState<ScoreLeaderboardEntry[]>(() => peekScoreLeaderboard(null) ?? []);
+  const [scorePosition, setScorePosition] = useState<ScoreLeaderboardPosition | null>(() => peekScoreLeaderboardPosition());
+  const [ownRecords, setOwnRecords] = useState<ProfileRecordEntry[]>(() => peekOwnRecordHighlights() ?? []);
   const [ownRecordsError, setOwnRecordsError] = useState('');
-  const [ownAchievements, setOwnAchievements] = useState<AchievementsPayload | null>(null);
+  const [ownAchievements, setOwnAchievements] = useState<AchievementsPayload | null>(() => peekOwnAchievements());
   const [ownAchievementsLoading, setOwnAchievementsLoading] = useState(false);
   const [showcaseEditorOpen, setShowcaseEditorOpen] = useState(false);
   const [friends, setFriends] = useState<FriendshipEntry[]>([]);
+  const [chatFriendshipRequestId, setChatFriendshipRequestId] = useState<string | null>(null);
+  const markFriendMessagesRead = useCallback((friendshipId: string) => {
+    setFriends(current => {
+      let changed = false;
+      const next = current.map(item => {
+        if (item.id !== friendshipId || !(item.unread_message_count ?? 0)) return item;
+        changed = true;
+        return { ...item, unread_message_count: 0 };
+      });
+      return changed ? next : current;
+    });
+  }, []);
   const [friendProfileUsername, setFriendProfileUsername] = useState<string | null>(null);
   const [friendProfileData, setFriendProfileData] = useState<PublicProfileData | null>(null);
   const [friendProfileLoading, setFriendProfileLoading] = useState(false);
@@ -714,7 +730,9 @@ export default function AccountPage() {
   const [notice, setNotice] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
-  const [authForm, setAuthForm] = useState({ username: '', displayName: '', password: '' });
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [authSubmitted, setAuthSubmitted] = useState(false);
+  const [authForm, setAuthForm] = useState({ username: '', displayName: '', password: '', confirmPassword: '' });
 
   useEffect(() => {
     setError('');
@@ -722,7 +740,13 @@ export default function AccountPage() {
     let active = true;
     let friendsRefreshTimer: number | undefined;
     if (tab === 'history' && accountId) {
-      setHistoryLoading(true);
+      const cached = peekHistory(historyPage);
+      if (cached) {
+        setHistory(cached.history);
+        setHistoryTotal(cached.total);
+        setHistoryTotalPages(cached.totalPages);
+      }
+      setHistoryLoading(!cached);
       void getHistory(historyPage)
         .then(result => {
           if (!active) return;
@@ -738,18 +762,22 @@ export default function AccountPage() {
       void refreshProfileIfStale().then(refreshed => {
         if (active && !refreshed) setError('Não foi possível atualizar os dados do perfil. Tente abrir esta aba novamente.');
       });
-      setScorePosition(null);
-      setScorePositionLoading(true);
+      const cachedPosition = peekScoreLeaderboardPosition();
+      if (cachedPosition) setScorePosition(cachedPosition);
+      setScorePositionLoading(!cachedPosition);
       void getScoreLeaderboardPosition().then(setScorePosition).catch(err => setError(err.message)).finally(() => setScorePositionLoading(false));
-      setOwnRecords([]);
+      const cachedRecords = peekOwnRecordHighlights();
+      if (cachedRecords) setOwnRecords(cachedRecords);
       setOwnRecordsError('');
-      setOwnRecordsLoading(true);
+      setOwnRecordsLoading(!cachedRecords);
       void getOwnRecordHighlights().then(setOwnRecords).catch(err => setOwnRecordsError(err instanceof Error ? err.message : 'Não foi possível carregar seus recordes.')).finally(() => setOwnRecordsLoading(false));
-      setOwnAchievementsLoading(true);
+      const cachedAchievements = peekOwnAchievements();
+      if (cachedAchievements) setOwnAchievements(cachedAchievements);
+      setOwnAchievementsLoading(!cachedAchievements);
       void getOwnAchievements()
         .then(payload => { if (active) setOwnAchievements(payload); })
         // The rest of the profile still works without achievements.
-        .catch(err => { if (active) { setOwnAchievements(null); console.error('[account] conquistas indisponíveis:', err); } })
+        .catch(err => { if (active) { if (!cachedAchievements) setOwnAchievements(null); console.error('[account] conquistas indisponíveis:', err); } })
         .finally(() => { if (active) setOwnAchievementsLoading(false); });
     }
 
@@ -761,45 +789,92 @@ export default function AccountPage() {
       }, 8000);
     }
     return () => { active = false; if (friendsRefreshTimer !== undefined) window.clearInterval(friendsRefreshTimer); };
-  }, [tab, accountId, historyPage, getHistory, getOwnRecordHighlights, getOwnAchievements, getScoreLeaderboardPosition, getFriends, refreshProfileIfStale]);
+  }, [tab, accountId, historyPage, getHistory, peekHistory, getOwnRecordHighlights, peekOwnRecordHighlights, getOwnAchievements, peekOwnAchievements, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getFriends, refreshProfileIfStale]);
+
+  useEffect(() => {
+    if (tab !== 'friends' || !account || typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('open') !== 'chat') return;
+    const friendshipId = url.searchParams.get('friendship');
+    if (!friendshipId || !friends.some(friend => friend.id === friendshipId && friend.status === 'accepted')) return;
+    setChatFriendshipRequestId(friendshipId);
+    url.searchParams.delete('open');
+    url.searchParams.delete('friendship');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [tab, account?.id, friends]);
 
   // Rankings reload on their own filter, without refetching the other lists.
   useEffect(() => {
     if (tab !== 'records') return;
     let active = true;
-    setScoreLoading(true);
+    const cached = peekScoreLeaderboard(null);
+    if (cached) setScoreRanking(cached);
+    setScoreLoading(!cached);
     // One overall ranking: points from every difficulty add up.
     void getScoreLeaderboard(null)
       .then(ranking => { if (active) setScoreRanking(ranking); })
       .catch(err => { if (active) setError(err.message); })
       .finally(() => { if (active) setScoreLoading(false); });
     return () => { active = false; };
-  }, [tab, getScoreLeaderboard]);
+  }, [tab, getScoreLeaderboard, peekScoreLeaderboard]);
 
   useEffect(() => {
     if (tab !== 'records') return;
     let active = true;
-    setLeaderboardLoading(true);
+    const cached = peekRecords({ difficulty: recordsDifficulty });
+    if (cached) setRecords(cached);
+    setLeaderboardLoading(!cached);
     void getRecords({ difficulty: recordsDifficulty })
       .then(list => { if (active) setRecords(list); })
       .catch(err => { if (active) setError(err.message); })
       .finally(() => { if (active) setLeaderboardLoading(false); });
     return () => { active = false; };
-  }, [tab, recordsDifficulty, getRecords]);
+  }, [tab, recordsDifficulty, getRecords, peekRecords]);
 
+  const authUsernameError = authSubmitted
+    ? !authForm.username.trim()
+      ? 'Informe seu nome de usuário.'
+      : !AUTH_USERNAME_RE.test(authForm.username.trim())
+        ? 'Use de 3 a 24 letras, números, ponto, hífen ou sublinhado; comece com letra ou número.'
+        : ''
+    : '';
+  const authPasswordError = authSubmitted
+    ? !authForm.password
+      ? 'Informe sua senha.'
+      : authMode === 'register' && authForm.password.length < AUTH_PASSWORD_MIN_LENGTH
+        ? `A senha precisa ter pelo menos ${AUTH_PASSWORD_MIN_LENGTH} caracteres.`
+        : ''
+    : '';
+  const authConfirmPasswordError = authSubmitted && authMode === 'register'
+    ? !authForm.confirmPassword
+      ? 'Confirme sua senha.'
+      : authForm.confirmPassword !== authForm.password
+        ? 'As senhas não coincidem.'
+        : ''
+    : '';
   const submitAuth = async () => {
-    setBusy(true); setError(''); setNotice('');
+    setAuthSubmitted(true);
+    setError('');
+    setNotice('');
+    const usernameIsValid = AUTH_USERNAME_RE.test(authForm.username.trim());
+    const passwordIsValid = Boolean(authForm.password) && (authMode !== 'register' || authForm.password.length >= AUTH_PASSWORD_MIN_LENGTH);
+    const confirmationIsValid = authMode !== 'register' || (Boolean(authForm.confirmPassword) && authForm.confirmPassword === authForm.password);
+    if (!usernameIsValid || !passwordIsValid || !confirmationIsValid) return;
+
+    setBusy(true);
     try {
       if (authMode === 'login') {
-        await login(authForm.username, authForm.password);
+        await login(authForm.username.trim(), authForm.password);
         dispatch({ type: 'SET_PHASE', phase: 'menu' });
         return;
       }
       if (authMode === 'register') {
-        await register(authForm.username, authForm.password, authForm.displayName);
+        await register(authForm.username.trim(), authForm.password, authForm.displayName.trim());
         setAuthMode('login');
-        setAuthForm(form => ({ ...form, password: '' }));
+        setAuthSubmitted(false);
+        setAuthForm(form => ({ ...form, password: '', confirmPassword: '' }));
         setShowPassword(false);
+        setShowConfirmPassword(false);
         setNotice('Conta criada. Agora entre com seu nome de usuário e senha.');
       }
     } catch (err) {
@@ -932,49 +1007,163 @@ export default function AccountPage() {
     return (
       <AppShell>
         <TopBar title="UCL IMMORTALS" />
-        <PageContainer narrow className="flex min-h-[calc(100dvh-64px)] items-center py-8">
-          <Panel className="w-full overflow-hidden">
-            <PanelBody className="space-y-4 p-5 sm:p-8">
-              <div className="grid grid-cols-2 gap-2">
-                <Button type="button" intent={authMode === 'login' ? 'primary' : 'ghost'} onClick={() => { setAuthMode('login'); setError(''); setNotice(''); }}>ENTRAR</Button>
-                <Button type="button" intent={authMode === 'register' ? 'primary' : 'ghost'} onClick={() => { setAuthMode('register'); setError(''); setNotice(''); }}>CRIAR CONTA</Button>
-              </div>
-
-              {notice ? <StatusBanner tone="success" title="Tudo certo">{notice}</StatusBanner> : null}
-              {error ? <StatusBanner tone="danger" title="Não foi possível concluir">{error}</StatusBanner> : null}
-
-              <form className="space-y-4" onSubmit={event => { event.preventDefault(); void submitAuth(); }}>
-                <label className="block space-y-2"><span className="ui-kicker">NOME DE USUÁRIO</span><Input autoComplete="username" value={authForm.username} maxLength={24} placeholder="ex.: treinador01" onChange={event => setAuthForm(form => ({ ...form, username: event.target.value }))} /></label>
-                {authMode === 'register' ? <label className="block space-y-2"><span className="ui-kicker">NOME DE EXIBIÇÃO <span className="normal-case tracking-normal text-[var(--ui-text-faint)]">(opcional)</span></span><Input autoComplete="nickname" value={authForm.displayName} maxLength={40} placeholder="Como você quer aparecer" onChange={event => setAuthForm(form => ({ ...form, displayName: event.target.value }))} /></label> : null}
-                <label className="block space-y-2">
-                  <span className="ui-kicker">SENHA</span>
-                  <span className="relative block">
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
-                      value={authForm.password}
-                      placeholder={authMode === 'register' ? 'Mínimo de 8 caracteres' : 'Sua senha'}
-                      onChange={event => setAuthForm(form => ({ ...form, password: event.target.value }))}
-                      className="pr-12"
-                    />
+        <PageContainer narrow className="flex min-h-[calc(100dvh-64px)] items-start justify-center py-6 sm:items-center sm:py-8">
+          <div className="mx-auto w-full max-w-lg">
+            <Panel className="w-full overflow-hidden border-[var(--ui-line-strong)] shadow-[0_24px_70px_rgba(0,0,0,.3)]">
+              <PanelBody className="space-y-5 p-4 sm:p-7">
+                <div role="group" aria-label="Acesso à conta" className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-1">
+                  {(['login', 'register'] as const).map(mode => (
                     <button
+                      key={mode}
                       type="button"
-                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                      aria-pressed={showPassword}
-                      title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                      onMouseDown={event => event.preventDefault()}
-                      onClick={() => setShowPassword(value => !value)}
-                      className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)]"
+                      aria-pressed={authMode === mode}
+                      disabled={busy}
+                      onClick={() => {
+                        setAuthMode(mode);
+                        setAuthSubmitted(false);
+                        setAuthForm(form => ({ ...form, password: '', confirmPassword: '' }));
+                        setShowPassword(false);
+                        setShowConfirmPassword(false);
+                        setError('');
+                        setNotice('');
+                      }}
+                      className={cn('inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold uppercase tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)]', authMode === mode ? 'bg-[var(--ui-surface-2)] text-[var(--ui-brand-strong)] shadow-sm' : 'text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]')}
                     >
-                      {showPassword ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
+                      {mode === 'login' ? <LogIn size={15} aria-hidden="true" /> : <UserPlus size={15} aria-hidden="true" />}
+                      {mode === 'login' ? 'Entrar' : 'Criar conta'}
                     </button>
-                  </span>
-                </label>
-                <Button type="submit" intent="primary" size="large" className="w-full" loading={busy}><span className="inline-flex items-center gap-2">{authMode === 'login' ? <LogIn size={18} /> : <UserPlus size={18} />} {authMode === 'login' ? 'ENTRAR NA CONTA' : 'CRIAR CONTA'}</span></Button>
-              </form>
-              <Button intent="ghost" className="w-full" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}>Jogar sem conta</Button>
-            </PanelBody>
-          </Panel>
+                  ))}
+                </div>
+
+                <div>
+                  <h2 className="font-display text-xl text-[var(--ui-text)]">{authMode === 'login' ? 'Bem-vindo de volta' : 'Seus dados de acesso'}</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">
+                    {authMode === 'login' ? 'Use o nome de usuário e a senha cadastrados.' : 'Escolha um nome de usuário e uma senha para proteger sua conta.'}
+                  </p>
+                </div>
+
+                {notice ? <StatusBanner tone="success" title="Cadastro concluído">{notice}</StatusBanner> : null}
+                {error ? <StatusBanner tone="danger" title="Não foi possível acessar a conta">{error}</StatusBanner> : null}
+
+                <form noValidate className="space-y-4" onSubmit={event => { event.preventDefault(); void submitAuth(); }}>
+                  <label htmlFor="account-username" className="block space-y-2">
+                    <span className="ui-kicker">NOME DE USUÁRIO</span>
+                    <Input
+                      id="account-username"
+                      name="username"
+                      type="text"
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      required
+                      value={authForm.username}
+                      maxLength={24}
+                      placeholder="ex.: treinador01"
+                      aria-invalid={Boolean(authUsernameError)}
+                      aria-describedby={authUsernameError ? 'account-username-error' : authMode === 'register' ? 'account-username-help' : undefined}
+                      onChange={event => { setAuthForm(form => ({ ...form, username: event.target.value })); setError(''); setNotice(''); }}
+                    />
+                    {authUsernameError ? <span id="account-username-error" className="block text-xs text-[var(--ui-danger)]" role="alert">{authUsernameError}</span>
+                      : authMode === 'register' ? <span id="account-username-help" className="block text-xs text-[var(--ui-text-faint)]">3–24 caracteres: letras, números, ponto, hífen ou sublinhado.</span> : null}
+                  </label>
+
+                  {authMode === 'register' ? <label htmlFor="account-display-name" className="block space-y-2">
+                    <span className="ui-kicker">NOME DE EXIBIÇÃO <span className="normal-case tracking-normal text-[var(--ui-text-faint)]">· opcional</span></span>
+                    <Input
+                      id="account-display-name"
+                      name="nickname"
+                      autoComplete="nickname"
+                      value={authForm.displayName}
+                      maxLength={40}
+                      placeholder="Como você quer aparecer no jogo"
+                      onChange={event => { setAuthForm(form => ({ ...form, displayName: event.target.value })); setError(''); setNotice(''); }}
+                    />
+                    <span className="block text-xs text-[var(--ui-text-faint)]">Se deixar em branco, usaremos seu nome de usuário. Você pode mudar depois.</span>
+                  </label> : null}
+
+                  <label htmlFor="account-password" className="block space-y-2">
+                    <span className="ui-kicker">SENHA</span>
+                    <span className="relative block">
+                      <Input
+                        id="account-password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+                        required
+                        minLength={authMode === 'register' ? AUTH_PASSWORD_MIN_LENGTH : undefined}
+                        value={authForm.password}
+                        placeholder={authMode === 'register' ? 'Pelo menos 8 caracteres' : 'Sua senha'}
+                        aria-invalid={Boolean(authPasswordError)}
+                        aria-describedby={authPasswordError ? 'account-password-error' : authMode === 'register' ? 'account-password-help' : undefined}
+                        onChange={event => { setAuthForm(form => ({ ...form, password: event.target.value })); setError(''); setNotice(''); }}
+                        className="pr-12"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        aria-pressed={showPassword}
+                        title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        onMouseDown={event => event.preventDefault()}
+                        onClick={() => setShowPassword(value => !value)}
+                        className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)]"
+                      >
+                        {showPassword ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
+                      </button>
+                    </span>
+                    {authPasswordError ? <span id="account-password-error" className="block text-xs text-[var(--ui-danger)]" role="alert">{authPasswordError}</span>
+                      : authMode === 'register' ? <span id="account-password-help" className={cn('flex items-center gap-1.5 text-xs', authForm.password.length >= AUTH_PASSWORD_MIN_LENGTH ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-faint)]')}><Check size={13} aria-hidden="true" /> Use pelo menos {AUTH_PASSWORD_MIN_LENGTH} caracteres.</span> : null}
+                  </label>
+
+                  {authMode === 'register' ? <label htmlFor="account-password-confirm" className="block space-y-2">
+                    <span className="ui-kicker">CONFIRMAR SENHA</span>
+                    <span className="relative block">
+                      <Input
+                        id="account-password-confirm"
+                        name="password-confirm"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        required
+                        value={authForm.confirmPassword}
+                        placeholder="Digite a senha novamente"
+                        aria-invalid={Boolean(authConfirmPasswordError)}
+                        aria-describedby={authConfirmPasswordError ? 'account-password-confirm-error' : undefined}
+                        onChange={event => { setAuthForm(form => ({ ...form, confirmPassword: event.target.value })); setError(''); setNotice(''); }}
+                        className="pr-12"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showConfirmPassword ? 'Ocultar confirmação da senha' : 'Mostrar confirmação da senha'}
+                        aria-pressed={showConfirmPassword}
+                        title={showConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        onMouseDown={event => event.preventDefault()}
+                        onClick={() => setShowConfirmPassword(value => !value)}
+                        className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)]"
+                      >
+                        {showConfirmPassword ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
+                      </button>
+                    </span>
+                    {authConfirmPasswordError ? <span id="account-password-confirm-error" className="block text-xs text-[var(--ui-danger)]" role="alert">{authConfirmPasswordError}</span>
+                      : authForm.confirmPassword && authForm.confirmPassword === authForm.password ? <span className="flex items-center gap-1.5 text-xs text-[var(--ui-success)]"><Check size={13} aria-hidden="true" /> As senhas conferem.</span> : null}
+                  </label> : null}
+
+                  <Button type="submit" intent="primary" size="large" className="w-full" loading={busy}>
+                    <span className="inline-flex items-center justify-center gap-2">{authMode === 'login' ? <LogIn size={18} aria-hidden="true" /> : <UserPlus size={18} aria-hidden="true" />}{authMode === 'login' ? 'ENTRAR NA CONTA' : 'CRIAR MINHA CONTA'}</span>
+                  </Button>
+                </form>
+
+                {authMode === 'register' ? <div className="flex gap-2.5 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 text-xs leading-relaxed text-[var(--ui-text-muted)]">
+                  <Lock size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-[var(--ui-brand-strong)]" />
+                  <p>As contas usam nome de usuário e senha. Não há recuperação automática de senha; guarde seus dados de acesso com segurança.</p>
+                </div> : null}
+
+                <div className="border-t border-[var(--ui-line-subtle)] pt-4">
+                  <Button type="button" intent="ghost" disabled={busy} className="w-full" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}>Continuar como convidado</Button>
+                  <p className="mt-2 text-center text-[11px] leading-relaxed text-[var(--ui-text-faint)]">O modo convidado continua disponível sem criar uma conta.</p>
+                </div>
+              </PanelBody>
+            </Panel>
+          </div>
         </PageContainer>
       </AppShell>
     );
@@ -1003,16 +1192,18 @@ export default function AccountPage() {
         {tab === 'profile' ? <Panel className="relative isolate overflow-hidden" style={coverStyle}>
           <ProfileCoverLayer coverKey={account.coverKey} coverUrl={account.coverUrl} />
           <div className="relative h-36 sm:h-44">
-            <Button type="button" intent="ghost" onClick={() => openProfilePreview(account)} aria-label="Visualizar perfil em tela cheia" title="Visualizar perfil em tela cheia" className="absolute left-2 top-2 z-10 size-10 min-h-10 w-10 justify-center border border-white/20 bg-black/60 p-0 text-white hover:bg-black/75">
-              <Maximize2 size={16} aria-hidden="true" />
-            </Button>
-            <div className="absolute right-4 top-4 z-10 flex gap-2">
-              <Button type="button" intent="ghost" onClick={openAppearanceEditor} className="min-h-9 border border-white/20 bg-black/60 px-3 text-xs text-white hover:bg-black/75">
-                <Pencil size={14} aria-hidden="true" /> EDITAR
+            <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-between">
+              <Button type="button" intent="ghost" onClick={() => openProfilePreview(account)} aria-label="Visualizar perfil em tela cheia" title="Visualizar perfil em tela cheia" className="size-10 min-h-10 w-10 justify-center border border-white/20 bg-black/60 p-0 text-white hover:bg-black/75">
+                <Maximize2 size={16} aria-hidden="true" />
               </Button>
-              <Button type="button" intent="ghost" loading={logoutBusy} onClick={() => setLogoutConfirmOpen(true)} aria-label="Sair da conta" className="min-h-9 border border-red-300/30 bg-black/60 px-3 text-xs text-red-200 hover:bg-red-950/70">
-                {!logoutBusy ? <LogOut size={14} aria-hidden="true" /> : null} SAIR
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button type="button" intent="ghost" onClick={openAppearanceEditor} className="min-h-10 border border-white/20 bg-black/60 px-3 text-xs text-white hover:bg-black/75">
+                  <Pencil size={14} aria-hidden="true" /> EDITAR
+                </Button>
+                <Button type="button" intent="ghost" loading={logoutBusy} onClick={() => setLogoutConfirmOpen(true)} aria-label="Sair da conta" className="min-h-10 border border-red-300/30 bg-black/60 px-3 text-xs text-red-200 hover:bg-red-950/70">
+                  {!logoutBusy ? <LogOut size={14} aria-hidden="true" /> : null} SAIR
+                </Button>
+              </div>
             </div>
           </div>
           <PanelBody className="relative -mt-12 px-5 pb-5 sm:px-8">
@@ -1073,7 +1264,7 @@ export default function AccountPage() {
           </TabPanel>
 
           <TabPanel value="records" className="space-y-5 pt-0">
-            <SectionHeader title="Rankings" actions={<div className="flex w-10 justify-end sm:w-36">{rankingTab === 'overall' ? <Button type="button" intent="ghost" aria-label="Como funciona o ranking geral" title="Como funciona o ranking geral" onClick={() => setPointsInfoOpen(true)} className="min-h-9 gap-2 px-2 text-xs"><Info size={16} aria-hidden="true" /><span className="hidden sm:inline">COMO FUNCIONA</span></Button> : <span aria-hidden="true" className="size-9 shrink-0" />}</div>} />
+            <SectionHeader title="Rankings" className="items-start" actions={<div className="flex w-10 justify-end sm:w-36">{rankingTab === 'overall' ? <Button type="button" intent="ghost" aria-label="Como funciona o ranking geral" title="Como funciona o ranking geral" onClick={() => setPointsInfoOpen(true)} className="min-h-9 gap-2 px-2 text-xs"><Info size={16} aria-hidden="true" /><span className="hidden sm:inline">COMO FUNCIONA</span></Button> : <span aria-hidden="true" className="size-9 shrink-0" />}</div>} />
             <Tabs value={rankingTab} onValueChange={value => setRankingTab(value as RankingTab)}>
               <TabList aria-label="Seções do ranking" className="ui-tabs--equal">
                 {(Object.keys(RANKING_TAB_LABELS) as RankingTab[]).map(section => <Tab key={section} value={section} aria-label={RANKING_TAB_LABELS[section]} title={RANKING_TAB_LABELS[section]}>{RANKING_TAB_LABELS[section]}</Tab>)}
@@ -1146,13 +1337,14 @@ export default function AccountPage() {
                     : acceptedFriends.length === 0 ? <EmptyState title="Você ainda não tem amigos" description="Adicione alguém pelo nome de usuário." />
                       : acceptedFriends.map(friend => {
                         const person = friendIdentity(friend, account.id);
+                        const unreadMessages = friend.unread_message_count ?? 0;
                         return <article key={friend.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                           <Button type="button" intent="ghost" aria-label={`Ver perfil de ${person.name}`} title={`Ver perfil de ${person.name}`} onClick={() => void viewFriendProfile(person.username)} className="group flex h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 rounded-lg border-0 bg-transparent p-0 text-left normal-case font-normal tracking-normal hover:translate-y-0 hover:border-transparent hover:bg-transparent">
                             <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} avatarUrl={person.avatarUrl} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                            <span className="min-w-0 flex-1"><strong className="block min-w-0 text-sm text-[var(--ui-text)]"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className={`mt-1 inline-flex items-center gap-1.5 text-[11px] ${person.isAvailable ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-muted)]'}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${person.isAvailable ? 'bg-[var(--ui-success)]' : person.isOnline ? 'bg-[var(--ui-warning)]' : 'bg-[var(--ui-text-faint)]'}`} />{person.isAvailable ? 'Disponível' : person.isOnline ? 'Ocupado' : 'Offline'}</span></span>
+                            <span className="min-w-0 flex-1"><strong className="flex min-w-0 items-center gap-1.5 text-sm text-[var(--ui-text)]"><span className="min-w-0 truncate"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></span>{unreadMessages > 0 ? <span aria-label={`${unreadMessages} ${unreadMessages === 1 ? 'mensagem não lida' : 'mensagens não lidas'}`} className="shrink-0 rounded-full bg-[var(--ui-danger)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{unreadMessages > 9 ? '9+' : unreadMessages}</span> : null}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className={`mt-1 inline-flex items-center gap-1.5 text-[11px] ${person.isAvailable ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-muted)]'}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${person.isAvailable ? 'bg-[var(--ui-success)]' : person.isOnline ? 'bg-[var(--ui-warning)]' : 'bg-[var(--ui-text-faint)]'}`} />{person.isAvailable ? 'Disponível' : person.isOnline ? 'Ocupado' : 'Offline'}</span></span>
                             <span className="hidden shrink-0 text-[12px] font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
                           </Button>
-                          <FriendActions friendshipId={friend.id} friendName={person.name} friendAvatarKey={person.avatarKey} friendAvatarBackgroundKey={person.avatarBackgroundKey} friendAvatarUrl={person.avatarUrl} friendAvatarFrameKey={person.avatarFrameKey} friendOnline={person.isOnline} friendAvailable={person.isAvailable} removeDisabled={busy} onRemove={() => void actFriend(friend.id, 'remove')} />
+                          <FriendActions friendshipId={friend.id} friendName={person.name} friendAvatarKey={person.avatarKey} friendAvatarBackgroundKey={person.avatarBackgroundKey} friendAvatarUrl={person.avatarUrl} friendAvatarFrameKey={person.avatarFrameKey} friendOnline={person.isOnline} friendAvailable={person.isAvailable} unreadMessageCount={friend.unread_message_count ?? 0} initiallyOpenChat={chatFriendshipRequestId === friend.id} onInitialChatOpened={() => setChatFriendshipRequestId(current => current === friend.id ? null : current)} onMessagesRead={markFriendMessagesRead} removeDisabled={busy} onRemove={() => void actFriend(friend.id, 'remove')} />
                         </article>;
                       })}
               </TabPanel>
@@ -1407,8 +1599,8 @@ export default function AccountPage() {
         {profilePreviewProfile ? <div className="relative flex size-full min-h-full items-center justify-center overflow-hidden bg-black">
           <div className="profile-preview-stage relative isolate flex items-center justify-center overflow-hidden" style={profileCoverStyle(profilePreviewProfile.coverKey, profilePreviewProfile.coverUrl)}>
             <ProfileCoverLayer coverKey={profilePreviewProfile.coverKey} coverUrl={profilePreviewProfile.coverUrl} />
-            <div className="relative z-10 flex size-full flex-col items-center justify-center gap-4 px-5 py-4 text-center sm:gap-10 sm:px-8 sm:py-24">
-              {profileAvatar(profilePreviewProfile.avatarUrl, profilePreviewProfile.avatarKey, profilePreviewProfile.displayName, profilePreviewProfile.avatarBackgroundKey, profilePreviewProfile.avatarFrameKey, 'size-28 sm:size-56')}
+            <div className="relative z-10 flex size-full flex-col items-center justify-center gap-4 px-5 py-4 text-center sm:gap-8 sm:px-8 sm:py-8">
+              {profileAvatar(profilePreviewProfile.avatarUrl, profilePreviewProfile.avatarKey, profilePreviewProfile.displayName, profilePreviewProfile.avatarBackgroundKey, profilePreviewProfile.avatarFrameKey, 'size-28 sm:size-48 md:size-56')}
               <h1 className="max-w-[90vw] font-ui text-3xl font-bold text-white drop-shadow-[0_3px_16px_rgba(0,0,0,.85)] sm:text-6xl">
                 <StyledName name={profilePreviewProfile.displayName} styleKey={profilePreviewProfile.nameStyleKey} className="text-3xl sm:text-6xl" />
               </h1>

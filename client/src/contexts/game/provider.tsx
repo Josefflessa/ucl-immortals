@@ -15,6 +15,7 @@ import { type ClubProjectId } from '@shared/game/clubProjects';
 import { TradeSession } from '@shared/game/market';
 import { STORAGE_KEYS, getStorageItem, setStorageItem, removeStorageItem, getClientId } from '../../lib/storage';
 import { type CompetitionFormat } from '@shared/game/competition';
+import type { AlbumLevel } from '@shared/game/album';
 import { applyRoomPatch, type RoomPatchOperation } from '../../../../shared/room-sync';
 import { DurableRealtimeSocket, type RealtimeClientSocket } from '../../lib/realtimeSocket';
 import { toast } from 'sonner';
@@ -50,7 +51,7 @@ export interface GameContextType {
   restartRoomOnline: () => void;
   transferHostOnline: (targetPlayerId: string) => void;
   removePlayerOnline: (targetPlayerId: string) => void;
-  leaveRoomOnline: () => void;
+  leaveRoomOnline: (options?: { partialReport?: boolean }) => void;
   closeRoomOnline: () => void;
   // Each player emits this when they finish watching their match replay. A
   // knockout replay identifies the exact tie/leg so ida remains confirmable
@@ -135,6 +136,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   // socket/reconnect instead of rendering the room back in time.
   const authoritativeRoomRevisionRef = useRef<number | null>(null);
   const syncRequestPendingRef = useRef(false);
+  const leaveWithPartialReportRef = useRef(false);
   const commandSequenceRef = useRef(0);
   // Pending "Ver Detalhes" fetches for a trimmed (bygone-round) online result,
   // keyed by buildLeagueMatchKey so a response resolves the matching request.
@@ -234,7 +236,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
 
     const isCurrentSocket = () => socketRef.current === socketInstance;
-    const endOnlineSession = () => {
+    const endOnlineSession = (showPartialReport = false) => {
       if (!isCurrentSocket()) return;
       // Clear the identity before closing the transport. This prevents the
       // intentional close from being mistaken for a recoverable network drop.
@@ -248,7 +250,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       socketRef.current = null;
       socketRoomCodeRef.current = null;
       socketInstance.disconnect();
-      dispatch({ type: 'DISCONNECT_ONLINE' });
+      const preservePartialReport = showPartialReport && leaveWithPartialReportRef.current;
+      leaveWithPartialReportRef.current = false;
+      dispatch(preservePartialReport
+        ? { type: 'FINISH_ONLINE_PARTIAL_CAMPAIGN' }
+        : { type: 'DISCONNECT_ONLINE' });
     };
     const acceptRoomState = (roomState: any): boolean => {
       if (!isCurrentSocket() || !roomState || typeof roomState !== 'object') return false;
@@ -413,7 +419,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on("room_left", ({ message }: { message?: string }) => {
       if (!isCurrentSocket()) return;
       toast.success(message || 'Você saiu da sala.');
-      endOnlineSession();
+      endOnlineSession(leaveWithPartialReportRef.current);
     });
 
     socketInstance.on("room_closed", ({ message }: { message?: string }) => {
@@ -518,8 +524,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string, matchPlan: MatchPlan) => {
     const albumLevels: Record<string, 2 | 3 | 4 | 5> = {};
+    const competitionAlbumLevelSnapshot: Partial<Record<string, AlbumLevel>> = {};
     const submittedIds = new Set(draftedPlayers.flatMap(player => player ? [player.id] : []));
     accountAlbumLevels.forEach((level, cardId) => {
+      competitionAlbumLevelSnapshot[cardId] = level;
       if (submittedIds.has(cardId) && level >= 2) albumLevels[cardId] = level as 2 | 3 | 4 | 5;
     });
     emitOnlineAction("submit_squad_review", {
@@ -532,6 +540,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       formationId,
       matchPlan,
       albumLevels,
+      competitionAlbumLevelSnapshot,
     });
   }, [accountAlbumLevels, emitOnlineAction, state.roomCode]);
 
@@ -567,8 +576,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("remove_player", { roomCode: state.roomCode, targetPlayerId });
   }, [emitOnlineAction, state.roomCode]);
 
-  const leaveRoomOnline = useCallback(() => {
-    emitOnlineAction("leave_room", { roomCode: state.roomCode });
+  const leaveRoomOnline = useCallback((options?: { partialReport?: boolean }) => {
+    leaveWithPartialReportRef.current = options?.partialReport === true;
+    emitOnlineAction("leave_room", { roomCode: state.roomCode, partialReport: options?.partialReport === true });
   }, [emitOnlineAction, state.roomCode]);
 
   const closeRoomOnline = useCallback(() => {

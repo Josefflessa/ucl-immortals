@@ -1,7 +1,7 @@
 // The rewards the album just granted for a finished campaign. Shown when returning to the home menu.
 import { useEffect, useRef, useState } from 'react';
 import { Package } from 'lucide-react';
-import type { AlbumItemKey } from '@shared/game/album';
+import { parseItemKey, type AlbumItemKey } from '@shared/game/album';
 import { Button, GameModal } from '../../design-system';
 import { useAlbum, type ItemGrant } from '../../contexts/AlbumContext';
 import { useGame } from '../../contexts/GameContext';
@@ -9,14 +9,9 @@ import { groupKeys, itemColor, itemLabel } from './albumData';
 import { CoinAmount, ItemArt } from './AlbumPieces';
 import AlbumPackOpening from './AlbumPackOpening';
 
-function headline(grants: readonly ItemGrant[]): { title: string; text: string } {
+function headline(grants: readonly ItemGrant[]): string {
   const titles = grants.filter(grant => grant.source === 'campaign' && grant.key.startsWith('pack:')).length;
-  return {
-    title: titles > 0 ? 'Campeão! Recompensas para o álbum' : 'Cartas da campanha',
-    text: titles > 0
-      ? 'Você recebeu um envelope da dificuldade disputada e pacotes pelo título:'
-      : 'Toda campanha concluída rende um envelope da dificuldade disputada:',
-  };
+  return titles > 0 ? 'RECOMPENSAS DO TÍTULO' : 'RECOMPENSAS DA CAMPANHA';
 }
 
 export default function AlbumGrantsPrompt() {
@@ -46,7 +41,7 @@ export default function AlbumGrantsPrompt() {
   }
   if (!album || pendingGrants.length === 0 || state.phase !== 'menu') return null;
 
-  const { title, text } = headline(pendingGrants);
+  const title = headline(pendingGrants);
   const coinsAwarded = pendingGrants.reduce((sum, grant) => sum + (grant.coinsAwarded ?? 0), 0);
   // Only what is still in the inventory can be opened (another tab may have opened it already).
   const left = { ...album.inventory };
@@ -64,35 +59,46 @@ export default function AlbumGrantsPrompt() {
       title={title}
       closeLabel="Guardar no inventário"
       footer={(
-        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button intent="ghost" onClick={dismissGrants}>Guardar no inventário</Button>
-          <Button intent="primary" disabled={keys.length === 0} onClick={() => { setOpening(keys); dismissGrants(); }}>
+        <div className="grid w-full gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+          <Button intent="ghost" onClick={dismissGrants} className="w-full">Guardar no inventário</Button>
+          <Button intent="primary" disabled={keys.length === 0} onClick={() => { setOpening(keys); dismissGrants(); }} className="w-full sm:min-w-44">
             <Package size={16} aria-hidden="true" /> Abrir agora
           </Button>
         </div>
       )}
     >
-      <p className="text-sm text-[var(--ui-text-muted)]">{text}</p>
-      {coinsAwarded > 0 ? (
-        <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-3 text-sm font-semibold text-[var(--ui-text)]">
-          <CoinAmount value={coinsAwarded} className="text-[var(--ui-brand-strong)]" />
-          <span>adicionadas à sua carteira</span>
-        </div>
-      ) : null}
-      <div className="mt-5 flex flex-wrap items-end justify-center gap-5">
-        {grouped.map(([key, count]) => (
-          <div key={key} className="flex flex-col items-center gap-2">
-            <div className="relative">
-              <ItemArt itemKey={key} height={110} />
-              {count > 1 ? (
-                <span className="absolute -right-2 -top-2 rounded-full border border-black/40 px-2 py-0.5 text-xs font-bold text-[#0B0C12]" style={{ background: itemColor(key) }}>×{count}</span>
-              ) : null}
+      <div className="space-y-3">
+        {coinsAwarded > 0 ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-black tracking-[0.14em] text-[var(--ui-text-faint)]">MOEDAS RECEBIDAS</div>
+              <div className="mt-0.5 text-xs text-[var(--ui-text-muted)]">Adicionadas à sua carteira</div>
             </div>
-            <span className="text-xs font-bold text-[var(--ui-text)]">{itemLabel(key)}</span>
+            <CoinAmount value={coinsAwarded} size={17} className="shrink-0 text-lg text-[var(--ui-brand-strong)]" />
           </div>
-        ))}
+        ) : null}
+        {grouped.length > 0 ? (
+          <section className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-inset)] p-3 sm:p-4" aria-label="Itens recebidos">
+            <div className="mb-2 text-[11px] font-black tracking-[0.14em] text-[var(--ui-text-faint)]">ITENS ADICIONADOS AO ÁLBUM</div>
+            <div className="space-y-2">
+              {grouped.map(([key, count]) => (
+                <div key={key} className="flex min-h-[96px] items-center gap-3 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-2.5 py-2 sm:gap-4 sm:px-3">
+                  <div className="flex h-20 w-24 shrink-0 items-center justify-center">
+                    <ItemArt itemKey={key} height={parseItemKey(key)?.kind === 'pack' ? 80 : 120} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-bold text-[var(--ui-text)]">{itemLabel(key)}</div>
+                    <div className="mt-1 text-xs text-[var(--ui-text-muted)]">Disponível no inventário do Álbum</div>
+                  </div>
+                  <span className="flex h-8 w-10 shrink-0 items-center justify-center">
+                    {count > 1 ? <span className="rounded-full border border-black/40 px-2 py-1 text-xs font-bold text-[#0B0C12]" style={{ background: itemColor(key) }}>×{count}</span> : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
-      <p className="mt-5 text-center text-xs text-[var(--ui-text-faint)]">O que você guardar fica no Inventário do álbum.</p>
     </GameModal>
   );
 }

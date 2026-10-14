@@ -50,4 +50,7 @@ export const EVENT_UNIQUE_CARD_LIST: Player[] = [
   // Evento O Príncipe: o Neymar do Barça (MSN).
   { id: 'neymar_barca_unico', basePlayerId: 'neymar', historicalPlayerId: 'neymar', shortName: 'Neymar', fullName: 'Neymar da Silva Santos Júnior', position: 'LW', secondaryPositions: ['ST', 'CAM'], nation: 'Brasil', club: 'Barcelona', season: 'Única', rarity: 'unique', overall: 99,
     pace: 97, shooting: 92, passing: 88, dribbling: 99, defending: 38, physical: 66, vision: 92, composure: 96, traits: [], historicalCoaches: ['guardiola'], historicalPartners: ['messi', 'suarez', 'xavi', 'iniesta'] },
+  // Evento A Aranha Negra: a Única de Lev Yashin, liberada apenas pela recompensa do evento.
+  { id: 'yashin_unico', basePlayerId: 'yashin', historicalPlayerId: 'yashin', shortName: 'Yashin', fullName: 'Lev Ivanovich Yashin', position: 'GK', nation: 'União Soviética', club: 'Dynamo Moscow', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 72, shooting: 42, passing: 78, dribbling: 70, defending: 99, physical: 95, vision: 96, composure: 99, traits: [] },
 ];

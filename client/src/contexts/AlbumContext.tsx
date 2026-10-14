@@ -2,7 +2,7 @@
 // coins), the actions (open, apply a copy, sell, buy), the album level of each card
 // (read by PlayerCard), and the packs just granted (shown by AlbumGrantsPrompt). The server does
 // every change and answers with the whole state, which simply replaces this one.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { levelForCopies, type AlbumItemKey, type AlbumLevel } from '@shared/game/album';
 import type { Rarity } from '@shared/game/gameData';
 import { api, useAccount } from './AccountContext';
@@ -40,6 +40,9 @@ interface AlbumContextValue {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  refreshIfStale: () => Promise<void>;
+  /** Current account levels, freshly loaded if needed, for freezing a new competition. */
+  captureCompetitionLevels: () => Promise<ReadonlyMap<string, AlbumLevel>>;
   open: (item: AlbumItemKey) => Promise<OpenResult>;
   applyCopy: (cardId: string) => Promise<void>;
   sell: (cardId: string, quantity: number) => Promise<number>;
@@ -72,6 +75,16 @@ const AlbumContext = createContext<AlbumContextValue | null>(null);
 const AlbumLevelsContext = createContext<ReadonlyMap<string, AlbumLevel>>(new Map());
 const NO_LEVELS: ReadonlyMap<string, AlbumLevel> = new Map();
 
+function albumLevelsFromStickers(stickers: ReadonlyMap<string, StickerState> | undefined): ReadonlyMap<string, AlbumLevel> {
+  if (!stickers) return NO_LEVELS;
+  const map = new Map<string, AlbumLevel>();
+  stickers.forEach((sticker, id) => {
+    const level = levelForCopies(sticker.copies);
+    if (level >= 1) map.set(id, level as AlbumLevel);
+  });
+  return map;
+}
+
 export function AlbumProvider({ children }: { children: ReactNode }) {
   const { account, eventCards } = useAccount();
   const accountKey = account?.id ?? null;
@@ -80,6 +93,12 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingGrants, setPendingGrants] = useState<ItemGrant[]>([]);
+  const albumRef = useRef<AlbumState | null>(null);
+  const albumLoadedAt = useRef(0);
+  const activeAccountKey = useRef(accountKey);
+  const observedAccountKey = useRef(accountKey);
+  activeAccountKey.current = accountKey;
+  const refreshRequest = useRef<{ accountKey: string; promise: Promise<void> } | null>(null);
 
   const receiveGrants = useCallback((grants: readonly ItemGrant[] | undefined) => {
     if (grants && grants.length > 0) setPendingGrants(current => [...current, ...grants]);
@@ -87,29 +106,73 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
 
   /** Takes a server answer: the new state, and any grants it reports. */
   const apply = useCallback((payload: AlbumPayload) => {
-    setAlbum(current => ({
+    const next: AlbumState = {
       coins: payload.coins,
       inventory: payload.inventory,
       stickers: new Map(payload.stickers.map(([id, copies, spare]) => [id, { copies, spare }])),
       completedPages: new Set(payload.completedPages),
       pageCompletionCounts: payload.pageCompletionCounts ?? {},
-      covers: payload.covers ?? current?.covers ?? [],
-    }));
+      covers: payload.covers ?? albumRef.current?.covers ?? [],
+    };
+    albumRef.current = next;
+    albumLoadedAt.current = Date.now();
+    setAlbum(next);
     receiveGrants(payload.grants);
     return payload;
   }, [receiveGrants]);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      apply(await api<AlbumPayload>('/api/account/album'));
-      setError(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Não foi possível carregar o álbum.');
-    } finally {
-      setLoading(false);
+    if (!accountKey) return;
+    const requestedAccount = accountKey;
+    if (refreshRequest.current?.accountKey === requestedAccount) return refreshRequest.current.promise;
+    if (!albumRef.current) setLoading(true);
+    const requestRecord = { accountKey: requestedAccount, promise: Promise.resolve() };
+    const promise = (async () => {
+      try {
+        const payload = await api<AlbumPayload>('/api/account/album');
+        if (activeAccountKey.current === requestedAccount) {
+          apply(payload);
+          setError(null);
+        }
+      } catch (cause) {
+        if (activeAccountKey.current === requestedAccount) {
+          setError(cause instanceof Error ? cause.message : 'Não foi possível carregar o álbum.');
+        }
+      } finally {
+        if (activeAccountKey.current === requestedAccount) setLoading(false);
+        if (refreshRequest.current === requestRecord) refreshRequest.current = null;
+      }
+    })();
+    requestRecord.promise = promise;
+    refreshRequest.current = requestRecord;
+    return promise;
+  }, [accountKey, apply]);
+
+  const refreshIfStale = useCallback(async () => {
+    if (albumRef.current && Date.now() - albumLoadedAt.current < 30_000) return;
+    await refresh();
+  }, [refresh]);
+
+  const captureCompetitionLevels = useCallback(async (): Promise<ReadonlyMap<string, AlbumLevel>> => {
+    if (!accountKey) return NO_LEVELS;
+    let stickers = album?.stickers;
+    if (!stickers) {
+      setLoading(true);
+      try {
+        const payload = await api<AlbumPayload>('/api/account/album');
+        apply(payload);
+        setError(null);
+        stickers = new Map(payload.stickers.map(([id, copies, spare]) => [id, { copies, spare }]));
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'Não foi possível carregar o Álbum.';
+        setError(message);
+        throw cause;
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [apply]);
+    return albumLevelsFromStickers(stickers);
+  }, [accountKey, album, apply]);
 
   const post = useCallback(async <T,>(action: string, body: Record<string, unknown>): Promise<T> => {
     let response: AlbumPayload;
@@ -126,28 +189,43 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
   // Loaded with the account (its levels show on its cards everywhere).
   useEffect(() => {
     if (!accountKey) {
+      activeAccountKey.current = null;
+      observedAccountKey.current = null;
+      albumRef.current = null;
+      albumLoadedAt.current = 0;
+      refreshRequest.current = null;
       setAlbum(null);
+      setLoading(false);
       setPendingGrants([]);
       return;
+    }
+    if (observedAccountKey.current !== accountKey) {
+      observedAccountKey.current = accountKey;
+      albumRef.current = null;
+      albumLoadedAt.current = 0;
+      setAlbum(null);
     }
     void refresh();
   }, [accountKey, eventCardKey, refresh]);
 
-  const levels = useMemo<ReadonlyMap<string, AlbumLevel>>(() => {
-    if (!album) return NO_LEVELS;
-    const map = new Map<string, AlbumLevel>();
-    album.stickers.forEach((sticker, id) => {
-      const level = levelForCopies(sticker.copies);
-      if (level >= 2) map.set(id, level as AlbumLevel);
-    });
-    return map;
-  }, [album]);
+  useEffect(() => {
+    if (!accountKey || typeof document === 'undefined') return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshIfStale();
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, [accountKey, refreshIfStale]);
+
+  const levels = useMemo<ReadonlyMap<string, AlbumLevel>>(() => albumLevelsFromStickers(album?.stickers), [album]);
 
   const value = useMemo<AlbumContextValue>(() => ({
     album,
     loading,
     error,
     refresh,
+    refreshIfStale,
+    captureCompetitionLevels,
     open: item => post<OpenResult>('open', { item }),
     applyCopy: async cardId => { await post('apply', { cardId }); },
     sell: async (cardId, quantity) => (await post<{ coins: number }>('sell', { cardId, quantity })).coins,
@@ -160,7 +238,7 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
     pendingGrants,
     receiveGrants,
     dismissGrants: () => setPendingGrants([]),
-  }), [album, loading, error, refresh, post, pendingGrants, receiveGrants]);
+  }), [album, loading, error, refresh, refreshIfStale, captureCompetitionLevels, post, pendingGrants, receiveGrants]);
 
   return (
     <AlbumContext.Provider value={value}>
@@ -175,12 +253,12 @@ export function useAlbum(): AlbumContextValue {
   return value;
 }
 
-/** The album level (★2–★5) of a card for the cards shown here; undefined for ★1 or none. */
+/** The album level (★1–★5) of a card for the cards shown here; undefined when absent. */
 export function useAlbumLevel(cardId: string): AlbumLevel | undefined {
   return useContext(AlbumLevelsContext).get(cardId);
 }
 
-/** The current account's card levels, for syncing its visual cosmetics with an online team. */
+/** Current account's card levels, used for the next competition snapshot and visuals. */
 export function useAlbumLevels(): ReadonlyMap<string, AlbumLevel> {
   return useContext(AlbumLevelsContext);
 }

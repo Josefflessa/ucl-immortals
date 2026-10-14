@@ -2,7 +2,7 @@ import { useEffect, useState, memo } from 'react';
 import TraitIcon from './TraitIcon';
 import { motion } from 'framer-motion';
 import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
-import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
+import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_CHEM_BONUS, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
 import { canonicalClubName, crestIdForClub } from '@shared/game/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -866,7 +866,7 @@ const rarityVis = (r: string) => RARITY_VIS[r] ?? RARITY_VIS.bronze;
 // → fonte mais escura). `ring` é a cor do anel metálico. Fáceis de ajustar.
 // photoX/photoY = canto sup-esq do render em % da carta; photoW = largura do render em % da carta
 // (altura é automática, mantém a proporção). Valores ajustados no editor local (scratchpad).
-export const UNIQUE_STYLE: Record<string, { texture: string; render: string; font: string; ring: string; photoX: number; photoY: number; photoW: number }> = {
+export const UNIQUE_STYLE: Record<string, { texture: string; render: string; font: string; ring: string; photoX: number; photoY: number; photoW: number; blurPhotoBottom?: boolean }> = {
   kaka_unico: { texture: '/cards/kaka_unico.webp', render: '/players/unico/kaka.webp', font: '#F6DE93', ring: '#E8C84A', photoX: 5, photoY: -2, photoW: 100 },
   henry_unico: { texture: '/cards/henry_unico.webp', render: '/players/unico/henry.webp', font: '#EAF4FF', ring: '#57C7EF', photoX: 8, photoY: 0, photoW: 130 },
   neymar_unico: { texture: '/cards/neymar_unico.webp', render: '/players/unico/neymar.webp', font: '#F7E08C', ring: '#E8C84A', photoX: 2, photoY: 15, photoW: 90 },
@@ -902,6 +902,7 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   shevchenko_unico: { texture: '/cards/shevchenko_unico.webp', render: '/players/unico/shevchenko.webp', font: '#FCEBC4', ring: '#8C3B55', photoX: 8, photoY: -5, photoW: 144 },
   zidane_unico: { texture: '/cards/zidane_unico.webp', render: '/players/unico/zidane.webp', font: '#FFF6E2', ring: '#D5AE4A', photoX: 6, photoY: -2, photoW: 100 },
   figo_unico: { texture: '/cards/figo_unico.webp', render: '/players/unico/figo.webp', font: '#F7E08C', ring: '#1F8A55', photoX: 7, photoY: -2, photoW: 100 },
+  yashin_unico: { texture: '/cards/yashin_unico.webp', render: '/players/unico/yashin.webp', font: '#FFF5D9', ring: '#C3A76A', photoX: 10, photoY: 4, photoW: 86, blurPhotoBottom: true },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
@@ -1069,7 +1070,9 @@ function variantDesc(player: Player): string {
 
 function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, effectiveStats, scale = 1, albumLevel: albumLevelProp, showAlbumLevel = false }: PlayerCardProps) {
   const ownAlbumLevel = useAlbumLevel(player.id);
-  const albumLevel = albumLevelProp ?? (showAlbumLevel ? ownAlbumLevel : undefined);
+  const albumLevel = player.competitionAlbumLevel !== undefined
+    ? (player.competitionAlbumLevel > 0 ? player.competitionAlbumLevel : undefined)
+    : albumLevelProp ?? (showAlbumLevel ? ownAlbumLevel : undefined);
   // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
@@ -1086,7 +1089,10 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   // Without team context this is the Draft/shop value: card base plus any card-level
   // variant already baked into player.*. Meu Time can opt into effectiveStats so the same
   // visual card reflects chemistry, coach, position, tactic and active style effects.
-  const displayStats: PlayerCardStats = effectiveStats ?? player;
+  const displayStats: PlayerCardStats = effectiveStats
+    ?? (player.competitionAlbumLevel != null && player.competitionAlbumLevel > 0
+      ? getCardIntrinsicStats(player)
+      : player);
   const displayOverall = displayStats.overall;
   // A foto pode existir apenas no pacote local (sem entrada SoFIFA), como no Raphinha.
   // Use a mesma cadeia de fontes do PlayerPhoto para não esconder portraits locais.
@@ -1134,12 +1140,21 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         {uniq && (
           <div className="absolute inset-0" style={{ ...frameMask('93% 94%'), zIndex: 2, overflow: 'hidden' }}>
             <img src={uniq.render} alt={player.fullName} loading="eager" fetchPriority="high" decoding="async" referrerPolicy="no-referrer" draggable={false}
-              style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
+              style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none', ...(uniq.blurPhotoBottom ? { maskImage: 'linear-gradient(180deg, #000 0%, #000 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, #000 0%, #000 80%, transparent 100%)' } : {}) }} />
+            {uniq.blurPhotoBottom && <img src={uniq.render} alt="" aria-hidden="true" loading="eager" decoding="async" referrerPolicy="no-referrer" draggable={false}
+              style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none', filter: 'blur(5px)', opacity: 0.7, maskImage: 'linear-gradient(180deg, transparent 82%, #000 94%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, transparent 82%, #000 94%, transparent 100%)' }} />}
           </div>
         )}
 
         {/* conteúdo (layout original): OVR+POS no topo, emoji, foto, nome embaixo */}
         <div className="absolute inset-0 flex flex-col" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 4 }}>
+          {player.competitionAlbumLevel != null && player.competitionAlbumLevel > 0 && (
+            <div aria-label={`Nível do Álbum: ${player.competitionAlbumLevel} estrelas`} title={`Bônus do Álbum: +${player.competitionAlbumLevel} em todos os atributos nesta competição`}
+              className="absolute inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 font-black leading-none"
+              style={{ top: '8%', right: '16%', zIndex: 7, color: '#17120a', background: 'linear-gradient(135deg,#ffe783,#d0a93a)', border: '1px solid #fff1af', boxShadow: '0 1px 4px #000b', fontSize: 7.5 }}>
+              <Star size={8} fill="currentColor" />{player.competitionAlbumLevel}
+            </div>
+          )}
           {/* Topo: OVR + POS (esq) e emoji da característica (dir) — descido um tiquinho */}
           <div className="flex items-start justify-between flex-shrink-0" style={{ paddingTop: '19%', paddingLeft: '13%', paddingRight: '10%' }}>
             <div className="flex flex-col leading-none" style={{ textShadow: '0 1px 3px #000' }}>
@@ -1229,12 +1244,21 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       {uniq && (
         <div className="absolute inset-0" style={{ ...frameMask(INSET), zIndex: 3, overflow: 'hidden' }}>
           <img src={uniq.render} alt={player.fullName} loading="eager" fetchPriority="high" decoding="async" referrerPolicy="no-referrer" draggable={false}
-            style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none' }} />
+            style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none', ...(uniq.blurPhotoBottom ? { maskImage: 'linear-gradient(180deg, #000 0%, #000 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, #000 0%, #000 80%, transparent 100%)' } : {}) }} />
+          {uniq.blurPhotoBottom && <img src={uniq.render} alt="" aria-hidden="true" loading="eager" decoding="async" referrerPolicy="no-referrer" draggable={false}
+            style={{ position: 'absolute', left: `${uniq.photoX}%`, top: `${uniq.photoY}%`, width: `${uniq.photoW}%`, height: 'auto', pointerEvents: 'none', filter: 'blur(5px)', opacity: 0.7, maskImage: 'linear-gradient(180deg, transparent 82%, #000 94%, transparent 100%)', WebkitMaskImage: 'linear-gradient(180deg, transparent 82%, #000 94%, transparent 100%)' }} />}
         </div>
       )}
 
       {/* CONTEÚDO (layout FUT) */}
       <div className="absolute inset-0" style={{ color: uniq ? uniq.font : '#f7eeca', zIndex: 5 }}>
+        {player.competitionAlbumLevel != null && player.competitionAlbumLevel > 0 && (
+          <div aria-label={`Nível do Álbum: ${player.competitionAlbumLevel} estrelas`} title={`Bônus do Álbum: +${player.competitionAlbumLevel} em todos os atributos nesta competição`}
+            className="absolute inline-flex items-center gap-1 rounded-full px-2 py-1 font-black leading-none"
+            style={{ top: '4%', right: '11%', zIndex: 7, color: '#17120a', background: 'linear-gradient(135deg,#ffe783,#d0a93a)', border: '1px solid #fff1af', boxShadow: '0 2px 6px #000b', fontSize: 10 }}>
+            <Star size={10} fill="currentColor" />{player.competitionAlbumLevel}
+          </div>
+        )}
         {/* ⭐ selo do nível de evolução (discreto, topo-centro) */}
         {evolved && !lite && (
           <div className="absolute" style={{ top: '2.5%', left: '50%', transform: 'translateX(-50%)', padding: '2px 8px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.14em', whiteSpace: 'nowrap', color: '#04120a', background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success),#0a7a2f)', border: '1px solid rgba(0,0,0,.4)', boxShadow: '0 2px 8px rgba(0,0,0,.5)', fontFamily: 'var(--font-game), sans-serif', zIndex: 6 }}>

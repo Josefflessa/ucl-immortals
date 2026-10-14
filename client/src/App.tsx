@@ -30,6 +30,8 @@ import ReportPage from "./pages/ReportPage";
 import MatchSimPage from "./pages/MatchSimPage";
 import AccountPage from "./pages/AccountPage";
 
+const ACCOUNT_PAGE_PHASES = new Set(['menu', 'account', 'album', 'store', 'achievements', 'events']);
+
 // Pré-carrega a moldura + texturas das cartas uma vez (cacheia; evita "flash" na primeira carta).
 ['card-frame', 'bg-bronze', 'bg-prata', 'bg-ouro', 'bg-lendario', 'bg-imortal'].forEach((n) => {
   const img = new Image();
@@ -120,12 +122,39 @@ function GameRouter() {
     dispatch({ type: 'SET_PHASE', phase: 'setup' });
   }, [accountOnLegacySetup, dispatch]);
 
+  // Push links can be opened from a cold start or while another game phase is
+  // visible. Route them to the account surface that can show the notification.
+  useEffect(() => {
+    if (!account || typeof window === 'undefined') return;
+    const destination = new URLSearchParams(window.location.search).get('open');
+    if (destination === 'notifications') {
+      if (!ACCOUNT_PAGE_PHASES.has(state.phase)) dispatch({ type: 'SET_PHASE', phase: 'menu' });
+    } else if (destination === 'friends' || destination === 'chat') {
+      if (state.phase !== 'account') dispatch({ type: 'SET_PHASE', phase: 'account' });
+      if (state.accountSection !== 'friends') dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'friends' });
+    }
+  }, [account?.id, state.phase, state.accountSection, dispatch]);
+
+  useEffect(() => {
+    const onServiceWorkerMessage = (event: MessageEvent) => {
+      const friendshipId = event.data?.type === 'friend-message' ? event.data.friendshipId : null;
+      if (typeof friendshipId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(friendshipId)) return;
+      const url = new URL(window.location.href);
+      url.searchParams.set('open', 'chat');
+      url.searchParams.set('friendship', friendshipId);
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'friends' });
+      dispatch({ type: 'SET_PHASE', phase: 'account' });
+    };
+    navigator.serviceWorker?.addEventListener('message', onServiceWorkerMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
+  }, [dispatch]);
+
   // The account mode has a fixed format. If an old back button or restored
   // state points at the guest-only format page, go straight to the difficulty.
   if (accountOnLegacySetup) return renderPhase('setup');
 
-  const accountPages = ['menu', 'account', 'album', 'store', 'achievements', 'events'];
-  const showAccountHeader = !!account && accountPages.includes(state.phase);
+  const showAccountHeader = !!account && ACCOUNT_PAGE_PHASES.has(state.phase);
 
   return (
     <>

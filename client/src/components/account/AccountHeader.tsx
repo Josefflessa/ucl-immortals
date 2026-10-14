@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bell, Check, Coins, X } from 'lucide-react';
-import { useAccount, type FriendshipEntry } from '../../contexts/AccountContext';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bell, BellOff, BellRing, Check, Coins, LoaderCircle, X } from 'lucide-react';
+import { api, useAccount, type FriendshipEntry } from '../../contexts/AccountContext';
 import { useAlbum } from '../../contexts/AlbumContext';
 import { useGame } from '../../contexts/GameContext';
 import { getProfileAvatarBackground } from '@shared/profileAppearance';
@@ -33,6 +33,14 @@ function compactCoins(value: number): string {
   return `${scaled.toLocaleString('pt-BR', { maximumFractionDigits: digits, minimumFractionDigits: 0 })}${unit.suffix}`;
 }
 
+type PushStatus = 'idle' | 'loading' | 'unsupported' | 'unconfigured' | 'blocked' | 'enabled' | 'disabled' | 'error';
+
+function decodeApplicationServerKey(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = window.atob(normalized + '='.repeat((4 - normalized.length % 4) % 4));
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
 /** Shared account header for home and account-facing screens. */
 export default function AccountHeader() {
   const { account, getEvents, getFriends, updateFriendship } = useAccount();
@@ -43,6 +51,11 @@ export default function AccountHeader() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [notificationError, setNotificationError] = useState('');
+  const [pushStatus, setPushStatus] = useState<PushStatus>('idle');
+  const [pushConfig, setPushConfig] = useState<{ enabled: boolean; publicKey: string | null } | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState('');
+  const pushSubscription = useRef<PushSubscription | null>(null);
 
   const refresh = useCallback(async () => {
     if (!account) return;
@@ -89,6 +102,125 @@ export default function AccountHeader() {
       setActionId(null);
     }
   };
+
+  const refreshPushSettings = useCallback(async () => {
+    setPushError('');
+    if (typeof window === 'undefined'
+      || !window.isSecureContext
+      || !('serviceWorker' in navigator)
+      || !('PushManager' in window)
+      || !('Notification' in window)) {
+      setPushStatus('unsupported');
+      return;
+    }
+
+    setPushStatus('loading');
+    try {
+      const config = await api<{ enabled: boolean; publicKey: string | null }>('/api/account/push/subscription');
+      setPushConfig(config);
+      const registration = await navigator.serviceWorker.ready;
+      const current = await registration.pushManager.getSubscription();
+      pushSubscription.current = current;
+      if (!config.enabled || !config.publicKey) setPushStatus('unconfigured');
+      else if (Notification.permission === 'denied') setPushStatus('blocked');
+      else if (current) {
+        // Rebind the same browser subscription to the account currently signed
+        // in; this also refreshes stale keys and the device's last-seen time.
+        await api('/api/account/push/subscription', {
+          method: 'PUT',
+          body: JSON.stringify(current.toJSON()),
+        });
+        setPushStatus('enabled');
+      }
+      else setPushStatus('disabled');
+    } catch (error) {
+      setPushStatus('error');
+      setPushError(error instanceof Error ? error.message : 'Não foi possível carregar as notificações neste dispositivo.');
+    }
+  }, []);
+
+  const enablePush = async () => {
+    if (!pushConfig?.enabled || !pushConfig.publicKey || pushBusy) return;
+    setPushBusy(true);
+    setPushError('');
+    try {
+      if (Notification.permission !== 'granted') {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          setPushStatus(permission === 'denied' ? 'blocked' : 'disabled');
+          return;
+        }
+      }
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: decodeApplicationServerKey(pushConfig.publicKey) as BufferSource,
+      });
+      try {
+        await api('/api/account/push/subscription', {
+          method: 'PUT',
+          body: JSON.stringify(subscription.toJSON()),
+        });
+      } catch (error) {
+        await subscription.unsubscribe().catch(() => undefined);
+        throw error;
+      }
+      pushSubscription.current = subscription;
+      setPushStatus('enabled');
+    } catch (error) {
+      setPushStatus('error');
+      setPushError(error instanceof Error ? error.message : 'Não foi possível ativar as notificações push.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const disablePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    setPushError('');
+    try {
+      const subscription = pushSubscription.current ?? await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+      if (subscription) {
+        await api('/api/account/push/subscription', {
+          method: 'DELETE',
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+        const unsubscribed = await subscription.unsubscribe();
+        if (!unsubscribed) throw new Error('Não foi possível desativar as notificações neste dispositivo.');
+      }
+      pushSubscription.current = null;
+      setPushStatus(pushConfig?.enabled ? 'disabled' : 'unconfigured');
+    } catch (error) {
+      setPushError(error instanceof Error ? error.message : 'Não foi possível desativar as notificações push.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (account) void refreshPushSettings();
+  }, [account?.id, refreshPushSettings]);
+
+  useEffect(() => {
+    if (notificationsOpen) void refreshPushSettings();
+  }, [notificationsOpen, refreshPushSettings]);
+
+  useEffect(() => {
+    if (!account || typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const destination = url.searchParams.get('open');
+    if (destination !== 'notifications' && destination !== 'friends') return;
+    url.searchParams.delete('open');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    if (destination === 'notifications') {
+      setNotificationError('');
+      setNotificationsOpen(true);
+      void refresh();
+    } else {
+      dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'friends' });
+    }
+  }, [account?.id, dispatch, refresh]);
 
   if (!account) return null;
 
@@ -154,6 +286,33 @@ export default function AccountHeader() {
 
       <GameModal open={notificationsOpen} onOpenChange={setNotificationsOpen} title="NOTIFICAÇÕES" subtitle="Avisos e solicitações da sua conta." size="wide">
         <div className="space-y-3">
+          <section className="flex flex-col gap-3 rounded-xl border border-[var(--ui-brand)]/25 bg-[var(--ui-brand)]/5 p-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Notificações push neste dispositivo">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--ui-brand)]/15 text-[var(--ui-brand-strong)]">
+                {pushStatus === 'loading' || pushBusy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : pushStatus === 'enabled' ? <BellRing size={18} aria-hidden="true" /> : <BellOff size={18} aria-hidden="true" />}
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-[var(--ui-text)]">Notificações neste dispositivo</h3>
+                <p className="mt-0.5 text-xs leading-relaxed text-[var(--ui-text-muted)]">
+                  {pushStatus === 'enabled' ? 'Ativadas. Você receberá avisos de amizade, mensagens, convites para partidas e propostas de troca.'
+                    : pushStatus === 'disabled' ? 'Desativadas. Ative para receber avisos mesmo com o jogo fechado.'
+                      : pushStatus === 'blocked' ? 'A permissão foi bloqueada no navegador. Altere a permissão do site nas configurações do navegador.'
+                        : pushStatus === 'unconfigured' ? 'O envio de push ainda não foi configurado no servidor.'
+                          : pushStatus === 'unsupported' ? 'Este navegador ou dispositivo não oferece suporte a notificações push neste contexto.'
+                            : pushStatus === 'error' ? 'Não foi possível carregar a configuração de notificações.'
+                              : 'Você escolhe se quer receber avisos fora do jogo. A permissão só será solicitada ao ativar.'}
+                </p>
+              </div>
+            </div>
+            {pushStatus === 'enabled' || ((pushStatus === 'unconfigured' || pushStatus === 'blocked') && pushSubscription.current) ? (
+              <Button type="button" intent="ghost" loading={pushBusy} disabled={pushBusy} onClick={() => void disablePush()} className="w-full shrink-0 text-xs sm:w-auto">DESATIVAR</Button>
+            ) : pushStatus === 'disabled' ? (
+              <Button type="button" intent="primary" loading={pushBusy} disabled={pushBusy} onClick={() => void enablePush()} className="w-full shrink-0 text-xs sm:w-auto">ATIVAR NESTE DISPOSITIVO</Button>
+            ) : pushStatus === 'error' ? (
+              <Button type="button" intent="ghost" disabled={pushBusy} onClick={() => void refreshPushSettings()} className="w-full shrink-0 text-xs sm:w-auto">TENTAR NOVAMENTE</Button>
+            ) : null}
+          </section>
+          {pushError ? <StatusBanner tone="danger" role="alert">{pushError}</StatusBanner> : null}
           {notificationError ? <StatusBanner tone="danger" role="alert">{notificationError}</StatusBanner> : null}
           {incomingRequests.length === 0 ? <EmptyState title="Tudo em dia" description="Não há solicitações pendentes no momento." /> : incomingRequests.map(friendship => {
             const friend = incomingIdentity(friendship, account.id);

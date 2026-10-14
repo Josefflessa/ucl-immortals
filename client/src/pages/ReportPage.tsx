@@ -2,7 +2,7 @@
 // Cinematic celebration / campaign summary after the tournament
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Armchair, ArrowLeft, Medal, RotateCcw, Trophy, Zap } from 'lucide-react';
+import { Armchair, ArrowLeft, Home, Medal, Trophy, Zap } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
@@ -76,6 +76,7 @@ function reportNumber(report: Record<string, unknown>, key: string): number | nu
 
 function LegacyHistoryReport({ entry, onBack, hideTopBar = false }: { entry: CompetitionHistoryEntry; onBack?: () => void; hideTopBar?: boolean }) {
   const report = entry.report ?? {};
+  const partial = report.partial === true;
   const wins = reportNumber(report, 'wins');
   const draws = reportNumber(report, 'draws');
   const losses = reportNumber(report, 'losses');
@@ -93,7 +94,7 @@ function LegacyHistoryReport({ entry, onBack, hideTopBar = false }: { entry: Com
       {hideTopBar && onBack ? <div className="mx-auto w-full max-w-3xl px-4 pt-4"><Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button></div> : null}
       <div className="relative z-10 flex flex-col items-center justify-center px-4 py-10 text-center sm:py-14">
         {entry.champion ? <Trophy size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" /> : <Medal size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" />}
-        <h1 className="font-display text-5xl text-[var(--ui-text)] sm:text-7xl">{entry.champion ? 'CAMPEÃO!' : 'CAMPANHA ENCERRADA'}</h1>
+        <h1 className="font-display text-5xl text-[var(--ui-text)] sm:text-7xl">{entry.champion ? 'CAMPEÃO!' : partial ? 'RESUMO PARCIAL' : 'CAMPANHA ENCERRADA'}</h1>
         <div className="mt-3 flex items-center gap-3 rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-5 py-2.5">
           <Crest crestId={entry.crest_id} name={entry.team_name} size={34} />
           <span className="font-display text-xl text-[var(--ui-text)]">{entry.team_name}</span>
@@ -107,7 +108,9 @@ function LegacyHistoryReport({ entry, onBack, hideTopBar = false }: { entry: Com
           </div>)}
         </section>
         <p className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-4 py-3 text-sm text-[var(--ui-text-muted)]">
-          {entry.report.snapshotArchived === true
+          {partial
+            ? 'Resumo da sua campanha até a eliminação. Os resultados e destaques finais da competição não estão incluídos.'
+            : entry.report.snapshotArchived === true
             ? 'O relatório detalhado foi arquivado para liberar espaço. O resumo da competição continua salvo.'
             : 'Esta competição foi salva antes de o jogo guardar escalação e detalhes completos do resultado.'}
         </p>
@@ -126,6 +129,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const report = historySnapshot ? historySnapshot.report : state.report;
   const playerTeam = historySnapshot ? historySnapshot.playerTeam : state.playerTeam;
   const champion = historySnapshot ? historySnapshot.championId : state.champion;
+  const partialReport = historyEntry
+    ? historyEntry.report.partial === true
+    : !historySnapshot && state.partialReport;
   const localTeamId = historySnapshot ? historySnapshot.playerTeam.id : liveTeamId;
   const leagueResults = state.leagueResults;
   const knockoutBracket = state.knockoutBracket;
@@ -165,7 +171,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const totalGoals = playerResults.reduce((s: number, r: any) => s + (r.homeTeamId === localTeamId ? r.homeGoals : r.awayGoals), 0);
   const goalsAgainst = playerResults.reduce((s: number, r: any) => s + (r.homeTeamId === localTeamId ? r.awayGoals : r.homeGoals), 0);
 
-  const handlePlayAgain = () => {
+  const handleReturnHome = () => {
     if (historyEntry) {
       onHistoryBack?.();
       return;
@@ -175,7 +181,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     // next authoritative update would immediately restore the old competition.
     if (state.mode === 'online' && state.roomCode) {
       leaveRoomOnline();
-    } else {
+    } else if (state.mode === 'solo') {
       // The solo campaign is over; its autosave is no longer resumable.
       void discardSoloCampaign();
     }
@@ -367,7 +373,10 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     const timers: number[] = [];
     [2_000, 6_000, 12_000].forEach(delay => {
       timers.push(window.setTimeout(() => {
-        if (delay >= 6_000) void refreshAlbum();
+        if (delay >= 6_000) {
+          void refreshAlbum();
+          markCompetitionCompleted();
+        }
         if (cancelled) return;
         void getOwnAchievements(since).then(result => {
           if (cancelled || result.recentlyUnlocked.length === 0) return;
@@ -377,15 +386,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       }, delay));
     });
     return () => { cancelled = true; timers.forEach(timer => window.clearTimeout(timer)); };
-  }, [account, games, getOwnAchievements, historyEntry, historySnapshot, refreshAlbum, state.mode]);
+  }, [account, games, getOwnAchievements, historyEntry, historySnapshot, markCompetitionCompleted, refreshAlbum, state.mode]);
 
   useEffect(() => {
-    if (reportDataInvalidated.current || historyEntry || historySnapshot || !account || !playerTeam || games === 0) return;
+    if (reportDataInvalidated.current || historyEntry || historySnapshot || (partialReport && state.mode === 'online') || !account || !playerTeam || games === 0) return;
     reportDataInvalidated.current = true;
     // Invalidate profile/history reads as soon as a new final report appears.
     // Online campaigns are persisted by the room server; solo saves below.
     markCompetitionCompleted();
-  }, [account, games, historyEntry, historySnapshot, markCompetitionCompleted, playerTeam]);
+  }, [account, games, historyEntry, historySnapshot, markCompetitionCompleted, partialReport, playerTeam, state.mode]);
 
   useEffect(() => {
     // Solo campaigns are not authoritative public records, but an account can
@@ -416,6 +425,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       sourceKey: soloHistoryKey.current,
       report: {
         version: 1,
+        partial: state.partialReport,
+        ...(state.partialReport ? { finishStage } : {}),
         games,
         // The XI that started the final: the squad cannot change after it (events count it).
         finalStarterIds: reportFinalResult ? starters.map(player => player.id) : [],
@@ -429,9 +440,11 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         cleanSheets,
         goalDiff,
         teamOverall,
-        topScorer: topScorer ? { playerId: topScorer.pl.id, playerName: topScorer.pl.shortName, value: topScorer.stats.goals } : null,
-        topAssister: topAssister ? { playerId: topAssister.pl.id, playerName: topAssister.pl.shortName, value: topAssister.stats.assists } : null,
-        topRating: topRating ? { playerId: topRating.pl.id, playerName: topRating.pl.shortName, value: topRating.stats.ratingAvg } : null,
+        ...(!state.partialReport ? {
+          topScorer: topScorer ? { playerId: topScorer.pl.id, playerName: topScorer.pl.shortName, value: topScorer.stats.goals } : null,
+          topAssister: topAssister ? { playerId: topAssister.pl.id, playerName: topAssister.pl.shortName, value: topAssister.stats.assists } : null,
+          topRating: topRating ? { playerId: topRating.pl.id, playerName: topRating.pl.shortName, value: topRating.stats.ratingAvg } : null,
+        } : {}),
         historySnapshot: {
           version: 1,
           playerTeam,
@@ -444,13 +457,13 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             awayGoals: result.awayGoals,
             winner: result.winner,
           })),
-          championId: champion ?? null,
+          championId: state.partialReport ? null : champion ?? null,
           competitionPoints,
           finishStage,
           difficultyId: state.difficulty,
-          championName,
+          championName: state.partialReport ? '' : championName,
           formatId: state.competitionFormat.id,
-          finalResult: reportFinalResult ? {
+          finalResult: !state.partialReport && reportFinalResult ? {
             homeTeamId: reportFinalResult.homeTeamId,
             awayTeamId: reportFinalResult.awayTeamId,
             homeGoals: reportFinalResult.homeGoals,
@@ -458,15 +471,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             winner: reportFinalResult.winner,
           } : null,
           playStyle: reportPlayStyle ?? null,
-          report,
+          report: state.partialReport ? null : report,
           leaders: {
-            topScorer: topScorer ? { player: topScorer.pl, teamName: topScorer.team.name, value: topScorer.stats.goals } : null,
-            topRating: topRating ? { player: topRating.pl, teamName: topRating.team.name, value: topRating.stats.ratingAvg, played: topRating.stats.played } : null,
-            topAssister: topAssister ? { player: topAssister.pl, teamName: topAssister.team.name, value: topAssister.stats.assists } : null,
+            topScorer: state.partialReport ? null : topScorer ? { player: topScorer.pl, teamName: topScorer.team.name, value: topScorer.stats.goals } : null,
+            topRating: state.partialReport ? null : topRating ? { player: topRating.pl, teamName: topRating.team.name, value: topRating.stats.ratingAvg, played: topRating.stats.played } : null,
+            topAssister: state.partialReport ? null : topAssister ? { player: topAssister.pl, teamName: topAssister.team.name, value: topAssister.stats.assists } : null,
           },
         },
       },
-      records: soloRecordCandidates.candidates,
+      records: state.partialReport ? [] : soloRecordCandidates.candidates,
     }).then(result => {
       setHistorySaveStatus('saved');
       setAchievementUnlocks(result.achievementsUnlocked ?? []);
@@ -478,7 +491,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       setHistorySaveError(error instanceof Error ? error.message : 'Não foi possível salvar a competição agora.');
       setHistorySaveStatus('error');
     });
-  }, [account, champion, championName, effectiveCardStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, receiveAlbumGrants, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
+  }, [account, champion, championName, effectiveCardStatsById, games, historyEntry, historySaveRetry, historySnapshot, isChampion, losses, playerResults, playerTeam, report, reportFinalResult, reportPlayStyle, saveHistory, receiveAlbumGrants, soloRecordCandidates, state.competitionFormat.id, state.difficulty, state.knockoutBracket, state.mode, state.partialReport, teamOverall, topAssister, topRating, topScorer, totalGoals, goalsAgainst, cleanSheets, goalDiff, wins, draws]);
 
   if (historyEntry && !historySnapshot) {
     return <LegacyHistoryReport entry={historyEntry} onBack={onHistoryBack} hideTopBar={hideTopBar} />;
@@ -490,7 +503,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
       {!hideTopBar ? <TopBar
-        title={historyEntry ? undefined : 'UCL IMMORTALS — FIM DE TEMPORADA'}
+        title={historyEntry ? undefined : partialReport ? 'UCL IMMORTALS — RESUMO PARCIAL' : 'UCL IMMORTALS — FIM DE TEMPORADA'}
         right={historyEntry && onHistoryBack ? (
           <Button type="button" intent="ghost" onClick={onHistoryBack}>
             <ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO
@@ -510,8 +523,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             }}
           >
             <div className="text-sm" style={{ color: historySaveStatus === 'error' ? '#FCA5A5' : historySaveStatus === 'saved' ? '#86EFAC' : '#D4D4D8' }}>
-              {historySaveStatus === 'saving' ? 'Salvando histórico, recordes e dados do perfil…'
-                : historySaveStatus === 'saved' ? 'Competição salva. Histórico, recordes e perfil foram atualizados.'
+              {historySaveStatus === 'saving' ? (partialReport ? 'Salvando seu resumo da campanha até a eliminação…' : 'Salvando histórico, recordes e dados do perfil…')
+                : historySaveStatus === 'saved' ? (partialReport ? 'Resumo parcial salvo. Recompensas da fase alcançada foram registradas.' : 'Competição salva. Histórico, recordes e perfil foram atualizados.')
                   : `Não foi possível salvar esta competição. ${historySaveError}`}
             </div>
             {historySaveStatus === 'error' && (
@@ -519,6 +532,14 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 TENTAR NOVAMENTE
               </Button>
             )}
+          </div>
+        </div>
+      )}
+
+      {!historyEntry && account && partialReport && state.mode === 'online' && (
+        <div className="mx-auto w-full max-w-5xl px-4 pt-3" role="status" aria-live="polite">
+          <div className="rounded-xl border px-4 py-3 text-sm" style={{ borderColor: '#166534', background: '#0C1F16', color: '#86EFAC' }}>
+            Sua participação e as recompensas da fase alcançada estão sendo registradas no perfil e no Álbum.
           </div>
         </div>
       )}
@@ -629,15 +650,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   className="text-5xl sm:text-6xl font-black tracking-widest"
                   style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFFFFF' }}
                 >
-                  CAMPANHA ENCERRADA
+                  {partialReport ? 'RESUMO PARCIAL' : 'CAMPANHA ENCERRADA'}
                 </h1>
                 <p className="text-base mt-3 font-bold" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
-                  Você deu tudo, mas não chegou até o topo desta vez.
+                  {partialReport ? 'Sua participação terminou antes do fim da competição. Estes são seus resultados até a eliminação.' : 'Você deu tudo, mas não chegou até o topo desta vez.'}
                 </p>
-                <div className="mt-4 px-5 py-2.5 rounded-full font-bold text-sm tracking-wider"
+                {!partialReport && <div className="mt-4 px-5 py-2.5 rounded-full font-bold text-sm tracking-wider"
                   style={{ background: 'var(--ui-surface-1)', border: '1px solid #C9A84C44', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                   <Trophy {...INLINE_ICON} />CAMPEÃO: {championName}
-                </div>
+                </div>}
               </motion.div>
             )}
           </AnimatePresence>
@@ -738,7 +759,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         )}
 
         {/* Top performers */}
-        {phase >= 3 && (topScorer || topRating || topAssister) && (
+        {!partialReport && phase >= 3 && (topScorer || topRating || topAssister) && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -843,7 +864,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     className="flex-shrink-0 drop-shadow-[0_0_10px_rgba(201,168,76,0.25)]"
                   />
                   <div className="min-w-0">
-                    <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>ESCALAÇÃO FINAL</div>
+                <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{partialReport ? 'ELENCO DA CAMPANHA' : 'ESCALAÇÃO FINAL'}</div>
                     <div className="truncate text-base font-black" style={{ color: '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>{playerTeam.name}</div>
                   </div>
                 </div>
@@ -942,16 +963,16 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         </div>
         </div>
 
-        {/* Play again */}
+        {/* Return to the start or back to history. */}
         {phase >= 4 && (
           <Button
             type="button"
             intent="primary"
             size="large"
-            onClick={handlePlayAgain}
+            onClick={handleReturnHome}
             className="mt-2 w-full"
           >
-            {historyEntry ? <><ArrowLeft size={17} aria-hidden="true" /> VOLTAR AO HISTÓRICO</> : <><RotateCcw size={17} aria-hidden="true" /> JOGAR NOVAMENTE</>}
+            {historyEntry ? <><ArrowLeft size={17} aria-hidden="true" /> VOLTAR AO HISTÓRICO</> : <><Home size={17} aria-hidden="true" /> VOLTAR AO INÍCIO</>}
           </Button>
         )}
       </PageContainer>

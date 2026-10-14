@@ -300,14 +300,11 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
           </Button>
         ) : undefined}
       />
-      <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">
-        {payload.showcase.automatic ? 'Destaques escolhidos automaticamente entre as conquistas e recordes.' : 'Conquistas e recordes em destaque.'}
-      </p>
       {tiles.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">{tiles.map((tile, index) => <div key={index} className={showcaseSpan(index, tiles.length)}>{tile}</div>)}</div> : null}
       {recordCards.length > 0 ? <div className={renderRecord ? 'grid grid-cols-1 gap-3 lg:grid-cols-2' : 'grid grid-cols-2 gap-2 sm:grid-cols-3'}>{recordCards}</div> : null}
       {tiles.length > 0 || recordCards.length > 0
         ? null
-        : <div className="rounded-xl border border-dashed border-[var(--ui-line-strong)] p-4 text-center text-xs text-[var(--ui-text-muted)]">{emptyText}</div>}
+        : <div className="!mt-6 rounded-xl border border-dashed border-[var(--ui-line-strong)] p-4 text-center text-xs text-[var(--ui-text-muted)]">{emptyText}</div>}
     </section>
   );
 }

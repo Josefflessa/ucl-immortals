@@ -1,15 +1,17 @@
 import Crest from '../../components/game/Crest';
+import { useGame } from '../../contexts/GameContext';
 import { buildLeagueMatchKey, describeBet } from '@shared/game/bets';
 import { MAX_RESERVE_PLAYERS } from '@shared/game/gameEngine';
 import type { LeagueHub } from './useLeagueHub';
 import { CardIcon, InjuryIcon } from '../../components/game/StatusIcon';
-import { Ban, Check, CircleCheck, CircleX, Crown, Flag, Hourglass, Lock, Play, Search, Target, TriangleAlert, Trophy, Users } from 'lucide-react';
+import { Ban, Check, CircleCheck, CircleX, Crown, Flag, Hourglass, Lock, LogOut, Play, Search, Target, TriangleAlert, Trophy, Users } from 'lucide-react';
 import { INLINE_ICON } from '../../components/game/inlineIcon';
 
 
 // Matches tab (league phase): round fixtures, absences banner, bet buttons and
 // the advance/ready/play controls.
 export default function FixturesTab({ hub }: { hub: LeagueHub }) {
+  const { leaveRoomOnline } = useGame();
   const {
     state, isGroupStage, isLeagueOnly, playerTeam, myUnavailable, reserveLimitExceeded, reserveCount,
     roundGroupIds, displayedRoundFixtures, playerGroup, localTeamId, getTeamName, allTeams,
@@ -17,7 +19,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
     isActiveLeagueParticipant, iAmReady, handleReadyToggle, totalReady, allReady, readyCount,
     handlePlayRound, allFixturesPlayed, allPlayersWatched, waitingForCount, humanPlayersWithMatch,
     handleAdvanceRound, handleAdvanceKnockout, isPlayerMatchPlayed, handlePlayPlayerMatch,
-    qualifies, handleFinishEliminatedCampaign,
+    qualifies, handleFinishEliminatedCampaign, handleWatchRemainingCompetition,
   } = hub;
   return (
           <div className="space-y-3">
@@ -341,6 +343,21 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                     <Hourglass {...INLINE_ICON} />Aguardando assistirem: {state.advanceBlocked.join(', ')}
                   </div>
                 )}
+                {state.mode === 'online' && !isLeagueOnly && !qualifies && leagueRound >= leagueRounds && allFixturesPlayed && (
+                  <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--ui-surface-3)' }}>
+                    <p className="mb-2 text-xs text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                      Seu time não se classificou. Você pode sair agora e receber um resumo parcial da campanha.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => leaveRoomOnline({ partialReport: true })}
+                      className="w-full rounded-xl border px-4 py-3 text-sm font-black tracking-wider transition-colors hover:bg-white/5"
+                      style={{ fontFamily: 'var(--font-game), sans-serif', borderColor: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}
+                    >
+                      <LogOut {...INLINE_ICON} />SAIR E VER RESUMO PARCIAL
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-6">
@@ -374,21 +391,44 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                     AVANÇAR PARA A RODADA {leagueRound + 1} →
                   </button>
                 ) : (
-                  <button
-                    onClick={qualifies ? handleAdvanceKnockout : handleFinishEliminatedCampaign}
-                    className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all"
-                    style={{
-                      fontFamily: 'var(--font-display), sans-serif',
-                      background: 'linear-gradient(135deg, var(--ui-success) 0%, #4ADE80 50%, var(--ui-success) 100%)',
-                      color: '#000',
-                      boxShadow: '0 0 25px rgba(34,197,94,0.3)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {qualifies
-                      ? <><Trophy {...INLINE_ICON} />{isLeagueOnly ? 'FINALIZAR COMPETIÇÃO →' : 'AVANÇAR PARA O MATA-MATA →'}</>
-                      : <><Flag {...INLINE_ICON} />ENCERRAR CAMPANHA →</>}
-                  </button>
+                  state.mode === 'solo' && !qualifies ? (
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <button
+                        onClick={handleWatchRemainingCompetition}
+                        className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all hover:brightness-110"
+                        style={{
+                          fontFamily: 'var(--font-display), sans-serif',
+                          background: 'linear-gradient(135deg, var(--ui-brand) 0%, var(--ui-brand-strong) 50%, var(--ui-brand) 100%)',
+                          color: 'var(--ui-bg)',
+                          boxShadow: '0 0 25px rgba(201,168,76,0.3)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Play {...INLINE_ICON} fill="currentColor" />ACOMPANHAR O RESTANTE →
+                      </button>
+                      <button
+                        onClick={handleFinishEliminatedCampaign}
+                        className="w-full rounded-xl border px-4 py-3 text-sm font-black tracking-wider transition-colors hover:bg-white/5 sm:w-auto"
+                        style={{ fontFamily: 'var(--font-game), sans-serif', borderColor: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}
+                      >
+                        <Flag {...INLINE_ICON} />ENCERRAR COM RESUMO PARCIAL
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={qualifies ? handleAdvanceKnockout : handleFinishEliminatedCampaign}
+                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all"
+                      style={{
+                        fontFamily: 'var(--font-display), sans-serif',
+                        background: 'linear-gradient(135deg, var(--ui-success) 0%, #4ADE80 50%, var(--ui-success) 100%)',
+                        color: '#000',
+                        boxShadow: '0 0 25px rgba(34,197,94,0.3)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Trophy {...INLINE_ICON} />{isLeagueOnly ? 'FINALIZAR COMPETIÇÃO →' : 'AVANÇAR PARA O MATA-MATA →'}
+                    </button>
+                  )
                 )}
               </div>
             )}

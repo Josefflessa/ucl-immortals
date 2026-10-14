@@ -86,7 +86,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
                   </div>
                 </div>
                 <div className="mt-3"><LevelTrack copies={owned.copies} /></div>
-                <p className="mt-2 text-xs text-[var(--ui-text-faint)]">Cada nível muda a moldura da carta nos seus times. É só visual: não altera a força do jogador.</p>
+                <p className="mt-2 text-xs leading-relaxed text-[var(--ui-text-faint)]">Em competições, cada estrela soma +1 em todos os atributos. O nível fica congelado ao começar a competição e acompanha a carta se ela for negociada.</p>
               </section>
 
               <section className="rounded-xl border border-[var(--ui-line-subtle)] p-4">

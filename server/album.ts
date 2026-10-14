@@ -11,6 +11,7 @@ import {
   DAILY_BANNER_ODDS,
   DAILY_BANNER_PRICE,
   MAX_COPIES,
+  levelForCopies,
   parseItemKey,
   regionPageReward,
   rollItem,
@@ -19,6 +20,7 @@ import {
   WEEKLY_BANNER_ODDS,
   WEEKLY_BANNER_PRICE,
   type AlbumItemKey,
+  type AlbumLevel,
   type AlbumPackTier,
   type DailyBannerOffer,
   type DailyBannerRotations,
@@ -249,6 +251,29 @@ async function loadStickers(db: D1Database, userId: string): Promise<Map<string,
   const catalog = albumCatalog();
   // Cards that left the catalogue are kept in the table but not shown.
   return new Map(rows.results.filter(r => catalog.stickers.has(r.card_id)).map(r => [r.card_id, { copies: r.copies, spare: r.spare }]));
+}
+
+/** Load authoritative competition levels for several accounts in one D1 query. */
+export async function loadAlbumLevelSnapshots(
+  db: D1Database,
+  userIds: readonly (string | undefined)[],
+): Promise<Map<string, Partial<Record<string, AlbumLevel>>>> {
+  const ids = Array.from(new Set(userIds.filter((id): id is string => typeof id === 'string' && id.length > 0)));
+  const snapshots = new Map<string, Partial<Record<string, AlbumLevel>>>();
+  ids.forEach(id => snapshots.set(id, {}));
+  if (ids.length === 0) return snapshots;
+
+  const placeholders = ids.map(() => '?').join(', ');
+  const rows = await db.prepare(
+    `SELECT user_id, card_id, copies FROM user_stickers WHERE user_id IN (${placeholders}) AND copies > 0`,
+  ).bind(...ids).all<{ user_id: string; card_id: string; copies: number }>();
+  const catalogue = albumCatalog().stickers;
+  for (const row of rows.results) {
+    if (!catalogue.has(row.card_id)) continue;
+    const level = levelForCopies(row.copies);
+    if (level > 0) snapshots.get(row.user_id)![row.card_id] = level;
+  }
+  return snapshots;
 }
 
 export async function loadAlbumState(db: D1Database, userId: string): Promise<AlbumState> {

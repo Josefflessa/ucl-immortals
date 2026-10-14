@@ -71,6 +71,19 @@ export default function MenuPage() {
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
 
   useEffect(() => {
+    if (menuMode !== 'selection') return;
+    const root = document.getElementById('root');
+    document.documentElement.classList.add('home-menu-scroll-lock');
+    document.body.classList.add('home-menu-scroll-lock');
+    root?.classList.add('home-menu-scroll-lock');
+    return () => {
+      document.documentElement.classList.remove('home-menu-scroll-lock');
+      document.body.classList.remove('home-menu-scroll-lock');
+      root?.classList.remove('home-menu-scroll-lock');
+    };
+  }, [menuMode]);
+
+  useEffect(() => {
     // Reset only when the lobby is actually left. Including `menuMode` here
     // makes every click on SOLO/ONLINE immediately revert to the selection
     // screen, because both flows start while the app is still in phase `menu`.
@@ -145,7 +158,7 @@ export default function MenuPage() {
         room_not_available: 'A sala não está mais no lobby.',
         room_full: 'A sala já está cheia.',
         friend_already_in_room: 'Esse amigo já está na sala.',
-        friend_unavailable: 'Esse amigo está offline ou ocupado em uma sala/competição.',
+        friend_unavailable: 'Esse amigo está em uma partida no momento.',
         accepted_friendship_required: 'Só é possível convidar amigos que já aceitaram seu pedido.',
       };
       setRoomInviteError(messages[errorCode] ?? 'Não foi possível enviar o convite. Tente novamente.');
@@ -380,7 +393,7 @@ export default function MenuPage() {
             open={roomInviteFriendsOpen}
             onOpenChange={setRoomInviteFriendsOpen}
             title="CONVIDAR AMIGOS"
-            subtitle="Só amigos online e disponíveis. O convite expira em 1 minuto."
+            subtitle="Convide mesmo se o amigo estiver offline. O convite vale por 5 minutos; a notificação push depende de estar ativada."
             size="wide"
           >
             <div className="space-y-3">
@@ -392,7 +405,7 @@ export default function MenuPage() {
                   const friend = friendIdentity(friendship, account?.id);
                   const sent = sentRoomInviteFriendships.includes(friendship.id);
                   const busy = roomInviteActionId === friendship.id;
-                  const canInvite = friendship.is_online && friendship.is_available && !sent && roomInviteActionId === null;
+                  const canInvite = !friendship.is_busy && !sent && roomInviteActionId === null;
                   return (
                     <div key={friendship.id} className="flex items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] p-3">
                       <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--ui-brand)]/15 text-sm font-bold text-[var(--ui-brand-strong)]">
@@ -405,7 +418,7 @@ export default function MenuPage() {
                           'mt-1 text-[12px] font-bold uppercase tracking-wider',
                           friendship.is_available ? 'text-emerald-400' : 'text-[var(--ui-text-muted)]',
                         )}>
-                          {friendship.is_available ? 'DISPONÍVEL' : friendship.is_busy ? 'OCUPADO' : 'OFFLINE'}
+                          {friendship.is_available ? 'DISPONÍVEL' : friendship.is_busy ? 'EM PARTIDA' : 'OFFLINE'}
                         </div>
                       </div>
                       <Button
@@ -430,7 +443,11 @@ export default function MenuPage() {
   }
 
   return (
-    <AppShell immersive backgroundImage={HERO_BG} className="relative overflow-hidden">
+    <AppShell immersive backgroundImage={HERO_BG} className={cn(
+      'relative overflow-hidden',
+      menuMode === 'selection' && 'home-menu-screen',
+      menuMode === 'selection' && account && 'home-menu-screen--account',
+    )}>
 
       {/* Content */}
       {!account ? (
@@ -449,23 +466,28 @@ export default function MenuPage() {
         </div>
       ) : null}
 
-      <div className={cn('relative z-10 flex flex-col items-center px-4', account ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24')}>
+      <div className={cn(
+        'relative z-10 flex flex-col items-center px-4',
+        account ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24',
+        menuMode === 'selection' && 'home-menu-screen__content',
+        menuMode === 'selection' && (account ? 'home-menu-screen__content--account' : 'home-menu-screen__content--guest'),
+      )}>
         {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
         <div aria-hidden="true" className="flex-1" />
 
         {/* Logo (herói) + título */}
         <div className="flex flex-col items-center">
           <div className="relative flex items-center justify-center">
-            <img src={LOGO_URL} alt="UCL Immortals" className="relative w-36 h-36 sm:w-44 sm:h-44 object-contain" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
+            <img src={LOGO_URL} alt="UCL Immortals" className="home-menu-screen__logo relative h-36 w-36 object-contain sm:h-44 sm:w-44" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
           </div>
-          <h1 className="mt-2 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] font-normal leading-[0.85] tracking-wider">
+          <h1 className="home-menu-screen__heading mt-2 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] font-normal leading-[0.85] tracking-wider">
             <span className="block text-[var(--ui-brand-strong)]">UCL</span>
             <span className="block text-[var(--ui-text)]">IMMORTALS</span>
           </h1>
         </div>
 
         {/* Régua + tagline */}
-        <div className="flex flex-col items-center mt-4 mb-7">
+        <div className="home-menu-screen__tagline flex flex-col items-center mt-4 mb-7">
           <div className="h-px w-40 bg-[var(--ui-brand)] opacity-70 sm:w-56" />
           <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base">
             Jogadores de todas as épocas e ligas. Monte seu time e conquiste a <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
@@ -475,7 +497,7 @@ export default function MenuPage() {
         {/* Dynamic Mode Forms */}
         <div className="flex w-full justify-center">
           {menuMode === 'selection' && (
-            <div className="mb-5 flex w-full max-w-xs flex-col lg:max-w-sm gap-3 sm:mb-8">
+            <div className="home-menu-screen__actions mb-5 flex w-full max-w-xs flex-col gap-3 lg:max-w-sm sm:mb-8">
               <Button
                 type="button"
                 intent="primary"
@@ -735,7 +757,7 @@ export default function MenuPage() {
         </div>
 
         <div aria-hidden="true" className="flex-1" />
-        <footer className="pointer-events-none flex justify-center pt-8">
+        <footer className="home-menu-screen__footer pointer-events-none flex justify-center pt-8">
           <span className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
         </footer>
       </div>

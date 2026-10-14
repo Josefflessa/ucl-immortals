@@ -55,13 +55,16 @@ export function FixedActionBar({
   );
 }
 
-export function TopBar({ className, logoUrl = '/icons/logo_ucl.png', title = 'UCL IMMORTALS', playerName, center, right, ...props }: HTMLAttributes<HTMLDivElement> & { logoUrl?: string; title?: string; playerName?: string; center?: ReactNode; right?: ReactNode }) {
+export function TopBar({ className, logoUrl = '/icons/logo_ucl.png', title = 'UCL IMMORTALS', subtitle, playerName, center, right, ...props }: HTMLAttributes<HTMLDivElement> & { logoUrl?: string; title?: string; subtitle?: ReactNode; playerName?: string; center?: ReactNode; right?: ReactNode }) {
   return (
     <header className={cn('ui-topbar', className)} {...props}>
       <div className={cn('ui-shell ui-topbar__inner', playerName && right && 'ui-topbar__inner--with-context', center && 'ui-topbar__inner--with-center')}>
         <div className="ui-brand-lockup">
           <img src={logoUrl} alt="" aria-hidden="true" />
-          <span>{title}</span>
+          <span className={cn('ui-brand-lockup__text', subtitle && 'ui-brand-lockup__text--stacked')}>
+            <span className="ui-brand-lockup__title">{title}</span>
+            {subtitle ? <span className="ui-brand-lockup__subtitle">{subtitle}</span> : null}
+          </span>
         </div>
         {center ? <div className="ui-topbar__center">{center}</div> : null}
         {playerName ? <div className="ui-player-context">Time: <strong>{playerName}</strong></div> : null}

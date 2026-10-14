@@ -73,6 +73,12 @@ export interface Player {
   physical: number;
   composure: number;
   vision: number;
+  /**
+   * Album level locked to this card instance for the current competition.
+   * Runtime competition metadata (never part of the static card catalogue)
+   * that travels with the card through market listings and trades. Zero means no buff.
+   */
+  competitionAlbumLevel?: 0 | 1 | 2 | 3 | 4 | 5;
   traits: string[];
   historicalCoaches?: string[];
   historicalPartners?: string[];

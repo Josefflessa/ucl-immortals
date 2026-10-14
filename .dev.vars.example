@@ -1,0 +1,5 @@
+# Gere um par real com: pnpm generate:vapid
+# Copie os valores gerados para .dev.vars e substitua o contato pelo seu.
+VAPID_SUBJECT=mailto:SEU_EMAIL_DE_CONTATO
+VAPID_PUBLIC_KEY=COLE_A_CHAVE_PUBLICA
+VAPID_PRIVATE_KEY=COLE_A_CHAVE_PRIVADA

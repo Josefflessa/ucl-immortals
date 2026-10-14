@@ -136,6 +136,17 @@ export const GAME_EVENTS: readonly GameEvent[] = [
     ],
   },
   {
+    id: 'aranha-negra-2026',
+    name: 'A Aranha Negra',
+    description: 'Conquiste 4 competições no Ouro ou acima sofrendo no máximo 5 gols em cada uma e desbloqueie a Carta Única do Yashin.',
+    startsAt: brasiliaMidnight(2026, 10, 14),
+    endsAt: brasiliaMidnight(2026, 11, 1),
+    rewardCardId: 'yashin_unico',
+    objectives: [
+      { id: 'titulos-com-defesa', label: 'Seja campeão 4 vezes no Ouro ou acima sofrendo no máximo 5 gols em cada competição', target: 4, counts: c => goldOrAbove(c) && isChampion(c) && c.goalsAgainst <= 5 },
+    ],
+  },
+  {
     id: 'classicos-sp-2026',
     name: 'Clássicos de São Paulo',
     description: 'Escolha o seu clube e cumpra as missões para liberar a Carta Única dele no seu Pacote Único. A escolha é definitiva.',

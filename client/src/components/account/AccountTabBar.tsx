@@ -1,5 +1,6 @@
 import { House, ShoppingBag, Trophy, Users } from 'lucide-react';
 import { Button } from '../../design-system';
+import { useAccount } from '../../contexts/AccountContext';
 import type { AccountSection } from '../../contexts/GameContext';
 import { cn } from '../../lib/utils';
 
@@ -19,6 +20,12 @@ const NAV_ITEMS: Array<{ id: AccountNavigationTab; label: string; ariaLabel: str
 ];
 
 export default function AccountTabBar({ active, incomingFriendRequestCount = 0, onNavigate }: AccountTabBarProps) {
+  const { unreadMessageCount } = useAccount();
+  const friendsBadgeCount = incomingFriendRequestCount + unreadMessageCount;
+  const friendsLabel = [
+    incomingFriendRequestCount > 0 ? `${incomingFriendRequestCount} ${incomingFriendRequestCount === 1 ? 'solicitação recebida' : 'solicitações recebidas'}` : '',
+    unreadMessageCount > 0 ? `${unreadMessageCount} ${unreadMessageCount === 1 ? 'mensagem não lida' : 'mensagens não lidas'}` : '',
+  ].filter(Boolean).join(' e ');
   return (
     <nav
       aria-label="Navegação principal"
@@ -28,8 +35,8 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
       <div className="mx-auto grid max-w-md grid-cols-4">
         {NAV_ITEMS.map(({ id, label, ariaLabel, icon: Icon }) => {
           const selected = active === id;
-          const accessibleLabel = id === 'friends' && incomingFriendRequestCount > 0
-            ? `Abrir amigos, ${incomingFriendRequestCount} ${incomingFriendRequestCount === 1 ? 'solicitação recebida' : 'solicitações recebidas'}`
+          const accessibleLabel = id === 'friends' && friendsBadgeCount > 0
+            ? `Abrir amigos, ${friendsLabel}`
             : ariaLabel;
 
           return (
@@ -47,9 +54,9 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
             >
               <span className="relative inline-flex size-4 items-center justify-center">
                 <Icon size={16} aria-hidden="true" />
-                {id === 'friends' && incomingFriendRequestCount > 0 ? (
+                {id === 'friends' && friendsBadgeCount > 0 ? (
                   <span aria-hidden="true" className="absolute -right-2 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-[12px] font-bold leading-none tabular-nums text-white">
-                    {incomingFriendRequestCount > 9 ? '9+' : incomingFriendRequestCount}
+                    {friendsBadgeCount > 9 ? '9+' : friendsBadgeCount}
                   </span>
                 ) : null}
               </span>

@@ -295,6 +295,7 @@ export interface FriendshipEntry {
   is_online: boolean;
   is_available: boolean;
   is_busy: boolean;
+  unread_message_count?: number;
 }
 
 export interface RoomInvitationEntry {
@@ -312,6 +313,7 @@ export interface RoomInvitationEntry {
 interface AccountContextValue {
   account: AccountProfile | null;
   loading: boolean;
+  unreadMessageCount: number;
   refresh: () => Promise<boolean>;
   refreshProfileIfStale: () => Promise<boolean>;
   markCompetitionCompleted: () => void;
@@ -320,6 +322,7 @@ interface AccountContextValue {
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'nameStyleKey' | 'coverKey' | 'favoriteCrestId'>>) => Promise<AccountProfile>;
   getHistory: (page?: number) => Promise<CompetitionHistoryPage>;
+  peekHistory: (page?: number) => CompetitionHistoryPage | null;
   getSoloCampaign: () => Promise<SoloSave<unknown> | null>;
   saveSoloCampaign: (save: SoloSave<unknown>) => Promise<SoloSave<unknown>>;
   deleteSoloCampaign: () => Promise<void>;
@@ -345,16 +348,22 @@ interface AccountContextValue {
     }>;
   }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[]; albumGrants?: ItemGrant[] }>;
   getOwnAchievements: (since?: number) => Promise<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>;
+  peekOwnAchievements: () => AchievementsPayload | null;
   getEvents: () => Promise<EventsPayload>;
+  peekEvents: () => EventsPayload | null;
   /** Picks the account's option in a choice event (for good). */
   chooseEventOption: (eventId: string, choice: string) => Promise<EventsPayload>;
   /** Event Únicas the account unlocked; empty for guests. */
   eventCards: string[];
   updateShowcase: (items: ShowcaseItem[]) => Promise<AchievementsPayload['showcase']>;
   getRecords: (filters?: { category?: string; difficulty?: string }) => Promise<PublicRecordEntry[]>;
+  peekRecords: (filters?: { category?: string; difficulty?: string }) => PublicRecordEntry[] | null;
   getOwnRecordHighlights: () => Promise<ProfileRecordEntry[]>;
+  peekOwnRecordHighlights: () => ProfileRecordEntry[] | null;
   getScoreLeaderboard: (difficulty?: RankedDifficultyId | null) => Promise<ScoreLeaderboardEntry[]>;
+  peekScoreLeaderboard: (difficulty?: RankedDifficultyId | null) => ScoreLeaderboardEntry[] | null;
   getScoreLeaderboardPosition: () => Promise<ScoreLeaderboardPosition>;
+  peekScoreLeaderboardPosition: () => ScoreLeaderboardPosition | null;
   getPublicProfile: (username: string) => Promise<PublicProfileData>;
   likeProfile: (username: string, like: boolean) => Promise<{ liked: boolean; likeCount: number }>;
   getFriends: () => Promise<FriendshipEntry[]>;
@@ -368,18 +377,44 @@ interface AccountContextValue {
 
 const AccountContext = createContext<AccountContextValue | null>(null);
 
+const ACCOUNT_READ_CACHE_TTL_MS = 30_000;
+
+interface CachedRead<T> {
+  value?: T;
+  updatedAt: number;
+  request?: Promise<T>;
+}
+
 interface AccountReadCache {
   revision: number;
   historyByPage: Map<number, CompetitionHistoryPage>;
   historyRequests: Map<number, Promise<CompetitionHistoryPage>>;
-  ownRecordHighlights?: ProfileRecordEntry[];
-  ownRecordHighlightsRequest?: Promise<ProfileRecordEntry[]>;
-  scoreLeaderboardPosition?: ScoreLeaderboardPosition;
-  scoreLeaderboardPositionRequest?: Promise<ScoreLeaderboardPosition>;
+  events?: CachedRead<EventsPayload>;
+  achievements?: CachedRead<AchievementsPayload>;
+  recordsByFilter: Map<string, CachedRead<PublicRecordEntry[]>>;
+  scoreLeaderboards: Map<string, CachedRead<ScoreLeaderboardEntry[]>>;
+  ownRecordHighlights?: CachedRead<ProfileRecordEntry[]>;
+  scoreLeaderboardPosition?: CachedRead<ScoreLeaderboardPosition>;
 }
 
 function emptyAccountReadCache(): AccountReadCache {
-  return { revision: 0, historyByPage: new Map(), historyRequests: new Map() };
+  return {
+    revision: 0,
+    historyByPage: new Map(),
+    historyRequests: new Map(),
+    recordsByFilter: new Map(),
+    scoreLeaderboards: new Map(),
+  };
+}
+
+function isReadCacheFresh<T>(entry: CachedRead<T> | null | undefined): entry is CachedRead<T> & { value: T } {
+  return entry?.value !== undefined && Date.now() - entry.updatedAt < ACCOUNT_READ_CACHE_TTL_MS;
+}
+
+function expireReadCache<T>(entry: CachedRead<T> | undefined) {
+  if (!entry) return;
+  entry.updatedAt = 0;
+  entry.request = undefined;
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -414,9 +449,16 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const friendsRequestRevision = useRef(0);
   const readCaches = useRef(new Map<string, AccountReadCache>());
   const profileStatsDirty = useRef(new Set<string>());
   const accountId = account?.id ?? null;
+
+  useEffect(() => {
+    friendsRequestRevision.current += 1;
+    setUnreadMessageCount(0);
+  }, [accountId]);
 
   const readCacheFor = useCallback((userId: string) => {
     let cache = readCaches.current.get(userId);
@@ -433,10 +475,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     cache.revision += 1;
     cache.historyByPage.clear();
     cache.historyRequests.clear();
-    cache.ownRecordHighlights = undefined;
-    cache.ownRecordHighlightsRequest = undefined;
-    cache.scoreLeaderboardPosition = undefined;
-    cache.scoreLeaderboardPositionRequest = undefined;
+    expireReadCache(cache.events);
+    expireReadCache(cache.achievements);
+    expireReadCache(cache.ownRecordHighlights);
+    expireReadCache(cache.scoreLeaderboardPosition);
+    cache.recordsByFilter.forEach(expireReadCache);
+    cache.scoreLeaderboards.forEach(expireReadCache);
     profileStatsDirty.current.add(accountId);
   }, [accountId, readCacheFor]);
 
@@ -481,6 +525,20 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        const subscription = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+        if (subscription) {
+          await api('/api/account/push/subscription', {
+            method: 'DELETE',
+            body: JSON.stringify({ endpoint: subscription.endpoint }),
+          }).catch(() => undefined);
+          await subscription.unsubscribe();
+        }
+      } catch {
+        // Logging out should still work if push cleanup is unavailable.
+      }
+    }
     await api('/api/auth/logout', { method: 'POST', body: '{}' });
     if (accountId) {
       readCaches.current.delete(accountId);
@@ -492,8 +550,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const updateProfile = useCallback(async (patch: Partial<Pick<AccountProfile, 'displayName' | 'bio' | 'avatarKey' | 'avatarBackgroundKey' | 'avatarFrameKey' | 'nameStyleKey' | 'coverKey' | 'favoriteCrestId'>>) => {
     const result = await api<{ account: AccountProfile }>('/api/account/profile', { method: 'PATCH', body: JSON.stringify(patch) });
     setAccount(result.account);
+    if (accountId && patch.avatarFrameKey !== undefined) {
+      const cache = readCacheFor(accountId);
+      cache.revision += 1;
+      expireReadCache(cache.events);
+    }
     return result.account;
-  }, []);
+  }, [accountId, readCacheFor]);
 
   const getHistory = useCallback(async (page = 1) => {
     const cache = accountId ? readCacheFor(accountId) : null;
@@ -509,6 +572,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     } finally {
       if (cache?.historyRequests.get(page) === request) cache.historyRequests.delete(page);
     }
+  }, [accountId, readCacheFor]);
+
+  const peekHistory = useCallback((page = 1) => {
+    return accountId ? readCacheFor(accountId).historyByPage.get(page) ?? null : null;
   }, [accountId, readCacheFor]);
 
   const getSoloCampaign = useCallback(async () => {
@@ -546,22 +613,77 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return result;
   }, [markCompetitionCompleted]);
 
+  const peekOwnAchievements = useCallback(() => {
+    return accountId ? readCacheFor(accountId).achievements?.value ?? null : null;
+  }, [accountId, readCacheFor]);
+
   const getOwnAchievements = useCallback(async (since?: number) => {
+    const cache = accountId ? readCacheFor(accountId) : null;
+    const entry = cache ? (cache.achievements ??= { updatedAt: 0 }) : null;
+    if (!since && isReadCacheFresh(entry)) return { ...entry.value, recentlyUnlocked: [] };
+    if (!since && entry?.request) return entry.request as Promise<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>;
+    const revision = cache?.revision;
     const query = since ? `?since=${encodeURIComponent(String(since))}` : '';
-    return api<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>(`/api/account/achievements${query}`);
-  }, []);
+    const request = api<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>(`/api/account/achievements${query}`);
+    let pending = request;
+    if (!since && entry) {
+      pending = request.then(result => {
+        if (cache && cache.revision === revision) {
+          entry.value = { achievements: result.achievements, rarity: result.rarity, showcase: result.showcase };
+          entry.updatedAt = Date.now();
+        }
+        return result;
+      });
+      entry.request = pending;
+    }
+    try {
+      return await pending;
+    } finally {
+      if (!since && entry?.request === pending) entry.request = undefined;
+    }
+  }, [accountId, readCacheFor]);
 
   const [eventCards, setEventCards] = useState<string[]>([]);
+  const peekEvents = useCallback(() => {
+    return accountId ? readCacheFor(accountId).events?.value ?? null : null;
+  }, [accountId, readCacheFor]);
+
   const getEvents = useCallback(async () => {
-    const payload = await api<EventsPayload>('/api/account/events');
-    setEventCards(payload.eventCards ?? []);
-    return payload;
-  }, []);
+    const cache = accountId ? readCacheFor(accountId) : null;
+    const entry = cache ? (cache.events ??= { updatedAt: 0 }) : null;
+    if (isReadCacheFresh(entry)) {
+      setEventCards(entry.value.eventCards ?? []);
+      return entry.value;
+    }
+    if (entry?.request) return entry.request;
+    const revision = cache?.revision;
+    const request = api<EventsPayload>('/api/account/events');
+    if (entry) entry.request = request;
+    try {
+      const payload = await request;
+      if (cache && cache.revision === revision && entry) {
+        entry.value = payload;
+        entry.updatedAt = Date.now();
+      }
+      if (!cache || cache.revision === revision) setEventCards(payload.eventCards ?? []);
+      return payload;
+    } finally {
+      if (entry?.request === request) entry.request = undefined;
+    }
+  }, [accountId, readCacheFor]);
   const chooseEventOption = useCallback(async (eventId: string, choice: string) => {
     const payload = await api<EventsPayload>(`/api/account/events/${encodeURIComponent(eventId)}/choice`, { method: 'POST', body: JSON.stringify({ choice }) });
     setEventCards(payload.eventCards ?? []);
+    if (accountId) {
+      const cache = readCacheFor(accountId);
+      cache.revision += 1;
+      const entry = cache.events ??= { updatedAt: 0 };
+      entry.value = payload;
+      entry.updatedAt = Date.now();
+      entry.request = undefined;
+    }
     return payload;
-  }, []);
+  }, [accountId, readCacheFor]);
   // The account's exclusive cards feed its draft and Única pack offers in solo games.
   const accountKey = account?.id ?? null;
   useEffect(() => {
@@ -571,60 +693,134 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const updateShowcase = useCallback(async (items: ShowcaseItem[]) => {
     const result = await api<{ showcase: AchievementsPayload['showcase'] }>('/api/account/showcase', { method: 'PUT', body: JSON.stringify({ items }) });
+    if (accountId) {
+      const cache = readCacheFor(accountId);
+      cache.revision += 1;
+      const entry = cache.achievements;
+      if (entry?.value) {
+        entry.value = { ...entry.value, showcase: result.showcase };
+        entry.updatedAt = Date.now();
+      }
+    }
     return result.showcase;
+  }, [accountId, readCacheFor]);
+
+  const recordsCacheKey = useCallback((filters: { category?: string; difficulty?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.category) params.set('category', filters.category);
+    if (filters.difficulty) params.set('difficulty', filters.difficulty);
+    return params.toString();
   }, []);
+
+  const peekRecords = useCallback((filters: { category?: string; difficulty?: string } = {}) => {
+    return accountId ? readCacheFor(accountId).recordsByFilter.get(recordsCacheKey(filters))?.value ?? null : null;
+  }, [accountId, readCacheFor, recordsCacheKey]);
 
   const getRecords = useCallback(async (filters: { category?: string; difficulty?: string } = {}) => {
     const params = new URLSearchParams();
     if (filters.category) params.set('category', filters.category);
     if (filters.difficulty) params.set('difficulty', filters.difficulty);
-    const result = await api<{ records: PublicRecordEntry[] }>(`/api/records${params.toString() ? `?${params}` : ''}`);
-    return result.records;
-  }, []);
+    const cache = accountId ? readCacheFor(accountId) : null;
+    const key = recordsCacheKey(filters);
+    const entry = cache?.recordsByFilter.get(key);
+    if (isReadCacheFresh(entry)) return entry.value;
+    if (entry?.request) return entry.request;
+    const revision = cache?.revision;
+    const request = api<{ records: PublicRecordEntry[] }>(`/api/records${params.toString() ? `?${params}` : ''}`).then(result => result.records);
+    const read = entry ?? { updatedAt: 0 };
+    if (cache) { read.request = request; cache.recordsByFilter.set(key, read); }
+    try {
+      const records = await request;
+      if (cache && cache.revision === revision) {
+        read.value = records;
+        read.updatedAt = Date.now();
+      }
+      return records;
+    } finally {
+      if (read.request === request) read.request = undefined;
+    }
+  }, [accountId, readCacheFor, recordsCacheKey]);
+
+  const peekOwnRecordHighlights = useCallback(() => {
+    return accountId ? readCacheFor(accountId).ownRecordHighlights?.value ?? null : null;
+  }, [accountId, readCacheFor]);
 
   const getOwnRecordHighlights = useCallback(async () => {
     const cache = accountId ? readCacheFor(accountId) : null;
-    if (cache?.ownRecordHighlights) return cache.ownRecordHighlights;
+    const entry = cache?.ownRecordHighlights;
+    if (isReadCacheFresh(entry)) return entry.value;
+    if (entry?.request) return entry.request;
     const revision = cache?.revision;
-    const request = cache?.ownRecordHighlightsRequest
-      ?? api<{ records: ProfileRecordEntry[] }>('/api/account/records').then(result => result.records);
-    if (cache && !cache.ownRecordHighlightsRequest) cache.ownRecordHighlightsRequest = request;
+    const request = api<{ records: ProfileRecordEntry[] }>('/api/account/records').then(result => result.records);
+    const read = entry ?? { updatedAt: 0 };
+    if (cache) { read.request = request; cache.ownRecordHighlights = read; }
     try {
       const records = await request;
-      if (cache && cache.revision === revision) cache.ownRecordHighlights = records;
+      if (cache && cache.revision === revision) {
+        read.value = records;
+        read.updatedAt = Date.now();
+      }
       return records;
     } finally {
-      if (cache?.ownRecordHighlightsRequest === request) cache.ownRecordHighlightsRequest = undefined;
+      if (read.request === request) read.request = undefined;
     }
+  }, [accountId, readCacheFor]);
+
+  const peekScoreLeaderboard = useCallback((difficulty?: RankedDifficultyId | null) => {
+    const key = difficulty ?? 'all';
+    return accountId ? readCacheFor(accountId).scoreLeaderboards.get(key)?.value ?? null : null;
   }, [accountId, readCacheFor]);
 
   const getScoreLeaderboard = useCallback(async (difficulty?: RankedDifficultyId | null) => {
     const query = difficulty ? `?difficulty=${encodeURIComponent(difficulty)}` : '';
-    const result = await api<{ ranking: ScoreLeaderboardEntry[] }>(`/api/leaderboards/score${query}`);
-    // A fresh global ranking can change this user's current place too. Keep the
-    // profile position invalidated until the profile requests it again.
-    if (accountId) {
-      const cache = readCacheFor(accountId);
+    const cache = accountId ? readCacheFor(accountId) : null;
+    const key = difficulty ?? 'all';
+    const entry = cache?.scoreLeaderboards.get(key);
+    if (isReadCacheFresh(entry)) return entry.value;
+    if (entry?.request) return entry.request;
+    if (cache) {
       cache.revision += 1;
-      cache.scoreLeaderboardPosition = undefined;
-      cache.scoreLeaderboardPositionRequest = undefined;
+      expireReadCache(cache.scoreLeaderboardPosition);
     }
-    return result.ranking;
+    const revision = cache?.revision;
+    const request = api<{ ranking: ScoreLeaderboardEntry[] }>(`/api/leaderboards/score${query}`).then(result => result.ranking);
+    const read = entry ?? { updatedAt: 0 };
+    if (cache) { read.request = request; cache.scoreLeaderboards.set(key, read); }
+    try {
+      const ranking = await request;
+      if (cache && cache.revision === revision) {
+        read.value = ranking;
+        read.updatedAt = Date.now();
+      }
+      return ranking;
+    } finally {
+      if (read.request === request) read.request = undefined;
+    }
+  }, [accountId, readCacheFor]);
+
+  const peekScoreLeaderboardPosition = useCallback(() => {
+    return accountId ? readCacheFor(accountId).scoreLeaderboardPosition?.value ?? null : null;
   }, [accountId, readCacheFor]);
 
   const getScoreLeaderboardPosition = useCallback(async () => {
     const cache = accountId ? readCacheFor(accountId) : null;
-    if (cache?.scoreLeaderboardPosition) return cache.scoreLeaderboardPosition;
+    const entry = cache?.scoreLeaderboardPosition;
+    if (isReadCacheFresh(entry)) return entry.value;
+    if (entry?.request) return entry.request;
     const revision = cache?.revision;
-    const request = cache?.scoreLeaderboardPositionRequest
-      ?? api<ScoreLeaderboardPosition>('/api/account/leaderboards/score-position');
-    if (cache && !cache.scoreLeaderboardPositionRequest) cache.scoreLeaderboardPositionRequest = request;
+    const request = api<ScoreLeaderboardPosition>('/api/account/leaderboards/score-position');
+    const read = entry ?? { updatedAt: 0 };
+    if (cache) cache.scoreLeaderboardPosition = read;
+    read.request = request;
     try {
       const result = await request;
-      if (cache && cache.revision === revision) cache.scoreLeaderboardPosition = result;
+      if (cache && cache.revision === revision) {
+        read.value = result;
+        read.updatedAt = Date.now();
+      }
       return result;
     } finally {
-      if (cache?.scoreLeaderboardPositionRequest === request) cache.scoreLeaderboardPositionRequest = undefined;
+      if (read.request === request) read.request = undefined;
     }
   }, [accountId, readCacheFor]);
 
@@ -637,9 +833,23 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getFriends = useCallback(async () => {
+    const requestRevision = ++friendsRequestRevision.current;
     const result = await api<{ friends: FriendshipEntry[] }>('/api/account/friends');
+    if (accountId && requestRevision === friendsRequestRevision.current) {
+      setUnreadMessageCount(result.friends.reduce((total, friendship) =>
+        total + (friendship.status === 'accepted' ? Number(friendship.unread_message_count ?? 0) : 0), 0));
+    }
     return result.friends;
-  }, []);
+  }, [accountId]);
+
+  useEffect(() => {
+    if (!accountId || typeof navigator === 'undefined') return;
+    const onServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'friend-message-received') void getFriends().catch(() => undefined);
+    };
+    navigator.serviceWorker?.addEventListener('message', onServiceWorkerMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
+  }, [accountId, getFriends]);
 
   const setPresence = useCallback(async (presenceId: string, status: 'available' | 'busy' | 'away', revision: number, statusChanged = false) => {
     await api('/api/account/presence', {
@@ -676,9 +886,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, getEvents, chooseEventOption, eventCards, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile,
+    account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile,
     getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, getEvents, chooseEventOption, eventCards, updateShowcase, getRecords, getOwnRecordHighlights, getScoreLeaderboard, getScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+  }), [account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

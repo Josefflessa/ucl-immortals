@@ -166,7 +166,7 @@ export interface Team {
   playStyle: string;
   matchPlan?: MatchPlan;
   players: PlayerCard[]; // 11 titulares
-  /** Cosmetic album levels owned by this team, keyed by card id (public in match views). */
+  /** Current account-owned frame cosmetics only; match bonuses live on each PlayerCard instance. */
   albumLevels?: Partial<Record<string, Exclude<AlbumLevel, 1>>>;
   captain?: string;
   penaltyTaker?: string;
@@ -242,7 +242,8 @@ export function activeGoalkeeperForTeam(
   if (assigned) return { player: assigned, emergency: false };
 
   const emergency = [...active].sort((a, b) =>
-    ((b.defending ?? 0) + (b.physical ?? 0)) - ((a.defending ?? 0) + (a.physical ?? 0))
+    ((b.defending ?? 0) + (b.physical ?? 0) + 2 * (b.competitionAlbumLevel ?? 0))
+      - ((a.defending ?? 0) + (a.physical ?? 0) + 2 * (a.competitionAlbumLevel ?? 0))
   )[0] ?? starters[0] ?? team.players[0];
   return { player: emergency, emergency: true };
 }
@@ -454,7 +455,9 @@ export function padrinhoGodchildId(players: (Player | undefined)[], padrinhoId: 
   const chosen = godfather.padrinhoTarget && godfather.padrinhoTarget !== padrinhoId
     ? xi.find(p => p.id === godfather.padrinhoTarget)
     : undefined;
-  return (chosen ?? xi.filter(p => p.id !== padrinhoId).sort((x, y) => y.overall - x.overall)[0])?.id;
+  return (chosen ?? xi.filter(p => p.id !== padrinhoId).sort((x, y) =>
+    (y.overall + (y.competitionAlbumLevel ?? 0)) - (x.overall + (x.competitionAlbumLevel ?? 0))
+  )[0])?.id;
 }
 
 /** True when a team won the match, including a knockout win on penalties. */

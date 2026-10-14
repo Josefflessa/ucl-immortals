@@ -16,6 +16,16 @@ function normalizeBotTeamNames(teams: Team[] | undefined): Team[] {
   return (teams ?? []).map(team => ({ ...team, name: canonicalClubName(team.name) }));
 }
 
+function lockSoloAlbumLevel<T extends Player>(player: T, snapshot: GameState['competitionAlbumLevelSnapshot']): T {
+  return player.competitionAlbumLevel !== undefined
+    ? player
+    : { ...player, competitionAlbumLevel: snapshot?.[player.id] ?? 0 };
+}
+
+function lockSoloDraftOptions(options: Player[], snapshot: GameState['competitionAlbumLevelSnapshot']): Player[] {
+  return options.map(player => lockSoloAlbumLevel(player, snapshot));
+}
+
 /**
  * Replay markers only make sense inside one room session. Carrying them into
  * another room (or a restarted one) marks unplayed rounds as watched, so the
@@ -45,7 +55,7 @@ function finishOnlineReplay(state: GameState): Pick<GameState, 'onlineReplayKey'
       : state.onlineFinishedReplays,
   };
 }
-import { soloSeatContext, soloMissionBoard, applySoloSeatRule, localMissionSeed, onlineLeagueResults, createRecruitmentOffer, medicalInjuryDurationForTeam, applyMedicalRecoveries, finishEliminatedSoloCampaign } from './soloCampaign';
+import { soloSeatContext, soloMissionBoard, applySoloSeatRule, localMissionSeed, onlineLeagueResults, createRecruitmentOffer, medicalInjuryDurationForTeam, applyMedicalRecoveries, finishEliminatedSoloCampaign, finishEliminatedOnlineCampaign } from './soloCampaign';
 
 // ============================================================
 // REDUCER
@@ -96,8 +106,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return applySoloSeatRule(state, seat => seatRules.setMatchPlan(seat, action.plan));
 
     case 'START_DRAFT': {
+      const competitionAlbumLevelSnapshot = { ...action.albumLevelSnapshot };
       const needed = getNeededPositions(state.selectedFormationId, Array(11).fill(undefined));
-      const options = generateDraftOptions(needed, []);
+      const options = lockSoloDraftOptions(generateDraftOptions(needed, []), competitionAlbumLevelSnapshot);
       const draftState: DraftState = {
         round: 1,
         timerKey: 0,
@@ -109,7 +120,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         coachId: state.selectedCoachId,
         neededPositions: needed,
       };
-      return { ...state, phase: 'draft', draftState, draftedPlayers: Array(13).fill(undefined) };
+      return {
+        ...state,
+        phase: 'draft',
+        draftState,
+        draftedPlayers: Array(13).fill(undefined),
+        competitionAlbumLevelSnapshot,
+      };
     }
 
     case 'DRAFT_PLAYER': {
@@ -121,7 +138,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // server applies the same guard; in normal drafts this path is unreachable.
       if (targetIndex === -1) return state;
 
-      newDrafted[targetIndex] = action.player;
+      newDrafted[targetIndex] = lockSoloAlbumLevel(action.player, state.competitionAlbumLevelSnapshot);
 
       const newRound = currentRound + 1;
 
@@ -136,7 +153,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       const needed = getNeededPositions(state.selectedFormationId, newDrafted);
       const drafted_ids = newDrafted.filter((p): p is Player => p !== null && p !== undefined).map(p => p.id);
-      const options = generateDraftOptions(needed, drafted_ids);
+      const options = lockSoloDraftOptions(generateDraftOptions(needed, drafted_ids), state.competitionAlbumLevelSnapshot);
 
       return {
         ...state,
@@ -156,7 +173,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const actualDrafted = state.draftedPlayers.filter((p): p is Player => p !== null && p !== undefined);
       const needed = getNeededPositions(state.selectedFormationId, state.draftedPlayers);
       const drafted_ids = actualDrafted.map(p => p.id);
-      const options = generateDraftOptions(needed, drafted_ids);
+      const options = lockSoloDraftOptions(generateDraftOptions(needed, drafted_ids), state.competitionAlbumLevelSnapshot);
       return {
         ...state,
         draftState: {
@@ -367,6 +384,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
         return {
           ...p,
+          competitionAlbumLevel: p.competitionAlbumLevel
+            ?? state.competitionAlbumLevelSnapshot?.[p.id]
+            ?? 0,
           chemistryScore: chemData.individual[p.id] ?? 1,
           isOOP,
         };
@@ -1097,6 +1117,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'FINISH_ELIMINATED_CAMPAIGN':
       return finishEliminatedSoloCampaign(state);
 
+    case 'FINISH_ONLINE_PARTIAL_CAMPAIGN':
+      return finishEliminatedOnlineCampaign(state);
+
     case 'SET_ONLINE_STATE': {
       const { roomState, socketId } = action;
       const me = roomState.players.find((p: any) => p.socketId === socketId);
@@ -1325,14 +1348,44 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'RESET_GAME':
       return { ...initialState };
 
-    case 'RESTORE_SOLO_CAMPAIGN':
+    case 'RESTORE_SOLO_CAMPAIGN': {
       // A saved solo campaign never carries an online session.
+      // Old saves predate Album buffs; migrate their cards to explicit level 0
+      // so the account's current Album cannot retroactively affect a running save.
+      const albumSnapshot = action.state.competitionAlbumLevelSnapshot ?? {};
       return {
         ...initialState,
         ...action.state,
+        competitionAlbumLevelSnapshot: albumSnapshot,
+        draftedPlayers: action.state.draftedPlayers.map(player => player
+          ? lockSoloAlbumLevel(player, albumSnapshot)
+          : player),
+        draftState: action.state.draftState ? {
+          ...action.state.draftState,
+          currentOptions: lockSoloDraftOptions(action.state.draftState.currentOptions, albumSnapshot),
+        } : null,
+        playerTeam: action.state.playerTeam ? {
+          ...action.state.playerTeam,
+          players: action.state.playerTeam.players.map(player => lockSoloAlbumLevel(player, albumSnapshot)),
+        } : null,
+        reinforcementOptions: action.state.reinforcementOptions?.map(player => lockSoloAlbumLevel(player, albumSnapshot))
+          ?? action.state.reinforcementOptions
+          ?? null,
+        pendingPack: action.state.pendingPack ? {
+          ...action.state.pendingPack,
+          options: action.state.pendingPack.options.map(player => lockSoloAlbumLevel(player, albumSnapshot)),
+        } : null,
+        pendingPackReveal: action.state.pendingPackReveal ? {
+          ...action.state.pendingPackReveal,
+          card: lockSoloAlbumLevel(action.state.pendingPackReveal.card, albumSnapshot),
+        } : null,
+        pendingUniquePack: action.state.pendingUniquePack
+          ? lockSoloAlbumLevel(action.state.pendingUniquePack, albumSnapshot)
+          : null,
         botTeams: normalizeBotTeamNames(action.state.botTeams),
         mode: 'solo', roomCode: null, socketId: null, isHost: false, onlinePlayers: [],
       };
+    }
 
     default:
       return state;

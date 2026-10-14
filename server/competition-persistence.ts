@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats, MIN_MATCHES_FOR_RATING_LEADER } from '../shared/game/gameEngine.js';
+import { computeGroupQualifiedStandings, createKnockoutBracket, generateImmortalReport, getAllPlayedMatchResults, getPlayerSeasonStats, getTeamEffectiveStats, isKnockoutTeamAlive, MIN_MATCHES_FOR_RATING_LEADER } from '../shared/game/gameEngine.js';
 import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '../shared/game/competitionRanking.js';
 import type { MatchResult, PlayerCard, Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
@@ -34,7 +34,55 @@ function placementFor(room: RoomState, teamId: string): number | null {
  * verified only after this server-side calculation.
  */
 export async function persistCompletedCompetition(env: PersistenceEnv, room: RoomState): Promise<void> {
-  const participants = humanTeams(room).filter(({ player }) => !!player.accountId);
+  await persistCompetitionForPlayers(env, room);
+}
+
+/** Authoritative elimination check shared by leave handling and persistence. */
+export function isEliminatedCompetition(room: RoomState, playerId: string): boolean {
+  const player = room.players.find(candidate => candidate.id === playerId);
+  if (!player?.team) return false;
+
+  if (room.phase === 'knockout' && room.knockoutBracket) {
+    // A player who lost the semifinal can leave while the finalists are still
+    // resolving their final. Finalists themselves remain in the competition.
+    const final = room.knockoutBracket.final;
+    const isFinalist = !!final && (final.homeTeamId === player.team.id || final.awayTeamId === player.team.id);
+    return !isFinalist && !isKnockoutTeamAlive(room.knockoutBracket, player.team.id);
+  } else if (room.phase === 'league' && room.competitionFormat.id !== 'league' && room.competitionFormat.id !== 'knockout') {
+    // The server may not have opened the bracket yet if the host has not
+    // advanced. Validate the completed final league/group round and calculate
+    // qualification from authoritative standings before accepting the exit.
+    const stageRounds = room.competitionFormat.id === 'groups_knockout'
+      ? room.competitionFormat.groupRounds
+      : room.competitionFormat.leagueRounds;
+    const finalRoundFixtures = room.leagueFixtures.filter(fixture => fixture.round === stageRounds);
+    if (room.leagueRound !== stageRounds || finalRoundFixtures.length === 0
+      || finalRoundFixtures.some(fixture => !fixture.played || !fixture.result)) return false;
+
+    const allTeams = [...humanTeams(room).map(({ team }) => team), ...room.botTeams];
+    const standings = room.competitionFormat.id === 'groups_knockout'
+      ? computeGroupQualifiedStandings(allTeams, room.leagueFixtures, room.competitionFormat)
+      : room.leagueStandings;
+    const bracket = createKnockoutBracket(standings, room.competitionFormat);
+    return !isKnockoutTeamAlive(bracket, player.team.id);
+  } else {
+    return false;
+  }
+}
+
+/** Persists an eliminated player's completed run without waiting for the room's champion. */
+export async function persistEliminatedCompetition(env: PersistenceEnv, room: RoomState, playerId: string): Promise<void> {
+  if (!isEliminatedCompetition(room, playerId)) return;
+  await persistCompetitionForPlayers(env, room, playerId, true);
+}
+
+async function persistCompetitionForPlayers(
+  env: PersistenceEnv,
+  room: RoomState,
+  onlyPlayerId?: string,
+  partial = false,
+): Promise<void> {
+  const participants = humanTeams(room).filter(({ player }) => !!player.accountId && (!onlyPlayerId || player.id === onlyPlayerId));
   if (participants.length === 0) return;
 
   // League results live on their fixtures; knockout legs live in the bracket.
@@ -74,7 +122,7 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
   const championTeam = allTeams.find(team => team.id === room.champion);
   const championPlayer = room.players.find(player => player.id === room.champion);
   const championName = championTeam?.name ?? championPlayer?.name ?? (room.champion ? 'Campeão' : '');
-  const finalResult: MatchResult | undefined = room.knockoutBracket?.final?.result;
+  const finalResult: MatchResult | undefined = partial ? undefined : room.knockoutBracket?.final?.result;
   const sourceKey = `online:${room.code}:${room.roomEpoch}`;
   const accountIds = participants.map(({ player }) => player.accountId!);
   const profiles = await env.DB.prepare(`SELECT user_id, username FROM profiles WHERE user_id IN (${accountIds.map(() => '?').join(',')})`)
@@ -84,6 +132,7 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
   const now = Date.now();
 
   for (const { player, team } of participants) {
+    const playerPartial = partial || player.partialReportRequested === true;
     const accountId = player.accountId!;
     const existing = await env.DB.prepare('SELECT id FROM competition_history WHERE user_id = ? AND source_key = ?')
       .bind(accountId, sourceKey)
@@ -109,8 +158,8 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
     const effective = getTeamEffectiveStats(team, {
       playStyle: team.playStyle,
       isKnockout: !!room.knockoutBracket,
-      isFinal: true,
-      isLosing: room.champion !== team.id,
+      isFinal: !playerPartial,
+      isLosing: !playerPartial && room.champion !== team.id,
     });
     const effectiveStatsByPlayerId = Object.fromEntries(team.players.map(card => {
       const stats = effective[card.id];
@@ -133,14 +182,14 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
     const topEffective = allPlayers
       .map(card => ({ card, value: effectiveStatsByPlayerId[card.id].overall }))
       .sort((a, b) => b.value - a.value)[0];
-    const champion = room.champion === team.id;
+    const champion = !playerPartial && room.champion === team.id;
     // Online rooms are server-authoritative: stage and difficulty come from the room itself.
-    const finishStage = competitionFinishStage(team.id, room.champion, room.knockoutBracket);
+    const finishStage = competitionFinishStage(team.id, playerPartial ? null : room.champion, room.knockoutBracket);
     const competitionPoints = isRankedDifficulty(room.difficulty) ? competitionStagePoints(finishStage, room.difficulty) : 0;
     // Human players in the room (Arena Lotada counts crowded rooms).
     const humanPlayers = humanTeams(room).length;
     const historyId = `cmp_${crypto.randomUUID().replaceAll('-', '')}`;
-    const playerFinalResult = finalResult && (finalResult.homeTeamId === team.id || finalResult.awayTeamId === team.id)
+    const playerFinalResult = !playerPartial && finalResult && (finalResult.homeTeamId === team.id || finalResult.awayTeamId === team.id)
       ? {
           homeTeamId: finalResult.homeTeamId,
           awayTeamId: finalResult.awayTeamId,
@@ -167,15 +216,16 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
       champion,
       competitionPoints,
       finishStage,
+      ...(playerPartial ? { partial: true } : {}),
       humanPlayers,
       // The XI that started this team's final (events count it); none when it did not play one.
       finalStarterIds: playerFinalResult ? team.players.slice(0, 11).map(card => card.id) : [],
-      season: {
+      ...(!playerPartial ? { season: {
         topScorer: topGoals ? { playerId: topGoals.card.id, playerName: topGoals.card.shortName, value: topGoals.stats.goals } : null,
         topAssister: topAssists ? { playerId: topAssists.card.id, playerName: topAssists.card.shortName, value: topAssists.stats.assists } : null,
         topSaver: topSaves ? { playerId: topSaves.card.id, playerName: topSaves.card.shortName, value: topSaves.stats.saves } : null,
         highestEffectiveOverall: topEffective ? { playerId: topEffective.card.id, playerName: topEffective.card.shortName, value: topEffective.value } : null,
-      },
+      } } : {}),
       historySnapshot: {
         version: 1,
         playerTeam: team,
@@ -188,13 +238,13 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
           awayGoals: result.awayGoals,
           winner: result.winner,
         })),
-        championId: room.champion,
-        championName,
+        championId: playerPartial ? null : room.champion,
+        championName: playerPartial ? '' : championName,
         formatId: room.competitionFormat.id,
         finalResult: playerFinalResult,
         playStyle,
-        report: generateImmortalReport(team, results, championName),
-        leaders,
+        report: playerPartial ? null : generateImmortalReport(team, results, championName),
+        leaders: playerPartial ? { topScorer: null, topRating: null, topAssister: null } : leaders,
       },
     };
     const statements = [env.DB.prepare(`INSERT INTO competition_history
@@ -204,7 +254,7 @@ export async function persistCompletedCompetition(env: PersistenceEnv, room: Roo
     ];
 
     const username = usernames.get(accountId) ?? player.name;
-    const records: Array<[string, PlayerCard, number] | null> = [
+    const records: Array<[string, PlayerCard, number] | null> = playerPartial ? [] : [
       topGoals && topGoals.stats.goals > 0 ? ['goals', topGoals.card, topGoals.stats.goals] : null,
       topAssists && topAssists.stats.assists > 0 ? ['assists', topAssists.card, topAssists.stats.assists] : null,
       topSaves && topSaves.stats.saves > 0 ? ['saves', topSaves.card, topSaves.stats.saves] : null,

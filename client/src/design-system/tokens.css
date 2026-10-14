@@ -212,6 +212,35 @@
     text-overflow: ellipsis;
   }
 
+  .ui-brand-lockup__text--stacked {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 3px;
+    line-height: 1;
+  }
+
+  .ui-brand-lockup__title,
+  .ui-brand-lockup__subtitle {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ui-brand-lockup__subtitle {
+    color: var(--ui-text-muted);
+    font-family: var(--font-ui), sans-serif;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
   .ui-player-context {
     margin-left: auto;
     min-width: 0;
@@ -598,8 +627,10 @@
   }
 
   .profile-preview-stage {
-    width: 100%;
-    height: 100%;
+    width: min(100%, calc(100dvh * 16 / 9));
+    height: auto;
+    max-height: 100%;
+    aspect-ratio: 16 / 9;
   }
 
   .ui-modal__header {
@@ -906,6 +937,70 @@
 
   .font-ui {
     font-family: var(--font-ui), sans-serif;
+  }
+}
+
+/* The initial home view is a viewport-sized screen. Keep the document itself
+   from scrolling while it is mounted; later menu steps can still use normal flow. */
+html.home-menu-scroll-lock,
+body.home-menu-scroll-lock {
+  height: 100%;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+#root.home-menu-scroll-lock {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.home-menu-screen {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.home-menu-screen--account {
+  height: calc(100dvh - 64px);
+}
+
+.home-menu-screen__content {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-height: 720px) {
+  .home-menu-screen__content--guest {
+    padding-top: max(3.25rem, env(safe-area-inset-top));
+    padding-bottom: 0.5rem;
+  }
+
+  .home-menu-screen__content--account {
+    padding-top: 0.5rem;
+  }
+
+  .home-menu-screen__logo {
+    width: clamp(5rem, 16dvh, 8rem);
+    height: clamp(5rem, 16dvh, 8rem);
+  }
+
+  .home-menu-screen__heading {
+    font-size: clamp(2.3rem, 6.8dvh, 3.2rem);
+  }
+
+  .home-menu-screen__tagline {
+    margin-top: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .home-menu-screen__actions {
+    gap: 0.5rem;
+    margin-bottom: 0;
+  }
+
+  .home-menu-screen__footer {
+    padding-top: 0.5rem;
   }
 }
 

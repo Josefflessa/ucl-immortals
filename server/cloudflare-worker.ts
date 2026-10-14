@@ -15,8 +15,10 @@ import {
 } from './handlers.js';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime.js';
 import { ACCOUNT_PRESENCE_TTL_MS, ROOM_INVITATION_TTL_MS, authenticatedAccount, handleAccountRequest } from './account-api.js';
-import { persistCompletedCompetition } from './competition-persistence.js';
+import { isEliminatedCompetition, persistCompletedCompetition, persistEliminatedCompetition } from './competition-persistence.js';
 import { loadOwnedEventCards } from './events.js';
+import { loadAlbumLevelSnapshots } from './album.js';
+import { sendPushToUser } from './push.js';
 import { cloneRoomJson } from '../shared/room-sync.js';
 import { MAX_ONLINE_PLAYERS } from '../shared/game/competition.js';
 import {
@@ -31,6 +33,9 @@ interface Env {
   DB: D1Database;
   GAME_ROOM: DurableObjectNamespace;
   ROOM_DIRECTORY: DurableObjectNamespace;
+  VAPID_SUBJECT?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
 }
 
 interface RoomReservation {
@@ -292,6 +297,7 @@ class DurableSocket implements RealtimeSocket {
   private lastSeenAt: number;
   readonly accountId?: string;
   readonly eventCardIds?: string[];
+  verifiedAlbumLevelSnapshot?: Partial<Record<string, 1 | 2 | 3 | 4 | 5>>;
 
   constructor(
     readonly id: string,
@@ -610,11 +616,10 @@ export class GameRoom {
     const now = Date.now();
     const freshnessCutoff = now - ACCOUNT_PRESENCE_TTL_MS;
     const presence = await this.env.DB.prepare(`SELECT
-        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'available' AND updated_at > ?) AS has_available_session,
         EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'busy' AND updated_at > ?) AS has_busy_session`)
-      .bind(friendship.friend_id, freshnessCutoff, friendship.friend_id, freshnessCutoff)
-      .first<{ has_available_session: number; has_busy_session: number }>();
-    if (!presence?.has_available_session || presence.has_busy_session) {
+      .bind(friendship.friend_id, freshnessCutoff)
+      .first<{ has_busy_session: number }>();
+    if (presence?.has_busy_session) {
       return roomInvitationJson({ error: 'friend_unavailable' }, 409);
     }
 
@@ -629,10 +634,17 @@ export class GameRoom {
       .first<{ id: string; expires_at: number }>();
     if (existing) return roomInvitationJson({ ok: true, duplicate: true, expiresAt: Number(existing.expires_at) });
 
+    const invitationId = `ri_${crypto.randomUUID()}`;
     await this.env.DB.prepare(`INSERT INTO room_invitations
       (id, room_code, inviter_user_id, invitee_user_id, status, created_at, expires_at, updated_at)
       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`)
-      .bind(`ri_${crypto.randomUUID()}`, roomCode, account.id, friendship.friend_id, now, expiresAt, now).run();
+      .bind(invitationId, roomCode, account.id, friendship.friend_id, now, expiresAt, now).run();
+    this.state.waitUntil(sendPushToUser(this.env, friendship.friend_id, {
+      title: 'Convite para partida',
+      body: `${account.displayName} convidou você para uma partida.`,
+      url: '/',
+      tag: `room-invitation:${invitationId}`,
+    }, Math.max(60, Math.floor(ROOM_INVITATION_TTL_MS / 1000))));
     return roomInvitationJson({ ok: true, expiresAt });
   }
 
@@ -730,6 +742,49 @@ export class GameRoom {
         return;
       }
 
+      // Capture account-owned Album levels exactly when the host starts a new
+      // competition. This happens before setup/draft, never from a client value.
+      if (incoming.event === 'start_setup' && socket) {
+        const payload = incoming.payload && typeof incoming.payload === 'object' && !Array.isArray(incoming.payload)
+          ? incoming.payload as { roomCode?: unknown }
+          : {};
+        const roomCode = typeof payload.roomCode === 'string' ? payload.roomCode.toUpperCase() : '';
+        const room = this.runtime.rooms.get(roomCode);
+        const host = room?.players.find(player => player.id === room.hostId);
+        const canStart = room?.phase === 'lobby'
+          && host?.socketId === socket.id
+          && room.players.filter(player => player.connected).length >= 2;
+        if (room && canStart) {
+          try {
+            const snapshots = await loadAlbumLevelSnapshots(this.env.DB, room.players.map(player => player.accountId));
+            room.players.forEach(player => {
+              player.competitionAlbumLevelSnapshot = player.accountId
+                ? snapshots.get(player.accountId) ?? {}
+                : {};
+            });
+            socket.verifiedAlbumLevelSnapshot = room.players.find(player => player.socketId === socket.id)?.competitionAlbumLevelSnapshot ?? {};
+          } catch {
+            socket.emit('action_error', {
+              event: 'start_setup',
+              message: 'Não foi possível confirmar os níveis do Álbum para esta competição. Tente novamente.',
+            });
+            return;
+          }
+        }
+      }
+
+      // Reassert the authority boundary for legacy/reconnected rooms too. If a
+      // room predates Album snapshots, missing data means zero, never a client claim.
+      if (incoming.event === 'submit_squad_review' && socket) {
+        const payload = incoming.payload && typeof incoming.payload === 'object' && !Array.isArray(incoming.payload)
+          ? incoming.payload as { roomCode?: unknown }
+          : {};
+        const roomCode = typeof payload.roomCode === 'string' ? payload.roomCode.toUpperCase() : '';
+        const room = this.runtime.rooms.get(roomCode);
+        const player = room?.players.find(candidate => candidate.socketId === socket.id);
+        socket.verifiedAlbumLevelSnapshot = player?.competitionAlbumLevelSnapshot ?? {};
+      }
+
       if (incoming.event === 'create_room' && !this.runtime.rooms.has(this.roomCode)) {
         const payload = incoming.payload;
         const reservationToken = payload && typeof payload === 'object' && !Array.isArray(payload)
@@ -753,6 +808,19 @@ export class GameRoom {
         runWithGameRuntime(this.runtime, () => {
           socket?.dispatch(incoming.event, incoming.payload);
         });
+        const leavePayload = incoming.payload && typeof incoming.payload === 'object' && !Array.isArray(incoming.payload)
+          ? incoming.payload as { partialReport?: unknown }
+          : {};
+        if (incoming.event === 'leave_room' && leavePayload.partialReport === true && socket) {
+          const room = this.runtime.rooms.get(this.roomCode);
+          const leavingPlayer = room?.players.find(player => player.socketId === socket.id);
+          if (room && leavingPlayer && isEliminatedCompetition(room, leavingPlayer.id)) {
+            // Persist this explicit opt-out with the room checkpoint. If the
+            // tournament finishes before the async partial write, the normal
+            // completion save still keeps this player on a partial report.
+            leavingPlayer.partialReportRequested = true;
+          }
+        }
         // The handler callback mutates this runtime field synchronously. Keep
         // the explicit type here so TypeScript does not narrow the property to
         // the value assigned immediately before the callback.
@@ -798,6 +866,16 @@ export class GameRoom {
           })().catch(error => {
             console.error('[account] não foi possível salvar o encerramento online:', { roomCode: this.roomCode, error });
           }));
+        }
+        if (incoming.event === 'leave_room' && leavePayload.partialReport === true && committedRoom && socket) {
+          const leavingPlayer = committedRoom.players.find(player => player.socketId === socket.id);
+          if (leavingPlayer) {
+            const partialRoom = cloneRoomJson(committedRoom);
+            const playerId = leavingPlayer.id;
+            this.state.waitUntil(persistEliminatedCompetition(this.env, partialRoom, playerId).catch(error => {
+              console.error('[account] não foi possível salvar a campanha parcial online:', { roomCode: this.roomCode, playerId, error });
+            }));
+          }
         }
       } catch (error) {
         if (committed) {
@@ -1066,6 +1144,37 @@ export class GameRoom {
             && Number.isSafeInteger(receipt.stateRevision))
           .slice(-MAX_PERSISTED_COMMAND_RECEIPTS)
         : [];
+      // A room already in progress from before Album buffs ships with no locked
+      // card levels. Freeze those legacy cards at zero so the owner's current
+      // account Album cannot change an existing competition retroactively.
+      if (stored.room.phase !== 'lobby') {
+        for (const player of stored.room.players) {
+          const frozen = player.competitionAlbumLevelSnapshot ?? {};
+          player.competitionAlbumLevelSnapshot = frozen;
+          player.draftedPlayers = player.draftedPlayers.map(card => card && card.competitionAlbumLevel === undefined
+            ? { ...card, competitionAlbumLevel: frozen[card.id] ?? 0 }
+            : card);
+          if (player.team) {
+            player.team = {
+              ...player.team,
+              players: player.team.players.map(card => card.competitionAlbumLevel === undefined
+                ? { ...card, competitionAlbumLevel: frozen[card.id] ?? 0 }
+                : card),
+            };
+          }
+          const options = stored.room.draftState?.currentOptionsByPlayer[player.id];
+          if (options) {
+            stored.room.draftState!.currentOptionsByPlayer[player.id] = options.map(card => card.competitionAlbumLevel === undefined
+              ? { ...card, competitionAlbumLevel: frozen[card.id] ?? 0 }
+              : card);
+          }
+        }
+        stored.room.market = (stored.room.market ?? []).map(listing => {
+          if (listing.player.competitionAlbumLevel !== undefined) return listing;
+          const sellerSnapshot = stored.room.players.find(player => player.id === listing.sellerId)?.competitionAlbumLevelSnapshot;
+          return { ...listing, player: { ...listing.player, competitionAlbumLevel: sellerSnapshot?.[listing.player.id] ?? 0 } };
+        });
+      }
       this.runtime.rooms.set(this.roomCode, stored.room);
       this.runtime.marketSeq = stored.marketSeq;
       this.reservationToken = typeof stored.reservationToken === 'string'
@@ -1290,7 +1399,7 @@ export class GameRoom {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const roomInvitationAction = url.pathname.match(/^\/api\/account\/room-invitations\/([^/]+)$/);
     if (roomInvitationAction && request.method === 'PATCH') {
@@ -1304,7 +1413,7 @@ export default {
       return room.fetch(new Request(`https://game-room/invitations?room=${roomCode}`, request));
     }
 
-    const accountResponse = await handleAccountRequest(request, env);
+    const accountResponse = await handleAccountRequest(request, env, context);
     if (accountResponse) return accountResponse;
     if (url.pathname === '/api/realtime/room-code' && request.method === 'POST') {
       const directory = env.ROOM_DIRECTORY.get(env.ROOM_DIRECTORY.idFromName('room-directory'));

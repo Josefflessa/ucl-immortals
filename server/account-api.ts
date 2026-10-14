@@ -18,6 +18,7 @@ import { isClubRewardKey } from '../shared/game/clubRewards.js';
 import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItem, sellCopies, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
 import { albumCatalog } from '../shared/game/album.js';
 import { WEEKLY_PACK_REWARDS } from '../shared/game/dailyRewards.js';
+import { isPushConfigured, isValidPushEndpoint, sendPushToUser, type PushEnvironment, type PushNotice } from './push.js';
 import {
   competitionStagePoints,
   finishStageFromLegacyPoints,
@@ -39,10 +40,21 @@ const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_LOCKOUT_MS = 5 * 60 * 1000;
 const AUTH_MAX_FAILURES = 5;
 export const ACCOUNT_PRESENCE_TTL_MS = 30_000;
-export const ROOM_INVITATION_TTL_MS = 60_000;
+export const ROOM_INVITATION_TTL_MS = 5 * 60_000;
 
-interface AccountEnv {
-  DB: D1Database;
+type AccountEnv = PushEnvironment;
+
+type PushExecutionContext = Pick<ExecutionContext, 'waitUntil'>;
+
+function schedulePush(
+  env: AccountEnv,
+  context: PushExecutionContext | undefined,
+  userId: string,
+  notice: PushNotice,
+  ttlSeconds?: number,
+): void {
+  if (!context || !isPushConfigured(env)) return;
+  context.waitUntil(sendPushToUser(env, userId, notice, ttlSeconds));
 }
 
 interface AuthenticatedAccount {
@@ -1353,6 +1365,11 @@ async function friendsList(env: AccountEnv, account: AuthenticatedAccount): Prom
         MAX(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS has_available_session,
         MAX(CASE WHEN status = 'busy' THEN 1 ELSE 0 END) AS has_busy_session
       FROM account_presence WHERE updated_at > ? GROUP BY user_id
+    ), unread_messages AS (
+      SELECT friendship_id, COUNT(*) AS unread_message_count
+      FROM friend_messages
+      WHERE sender_id <> ? AND read_at IS NULL AND expires_at > ?
+      GROUP BY friendship_id
     ), friendship_rows AS (
       SELECT f.id, f.status, f.requester_id, f.addressee_id, f.created_at, f.updated_at,
         CASE WHEN f.requester_id = ? THEN f.addressee_id ELSE f.requester_id END AS friend_id
@@ -1364,17 +1381,20 @@ async function friendsList(env: AccountEnv, account: AuthenticatedAccount): Prom
     pa.username AS addressee_username, pa.display_name AS addressee_display_name, pa.avatar_key AS addressee_avatar_key, pa.avatar_background_key AS addressee_avatar_background_key, pa.avatar_url AS addressee_avatar_url, pa.avatar_frame_key AS addressee_avatar_frame_key, pa.name_style_key AS addressee_name_style_key,
     COALESCE(ps.is_online, 0) AS is_online,
     CASE WHEN COALESCE(ps.has_available_session, 0) = 1 AND COALESCE(ps.has_busy_session, 0) = 0 THEN 1 ELSE 0 END AS is_available,
-    COALESCE(ps.has_busy_session, 0) AS is_busy
+    COALESCE(ps.has_busy_session, 0) AS is_busy,
+    CASE WHEN f.status = 'accepted' THEN COALESCE(um.unread_message_count, 0) ELSE 0 END AS unread_message_count
     FROM friendship_rows f
     JOIN profiles pr ON pr.user_id = f.requester_id
     JOIN profiles pa ON pa.user_id = f.addressee_id
     LEFT JOIN presence_summary ps ON ps.user_id = f.friend_id
-    ORDER BY f.updated_at DESC`).bind(now - ACCOUNT_PRESENCE_TTL_MS, account.id, account.id, account.id).all();
+    LEFT JOIN unread_messages um ON um.friendship_id = f.id
+    ORDER BY f.updated_at DESC`).bind(now - ACCOUNT_PRESENCE_TTL_MS, account.id, now, account.id, account.id, account.id).all();
   const friends = rows.results.map((row: any) => ({
     ...row,
     is_online: Boolean(row.is_online),
     is_available: Boolean(row.is_available),
     is_busy: Boolean(row.is_busy),
+    unread_message_count: Number(row.unread_message_count ?? 0),
   }));
   return json({ friends });
 }
@@ -1384,7 +1404,6 @@ async function updatePresence(request: Request, env: AccountEnv, account: Authen
   const presenceId = typeof body?.presenceId === 'string' ? body.presenceId : '';
   const status = body?.status;
   const revision = Number(body?.revision);
-  const statusChanged = body?.statusChanged === true;
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(presenceId)
     || !['available', 'busy', 'away'].includes(String(status))
     || !Number.isSafeInteger(revision) || revision < 1) {
@@ -1402,17 +1421,10 @@ async function updatePresence(request: Request, env: AccountEnv, account: Authen
       status = excluded.status, revision = excluded.revision, updated_at = excluded.updated_at
     WHERE excluded.revision > account_presence.revision`)
     .bind(account.id, presenceId, status, revision, now).run();
-  if (statusChanged && status !== 'available' && updated.meta.changes) {
-    const currentPresence = await env.DB.prepare(`SELECT
-        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'available' AND updated_at > ?) AS has_available_session,
-        EXISTS(SELECT 1 FROM account_presence WHERE user_id = ? AND status = 'busy' AND updated_at > ?) AS has_busy_session`)
-      .bind(account.id, now - ACCOUNT_PRESENCE_TTL_MS, account.id, now - ACCOUNT_PRESENCE_TTL_MS)
-      .first<{ has_available_session: number; has_busy_session: number }>();
-    if (!currentPresence?.has_available_session || currentPresence.has_busy_session) {
-      await env.DB.prepare(`UPDATE room_invitations SET status = 'expired', updated_at = ?
-        WHERE invitee_user_id = ? AND status = 'pending'`)
-        .bind(now, account.id).run();
-    }
+  if (body?.statusChanged === true && status === 'busy' && updated.meta.changes) {
+    await env.DB.prepare(`UPDATE room_invitations SET status = 'expired', updated_at = ?
+      WHERE invitee_user_id = ? AND status = 'pending'`)
+      .bind(now, account.id).run();
   }
   return json({ ok: true });
 }
@@ -1432,7 +1444,61 @@ async function roomInvitationsList(env: AccountEnv, account: AuthenticatedAccoun
   return json({ invitations: rows.results });
 }
 
-async function friendCreate(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+async function pushSubscription(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  if (request.method === 'GET') {
+    const enabled = isPushConfigured(env);
+    return json({ enabled, publicKey: enabled ? env.VAPID_PUBLIC_KEY ?? null : null });
+  }
+
+  const body = await readJson(request);
+  if (request.method === 'DELETE') {
+    if (!isValidPushEndpoint(body?.endpoint)) return json({ error: 'invalid_push_endpoint' }, 400);
+    await env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?')
+      .bind(account.id, body.endpoint).run();
+    return json({ ok: true });
+  }
+
+  if (request.method !== 'PUT') return json({ error: 'method_not_allowed' }, 405);
+  if (!isPushConfigured(env)) return json({ error: 'push_not_configured' }, 503);
+
+  const endpoint = body?.endpoint;
+  const rawKeys = body?.keys;
+  const keys = rawKeys && typeof rawKeys === 'object' && !Array.isArray(rawKeys)
+    ? rawKeys as Record<string, unknown>
+    : {};
+  const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh : '';
+  const auth = typeof keys.auth === 'string' ? keys.auth : '';
+  const base64UrlKey = /^[A-Za-z0-9_-]+$/;
+  if (!isValidPushEndpoint(endpoint)
+    || p256dh.length < 40 || p256dh.length > 200 || !base64UrlKey.test(p256dh)
+    || auth.length < 16 || auth.length > 100 || !base64UrlKey.test(auth)) {
+    return json({ error: 'invalid_push_subscription' }, 400);
+  }
+
+  const now = Date.now();
+  await env.DB.prepare(`INSERT INTO push_subscriptions
+      (endpoint, user_id, p256dh, auth, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET
+      user_id = excluded.user_id,
+      p256dh = excluded.p256dh,
+      auth = excluded.auth,
+      updated_at = excluded.updated_at`)
+    .bind(endpoint, account.id, p256dh, auth, now, now).run();
+  await env.DB.prepare(`DELETE FROM push_subscriptions
+    WHERE user_id = ? AND endpoint NOT IN (
+      SELECT endpoint FROM push_subscriptions WHERE user_id = ?
+      ORDER BY updated_at DESC LIMIT 8
+    )`).bind(account.id, account.id).run();
+  return json({ ok: true });
+}
+
+async function friendCreate(
+  request: Request,
+  env: AccountEnv,
+  account: AuthenticatedAccount,
+  context?: PushExecutionContext,
+): Promise<Response> {
   const body = await readJson(request);
   const username = normalizeUsername(String(body?.username ?? ''));
   if (!USERNAME_RE.test(username)) return json({ error: 'invalid_friend_username' }, 400);
@@ -1444,17 +1510,36 @@ async function friendCreate(request: Request, env: AccountEnv, account: Authenti
     .bind(account.id, target.user_id, target.user_id, account.id).first<{ id: string; requester_id: string; addressee_id: string; status: string }>();
   const now = Date.now();
   if (existing?.status === 'accepted') return json({ error: 'already_friends' }, 409);
+  const shouldNotify = !existing
+    || existing.status !== 'pending'
+    || existing.requester_id !== account.id
+    || existing.addressee_id !== target.user_id;
+  let friendshipId: string;
   if (existing) {
+    friendshipId = existing.id;
     await env.DB.prepare('UPDATE friendships SET requester_id = ?, addressee_id = ?, status = \'pending\', updated_at = ? WHERE id = ?')
       .bind(account.id, target.user_id, now, existing.id).run();
   } else {
+    friendshipId = `fr_${randomToken(12)}`;
     await env.DB.prepare('INSERT INTO friendships (id, requester_id, addressee_id, status, created_at, updated_at) VALUES (?, ?, ?, \'pending\', ?, ?)')
-      .bind(`fr_${randomToken(12)}`, account.id, target.user_id, now, now).run();
+      .bind(friendshipId, account.id, target.user_id, now, now).run();
   }
+  if (shouldNotify) schedulePush(env, context, target.user_id, {
+    title: 'Novo pedido de amizade',
+    body: `${account.displayName} enviou um pedido de amizade.`,
+    url: '/?open=notifications',
+    tag: `friend-request:${friendshipId}`,
+  });
   return json({ ok: true });
 }
 
-async function friendUpdate(request: Request, env: AccountEnv, account: AuthenticatedAccount, id: string): Promise<Response> {
+async function friendUpdate(
+  request: Request,
+  env: AccountEnv,
+  account: AuthenticatedAccount,
+  id: string,
+  context?: PushExecutionContext,
+): Promise<Response> {
   const body = await readJson(request);
   const action = String(body?.action ?? '');
   const row = await env.DB.prepare('SELECT * FROM friendships WHERE id = ? AND (requester_id = ? OR addressee_id = ?)')
@@ -1463,6 +1548,12 @@ async function friendUpdate(request: Request, env: AccountEnv, account: Authenti
   const now = Date.now();
   if (action === 'accept' && row.addressee_id === account.id) {
     await env.DB.prepare('UPDATE friendships SET status = \'accepted\', updated_at = ? WHERE id = ?').bind(now, id).run();
+    if (row.status === 'pending') schedulePush(env, context, row.requester_id, {
+      title: 'Pedido de amizade aceito',
+      body: `${account.displayName} aceitou seu pedido de amizade.`,
+      url: '/?open=friends',
+      tag: `friend-accepted:${id}`,
+    });
   } else if (action === 'decline' && row.addressee_id === account.id) {
     await env.DB.prepare('UPDATE friendships SET status = \'declined\', updated_at = ? WHERE id = ?').bind(now, id).run();
   } else if (action === 'block') {
@@ -1494,17 +1585,27 @@ async function acceptedFriendship(env: AccountEnv, account: AuthenticatedAccount
 const FRIEND_MESSAGE_TTL_MS = 24 * 60 * 60 * 1000;
 const FRIEND_MESSAGE_MAX_LENGTH = 500;
 
-async function friendMessages(request: Request, env: AccountEnv, account: AuthenticatedAccount, friendshipId: string): Promise<Response> {
+async function loadFriendMessages(env: AccountEnv, friendshipId: string, now: number) {
+  const rows = await env.DB.prepare(`SELECT id, sender_id, body, created_at, expires_at
+    FROM friend_messages WHERE friendship_id = ? AND expires_at > ?
+    ORDER BY created_at DESC, id DESC LIMIT 200`).bind(friendshipId, now).all();
+  return [...rows.results].reverse();
+}
+
+async function friendMessages(
+  request: Request,
+  env: AccountEnv,
+  account: AuthenticatedAccount,
+  friendshipId: string,
+  context?: PushExecutionContext,
+): Promise<Response> {
   const friendship = await acceptedFriendship(env, account, friendshipId);
   if (!friendship) return json({ error: 'friendship_not_found' }, 404);
   const now = Date.now();
   // Expiration is enforced on every read and send; cleanup is shared across conversations.
   await env.DB.prepare('DELETE FROM friend_messages WHERE expires_at <= ?').bind(now).run();
   if (request.method === 'GET') {
-    const rows = await env.DB.prepare(`SELECT id, sender_id, body, created_at, expires_at
-      FROM friend_messages WHERE friendship_id = ? AND expires_at > ?
-      ORDER BY created_at ASC LIMIT 200`).bind(friendshipId, now).all();
-    return json({ messages: rows.results });
+    return json({ messages: await loadFriendMessages(env, friendshipId, now) });
   }
   const body = await readJson(request);
   const text = typeof body?.body === 'string' ? body.body.trim() : '';
@@ -1518,7 +1619,28 @@ async function friendMessages(request: Request, env: AccountEnv, account: Authen
   };
   await env.DB.prepare(`INSERT INTO friend_messages (id, friendship_id, sender_id, body, created_at, expires_at)
     VALUES (?, ?, ?, ?, ?, ?)`).bind(message.id, friendshipId, account.id, text, now, message.expires_at).run();
+  const recipientId = friendship.requester_id === account.id ? friendship.addressee_id : friendship.requester_id;
+  const preview = text.length > 120 ? `${text.slice(0, 117)}...` : text;
+  schedulePush(env, context, recipientId, {
+    title: `Mensagem de ${account.displayName}`,
+    body: preview,
+    url: `/?open=chat&friendship=${encodeURIComponent(friendshipId)}`,
+    tag: `friend-message:${friendshipId}`,
+  }, Math.max(60, Math.floor((message.expires_at - now) / 1000)));
   return json({ message }, 201);
+}
+
+async function friendMessagesRead(env: AccountEnv, account: AuthenticatedAccount, friendshipId: string): Promise<Response> {
+  const friendship = await acceptedFriendship(env, account, friendshipId);
+  if (!friendship) return json({ error: 'friendship_not_found' }, 404);
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM friend_messages WHERE expires_at <= ?').bind(now),
+    env.DB.prepare(`UPDATE friend_messages SET read_at = ?
+      WHERE friendship_id = ? AND sender_id <> ? AND read_at IS NULL AND expires_at > ?`)
+      .bind(now, friendshipId, account.id, now),
+  ]);
+  return json({ messages: await loadFriendMessages(env, friendshipId, now) });
 }
 
 const FRIEND_TRADE_TTL_MS = 72 * 60 * 60 * 1000;
@@ -1541,7 +1663,13 @@ interface FriendTradeRow {
   expires_at: number;
 }
 
-async function friendTrades(request: Request, env: AccountEnv, account: AuthenticatedAccount, friendshipId: string): Promise<Response> {
+async function friendTrades(
+  request: Request,
+  env: AccountEnv,
+  account: AuthenticatedAccount,
+  friendshipId: string,
+  context?: PushExecutionContext,
+): Promise<Response> {
   const friendship = await acceptedFriendship(env, account, friendshipId);
   if (!friendship) return json({ error: 'friendship_not_found' }, 404);
   const now = Date.now();
@@ -1602,6 +1730,13 @@ async function friendTrades(request: Request, env: AccountEnv, account: Authenti
     if (active) return json({ error: 'trade_in_progress' }, 409);
     throw cause;
   }
+  const notificationTtl = Math.max(60, Math.floor((trade.expires_at - now) / 1000));
+  schedulePush(env, context, addresseeId, {
+    title: 'Nova proposta de troca',
+    body: `${account.displayName} enviou uma proposta de troca de cartas.`,
+    url: '/?open=friends',
+    tag: `friend-trade:${trade.id}`,
+  }, notificationTtl);
   return json({ trade }, 201);
 }
 
@@ -1935,7 +2070,11 @@ async function publicProfile(request: Request, env: AccountEnv, username: string
   });
 }
 
-export async function handleAccountRequest(request: Request, env: AccountEnv): Promise<Response | null> {
+export async function handleAccountRequest(
+  request: Request,
+  env: AccountEnv,
+  context?: PushExecutionContext,
+): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/')) return null;
   if (url.pathname === '/api/auth/register' && request.method === 'POST') return registerLocalAccount(request, env);
@@ -1965,6 +2104,10 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (!account) return json({ error: 'authentication_required' }, 401);
     if (url.pathname === '/api/account/profile' && request.method === 'GET') return json({ account: publicAccount(account) });
     if (url.pathname === '/api/account/profile' && request.method === 'PATCH') return profileUpdate(request, env, account);
+    if (url.pathname === '/api/account/push/subscription'
+      && (request.method === 'GET' || request.method === 'PUT' || request.method === 'DELETE')) {
+      return pushSubscription(request, env, account);
+    }
     if (url.pathname === '/api/account/solo-campaign' && request.method === 'GET') return accountSoloCampaign(env, account);
     if (url.pathname === '/api/account/solo-campaign' && request.method === 'PUT') return accountSoloCampaignSave(request, env, account);
     if (url.pathname === '/api/account/solo-campaign' && request.method === 'DELETE') return accountSoloCampaignDelete(env, account);
@@ -1989,14 +2132,18 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     if (url.pathname === '/api/account/history' && request.method === 'POST') return historyCreate(request, env, account);
     if (url.pathname === '/api/account/presence' && request.method === 'POST') return updatePresence(request, env, account);
     if (url.pathname === '/api/account/friends' && request.method === 'GET') return friendsList(env, account);
-    if (url.pathname === '/api/account/friends' && request.method === 'POST') return friendCreate(request, env, account);
+    if (url.pathname === '/api/account/friends' && request.method === 'POST') return friendCreate(request, env, account, context);
+    const friendMessagesReadMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)\/messages\/read$/);
+    if (friendMessagesReadMatch && request.method === 'POST') {
+      return friendMessagesRead(env, account, decodeURIComponent(friendMessagesReadMatch[1]));
+    }
     const friendMessagesMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)\/messages$/);
     if (friendMessagesMatch && (request.method === 'GET' || request.method === 'POST')) {
-      return friendMessages(request, env, account, decodeURIComponent(friendMessagesMatch[1]));
+      return friendMessages(request, env, account, decodeURIComponent(friendMessagesMatch[1]), context);
     }
     const friendTradesMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)\/trades$/);
     if (friendTradesMatch && (request.method === 'GET' || request.method === 'POST')) {
-      return friendTrades(request, env, account, decodeURIComponent(friendTradesMatch[1]));
+      return friendTrades(request, env, account, decodeURIComponent(friendTradesMatch[1]), context);
     }
     const friendTradeSelectionMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)\/trades\/([^/]+)\/selection$/);
     if (friendTradeSelectionMatch && request.method === 'PATCH') {
@@ -2013,7 +2160,7 @@ export async function handleAccountRequest(request: Request, env: AccountEnv): P
     // PATCH /api/account/room-invitations/:id (accept/decline) is handled by the
     // Worker (cloudflare-worker.ts), because it must validate against the room DO.
     const friendMatch = url.pathname.match(/^\/api\/account\/friends\/([^/]+)$/);
-    if (friendMatch && request.method === 'PATCH') return friendUpdate(request, env, account, friendMatch[1]);
+    if (friendMatch && request.method === 'PATCH') return friendUpdate(request, env, account, friendMatch[1], context);
     return json({ error: 'not_found' }, 404);
   }
   return null;

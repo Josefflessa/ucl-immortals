@@ -155,6 +155,7 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
   };
   const positionLabel = fit === 'off' ? 'Fora de posição (−15%)' : 'Posição secundária (−5%)';
   const sourceDefs: Array<{ key: keyof StatBreakdown; icon: string; label: string }> = [
+    { key: 'album', icon: '⭐', label: 'Bônus do Álbum' },
     { key: 'chem', icon: '🔗', label: 'Química individual' },
     { key: 'position', icon: '🔁', label: positionLabel },
     { key: 'goalkeeper', icon: '🧤', label: 'Aptidão no gol (jogador de linha)' },

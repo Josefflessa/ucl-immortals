@@ -19,6 +19,10 @@ interface FriendActionsProps {
   friendAvatarFrameKey?: string | null;
   friendOnline: boolean;
   friendAvailable: boolean;
+  unreadMessageCount?: number;
+  initiallyOpenChat?: boolean;
+  onInitialChatOpened?: () => void;
+  onMessagesRead?: (friendshipId: string) => void;
   onRemove: () => void;
   removeDisabled?: boolean;
 }
@@ -117,7 +121,7 @@ function ProfilePhoto({ profile, sizeClassName = 'size-8' }: { profile: ProfileP
   </span></FramedAvatar>;
 }
 
-export default function FriendActions({ friendshipId, friendName, friendAvatarKey, friendAvatarBackgroundKey, friendAvatarUrl, friendAvatarFrameKey, friendOnline, friendAvailable, onRemove, removeDisabled = false }: FriendActionsProps) {
+export default function FriendActions({ friendshipId, friendName, friendAvatarKey, friendAvatarBackgroundKey, friendAvatarUrl, friendAvatarFrameKey, friendOnline, friendAvailable, unreadMessageCount = 0, initiallyOpenChat = false, onInitialChatOpened, onMessagesRead, onRemove, removeDisabled = false }: FriendActionsProps) {
   const { account } = useAccount();
   const [chatOpen, setChatOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
@@ -133,6 +137,15 @@ export default function FriendActions({ friendshipId, friendName, friendAvatarKe
     avatarUrl: account?.avatarUrl,
     avatarFrameKey: account?.avatarFrameKey,
   };
+  const unreadMessageDescription = unreadMessageCount === 1
+    ? '1 mensagem não lida'
+    : `${unreadMessageCount} mensagens não lidas`;
+
+  useEffect(() => {
+    if (!initiallyOpenChat) return;
+    setChatOpen(true);
+    onInitialChatOpened?.();
+  }, [initiallyOpenChat, onInitialChatOpened]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -174,13 +187,13 @@ export default function FriendActions({ friendshipId, friendName, friendAvatarKe
   return (
     <>
       <div ref={rootRef} className="shrink-0">
-        <Button type="button" intent="ghost" aria-haspopup="menu" aria-expanded={menuOpen} aria-label={`Mais opções para ${friendName}`} title="Mais opções" onClick={() => setMenuOpen(value => !value)} className="size-9 min-h-9 rounded-lg border border-[var(--ui-line-subtle)] px-0 text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]">
-          <MoreHorizontal size={19} aria-hidden="true" />
+        <Button type="button" intent="ghost" aria-haspopup="menu" aria-expanded={menuOpen} aria-label={unreadMessageCount > 0 ? `Mais opções para ${friendName}, ${unreadMessageDescription}` : `Mais opções para ${friendName}`} title="Mais opções" onClick={() => setMenuOpen(value => !value)} className="size-9 min-h-9 rounded-lg border border-[var(--ui-line-subtle)] px-0 text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]">
+          <span className="relative inline-flex items-center justify-center"><MoreHorizontal size={19} aria-hidden="true" />{unreadMessageCount > 0 ? <span aria-hidden="true" className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-[10px] font-bold leading-none text-white">{unreadMessageCount > 9 ? '9+' : unreadMessageCount}</span> : null}</span>
         </Button>
         {menuOpen && menuPosition ? createPortal(
           <div ref={menuRef} role="menu" aria-label={`Opções para ${friendName}`} className="fixed z-[10000] w-48 overflow-hidden rounded-xl border border-[var(--ui-line-strong)] bg-[var(--ui-surface-1)] p-1 shadow-2xl" style={{ top: menuPosition.top, left: menuPosition.left, maxHeight: 'calc(100dvh - 16px)' }}>
-            <button type="button" role="menuitem" onClick={() => { closeMenu(); setChatOpen(true); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-2)]">
-              <MessageCircle size={16} aria-hidden="true" className="text-[var(--ui-text-muted)]" /> Conversar
+            <button type="button" role="menuitem" aria-label={unreadMessageCount > 0 ? `Conversar com ${friendName}, ${unreadMessageDescription}` : `Conversar com ${friendName}`} onClick={() => { closeMenu(); setChatOpen(true); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-2)]">
+              <MessageCircle size={16} aria-hidden="true" className="text-[var(--ui-text-muted)]" /> <span className="flex-1">Conversar</span>{unreadMessageCount > 0 ? <span aria-hidden="true" className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--ui-danger)] px-1 text-[10px] font-bold leading-none text-white">{unreadMessageCount > 9 ? '9+' : unreadMessageCount}</span> : null}
             </button>
             <button type="button" role="menuitem" title={!friendAvailable ? `Você pode consultar negociações; para iniciar uma nova, ${friendOnline ? 'seu amigo precisa estar disponível' : 'seu amigo precisa ficar online e disponível'}.` : undefined} onClick={() => { closeMenu(); setTradeOpen(true); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-2)]">
               <ArrowLeftRight size={16} aria-hidden="true" className="text-[var(--ui-text-muted)]" /> <span className="flex-1">Trocar cartas</span>{!friendAvailable ? <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-faint)]">{friendOnline ? 'Ocupado' : 'Offline'}</span> : null}
@@ -193,13 +206,13 @@ export default function FriendActions({ friendshipId, friendName, friendAvatarKe
           document.body,
         ) : null}
       </div>
-      {chatOpen ? <FriendChatDialog open onOpenChange={setChatOpen} friendshipId={friendshipId} friendName={friendName} friendProfile={friendProfile} viewerProfile={viewerProfile} accountId={account?.id ?? ''} /> : null}
+      {chatOpen ? <FriendChatDialog open onOpenChange={setChatOpen} friendshipId={friendshipId} friendName={friendName} friendProfile={friendProfile} viewerProfile={viewerProfile} accountId={account?.id ?? ''} hasUnreadMessages={unreadMessageCount > 0} onMessagesRead={onMessagesRead} /> : null}
       {tradeOpen ? <FriendTradeDialog open onOpenChange={setTradeOpen} friendshipId={friendshipId} friendName={friendName} friendOnline={friendOnline} friendAvailable={friendAvailable} accountId={account?.id ?? ''} /> : null}
     </>
   );
 }
 
-function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friendProfile, viewerProfile, accountId }: {
+function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friendProfile, viewerProfile, accountId, hasUnreadMessages, onMessagesRead }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   friendshipId: string;
@@ -207,7 +220,14 @@ function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friend
   friendProfile: ProfilePhotoData;
   viewerProfile: ProfilePhotoData;
   accountId: string;
+  hasUnreadMessages: boolean;
+  onMessagesRead?: (friendshipId: string) => void;
 }) {
+  const { getFriends } = useAccount();
+  const hasUnreadMessagesRef = useRef(hasUnreadMessages);
+  const onMessagesReadRef = useRef(onMessagesRead);
+  hasUnreadMessagesRef.current = hasUnreadMessages;
+  onMessagesReadRef.current = onMessagesRead;
   const [messages, setMessages] = useState<FriendMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
@@ -215,6 +235,7 @@ function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friend
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const route = `/api/account/friends/${encodeURIComponent(friendshipId)}/messages`;
+  const readRoute = `${route}/read`;
 
   useEffect(() => {
     if (!open) return;
@@ -222,8 +243,15 @@ function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friend
     const refresh = async (initial: boolean) => {
       if (initial) setLoading(true);
       try {
-        const result = await api<{ messages: FriendMessage[] }>(route);
-        if (active) { setMessages(result.messages); setError(''); }
+        const result = await api<{ messages: FriendMessage[] }>(readRoute, { method: 'POST', body: '{}' });
+        if (active) {
+          setMessages(result.messages);
+          setError('');
+          if (initial) {
+            void getFriends().catch(() => undefined);
+            if (hasUnreadMessagesRef.current) onMessagesReadRef.current?.(friendshipId);
+          }
+        }
       } catch (cause) {
         if (active) setError(socialError(cause, 'Não foi possível carregar as mensagens.'));
       } finally {
@@ -233,7 +261,7 @@ function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friend
     void refresh(true);
     const timer = window.setInterval(() => { void refresh(false); }, 5000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [open, route]);
+  }, [open, readRoute, getFriends]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [messages, open]);
 

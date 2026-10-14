@@ -13,8 +13,8 @@ import { cn } from '../lib/utils';
 
 export default function AchievementsPage() {
   const { dispatch } = useGame();
-  const { account, loading, getOwnAchievements } = useAccount();
-  const [payload, setPayload] = useState<AchievementsPayload | null>(null);
+  const { account, loading, getOwnAchievements, peekOwnAchievements } = useAccount();
+  const [payload, setPayload] = useState<AchievementsPayload | null>(() => peekOwnAchievements());
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const accountId = account?.id ?? null;
@@ -27,12 +27,14 @@ export default function AchievementsPage() {
   useEffect(() => {
     if (!accountId) return;
     let active = true;
+    const cached = peekOwnAchievements();
+    setPayload(cached);
     setError('');
     void getOwnAchievements()
       .then(result => { if (active) setPayload(result); })
       .catch(err => { if (active) setError(err instanceof Error ? err.message : 'Não foi possível carregar as conquistas.'); });
     return () => { active = false; };
-  }, [accountId, attempt, getOwnAchievements]);
+  }, [accountId, attempt, getOwnAchievements, peekOwnAchievements]);
 
   const unlocked = payload?.achievements.filter(state => state.level > 0).length ?? 0;
 
@@ -48,7 +50,7 @@ export default function AchievementsPage() {
             </span>
           ) : undefined}
         />
-        {error ? (
+        {error && !payload ? (
           <StatusBanner tone="danger" title="Não foi possível carregar as conquistas">
             {error}{' '}
             <Button type="button" intent="ghost" onClick={() => setAttempt(value => value + 1)} className="ml-1 min-h-8 px-2 text-xs">TENTAR NOVAMENTE</Button>
@@ -58,7 +60,13 @@ export default function AchievementsPage() {
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-[104px] w-full rounded-xl" />)}</div>
           </div>
         ) : (
+          <>
+          {error ? <StatusBanner tone="warning" title="As conquistas podem estar desatualizadas">
+            {error}{' '}
+            <Button type="button" intent="ghost" onClick={() => setAttempt(value => value + 1)} className="ml-1 min-h-8 px-2 text-xs">TENTAR NOVAMENTE</Button>
+          </StatusBanner> : null}
           <AchievementsSection payload={payload} heading={false} />
+          </>
         )}
       </PageContainer>
       {account ? <AccountTabBar

@@ -144,6 +144,7 @@ export function getChemistryLinks(players: (Player | undefined)[], coachId: stri
 // ============================================================
 export interface StatBreakdown {
   base: number;       // raw attribute
+  album: number;      // ⭐ locked competition Album bonus applied to every attribute
   chem: number;       // delta from the individual-chemistry multiplier (pura, sem penalidade de posição)
   position: number;   // 🔁 penalidade de posição (2ª = −5% / fora = −15%; 0 na nativa)
   goalkeeper: number; // 🧤 aptidão no gol — ajuste exclusivo da DEF de jogadores de linha
@@ -270,7 +271,7 @@ export function getCoachModifiersForPlayer(
       modifiers.vision += 5;
       modifiers.activeEffects.push("DNA Guardiola: +5 Passe/Visão (MC)");
     }
-    if (player.vision >= 80) {
+    if (player.vision + (player.competitionAlbumLevel ?? 0) >= 80) {
       const b = coachPrime ? 7 : 3;
       modifiers.pace += b;
       modifiers.shooting += b;
@@ -306,7 +307,7 @@ export function getCoachModifiersForPlayer(
       modifiers.activeEffects.push("Muralha Mourinho" + (coachPrime ? " Prime" : "") + ": +" + b + " Defesa");
     }
   } else if (coachId === 'ancelotti') {
-    if (player.overall >= 85) {
+    if (player.overall + (player.competitionAlbumLevel ?? 0) >= 85) {
       const b = 4;
       modifiers.pace += b;
       modifiers.shooting += b;
@@ -420,8 +421,10 @@ export function getPlayerEffectiveStats(
   // Penalidade de posição: fora = −15%; secundária = −5%; nativa = 0%.
   const posMult = isOOP ? oopMult : (isSecondary ? SECONDARY_STAT_MULT : 1);
 
-  const applyMult = (base: number) => Math.round(base * chemMult * posMult);
-  const chemOnly = (base: number) => Math.round(base * chemMult);
+  const albumBonus = player.competitionAlbumLevel ?? 0;
+  const withAlbum = (base: number) => base + albumBonus;
+  const applyMult = (base: number) => Math.round(withAlbum(base) * chemMult * posMult);
+  const chemOnly = (base: number) => Math.round(withAlbum(base) * chemMult);
 
   const modifiers = getCoachModifiersForPlayer(player, coachId, context);
   const chemBonus = getChemistryBonus(teamChemTotal);
@@ -502,7 +505,8 @@ export function getPlayerEffectiveStats(
   // barring the rare Math.max(1, …) floor). Lets the UI show where each point comes from.
   const mkBreak = (base: number, mod: number, attr: AttrKey, goalkeeper = 0): StatBreakdown => ({
     base,
-    chem: chemOnly(base) - base,                 // só química (sem penalidade de posição)
+    album: albumBonus,
+    chem: chemOnly(base) - withAlbum(base),       // só química (sem penalidade de posição)
     position: applyMult(base) - chemOnly(base),  // 🔁 penalidade de posição (2ª = −5% / fora = −15%)
     goalkeeper,
     coach: mod,
@@ -612,7 +616,8 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     let targets = (m.martirTargets ?? []).filter(id => id !== m.id && xi.some(p => p.id === id)).slice(0, 2);
     if (targets.length < 2) {
       const fill = xi.filter(p => p.id !== m.id && !targets.includes(p.id))
-        .sort((a, b) => b.overall - a.overall).map(p => p.id);
+        .sort((a, b) => (b.overall + (b.competitionAlbumLevel ?? 0)) - (a.overall + (a.competitionAlbumLevel ?? 0)))
+        .map(p => p.id);
       targets = [...targets, ...fill].slice(0, 2);
     }
     for (const id of targets) contribute(id, { type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: MARTIR_TARGET_BOOST, perStat: {} });
@@ -754,7 +759,7 @@ export function getTeamEffectiveStats(
  * count (Conquistador) — belongs to the team and is recalculated on a new one.
  */
 const CARD_INTRINSIC_SOURCES = [
-  'trait', 'train', 'evolve', 'specialization', 'prodigio', 'resiliente', 'goleador',
+  'album', 'trait', 'train', 'evolve', 'specialization', 'prodigio', 'resiliente', 'goleador',
   'garcom', 'arrogante', 'padrinho', 'lapidado', 'pipoqueiro',
 ] as const;
 const CARD_ATTRS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'] as const;
@@ -858,7 +863,10 @@ export function getFreeKickTaker(team: Team, excludedIds?: ReadonlySet<string>):
   }
   const specialist = available.find(isSpecialist);
   if (specialist) return specialist;
-  return [...pool].sort((a, b) => (b.shooting + b.composure) - (a.shooting + a.composure))[0];
+  return [...pool].sort((a, b) =>
+    (b.shooting + b.composure + 2 * (b.competitionAlbumLevel ?? 0))
+      - (a.shooting + a.composure + 2 * (a.competitionAlbumLevel ?? 0))
+  )[0];
 }
 
 // Who gets on the end of a corner — a WEIGHTED RANDOM pick, not a fixed player.
@@ -871,7 +879,7 @@ export function getHeaderTarget(team: Team, excludedIds?: ReadonlySet<string>): 
   const pool = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const cand = pool.length > 0 ? pool : active;
   const weighted = cand.map(p => {
-    let w = (p.physical + p.shooting) / 2;                           // base aerial threat
+    let w = (p.physical + p.shooting + 2 * (p.competitionAlbumLevel ?? 0)) / 2; // base aerial threat
     const role = matchRoleForPlayer(team, p);
     if (['CB', 'ST'].includes(role)) w *= 1.8; // these crash the box
     else if (['LB', 'RB', 'CDM', 'CM'].includes(role)) w *= 0.7;
