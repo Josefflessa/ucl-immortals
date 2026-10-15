@@ -294,8 +294,8 @@ export const SHOP_PACK_PRICE: Partial<Record<AlbumPackTier, number>> = {
   bronze: 60,
   silver: 120,
   gold: 250,
-  legendary: 450,
-  immortal: 800,
+  legendary: 400,
+  immortal: 700,
 };
 
 /** One card from the rotating weekly banner. Rates sum to 100%. */

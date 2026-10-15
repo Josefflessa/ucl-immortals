@@ -81,6 +81,45 @@ const FEATURED_LEGENDARY_COUNT = 4;
 const FEATURED_IMMORTAL_COUNT = 4;
 const FEATURED_UNIQUE_COUNT = 1;
 
+function seededRandom(seedText: string): () => number {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < seedText.length; index++) {
+    hash = Math.imul(hash ^ seedText.charCodeAt(index), 0x01000193);
+  }
+  let state = hash | 0;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Each banner gets its own stable daily shuffle; one banner never filters the other. */
+function selectFeaturedCards(pool: readonly string[], count: number, seed: string): string[] {
+  const shuffled = [...pool].sort();
+  const rand = seededRandom(seed);
+  for (let index = shuffled.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(rand() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
+function featuredPlayerCards(rarity: Rarity, count: number, dayStart: string, bannerId: 'banner-1' | 'banner-2'): string[] {
+  const pool = PLAYERS.filter(card => card.rarity === rarity).map(card => card.id);
+  return selectFeaturedCards(pool, count, `${bannerId}:${dayStart}:${rarity}`);
+}
+
+function dailyFeaturedCards(dayStart: string): Record<Rarity, string[]> {
+  const cards = Object.fromEntries(BANNER_RARITIES.map(rarity => [rarity, []])) as Record<Rarity, string[]>;
+  for (const [rarity, count] of Object.entries(DAILY_FEATURED_COUNTS) as [Rarity, number][]) {
+    cards[rarity] = featuredPlayerCards(rarity, count, dayStart, 'banner-1');
+  }
+  return cards;
+}
+
 /** Stable São Paulo day id and deterministic Banner 2 lineup, shared by all accounts. */
 export function weeklyBannerOffer(now = Date.now()): WeeklyBannerOffer {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -88,7 +127,6 @@ export function weeklyBannerOffer(now = Date.now()): WeeklyBannerOffer {
   }).formatToParts(new Date(now));
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
   const localDate = new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
-  const dayIndex = Math.floor((localDate.getTime() - Date.UTC(1970, 0, 1)) / DAY_MS);
   const dayStart = localDate.toISOString().slice(0, 10);
   const cards = {} as Record<Rarity, string[]>;
   const odds = { ...WEEKLY_BANNER_ODDS };
@@ -101,22 +139,15 @@ export function weeklyBannerOffer(now = Date.now()): WeeklyBannerOffer {
     if (rarity === 'unique') {
       const uniquePool = [...STORE_UNIQUE_CARDS].sort((a, b) => a.id.localeCompare(b.id));
       const count = Math.min(FEATURED_UNIQUE_COUNT, uniquePool.length);
-      const start = uniquePool.length ? ((dayIndex * FEATURED_UNIQUE_COUNT) % uniquePool.length + uniquePool.length) % uniquePool.length : 0;
-      cards.unique = Array.from({ length: count }, (_, index) => uniquePool[(start + index) % uniquePool.length].id);
+      cards.unique = selectFeaturedCards(uniquePool.map(card => card.id), count, `banner-2:${dayStart}:unique`);
       continue;
     }
     if (rarity !== 'legendary' && rarity !== 'immortal') {
       cards[rarity] = [];
       continue;
     }
-    const pool = PLAYERS
-      .filter(card => card.rarity === rarity)
-      .map(card => card.id)
-      .sort();
     const featuredCount = rarity === 'legendary' ? FEATURED_LEGENDARY_COUNT : FEATURED_IMMORTAL_COUNT;
-    const count = Math.min(featuredCount, pool.length);
-    const start = pool.length ? ((dayIndex * featuredCount) % pool.length + pool.length) % pool.length : 0;
-    cards[rarity] = Array.from({ length: count }, (_, index) => pool[(start + index) % pool.length]);
+    cards[rarity] = featuredPlayerCards(rarity, featuredCount, dayStart, 'banner-2');
   }
   return {
     dayStart,
@@ -143,19 +174,11 @@ export function dailyBannerOffer(now = Date.now()): DailyBannerOffer {
   }).formatToParts(new Date(now));
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
   const localDate = new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
-  const dayIndex = Math.floor((localDate.getTime() - Date.UTC(1970, 0, 1)) / DAY_MS);
-  const cards = {} as Record<Rarity, string[]>;
-
-  for (const rarity of BANNER_RARITIES) cards[rarity] = [];
-  for (const [rarity, featuredCount] of Object.entries(DAILY_FEATURED_COUNTS) as [Rarity, number][]) {
-    const pool = PLAYERS.filter(card => card.rarity === rarity).map(card => card.id).sort();
-    const count = Math.min(featuredCount, pool.length);
-    const start = pool.length ? ((dayIndex * featuredCount) % pool.length + pool.length) % pool.length : 0;
-    cards[rarity] = Array.from({ length: count }, (_, index) => pool[(start + index) % pool.length]);
-  }
+  const dayStart = localDate.toISOString().slice(0, 10);
+  const cards = dailyFeaturedCards(dayStart);
 
   return {
-    dayStart: localDate.toISOString().slice(0, 10),
+    dayStart,
     // São Paulo's daily reset is midnight (UTC−3).
     endsAt: localDate.getTime() + DAY_MS + 3 * 60 * 60 * 1000,
     price: DAILY_BANNER_PRICE,

@@ -8,6 +8,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;
+  /* Every style inherits the same size from its surrounding UI. */
   line-height: 1.25;
   /* Room for the glows: overflow:hidden (needed for the ellipsis) would
      otherwise cut text-shadow at the box edge into a visible rectangle. */
@@ -33,9 +34,8 @@
 }
 @keyframes styled-name-shine { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 
-/* Arcade: neon green pixels. The font is wide, so it runs smaller. */
+/* Arcade: neon green pixels. */
 .styled-name--arcade {
-  font-size: .62em;
   color: #39ff14;
   text-shadow: 3px 3px 0 #0a5c00, 0 0 12px rgba(57, 255, 20, .7);
 }
@@ -55,7 +55,6 @@
 
 /* Neon: double-line pink. */
 .styled-name--neon {
-  font-size: .78em;
   color: #f472b6;
   text-shadow: 0 0 10px rgba(244, 114, 182, .75);
 }
@@ -69,7 +68,6 @@
 
 /* Tático: condensed stadium lettering with a subtle gold edge. */
 .styled-name--tatico {
-  font-size: .9em;
   font-weight: 700;
   letter-spacing: .025em;
   color: #f5d76e;
@@ -78,7 +76,6 @@
 
 /* Futurista: geometric cyan lettering. */
 .styled-name--futurista {
-  font-size: .76em;
   font-weight: 700;
   letter-spacing: .035em;
   color: #70e5ff;
@@ -112,9 +109,9 @@
 .styled-name--sm.styled-name--lendario .styled-name__text { -webkit-text-stroke: 0; background-position: 40% 0; }
 .styled-name--sm.styled-name--arcade { text-shadow: 1px 1px 0 #0a5c00; }
 .styled-name--sm.styled-name--assombrado { filter: drop-shadow(0 1px 0 #052e16); }
-.styled-name--sm.styled-name--neon { text-shadow: none; font-size: .82em; }
+.styled-name--sm.styled-name--neon { text-shadow: none; }
 .styled-name--sm.styled-name--pirata { -webkit-text-stroke: 0; text-shadow: 1px 1px 0 #3d2410; }
-.styled-name--sm.styled-name--futurista { font-size: .82em; text-shadow: 0 1px 0 #0b2540; }
+.styled-name--sm.styled-name--futurista { text-shadow: 0 1px 0 #0b2540; }
 
 @media (prefers-reduced-motion: reduce) {
   .styled-name, .styled-name__text { animation: none; }

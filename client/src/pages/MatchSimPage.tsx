@@ -103,10 +103,6 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
   const isKnockout = !!activeKnockoutMatch;
   const isFinal = activeKnockoutMatch?.round === 'final';
-  const isCompetitionEndMatch = isFinal && (
-    state.knockoutBracket?.final?.isSingleLeg === true
-    || (legNumber ?? state.knockoutBracket?.currentLeg ?? 1) === 2
-  );
 
   // 1. Teams are fixed for the whole match (there are no substitutions).
   const [homeTeam] = useState<Team>(() => ({ ...initialHome }));
@@ -693,12 +689,6 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       if (state.mode === 'online') notifyMatchWatchedOnline('league');
       dispatch({ type: 'FINISH_LEAGUE_MATCH', result: replayResult });
     }
-  };
-
-  const handleEndCompetition = () => {
-    if (state.mode !== 'solo' || !activeKnockoutMatch || !isCompetitionEndMatch) return;
-    dispatch({ type: 'FINISH_KNOCKOUT_MATCH', result: replayResult });
-    dispatch({ type: 'ADVANCE_KNOCKOUT' });
   };
 
   // Spectators (watching someone else's tie) can bail out at any moment — they aren't forced to
@@ -1455,7 +1445,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           >
             {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </Button>
-          {!isFinished && !(penaltyMode && penaltyWinner) && !broadcastMode && state.mode !== 'online' && !isCompetitionEndMatch && (
+          {!isFinished && !(penaltyMode && penaltyWinner) && !broadcastMode && state.mode !== 'online' && (
             <Button
               type="button"
               intent="ghost"
@@ -1466,17 +1456,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             </Button>
           )}
 
-          {state.mode === 'solo' && isCompetitionEndMatch ? (
-            <Button
-              type="button"
-              intent="primary"
-              size="large"
-              onClick={handleEndCompetition}
-              className="px-6 sm:px-8"
-            >
-              ENCERRAR COMPETIÇÃO
-            </Button>
-          ) : (isFinished || (penaltyMode && penaltyWinner)) && (
+          {(isFinished || (penaltyMode && penaltyWinner)) && (
             <Button
               type="button"
               intent="primary"

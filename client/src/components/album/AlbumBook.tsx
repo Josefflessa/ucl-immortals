@@ -313,7 +313,12 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
       const cardB = albumCard(b);
       let result = 0;
       if (sort === 'name') result = (cardA?.shortName ?? '').localeCompare(cardB?.shortName ?? '', 'pt-BR');
-      else if (sort === 'rarity') result = RARITY_SORT_ORDER.indexOf(cardA?.rarity ?? 'bronze') - RARITY_SORT_ORDER.indexOf(cardB?.rarity ?? 'bronze');
+      else if (sort === 'rarity') {
+        result = RARITY_SORT_ORDER.indexOf(cardA?.rarity ?? 'bronze') - RARITY_SORT_ORDER.indexOf(cardB?.rarity ?? 'bronze');
+        if (result !== 0) return direction === 'asc' ? result : -result;
+        return (cardB?.overall ?? 0) - (cardA?.overall ?? 0)
+          || (CATALOG.stickers.get(a)?.number ?? 0) - (CATALOG.stickers.get(b)?.number ?? 0);
+      }
       else result = (CATALOG.stickers.get(a)?.number ?? 0) - (CATALOG.stickers.get(b)?.number ?? 0);
       return (direction === 'asc' ? result : -result) || (CATALOG.stickers.get(a)?.number ?? 0) - (CATALOG.stickers.get(b)?.number ?? 0);
     });
@@ -508,7 +513,11 @@ function OwnedCardsView() {
         if (sort === 'name') result = a.card.shortName.localeCompare(b.card.shortName, 'pt-BR');
         else if (sort === 'level') result = stickerLevel(album, a.id) - stickerLevel(album, b.id);
         else if (sort === 'spares') result = a.copies.spare - b.copies.spare;
-        else if (sort === 'rarity') result = OWNED_RARITIES.indexOf(a.card.rarity) - OWNED_RARITIES.indexOf(b.card.rarity);
+        else if (sort === 'rarity') {
+          result = OWNED_RARITIES.indexOf(a.card.rarity) - OWNED_RARITIES.indexOf(b.card.rarity);
+          if (result !== 0) return direction === 'asc' ? result : -result;
+          return b.card.overall - a.card.overall || a.sticker.number - b.sticker.number;
+        }
         else result = a.sticker.number - b.sticker.number;
         if (result === 0) result = a.sticker.number - b.sticker.number;
         return direction === 'asc' ? result : -result;

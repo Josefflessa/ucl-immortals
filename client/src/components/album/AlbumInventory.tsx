@@ -74,7 +74,13 @@ export default function AlbumInventory() {
       let result = 0;
       if (sort === 'copies') result = a.spare - b.spare;
       else if (sort === 'name') result = (albumCard(a.id)?.shortName ?? '').localeCompare(albumCard(b.id)?.shortName ?? '', 'pt-BR');
-      else if (sort === 'rarity') result = SPARE_RARITIES.indexOf(albumCard(a.id)?.rarity ?? 'bronze') - SPARE_RARITIES.indexOf(albumCard(b.id)?.rarity ?? 'bronze');
+      else if (sort === 'rarity') {
+        const cardA = albumCard(a.id);
+        const cardB = albumCard(b.id);
+        result = SPARE_RARITIES.indexOf(cardA?.rarity ?? 'bronze') - SPARE_RARITIES.indexOf(cardB?.rarity ?? 'bronze');
+        if (result !== 0) return direction === 'asc' ? result : -result;
+        return (cardB?.overall ?? 0) - (cardA?.overall ?? 0) || a.number - b.number;
+      }
       else result = a.number - b.number;
       if (result === 0) result = a.number - b.number;
       return direction === 'asc' ? result : -result;
