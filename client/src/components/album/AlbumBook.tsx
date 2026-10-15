@@ -66,42 +66,58 @@ function PageRewardBanner({ page, complete, completionCount, missing }: { page: 
     ? completionCount > 1 ? `${items.map(itemDescription).join(' + ')} adicionado ao inventário.` : page.kind === 'club' ? 'Moldura e fundo de perfil desbloqueados. Use em Conta → Aparência.' : `${items.map(itemDescription).join(' + ')} adicionado ao inventário.`
     : returning ? `Faltam ${missing} ${missing === 1 ? 'carta' : 'cartas'} para completar a página e ganhar ${items.map(itemDescription).join(' + ')}.`
       : `Faltam ${missing} ${missing === 1 ? 'carta' : 'cartas'} para desbloquear ${page.kind === 'club' ? `a moldura e o fundo de perfil do ${page.title}` : items.map(itemDescription).join(' + ')}.`;
+  const competitionBonus = (
+    <div className="flex items-center gap-2.5 border-t border-[#E9C46A]/15 bg-[#E9C46A]/[.035] px-3 py-2">
+      <Sparkles size={14} className="shrink-0 text-[#E9C46A]" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[9px] font-bold uppercase tracking-[0.13em] text-[#E9C46A]">Bônus da página completa</div>
+        <p className="mt-0.5 text-[11px] leading-snug text-[var(--ui-text-muted)]">+3 em todos os atributos dos jogadores desta página.</p>
+      </div>
+      <span className="shrink-0 rounded-md border border-[#E9C46A]/30 bg-[#E9C46A]/10 px-2 py-0.5 text-[11px] font-black tabular-nums text-[#E9C46A]">+3</span>
+    </div>
+  );
   if (page.kind === 'club' && page.clubId) {
     return (
-      <ClubCover clubId={page.clubId} className={cn('rounded-xl border border-[var(--ui-line-subtle)]', !complete && !returning && 'grayscale-[.85] opacity-70')}>
-        <div aria-hidden="true" className="absolute inset-0 z-0 bg-[linear-gradient(90deg,transparent_12%,rgba(7,9,16,.68)_42%,rgba(7,9,16,.88)_100%)]" />
-        <div className="relative z-10 flex min-h-[112px] items-center gap-4 px-5 py-4 sm:min-h-[132px] sm:px-7">
-          <span className="relative block size-14 shrink-0 rounded-full bg-[#1A1B29] sm:size-16">
-            <ClubFrameRing clubId={page.clubId} className="absolute" style={{ left: '-20%', top: '-20%', width: '140%', height: '140%' }} />
-          </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#E9C46A]">
-              {complete ? <Check size={13} aria-hidden="true" /> : returning ? <Gift size={12} aria-hidden="true" /> : <Lock size={12} aria-hidden="true" />}
-              {stateLabel}
+      <div className="overflow-hidden rounded-xl border border-[var(--ui-line-subtle)]">
+        <ClubCover clubId={page.clubId} className={cn(!complete && !returning && 'grayscale-[.85] opacity-70')}>
+          <div aria-hidden="true" className="absolute inset-0 z-0 bg-[linear-gradient(90deg,transparent_12%,rgba(7,9,16,.68)_42%,rgba(7,9,16,.88)_100%)]" />
+          <div className="relative z-10 flex min-h-[92px] items-center gap-3 px-3.5 py-3 sm:min-h-[100px] sm:px-5">
+            <span className="relative block size-12 shrink-0 rounded-full bg-[#1A1B29] sm:size-14">
+              <ClubFrameRing clubId={page.clubId} className="absolute" style={{ left: '-20%', top: '-20%', width: '140%', height: '140%' }} />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#E9C46A]">
+                {complete ? <Check size={12} aria-hidden="true" /> : returning ? <Gift size={11} aria-hidden="true" /> : <Lock size={11} aria-hidden="true" />}
+                {stateLabel}
+              </div>
+              <div className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-white">
+                {returning ? <ItemArt itemKey={CLUB_PAGE_RECOMPLETE[0]} height={30} /> : null}
+                <span>{returning ? itemDescription(CLUB_PAGE_RECOMPLETE[0]) : `Moldura e fundo de perfil do ${page.title}`}</span>
+              </div>
+              <div className="mt-0.5 text-[11px] leading-snug text-white/80">{subtitle}</div>
             </div>
-            <div className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-white">
-              {returning ? <ItemArt itemKey={CLUB_PAGE_RECOMPLETE[0]} height={34} /> : null}
-              <span>{returning ? itemDescription(CLUB_PAGE_RECOMPLETE[0]) : `Moldura e fundo de perfil do ${page.title}`}</span>
-            </div>
-            <div className="mt-0.5 text-xs text-white/80">{subtitle}</div>
           </div>
-        </div>
-      </ClubCover>
+        </ClubCover>
+        {competitionBonus}
+      </div>
     );
   }
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-[var(--ui-line-subtle)] px-5 py-4">
-      <div className="flex shrink-0 items-end gap-1">{items.map((key, i) => <ItemArt key={`${key}:${i}`} itemKey={key} height={56} />)}</div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#E9C46A]">
-          {complete ? <Check size={13} aria-hidden="true" /> : returning ? <Gift size={12} aria-hidden="true" /> : <Lock size={12} aria-hidden="true" />}
-          {stateLabel}
+    <div className="overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1,#0C0D16)]">
+      <div className="flex items-center gap-3 px-3.5 py-3">
+        <div className="flex shrink-0 items-end gap-1">{items.map((key, i) => <ItemArt key={`${key}:${i}`} itemKey={key} height={48} />)}</div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#E9C46A]">
+            {complete ? <Check size={12} aria-hidden="true" /> : returning ? <Gift size={11} aria-hidden="true" /> : <Lock size={11} aria-hidden="true" />}
+            {stateLabel}
+          </div>
+          <div className="mt-0.5 text-sm font-semibold text-[var(--ui-text)]">
+            <span>{items.map(itemDescription).join(' + ')}</span>
+          </div>
+          {!complete ? <div className="mt-0.5 text-[11px] leading-snug text-[var(--ui-text-muted)]">{subtitle}</div> : null}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-[var(--ui-text)]">
-          <span>{items.map(itemDescription).join(' + ')}</span>
-        </div>
-        {!complete ? <div className="mt-0.5 text-xs text-[var(--ui-text-muted)]">{subtitle}</div> : null}
       </div>
+      {competitionBonus}
     </div>
   );
 }
