@@ -10,13 +10,14 @@
 import { Check } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
-import { knockoutRoundLabel } from '@shared/game/gameEngine';
+import { getActiveKnockoutMatches, knockoutRoundLabel } from '@shared/game/gameEngine';
 
 type Tie = {
   id: string;
   homeTeamId: string;
   awayTeamId: string;
   played?: boolean;
+  isSingleLeg?: boolean;
   result?: { homeGoals: number; awayGoals: number; winner?: string } | null;
 };
 
@@ -42,6 +43,13 @@ export default function BracketTab() {
       (state.mode === 'online' && state.onlinePlayers.some(p => p.id === teamId && p.socketId === state.socketId)));
 
   const curIdx = roundOrder.indexOf(knockoutBracket.currentRound as any);
+  const activeTies = getActiveKnockoutMatches(knockoutBracket) as Tie[];
+  const activeTeamIds = new Set(activeTies.flatMap(tie => [tie.homeTeamId, tie.awayTeamId]));
+  const activeHumanPlayers = state.mode === 'online'
+    ? state.onlinePlayers.filter(player => player.connected && activeTeamIds.has(player.id))
+    : [];
+  const allActivePlayersWatched = activeHumanPlayers.length === 0
+    || activeHumanPlayers.every(player => state.onlineWatchedPlayers.includes(player.id));
 
   const tiesFor = (key: string): Tie[] => {
     if (key === 'quarters') return kb.quarterFinals || [];
@@ -88,12 +96,18 @@ export default function BracketTab() {
 
   const TieCard = ({ tie, status }: { tie: Tie | null; status: 'done' | 'active' | 'future' }) => {
     const hasTeams = !!tie && (!!tie.homeTeamId || !!tie.awayTeamId);
-    const decided = status === 'done' && !!tie?.result;
-    // Spoiler guard: only ever show a score for a FULLY decided (past) round.
-    const hideScore = !decided;
+    const decided = !!tie?.played && !!tie.result;
     const hp = isMe(tie?.homeTeamId || '');
     const ap = isMe(tie?.awayTeamId || '');
     const mine = hp || ap;
+    const activeTieWatched = state.mode === 'online'
+      ? allActivePlayersWatched
+      : !mine || (tie?.isSingleLeg === true
+        ? state.watchedKnockoutMatches.includes(tie.id)
+        : !!tie && state.watchedKnockoutMatches.includes(`${tie.id}_l1`) && state.watchedKnockoutMatches.includes(`${tie.id}_l2`));
+    // In solo, only the player's own tie waits for its replay; online results
+    // stay hidden until all connected participants in the active round watched.
+    const hideScore = status === 'future' || !decided || (status === 'active' && !activeTieWatched);
     const winner = tie?.result?.winner;
     return (
       <div className="ui-panel ui-panel--inset overflow-hidden"
@@ -114,7 +128,7 @@ export default function BracketTab() {
   return (
     <div>
       <div className="mb-3 text-sm leading-relaxed text-[var(--ui-text-muted)]">
-        Caminho até o título — seu time em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>. O placar da fase em andamento fica oculto até todos assistirem.
+        Caminho até o título — seu time em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>. O placar da fase em andamento aparece depois que os replays forem assistidos.
       </div>
       <div className="overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
         <div className="flex gap-3 min-w-max lg:mx-auto">

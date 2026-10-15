@@ -4,7 +4,7 @@ import { buildLeagueMatchKey, describeBet } from '@shared/game/bets';
 import { MAX_RESERVE_PLAYERS } from '@shared/game/gameEngine';
 import type { LeagueHub } from './useLeagueHub';
 import { CardIcon, InjuryIcon } from '../../components/game/StatusIcon';
-import { Ban, Check, CircleCheck, CircleX, Crown, Flag, Hourglass, Lock, LogOut, Play, Search, Target, TriangleAlert, Trophy, Users } from 'lucide-react';
+import { Ban, Check, CircleCheck, CircleX, Crown, Hourglass, Lock, LogOut, Play, Search, Target, TriangleAlert, Trophy, Users } from 'lucide-react';
 import { INLINE_ICON } from '../../components/game/inlineIcon';
 
 
@@ -408,7 +408,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                         className="w-full rounded-xl border px-4 py-3 text-sm font-black tracking-wider transition-colors hover:bg-white/5 sm:w-auto"
                         style={{ fontFamily: 'var(--font-game), sans-serif', borderColor: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}
                       >
-                        <Flag {...INLINE_ICON} />ENCERRAR COM RESUMO PARCIAL
+                        <Trophy {...INLINE_ICON} />ENCERRAR E VER RESULTADO FINAL
                       </button>
                     </div>
                   ) : (

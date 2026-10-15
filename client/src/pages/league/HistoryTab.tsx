@@ -213,7 +213,10 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                                 )}
                                 {tie.result?.winner && (
                                   <span className="text-[12px] font-bold" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>
-                                    {getTeamName(tie.result.winner)} avança{tie.result.penaltyWinner ? ` · pên ${tie.result.homePenalties}-${tie.result.awayPenalties}` : ''}
+                                    {historyPeriod?.koRound === 'final'
+                                      ? `${getTeamName(tie.result.winner)} é campeão`
+                                      : `${getTeamName(tie.result.winner)} avança`}
+                                    {tie.result.penaltyWinner ? ` · pên ${tie.result.homePenalties}-${tie.result.awayPenalties}` : ''}
                                   </span>
                                 )}
                               </div>

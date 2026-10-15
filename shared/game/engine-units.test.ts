@@ -28,7 +28,7 @@ import { stadiumFor } from './stadium';
 import { seededRandom, withRandomSource } from './random';
 import { edgeChance } from './engine/curves';
 import { DEFAULT_COMPETITION_FORMAT } from './competition';
-import { PLAYERS, UNIQUE_CARDS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
+import { PLAYERS, UNIQUE_CARDS, STORE_UNIQUE_CARDS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
 import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, canonicalClubName, clubIdForName, crestIdForClub, getCrest } from './crests';
 
@@ -1120,16 +1120,16 @@ describe('crest catalogue integrity', () => {
     expect(crestIdForClub('Fenerbahçe')).toBe('fenerbahce');
   });
   it('resolves a crest for every club represented in the player catalogue', () => {
-    const clubs = [...new Set([...PLAYERS, ...UNIQUE_CARDS].map(player => player.club))];
+    const clubs = [...new Set([...PLAYERS, ...UNIQUE_CARDS, ...STORE_UNIQUE_CARDS].map(player => player.club))];
     expect(clubs.filter(club => !crestIdForClub(club))).toEqual([]);
   });
   it('stamps every exported card with the same canonical club id used by the crest catalogue', () => {
-    for (const player of [...PLAYERS, ...UNIQUE_CARDS]) {
+    for (const player of [...PLAYERS, ...UNIQUE_CARDS, ...STORE_UNIQUE_CARDS]) {
       expect(player.clubId).toBe(clubIdForName(player.club));
     }
   });
-  it('keeps the Rogério Ceni Unique card connected to the São Paulo crest', () => {
-    const ceni = UNIQUE_CARDS.find(player => player.id === 'rogerio_ceni_unico');
+  it('keeps the Rogério Ceni store-exclusive Unique card connected to his base player and crest', () => {
+    const ceni = STORE_UNIQUE_CARDS.find(player => player.id === 'rogerio_ceni_unico');
     expect(ceni?.basePlayerId).toBe('rogerio_ceni');
     expect(ceni?.rarity).toBe('unique');
     expect(ceni?.club && crestIdForClub(ceni.club)).toBe('sao-paulo');

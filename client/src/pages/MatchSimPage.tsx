@@ -1218,6 +1218,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               pendingTeamId={penaltyKickPending}
               commentary={penaltyCommentary}
               winnerId={penaltyWinner}
+              isFinal={isFinal}
               onFinish={handleFinish}
             />
           ) : (

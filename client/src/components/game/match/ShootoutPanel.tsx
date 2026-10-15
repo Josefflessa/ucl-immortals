@@ -12,11 +12,12 @@ interface ShootoutPanelProps {
   pendingTeamId: string | null;
   commentary: string;
   winnerId: string | null;
+  isFinal?: boolean;
   onFinish: () => void;
 }
 
 export default function ShootoutPanel(props: ShootoutPanelProps) {
-  const { homeTeam, awayTeam, homeScore, awayScore, pendingTeamId, commentary, winnerId, onFinish } = props;
+  const { homeTeam, awayTeam, homeScore, awayScore, pendingTeamId, commentary, winnerId, isFinal = false } = props;
   const columns = [{ team: homeTeam, pens: props.penaltiesHome }, { team: awayTeam, pens: props.penaltiesAway }];
   return (
     <div className="flex-shrink-0 border-b px-3 sm:px-5 py-3" style={{ borderColor: 'rgba(255,215,0,0.25)', background: 'linear-gradient(165deg,#12121f,#0a0a14)' }}>
@@ -51,7 +52,9 @@ export default function ShootoutPanel(props: ShootoutPanelProps) {
       {winnerId && (
         <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mt-3 text-center">
           <div className="text-xl sm:text-2xl font-black text-yellow-500 mb-2 tracking-wider" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
-            {(winnerId === homeTeam.id ? homeTeam.name : awayTeam.name).toUpperCase()} AVANÇA!
+            {isFinal
+              ? `${(winnerId === homeTeam.id ? homeTeam.name : awayTeam.name).toUpperCase()} É CAMPEÃO!`
+              : `${(winnerId === homeTeam.id ? homeTeam.name : awayTeam.name).toUpperCase()} AVANÇA!`}
           </div>
         </motion.div>
       )}

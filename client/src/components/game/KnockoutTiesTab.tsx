@@ -95,7 +95,6 @@ export default function KnockoutTiesTab() {
   );
 
   const round = knockoutBracket.currentRound;
-  const wasEliminated = !!playerTeam && !isKnockoutTeamAlive(knockoutBracket, playerTeam.id);
 
   // 🟥🩹 Escalação: bloqueia jogar a perna com titular indisponível (sem troca automática).
   const iPlayThisRound = matches.some(m => isPlayerTeam(m.homeTeamId) || isPlayerTeam(m.awayTeamId));
@@ -130,8 +129,14 @@ export default function KnockoutTiesTab() {
     }
   };
   const label = knockoutRoundLabel(round, knockoutBracket.firstRoundSize);
-  const allPlayed = matches.length > 0 && matches.every(m => m.played);
+  // Match completion requires a result too; corrupted/restored state can have
+  // `played` without the result payload the reducer and server need to advance.
+  const allPlayed = matches.length > 0 && matches.every(m => m.played && !!m.result);
   const isFinal = round === 'final';
+  const competitionFinalCompleted = isFinal && allPlayed;
+  const wasEliminated = !!playerTeam
+    && !competitionFinalCompleted
+    && !isKnockoutTeamAlive(knockoutBracket, playerTeam.id);
   const isFinalSingleLeg = isFinal && matches.every(m => m.isSingleLeg === true);
   // After the IDA is played the bracket bumps currentLeg to 2, but the ties aren't
   // resolved yet (allPlayed=false). This in-between state must ALSO gate on everyone
@@ -275,7 +280,7 @@ export default function KnockoutTiesTab() {
                             </div>
                           )}
                           <div className="text-[12px] sm:text-xs mt-1 font-bold" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>
-                            {getTeamName(match.result.winner!)} avança
+                            {isFinal ? `🏆 ${getTeamName(match.result.winner!)} é campeão` : `${getTeamName(match.result.winner!)} avança`}
                           </div>
                         </div>
                       ) : (
@@ -331,7 +336,7 @@ export default function KnockoutTiesTab() {
                           </div>
                         )}
                         <div className="pt-0.5 text-center text-[12px] font-bold" style={{ color: 'var(--ui-success)' }}>
-                          ✓ {getTeamName(match.result.winner!)} avança
+                          ✓ {isFinal ? `${getTeamName(match.result.winner!)} é campeão` : `${getTeamName(match.result.winner!)} avança`}
                         </div>
                       </div>
                     );
@@ -369,13 +374,14 @@ export default function KnockoutTiesTab() {
                         const aggH = match.result!.homeGoals, aggA = match.result!.awayGoals;
                         const advancer = getTeamName(match.result!.winner!);
                         const penSuffix = match.result!.penaltyWinner ? ` · Pên ${match.result!.homePenalties}-${match.result!.awayPenalties}` : '';
+                        const winnerLabel = isFinal ? `${advancer} é campeão` : `${advancer} avança`;
                         const detBtn = 'px-3 sm:px-4 py-2 rounded-lg text-xs font-bold';
                         const detStyle = { background: '#1A1A2A', color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif', border: '1px solid #333' };
                         return (
                           <>
                             <button onClick={() => setViewingResult({ result: l1, homeTeam: teamA, awayTeam: teamB, homeName, awayName, subtitle: `Jogo de IDA · ${label}` })} className={detBtn} style={detStyle}><Eye {...INLINE_ICON} />VER IDA</button>
                             {/* Volta: quem manda é o visitante da ida → inverte casa/fora. */}
-                            <button onClick={() => setViewingResult({ result: l2, homeTeam: teamB, awayTeam: teamA, homeName: awayName, awayName: homeName, subtitle: `${advancer} avança · Agg ${homeName} ${aggH}-${aggA} ${awayName}${penSuffix}` })} className={detBtn} style={detStyle}><Eye {...INLINE_ICON} />VER VOLTA</button>
+                            <button onClick={() => setViewingResult({ result: l2, homeTeam: teamB, awayTeam: teamA, homeName: awayName, awayName: homeName, subtitle: `${winnerLabel} · Agregado ${homeName} ${aggH}-${aggA} ${awayName}${penSuffix}` })} className={detBtn} style={detStyle}><Eye {...INLINE_ICON} />VER VOLTA</button>
                           </>
                         );
                       })() : (

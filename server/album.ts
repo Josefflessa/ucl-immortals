@@ -113,7 +113,14 @@ function featuredPlayerCards(rarity: Rarity, count: number, dayStart: string, ba
 }
 
 function dailyFeaturedCards(dayStart: string): Record<Rarity, string[]> {
-  const cards = Object.fromEntries(BANNER_RARITIES.map(rarity => [rarity, []])) as Record<Rarity, string[]>;
+  const cards: Record<Rarity, string[]> = {
+    bronze: [],
+    silver: [],
+    gold: [],
+    legendary: [],
+    immortal: [],
+    unique: [],
+  };
   for (const [rarity, count] of Object.entries(DAILY_FEATURED_COUNTS) as [Rarity, number][]) {
     cards[rarity] = featuredPlayerCards(rarity, count, dayStart, 'banner-1');
   }

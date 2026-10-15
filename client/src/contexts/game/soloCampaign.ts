@@ -2,7 +2,7 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player } from '@shared/game/gameData';
-import { Team, MatchResult, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, generateImmortalReport, LeagueFixture, getAllPlayedMatchResults, buildUniquePackRoundKey, advanceKnockoutBracket, applyDefeatGrowth, applyMatchStatGrowth, getActiveKnockoutMatches, isKnockoutTeamAlive, playActiveKnockoutLeg, stampMatchStartingLineups } from '@shared/game/gameEngine';
+import { Team, MatchResult, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, generateImmortalReport, LeagueFixture, getAllPlayedMatchResults, buildUniquePackRoundKey, advanceKnockoutBracket, applyDefeatGrowth, applyMatchStatGrowth, computeGroupQualifiedStandings, createKnockoutBracket, getActiveKnockoutMatches, isKnockoutTeamAlive, playActiveKnockoutLeg, stampMatchStartingLineups } from '@shared/game/gameEngine';
 import { applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup } from '@shared/game/discipline';
 import { buildKnockoutMatchKey } from '@shared/game/bets';
 import { createRecruitmentOfferMeta, getRecruitmentOfferConfig, medicalInjuryDuration, medicalReturnBoost, projectLevel, type RecruitmentEventKind, type RecruitmentOfferMeta } from '@shared/game/clubProjects';
@@ -199,19 +199,31 @@ function createEliminatedPartialReport(state: GameState): GameState {
 }
 
 /**
- * Solo can finish the tournament without keeping the eliminated player waiting. Complete the
- * remaining bot-only knockout rounds now, so the result screen contains the real champion and
- * competition leaders instead of labelling an offline, fully simulated competition as partial.
+ * Solo can resolve the remaining tournament immediately after elimination. If elimination
+ * happened in the league/group phase, build the qualifiers' bracket first; then simulate all
+ * remaining bot-only ties so the player receives the complete champion report.
  */
 export function finishEliminatedSoloCampaign(state: GameState): GameState {
-  if (
-    state.mode !== 'solo'
-    || !state.playerTeam
-    || !state.knockoutBracket
-    || isKnockoutTeamAlive(state.knockoutBracket, state.playerTeam.id)
-  ) return state;
+  if (state.mode !== 'solo' || !state.playerTeam) return state;
 
-  const bracket = JSON.parse(JSON.stringify(state.knockoutBracket)) as NonNullable<GameState['knockoutBracket']>;
+  let bracket: NonNullable<GameState['knockoutBracket']>;
+  if (!state.knockoutBracket) {
+    const leagueStageComplete = state.phase === 'league'
+      && state.leagueFixtures.length > 0
+      && state.leagueFixtures.every(fixture => fixture.played);
+    if (!leagueStageComplete || state.competitionFormat.id === 'league') return state;
+
+    const allTeams = [state.playerTeam, ...state.botTeams];
+    const qualified = state.competitionFormat.id === 'groups_knockout'
+      ? computeGroupQualifiedStandings(allTeams, state.leagueFixtures, state.competitionFormat)
+      : state.leagueStandings.slice(0, state.competitionFormat.qualifiedTeams);
+    if (qualified.some(entry => entry.teamId === state.playerTeam!.id)) return state;
+
+    bracket = createKnockoutBracket(qualified, state.competitionFormat) as NonNullable<GameState['knockoutBracket']>;
+  } else {
+    if (isKnockoutTeamAlive(state.knockoutBracket, state.playerTeam.id)) return state;
+    bracket = JSON.parse(JSON.stringify(state.knockoutBracket)) as NonNullable<GameState['knockoutBracket']>;
+  }
   let botTeams = state.botTeams;
   let discipline = state.discipline;
   let champion: string | null = null;
