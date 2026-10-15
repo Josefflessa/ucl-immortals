@@ -15,11 +15,14 @@ export interface SelectMenuOption<T extends string> {
   dimmed?: boolean;
 }
 
-export default function SelectMenu<T extends string>({ label, value, options, onChange }: {
+export default function SelectMenu<T extends string>({ label, value, options, onChange, className, buttonClassName, appearance = 'accent' }: {
   label: string;
   value: T;
   options: SelectMenuOption<T>[];
   onChange: (value: T) => void;
+  className?: string;
+  buttonClassName?: string;
+  appearance?: 'accent' | 'neutral';
 }) {
   const [open, setOpen] = useState(false);
   // Opens upwards when the list would not fit below (e.g. near a modal footer).
@@ -27,7 +30,7 @@ export default function SelectMenu<T extends string>({ label, value, options, on
   const rootRef = useRef<HTMLDivElement | null>(null);
   const listId = useId();
   const current = options.find(option => option.value === value) ?? options[0];
-  const colorOf = (option?: SelectMenuOption<T>) => option?.color ?? 'var(--ui-brand-strong)';
+  const colorOf = (option?: SelectMenuOption<T>) => appearance === 'neutral' ? 'var(--ui-text)' : option?.color ?? 'var(--ui-brand-strong)';
 
   useEffect(() => {
     if (!open) return;
@@ -61,7 +64,7 @@ export default function SelectMenu<T extends string>({ label, value, options, on
   };
 
   return (
-    <div ref={rootRef} className="relative inline-block">
+    <div ref={rootRef} className={cn('relative inline-block', className)}>
       <button
         type="button"
         aria-label={`${label}: ${current?.text ?? ''}`}
@@ -69,8 +72,10 @@ export default function SelectMenu<T extends string>({ label, value, options, on
         aria-expanded={open}
         aria-controls={listId}
         onClick={toggle}
-        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border bg-[var(--ui-surface-inset)] py-1 pl-1.5 pr-2.5 text-sm font-bold tracking-wide transition-colors hover:bg-[var(--ui-surface-2)]"
-        style={{ borderColor: `color-mix(in srgb, ${colorOf(current)} 55%, var(--ui-line-subtle))`, color: colorOf(current) }}
+        className={cn('inline-flex min-h-10 items-center gap-1.5 rounded-lg border bg-[var(--ui-surface-inset)] py-1 pl-1.5 pr-2.5 text-sm font-bold tracking-wide transition-colors hover:bg-[var(--ui-surface-2)]', buttonClassName)}
+        style={appearance === 'neutral'
+          ? { borderColor: 'var(--ui-line-subtle)', color: 'var(--ui-text)' }
+          : { borderColor: `color-mix(in srgb, ${colorOf(current)} 55%, var(--ui-line-subtle))`, color: colorOf(current) }}
       >
         {current?.label}
         <ChevronDown size={16} aria-hidden="true" className={cn('ml-1 text-[var(--ui-text-muted)] transition-transform', open && 'rotate-180')} />

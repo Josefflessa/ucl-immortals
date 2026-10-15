@@ -1,6 +1,6 @@
 // Per-minute effective attributes, balance knobs, evolution and formation counters.
 
-import { Player, Coach, effectiveSecondaries, PLAYER_SPECIALIZATIONS, type Rarity, type EvolutionLevel, type PlayerSpecialization } from '../gameData';
+import { Player, Coach, effectiveSecondaries, getCompetitionAlbumBonus, PLAYER_SPECIALIZATIONS, type Rarity, type EvolutionLevel, type PlayerSpecialization } from '../gameData';
 import { AttrKey, getTraitAttributeBonus } from '../traits';
 import { Stadium } from '../stadium';
 import { stadiumHomeBonus } from '../clubProjects';
@@ -40,7 +40,7 @@ export function getEffectiveAttribute(
 ): number {
   // Lock the Album bonus to the card instance and apply it before chemistry and
   // position multipliers, so every match path uses the same attribute pipeline.
-  let base = (player[attribute] as number) + (player.competitionAlbumLevel ?? 0);
+  let base = (player[attribute] as number) + getCompetitionAlbumBonus(player);
 
   // Individual chemistry bonus: If OOP, apply the full stats debuff. If not, apply
   // standard chemistry multipliers (+0% / +3% / +6% / +10%), plus the secondary-position penalty.

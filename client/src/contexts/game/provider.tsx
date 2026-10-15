@@ -4,7 +4,7 @@ import React from 'react';
 import { createContext, useContext, useReducer, useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAccount } from '../AccountContext';
-import { useAlbumLevels } from '../AlbumContext';
+import { useAlbumLevels, useAlbumPageBonuses } from '../AlbumContext';
 import { clearPendingSoloSaveDeletion, clearSoloSave, hasPendingSoloSaveDeletion, loadSoloSave, SOLO_SAVE_VERSION, writeSoloSave, type SoloSave } from '../../lib/soloSave';
 import { Player, type PlayerSpecialization } from '@shared/game/gameData';
 import { Team, MatchResult, type MatchPlan, type VariantFlag } from '@shared/game/gameEngine';
@@ -127,6 +127,7 @@ export const useGame = () => {
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const accountAlbumLevels = useAlbumLevels();
+  const accountAlbumPageBonuses = useAlbumPageBonuses();
   const socketRef = useRef<RealtimeClientSocket | null>(null);
   const socketRoomCodeRef = useRef<string | null>(null);
   const onlineRoomRef = useRef<any | null>(null);
@@ -525,6 +526,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const submitSquadReviewOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string, matchPlan: MatchPlan) => {
     const albumLevels: Record<string, 2 | 3 | 4 | 5> = {};
     const competitionAlbumLevelSnapshot: Partial<Record<string, AlbumLevel>> = {};
+    const competitionAlbumPageBonusSnapshot: Partial<Record<string, 3>> = Object.fromEntries(accountAlbumPageBonuses);
     const submittedIds = new Set(draftedPlayers.flatMap(player => player ? [player.id] : []));
     accountAlbumLevels.forEach((level, cardId) => {
       competitionAlbumLevelSnapshot[cardId] = level;
@@ -541,8 +543,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       matchPlan,
       albumLevels,
       competitionAlbumLevelSnapshot,
+      competitionAlbumPageBonusSnapshot,
     });
-  }, [accountAlbumLevels, emitOnlineAction, state.roomCode]);
+  }, [accountAlbumLevels, accountAlbumPageBonuses, emitOnlineAction, state.roomCode]);
 
   const setMatchRolesOnline = useCallback((captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, playStyle?: string, formationId?: string) => {
     emitOnlineAction("set_match_roles", { roomCode: state.roomCode, captain, penaltyTaker, freeKickTaker, playStyle, formationId });

@@ -13,6 +13,7 @@ import {
   DAILY_BANNER_PRICE,
   MAX_COPIES,
   levelForCopies,
+  pageBonusSnapshotForOwnedCards,
   parseItemKey,
   regionPageReward,
   rollItem,
@@ -23,6 +24,7 @@ import {
   WEEKLY_BANNER_PRICE,
   type AlbumItemKey,
   type AlbumLevel,
+  type AlbumPageBonus,
   type AlbumPackTier,
   type DailyBannerOffer,
   type DailyBannerRotations,
@@ -275,6 +277,31 @@ export async function loadAlbumLevelSnapshots(
     if (!catalogue.has(row.card_id)) continue;
     const level = levelForCopies(row.copies);
     if (level !== 0) snapshots.get(row.user_id)![row.card_id] = level;
+  }
+  return snapshots;
+}
+
+/** Load authoritative complete-page bonuses for several accounts in one D1 query. */
+export async function loadAlbumPageBonusSnapshots(
+  db: D1Database,
+  userIds: readonly (string | undefined)[],
+): Promise<Map<string, Partial<Record<string, AlbumPageBonus>>>> {
+  const ids = Array.from(new Set(userIds.filter((id): id is string => typeof id === 'string' && id.length > 0)));
+  const snapshots = new Map<string, Partial<Record<string, AlbumPageBonus>>>();
+  ids.forEach(id => snapshots.set(id, {}));
+  if (ids.length === 0) return snapshots;
+
+  const placeholders = ids.map(() => '?').join(', ');
+  const rows = await db.prepare(
+    `SELECT user_id, card_id FROM user_stickers WHERE user_id IN (${placeholders}) AND copies > 0`,
+  ).bind(...ids).all<{ user_id: string; card_id: string }>();
+  const knownCardIds = albumCatalog().stickers;
+  const ownedByUser = new Map(ids.map(id => [id, new Set<string>()]));
+  for (const row of rows.results) {
+    if (knownCardIds.has(row.card_id)) ownedByUser.get(row.user_id)?.add(row.card_id);
+  }
+  for (const id of ids) {
+    snapshots.set(id, pageBonusSnapshotForOwnedCards(ownedByUser.get(id) ?? new Set()));
   }
   return snapshots;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState, memo } from 'react';
 import TraitIcon from './TraitIcon';
 import { motion } from 'framer-motion';
-import { PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
+import { getCompetitionAlbumBonus, PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
 import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
 import { canonicalClubName, crestIdForClub } from '@shared/game/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
@@ -1090,7 +1090,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   // variant already baked into player.*. Meu Time can opt into effectiveStats so the same
   // visual card reflects chemistry, coach, position, tactic and active style effects.
   const displayStats: PlayerCardStats = effectiveStats
-    ?? (player.competitionAlbumLevel != null && player.competitionAlbumLevel > 0
+    ?? (getCompetitionAlbumBonus(player) > 0
       ? getCardIntrinsicStats(player)
       : player);
   const displayOverall = displayStats.overall;

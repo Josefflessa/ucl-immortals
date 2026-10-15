@@ -5,7 +5,7 @@ import TraitIcon from '../TraitIcon';
 import { Repeat, Star, TriangleAlert } from 'lucide-react';
 import { INLINE_ICON } from '../inlineIcon';
 import { useState } from 'react';
-import { POS_PT, effectiveSecondaries, getRarityColor } from '@shared/game/gameData';
+import { getCompetitionAlbumBonus, POS_PT, effectiveSecondaries, getRarityColor } from '@shared/game/gameData';
 import { getEvolutionLevel } from '@shared/game/gameEngine';
 import { canonicalClubName } from '@shared/game/crests';
 import PlayerPortrait from '../PlayerPortrait';
@@ -21,6 +21,9 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
   const { player, eff, chem } = model;
   const rarity = getRarityColor(player.rarity);
   const evolutionLevel = getEvolutionLevel(player);
+  const albumLevel = player.competitionAlbumLevel ?? 0;
+  const albumPageBonus = player.competitionAlbumPageBonus ?? 0;
+  const albumBonus = getCompetitionAlbumBonus(player);
   const selectedStat = selected ? model.stats.find(s => s.attr === selected) ?? null : null;
   const anyDelta = model.stats.some(s => s.delta !== 0);
   // Special characteristics right in the identity row, not only in the bonus breakdown.
@@ -45,10 +48,13 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
                 <TraitIcon trait={variant.key} fallback={variant.icon} size={22} />
               </span>
             ))}
-            {player.competitionAlbumLevel != null && player.competitionAlbumLevel > 0 && (
-              <span title="Nível congelado para esta competição" className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-black leading-none"
+            {albumBonus > 0 && (
+              <span title="Bônus do Álbum congelados para esta competição" className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-black leading-none"
                 style={{ color: '#201805', background: 'linear-gradient(135deg,#ffe783,#d0a93a)', border: '1px solid #fff1af', ...FONT }}>
-                <Star {...INLINE_ICON} fill="currentColor" />ÁLBUM ★{player.competitionAlbumLevel} · +{player.competitionAlbumLevel} EM TODOS OS ATRIBUTOS
+                {albumLevel > 0 && <><Star {...INLINE_ICON} fill="currentColor" />ÁLBUM ★{albumLevel}</>}
+                {albumLevel > 0 && albumPageBonus > 0 && <span aria-hidden="true">·</span>}
+                {albumPageBonus > 0 && <>PÁGINA COMPLETA +{albumPageBonus}</>}
+                <span aria-hidden="true">·</span>+{albumBonus} EM TODOS OS ATRIBUTOS
               </span>
             )}
             {model.fit === 'off' && <span className="rounded px-2 py-0.5 text-[12px] font-black" style={{ background: '#EF444422', color: 'var(--ui-danger)', border: '1px solid #EF444444', ...FONT }}><TriangleAlert {...INLINE_ICON} />FORA DE POSIÇÃO · −15%</span>}

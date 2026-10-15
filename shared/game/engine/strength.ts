@@ -1,6 +1,6 @@
 // Captain boost, team strength and penalty shootouts.
 
-import { Player, Coach, COACHES } from '../gameData';
+import { Player, Coach, COACHES, getCompetitionAlbumBonus } from '../gameData';
 import { getPenaltyComposureBonus } from '../traits';
 import { Stadium } from '../stadium';
 import { projectLevel, stadiumHomeBonus } from '../clubProjects';
@@ -23,7 +23,7 @@ export function captainBestStatFromStarters(starters: Player[], captainId?: stri
   if (starters.length === 0) return null;
   let cap = captainId ? starters.find(p => p.id === captainId) : undefined;
   if (!cap) cap = [...starters].sort((a, b) =>
-    (b.overall + (b.competitionAlbumLevel ?? 0)) - (a.overall + (a.competitionAlbumLevel ?? 0))
+    (b.overall + getCompetitionAlbumBonus(b)) - (a.overall + getCompetitionAlbumBonus(a))
   )[0]; // bot / unset → best player
   if (!cap) return null;
   return CAPTAIN_STATS.reduce((best, s) => ((cap![s] as number) > (cap![best] as number) ? s : best), CAPTAIN_STATS[0]);
@@ -37,7 +37,7 @@ export function captainBoostFromStarters(starters: Player[], captainId?: string)
   // 🗣️ Capitão Nato: se o capitão do time tem a característica, o bônus é TRIPLICADO.
   let cap = captainId ? starters.find(p => p.id === captainId) : undefined;
   if (!cap) cap = [...starters].sort((a, b) =>
-    (b.overall + (b.competitionAlbumLevel ?? 0)) - (a.overall + (a.competitionAlbumLevel ?? 0))
+    (b.overall + getCompetitionAlbumBonus(b)) - (a.overall + getCompetitionAlbumBonus(a))
   )[0];
   return { stat: stat as string, amount: CAPTAIN_BOOST * (cap?.capitaoNato ? 3 : 1) };
 }
@@ -144,8 +144,8 @@ export function getPenaltyTaker(
   const specialist = active.find(isSpecialist);
   if (specialist) return specialist;
   return [...pool].sort((a, b) =>
-    (b.composure + b.shooting + 2 * (b.competitionAlbumLevel ?? 0))
-      - (a.composure + a.shooting + 2 * (a.competitionAlbumLevel ?? 0))
+    (b.composure + b.shooting + 2 * getCompetitionAlbumBonus(b))
+      - (a.composure + a.shooting + 2 * getCompetitionAlbumBonus(a))
   )[0];
 }
 
@@ -167,16 +167,16 @@ export function getPenaltyOrder(
   const outfield = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const keepers = active.filter(p => matchRoleForPlayer(team, p) === 'GK');
   const sorted = [...outfield].sort((a, b) =>
-    (b.composure + b.shooting + 2 * (b.competitionAlbumLevel ?? 0))
-      - (a.composure + a.shooting + 2 * (a.competitionAlbumLevel ?? 0))
+    (b.composure + b.shooting + 2 * getCompetitionAlbumBonus(b))
+      - (a.composure + a.shooting + 2 * getCompetitionAlbumBonus(a))
   );
   const isSpecialist = (p: PlayerCard) => p.traits.includes('Cobrador de Pênaltis');
   const designated = team.penaltyTaker
     ? active.find(p => p.id === team.penaltyTaker && (matchRoleForPlayer(team, p) !== 'GK' || isSpecialist(p)))
     : undefined;
   const specialists = active.filter(isSpecialist).sort((a, b) =>
-    (b.composure + b.shooting + 2 * (b.competitionAlbumLevel ?? 0))
-      - (a.composure + a.shooting + 2 * (a.competitionAlbumLevel ?? 0))
+    (b.composure + b.shooting + 2 * getCompetitionAlbumBonus(b))
+      - (a.composure + a.shooting + 2 * getCompetitionAlbumBonus(a))
   );
   const first = designated ? [designated] : specialists;
   const used = new Set(first.map(p => p.id));

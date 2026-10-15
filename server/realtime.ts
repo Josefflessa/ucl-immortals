@@ -16,6 +16,8 @@ export interface RealtimeSocket {
   eventCardIds?: string[];
   /** Server-verified Album levels used only while freezing a competition roster. */
   verifiedAlbumLevelSnapshot?: Partial<Record<string, 1 | 2 | 3 | 4 | 5>>;
+  /** Server-verified completed-page bonuses used when locking cards for a competition. */
+  verifiedAlbumPageBonusSnapshot?: Partial<Record<string, 3>>;
   /** Optional transport-level liveness marker used by the room watchdog. */
   getLastSeenAt?(): number | undefined;
   on(event: string, handler: RealtimeEventHandler): unknown;

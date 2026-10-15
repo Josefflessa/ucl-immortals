@@ -4,7 +4,7 @@
 // player-sheet model, which is computed by the same engine functions the match uses.
 import TraitIcon from './TraitIcon';
 import PlaystyleIcon from './PlaystyleIcon';
-import { ChevronsUp, ClipboardList, Dna, Dumbbell, GraduationCap, Hand, House, Link, Palette, Repeat, Star, Timer } from 'lucide-react';
+import { BookOpenCheck, ChevronsUp, ClipboardList, Dna, Dumbbell, GraduationCap, Hand, House, Link, Palette, Repeat, Star, Timer } from 'lucide-react';
 import { INLINE_ICON } from './inlineIcon';
 import { useState } from 'react';
 import {
@@ -226,7 +226,8 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
   const [open, setOpen] = useState(() => !collapsible || (typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches));
   const { eff, player, chem } = model;
   const variants = getCardVariants(player);
-  const albumBonus = player.competitionAlbumLevel ?? 0;
+  const albumLevel = player.competitionAlbumLevel ?? 0;
+  const pageBonus = player.competitionAlbumPageBonus ?? 0;
   const medical = Math.max(0, Math.floor(player.medicalReturnBoost ?? 0));
   const lapidado = Math.max(0, Math.floor(player.lapidadoBoost ?? 0));
   const train = perAttr(model, 'train');
@@ -243,10 +244,16 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
   const tacticName = getTacticById(model.playStyle).name;
 
   const cardRows = [
-    albumBonus > 0 && (
-      <Row key="album" icon={<Star size={15} strokeWidth={2.4} fill="currentColor" />} name={`ÁLBUM ★${albumBonus}`} color="#D8B84E">
-        <Chips items={[{ text: `+${albumBonus} EM TODOS OS ATRIBUTOS`, color: '#D8B84E' }]} />
+    albumLevel > 0 && (
+      <Row key="album" icon={<Star size={15} strokeWidth={2.4} fill="currentColor" />} name={`ÁLBUM ★${albumLevel}`} color="#D8B84E">
+        <Chips items={[{ text: `+${albumLevel} EM TODOS OS ATRIBUTOS`, color: '#D8B84E' }]} />
         <Note>Nível congelado no início da competição; acompanha a carta se ela for negociada.</Note>
+      </Row>
+    ),
+    pageBonus > 0 && (
+      <Row key="album-page" icon={<BookOpenCheck size={15} strokeWidth={2.4} />} name="PÁGINA COMPLETA" color="#67E8F9">
+        <Chips items={[{ text: `+${pageBonus} EM TODOS OS ATRIBUTOS`, color: '#67E8F9' }]} />
+        <Note>Página completa conferida no início da competição; o bônus fica fixo até o fim.</Note>
       </Row>
     ),
     ...variants.map(variant => {

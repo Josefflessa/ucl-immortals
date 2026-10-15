@@ -2,10 +2,10 @@
 // opens its sheet, to paste it for a level or sell it).
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Package, Search, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { copiesToNextLevel, levelForCopies, MAX_COPIES, SELL_VALUE, type AlbumItemKey, type AlbumLevel } from '@shared/game/album';
 import { getRarityColor, type Rarity } from '@shared/game/gameData';
-import { Button, EmptyState, GameModal, Input } from '../../design-system';
+import { Button, EmptyState, GameModal } from '../../design-system';
 import PlayerCard from '../game/PlayerCard';
 import { useAlbum } from '../../contexts/AlbumContext';
 import { albumCard, CATALOG, itemColor, itemLabel, RARITY_LABEL, sortedItems } from './albumData';
@@ -13,6 +13,7 @@ import { CoinAmount, ItemArt, LevelStars } from './AlbumPieces';
 import AlbumPackOpening from './AlbumPackOpening';
 import StickerSheet from './StickerSheet';
 import SelectMenu from '../account/SelectMenu';
+import AlbumFilterToolbar from './AlbumFilterToolbar';
 
 type SpareFilter = 'all' | 'upgrade' | 'maxed';
 type SpareSort = 'copies' | 'album' | 'name' | 'rarity';
@@ -144,10 +145,10 @@ export default function AlbumInventory() {
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {items.map(([key, quantity]) => (
-              <div key={key} className="flex flex-col items-center rounded-xl border border-[var(--ui-line-subtle)] px-3 pb-3 pt-4" style={{ background: `radial-gradient(circle at 50% 30%, ${itemColor(key)}1F, transparent 70%)` }}>
+              <div key={key} className="relative flex flex-col items-center rounded-xl border border-[var(--ui-line-subtle)] px-3 pb-3 pt-4" style={{ background: `radial-gradient(circle at 50% 30%, ${itemColor(key)}1F, transparent 70%)` }}>
+                {quantity > 1 ? <span className="absolute right-2 top-2 z-10 rounded-full border border-black/40 px-2 py-0.5 text-xs font-bold text-[#0B0C12]" style={{ background: itemColor(key) }}>×{quantity}</span> : null}
                 <div className="relative flex h-[118px] items-end">
                   <ItemArt itemKey={key} height={112} />
-                  {quantity > 1 ? <span className="absolute -right-3 -top-1 rounded-full border border-black/40 px-2 py-0.5 text-xs font-bold text-[#0B0C12]" style={{ background: itemColor(key) }}>×{quantity}</span> : null}
                 </div>
                 <div className="mt-2 text-center text-xs font-bold text-[var(--ui-text)]">{itemLabel(key)}</div>
                 <div className="mt-2.5 flex w-full flex-col gap-1.5">
@@ -175,14 +176,22 @@ export default function AlbumInventory() {
           <EmptyState title="Nenhuma carta repetida" description="As cópias extras que saírem nos pacotes aparecem aqui. Use-as para evoluir cartas ou venda-as por moedas." />
         ) : (
           <>
-            <div className="mb-4 flex flex-col gap-2.5">
-              <label className="relative block min-w-0">
-                <span className="sr-only">Buscar carta repetida por nome, número, clube, posição ou raridade</span>
-                <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
-                <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, nº, clube ou raridade" className="w-full pl-9 pr-10" />
-                {search ? <button type="button" onClick={() => setSearch('')} aria-label="Limpar busca" className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-[var(--ui-text-muted)] hover:bg-white/[.06] hover:text-[var(--ui-text)]"><X size={15} aria-hidden="true" /></button> : null}
-              </label>
-              <div role="group" aria-label="Filtrar repetidas por progresso" className="grid grid-cols-3 gap-1 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-1">
+            <AlbumFilterToolbar
+              search={search}
+              onSearchChange={setSearch}
+              searchLabel="Buscar carta repetida por nome, número, clube, posição ou raridade"
+              placeholder="Nome, nº, clube ou raridade"
+              sortLabel="cartas repetidas"
+              sortValue={sort}
+              onSortChange={value => setSort(value as SpareSort)}
+              sortOptions={[{ value: 'copies', label: 'Cópias extras' }, { value: 'album', label: 'Nº do álbum' }, { value: 'name', label: 'Nome' }, { value: 'rarity', label: 'Raridade' }]}
+              direction={direction}
+              onDirectionChange={() => setDirection(value => value === 'asc' ? 'desc' : 'asc')}
+              sortInFilterRow
+              hasActiveFilters={hasSpareFilters}
+              onClear={clearSpareFilters}
+              extraFilters={<>
+              <div role="group" aria-label="Filtrar repetidas por progresso" className="grid w-full grid-cols-3 gap-1 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-1 sm:w-auto">
                 {([
                   ['all', 'Todas', filterCounts.all],
                   ['upgrade', 'Podem evoluir', filterCounts.upgrade],
@@ -193,33 +202,20 @@ export default function AlbumInventory() {
                   </button>
                 ))}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
                 <SelectMenu
                   label="Filtrar por raridade"
                   value={rarity}
                   onChange={value => setRarity(value as Rarity | 'all')}
+                  appearance="neutral"
+                  className="min-w-[145px] flex-1"
+                  buttonClassName="w-full justify-between"
                   options={[
-                    { value: 'all', text: 'Todas as raridades', label: <span className="pl-1 text-[var(--ui-text)]">Todas as raridades</span> },
+                    { value: 'all', text: 'Todas as raridades', label: <span className="block min-w-0 flex-1 truncate whitespace-nowrap pl-1 text-[var(--ui-text)]">Todas as raridades</span> },
                     ...SPARE_RARITIES.map(value => ({ value, text: RARITY_LABEL[value], color: getRarityColor(value), label: <span className="pl-1">{RARITY_LABEL[value]}</span>, dimmed: !searchedSpares.some(spare => albumCard(spare.id)?.rarity === value) })),
                   ]}
                 />
-                <SelectMenu
-                  label="Ordenar repetidas por"
-                  value={sort}
-                  onChange={value => setSort(value as SpareSort)}
-                  options={[
-                    { value: 'copies', text: 'Cópias extras', label: <span className="pl-1">Cópias extras</span> },
-                    { value: 'album', text: 'Nº do álbum', label: <span className="pl-1">Nº do álbum</span> },
-                    { value: 'name', text: 'Nome', label: <span className="pl-1">Nome</span> },
-                    { value: 'rarity', text: 'Raridade', label: <span className="pl-1">Raridade</span> },
-                  ]}
-                />
-                <button type="button" title={`Ordem ${direction === 'asc' ? 'crescente' : 'decrescente'}`} aria-label={`Mudar para ordem ${direction === 'asc' ? 'decrescente' : 'crescente'}`} onClick={() => setDirection(value => value === 'asc' ? 'desc' : 'asc')} className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] text-[var(--ui-text-soft)] transition-colors hover:border-[var(--ui-line-strong)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-focus)]">
-                  {direction === 'asc' ? <ArrowUp size={17} aria-hidden="true" /> : <ArrowDown size={17} aria-hidden="true" />}
-                </button>
-                {hasSpareFilters ? <Button intent="ghost" onClick={clearSpareFilters} className="min-h-9 px-2.5 text-xs"><X size={14} aria-hidden="true" /> Limpar</Button> : null}
-              </div>
-            </div>
+              </>}
+            />
             <div className="mb-4 flex flex-col gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <Button intent="secondary" onClick={togglePageSelection} className="min-h-9 px-3 text-xs">

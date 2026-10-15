@@ -48,7 +48,7 @@ import { computeMatchPointsWithConfig, MatchPoints, ShopVariant, TrainAttr, TRAI
 import type { RegularPlayerPackRarity } from "../shared/game/shop.js";
 import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, newlyWonBets, settleBet } from "../shared/game/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../shared/game/onlineReadiness.js";
-import { albumCatalog, type AlbumLevel } from "../shared/game/album.js";
+import { albumCatalog, type AlbumLevel, type AlbumPageBonus } from "../shared/game/album.js";
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
 import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, unavailableStarters } from "../shared/game/discipline.js";
@@ -112,6 +112,8 @@ export interface RoomPlayer {
   albumLevels?: Team['albumLevels'];
   /** Server-frozen account Album levels for this competition; never sent in room snapshots. */
   competitionAlbumLevelSnapshot?: Partial<Record<string, AlbumLevel>>;
+  /** Server-frozen completed-page bonuses; never sent in room snapshots. */
+  competitionAlbumPageBonusSnapshot?: Partial<Record<string, AlbumPageBonus>>;
   team: Team | null;
   ready: boolean;
   connected: boolean;
@@ -155,14 +157,33 @@ function normalizeCompetitionAlbumLevelSnapshot(value: unknown): Partial<Record<
   return snapshot;
 }
 
-function lockPlayerAlbumLevel<T extends Player>(player: T, snapshot: Partial<Record<string, AlbumLevel>> | undefined): T {
-  return player.competitionAlbumLevel !== undefined || snapshot === undefined
-    ? player
-    : { ...player, competitionAlbumLevel: snapshot?.[player.id] ?? 0 };
+function normalizeCompetitionAlbumPageBonusSnapshot(value: unknown): Partial<Record<string, AlbumPageBonus>> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const stickers = albumCatalog().stickers;
+  const snapshot: Partial<Record<string, AlbumPageBonus>> = {};
+  for (const [cardId, rawBonus] of Object.entries(value)) {
+    if (stickers.get(cardId)?.pageId && rawBonus === 3) snapshot[cardId] = 3;
+  }
+  return snapshot;
+}
+
+function lockPlayerAlbumBonuses<T extends Player>(
+  player: T,
+  levelSnapshot: Partial<Record<string, AlbumLevel>> | undefined,
+  pageBonusSnapshot: Partial<Record<string, AlbumPageBonus>> | undefined,
+): T {
+  const level = player.competitionAlbumLevel ?? (levelSnapshot === undefined ? undefined : levelSnapshot[player.id] ?? 0);
+  const pageBonus = player.competitionAlbumPageBonus ?? (pageBonusSnapshot === undefined ? undefined : pageBonusSnapshot[player.id] ?? 0);
+  if (level === undefined && pageBonus === undefined) return player;
+  return {
+    ...player,
+    ...(level !== undefined ? { competitionAlbumLevel: level } : {}),
+    ...(pageBonus !== undefined ? { competitionAlbumPageBonus: pageBonus } : {}),
+  };
 }
 
 function lockDraftOptions(options: Player[], player: RoomPlayer): Player[] {
-  return options.map(card => lockPlayerAlbumLevel(card, player.competitionAlbumLevelSnapshot));
+  return options.map(card => lockPlayerAlbumBonuses(card, player.competitionAlbumLevelSnapshot, player.competitionAlbumPageBonusSnapshot));
 }
 
 export interface RoomState {
@@ -490,13 +511,14 @@ function roomViewForSocket(room: RoomState, socketId: string): RoomState {
   const viewerId = viewer?.id;
 
   view.players = view.players.map(player => {
-    if (player.id === viewerId) return { ...player, accountId: undefined, albumLevels: undefined, competitionAlbumLevelSnapshot: undefined, partialReportRequested: undefined };
+    if (player.id === viewerId) return { ...player, accountId: undefined, albumLevels: undefined, competitionAlbumLevelSnapshot: undefined, competitionAlbumPageBonusSnapshot: undefined, partialReportRequested: undefined };
     return {
       ...player,
       accountId: undefined,
       partialReportRequested: undefined,
       albumLevels: undefined,
       competitionAlbumLevelSnapshot: undefined,
+      competitionAlbumPageBonusSnapshot: undefined,
       eventUniqueIds: undefined,
       clientId: undefined,
       points: 0,
@@ -766,17 +788,17 @@ function applySeatRule(
     ...result.seat,
     team: {
       ...result.seat.team,
-      players: result.seat.team.players.map(card => lockPlayerAlbumLevel(card, player.competitionAlbumLevelSnapshot)),
+      players: result.seat.team.players.map(card => lockPlayerAlbumBonuses(card, player.competitionAlbumLevelSnapshot, player.competitionAlbumPageBonusSnapshot)),
     },
-    reinforcementOptions: result.seat.reinforcementOptions?.map(card => lockPlayerAlbumLevel(card, player.competitionAlbumLevelSnapshot)) ?? null,
+    reinforcementOptions: result.seat.reinforcementOptions?.map(card => lockPlayerAlbumBonuses(card, player.competitionAlbumLevelSnapshot, player.competitionAlbumPageBonusSnapshot)) ?? null,
     pendingPack: result.seat.pendingPack
-      ? { ...result.seat.pendingPack, options: result.seat.pendingPack.options.map(card => lockPlayerAlbumLevel(card, player.competitionAlbumLevelSnapshot)) }
+      ? { ...result.seat.pendingPack, options: result.seat.pendingPack.options.map(card => lockPlayerAlbumBonuses(card, player.competitionAlbumLevelSnapshot, player.competitionAlbumPageBonusSnapshot)) }
       : null,
     pendingPackReveal: result.seat.pendingPackReveal
-      ? { ...result.seat.pendingPackReveal, card: lockPlayerAlbumLevel(result.seat.pendingPackReveal.card, player.competitionAlbumLevelSnapshot) }
+      ? { ...result.seat.pendingPackReveal, card: lockPlayerAlbumBonuses(result.seat.pendingPackReveal.card, player.competitionAlbumLevelSnapshot, player.competitionAlbumPageBonusSnapshot) }
       : null,
     pendingUniquePack: result.seat.pendingUniquePack
-      ? lockPlayerAlbumLevel(result.seat.pendingUniquePack, player.competitionAlbumLevelSnapshot)
+      ? lockPlayerAlbumBonuses(result.seat.pendingUniquePack, player.competitionAlbumLevelSnapshot, player.competitionAlbumPageBonusSnapshot)
       : null,
   };
   commitSeat(player, frozenSeat);
@@ -1330,7 +1352,7 @@ function applyDraftPick(room: RoomState, activePlayer: RoomPlayer, chosenPlayer:
   // if an old/stale client submits an option that is no longer valid.
   if (targetIndex === -1) return false;
 
-  newDrafted[targetIndex] = lockPlayerAlbumLevel(chosenPlayer, activePlayer.competitionAlbumLevelSnapshot);
+  newDrafted[targetIndex] = lockPlayerAlbumBonuses(chosenPlayer, activePlayer.competitionAlbumLevelSnapshot, activePlayer.competitionAlbumPageBonusSnapshot);
   activePlayer.draftedPlayers = newDrafted;
 
   ds.alreadyDraftedIds.push(chosenPlayer.id);
@@ -2052,7 +2074,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     });
 
     // Player submits squad review (captain, penalty taker)
-    on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId, matchPlan, albumLevels, competitionAlbumLevelSnapshot }) => {
+    on("submit_squad_review", ({ roomCode, captain, penaltyTaker, freeKickTaker, draftedPlayers, playStyle, formationId, matchPlan, albumLevels, competitionAlbumLevelSnapshot, competitionAlbumPageBonusSnapshot }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (room.phase !== 'squad_review') return;
@@ -2088,6 +2110,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
           socket.verifiedAlbumLevelSnapshot ?? competitionAlbumLevelSnapshot,
         );
       }
+      if (player.competitionAlbumPageBonusSnapshot === undefined) {
+        player.competitionAlbumPageBonusSnapshot = normalizeCompetitionAlbumPageBonusSnapshot(
+          socket.verifiedAlbumPageBonusSnapshot ?? competitionAlbumPageBonusSnapshot,
+        );
+      }
       if (playStyle) player.playStyle = playStyle;
       if (formationId) player.formationId = formationId; // formation can be changed post-draft
       player.matchPlan = canonicalMatchPlan;
@@ -2111,7 +2138,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
               const idx = p.draftedPlayers.findIndex(dp => dp?.id === pl.id);
               const isOOP = idx !== -1 && idx < 11 ? (chemData.outOfPosition[pl.id] ?? false) : false;
               return {
-                ...lockPlayerAlbumLevel(pl, p.competitionAlbumLevelSnapshot),
+                ...lockPlayerAlbumBonuses(pl, p.competitionAlbumLevelSnapshot, p.competitionAlbumPageBonusSnapshot),
                 chemistryScore: chemData.individual[pl.id] ?? 1,
                 isOOP
               };
@@ -2527,7 +2554,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const li = room.market.find(l => l.id === listingId);
       if (!seller || !seller.team || !li || li.sellerId !== seller.id) return;
       seller.team = applyMercenarioProgress(
-        { ...seller.team, players: [...seller.team.players, { ...lockPlayerAlbumLevel(li.player, {}), chemistryScore: 0, isOOP: false } as PlayerCard] },
+        { ...seller.team, players: [...seller.team.players, { ...lockPlayerAlbumBonuses(li.player, {}, {}), chemistryScore: 0, isOOP: false } as PlayerCard] },
         completedMissionCount(seller.missions ?? createMissionState(`${room.code}:${seller.id}`, 'L1')),
       );
       // De volta ao banco com a mesma suspensão/lesão de quando foi anunciado.
@@ -2566,7 +2593,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       buyer.points -= li.price;
       seller.points += li.price;
       buyer.team = applyMercenarioProgress(
-        { ...buyer.team, players: [...buyer.team.players, { ...lockPlayerAlbumLevel(li.player, {}), chemistryScore: 0, isOOP: false } as PlayerCard] },
+        { ...buyer.team, players: [...buyer.team.players, { ...lockPlayerAlbumBonuses(li.player, {}, {}), chemistryScore: 0, isOOP: false } as PlayerCard] },
         completedMissionCount(buyer.missions ?? createMissionState(`${room.code}:${buyer.id}`, 'L1')),
       );
       // O comprador recebe o jogador com a suspensão/lesão que ele tinha.
@@ -2714,11 +2741,11 @@ export function registerSocketHandlers(io: RealtimeServer) {
       host.team.players = host.team.players.filter(player => !hostPlayerIdSet.has(player.id));
       guest.team.players = guest.team.players.filter(player => !guestPlayerIdSet.has(player.id));
       host.team = applyMercenarioProgress(
-        { ...host.team, players: [...host.team.players, ...guestPlayers.map(player => ({ ...lockPlayerAlbumLevel(player, {}), chemistryScore: 0, isOOP: false } as PlayerCard))] },
+        { ...host.team, players: [...host.team.players, ...guestPlayers.map(player => ({ ...lockPlayerAlbumBonuses(player, {}, {}), chemistryScore: 0, isOOP: false } as PlayerCard))] },
         completedMissionCount(host.missions ?? createMissionState(`${room.code}:${host.id}`, 'L1')),
       );
       guest.team = applyMercenarioProgress(
-        { ...guest.team, players: [...guest.team.players, ...hostPlayers.map(player => ({ ...lockPlayerAlbumLevel(player, {}), chemistryScore: 0, isOOP: false } as PlayerCard))] },
+        { ...guest.team, players: [...guest.team.players, ...hostPlayers.map(player => ({ ...lockPlayerAlbumBonuses(player, {}, {}), chemistryScore: 0, isOOP: false } as PlayerCard))] },
         completedMissionCount(guest.missions ?? createMissionState(`${room.code}:${guest.id}`, 'L1')),
       );
       // Suspensão, lesão e cartões vão junto com cada jogador para o time novo.

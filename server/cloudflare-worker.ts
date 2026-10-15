@@ -17,7 +17,7 @@ import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './rea
 import { ACCOUNT_PRESENCE_TTL_MS, ROOM_INVITATION_TTL_MS, authenticatedAccount, handleAccountRequest } from './account-api.js';
 import { isEliminatedCompetition, persistCompletedCompetition, persistEliminatedCompetition } from './competition-persistence.js';
 import { loadOwnedEventCards } from './events.js';
-import { loadAlbumLevelSnapshots } from './album.js';
+import { loadAlbumLevelSnapshots, loadAlbumPageBonusSnapshots } from './album.js';
 import { sendPushToUser } from './push.js';
 import { cloneRoomJson } from '../shared/room-sync.js';
 import { MAX_ONLINE_PLAYERS } from '../shared/game/competition.js';
@@ -298,6 +298,7 @@ class DurableSocket implements RealtimeSocket {
   readonly accountId?: string;
   readonly eventCardIds?: string[];
   verifiedAlbumLevelSnapshot?: Partial<Record<string, 1 | 2 | 3 | 4 | 5>>;
+  verifiedAlbumPageBonusSnapshot?: Partial<Record<string, 3>>;
 
   constructor(
     readonly id: string,
@@ -756,13 +757,22 @@ export class GameRoom {
           && room.players.filter(player => player.connected).length >= 2;
         if (room && canStart) {
           try {
-            const snapshots = await loadAlbumLevelSnapshots(this.env.DB, room.players.map(player => player.accountId));
+            const accountIds = room.players.map(player => player.accountId);
+            const [snapshots, pageBonusSnapshots] = await Promise.all([
+              loadAlbumLevelSnapshots(this.env.DB, accountIds),
+              loadAlbumPageBonusSnapshots(this.env.DB, accountIds),
+            ]);
             room.players.forEach(player => {
               player.competitionAlbumLevelSnapshot = player.accountId
                 ? snapshots.get(player.accountId) ?? {}
                 : {};
+              player.competitionAlbumPageBonusSnapshot = player.accountId
+                ? pageBonusSnapshots.get(player.accountId) ?? {}
+                : {};
             });
-            socket.verifiedAlbumLevelSnapshot = room.players.find(player => player.socketId === socket.id)?.competitionAlbumLevelSnapshot ?? {};
+            const startingPlayer = room.players.find(player => player.socketId === socket.id);
+            socket.verifiedAlbumLevelSnapshot = startingPlayer?.competitionAlbumLevelSnapshot ?? {};
+            socket.verifiedAlbumPageBonusSnapshot = startingPlayer?.competitionAlbumPageBonusSnapshot ?? {};
           } catch {
             socket.emit('action_error', {
               event: 'start_setup',
@@ -783,6 +793,7 @@ export class GameRoom {
         const room = this.runtime.rooms.get(roomCode);
         const player = room?.players.find(candidate => candidate.socketId === socket.id);
         socket.verifiedAlbumLevelSnapshot = player?.competitionAlbumLevelSnapshot ?? {};
+        socket.verifiedAlbumPageBonusSnapshot = player?.competitionAlbumPageBonusSnapshot ?? {};
       }
 
       if (incoming.event === 'create_room' && !this.runtime.rooms.has(this.roomCode)) {
@@ -1150,29 +1161,52 @@ export class GameRoom {
       if (stored.room.phase !== 'lobby') {
         for (const player of stored.room.players) {
           const frozen = player.competitionAlbumLevelSnapshot ?? {};
+          const frozenPageBonuses = player.competitionAlbumPageBonusSnapshot ?? {};
           player.competitionAlbumLevelSnapshot = frozen;
-          player.draftedPlayers = player.draftedPlayers.map(card => card && card.competitionAlbumLevel === undefined
-            ? { ...card, competitionAlbumLevel: frozen[card.id] ?? 0 }
+          player.competitionAlbumPageBonusSnapshot = frozenPageBonuses;
+          player.draftedPlayers = player.draftedPlayers.map(card => card && (card.competitionAlbumLevel === undefined || card.competitionAlbumPageBonus === undefined)
+            ? {
+              ...card,
+              competitionAlbumLevel: card.competitionAlbumLevel ?? frozen[card.id] ?? 0,
+              competitionAlbumPageBonus: card.competitionAlbumPageBonus ?? frozenPageBonuses[card.id] ?? 0,
+            }
             : card);
           if (player.team) {
             player.team = {
               ...player.team,
-              players: player.team.players.map(card => card.competitionAlbumLevel === undefined
-                ? { ...card, competitionAlbumLevel: frozen[card.id] ?? 0 }
+              players: player.team.players.map(card => card.competitionAlbumLevel === undefined || card.competitionAlbumPageBonus === undefined
+                ? {
+                  ...card,
+                  competitionAlbumLevel: card.competitionAlbumLevel ?? frozen[card.id] ?? 0,
+                  competitionAlbumPageBonus: card.competitionAlbumPageBonus ?? frozenPageBonuses[card.id] ?? 0,
+                }
                 : card),
             };
           }
           const options = stored.room.draftState?.currentOptionsByPlayer[player.id];
           if (options) {
-            stored.room.draftState!.currentOptionsByPlayer[player.id] = options.map(card => card.competitionAlbumLevel === undefined
-              ? { ...card, competitionAlbumLevel: frozen[card.id] ?? 0 }
+            stored.room.draftState!.currentOptionsByPlayer[player.id] = options.map(card => card.competitionAlbumLevel === undefined || card.competitionAlbumPageBonus === undefined
+              ? {
+                ...card,
+                competitionAlbumLevel: card.competitionAlbumLevel ?? frozen[card.id] ?? 0,
+                competitionAlbumPageBonus: card.competitionAlbumPageBonus ?? frozenPageBonuses[card.id] ?? 0,
+              }
               : card);
           }
         }
         stored.room.market = (stored.room.market ?? []).map(listing => {
-          if (listing.player.competitionAlbumLevel !== undefined) return listing;
-          const sellerSnapshot = stored.room.players.find(player => player.id === listing.sellerId)?.competitionAlbumLevelSnapshot;
-          return { ...listing, player: { ...listing.player, competitionAlbumLevel: sellerSnapshot?.[listing.player.id] ?? 0 } };
+          if (listing.player.competitionAlbumLevel !== undefined && listing.player.competitionAlbumPageBonus !== undefined) return listing;
+          const seller = stored.room.players.find(player => player.id === listing.sellerId);
+          const sellerSnapshot = seller?.competitionAlbumLevelSnapshot;
+          const sellerPageSnapshot = seller?.competitionAlbumPageBonusSnapshot;
+          return {
+            ...listing,
+            player: {
+              ...listing.player,
+              competitionAlbumLevel: listing.player.competitionAlbumLevel ?? sellerSnapshot?.[listing.player.id] ?? 0,
+              competitionAlbumPageBonus: listing.player.competitionAlbumPageBonus ?? sellerPageSnapshot?.[listing.player.id] ?? 0,
+            },
+          };
         });
       }
       this.runtime.rooms.set(this.roomCode, stored.room);

@@ -1,6 +1,6 @@
 // The minute-by-minute match simulation.
 
-import { Player, Coach, COACHES, FORMATIONS, getTacticById } from '../gameData';
+import { Player, Coach, COACHES, FORMATIONS, getCompetitionAlbumBonus, getTacticById } from '../gameData';
 import { selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc, frangoDesc, screamedDesc, deflectedDesc, woodworkDesc, penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc, freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc, cornerGoalDesc, cornerSaveDesc, cornerMissDesc, flowDesc, Approach, LastKeyCtx, foulDesc, yellowCardDesc, straightRedDesc, secondYellowDesc, injuryDesc } from '../matchNarrative';
 import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../traits';
 import { stadiumFor, type Stadium } from '../stadium';
@@ -284,7 +284,7 @@ function pickWeightedAssister(
 
   const weighted: { player: PlayerCard; weight: number }[] = teammates.map(p => {
     let weight = 0.5; // default base weight for defenders/GK
-    const albumBonus = p.competitionAlbumLevel ?? 0;
+    const albumBonus = getCompetitionAlbumBonus(p);
     
     const role = matchRoleForPlayer(team, p);
     if (['CAM', 'CM', 'LM', 'RM'].includes(role)) {
@@ -489,7 +489,7 @@ export function runMatchSimulation(
       stat.yellowCards++;
       stat.rating -= 0.5;
     }
-    events.push({ minute: min, type: 'yellow', teamId: team.id, playerId: p.id, description: yellowCardDesc(p.shortName, (p.composure ?? 65) + (p.competitionAlbumLevel ?? 0), matchRoleForPlayer(team, p), cutDanger) });
+    events.push({ minute: min, type: 'yellow', teamId: team.id, playerId: p.id, description: yellowCardDesc(p.shortName, (p.composure ?? 65) + getCompetitionAlbumBonus(p), matchRoleForPlayer(team, p), cutDanger) });
     totalCards++;
   };
   const applySendOff = (p: Player, team: Team, reason: 'red' | 'second-yellow', min: number) => {
@@ -502,7 +502,7 @@ export function runMatchSimulation(
     }
     // 🟥 narração dramática e VARIADA — vermelho direto (viés por compostura) vs segundo amarelo.
     events.push({ minute: min, type: 'red', teamId: team.id, playerId: p.id, secondYellow: reason === 'second-yellow',
-      description: reason === 'second-yellow' ? secondYellowDesc(p.shortName) : straightRedDesc(p.shortName, (p.composure ?? 65) + (p.competitionAlbumLevel ?? 0)) });
+      description: reason === 'second-yellow' ? secondYellowDesc(p.shortName) : straightRedDesc(p.shortName, (p.composure ?? 65) + getCompetitionAlbumBonus(p)) });
     sentOff.add(statKey(team.id, p.id));
     const pen = matchRoleForPlayer(team, p) === 'GK' ? RED_GK_PENALTY : RED_PENALTY;
     if (team.id === home.id) homeExtraPenalty += pen; else awayExtraPenalty += pen;
@@ -628,7 +628,7 @@ export function runMatchSimulation(
     for (const team of [home, away]) {
       for (const p of team.players.slice(0, 11)) {
         if (hasMatchInjury(team, p) || isSentOff(team, p)) continue;
-        if (random() < randomInjuryChance((p.physical ?? 70) + (p.competitionAlbumLevel ?? 0), Boolean(p.fragil)) / span) { applyInjury(p, team, minute); break; }
+        if (random() < randomInjuryChance((p.physical ?? 70) + getCompetitionAlbumBonus(p), Boolean(p.fragil)) / span) { applyInjury(p, team, minute); break; }
       }
     }
 
@@ -729,14 +729,14 @@ export function runMatchSimulation(
           const foulerKey = statKey(defendTeam.id, fouler.id);
           const already = bookings.get(foulerKey) ?? 0;
           const bookedLeniency = already >= 1 ? SECOND_YELLOW_LENIENCY : 1;
-          if (random() < yellowChance(matchRoleForPlayer(defendTeam, fouler), (fouler.composure ?? 65) + (fouler.competitionAlbumLevel ?? 0), cardAggression) * tAgg * bookedLeniency) {
+          if (random() < yellowChance(matchRoleForPlayer(defendTeam, fouler), (fouler.composure ?? 65) + getCompetitionAlbumBonus(fouler), cardAggression) * tAgg * bookedLeniency) {
             if (already >= 1) applySendOff(fouler, defendTeam, 'second-yellow', minute);
             else { bookings.set(foulerKey, already + 1); pushYellow(fouler, defendTeam, minute, dangerousFoul || cutThreat); }
           }
         }
       }
       // 🩹 Lesão do FALTADO (lado atacante) — falta dura machuca mais, ponderada pelo físico.
-      if (fouled && random() < injuryChanceFromFoul((fouled.physical ?? 70) + (fouled.competitionAlbumLevel ?? 0), Boolean(fouled.fragil)) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
+      if (fouled && random() < injuryChanceFromFoul((fouled.physical ?? 70) + getCompetitionAlbumBonus(fouled), Boolean(fouled.fragil)) * (dangerousFoul ? DANGEROUS_FOUL_INJURY_MULT : 1)) {
         applyInjury(fouled, attackTeam, minute);
       }
 

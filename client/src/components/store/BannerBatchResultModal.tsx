@@ -7,9 +7,6 @@ import { albumCard, RARITY_LABEL, stickerLevel } from '../album/albumData';
 
 export default function BannerBatchResultModal({ draws, onClose }: { draws: BannerBatchResult | null; onClose: () => void }) {
   const { album } = useAlbum();
-  const newCount = draws?.cards.filter(draw => draw.card.isNew).length ?? 0;
-  const repeatedCount = (draws?.cards.length ?? 0) - newCount;
-  const pityCount = draws?.cards.filter(draw => draw.pityTriggered).length ?? 0;
 
   return (
     <GameModal
@@ -17,16 +14,10 @@ export default function BannerBatchResultModal({ draws, onClose }: { draws: Bann
       onOpenChange={open => { if (!open) onClose(); }}
       size="wide"
       title={draws ? `${draws.cards.length} ${draws.cards.length === 1 ? 'carta recebida' : 'cartas recebidas'}` : 'Resultado do sorteio'}
-      subtitle={draws ? `${newCount} novas · ${repeatedCount} repetidas${pityCount ? ` · garantia acionada ${pityCount}×` : ''}` : undefined}
       closeLabel="Fechar resultado dos sorteios"
     >
       {draws ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-            <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] p-2.5"><span className="text-[var(--ui-text-muted)]">Novas</span><strong className="ml-2 tabular-nums text-[var(--ui-success)]">{newCount}</strong></div>
-            <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] p-2.5"><span className="text-[var(--ui-text-muted)]">Repetidas</span><strong className="ml-2 tabular-nums text-[#E9C46A]">{repeatedCount}</strong></div>
-            <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] p-2.5"><span className="text-[var(--ui-text-muted)]">Gasto</span><strong className="ml-2 tabular-nums text-[var(--ui-text)]">{draws.price.toLocaleString('pt-BR')} moedas</strong></div>
-          </div>
           <div className="grid grid-cols-2 justify-items-center gap-x-2 gap-y-4 sm:grid-cols-3 md:grid-cols-5" aria-label="Cartas sorteadas">
             {draws.cards.map((draw, index) => {
               const player = albumCard(draw.card.id);

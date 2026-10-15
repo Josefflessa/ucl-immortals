@@ -80,6 +80,8 @@ export interface Player {
    * that travels with the card through market listings and trades. Zero means no buff.
    */
   competitionAlbumLevel?: 0 | 1 | 2 | 3 | 4 | 5;
+  /** Flat bonus locked at competition start when this card's album page is complete. */
+  competitionAlbumPageBonus?: 0 | 3;
   traits: string[];
   historicalCoaches?: string[];
   historicalPartners?: string[];
@@ -165,6 +167,11 @@ export interface Player {
   // Atributo que recebe automaticamente os próximos pacotes de 6 pontos ao
   // desbloquear os níveis 1–3. Pontos já liberados continuam manuais.
   autoEvolveAttribute?: AttrKey;
+}
+
+/** Combined flat Album bonus used by competition calculations. */
+export function getCompetitionAlbumBonus(player: Pick<Player, 'competitionAlbumLevel' | 'competitionAlbumPageBonus'>): number {
+  return (player.competitionAlbumLevel ?? 0) + (player.competitionAlbumPageBonus ?? 0);
 }
 
 export interface CoachBonus {

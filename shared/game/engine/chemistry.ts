@@ -1,6 +1,6 @@
 // Chemistry, effective stats, team-effect characteristics and possession.
 
-import { Player, COACHES, FORMATIONS, HISTORICAL_TRIOS } from '../gameData';
+import { Player, COACHES, FORMATIONS, getCompetitionAlbumBonus, HISTORICAL_TRIOS } from '../gameData';
 import { AttrKey, getTraitAttributeBonus } from '../traits';
 import { sameClub } from '../crests';
 import { projectLevel } from '../clubProjects';
@@ -265,7 +265,7 @@ export function getCoachModifiersForPlayer(
       modifiers.vision += 5;
       modifiers.activeEffects.push("DNA Guardiola: +5 Passe/Visão (MC)");
     }
-    if (player.vision + (player.competitionAlbumLevel ?? 0) >= 80) {
+    if (player.vision + getCompetitionAlbumBonus(player) >= 80) {
       const b = coachPrime ? 7 : 3;
       modifiers.pace += b;
       modifiers.shooting += b;
@@ -301,7 +301,7 @@ export function getCoachModifiersForPlayer(
       modifiers.activeEffects.push("Muralha Mourinho" + (coachPrime ? " Prime" : "") + ": +" + b + " Defesa");
     }
   } else if (coachId === 'ancelotti') {
-    if (player.overall + (player.competitionAlbumLevel ?? 0) >= 85) {
+    if (player.overall + getCompetitionAlbumBonus(player) >= 85) {
       const b = 4;
       modifiers.pace += b;
       modifiers.shooting += b;
@@ -415,7 +415,7 @@ export function getPlayerEffectiveStats(
   // Penalidade de posição: fora = −15%; secundária = −5%; nativa = 0%.
   const posMult = isOOP ? oopMult : (isSecondary ? SECONDARY_STAT_MULT : 1);
 
-  const albumBonus = player.competitionAlbumLevel ?? 0;
+  const albumBonus = getCompetitionAlbumBonus(player);
   const withAlbum = (base: number) => base + albumBonus;
   const applyMult = (base: number) => Math.round(withAlbum(base) * chemMult * posMult);
   const chemOnly = (base: number) => Math.round(withAlbum(base) * chemMult);
@@ -610,7 +610,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     let targets = (m.martirTargets ?? []).filter(id => id !== m.id && xi.some(p => p.id === id)).slice(0, 2);
     if (targets.length < 2) {
       const fill = xi.filter(p => p.id !== m.id && !targets.includes(p.id))
-        .sort((a, b) => (b.overall + (b.competitionAlbumLevel ?? 0)) - (a.overall + (a.competitionAlbumLevel ?? 0)))
+        .sort((a, b) => (b.overall + getCompetitionAlbumBonus(b)) - (a.overall + getCompetitionAlbumBonus(a)))
         .map(p => p.id);
       targets = [...targets, ...fill].slice(0, 2);
     }
@@ -858,8 +858,8 @@ export function getFreeKickTaker(team: Team, excludedIds?: ReadonlySet<string>):
   const specialist = available.find(isSpecialist);
   if (specialist) return specialist;
   return [...pool].sort((a, b) =>
-    (b.shooting + b.composure + 2 * (b.competitionAlbumLevel ?? 0))
-      - (a.shooting + a.composure + 2 * (a.competitionAlbumLevel ?? 0))
+    (b.shooting + b.composure + 2 * getCompetitionAlbumBonus(b))
+      - (a.shooting + a.composure + 2 * getCompetitionAlbumBonus(a))
   )[0];
 }
 
@@ -873,7 +873,7 @@ export function getHeaderTarget(team: Team, excludedIds?: ReadonlySet<string>): 
   const pool = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const cand = pool.length > 0 ? pool : active;
   const weighted = cand.map(p => {
-    let w = (p.physical + p.shooting + 2 * (p.competitionAlbumLevel ?? 0)) / 2; // base aerial threat
+    let w = (p.physical + p.shooting + 2 * getCompetitionAlbumBonus(p)) / 2; // base aerial threat
     const role = matchRoleForPlayer(team, p);
     if (['CB', 'ST'].includes(role)) w *= 1.8; // these crash the box
     else if (['LB', 'RB', 'CDM', 'CM'].includes(role)) w *= 0.7;

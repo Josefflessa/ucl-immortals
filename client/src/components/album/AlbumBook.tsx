@@ -1,12 +1,12 @@
 // The album itself: its regions, the pages of each region (a club's own page, or the region's
 // shared page for its smaller clubs) with their progress, and a page open with its slots.
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronLeft, ChevronRight, Gift, Globe, Lock, Search, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Gift, Globe, Lock, Sparkles } from 'lucide-react';
 import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import { GAME_EVENTS } from '@shared/game/events';
 import { getCrest } from '@shared/game/crests';
 import { CLUB_PAGE_RECOMPLETE, regionPageReward, type AlbumItemKey, type AlbumPage, type AlbumRegionId } from '@shared/game/album';
-import { Button, EmptyState, Input, Progress } from '../../design-system';
+import { Button, EmptyState, Progress } from '../../design-system';
 import { ClubCover, ClubFrameRing } from '../account/ClubRewards';
 import { useAlbum } from '../../contexts/AlbumContext';
 import { useAccount } from '../../contexts/AccountContext';
@@ -16,6 +16,7 @@ import { albumCard, CATALOG, pageProgress, RARITY_LABEL, REGIONS, stickerLevel, 
 import { AlbumSlot, ItemArt } from './AlbumPieces';
 import StickerSheet from './StickerSheet';
 import SelectMenu from '../account/SelectMenu';
+import AlbumFilterToolbar from './AlbumFilterToolbar';
 
 function useSlotScale() {
   const read = () => (typeof window === 'undefined' ? 0.6 : window.innerWidth < 480 ? 0.46 : window.innerWidth < 1024 ? 0.54 : 0.62);
@@ -106,9 +107,11 @@ function PageRewardBanner({ page, complete, completionCount, missing }: { page: 
 }
 
 type SlotStatus = 'all' | 'owned' | 'missing' | 'spare';
+type PageSort = 'number' | 'name' | 'rarity';
 type AlbumSectionId = AlbumRegionId | 'exclusive';
 
 const RARITY_ORDER: Rarity[] = ['unique', 'immortal', 'legendary', 'gold', 'silver', 'bronze'];
+const RARITY_SORT_ORDER: Rarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique'];
 
 function normalize(value: string) {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -146,6 +149,8 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | 'owned' | 'missing'>('all');
+  const [sort, setSort] = useState<'name' | 'source'>('name');
+  const [direction, setDirection] = useState<'asc' | 'desc'>('asc');
   const [pageNumber, setPageNumber] = useState(1);
   const perPage = useSlotsPerPage();
   const owned = useMemo(() => new Set([...eventCards, ...(album ? Array.from(album.stickers.keys()) : [])]), [eventCards, album]);
@@ -162,32 +167,45 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
       if (status === 'missing' && has) return false;
       if (query && !normalize(`${card.shortName} ${card.fullName ?? ''} ${card.club} ${exclusiveCardSource(card)}`).includes(query)) return false;
       return true;
+    }).sort((a, b) => {
+      const result = sort === 'name'
+        ? a.shortName.localeCompare(b.shortName, 'pt-BR')
+        : exclusiveCardSource(a).localeCompare(exclusiveCardSource(b), 'pt-BR');
+      return (direction === 'asc' ? result : -result) || a.shortName.localeCompare(b.shortName, 'pt-BR');
     });
-  }, [owned, search, status]);
+  }, [owned, search, status, sort, direction]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const current = Math.min(pageNumber, totalPages);
   const visible = filtered.slice((current - 1) * perPage, current * perPage);
-  const hasFilters = search.trim() !== '' || status !== 'all';
+  const hasFilters = search.trim() !== '' || status !== 'all' || sort !== 'name' || direction !== 'asc';
 
-  useEffect(() => { setPageNumber(1); }, [search, status, perPage]);
+  useEffect(() => { setPageNumber(1); }, [search, status, sort, direction, perPage]);
   const goTo = (value: number) => {
     setPageNumber(value);
   };
-  const clearFilters = () => { setSearch(''); setStatus('all'); };
+  const clearFilters = () => { setSearch(''); setStatus('all'); setSort('name'); setDirection('asc'); };
 
   return (
     <section aria-label="Cartas Exclusivas">
-      <div className="mb-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-        <label className="relative min-w-0 sm:w-64">
-          <span className="sr-only">Buscar carta exclusiva</span>
-          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
-          <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, clube ou evento" className="w-full pl-9" />
-        </label>
-        <div className="flex flex-wrap items-center gap-2">
+      <AlbumFilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchLabel="Buscar carta exclusiva"
+        placeholder="Nome, clube ou evento"
+        sortLabel="cartas exclusivas"
+        sortValue={sort}
+        onSortChange={value => setSort(value as 'name' | 'source')}
+        sortOptions={[{ value: 'name', label: 'Nome' }, { value: 'source', label: 'Origem' }]}
+        direction={direction}
+        onDirectionChange={() => setDirection(value => value === 'asc' ? 'desc' : 'asc')}
+        hasActiveFilters={hasFilters}
+        onClear={clearFilters}
+        extraFilters={<>
           <SelectMenu
             label="Situação das cartas exclusivas"
             value={status}
             onChange={setStatus}
+            appearance="neutral"
             options={([
               ['all', 'Todas'],
               ['owned', 'Conquistadas'],
@@ -199,9 +217,8 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
               label: <span className="flex min-w-[9.5rem] items-center gap-2 pl-1"><span className="text-[var(--ui-text)]">{text}</span><span className="ml-auto pl-3 text-xs tabular-nums text-[var(--ui-text-muted)]">{counts[value]}</span></span>,
             }))}
           />
-          {hasFilters ? <Button intent="ghost" onClick={clearFilters} className="min-h-9 px-2.5 text-xs"><X size={14} aria-hidden="true" /> Limpar</Button> : null}
-        </div>
-      </div>
+        </>}
+      />
 
       {visible.length === 0 ? <EmptyState className="mt-6" title="Nenhuma carta encontrada" description="Tente outro nome ou remova algum filtro." action={<Button intent="secondary" onClick={clearFilters}>Limpar filtros</Button>} /> : null}
 
@@ -247,6 +264,8 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<SlotStatus>('all');
   const [rarity, setRarity] = useState<'all' | Rarity>('all');
+  const [sort, setSort] = useState<PageSort>('number');
+  const [direction, setDirection] = useState<'asc' | 'desc'>('asc');
   const [pageNumber, setPageNumber] = useState(1);
   const progress = pageProgress(page, album);
 
@@ -265,7 +284,7 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
   // The filters apply to the whole page; then it is split into pages of results.
   const filtered = useMemo(() => {
     const query = normalize(search);
-    return page.stickers.filter(id => {
+    const ids = page.stickers.filter(id => {
       const card = albumCard(id);
       if (!card) return false;
       const sticker = album?.stickers.get(id);
@@ -276,17 +295,39 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
       if (query && !normalize(`${card.shortName} ${card.fullName ?? ''} ${CATALOG.stickers.get(id)?.number ?? ''}`).includes(query)) return false;
       return true;
     });
-  }, [page, album, search, status, rarity]);
+    const clubOrder = new Map<string, number>();
+    if (page.kind !== 'club') {
+      page.stickers.forEach(id => {
+        const clubId = CATALOG.stickers.get(id)?.clubId ?? '';
+        if (!clubOrder.has(clubId)) clubOrder.set(clubId, clubOrder.size);
+      });
+    }
+    return ids.sort((a, b) => {
+      if (page.kind !== 'club') {
+        const clubA = CATALOG.stickers.get(a)?.clubId ?? '';
+        const clubB = CATALOG.stickers.get(b)?.clubId ?? '';
+        const groupOrder = (clubOrder.get(clubA) ?? 0) - (clubOrder.get(clubB) ?? 0);
+        if (groupOrder !== 0) return groupOrder;
+      }
+      const cardA = albumCard(a);
+      const cardB = albumCard(b);
+      let result = 0;
+      if (sort === 'name') result = (cardA?.shortName ?? '').localeCompare(cardB?.shortName ?? '', 'pt-BR');
+      else if (sort === 'rarity') result = RARITY_SORT_ORDER.indexOf(cardA?.rarity ?? 'bronze') - RARITY_SORT_ORDER.indexOf(cardB?.rarity ?? 'bronze');
+      else result = (CATALOG.stickers.get(a)?.number ?? 0) - (CATALOG.stickers.get(b)?.number ?? 0);
+      return (direction === 'asc' ? result : -result) || (CATALOG.stickers.get(a)?.number ?? 0) - (CATALOG.stickers.get(b)?.number ?? 0);
+    });
+  }, [page, album, search, status, rarity, sort, direction]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const current = Math.min(pageNumber, totalPages);
   const visible = useMemo(() => filtered.slice((current - 1) * perPage, current * perPage), [filtered, current, perPage]);
-  const hasFilters = search.trim() !== '' || status !== 'all' || rarity !== 'all';
+  const hasFilters = search.trim() !== '' || status !== 'all' || rarity !== 'all' || sort !== 'number' || direction !== 'asc';
 
-  useEffect(() => { setPageNumber(1); }, [search, status, rarity, perPage]);
+  useEffect(() => { setPageNumber(1); }, [search, status, rarity, sort, direction, perPage]);
   const goTo = (value: number) => {
     setPageNumber(value);
   };
-  const clearFilters = () => { setSearch(''); setStatus('all'); setRarity('all'); };
+  const clearFilters = () => { setSearch(''); setStatus('all'); setRarity('all'); setSort('number'); setDirection('asc'); };
 
   // A shared page shows its clubs as sections (of the slots shown).
   const sections = useMemo(() => {
@@ -320,17 +361,29 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
       <PageRewardBanner page={page} complete={progress.complete} completionCount={album?.pageCompletionCounts[page.id] ?? 0} missing={counts.missing} />
 
       {/* Filters: by name or number, by whether it is in the album, by rarity. */}
-      <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-        <label className="relative min-w-0 sm:w-64">
-          <span className="sr-only">Buscar carta</span>
-          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
-          <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome ou número" className="w-full pl-9" />
-        </label>
-        <div className="flex flex-wrap items-center gap-2">
+      <AlbumFilterToolbar
+        className="mt-5"
+        search={search}
+        onSearchChange={setSearch}
+        searchLabel="Buscar carta nesta página"
+        placeholder="Nome ou número"
+        sortLabel="cartas da página"
+        sortValue={sort}
+        onSortChange={value => setSort(value as PageSort)}
+        sortOptions={[{ value: 'number', label: 'Nº do álbum' }, { value: 'name', label: 'Nome' }, { value: 'rarity', label: 'Raridade' }]}
+        direction={direction}
+        onDirectionChange={() => setDirection(value => value === 'asc' ? 'desc' : 'asc')}
+        hasActiveFilters={hasFilters}
+        onClear={clearFilters}
+        extraFilters={(
+          <div className={`grid w-full gap-2 sm:flex sm:w-auto ${rarities.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <SelectMenu
             label="Situação das cartas"
             value={status}
             onChange={setStatus}
+            appearance="neutral"
+            className="w-full min-w-0"
+            buttonClassName="w-full justify-between"
             options={([
               ['all', 'Todas'],
               ['owned', 'No álbum'],
@@ -340,7 +393,7 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
               value,
               text: `${text}, ${counts[value]}`,
               dimmed: counts[value] === 0,
-              label: <span className="flex min-w-[9.5rem] items-center gap-2 pl-1"><span className="text-[var(--ui-text)]">{text}</span><span className="ml-auto pl-3 text-xs tabular-nums text-[var(--ui-text-muted)]">{counts[value]}</span></span>,
+              label: <span className="flex min-w-0 items-center gap-2 pl-1"><span className="min-w-0 truncate text-[var(--ui-text)]">{text}</span><span className="ml-auto shrink-0 pl-1 text-xs tabular-nums text-[var(--ui-text-muted)]">{counts[value]}</span></span>,
             }))}
           />
           {rarities.length > 1 ? (
@@ -348,19 +401,18 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
               label="Raridade"
               value={rarity}
               onChange={value => setRarity(value as 'all' | Rarity)}
+              appearance="neutral"
+              className="w-full min-w-0"
+              buttonClassName="w-full justify-between"
               options={[
-                { value: 'all', text: 'Todas as raridades', label: <span className="pl-1 text-[var(--ui-text)]">Todas as raridades</span> },
-                ...rarities.map(value => ({ value, text: RARITY_LABEL[value], color: getRarityColor(value), label: <span className="pl-1">{RARITY_LABEL[value]}</span> })),
+                { value: 'all', text: 'Todas as raridades', label: <span className="block min-w-0 truncate pl-1 text-[var(--ui-text)]">Todas as raridades</span> },
+                ...rarities.map(value => ({ value, text: RARITY_LABEL[value], color: getRarityColor(value), label: <span className="block min-w-0 truncate pl-1">{RARITY_LABEL[value]}</span> })),
               ]}
             />
           ) : null}
-          {hasFilters ? (
-            <Button intent="ghost" onClick={clearFilters} className="min-h-9 px-2.5 text-xs">
-              <X size={14} aria-hidden="true" /> Limpar
-            </Button>
-          ) : null}
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -468,28 +520,24 @@ function OwnedCardsView() {
   const visible = cards.slice((currentPage - 1) * perPage, currentPage * perPage);
   const repeatedCopies = cards.reduce((total, entry) => total + entry.copies.spare, 0);
   useEffect(() => { setPage(1); }, [search, sort, direction, perPage]);
+  const clearFilters = () => { setSearch(''); setSort('number'); setDirection('asc'); };
 
   return (
     <section aria-label="Minhas cartas no álbum">
-      <div className="mb-4 grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_176px_40px] sm:items-center">
-        <label className="relative min-w-0 flex-1">
-          <span className="sr-only">Buscar nas minhas cartas</span>
-          <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
-          <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar jogador, clube ou nº do álbum" className="w-full pl-9" />
-        </label>
-        <div className="grid grid-cols-[minmax(0,1fr)_40px] gap-2 sm:contents">
-          <select aria-label="Ordenar minhas cartas por" value={sort} onChange={event => setSort(event.target.value as OwnedSort)} className="ui-input h-10 min-w-0 w-full py-1 text-xs">
-            <option value="number">Nº do álbum</option>
-            <option value="name">Nome</option>
-            <option value="level">Nível</option>
-            <option value="spares">Repetidas</option>
-            <option value="rarity">Raridade</option>
-          </select>
-          <button type="button" title={`Ordem ${direction === 'asc' ? 'crescente' : 'decrescente'}`} aria-label={`Mudar para ordem ${direction === 'asc' ? 'decrescente' : 'crescente'}`} onClick={() => setDirection(value => value === 'asc' ? 'desc' : 'asc')} className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] text-[var(--ui-text-soft)] transition-colors hover:border-[var(--ui-line-strong)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-focus)]">
-            {direction === 'asc' ? <ArrowUp size={17} aria-hidden="true" /> : <ArrowDown size={17} aria-hidden="true" />}
-          </button>
-        </div>
-      </div>
+      <AlbumFilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchLabel="Buscar nas minhas cartas"
+        placeholder="Buscar jogador, clube ou nº do álbum"
+        sortLabel="minhas cartas"
+        sortValue={sort}
+        onSortChange={value => setSort(value as OwnedSort)}
+        sortOptions={[{ value: 'number', label: 'Nº do álbum' }, { value: 'name', label: 'Nome' }, { value: 'level', label: 'Nível' }, { value: 'spares', label: 'Repetidas' }, { value: 'rarity', label: 'Raridade' }]}
+        direction={direction}
+        onDirectionChange={() => setDirection(value => value === 'asc' ? 'desc' : 'asc')}
+        hasActiveFilters={search.trim() !== '' || sort !== 'number' || direction !== 'asc'}
+        onClear={clearFilters}
+      />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--ui-text-muted)]" aria-live="polite">
         <span><strong className="text-[var(--ui-text)]">{cards.length}</strong> {cards.length === 1 ? 'carta' : 'cartas'} encontradas</span>

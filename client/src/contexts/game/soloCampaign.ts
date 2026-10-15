@@ -75,15 +75,18 @@ export function applySoloSeatRule(state: GameState, rule: (seat: seatRules.Playe
   const result = rule(seat);
   if (!result.ok) return state;
   const next = result.seat;
-  const lockAlbumLevel = <T extends Player>(player: T): T => player.competitionAlbumLevel !== undefined
-    ? player
-    : { ...player, competitionAlbumLevel: state.competitionAlbumLevelSnapshot?.[player.id] ?? 0 };
+  const lockAlbumBonuses = <T extends Player>(player: T): T => {
+    const level = player.competitionAlbumLevel ?? state.competitionAlbumLevelSnapshot?.[player.id] ?? 0;
+    const pageBonus = player.competitionAlbumPageBonus ?? state.competitionAlbumPageBonusSnapshot?.[player.id] ?? 0;
+    return player.competitionAlbumLevel === level && player.competitionAlbumPageBonus === pageBonus
+      ? player
+      : { ...player, competitionAlbumLevel: level, competitionAlbumPageBonus: pageBonus };
+  };
   // Stamp any card entering the roster (recruitment, packs, emergency replacement)
-  // with this campaign's frozen level. Existing instances keep their own value so a
-  // transferred card can never inherit or stack with the receiver's Album level.
+  // with this campaign's frozen Album bonuses. Existing cards keep their locked values.
   const team = {
     ...next.team,
-    players: next.team.players.map(lockAlbumLevel),
+    players: next.team.players.map(lockAlbumBonuses),
   };
   const reinforcementOptions = next.reinforcementOptions === undefined ? state.reinforcementOptions : next.reinforcementOptions;
   return {
@@ -93,12 +96,12 @@ export function applySoloSeatRule(state: GameState, rule: (seat: seatRules.Playe
     missions: next.missions ?? state.missions,
     bets: next.bets ?? state.bets,
     medicalFreeTreatmentsUsed: next.medicalFreeTreatmentsUsed ?? state.medicalFreeTreatmentsUsed,
-    reinforcementOptions: reinforcementOptions?.map(lockAlbumLevel) ?? null,
+    reinforcementOptions: reinforcementOptions?.map(lockAlbumBonuses) ?? null,
     reinforcementOffer: next.reinforcementOffer === undefined ? state.reinforcementOffer : next.reinforcementOffer,
     discipline: 'discipline' in result ? result.discipline : state.discipline,
-    pendingPack: next.pendingPack ? { ...next.pendingPack, options: next.pendingPack.options.map(lockAlbumLevel) } : null,
-    pendingPackReveal: next.pendingPackReveal ? { ...next.pendingPackReveal, card: lockAlbumLevel(next.pendingPackReveal.card) } : null,
-    pendingUniquePack: next.pendingUniquePack ? lockAlbumLevel(next.pendingUniquePack) : null,
+    pendingPack: next.pendingPack ? { ...next.pendingPack, options: next.pendingPack.options.map(lockAlbumBonuses) } : null,
+    pendingPackReveal: next.pendingPackReveal ? { ...next.pendingPackReveal, card: lockAlbumBonuses(next.pendingPackReveal.card) } : null,
+    pendingUniquePack: next.pendingUniquePack ? lockAlbumBonuses(next.pendingUniquePack) : null,
     uniquePackOfferIds: next.uniquePackOfferIds ?? [],
     uniquePackOfferRoundKey: next.uniquePackOfferRoundKey ?? null,
     playerPackOfferIds: next.playerPackOfferIds ?? {},

@@ -1,6 +1,6 @@
 // Cards, teams, match plans and match results; post-match card growth.
 
-import { Player, FORMATIONS } from '../gameData';
+import { Player, FORMATIONS, getCompetitionAlbumBonus } from '../gameData';
 import { type ClubProjectsState } from '../clubProjects';
 import type { AlbumLevel } from '../album';
 import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL } from './draft';
@@ -242,8 +242,8 @@ export function activeGoalkeeperForTeam(
   if (assigned) return { player: assigned, emergency: false };
 
   const emergency = [...active].sort((a, b) =>
-    ((b.defending ?? 0) + (b.physical ?? 0) + 2 * (b.competitionAlbumLevel ?? 0))
-      - ((a.defending ?? 0) + (a.physical ?? 0) + 2 * (a.competitionAlbumLevel ?? 0))
+    ((b.defending ?? 0) + (b.physical ?? 0) + 2 * getCompetitionAlbumBonus(b))
+      - ((a.defending ?? 0) + (a.physical ?? 0) + 2 * getCompetitionAlbumBonus(a))
   )[0] ?? starters[0] ?? team.players[0];
   return { player: emergency, emergency: true };
 }
@@ -456,7 +456,7 @@ export function padrinhoGodchildId(players: (Player | undefined)[], padrinhoId: 
     ? xi.find(p => p.id === godfather.padrinhoTarget)
     : undefined;
   return (chosen ?? xi.filter(p => p.id !== padrinhoId).sort((x, y) =>
-    (y.overall + (y.competitionAlbumLevel ?? 0)) - (x.overall + (x.competitionAlbumLevel ?? 0))
+    (y.overall + getCompetitionAlbumBonus(y)) - (x.overall + getCompetitionAlbumBonus(x))
   )[0])?.id;
 }
 

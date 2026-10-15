@@ -176,6 +176,21 @@ export const MAX_COPIES = LEVEL_COPIES[LEVEL_COPIES.length - 1];
 
 export type AlbumLevel = 1 | 2 | 3 | 4 | 5;
 
+/** Bonus each card receives while its album page is complete for a competition. */
+export const ALBUM_PAGE_COMPLETION_BONUS = 3 as const;
+export type AlbumPageBonus = typeof ALBUM_PAGE_COMPLETION_BONUS;
+
+/** Snapshot the page-completion bonus from the cards an account currently owns. */
+export function pageBonusSnapshotForOwnedCards(ownedCardIds: ReadonlySet<string>): Partial<Record<string, AlbumPageBonus>> {
+  const snapshot: Partial<Record<string, AlbumPageBonus>> = {};
+  for (const page of albumCatalog().pages) {
+    if (page.stickers.length > 0 && page.stickers.every(cardId => ownedCardIds.has(cardId))) {
+      for (const cardId of page.stickers) snapshot[cardId] = ALBUM_PAGE_COMPLETION_BONUS;
+    }
+  }
+  return snapshot;
+}
+
 /** The level reached with this many copies applied (0 = not in the album yet). */
 export function levelForCopies(copies: number): AlbumLevel | 0 {
   let level = 0;

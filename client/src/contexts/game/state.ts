@@ -10,7 +10,7 @@ import { type ClubProjectId, type RecruitmentOfferMeta } from '@shared/game/club
 import { MarketListing, TradeSession } from '@shared/game/market';
 import { DEFAULT_COMPETITION_FORMAT, type CompetitionFormat } from '@shared/game/competition';
 import { createMissionState, type MissionState } from '@shared/game/missions';
-import type { AlbumLevel } from '@shared/game/album';
+import type { AlbumLevel, AlbumPageBonus } from '@shared/game/album';
 
 // ============================================================
 // GAME PHASES
@@ -79,6 +79,8 @@ export interface GameState {
   competitionFormat: CompetitionFormat;
   /** Frozen account Album levels captured before the solo draft; missing legacy saves resolve to zero. */
   competitionAlbumLevelSnapshot?: Partial<Record<string, AlbumLevel>>;
+  /** Frozen complete-page bonuses captured before the solo draft; missing legacy saves mean zero. */
+  competitionAlbumPageBonusSnapshot?: Partial<Record<string, AlbumPageBonus>>;
   playerTeam: Team | null;
   botTeams: Team[];
   draftState: DraftState | null;
@@ -221,7 +223,7 @@ export type GameAction =
   | { type: 'SET_MATCH_PLAN'; plan: MatchPlan }
   | { type: 'SET_PLAYER_TEAM_PLAY_STYLE'; playStyle: string }
   | { type: 'SET_PLAYER_TEAM_MATCH_PLAN'; plan: MatchPlan }
-  | { type: 'START_DRAFT'; albumLevelSnapshot: Partial<Record<string, AlbumLevel>> }
+  | { type: 'START_DRAFT'; albumLevelSnapshot: Partial<Record<string, AlbumLevel>>; albumPageBonusSnapshot: Partial<Record<string, AlbumPageBonus>> }
   | { type: 'DRAFT_PLAYER'; player: Player }
   | { type: 'VETO_DRAFT' }
   | { type: 'SET_CAPTAIN'; playerId: string }
@@ -299,6 +301,7 @@ export const initialState: GameState = {
   difficulty: 'gold',
   competitionFormat: { ...DEFAULT_COMPETITION_FORMAT },
   competitionAlbumLevelSnapshot: {},
+  competitionAlbumPageBonusSnapshot: {},
   playerTeam: null,
   botTeams: [],
   draftState: null,

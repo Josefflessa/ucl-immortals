@@ -1007,7 +1007,7 @@ export default function AccountPage() {
     return (
       <AppShell>
         <TopBar title="UCL IMMORTALS" />
-        <PageContainer narrow className="flex min-h-[calc(100dvh-64px)] items-start justify-center py-6 sm:items-center sm:py-8">
+        <PageContainer narrow className="flex min-h-[calc(100dvh-64px)] items-center justify-center py-6 sm:py-8">
           <div className="mx-auto w-full max-w-lg">
             <Panel className="w-full overflow-hidden border-[var(--ui-line-strong)] shadow-[0_24px_70px_rgba(0,0,0,.3)]">
               <PanelBody className="space-y-5 p-4 sm:p-7">

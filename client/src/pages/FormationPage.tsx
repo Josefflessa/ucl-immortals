@@ -12,11 +12,10 @@ import { AppShell, Button, ChoiceCard, FixedActionBar, PageContainer, Panel, Sec
 import { Star } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 import { useAlbum } from '../contexts/AlbumContext';
-import type { AlbumLevel } from '@shared/game/album';
 
 export default function FormationPage() {
   const { state, dispatch, submitSetupOnline } = useGame();
-  const { captureCompetitionLevels, loading: albumLoading, error: albumError } = useAlbum();
+  const { captureCompetitionSnapshot, loading: albumLoading, error: albumError } = useAlbum();
   const selectedCoach = COACHES.find(c => c.id === state.selectedCoachId);
 
   const me = state.mode === 'online' ? state.onlinePlayers.find(p => p.socketId === state.socketId) : null;
@@ -39,9 +38,12 @@ export default function FormationPage() {
     } else {
       if (albumLoading) return;
       try {
-        const accountAlbumLevels = await captureCompetitionLevels();
-        const albumLevelSnapshot: Partial<Record<string, AlbumLevel>> = Object.fromEntries(accountAlbumLevels);
-        dispatch({ type: 'START_DRAFT', albumLevelSnapshot });
+        const snapshot = await captureCompetitionSnapshot();
+        dispatch({
+          type: 'START_DRAFT',
+          albumLevelSnapshot: Object.fromEntries(snapshot.levels),
+          albumPageBonusSnapshot: Object.fromEntries(snapshot.pageBonuses),
+        });
       } catch {
         // The Album provider keeps the error visible; do not start a competition
         // with an incomplete snapshot. The button can retry the load.
