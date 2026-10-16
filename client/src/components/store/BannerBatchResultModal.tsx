@@ -1,5 +1,6 @@
 import { Check, Copy, Sparkles } from 'lucide-react';
 import { getRarityColor } from '@shared/game/gameData';
+import type { AlbumLevel } from '@shared/game/album';
 import { GameModal } from '../../design-system';
 import { useAlbum, type BannerBatchResult } from '../../contexts/AlbumContext';
 import PlayerCard from '../game/PlayerCard';
@@ -27,7 +28,7 @@ export default function BannerBatchResultModal({ draws, onClose }: { draws: Bann
               return (
                 <article key={`${draw.card.id}:${index}`} className="flex min-w-0 flex-col items-center text-center">
                   <div className="relative">
-                    <PlayerCard player={player} lite scale={draws.cards.length === 1 ? 0.72 : 0.42} albumLevel={stickerLevel(album, player.id) >= 2 ? stickerLevel(album, player.id) as 2 | 3 | 4 | 5 : undefined} />
+                    <PlayerCard player={player} lite scale={draws.cards.length === 1 ? 0.72 : 0.42} albumLevel={stickerLevel(album, player.id) > 0 ? stickerLevel(album, player.id) as AlbumLevel : undefined} />
                     <span className="absolute left-1/2 top-0 z-[5] inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-bold tracking-[0.08em] text-[#0B0C12] shadow-lg" style={{ backgroundColor: isNew ? '#7BD88F' : '#E9C46A' }}>
                       {isNew ? <Sparkles size={10} aria-hidden="true" /> : <Copy size={10} aria-hidden="true" />}{isNew ? 'NOVA' : 'REPETIDA'}
                     </span>

@@ -252,7 +252,7 @@ export default function AlbumInventory() {
                         <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleCardSelection(s.id)} aria-label={`Selecionar ${card.shortName} para vender`} className="size-5 cursor-pointer accent-[#E9C46A]" />
                       </label>
                       <button type="button" onClick={() => setSelected(s.id)} aria-label={`Ver ${card.shortName}, carta número ${s.number}, ${s.spare} cópias repetidas${toNext === null ? ', nível máximo' : `, ${s.copies} de ${s.copies + toNext} cópias para nível ${albumLevel + 1}`}`} className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]">
-                        <div className="shrink-0"><PlayerCard player={card} lite scale={0.28} albumLevel={albumLevel >= 2 ? albumLevel as AlbumLevel : undefined} /></div>
+                        <div className="shrink-0"><PlayerCard player={card} lite scale={0.28} albumLevel={albumLevel as AlbumLevel} /></div>
                         <div className="min-w-0 flex-1">
                           <div className="text-base font-bold leading-snug text-[var(--ui-text)] [overflow-wrap:anywhere]">{card.shortName}</div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-[var(--ui-text-muted)]">

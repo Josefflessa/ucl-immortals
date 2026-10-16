@@ -79,7 +79,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
     >
       <div className="grid gap-4 sm:grid-cols-[minmax(150px,220px)_minmax(0,1fr)] sm:items-start sm:gap-5">
         <div className={cn('mx-auto pt-1 sm:pt-0', !owned && 'opacity-45 grayscale')}>
-          <PlayerCard player={card} lite scale={0.76} albumLevel={level >= 2 ? level as AlbumLevel : undefined} />
+          <PlayerCard player={card} lite scale={0.76} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
         </div>
 
         <div className="min-w-0 space-y-3.5">
@@ -100,7 +100,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
                   </div>
                 </div>
                 <div className="mt-3"><LevelTrack copies={owned.copies} /></div>
-                <p className="mt-2 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">Cada estrela dá +1 em todos os atributos nas competições. O nível é fixado quando a competição começa.</p>
+                <p className="mt-2 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">O overall da carta já inclui +{level} do Álbum ({card.overall} base → {card.overall + level}). Nas competições, cada estrela também dá +1 em todos os atributos.</p>
               </section>
 
               <section className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-3.5">

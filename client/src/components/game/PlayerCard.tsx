@@ -26,6 +26,29 @@ export interface PlayerCardStats {
   physical: number;
 }
 
+/** Values shown on an album card when its current sticker level is known. */
+export function getAlbumLevelCardStats(player: Player, albumLevel: number): PlayerCardStats {
+  const bonus = Math.max(0, Math.min(5, Math.floor(albumLevel)));
+  return {
+    overall: player.overall + bonus,
+    pace: player.pace + bonus,
+    shooting: player.shooting + bonus,
+    passing: player.passing + bonus,
+    dribbling: player.dribbling + bonus,
+    defending: player.defending + bonus,
+    physical: player.physical + bonus,
+  };
+}
+
+/** Resolve card values without double-applying the album bonus in competition views. */
+export function getPlayerCardDisplayStats(player: Player, albumLevel: number, effectiveStats?: PlayerCardStats): PlayerCardStats {
+  if (effectiveStats) return effectiveStats;
+  if (getCompetitionAlbumBonus(player) > 0) return getCardIntrinsicStats(player);
+  if (player.competitionAlbumLevel !== undefined || player.competitionAlbumPageBonus !== undefined) return player;
+  if (albumLevel > 0) return getAlbumLevelCardStats(player, albumLevel);
+  return player;
+}
+
 interface PlayerCardProps {
   player: Player;
   selected?: boolean;
@@ -34,13 +57,13 @@ interface PlayerCardProps {
   lite?: boolean;
   showChemistry?: boolean;
   chemScore?: number;
-  // Optional team-context values. When omitted (Draft, shop, reinforcement picks, album),
-  // the card intentionally renders the player's stored card values.
+  // Optional team-context values. When omitted, a requested account Album level is shown;
+  // otherwise the card renders the player's stored values.
   effectiveStats?: PlayerCardStats;
   scale?: number; // encolhe o card FULL e sua área ocupada (ex.: caber 2 por linha no mobile)
-  /** The owner's album level for this player (★1–★5): the metalwork grown around the shield. */
+  /** The owner's album level for this player (★1–★5), shown on the frame and added to card values. */
   albumLevel?: AlbumLevel;
-  /** Shows the account's own album level for this player (its own cards: draft, Meu Time). */
+  /** Shows the account's own album level and card values (its own cards: draft, Meu Time). */
   showAlbumLevel?: boolean;
 }
 
@@ -1070,9 +1093,11 @@ function variantDesc(player: Player): string {
 
 function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, effectiveStats, scale = 1, albumLevel: albumLevelProp, showAlbumLevel = false }: PlayerCardProps) {
   const ownAlbumLevel = useAlbumLevel(player.id);
-  const albumLevel = player.competitionAlbumLevel !== undefined
-    ? (player.competitionAlbumLevel > 0 ? player.competitionAlbumLevel as AlbumLevel : undefined)
-    : albumLevelProp ?? (showAlbumLevel ? ownAlbumLevel : undefined);
+  const hasCompetitionAlbumSnapshot = player.competitionAlbumLevel !== undefined || player.competitionAlbumPageBonus !== undefined;
+  const resolvedAlbumLevel = hasCompetitionAlbumSnapshot
+    ? (player.competitionAlbumLevel ?? 0)
+    : albumLevelProp ?? (showAlbumLevel ? ownAlbumLevel : undefined) ?? 0;
+  const albumLevel = resolvedAlbumLevel > 0 ? resolvedAlbumLevel as AlbumLevel : undefined;
   // A identidade visual vem da raridade (textura + anel + borda do escudo). Uma característica
   // especial pinta o anel + glow na cor dela e mostra um chip — sem trocar a raridade.
   const theme = getCardTheme(player.rarity);
@@ -1086,13 +1111,9 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
   const dualCol1 = variants.length >= 2 ? normCol(variants[1].color) : null;
   const uniq = UNIQUE_STYLE[player.id];               // ⭐ carta Única (textura/fonte/render próprios)
   const clubCrestId = crestIdForClub(player.club);
-  // Without team context this is the Draft/shop value: card base plus any card-level
-  // variant already baked into player.*. Meu Time can opt into effectiveStats so the same
-  // visual card reflects chemistry, coach, position, tactic and active style effects.
-  const displayStats: PlayerCardStats = effectiveStats
-    ?? (getCompetitionAlbumBonus(player) > 0
-      ? getCardIntrinsicStats(player)
-      : player);
+  // Team values take precedence. A competition snapshot includes its frozen album bonuses;
+  // outside a competition, the owner's Album level is added only when this card shows it.
+  const displayStats = getPlayerCardDisplayStats(player, resolvedAlbumLevel, effectiveStats);
   const displayOverall = displayStats.overall;
   // A foto pode existir apenas no pacote local (sem entrada SoFIFA), como no Raphinha.
   // Use a mesma cadeia de fontes do PlayerPhoto para não esconder portraits locais.

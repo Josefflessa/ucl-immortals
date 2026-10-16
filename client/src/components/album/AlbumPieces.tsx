@@ -88,7 +88,7 @@ export function AlbumSlot({ card, number, owned, level, spare, scale, onClick }:
     >
       {owned ? (
         <div className="relative">
-          <PlayerCard player={card} lite scale={scale} albumLevel={level >= 2 ? level as AlbumLevel : undefined} />
+          <PlayerCard player={card} lite scale={scale} albumLevel={level as AlbumLevel} />
           {spare > 0 ? (
             <span className="absolute -right-1 top-1 z-[5] rounded-full border border-black/40 bg-[#E9C46A] px-1.5 py-0.5 text-[11px] font-bold leading-none text-[#171208] shadow" aria-label={`${spare} ${spare === 1 ? 'cópia extra desta carta' : 'cópias extras desta carta'}`}>
               +{spare}

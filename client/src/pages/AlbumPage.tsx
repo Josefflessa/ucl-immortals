@@ -185,7 +185,7 @@ function PlayerDetail({
             this reserved space the button below sits under the card's
             visually-overflowing bottom edge. */}
         <div className="md:origin-top-left md:scale-[1.2] md:mb-16">
-          <PlayerCard player={player} lite showAlbumLevel />
+          <PlayerCard player={player} lite />
         </div>
         <button
           type="button"
@@ -426,7 +426,7 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
           className="mx-auto rounded-[18px] p-1 outline-none transition-transform duration-150 ease-out hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
           aria-label={`Ver detalhes de ${player.shortName}, versão ${canonicalClubName(player.club)}`}
         >
-          <PlayerCard player={player} lite scale={albumCardScale} showAlbumLevel />
+          <PlayerCard player={player} lite scale={albumCardScale} />
         </button>
         <div className="mt-2 w-full min-w-0 text-center">
           <h3 className="truncate text-xs font-bold text-[var(--ui-text)]">{player.shortName}</h3>
@@ -632,7 +632,7 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
         closeLabel="Fechar zoom"
         bodyClassName="flex items-center justify-center"
       >
-        {selectedPlayer ? <PlayerCard player={selectedPlayer} scale={1.5} showAlbumLevel /> : null}
+        {selectedPlayer ? <PlayerCard player={selectedPlayer} scale={1.5} /> : null}
       </GameModal>
     </>
   );

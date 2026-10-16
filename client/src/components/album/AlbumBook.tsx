@@ -5,7 +5,7 @@ import { ArrowLeft, Check, ChevronLeft, ChevronRight, Gift, Globe, Lock, Sparkle
 import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS, getRarityColor, type Rarity } from '@shared/game/gameData';
 import { GAME_EVENTS } from '@shared/game/events';
 import { getCrest } from '@shared/game/crests';
-import { CLUB_PAGE_RECOMPLETE, regionPageReward, type AlbumItemKey, type AlbumPage, type AlbumRegionId } from '@shared/game/album';
+import { CLUB_PAGE_RECOMPLETE, regionPageReward, type AlbumItemKey, type AlbumLevel, type AlbumPage, type AlbumRegionId } from '@shared/game/album';
 import { Button, EmptyState, Progress } from '../../design-system';
 import { ClubCover, ClubFrameRing } from '../account/ClubRewards';
 import { useAlbum } from '../../contexts/AlbumContext';
@@ -242,11 +242,12 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
         <div className="mt-5 grid justify-items-center gap-x-3 gap-y-5 sm:gap-x-5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(200 * scale * 1.2)}px, 1fr))` }}>
           {visible.map(card => {
             const has = owned.has(card.id);
+            const level = stickerLevel(album, card.id);
             return (
               <article key={card.id} className="flex min-w-0 flex-col items-center" style={{ paddingTop: Math.round(324 * scale * 0.12) }}>
                 <button type="button" onClick={() => setSelected(card.id)} aria-label={`${card.shortName}, ${has ? 'ver carta e cópias' : 'ver carta exclusiva'}`} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)]">
                   <span className={cn('block', !has && 'opacity-50 grayscale')}>
-                    <PlayerCard player={card} lite scale={scale} albumLevel={stickerLevel(album, card.id) >= 2 ? stickerLevel(album, card.id) as 2 | 3 | 4 | 5 : undefined} />
+                    <PlayerCard player={card} lite scale={scale} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
                   </span>
                 </button>
                 <span className={cn('mt-1.5 line-clamp-2 text-center text-[12px] font-bold leading-tight', has ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')} style={{ maxWidth: Math.max(200 * scale, 96) }}>{card.shortName}</span>
