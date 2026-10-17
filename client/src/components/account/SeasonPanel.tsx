@@ -73,8 +73,8 @@ function PackRow({ prize, art = 56 }: { prize: SeasonPrize; art?: number }) {
 
 function ExclusiveTile({ label, name, children }: { label: string; name: string; children: React.ReactNode }) {
   return (
-    <figure className="flex w-[150px] min-w-0 flex-col items-center gap-1.5 text-center">
-      <div className="grid min-h-[104px] place-items-center">{children}</div>
+    <figure className="flex w-[200px] min-w-0 flex-col items-center gap-1.5 text-center">
+      <div className="grid min-h-[140px] place-items-center">{children}</div>
       <figcaption className="leading-tight">
         <span className="block text-[10px] font-black uppercase tracking-widest text-[var(--ui-text-faint)]">{label}</span>
         <span className="block text-xs font-bold text-[var(--ui-text)]">{name}</span>
@@ -104,17 +104,17 @@ function PodiumCard({ season, position }: { season: number; position: number }) 
         <div className="flex flex-wrap items-end justify-center gap-x-4 gap-y-3 border-t border-[var(--ui-line-subtle)] pt-3">
           {card ? (
             <ExclusiveTile label="Carta Única exclusiva" name={card.shortName}>
-              <div className="pointer-events-none"><PlayerCard player={card} scale={0.55} /></div>
+              <div className="pointer-events-none"><PlayerCard player={card} scale={0.75} /></div>
             </ExclusiveTile>
           ) : null}
           {frame ? (
             <ExclusiveTile label="Moldura" name={frame.name}>
-              <span className="relative block size-[96px]"><FrameImage frameKey={frame.key} className="absolute inset-0 size-full" /></span>
+              <span className="relative block size-[136px]"><FrameImage frameKey={frame.key} className="absolute inset-0 size-full" /></span>
             </ExclusiveTile>
           ) : null}
           {cover ? (
             <ExclusiveTile label="Fundo de perfil" name={cover.name}>
-              <img src={cover.src} alt="" className="h-[96px] w-full max-w-[150px] rounded-lg border border-white/10 object-cover" />
+              <img src={cover.src} alt="" className="h-[130px] w-full max-w-[200px] rounded-lg border border-white/10 object-cover" />
             </ExclusiveTile>
           ) : null}
         </div>

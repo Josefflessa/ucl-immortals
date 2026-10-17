@@ -10,7 +10,7 @@ import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { Armchair, Ban, Eye, Snowflake, Target } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 import { FORMATIONS, COACHES, Player, POS_PT } from '@shared/game/gameData';
-import { getTraitInfo, traitEffectLabel } from '@shared/game/traits';
+import { activePlayerTraits, getTraitInfo, traitEffectLabel } from '@shared/game/traits';
 import PlaystyleIcon from '../components/game/PlaystyleIcon';
 import { DRAFT_TURN_SECONDS } from '@shared/const';
 import { AppShell, Button, Panel, PanelHeader, PanelTitle, Progress, TopBar } from '../design-system';
@@ -135,7 +135,7 @@ const DraftOptions = memo(function DraftOptions({
         const sel = options.find(p => p.id === selectedId);
         if (!sel) return null;
         // Ignore traits retired from the ruleset in old saved/online draft state.
-        const visibleTraits = sel.traits.filter(t => getTraitInfo(t));
+        const visibleTraits = activePlayerTraits(sel.traits).filter(t => getTraitInfo(t));
         return (
           <div className="mx-auto mb-3 max-w-md rounded-xl px-3 py-2.5" style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}>
             <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>

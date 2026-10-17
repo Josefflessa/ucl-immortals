@@ -1,7 +1,7 @@
 // Chemistry, effective stats, team-effect characteristics and possession.
 
 import { Player, COACHES, FORMATIONS, getCompetitionAlbumBonus, HISTORICAL_TRIOS } from '../gameData';
-import { AttrKey, getTraitAttributeBonus } from '../traits';
+import { activePlayerTraits, AttrKey, getTraitAttributeBonus, hasPlayerTrait } from '../traits';
 import { sameClub } from '../crests';
 import { projectLevel } from '../clubProjects';
 import { random } from '../random';
@@ -434,7 +434,7 @@ export function getPlayerEffectiveStats(
 
   // Unconditional trait bonuses (no context → only 'always' boosts count; conditional
   // traits like "na final" are shown separately, not summed here).
-  const traitBonus = (attr: AttrKey) => getTraitAttributeBonus(player.traits, attr);
+  const traitBonus = (attr: AttrKey) => getTraitAttributeBonus(activePlayerTraits(player.traits), attr);
 
   // Play-style (tactic) modifiers — same rules as getEffectiveAttribute.
   const styleBonus = (attr: AttrKey): number => tacticStatBonus(playStyle, attr, context?.analysisLevel);
@@ -875,7 +875,7 @@ export function getFreeKickTaker(team: Team, excludedIds?: ReadonlySet<string>):
   const available = starters.filter(p => !isExcludedPlayer(team, p, excludedIds));
   const availableOutfield = available.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const outfield = starters.filter(p => matchRoleForPlayer(team, p) !== 'GK');
-  const isSpecialist = (p: PlayerCard) => p.traits.includes('Cobrador de Falta') || p.traits.includes('Cobrança de Falta');
+  const isSpecialist = (p: PlayerCard) => hasPlayerTrait(p.traits, 'Cobrador de Falta') || hasPlayerTrait(p.traits, 'Cobrança de Falta');
   // A normal match always leaves an available outfielder. Keep a defensive
   // fallback for malformed/legacy lineups so this helper never returns undefined.
   const pool = availableOutfield.length > 0 ? availableOutfield : outfield.length > 0 ? outfield : starters;
@@ -908,8 +908,8 @@ export function getHeaderTarget(team: Team, excludedIds?: ReadonlySet<string>): 
     if (['CB', 'ST'].includes(role)) w *= 1.8; // these crash the box
     else if (['LB', 'RB', 'CDM', 'CM'].includes(role)) w *= 0.7;
     else w *= 0.4;                                                   // wingers/playmakers rarely head it
-    if (p.traits.includes('Cabeceador Implacável')) w += 40;
-    else if (p.traits.includes('Cabeceador')) w += 25;
+    if (hasPlayerTrait(p.traits, 'Cabeceador Implacável')) w += 40;
+    else if (hasPlayerTrait(p.traits, 'Cabeceador')) w += 25;
     return { p, w: Math.max(1, w) };
   });
   const total = weighted.reduce((s, x) => s + x.w, 0);

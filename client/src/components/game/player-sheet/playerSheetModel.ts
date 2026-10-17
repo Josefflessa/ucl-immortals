@@ -7,7 +7,7 @@ import {
   getChemistryLinks, getPlayerEffectiveStats, goalkeeperShotStoppingRating, isOutfieldGoalkeeper, padrinhoGodchildId, positionFit,
   type CharBoost, type EffectiveStats, type StatBreakdown,
 } from '@shared/game/gameEngine';
-import { TRAIT_MAP, getGoalkeeperTraitBonus, traitEffectLabel } from '@shared/game/traits';
+import { activePlayerTraits, TRAIT_MAP, getGoalkeeperTraitBonus, traitEffectLabel } from '@shared/game/traits';
 import { stadiumHomeBonus } from '@shared/game/clubProjects';
 import { getCardVariants } from '../PlayerCard';
 import { CHEM_LINK_COLOR } from '../FormationField';
@@ -233,7 +233,8 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
     };
   }
 
-  const traits: SheetTrait[] = (player.traits ?? []).filter(id => TRAIT_MAP[id]).map(id => ({
+  const activeTraits = activePlayerTraits(player.traits);
+  const traits: SheetTrait[] = activeTraits.filter(id => TRAIT_MAP[id]).map(id => ({
     id,
     icon: TRAIT_MAP[id]?.icon ?? '✨',
     effect: traitEffectLabel(id),
@@ -266,7 +267,7 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
   }).filter(s => s.effects.length > 0);
 
   const role = formationRole;
-  const keeperTraitBonus = role === 'GK' ? goalkeeperShotStoppingRating(player, eff.defending, player.traits) - eff.defending : 0;
+  const keeperTraitBonus = role === 'GK' ? goalkeeperShotStoppingRating(player, eff.defending, activeTraits) - eff.defending : 0;
 
   return {
     player,

@@ -1,7 +1,7 @@
 // Draft options, card variants and shop packs.
 
 import { Player, PLAYERS, STORE_UNIQUE_CARDS, UNIQUE_CARDS, EVENT_UNIQUE_CARDS, ALL_UNIQUE_CARDS, FORMATIONS, getPositionGroup, effectiveSecondaries, type Rarity } from '../gameData';
-import { rollPlayerTraits } from '../traits';
+import { rollActivePlayerTraits } from '../traits';
 import { RETIRED_VARIANTS } from '../shop';
 import { random } from '../random';
 
@@ -152,9 +152,9 @@ function clampStat(v: number): number {
 }
 
 function applyDraftVariant(p: Player, chance: number): Player {
-  if (random() >= chance) return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
+  if (random() >= chance) return { ...p, traits: rollActivePlayerTraits(p.position, p.rarity) };
   const variant = DRAFT_VARIANT_POOL[Math.floor(random() * DRAFT_VARIANT_POOL.length)];
-  return { ...applyShopVariant(p, variant), traits: rollPlayerTraits(p.position, p.rarity) };
+  return { ...applyShopVariant(p, variant), traits: rollActivePlayerTraits(p.position, p.rarity) };
 }
 
 // A variant never pushes a card below the offer's overall floor (a recruitment

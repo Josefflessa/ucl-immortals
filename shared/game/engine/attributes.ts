@@ -1,7 +1,7 @@
 // Per-minute effective attributes, balance knobs, evolution and formation counters.
 
 import { Player, Coach, FORMATIONS, effectiveSecondaries, getCompetitionAlbumBonus, PLAYER_SPECIALIZATIONS, type Rarity, type EvolutionLevel, type PlayerSpecialization } from '../gameData';
-import { AttrKey, getTraitAttributeBonus } from '../traits';
+import { activePlayerTraits, AttrKey, getTraitAttributeBonus } from '../traits';
 import { Stadium } from '../stadium';
 import { stadiumHomeBonus } from '../clubProjects';
 import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS, teamWonMatch } from './teamModel';
@@ -74,7 +74,7 @@ export function getEffectiveAttribute(
   if (context?.captainBoost && attribute === context.captainBoost.stat) base += context.captainBoost.amount;
 
   // Trait attribute bonuses (data-driven from the trait catalog)
-  base += getTraitAttributeBonus(player.traits, attribute as AttrKey, context);
+  base += getTraitAttributeBonus(activePlayerTraits(player.traits), attribute as AttrKey, context);
 
   // 💪 Shop "Treino": permanent, stacking per-attribute boost bought in the shop (no cap).
   base += (player.trainBoosts?.[attribute as keyof NonNullable<Player['trainBoosts']>] ?? 0);

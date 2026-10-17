@@ -8,6 +8,18 @@
 // dwarfing the base attributes.
 import { random } from './random';
 
+/** Temporary game-wide switch for individual player styles (traits). */
+export const PLAYER_STYLES_ENABLED = false;
+
+/** Old competition snapshots may still contain styles; keep them inert while disabled. */
+export function activePlayerTraits(traits?: readonly string[]): string[] {
+  return PLAYER_STYLES_ENABLED ? [...(traits ?? [])] : [];
+}
+
+export function hasPlayerTrait(traits: readonly string[] | undefined, trait: string): boolean {
+  return PLAYER_STYLES_ENABLED && !!traits?.includes(trait);
+}
+
 export type AttrKey =
   | 'pace' | 'shooting' | 'passing' | 'dribbling'
   | 'defending' | 'physical' | 'composure' | 'vision';
@@ -208,4 +220,9 @@ export function rollPlayerTraits(position: string, rarity: string, minCount = 1,
   count = Math.max(count, minCount);
   const shuffled = [...pool].sort(() => rng() - 0.5);
   return shuffled.slice(0, Math.min(count, pool.length));
+}
+
+/** Roll styles only when the feature is enabled; draft and bot generation use this entry point. */
+export function rollActivePlayerTraits(position: string, rarity: string, minCount = 1, rng: () => number = random): string[] {
+  return PLAYER_STYLES_ENABLED ? rollPlayerTraits(position, rarity, minCount, rng) : [];
 }

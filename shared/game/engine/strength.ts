@@ -1,7 +1,7 @@
 // Captain boost, team strength and penalty shootouts.
 
 import { Player, Coach, COACHES, getCompetitionAlbumBonus } from '../gameData';
-import { getPenaltyComposureBonus } from '../traits';
+import { activePlayerTraits, getPenaltyComposureBonus, hasPlayerTrait } from '../traits';
 import { Stadium } from '../stadium';
 import { projectLevel, stadiumHomeBonus } from '../clubProjects';
 import { random } from '../random';
@@ -134,7 +134,7 @@ export function getPenaltyTaker(
   const active = available.length > 0 ? available : starters;
   const outfield = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const pool = outfield.length > 0 ? outfield : active;
-  const isSpecialist = (p: PlayerCard) => p.traits.includes('Cobrador de Pênaltis');
+  const isSpecialist = (p: PlayerCard) => hasPlayerTrait(p.traits, 'Cobrador de Pênaltis');
   // The designated taker must be an outfielder, unless the card explicitly
   // carries the penalty specialist trait.
   if (team.penaltyTaker) {
@@ -170,7 +170,7 @@ export function getPenaltyOrder(
     (b.composure + b.shooting + 2 * getCompetitionAlbumBonus(b))
       - (a.composure + a.shooting + 2 * getCompetitionAlbumBonus(a))
   );
-  const isSpecialist = (p: PlayerCard) => p.traits.includes('Cobrador de Pênaltis');
+  const isSpecialist = (p: PlayerCard) => hasPlayerTrait(p.traits, 'Cobrador de Pênaltis');
   const designated = team.penaltyTaker
     ? active.find(p => p.id === team.penaltyTaker && (matchRoleForPlayer(team, p) !== 'GK' || isSpecialist(p)))
     : undefined;
@@ -222,11 +222,11 @@ function shootoutSide(team: Team, playStyle: string, isHome: boolean, situation:
 }
 function penaltyKickGoal(taker: PlayerCard, takerSide: ShootoutSide, gk: PlayerCard, gkSide: ShootoutSide): boolean {
   const comp = getEffectiveAttribute(taker, 'composure', takerSide.coach, takerSide.chem, takerSide.playStyle, { ...takerSide.ctx, role: matchRoleForPlayer(takerSide.team, taker) })
-    + getPenaltyComposureBonus(taker.traits) + (taker.id === takerSide.team.penaltyTaker ? 5 : 0) + takerSide.homeBonus;
+    + getPenaltyComposureBonus(activePlayerTraits(taker.traits)) + (taker.id === takerSide.team.penaltyTaker ? 5 : 0) + takerSide.homeBonus;
   const gkRef = goalkeeperShotStoppingRating(
     gk,
     getEffectiveAttribute(gk, 'defending', gkSide.coach, gkSide.chem, gkSide.playStyle, { ...gkSide.ctx, role: 'GK' }),
-    gk.traits,
+    activePlayerTraits(gk.traits),
   ) + gkSide.homeBonus;
   return random() < penaltyGoalChance(comp, gkRef);
 }

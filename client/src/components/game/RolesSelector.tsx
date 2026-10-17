@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import { Info, Plus } from 'lucide-react';
 import { CAPTAIN_BOOST, captainBestStatFromStarters, type EffectiveStats } from '@shared/game/gameEngine';
+import { hasPlayerTrait } from '@shared/game/traits';
 import type { Player } from '@shared/game/gameData';
 import PlayerPortrait from './PlayerPortrait';
 
@@ -84,15 +85,15 @@ function captainBestStatOf(p: RoleablePlayer): { stat: RoleStat; label: string; 
 // Mirrors the composure + trait weighting the engine uses on each kick.
 function penaltyScoreFor(p: RoleablePlayer): number {
   return roleStatValue(p, 'composure')
-    + (p.traits?.includes('Especialista em Decisões') ? 10 : 0)
-    + (p.traits?.includes('Frio na Final') ? 10 : 0);
+    + (hasPlayerTrait(p.traits, 'Especialista em Decisões') ? 10 : 0)
+    + (hasPlayerTrait(p.traits, 'Frio na Final') ? 10 : 0);
 }
 
 // Free-kick ranking — mirrors gameEngine.getFreeKickTaker (specialist trait first,
 // otherwise highest shooting + composure).
 function freeKickScoreFor(p: RoleablePlayer): number {
   return roleStatValue(p, 'shooting') + roleStatValue(p, 'composure')
-    + ((p.traits?.includes('Cobrador de Falta') || p.traits?.includes('Cobrança de Falta')) ? 50 : 0);
+    + ((hasPlayerTrait(p.traits, 'Cobrador de Falta') || hasPlayerTrait(p.traits, 'Cobrança de Falta')) ? 50 : 0);
 }
 
 const overallForDisplay = (p: RoleablePlayer): number => p.effectiveOverall ?? p.overall;
@@ -117,7 +118,7 @@ export function roleMetricFor(player: RoleablePlayer, role: GameRole): RoleMetri
   }
 
   if (role === 'penalty') {
-    const trait = player.traits?.find(name => name === 'Especialista em Decisões' || name === 'Frio na Final');
+    const trait = ['Especialista em Decisões', 'Frio na Final'].find(name => hasPlayerTrait(player.traits, name));
     return {
       primaryLabel: 'COMP',
       primaryValue: Math.round(roleStatValue(player, 'composure')),
@@ -125,7 +126,7 @@ export function roleMetricFor(player: RoleablePlayer, role: GameRole): RoleMetri
     };
   }
 
-  const trait = player.traits?.find(name => name === 'Cobrador de Falta' || name === 'Cobrança de Falta');
+  const trait = ['Cobrador de Falta', 'Cobrança de Falta'].find(name => hasPlayerTrait(player.traits, name));
   return {
     primaryLabel: 'FIN',
     primaryValue: Math.round(roleStatValue(player, 'shooting')),

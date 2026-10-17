@@ -2,7 +2,7 @@
 
 import { Player, Coach, COACHES, FORMATIONS, getCompetitionAlbumBonus, getTacticById } from '../gameData';
 import { selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc, frangoDesc, screamedDesc, deflectedDesc, woodworkDesc, penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc, freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc, cornerGoalDesc, cornerSaveDesc, cornerMissDesc, flowDesc, Approach, LastKeyCtx, foulDesc, yellowCardDesc, straightRedDesc, secondYellowDesc, injuryDesc } from '../matchNarrative';
-import { getGoalkeeperTraitBonus, getPenaltyComposureBonus } from '../traits';
+import { activePlayerTraits, getGoalkeeperTraitBonus, getPenaltyComposureBonus, hasPlayerTrait } from '../traits';
 import { stadiumFor, type Stadium } from '../stadium';
 import { projectLevel } from '../clubProjects';
 import { yellowChance, injuryChanceFromFoul, randomInjuryChance, tacticAggression, formationAggression, CARD_POS_MULT, STRAIGHT_RED_PROB, RED_PENALTY, RED_GK_PENALTY, INJURY_DEBUFF, DANGEROUS_FOUL_CARD_MULT, THREAT_FOUL_CARD_MULT, DANGEROUS_FOUL_INJURY_MULT, compressAggression, settleFactor, SECOND_YELLOW_LENIENCY } from '../discipline';
@@ -60,7 +60,7 @@ export function goalkeeperShotStoppingRating(
 ): number {
   const isNaturalGoalkeeper = player.position === 'GK';
   const roleDefending = goalkeeperAptitudeDefending(player, effectiveDefending, 'GK');
-  const specialistBonus = isNaturalGoalkeeper ? getGoalkeeperTraitBonus(traits) : 0;
+  const specialistBonus = isNaturalGoalkeeper ? getGoalkeeperTraitBonus(activePlayerTraits(traits)) : 0;
   return Math.max(1, roleDefending + specialistBonus);
 }
 // Momentum gained/lost by the team that scores. Lower = leads snowball less, so
@@ -751,7 +751,7 @@ export function runMatchSimulation(
         const penaltyTakerCtx = playerContext(attackTeam, penaltyTaker, attackCtx);
         const penaltyGkCtx = { ...defendCtx, role: 'GK' };
         const penComp = getEffectiveAttribute(penaltyTaker, 'composure', attackCoach, attackChem, activePlayStyleFor(attackTeam), penaltyTakerCtx)
-          + getPenaltyComposureBonus(penaltyTaker.traits) + (penaltyTaker.id === attackTeam.penaltyTaker ? 5 : 0);
+          + getPenaltyComposureBonus(activePlayerTraits(penaltyTaker.traits)) + (penaltyTaker.id === attackTeam.penaltyTaker ? 5 : 0);
         const penGkRef = goalkeeperShotStoppingRating(
           penaltyGk,
           getEffectiveAttribute(penaltyGk, 'defending', defendCoach, defendChem, activePlayStyleFor(defendTeam), penaltyGkCtx),
@@ -1141,7 +1141,7 @@ export function runMatchSimulation(
                 play: { ...openPlay, creatorId: assister?.id }, description: goalDesc(approach, attacker.shortName, assister?.shortName ?? null, defender.shortName, gk.shortName, homeGoals, awayGoals, minute, atkGoals, defGoals, isImmortal),
                 teamId: attackTeam.id, playerId: attacker.id, opponentId: defender.id,
                 assisterId: assister?.id,
-                isSpecial: isImmortal || attacker.traits.includes('Frio na Final'),
+                isSpecial: isImmortal || hasPlayerTrait(attacker.traits, 'Frio na Final'),
               });
               lastKeyCtx = { type: 'goal', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
 

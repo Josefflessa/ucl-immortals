@@ -6,6 +6,7 @@
  * The engine still decides who scores and whether it goes in; this only picks how.
  */
 import type { Player } from './gameData';
+import { hasPlayerTrait } from './traits';
 import type { PlayKind, Team } from './engine/teamModel';
 import { allowsAssist, EPIC_VARIANTS, epicFinishesFor, finishesFor, PLAY_VARIANTS, type FinishStyle, type Outcome, type PlayVariant } from './playVariants';
 
@@ -32,7 +33,7 @@ export function skillWeight(rating: number): number {
 }
 
 const TRAIT_BONUS = 1.6;
-const hasTrait = (p: Player | undefined, traits: readonly string[]) => !!p && p.traits.some(t => traits.includes(t));
+const hasTrait = (p: Player | undefined, traits: readonly string[]) => !!p && traits.some(trait => hasPlayerTrait(p.traits, trait));
 const avg = (...values: number[]) => values.reduce((sum, v) => sum + v, 0) / values.length;
 
 /** How suited this player (or team) is to each epic. */

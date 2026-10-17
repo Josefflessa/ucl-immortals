@@ -1,7 +1,7 @@
 // Bot teams, chemistry rebuilds and the end-of-campaign report.
 
 import { Player, PLAYERS, COACHES, FORMATIONS, HISTORICAL_TRIOS } from '../gameData';
-import { rollPlayerTraits } from '../traits';
+import { rollActivePlayerTraits } from '../traits';
 import { PLAYABLE_CRESTS, BOT_CREST_MAP, canonicalClubName, crestIdForClub, sameClub } from '../crests';
 import { random } from '../random';
 import { type PlayerCard, type Team, type MatchResult } from './teamModel';
@@ -208,7 +208,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
 
   const playerCards: PlayerCard[] = selected.map(p => ({
     ...p,
-    traits: rollPlayerTraits(p.position, p.rarity), // random traits, like every card
+    traits: rollActivePlayerTraits(p.position, p.rarity), // disabled styles remain empty until re-enabled
     chemistryScore: chemData.individual[p.id] ?? 1,
     isOOP: chemData.outOfPosition[p.id] ?? false,
     isSecondary: chemData.secondaryPos[p.id] ?? false,
