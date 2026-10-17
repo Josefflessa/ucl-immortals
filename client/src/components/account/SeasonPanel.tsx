@@ -224,14 +224,6 @@ function SeasonPrizesModal({ season, open, onOpenChange, reward, onClaimed }: {
   );
 }
 
-function standingText(standing: ScoreLeaderboardPosition | null, closed: boolean): string | null {
-  if (!standing || standing.reward) return null;
-  if (standing.status === 'profile_not_public') return 'Perfil privado: fora do ranking e dos prêmios';
-  if (standing.position === null) return null;
-  const inPrizes = standing.position <= SEASON_PRIZE_POSITIONS && !closed;
-  return `Você está em ${standing.position}º com ${standing.points} pontos${inPrizes ? ' · zona de prêmios' : ''}`;
-}
-
 export default function SeasonBar({ season, onSeasonChange, standing }: {
   season: number;
   onSeasonChange: (season: number) => void;
@@ -244,7 +236,6 @@ export default function SeasonBar({ season, onSeasonChange, standing }: {
   const now = Date.now();
   const bounds = seasonBounds(season);
   const closed = season < currentSeason(now);
-  const position = standingText(standing, closed);
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -267,7 +258,6 @@ export default function SeasonBar({ season, onSeasonChange, standing }: {
             ? `Encerrada em ${formatDay(bounds.end - 1)}`
             : <>Termina em <strong className="text-[var(--ui-brand-strong)]">{timeLeft(bounds.end, now)}</strong> ({formatDay(bounds.end - 1)})</>}
         </span>
-        {position ? <span>{position}</span> : null}
       </p>
       {reward && reward.claimed_at === null ? (
         <div className="flex items-center gap-2 rounded-xl border border-[var(--ui-brand)]/40 bg-[var(--ui-brand-soft)] px-3 py-2 text-sm text-[var(--ui-text)]">
