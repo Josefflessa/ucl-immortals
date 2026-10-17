@@ -213,7 +213,7 @@ export default function AlbumInventory() {
                   value={rarity}
                   onChange={value => setRarity(value as Rarity | 'all')}
                   appearance="neutral"
-                  className="min-w-[145px] flex-1"
+                  className="w-full min-w-0 sm:w-[220px] sm:flex-none"
                   buttonClassName="w-full justify-between"
                   options={[
                     { value: 'all', text: 'Todas as raridades', label: <span className="block min-w-0 flex-1 truncate whitespace-nowrap pl-1 text-[var(--ui-text)]">Todas as raridades</span> },

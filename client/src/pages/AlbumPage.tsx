@@ -223,7 +223,7 @@ function PlayerDetail({
             <div className="mt-1 font-display text-3xl leading-none text-[var(--ui-text)]">{getPositionLabel(player.position)}</div>
           </div>
           <div className="ui-panel ui-panel--inset p-3">
-            <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Nacionalidade</div>
+            <div className="min-w-0 text-[10px] font-bold uppercase leading-tight tracking-[0.08em] text-[var(--ui-text-faint)]">Nacionalidade</div>
             <div className="mt-1 truncate text-sm font-bold text-[var(--ui-text)]">{player.nation}</div>
           </div>
           <div className="ui-panel ui-panel--inset p-3">

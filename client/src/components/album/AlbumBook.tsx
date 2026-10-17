@@ -398,13 +398,13 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
         hasActiveFilters={hasFilters}
         onClear={clearFilters}
         extraFilters={(
-          <div className={`grid w-full gap-2 sm:flex sm:w-auto ${rarities.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div className={`grid w-full gap-2 sm:flex sm:w-full sm:flex-1 ${rarities.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <SelectMenu
             label="Situação das cartas"
             value={status}
             onChange={setStatus}
             appearance="neutral"
-            className="w-full min-w-0"
+            className="w-full min-w-0 sm:flex-1"
             buttonClassName="w-full justify-between"
             options={([
               ['all', 'Todas'],
@@ -424,7 +424,7 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
               value={rarity}
               onChange={value => setRarity(value as 'all' | Rarity)}
               appearance="neutral"
-              className="w-full min-w-0"
+              className="w-full min-w-0 sm:flex-1"
               buttonClassName="w-full justify-between"
               options={[
                 { value: 'all', text: 'Todas as raridades', label: <span className="block min-w-0 truncate pl-1 text-[var(--ui-text)]">Todas as raridades</span> },

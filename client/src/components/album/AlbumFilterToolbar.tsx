@@ -99,7 +99,7 @@ export default function AlbumFilterToolbar({
       {extraFilters || (hasActiveFilters && onClear) || (showSort && sortInFilterRow) ? (
         <div className="flex flex-wrap items-center gap-2">
           {extraFilters}
-          {showSort && sortInFilterRow ? <div className="grid w-[164px] shrink-0 grid-cols-[minmax(0,1fr)_40px] gap-2">{sortControl}</div> : null}
+          {showSort && sortInFilterRow ? <div className="grid w-[224px] max-w-full shrink-0 grid-cols-[minmax(0,1fr)_40px] gap-2">{sortControl}</div> : null}
           {hasActiveFilters && onClear ? <Button intent="ghost" onClick={onClear} className="min-h-9 px-2.5 text-xs"><X size={14} aria-hidden="true" /> Limpar</Button> : null}
         </div>
       ) : null}
