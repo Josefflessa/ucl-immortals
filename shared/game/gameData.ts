@@ -266,7 +266,9 @@ export const POSITION_GROUPS: Record<PositionGroup, string[]> = {
 
 export const POS_PT: Record<string, string> = {
   GK: 'GL', CB: 'ZAG', LB: 'LE', RB: 'LD',
-  LWB: 'AE', RWB: 'AD', CDM: 'VOL', CM: 'MC',
+  // LWB/RWB seguem como identificadores internos de compatibilidade; na interface
+  // usam a posição lateral equivalente, pois não há vagas de ala nas formações.
+  LWB: 'LE', RWB: 'LD', CDM: 'VOL', CM: 'MC',
   CAM: 'MEI', LM: 'ME', RM: 'MD',
   LW: 'PE', RW: 'PD', ST: 'CA',
 };
