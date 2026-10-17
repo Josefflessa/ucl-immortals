@@ -1051,7 +1051,7 @@ function variantDesc(player: Player): string {
   if (player.idolo) return 'ÍDOLO: +3 em cada atributo aos OUTROS titulares do mesmo clube (não a ele)';
   if (player.decimoHomem) return `12º HOMEM: no banco, dá +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time`;
   if (player.pipoqueiro) return `PIPOQUEIRO: +${PIPOQUEIRO_LEAGUE_BOOST} em cada atributo na FASE DE LIGA, mas −${PIPOQUEIRO_KO_PENALTY} no MATA-MATA`;
-  if (player.noe) return `NOÉ: titular, +${NOE_STAT_BOOST} em cada atributo NELE e +${NOE_CHEM_BONUS} na química geral por titular sem característica`;
+  if (player.noe) return `NOÉ: se for titular, cada jogador titular sem característica especial dá ao Noé +${NOE_STAT_BOOST} em todos os atributos e +${NOE_CHEM_BONUS} de química geral ao time`;
   if (player.forasteiro) return 'FORASTEIRO: +9 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   if (player.colecionador) return 'COLECIONADOR: +1 em cada atributo por jogador que estiver na reserva';
   if (player.estribado) return 'ESTRIBADO: +1 em cada atributo a cada 100 créditos disponíveis';
