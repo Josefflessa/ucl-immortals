@@ -6,7 +6,7 @@ import {
   Activity, Award, BadgeCheck, BrickWall, CalendarCheck, CalendarDays, Castle, ChartColumnIncreasing, Check, ChevronsUp,
   ChevronRight, CircleCheck, ClipboardList, Compass, Crown, Flag, Flame, Gamepad2, Gem, Globe, Goal, Hand, Handshake, Heart, HeartHandshake,
   Lock, Medal, Mountain, Pencil, Repeat, Shield, ShieldCheck, ShieldPlus, Shirt, Skull, Sparkles, Star, Sword, Swords,
-  Target, Timer, TrendingUp, Trophy, Users, Wifi, Zap, RotateCcw, FlaskConical, Leaf, Vault, CircleDot, type LucideIcon,
+  Target, Timer, TrendingUp, Trophy, Users, Wifi, Zap, RotateCcw, FlaskConical, Leaf, Vault, CircleDot, Coins, ListChecks, Eye, Crosshair, type LucideIcon,
 } from 'lucide-react';
 import {
   ACHIEVEMENT_BY_ID,
@@ -86,6 +86,11 @@ const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
   big_win: Flame,
   golden_waiter: HeartHandshake,
   safe_vault: Vault,
+  tycoon: Coins,
+  mission_runner: ListChecks,
+  seer: Eye,
+  exact_score: Crosshair,
+  friends_nemesis: Swords,
 };
 
 /** "com Pep Guardiola" / "com Real Madrid" for achievements driven by one coach or crest. */

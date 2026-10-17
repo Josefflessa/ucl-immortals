@@ -39,8 +39,8 @@ const metricsOf = (career: CareerCompetition[]) => summarizeCareer(career).metri
 const levelOf = (competitions: CareerCompetition[], id: string) => evaluateAchievements(competitions).find(entry => entry.id === id)!;
 
 describe('achievement definitions', () => {
-  it('has 55 unique achievements with strictly increasing thresholds', () => {
-    expect(ACHIEVEMENTS).toHaveLength(55);
+  it('has 60 unique achievements with strictly increasing thresholds', () => {
+    expect(ACHIEVEMENTS).toHaveLength(60);
     expect(new Set(ACHIEVEMENTS.map(a => a.id)).size).toBe(ACHIEVEMENTS.length);
     expect(new Set(ACHIEVEMENTS.map(a => a.name)).size).toBe(ACHIEVEMENTS.length);
     for (const achievement of ACHIEVEMENTS) {

@@ -39,6 +39,7 @@ import { AVATAR_FRAME_BY_KEY } from '@shared/game/events';
 import { FrameImage } from '../components/account/AvatarFrame';
 import { CardIcon } from '../components/game/StatusIcon';
 import { buildCareerSummary } from '@shared/game/careerSummary';
+import { completedMissionCount } from '@shared/game/missions';
 
 type SavedEffectiveCardStats = Pick<EffectiveStats,
   'overall' | 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure'>;
@@ -509,6 +510,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           leagueStandings: state.competitionFormat.id === 'league' || state.competitionFormat.id === 'league_knockout' ? state.leagueStandings : undefined,
           finalStarters: reportFinalResult ? starters : [],
           finalChemistry: playerTeam.totalChemistry,
+          finalCredits: state.points,
+          missionsCompleted: completedMissionCount(state.missions),
+          bets: state.bets,
         }),
         wins,
         draws,

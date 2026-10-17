@@ -6,6 +6,7 @@
 import type { Player } from './gameData';
 import type { KnockoutBracket, MatchResult } from './gameEngine';
 import { hasVariant } from './engine/draft';
+import type { Bet } from './bets';
 
 export interface CareerSummary {
   version: 1;
@@ -40,6 +41,15 @@ export interface CareerSummary {
   finalPlainXI: boolean;
   /** Most starters of the final's XI from one nation. */
   finalMaxSameNation: number;
+  /** Shop credits left when the competition ended. */
+  finalCredits?: number;
+  /** Missions completed during the competition. */
+  missionsCompleted?: number;
+  /** Bets won, and those won with the exact score. */
+  betsWon?: number;
+  exactBets?: number;
+  /** Wins against teams of other human players (online). */
+  humanWins?: number;
 }
 
 function teamGoals(result: MatchResult, teamId: string): { own: number; against: number } | null {
@@ -69,6 +79,11 @@ export function buildCareerSummary(input: {
   leagueStandings?: ReadonlyArray<{ teamId: string }>;
   finalStarters: ReadonlyArray<Player>;
   finalChemistry: number;
+  finalCredits?: number;
+  missionsCompleted?: number;
+  bets?: ReadonlyArray<Pick<Bet, 'settled' | 'won' | 'tier'>>;
+  /** Teams of the other human players in an online room. */
+  humanTeamIds?: ReadonlyArray<string>;
 }): CareerSummary {
   const { teamId } = input;
   const knockout = knockoutResults(input.bracket);
@@ -79,7 +94,13 @@ export function buildCareerSummary(input: {
     ownTopScorer: false, finalChemistry: Math.max(0, Math.round(input.finalChemistry || 0)),
     finalPlainXI: input.finalStarters.length === 11 && input.finalStarters.every(player => !hasVariant(player)),
     finalMaxSameNation: 0,
+    finalCredits: Math.max(0, Math.floor(input.finalCredits ?? 0)),
+    missionsCompleted: Math.max(0, Math.floor(input.missionsCompleted ?? 0)),
+    betsWon: (input.bets ?? []).filter(bet => bet.settled && bet.won).length,
+    exactBets: (input.bets ?? []).filter(bet => bet.settled && bet.won && bet.tier === 'exact').length,
+    humanWins: 0,
   };
+  const humans = new Set(input.humanTeamIds ?? []);
 
   const goalsByPlayer = new Map<string, { teamId: string; goals: number }>();
   for (const result of all) {
@@ -96,6 +117,8 @@ export function buildCareerSummary(input: {
     if (!goals) continue;
     if (goals.against === 0) summary.cleanSheets += 1;
     if (goals.own - goals.against >= 6) summary.bigWins += 1;
+    const opponent = result.homeTeamId === teamId ? result.awayTeamId : result.homeTeamId;
+    if (goals.own > goals.against && humans.has(opponent)) summary.humanWins = (summary.humanWins ?? 0) + 1;
   }
 
   for (const result of input.leagueResults) {

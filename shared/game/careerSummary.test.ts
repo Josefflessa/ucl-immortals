@@ -25,12 +25,14 @@ describe('career summary', () => {
     const xi = PLAYERS.filter(p => p.nation === 'Brasil').slice(0, 11).map(p => ({ ...p }));
     const summary = buildCareerSummary({
       teamId: 'me', leagueResults: league, bracket, leagueStandings: [{ teamId: 'me' }, { teamId: 'a' }],
-      finalStarters: xi, finalChemistry: 112,
+      finalStarters: xi, finalChemistry: 112, finalCredits: 2100, missionsCompleted: 4, humanTeamIds: ['a', 'e'],
+      bets: [{ settled: true, won: true, tier: 'exact' }, { settled: true, won: true, tier: 'outcome' }, { settled: true, won: false, tier: 'miss' }],
     });
     expect(summary).toMatchObject({
       knockoutMatches: 4, knockoutLosses: 1, shootoutWins: 1, finalWinMargin: 3, finalCleanSheetWin: true,
       hatTricks: 1, bigWins: 1, assists: 3, leagueMatches: 2, leagueLosses: 0, leaguePosition: 1,
       ownTopScorer: true, finalChemistry: 112, finalPlainXI: true, finalMaxSameNation: 11,
+      finalCredits: 2100, missionsCompleted: 4, betsWon: 2, exactBets: 1, humanWins: 2,
     });
   });
 

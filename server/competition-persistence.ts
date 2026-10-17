@@ -4,6 +4,7 @@ import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } fr
 import type { MatchResult, PlayerCard, Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
 import { buildCareerSummary } from '../shared/game/careerSummary.js';
+import { completedMissionCount } from '../shared/game/missions.js';
 import { ensureAchievementsCurrent, syncAchievements } from './achievements.js';
 import { syncEventRewards } from './events.js';
 import type { RoomPlayer, RoomState } from './handlers.js';
@@ -250,6 +251,10 @@ async function persistCompetitionForPlayers(
         leagueStandings: room.competitionFormat.id === 'league' || room.competitionFormat.id === 'league_knockout' ? room.leagueStandings : undefined,
         finalStarters: playerFinalResult ? team.players.slice(0, 11) : [],
         finalChemistry: team.totalChemistry,
+        finalCredits: player.points,
+        missionsCompleted: player.missions ? completedMissionCount(player.missions) : 0,
+        bets: player.bets,
+        humanTeamIds: humanTeams(room).map(entry => entry.team.id).filter(id => id !== team.id),
       }),
       ...(!playerPartial ? { season: {
         topScorer: topGoals ? { playerId: topGoals.card.id, playerName: topGoals.card.shortName, value: topGoals.stats.goals } : null,
