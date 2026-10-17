@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { warmAccountScreens } from "./lib/appPrefetch";
 import { Toaster } from "@/components/ui/sonner";
 import { GameProvider, useGame } from "./contexts/GameContext";
 import { AccountProvider, useAccount } from "./contexts/AccountContext";
@@ -200,6 +201,14 @@ function renderPhase(phase: string) {
   }
 }
 
+/** Once the player is in, warms the store and the rest in the background (see appPrefetch). */
+function AccountPrefetcher() {
+  const { account } = useAccount();
+  const accountId = account?.id ?? null;
+  useEffect(() => (accountId ? warmAccountScreens() : undefined), [accountId]);
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -209,6 +218,7 @@ function App() {
           <GameProvider>
             <ModalScrollLock />
             <EventCardsSync />
+            <AccountPrefetcher />
             <GameRouter />
             <RoomInvitationPrompt />
             <InstallPrompt />

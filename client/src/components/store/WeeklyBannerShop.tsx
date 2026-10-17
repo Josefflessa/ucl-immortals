@@ -19,7 +19,7 @@ const FEATURED_COUNT: Record<(typeof FILTERS)[number], number> = { legendary: 4,
 const ROTATION_CACHE_TTL_MS = 60_000;
 let weeklyRotationCache: { value?: WeeklyBannerRotations; updatedAt: number; request?: Promise<WeeklyBannerRotations> } | undefined;
 
-function loadWeeklyRotations() {
+export function loadWeeklyRotations() {
   if (weeklyRotationCache?.value && Date.now() - weeklyRotationCache.updatedAt < ROTATION_CACHE_TTL_MS) return Promise.resolve(weeklyRotationCache.value);
   if (weeklyRotationCache?.request) return weeklyRotationCache.request;
   const entry = weeklyRotationCache ?? { updatedAt: 0 };

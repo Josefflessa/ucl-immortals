@@ -33,6 +33,19 @@ async function firstThatLoads(urls: readonly string[]): Promise<void> {
   }
 }
 
+/** Warms plain images (art that a screen will show) with the same idle, few-at-a-time pacing. */
+export function warmImages(urls: readonly string[], isCancelled: () => boolean = () => false): Promise<void> {
+  const queue = urls.filter(url => !requested.has(url));
+  const worker = async () => {
+    for (let url = queue.shift(); url !== undefined && !isCancelled(); url = queue.shift()) {
+      if (requested.has(url)) continue;
+      requested.add(url);
+      await load(url);
+    }
+  };
+  return Promise.all(Array.from({ length: CONCURRENCY }, worker)).then(() => undefined);
+}
+
 /** The jobs for one player: its photo (with the fallback chain), its flag and its club crest. */
 export function cardAssetJobs(player: Player): Array<() => Promise<void>> {
   const jobs: Array<() => Promise<void>> = [];

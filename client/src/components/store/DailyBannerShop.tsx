@@ -20,7 +20,7 @@ const ODDS_RARITIES: readonly Rarity[] = ['bronze', 'silver', 'gold', 'legendary
 const ROTATION_CACHE_TTL_MS = 60_000;
 let dailyRotationCache: { value?: DailyBannerRotations; updatedAt: number; request?: Promise<DailyBannerRotations> } | undefined;
 
-function loadDailyRotations() {
+export function loadDailyRotations() {
   if (dailyRotationCache?.value && Date.now() - dailyRotationCache.updatedAt < ROTATION_CACHE_TTL_MS) return Promise.resolve(dailyRotationCache.value);
   if (dailyRotationCache?.request) return dailyRotationCache.request;
   const entry = dailyRotationCache ?? { updatedAt: 0 };
