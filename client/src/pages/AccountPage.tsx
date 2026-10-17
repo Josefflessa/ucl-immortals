@@ -150,24 +150,26 @@ function formatDate(timestamp: number): string {
 }
 
 /** The cover drawn behind a profile when it is a completed club's (an album reward). */
-function ProfileCoverLayer({ coverKey, coverUrl }: { coverKey: string; coverUrl?: string | null }) {
+function ProfileCoverLayer({ coverKey, coverUrl, dim = true }: { coverKey: string; coverUrl?: string | null; dim?: boolean }) {
   const clubId = coverUrl ? null : clubOfRewardKey(coverKey);
   if (!clubId) return null;
   return (
     <>
       <ClubCover clubId={clubId} className="absolute inset-0 -z-10" />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10" style={{ backgroundImage: 'linear-gradient(180deg, rgba(7,9,16,0) 0%, rgba(7,9,16,.3) 46%, rgba(7,9,16,.86) 100%)' }} />
+      {dim ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10" style={{ backgroundImage: 'linear-gradient(180deg, rgba(7,9,16,0) 0%, rgba(7,9,16,.3) 46%, rgba(7,9,16,.86) 100%)' }} /> : null}
     </>
   );
 }
 
-function profileCoverStyle(coverKey: string, coverUrl?: string | null) {
+function profileCoverStyle(coverKey: string, coverUrl?: string | null, dim = true) {
   // A completed club's cover is drawn in code (ProfileCoverLayer), not an image.
   if (!coverUrl && clubOfRewardKey(coverKey)) return {};
   const imageUrl = coverUrl ?? getProfileCover(coverKey).src;
   const safeImageUrl = imageUrl.replace(/["\\\n\r]/g, character => `\\${character}`);
   return {
-    backgroundImage: `linear-gradient(180deg, rgba(7,9,16,.14) 0%, rgba(7,9,16,.48) 46%, rgba(7,9,16,.9) 100%), linear-gradient(90deg, rgba(7,9,16,.58), rgba(7,9,16,.18)), url("${safeImageUrl}")`,
+    backgroundImage: dim
+      ? `linear-gradient(180deg, rgba(7,9,16,.14) 0%, rgba(7,9,16,.48) 46%, rgba(7,9,16,.9) 100%), linear-gradient(90deg, rgba(7,9,16,.58), rgba(7,9,16,.18)), url("${safeImageUrl}")`
+      : `url("${safeImageUrl}")`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundOrigin: 'border-box',
@@ -1617,8 +1619,8 @@ export default function AccountPage() {
         bodyClassName="!p-0"
       >
         {profilePreviewProfile ? <div className="relative flex size-full min-h-full items-center justify-center overflow-hidden bg-black">
-          <div className="profile-preview-stage relative isolate flex items-center justify-center overflow-hidden" style={profileCoverStyle(profilePreviewProfile.coverKey, profilePreviewProfile.coverUrl)}>
-            <ProfileCoverLayer coverKey={profilePreviewProfile.coverKey} coverUrl={profilePreviewProfile.coverUrl} />
+          <div className="profile-preview-stage relative isolate flex items-center justify-center overflow-hidden" style={profileCoverStyle(profilePreviewProfile.coverKey, profilePreviewProfile.coverUrl, false)}>
+            <ProfileCoverLayer coverKey={profilePreviewProfile.coverKey} coverUrl={profilePreviewProfile.coverUrl} dim={false} />
             <div className="relative z-10 flex size-full flex-col items-center justify-center gap-4 px-5 py-4 text-center sm:gap-8 sm:px-8 sm:py-8">
               {profileAvatar(profilePreviewProfile.avatarUrl, profilePreviewProfile.avatarKey, profilePreviewProfile.displayName, profilePreviewProfile.avatarBackgroundKey, profilePreviewProfile.avatarFrameKey, 'size-28 sm:size-48 md:size-56')}
               <h1 className="max-w-[90vw] font-ui text-3xl font-bold text-white drop-shadow-[0_3px_16px_rgba(0,0,0,.85)] sm:text-6xl">
