@@ -6,7 +6,7 @@ import {
   Activity, Award, BadgeCheck, BrickWall, CalendarCheck, CalendarDays, Castle, ChartColumnIncreasing, Check, ChevronsUp,
   ChevronRight, CircleCheck, ClipboardList, Compass, Crown, Flag, Flame, Gamepad2, Gem, Globe, Goal, Hand, Handshake, Heart, HeartHandshake,
   Lock, Medal, Mountain, Pencil, Repeat, Shield, ShieldCheck, ShieldPlus, Shirt, Skull, Sparkles, Star, Sword, Swords,
-  Target, Timer, TrendingUp, Trophy, Users, Wifi, Zap, type LucideIcon,
+  Target, Timer, TrendingUp, Trophy, Users, Wifi, Zap, RotateCcw, FlaskConical, Leaf, Vault, CircleDot, type LucideIcon,
 } from 'lucide-react';
 import {
   ACHIEVEMENT_BY_ID,
@@ -71,6 +71,21 @@ const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
   multiplayer: Gamepad2,
   online_contender: Wifi,
   online_unbeaten: ShieldPlus,
+  comeback_champion: RotateCcw,
+  perfect_final: Target,
+  knockout_unbeaten: ShieldCheck,
+  final_wall: Lock,
+  pure_blood: Leaf,
+  max_chemistry: FlaskConical,
+  national_team: Flag,
+  league_unbeaten: Shield,
+  league_leader: ChevronsUp,
+  tournament_top_scorer: Goal,
+  shootout_king: CircleDot,
+  hat_trick: Sparkles,
+  big_win: Flame,
+  golden_waiter: HeartHandshake,
+  safe_vault: Vault,
 };
 
 /** "com Pep Guardiola" / "com Real Madrid" for achievements driven by one coach or crest. */

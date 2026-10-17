@@ -4,9 +4,10 @@
 // reached, is never lost. Defined once here and evaluated by the server.
 
 import { isCompetitionFinishStage, isRankedDifficulty, type CompetitionFinishStage } from './competitionRanking';
+import type { CareerSummary } from './careerSummary';
 
 /** Bumped whenever definitions or the evaluation change, to re-evaluate accounts. */
-export const ACHIEVEMENTS_VERSION = 3;
+export const ACHIEVEMENTS_VERSION = 4;
 
 export const ACHIEVEMENT_TIERS = ['bronze', 'silver', 'gold', 'legendary'] as const;
 export type AchievementTier = (typeof ACHIEVEMENT_TIERS)[number];
@@ -45,10 +46,16 @@ export interface CareerCompetition {
   finalStarterIds: string[];
   /** Brazilian players in the final's starting XI, derived server-side from finalStarterIds. */
   finalBrazilianStarterCount?: number;
+  /** Compact match facts stored since achievements v4 (null for older competitions). */
+  career?: CareerSummary | null;
 }
 
 /** A title "conceding few goals" (Muralha) allows at most this many. */
 export const MURALHA_MAX_GOALS_AGAINST = 10;
+/** Final Perfeita: winning the final by at least this margin. */
+export const PERFECT_FINAL_MARGIN = 3;
+/** Seleção: starters of one nation in the final's XI. */
+export const NATION_TITLE_STARTERS = 6;
 /** Arena Lotada: an online room with at least this many human players. */
 export const ARENA_MIN_HUMAN_PLAYERS = 3;
 /** Days are counted in Brasília time (UTC-3). */
@@ -93,6 +100,21 @@ export interface CareerMetrics {
   goldOrAboveTitles: number;
   hardCompetitions: number;
   onlineCompetitions: number;
+  comebackTitles: number;
+  bigFinalWins: number;
+  knockoutUnbeatenTitles: number;
+  finalCleanSheetWins: number;
+  plainTitles: number;
+  maxChemistryTitles: number;
+  nationTitles: number;
+  unbeatenLeagues: number;
+  leagueWins: number;
+  topScorerCompetitions: number;
+  shootoutWins: number;
+  hatTricks: number;
+  bigWins: number;
+  careerAssists: number;
+  careerCleanSheets: number;
   onlineSemifinals: number;
   onlineUnbeatenTitles: number;
 }
@@ -134,6 +156,9 @@ export function summarizeCareer(competitions: readonly CareerCompetition[]): { m
     bestQualifiedStreak: 0, matchesPlayed: 0, rankingPoints: 0, loyalCrest: 0, loyalCoach: 0,
     difficultiesPlayed: 0, activeDays: 0, immortalCompetitions: 0, immortalSemifinals: 0,
     goldOrAboveTitles: 0, hardCompetitions: 0, onlineCompetitions: 0, onlineSemifinals: 0, onlineUnbeatenTitles: 0,
+    comebackTitles: 0, bigFinalWins: 0, knockoutUnbeatenTitles: 0, finalCleanSheetWins: 0, plainTitles: 0,
+    maxChemistryTitles: 0, nationTitles: 0, unbeatenLeagues: 0, leagueWins: 0, topScorerCompetitions: 0,
+    shootoutWins: 0, hatTricks: 0, bigWins: 0, careerAssists: 0, careerCleanSheets: 0,
   };
 
   for (const c of competitions) {
@@ -179,6 +204,26 @@ export function summarizeCareer(competitions: readonly CareerCompetition[]): { m
     if (online) {
       m.onlineCompetitions += 1;
       if (semifinal) m.onlineSemifinals += 1;
+    }
+    const facts = c.career;
+    if (facts) {
+      m.shootoutWins += count(facts.shootoutWins);
+      m.hatTricks += count(facts.hatTricks);
+      m.bigWins += count(facts.bigWins);
+      m.careerAssists += count(facts.assists);
+      m.careerCleanSheets += count(facts.cleanSheets);
+      if (facts.leagueMatches > 0 && facts.leagueLosses === 0) m.unbeatenLeagues += 1;
+      if (facts.leaguePosition === 1) m.leagueWins += 1;
+      if (facts.ownTopScorer) m.topScorerCompetitions += 1;
+      if (facts.finalCleanSheetWin) m.finalCleanSheetWins += 1;
+      if (facts.finalWinMargin >= PERFECT_FINAL_MARGIN) m.bigFinalWins += 1;
+      if (champion) {
+        if (facts.knockoutLosses > 0) m.comebackTitles += 1;
+        if (facts.knockoutMatches > 0 && facts.knockoutLosses === 0) m.knockoutUnbeatenTitles += 1;
+        if (facts.finalPlainXI) m.plainTitles += 1;
+        if (facts.finalChemistry > 100) m.maxChemistryTitles += 1;
+        if (facts.finalMaxSameNation >= NATION_TITLE_STARTERS) m.nationTitles += 1;
+      }
     }
 
     if (!champion) continue;
@@ -272,7 +317,22 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   { id: 'galactic_squad', name: 'Elenco Galáctico', category: 'campaign', metric: 'bestPlayerOverall', thresholds: [120, 150, 180, 210], goal: n => `Tenha um jogador com geral efetivo ${n} numa competição`, byDifficulty: true },
   { id: 'qualified', name: 'Classificado', category: 'campaign', metric: 'qualified', thresholds: [5, 25, 80, 200], goal: n => `Passe da fase de liga ${n} vezes`, byDifficulty: true },
   { id: 'consistency', name: 'Regularidade', category: 'campaign', metric: 'bestQualifiedStreak', thresholds: [3, 5, 10, 20], goal: n => `Passe da fase de liga em ${n} competições seguidas`, byDifficulty: true },
+  { id: 'comeback_champion', name: 'Virada Histórica', category: 'titles', metric: 'comebackTitles', thresholds: [1, 3, 6, 10], goal: (n, one) => times(n, one, 'Seja campeão depois de perder um jogo do mata-mata'), byDifficulty: true },
+  { id: 'perfect_final', name: 'Final Perfeita', category: 'titles', metric: 'bigFinalWins', thresholds: [1, 3, 6, 10], goal: (n, one) => times(n, one, 'Vença a final por 3 gols ou mais'), byDifficulty: true },
+  { id: 'knockout_unbeaten', name: 'Invicto no Mata-mata', category: 'titles', metric: 'knockoutUnbeatenTitles', thresholds: [1, 3, 8, 15], goal: (n, one) => times(n, one, 'Seja campeão sem perder um jogo do mata-mata'), byDifficulty: true },
+  { id: 'final_wall', name: 'Muralha na Final', category: 'titles', metric: 'finalCleanSheetWins', thresholds: [1, 3, 6, 10], goal: (n, one) => times(n, one, 'Vença a final sem sofrer gols'), byDifficulty: true },
+  { id: 'pure_blood', name: 'Puro-Sangue', category: 'titles', metric: 'plainTitles', thresholds: [1, 3, 6, 10], goal: (n, one) => times(n, one, 'Seja campeão sem característica especial no XI da final'), byDifficulty: true },
+  { id: 'max_chemistry', name: 'Química Máxima', category: 'titles', metric: 'maxChemistryTitles', thresholds: [1, 3, 6, 10], goal: (n, one) => times(n, one, 'Seja campeão com química acima de 100'), byDifficulty: true },
+  { id: 'national_team', name: 'Seleção', category: 'titles', metric: 'nationTitles', thresholds: [1, 3, 6, 10], goal: (n, one) => times(n, one, 'Seja campeão com 6 titulares da mesma nação na final'), byDifficulty: true },
+  { id: 'league_unbeaten', name: 'Imbatível na Liga', category: 'campaign', metric: 'unbeatenLeagues', thresholds: [1, 3, 6, 10], goal: (n, one) => times(n, one, 'Termine a fase de liga sem derrota'), byDifficulty: true },
+  { id: 'league_leader', name: 'Liderança Absoluta', category: 'campaign', metric: 'leagueWins', thresholds: [1, 5, 15, 30], goal: (n, one) => times(n, one, 'Termine a fase de liga em 1º'), byDifficulty: true },
+  { id: 'tournament_top_scorer', name: 'Artilheiro do Torneio', category: 'campaign', metric: 'topScorerCompetitions', thresholds: [1, 5, 15, 30], goal: (n, one) => times(n, one, 'Tenha o artilheiro da competição'), byDifficulty: true },
   // Carreira
+  { id: 'shootout_king', name: 'Rei dos Pênaltis', category: 'career', metric: 'shootoutWins', thresholds: [1, 5, 15, 30], goal: (n, one) => (one ? 'Vença uma disputa de pênaltis' : `Vença ${n} disputas de pênaltis`) },
+  { id: 'hat_trick', name: 'Hat-trick', category: 'career', metric: 'hatTricks', thresholds: [1, 5, 15, 40], goal: (n, one) => (one ? 'Tenha um jogador marcando 3 gols numa partida' : `Tenha jogadores marcando 3 gols numa partida ${n} vezes`) },
+  { id: 'big_win', name: 'Goleada Histórica', category: 'career', metric: 'bigWins', thresholds: [1, 5, 15, 30], goal: (n, one) => (one ? 'Vença uma partida por 6 gols ou mais' : `Vença ${n} partidas por 6 gols ou mais`) },
+  { id: 'golden_waiter', name: 'Garçom de Ouro', category: 'career', metric: 'careerAssists', thresholds: [25, 100, 300, 800], goal: n => `Some ${n} assistências na carreira` },
+  { id: 'safe_vault', name: 'Cofre Fechado', category: 'career', metric: 'careerCleanSheets', thresholds: [10, 50, 150, 400], goal: n => `Termine ${n} jogos sem sofrer gols` },
   { id: 'contender', name: 'Sempre na Briga', category: 'career', metric: 'semifinalOrBetter', thresholds: [3, 15, 50, 150], goal: n => `Chegue à semifinal ou além ${n} vezes` },
   { id: 'veteran', name: 'Veterano', category: 'career', metric: 'competitions', thresholds: [5, 25, 100, 300], goal: n => `Conclua ${n} competições` },
   { id: 'marathoner', name: 'Maratonista', category: 'career', metric: 'matchesPlayed', thresholds: [50, 250, 1000, 3000], goal: n => `Dispute ${n} partidas` },

@@ -18,6 +18,7 @@ import {
 } from '../shared/game/achievements.js';
 import { RANKED_DIFFICULTY_IDS } from '../shared/game/competitionRanking.js';
 import { ALL_UNIQUE_CARDS, PLAYERS } from '../shared/game/gameData.js';
+import type { CareerSummary } from '../shared/game/careerSummary.js';
 
 export interface AchievementState {
   id: string;
@@ -60,6 +61,7 @@ interface CareerRow {
   top_saves: unknown;
   top_overall: unknown;
   final_starters: unknown;
+  career: unknown;
 }
 
 /** The final's XI as recorded in the report (a JSON array of card ids); anything else is none. */
@@ -77,6 +79,17 @@ const normalizeNation = (nation: string) => nation.normalize('NFD').replace(/[\u
 const BRAZILIAN_CARD_IDS = new Set([...PLAYERS, ...ALL_UNIQUE_CARDS]
   .filter(card => ['brasil', 'brazil'].includes(normalizeNation(card.nation)))
   .map(card => card.id));
+
+/** The compact match facts stored in the report (achievements v4+); anything else is none. */
+function careerFacts(value: unknown): CareerSummary | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const facts = JSON.parse(value) as CareerSummary;
+    return facts && typeof facts === 'object' && facts.version === 1 ? facts : null;
+  } catch {
+    return null;
+  }
+}
 
 const toNumber = (value: unknown): number => {
   const number = Number(value);
@@ -97,6 +110,7 @@ export async function loadCareer(db: D1Database, userId: string): Promise<Career
       CASE WHEN json_valid(h.report_json) THEN json_extract(h.report_json, '$.goalsAgainst') END AS goals_against,
       CASE WHEN json_valid(h.report_json) THEN json_extract(h.report_json, '$.humanPlayers') END AS human_players,
       CASE WHEN json_valid(h.report_json) THEN json_extract(h.report_json, '$.finalStarterIds') END AS final_starters,
+      CASE WHEN json_valid(h.report_json) THEN json_extract(h.report_json, '$.career') END AS career,
       MAX(CASE WHEN r.category = 'goals' THEN r.value END) AS top_goals,
       MAX(CASE WHEN r.category = 'assists' THEN r.value END) AS top_assists,
       MAX(CASE WHEN r.category = 'saves' THEN r.value END) AS top_saves,
@@ -130,6 +144,7 @@ export async function loadCareer(db: D1Database, userId: string): Promise<Career
       topPlayerOverall: toNumber(row.top_overall),
       finalStarterIds,
       finalBrazilianStarterCount: finalStarterIds.filter(id => BRAZILIAN_CARD_IDS.has(id)).length,
+      career: careerFacts(row.career),
     };
   });
 }

@@ -3,6 +3,7 @@ import { computeGroupQualifiedStandings, createKnockoutBracket, generateImmortal
 import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '../shared/game/competitionRanking.js';
 import type { MatchResult, PlayerCard, Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
+import { buildCareerSummary } from '../shared/game/careerSummary.js';
 import { ensureAchievementsCurrent, syncAchievements } from './achievements.js';
 import { syncEventRewards } from './events.js';
 import type { RoomPlayer, RoomState } from './handlers.js';
@@ -241,6 +242,15 @@ async function persistCompetitionForPlayers(
       humanPlayers,
       // The XI that started this team's final (events count it); none when it did not play one.
       finalStarterIds: playerFinalResult ? team.players.slice(0, 11).map(card => card.id) : [],
+      // Compact facts for the achievements (the match snapshot below is archived later).
+      career: buildCareerSummary({
+        teamId: team.id,
+        leagueResults,
+        bracket: room.knockoutBracket,
+        leagueStandings: room.competitionFormat.id === 'league' || room.competitionFormat.id === 'league_knockout' ? room.leagueStandings : undefined,
+        finalStarters: playerFinalResult ? team.players.slice(0, 11) : [],
+        finalChemistry: team.totalChemistry,
+      }),
       ...(!playerPartial ? { season: {
         topScorer: topGoals ? { playerId: topGoals.card.id, playerName: topGoals.card.shortName, value: topGoals.stats.goals } : null,
         topAssister: topAssists ? { playerId: topAssists.card.id, playerName: topAssists.card.shortName, value: topAssists.stats.assists } : null,

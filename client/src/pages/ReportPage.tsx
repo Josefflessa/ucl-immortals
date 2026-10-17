@@ -38,6 +38,7 @@ import { ALL_UNIQUE_CARDS } from '@shared/game/gameData';
 import { AVATAR_FRAME_BY_KEY } from '@shared/game/events';
 import { FrameImage } from '../components/account/AvatarFrame';
 import { CardIcon } from '../components/game/StatusIcon';
+import { buildCareerSummary } from '@shared/game/careerSummary';
 
 type SavedEffectiveCardStats = Pick<EffectiveStats,
   'overall' | 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure'>;
@@ -500,6 +501,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         games,
         // The XI that started the final: the squad cannot change after it (events count it).
         finalStarterIds: reportFinalResult ? starters.map(player => player.id) : [],
+        // Compact facts for the achievements (the match snapshot is archived later).
+        career: buildCareerSummary({
+          teamId: playerTeam.id,
+          leagueResults,
+          bracket: knockoutBracket,
+          leagueStandings: state.competitionFormat.id === 'league' || state.competitionFormat.id === 'league_knockout' ? state.leagueStandings : undefined,
+          finalStarters: reportFinalResult ? starters : [],
+          finalChemistry: playerTeam.totalChemistry,
+        }),
         wins,
         draws,
         losses,
