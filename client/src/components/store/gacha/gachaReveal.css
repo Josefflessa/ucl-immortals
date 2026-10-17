@@ -1,6 +1,12 @@
 /* Banner reveal: the summoning circle, the burst and the card backs. Transform and opacity only. */
 
-.gacha-root { isolation: isolate; contain: layout paint; }
+.gacha-root { isolation: isolate; contain: layout paint; -webkit-tap-highlight-color: transparent; }
+.gacha-root button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+/* The whole screen fades in and out, so it never cuts in or vanishes in a single frame. */
+.gacha-screen { animation: gacha-screen-in .22s ease-out both; transition: opacity .24s ease-in; }
+.gacha-screen--leaving { opacity: 0; pointer-events: none; }
+@keyframes gacha-screen-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* Stars: an oversized tiled layer moved by transform only (compositor, no repaint). Each loop is a whole number of tiles, so it is seamless. */
 .gacha-stars {

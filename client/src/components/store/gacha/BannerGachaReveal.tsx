@@ -26,6 +26,19 @@ const LOGO_URL = '/icons/logo_ucl.png';
 
 const withAlpha = (hex: string, alpha: number) => `${hex}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
 
+/** Close with a short fade instead of cutting away: returns the screen's extra class and a close that waits for it. */
+function useFadeOut(onClose: () => void): { leaving: boolean; close: () => void } {
+  const [leaving, setLeaving] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const close = useCallback(() => {
+    if (timer.current) return;
+    setLeaving(true);
+    timer.current = setTimeout(onClose, 240);
+  }, [onClose]);
+  return { leaving, close };
+}
+
 function useViewport(): { width: number; height: number } {
   const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
   useEffect(() => {
@@ -217,7 +230,7 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
         {note ? <p className="max-w-[20rem] text-xs leading-relaxed text-white/60" style={FONT}>{note}</p> : null}
       </motion.div>
 
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.1 }} className="relative z-10 mt-1 w-full max-w-xs">
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.95, duration: 0.55, ease: [0.22, 1, 0.36, 1] }} className="relative z-10 mt-1 w-full max-w-xs">
         <Button intent="primary" size="large" onClick={onCta} className="w-full">{ctaLabel}</Button>
       </motion.div>
     </div>
@@ -451,6 +464,7 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
 
 export default function BannerGachaReveal({ draws, onClose, skipCharge = false }: { draws: BannerBatchResult; onClose: () => void; /** Straight to the burst: the pack's tear was the build-up. */ skipCharge?: boolean }) {
   const reduced = useReducedMotion() ?? false;
+  const { leaving, close } = useFadeOut(onClose);
   const best = bestDraw(draws.cards);
   const tier = tierOf((best?.rarity ?? 'bronze') as Rarity);
   const [phase, setPhase] = useState<'charge' | 'reveal'>(skipCharge ? 'reveal' : 'charge');
@@ -477,16 +491,16 @@ export default function BannerGachaReveal({ draws, onClose, skipCharge = false }
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (phase === 'charge') setPhase('reveal'); else onClose();
+      if (phase === 'charge') setPhase('reveal'); else close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [phase, onClose]);
+  }, [phase, close]);
 
   const shakeAtBurst = phase === 'reveal' && tier.shake && !reduced;
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="Resultado do sorteio" className="fixed inset-0 z-[90] select-none overflow-hidden text-white">
+    <div role="dialog" aria-modal="true" aria-label="Resultado do sorteio" className={`gacha-screen fixed inset-0 z-[90] select-none overflow-hidden text-white ${leaving ? 'gacha-screen--leaving' : ''}`}>
       <Sky tier={tier} shaking={shakeAtBurst}>
         {phase === 'charge' ? (
           <button type="button" aria-label="Pular animação" onClick={() => setPhase('reveal')} className="absolute inset-0 z-10 cursor-pointer outline-none">
@@ -494,11 +508,11 @@ export default function BannerGachaReveal({ draws, onClose, skipCharge = false }
             <div className="absolute inset-x-0 bottom-[9%] text-center text-[12px] tracking-[0.3em] text-white/50" style={FONT}>TOQUE PARA PULAR</div>
           </button>
         ) : draws.cards.length === 1 && best && albumCard(best.card.id) ? (
-          <HeroReveal player={albumCard(best.card.id)!} rarity={best.rarity} isNew={best.card.isNew} pity={best.pityTriggered} pageRewards={draws.pageRewards} ctaLabel="CONTINUAR" onCta={onClose} />
+          <HeroReveal player={albumCard(best.card.id)!} rarity={best.rarity} isNew={best.card.isNew} pity={best.pityTriggered} pageRewards={draws.pageRewards} ctaLabel="CONTINUAR" onCta={close} />
         ) : narrow && !stackDone ? (
           <StackReveal draws={draws} reduced={reduced} onDone={() => setStackDone(true)} />
         ) : (
-          <GridReveal draws={draws} onClose={onClose} reduced={reduced} autoplay={!narrow} />
+          <GridReveal draws={draws} onClose={close} reduced={reduced} autoplay={!narrow} />
         )}
         {phase === 'reveal' ? <Flash tier={tier} /> : null}
         {phase === 'charge' && warm ? <Warmup draws={draws} /> : null}
@@ -518,10 +532,11 @@ export default function BannerGachaReveal({ draws, onClose, skipCharge = false }
  */
 export function PlayerRevealOverlay({ player, ctaLabel, onCta, note }: { player: Player; ctaLabel: string; onCta: () => void; note?: string }) {
   const tier = tierOf(player.rarity);
+  const { leaving, close } = useFadeOut(onCta);
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="Carta revelada" className="fixed inset-0 z-[90] select-none overflow-hidden text-white">
+    <div role="dialog" aria-modal="true" aria-label="Carta revelada" className={`gacha-screen fixed inset-0 z-[90] select-none overflow-hidden text-white ${leaving ? 'gacha-screen--leaving' : ''}`}>
       <Sky tier={tier}>
-        <HeroReveal player={player} rarity={player.rarity} isNew={null} ctaLabel={ctaLabel} onCta={onCta} note={note} />
+        <HeroReveal player={player} rarity={player.rarity} isNew={null} ctaLabel={ctaLabel} onCta={close} note={note} />
         <Flash tier={tier} />
       </Sky>
     </div>,
