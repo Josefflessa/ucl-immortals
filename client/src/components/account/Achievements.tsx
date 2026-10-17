@@ -313,7 +313,7 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
     <section aria-label="Mural" className="space-y-3">
       <SectionHeader
         title="Mural"
-        className="mb-0"
+        className="mb-0 items-center"
         actions={onEdit ? (
           <Button type="button" intent="ghost" onClick={onEdit} className="min-h-9 gap-1.5 border border-[var(--ui-line-subtle)] px-3 text-xs">
             <Pencil size={14} aria-hidden="true" /> EDITAR
