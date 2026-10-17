@@ -84,18 +84,18 @@ function variantState(variant: Variant, model: PlayerSheetModel): { active: bool
   const sources = model.charBoost?.sources ?? [];
   switch (variant.key) {
     case 'decimoHomem': return model.isStarter ? { active: false, inactiveReason: 'precisa estar no banco' } : { active: true };
-    case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular sem característica' : 'só vale como titular' };
-    case 'poliglota': return sources.some(s => s.type === 'poliglota') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular de outra nação' : 'só vale como titular' };
-    case 'desenfreado': return sources.some(s => s.type === 'desenfreado') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'química geral até 100' : 'só vale como titular' };
-    case 'fominha': return !model.isStarter ? { active: false, inactiveReason: 'só vale como titular' } : (model.player.fominhaGoals ?? 0) > 0 ? { active: true } : { active: false, inactiveReason: 'ainda sem gols' };
-    case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'divide país ou clube com outro titular' : 'só vale como titular' };
+    case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular sem característica' : 'precisa começar jogando' };
+    case 'poliglota': return sources.some(s => s.type === 'poliglota') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular de outra nação' : 'precisa começar jogando' };
+    case 'desenfreado': return sources.some(s => s.type === 'desenfreado') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'química geral até 100' : 'precisa começar jogando' };
+    case 'fominha': return !model.isStarter ? { active: false, inactiveReason: 'precisa começar jogando' } : (model.player.fominhaGoals ?? 0) > 0 ? { active: true } : { active: false, inactiveReason: 'ainda sem gols' };
+    case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'outro titular compartilha o país ou o clube' : 'precisa começar jogando' };
     case 'todosPorUm': return sources.some(s => s.type === 'todosPorUm') ? { active: true } : { active: false, inactiveReason: 'os 11 titulares precisam ter a característica' };
-    case 'agregador': return sources.some(s => s.type === 'agregador' && s.fromId === model.player.id) ? { active: true } : { active: false, inactiveReason: 'só vale como titular' };
+    case 'agregador': return sources.some(s => s.type === 'agregador' && s.fromId === model.player.id) ? { active: true } : { active: false, inactiveReason: 'precisa começar jogando' };
     case 'padrinho':
     case 'mentor':
     case 'improvisador':
     case 'fazTudo':
-    case 'lapidador': return model.isStarter ? { active: true } : { active: false, inactiveReason: 'só vale como titular' };
+    case 'lapidador': return model.isStarter ? { active: true } : { active: false, inactiveReason: 'precisa começar jogando' };
     default: {
       // Characteristics that grow over time: nothing accumulated yet means no effect yet.
       const growing: Record<string, number> = {
@@ -121,7 +121,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'inForm':
       return { chips: [{ text: `+${INFORM_STAT_BOOST} EM CADA ATRIBUTO`, color: GREEN }], description: `Já incluído nos valores impressos da carta.` };
     case 'lobo':
-      return { chips: [{ text: `+${LOBO_STAT_BOOST} EM CADA ATRIBUTO`, color: GREEN }, { text: `−${LOBO_CHEM_PENALTY} QUÍMICA GERAL DO TIME`, color: RED }], description: `O bônus próprio já está nos valores da carta; em troca, o time perde ${LOBO_CHEM_PENALTY} de química geral.` };
+      return { chips: [{ text: `+${LOBO_STAT_BOOST} EM CADA ATRIBUTO`, color: GREEN }, { text: `−${LOBO_CHEM_PENALTY} QUÍMICA GERAL DO TIME`, color: RED }], description: `O bônus próprio já está nos valores da carta. Em troca, o time perde ${LOBO_CHEM_PENALTY} de química geral.` };
     case 'coringa':
       return { chips: [{ text: 'SEM PENALIDADE DE POSIÇÃO', color: GREEN }], description: `Joga em qualquer posição sem perder atributos nem química. No gol, um jogador de linha ainda defende com ${Math.round(OUTFIELD_GK_MULTIPLIER * 100)}% da Defesa.` };
     case 'nomade':
@@ -129,9 +129,9 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'pilar':
       return { chips: [{ text: `+${PILAR_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Enquanto estiver no XI, a química geral do time sobe ${PILAR_CHEM_BONUS}.` };
     case 'martir':
-      return { chips: [{ text: `−${MARTIR_STAT_PENALTY} EM CADA ATRIBUTO`, color: RED }, { text: `+${MARTIR_TARGET_BOOST} EM TUDO A 2 TITULARES`, color: GREEN }], description: `A perda própria já está nos valores da carta; os 2 escolhidos recebem +${MARTIR_TARGET_BOOST} em tudo.` };
+      return { chips: [{ text: `−${MARTIR_STAT_PENALTY} EM CADA ATRIBUTO`, color: RED }, { text: `+${MARTIR_TARGET_BOOST} EM TUDO A 2 TITULARES`, color: GREEN }], description: `A perda própria já está nos valores da carta. Os dois escolhidos recebem +${MARTIR_TARGET_BOOST} em tudo.` };
     case 'idolo':
-      return { chips: [{ text: `+${IDOLO_STAT_BOOST} EM TUDO AOS COLEGAS DO MESMO CLUBE`, color: GREEN }], description: 'Vale para os outros titulares do mesmo clube; o próprio Ídolo não recebe.' };
+      return { chips: [{ text: `+${IDOLO_STAT_BOOST} EM TUDO AOS COLEGAS DO MESMO CLUBE`, color: GREEN }], description: `Os outros titulares do mesmo clube recebem +${IDOLO_STAT_BOOST} em cada atributo. O próprio Ídolo não recebe o bônus.` };
     case 'decimoHomem':
       return { chips: [{ text: `+${DECIMO_HOMEM_STAT_BOOST} EM TUDO AO TIME`, color: GREEN }], description: 'Só funciona no banco: todo o XI recebe o bônus.' };
     case 'pipoqueiro': {
@@ -146,7 +146,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     }
     case 'noe':
       { const boost = charBoost?.sources.find(s => s.type === 'noe' && s.fromId === p.id)?.flatAll ?? 0; const plain = boost / NOE_STAT_BOOST;
-      return { chips: [{ text: `+${boost} EM TUDO`, color: GREEN }, { text: `+${plain * NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Titular: +${NOE_STAT_BOOST} em tudo nele e +${NOE_CHEM_BONUS} na química geral para cada titular sem característica.` }; }
+      return { chips: [{ text: `+${boost} EM TUDO`, color: GREEN }, { text: `+${plain * NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Se começar jogando, recebe +${NOE_STAT_BOOST} em todos os atributos. Cada titular sem característica acrescenta +${NOE_CHEM_BONUS} à química geral do time.` }; }
     case 'forasteiro':
       return { chips: [{ text: `+${FORASTEIRO_STAT_BOOST} EM TUDO`, color: GREEN }], description: 'Só funciona quando é o único titular do seu país e do seu clube.' };
     case 'colecionador': {
@@ -160,7 +160,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'capitaoNato':
       return { chips: [{ text: 'BÔNUS DE CAPITÃO TRIPLICADO', color: GREEN }], description: 'Vale quando ele é o capitão: o bônus que o capitão dá ao time inteiro é triplicado.' };
     case 'magnata':
-      return { chips: [{ text: `CRÉDITOS DA PARTIDA ×${String(MAGNATA_POINT_MULT).replace('.', ',')}`, color: GREEN }, { text: `−${MAGNATA_STAT_PENALTY} EM TUDO`, color: RED }], description: 'Como titular, multiplica os créditos da partida; a perda própria já está nos valores da carta.' };
+      return { chips: [{ text: `CRÉDITOS DA PARTIDA ×${String(MAGNATA_POINT_MULT).replace('.', ',')}`, color: GREEN }, { text: `−${MAGNATA_STAT_PENALTY} EM TUDO`, color: RED }], description: `Se começar jogando, aumenta os créditos ganhos na partida. A perda própria já está nos valores da carta.` };
     case 'fragil':
       return { chips: [{ text: `+${FRAGIL_STAT_BOOST} EM TUDO`, color: GREEN }, { text: 'RISCO DE LESÃO MUITO MAIOR', color: RED }], description: 'O bônus já está nos valores da carta.' };
     case 'prodigio': {
@@ -183,7 +183,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
       const goals = p.arroganteGoals ?? 0;
       return {
         chips: [{ text: `+${arroganteStatBoost(goals)} EM TUDO`, color: GREEN }, ...(arroganteTeamPenalty(goals) > 0 ? [{ text: `−${arroganteTeamPenalty(goals)} AOS OUTROS TITULARES`, color: RED }] : [])],
-        description: `+${ARROGANTE_STAT_BOOST_PER_GOAL} em tudo por gol; a cada ${ARROGANTE_GOALS_PER_PENALTY} gols os outros titulares perdem 1. Já marcou ${goals}.`,
+        description: `Cada gol dá +${ARROGANTE_STAT_BOOST_PER_GOAL} em tudo. A cada ${ARROGANTE_GOALS_PER_PENALTY} gols, os outros titulares perdem 1. Já marcou ${goals}.`,
       };
     }
     case 'mercenario': {
@@ -194,24 +194,24 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
       const goals = p.padrinhoGoals ?? 0;
       const chips: Chip[] = [{ text: `+${PADRINHO_AFILHADO_BOOST} EM TUDO NO AFILHADO${model.godchild ? `: ${model.godchild.name.toUpperCase()}` : ''}`, color: own }];
       if (padrinhoStatBoost(goals) > 0) chips.push({ text: `+${padrinhoStatBoost(goals)} EM CADA ATRIBUTO NELE`, color: GREEN });
-      return { chips, description: `O afilhado ganha o bônus enquanto os dois são titulares; sem escolha, vai para o titular de maior geral. A cada gol do afilhado jogando com ele, o Padrinho ganha +1 permanente (${goals} até agora).` };
+      return { chips, description: `O afilhado recebe o bônus quando os dois começam jogando. Se você não escolher alguém, será o titular de maior geral. Cada gol dele nessas partidas dá +1 permanente ao Padrinho (${goals} até agora).` };
     }
     case 'lapidador':
-      return { chips: [{ text: `+${LAPIDADOR_RESERVE_BOOST} PERMANENTE NA RESERVA POR VITÓRIA`, color: own }], description: 'A cada vitória em que ele for titular, todos os jogadores da reserva ganham +1 em todos os atributos, para sempre. Mais de um Lapidador titular soma.' };
+      return { chips: [{ text: `+${LAPIDADOR_RESERVE_BOOST} PERMANENTE NA RESERVA POR VITÓRIA`, color: own }], description: 'A cada vitória em uma partida que ele começar jogando, todos os jogadores da reserva ganham +1 em todos os atributos, para sempre. Mais de um Lapidador soma.' };
     case 'apostador': {
       const wins = p.apostadorWins ?? 0;
       return { chips: [{ text: `+${apostadorStatBoost(wins)} EM CADA ATRIBUTO`, color: GREEN }], description: `+${APOSTADOR_STAT_BOOST_PER_WIN} permanente a cada aposta vencida com ele no elenco. Já venceu ${wins}.` };
     }
     case 'agregador': {
       const boost = charBoost?.sources.find(s => s.type === 'agregador' && s.fromId === p.id)?.flatAll;
-      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO AO TIME`, color: GREEN }], description: `Como titular, todo o XI ganha +${AGREGADOR_STAT_BOOST_PER_TRAIT} em cada atributo para cada característica diferente entre os titulares. Mais de um Agregador soma.` };
+      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO AO TIME`, color: GREEN }], description: `Quando começa jogando, cada tipo diferente de característica no time dá +${AGREGADOR_STAT_BOOST_PER_TRAIT} em cada atributo a todos os titulares. Mais de um Agregador soma.` };
     }
     case 'pechincheiro':
       return { chips: [{ text: 'LOJA 15% MAIS BARATA', color: GREEN }], description: 'Enquanto estiver no elenco (titular ou reserva): Turbinar, remover característica, pacotes, Caça-Talentos e troca de técnico custam 15% a menos.' };
     case 'mentor':
-      return { chips: [{ text: '+1 EVOLUÇÃO AO ELENCO POR VITÓRIA', color: GREEN }], description: 'Cada vitória com ele titular soma +1 titularidade na evolução de todo o elenco (titulares e reservas). Não acumula com outro Mentor.' };
+      return { chips: [{ text: '+1 EVOLUÇÃO AO ELENCO POR VITÓRIA', color: GREEN }], description: 'Cada vitória em uma partida que ele começar jogando soma +1 titularidade na evolução de todo o elenco, titulares e reservas. Não acumula com outro Mentor.' };
     case 'improvisador':
-      return { chips: [{ text: `+${IMPROVISADOR_SECONDARY_CHEM} / +${IMPROVISADOR_OOP_CHEM} QUÍMICA GERAL`, color: GREEN }], description: `Titular: +${IMPROVISADOR_SECONDARY_CHEM} na química geral por titular na posição secundária e +${IMPROVISADOR_OOP_CHEM} por titular fora de posição. Não acumula.` };
+      return { chips: [{ text: `+${IMPROVISADOR_SECONDARY_CHEM} / +${IMPROVISADOR_OOP_CHEM} QUÍMICA GERAL`, color: GREEN }], description: `Se começar jogando, cada jogador em posição secundária acrescenta +${IMPROVISADOR_SECONDARY_CHEM} à química geral. Cada jogador fora de posição acrescenta +${IMPROVISADOR_OOP_CHEM}. O bônus não acumula.` };
     case 'desenfreado': {
       const boost = charBoost?.sources.find(s => s.type === 'desenfreado')?.flatAll;
       return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO AO TIME`, color: GREEN }], description: `Todo o XI ganha +1 em cada atributo a cada ${DESENFREADO_CHEM_PER_BOOST} pontos de química geral acima de 100.` };
@@ -222,11 +222,11 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     }
     case 'fominha': {
       const goals = p.fominhaGoals ?? 0;
-      return { chips: [{ text: `+${goals * FOMINHA_STAT_BOOST_PER_GOAL} EM TUDO`, color: GREEN }, ...(goals > 0 ? [{ text: `−${goals * FOMINHA_CHEM_PENALTY_PER_GOAL} QUÍMICA GERAL`, color: RED }] : [])], description: `Titular: +${FOMINHA_STAT_BOOST_PER_GOAL} em tudo por gol dele, mas cada gol tira −${FOMINHA_CHEM_PENALTY_PER_GOAL} da química geral. ${goals} gol${goals === 1 ? '' : 's'} até agora.` };
+      return { chips: [{ text: `+${goals * FOMINHA_STAT_BOOST_PER_GOAL} EM TUDO`, color: GREEN }, ...(goals > 0 ? [{ text: `−${goals * FOMINHA_CHEM_PENALTY_PER_GOAL} QUÍMICA GERAL`, color: RED }] : [])], description: `Se começar jogando, cada gol dele dá +${FOMINHA_STAT_BOOST_PER_GOAL} em todos os atributos e reduz em ${FOMINHA_CHEM_PENALTY_PER_GOAL} a química geral. ${goals} gol${goals === 1 ? '' : 's'} até agora.` };
     }
     case 'poliglota': {
       const boost = charBoost?.sources.find(s => s.type === 'poliglota' && s.fromId === p.id)?.flatAll;
-      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO`, color: GREEN }], description: `Titular: +${POLIGLOTA_STAT_BOOST_PER_NATION} em tudo nele para cada nação diferente da dele entre os titulares.` };
+      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO`, color: GREEN }], description: `Se começar jogando, recebe +${POLIGLOTA_STAT_BOOST_PER_NATION} em todos os atributos por cada nacionalidade diferente da dele entre os titulares.` };
     }
     case 'midiatico':
       return { chips: [{ text: `+${MIDIATICO_CREDITS_PER_GOAL} CRÉDITOS POR GOL`, color: GREEN }], description: 'Cada gol dele rende créditos, somados aos créditos da partida.' };
