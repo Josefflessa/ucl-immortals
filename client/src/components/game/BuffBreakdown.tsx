@@ -146,7 +146,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     }
     case 'noe':
       { const boost = charBoost?.sources.find(s => s.type === 'noe' && s.fromId === p.id)?.flatAll ?? 0; const plain = boost / NOE_STAT_BOOST;
-      return { chips: [{ text: `+${boost} EM TUDO`, color: GREEN }, { text: `+${plain * NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Se for titular, cada jogador titular sem característica especial dá ao Noé +${NOE_STAT_BOOST} em todos os atributos e +${NOE_CHEM_BONUS} de química geral ao time.` }; }
+      return { chips: [{ text: `+${boost} EM TUDO`, color: GREEN }, { text: `+${plain * NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Se for titular, o Noé recebe +${NOE_STAT_BOOST} em todos os atributos por cada jogador titular sem característica especial. O time recebe +${NOE_CHEM_BONUS} de química geral por cada um.` }; }
     case 'forasteiro':
       return { chips: [{ text: `+${FORASTEIRO_STAT_BOOST} EM TUDO`, color: GREEN }], description: 'Só funciona quando é o único titular do seu país e do seu clube.' };
     case 'colecionador': {
