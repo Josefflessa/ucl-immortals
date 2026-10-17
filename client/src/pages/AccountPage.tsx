@@ -1284,7 +1284,7 @@ export default function AccountPage() {
           </TabPanel>
 
           <TabPanel value="records" className="space-y-5 pt-0">
-            <SectionHeader title="Rankings" className="items-center" actions={<div className="flex w-10 justify-end sm:w-36">{rankingTab === 'overall' ? <Button type="button" intent="ghost" aria-label="Como funciona o ranking geral" title="Como funciona o ranking geral" onClick={() => setPointsInfoOpen(true)} className="min-h-9 gap-2 px-2 text-xs"><Info size={16} aria-hidden="true" /><span className="hidden sm:inline">COMO FUNCIONA</span></Button> : <span aria-hidden="true" className="size-9 shrink-0" />}</div>} />
+            <SectionHeader title="Rankings" className="items-center" />
             <SeasonBar season={rankingSeason} onSeasonChange={setRankingSeason} standing={seasonStanding} />
             <Tabs value={rankingTab} onValueChange={value => setRankingTab(value as RankingTab)}>
               <TabList aria-label="Seções do ranking" className="ui-tabs--equal">
@@ -1293,7 +1293,7 @@ export default function AccountPage() {
               <TabPanel value="overall" className="space-y-3 pt-4">
                 <div className="flex min-h-12 items-start justify-between gap-3">
                   <div><h2 className="font-display text-2xl leading-none text-[var(--ui-text)]">Ranking geral por pontos</h2><p className="mt-1 text-xs text-[var(--ui-text-muted)]">Soma dos pontos de todas as dificuldades nesta temporada.</p></div>
-                  <Badge tone="brand" className="shrink-0 whitespace-nowrap">TOP 10</Badge>
+                  <Button type="button" intent="ghost" aria-label="Como funciona o ranking geral" title="Como funciona o ranking geral" onClick={() => setPointsInfoOpen(true)} className="min-h-9 shrink-0 gap-2 px-2 text-xs"><Info size={16} aria-hidden="true" /><span className="hidden sm:inline">COMO FUNCIONA</span></Button>
                 </div>
                 {scoreLoading ? <div className="space-y-2" aria-label="Carregando ranking de pontos">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[76px] w-full rounded-xl" />)}</div>
                   : scoreRanking.length === 0 ? <EmptyState title="O ranking começa com as próximas campanhas" description="Cada competição concluída registra pontos conforme a fase alcançada e a dificuldade." />
@@ -1315,7 +1315,6 @@ export default function AccountPage() {
                     return <TabPanel key={category} value={category} className="space-y-3 pt-4">
                       <div className="flex min-h-12 items-start justify-between gap-3">
                         <div className="min-w-0"><h2 className="flex min-w-0 items-center gap-2 font-display text-2xl leading-none text-[var(--ui-text)]"><Icon size={17} aria-hidden="true" className="shrink-0 text-[var(--ui-brand-strong)]" />{meta.label}</h2><p className="mt-1 text-xs text-[var(--ui-text-muted)]">{meta.description}</p></div>
-                        <Badge tone="brand" className="shrink-0 whitespace-nowrap">TOP 10</Badge>
                       </div>
                       {leaderboardLoading ? <div className="space-y-2" aria-label={`Carregando ranking de ${meta.label.toLowerCase()}`}>{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[210px] w-full rounded-xl" />)}</div>
                         : categoryRecords.length === 0 ? <EmptyState title={`Ainda sem recordes no ${difficultyName(recordsDifficulty)}`} description="Os recordes aparecem quando uma competição é concluída nesta dificuldade." />
