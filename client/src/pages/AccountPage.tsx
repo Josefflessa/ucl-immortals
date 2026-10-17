@@ -531,7 +531,11 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
   const summaryOnly = report.snapshotArchived === true;
   const finishLabel = finishStage
     ? HISTORY_FINISH_LABELS[finishStage]
-    : entry.mode === 'online' && entry.placement ? `${entry.placement}º na liga` : entry.placement ? `Terminou em ${entry.placement}º lugar` : 'Campanha concluída';
+    : !partial && entry.mode === 'online' && entry.placement
+      ? `${entry.placement}º na liga`
+      : !partial && entry.placement
+        ? `Terminou em ${entry.placement}º lugar`
+        : partial ? 'Campanha encerrada' : 'Campanha concluída';
   const title = `${partial ? 'Ver resumo parcial' : 'Ver resultado final'}: ${entry.team_name}, ${finishLabel}, ${difficultyName(entry.difficulty_id)}, ${formatDate(entry.completed_at)}`;
 
   return (
@@ -567,7 +571,7 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
                   <CalendarDays size={13} aria-hidden="true" />
                   {formatDate(entry.completed_at)}
                 </span>
-                {entry.mode === 'online' && hasFinishStage && entry.placement ? (
+                {entry.mode === 'online' && hasFinishStage && entry.placement && !partial ? (
                   <span className="mt-2 block border-t border-[var(--ui-line-subtle)] pt-2 text-xs text-[var(--ui-text-muted)]">Classificação na liga: <strong className="text-[var(--ui-text)]">{entry.placement}º lugar</strong></span>
                 ) : null}
               </span>

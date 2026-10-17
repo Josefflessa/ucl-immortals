@@ -28,7 +28,7 @@ import Crest from '../components/game/Crest';
 import PlayerCard from '../components/game/PlayerCard';
 import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerDetailsModal from '../components/game/PlayerDetailsModal';
-import { AppShell, Button, PageContainer, TopBar } from '../design-system';
+import { AppShell, Button, FixedActionBar, PageContainer, TopBar } from '../design-system';
 import type { CompetitionHistoryEntry } from '../contexts/AccountContext';
 import { getCompetitionHistorySnapshot, type CompetitionHistorySnapshot } from '../lib/historySnapshot';
 import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '@shared/game/competitionRanking';
@@ -107,8 +107,7 @@ function LegacyHistoryReport({ entry, onBack, hideTopBar = false }: { entry: Com
   ] as const;
   return (
     <AppShell immersive className="flex flex-col overflow-x-hidden">
-      {!hideTopBar ? <TopBar right={onBack ? <Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO</Button> : undefined} /> : null}
-      {hideTopBar && onBack ? <div className="mx-auto w-full max-w-3xl px-4 pt-4"><Button type="button" intent="ghost" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button></div> : null}
+      {!hideTopBar ? <TopBar /> : null}
       <div className="relative z-10 flex flex-col items-center justify-center px-4 py-10 text-center sm:py-14">
         {entry.champion ? <Trophy size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" /> : <Medal size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" />}
         <h1 className="font-display text-5xl text-[var(--ui-text)] sm:text-7xl">{entry.champion ? 'CAMPEÃO!' : partial ? 'RESUMO PARCIAL' : 'CAMPANHA ENCERRADA'}</h1>
@@ -117,7 +116,7 @@ function LegacyHistoryReport({ entry, onBack, hideTopBar = false }: { entry: Com
           <span className="font-display text-xl text-[var(--ui-text)]">{entry.team_name}</span>
         </div>
       </div>
-      <PageContainer narrow className="relative z-10 flex-1 space-y-4">
+      <PageContainer narrow className={`relative z-10 flex-1 space-y-4 ${onBack ? 'pb-28' : ''}`}>
         <section aria-label="Resumo da competição" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {summary.map(([label, value]) => <div key={label} className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-4 text-center">
             <div className="font-display text-3xl leading-none text-[var(--ui-brand-strong)]">{value ?? '—'}</div>
@@ -131,8 +130,8 @@ function LegacyHistoryReport({ entry, onBack, hideTopBar = false }: { entry: Com
             ? 'O relatório detalhado foi arquivado para liberar espaço. O resumo da competição continua salvo.'
             : 'Esta competição foi salva antes de o jogo guardar escalação e detalhes completos do resultado.'}
         </p>
-        {onBack ? <Button type="button" intent="primary" size="large" onClick={onBack} className="w-full"><ArrowLeft size={16} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button> : null}
       </PageContainer>
+      {onBack ? <FixedActionBar narrow><Button type="button" intent="primary" size="large" onClick={onBack} className="w-full"><ArrowLeft size={16} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button></FixedActionBar> : null}
     </AppShell>
   );
 }
@@ -598,13 +597,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
       {!hideTopBar ? <TopBar
         title={historyEntry ? undefined : partialReport ? 'UCL IMMORTALS — RESUMO PARCIAL' : 'UCL IMMORTALS — FIM DE TEMPORADA'}
-        right={historyEntry && onHistoryBack ? (
-          <Button type="button" intent="ghost" onClick={onHistoryBack}>
-            <ArrowLeft size={15} aria-hidden="true" /> HISTÓRICO
-          </Button>
-        ) : undefined}
       /> : null}
-      {hideTopBar && historyEntry && onHistoryBack ? <div className="mx-auto w-full max-w-5xl px-4 pt-3"><Button type="button" intent="ghost" onClick={onHistoryBack}><ArrowLeft size={15} aria-hidden="true" /> VOLTAR AO HISTÓRICO</Button></div> : null}
 
       {!historyEntry && account && state.mode === 'solo' && games > 0 && historySaveStatus !== 'idle' && (
         <div className="mx-auto w-full max-w-5xl px-4 pt-3" aria-live="polite">
@@ -767,7 +760,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
       </div>
 
       {/* ── SCROLLABLE CONTENT ────────────────────────────────────────────── */}
-      <PageContainer narrow className="relative z-10 flex-1 space-y-5 lg:max-w-6xl">
+      <PageContainer narrow className={`relative z-10 flex-1 space-y-5 lg:max-w-6xl ${historyEntry ? 'pb-28' : ''}`}>
         {/* Desktop: campaign numbers and highlights on the left, the final XI on the right. */}
         <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start lg:gap-6 lg:space-y-0">
         <div className="min-w-0 space-y-5">
@@ -1034,7 +1027,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         </div>
 
         {/* Return to the start or back to history. */}
-        {phase >= 4 && (
+        {phase >= 4 && !historyEntry && (
           <Button
             type="button"
             intent="primary"
@@ -1042,10 +1035,18 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             onClick={handleReturnHome}
             className="mt-2 w-full"
           >
-            {historyEntry ? <><ArrowLeft size={17} aria-hidden="true" /> VOLTAR AO HISTÓRICO</> : <><Home size={17} aria-hidden="true" /> VOLTAR AO INÍCIO</>}
+            <><Home size={17} aria-hidden="true" /> VOLTAR AO INÍCIO</>
           </Button>
         )}
       </PageContainer>
+
+      {phase >= 4 && historyEntry && onHistoryBack ? (
+        <FixedActionBar narrow>
+          <Button type="button" intent="primary" size="large" onClick={onHistoryBack} className="w-full">
+            <ArrowLeft size={17} aria-hidden="true" /> VOLTAR AO HISTÓRICO
+          </Button>
+        </FixedActionBar>
+      ) : null}
 
       {!historyEntry && selectedPlayer && playerTeam && (
         <PlayerDetailsModal
