@@ -1,7 +1,7 @@
 // UCL Immortals — the sticker album (accounts only): its pages, its stickers, the packs that
 // fill it, the album level of each player and its economy. Pure rules shared by the server (which
 // is the only one to grant, open, sell or buy anything) and the client (which draws the album).
-// Design: docs/design/features/album-dos-imortais.md
+// Design: docs/design/features/album.md
 
 import { EVENT_UNIQUE_CARDS, PLAYERS, STORE_UNIQUE_CARDS, UNIQUE_CARDS, type Player, type Rarity } from './gameData';
 import { CREST_CATALOG, clubIdForName, getCrest } from './crests';

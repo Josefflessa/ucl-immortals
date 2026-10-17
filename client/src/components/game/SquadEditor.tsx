@@ -156,7 +156,7 @@ export default function SquadEditor({
   const chemData = useMemo(() => calculateChemistry(xi, coachId, formationRoles, formationId), [xi, coachId, formationRoles, formationId]);
   const chemLinks = useMemo(() => getChemistryLinks(xi, coachId), [xi, coachId]);
   const captainBoost = useMemo(() => captainBoostFromStarters(xi, captain ?? undefined) ?? undefined, [xi, captain]);
-  const charBoosts = useMemo(() => computeCharacteristicBoosts(players), [players]); // 🩸❤️🪑 team-effect characteristics
+  const charBoosts = useMemo(() => computeCharacteristicBoosts(players, chemData.total), [players, chemData.total]); // 🩸❤️🪑 team-effect characteristics
 
   // A química usa o verde como identidade visual fixa nesta síntese do elenco;
   // o valor continua indicando o nível real, sem mudar o cálculo.

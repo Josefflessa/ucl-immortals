@@ -17,6 +17,8 @@ export interface AvatarFrame {
   color: string;
   /** Account coins required to buy this frame in the profile shop. Absent for event rewards. */
   shopPrice?: number;
+  /** Earned only as a ranking reward; the text says where it comes from. */
+  rewardOnly?: string;
 }
 
 export const AVATAR_FRAMES: readonly AvatarFrame[] = [
@@ -25,6 +27,8 @@ export const AVATAR_FRAMES: readonly AvatarFrame[] = [
   { key: 'constelacao', name: 'Constelação', image: '/frames/constelacao.webp', color: '#65A7FF', shopPrice: 300 },
   { key: 'nucleo-cibernetico', name: 'Núcleo Cibernético', image: '/frames/nucleo-cibernetico.webp', color: '#A855F7', shopPrice: 300 },
   { key: 'mare-celeste', name: 'Maré Celeste', image: '/frames/mare-celeste.webp', color: '#32C7E9', shopPrice: 300 },
+  // Temporada 0: prêmio do Top 3 do ranking (shared/game/seasons.ts).
+  { key: 'genese', name: 'Temporada 0', image: '/frames/genese.webp', color: '#D9B46A', rewardOnly: 'Prêmio do Top 3 da Temporada 0' },
 ];
 
 export const AVATAR_FRAME_BY_KEY = new Map(AVATAR_FRAMES.map(frame => [frame.key, frame]));

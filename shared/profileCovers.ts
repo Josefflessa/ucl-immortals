@@ -4,6 +4,8 @@ export interface ProfileCoverPreset {
   src: string;
   /** Absent for cover presets that remain free. */
   shopPrice?: number;
+  /** Earned only as a reward (never free nor sold); the text says where it comes from. */
+  rewardOnly?: string;
 }
 
 /** The original profile covers, with the account's starter options kept free. */
@@ -32,6 +34,8 @@ export const PROFILE_COVER_PRESETS: readonly ProfileCoverPreset[] = [
   { key: 'cover-22', name: 'Pântano ao crepúsculo', src: '/profile-covers/twilight-swamp.webp', shopPrice: 250 },
   { key: 'cover-23', name: 'Janela da nave', src: '/profile-covers/starship-window.webp', shopPrice: 250 },
   { key: 'cover-24', name: 'Estaleiro espacial', src: '/profile-covers/space-shipyard.webp', shopPrice: 250 },
+  // Temporada 0: prêmio do Top 2 do ranking (shared/game/seasons.ts).
+  { key: 'cover-season-0', name: 'Observatório estelar', src: '/profile-covers/genese-observatorio.webp', rewardOnly: 'Prêmio do Top 2 da Temporada 0' },
 ];
 
 export const PROFILE_COVER_BY_KEY = new Map(PROFILE_COVER_PRESETS.map(cover => [cover.key, cover]));

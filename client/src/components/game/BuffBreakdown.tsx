@@ -8,7 +8,7 @@ import { BookOpenCheck, ChevronsUp, ClipboardList, Dna, Dumbbell, GraduationCap,
 import { INLINE_ICON } from './inlineIcon';
 import { useState } from 'react';
 import {
-  ARROGANTE_GOALS_PER_PENALTY, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
+  ARROGANTE_GOALS_PER_PENALTY, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
   FORASTEIRO_STAT_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
   INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_STAT_PENALTY,
   LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
@@ -16,7 +16,7 @@ import {
   TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
   garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, padrinhoStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
 } from '@shared/game/gameEngine';
-import { getTacticById, type Player } from '@shared/game/gameData';
+import { getTacticById, POS_PT, type Player } from '@shared/game/gameData';
 import { getCardVariants } from './PlayerCard';
 import { ATTR_SHORT, SHEET_ATTRS, type PlayerSheetModel } from './player-sheet/playerSheetModel';
 
@@ -84,11 +84,17 @@ function variantState(variant: Variant, model: PlayerSheetModel): { active: bool
   const sources = model.charBoost?.sources ?? [];
   switch (variant.key) {
     case 'decimoHomem': return model.isStarter ? { active: false, inactiveReason: 'precisa estar no banco' } : { active: true };
-    case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'não é o único titular com característica' : 'só vale como titular' };
+    case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular sem característica' : 'só vale como titular' };
+    case 'poliglota': return sources.some(s => s.type === 'poliglota') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular de outra nação' : 'só vale como titular' };
+    case 'desenfreado': return sources.some(s => s.type === 'desenfreado') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'química geral até 100' : 'só vale como titular' };
+    case 'fominha': return !model.isStarter ? { active: false, inactiveReason: 'só vale como titular' } : (model.player.fominhaGoals ?? 0) > 0 ? { active: true } : { active: false, inactiveReason: 'ainda sem gols' };
     case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'divide país ou clube com outro titular' : 'só vale como titular' };
     case 'todosPorUm': return sources.some(s => s.type === 'todosPorUm') ? { active: true } : { active: false, inactiveReason: 'os 11 titulares precisam ter a característica' };
     case 'agregador': return sources.some(s => s.type === 'agregador' && s.fromId === model.player.id) ? { active: true } : { active: false, inactiveReason: 'só vale como titular' };
     case 'padrinho':
+    case 'mentor':
+    case 'improvisador':
+    case 'fazTudo':
     case 'lapidador': return model.isStarter ? { active: true } : { active: false, inactiveReason: 'só vale como titular' };
     default: {
       // Characteristics that grow over time: nothing accumulated yet means no effect yet.
@@ -139,7 +145,8 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
       };
     }
     case 'noe':
-      return { chips: [{ text: `+${NOE_STAT_BOOST} EM TUDO`, color: GREEN }, { text: `+${NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: 'Só funciona enquanto for o único titular com característica.' };
+      { const boost = charBoost?.sources.find(s => s.type === 'noe' && s.fromId === p.id)?.flatAll ?? 0; const plain = boost / NOE_STAT_BOOST;
+      return { chips: [{ text: `+${boost} EM TUDO`, color: GREEN }, { text: `+${plain * NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Titular: +${NOE_STAT_BOOST} em tudo nele e +${NOE_CHEM_BONUS} na química geral para cada titular sem característica.` }; }
     case 'forasteiro':
       return { chips: [{ text: `+${FORASTEIRO_STAT_BOOST} EM TUDO`, color: GREEN }], description: 'Só funciona quando é o único titular do seu país e do seu clube.' };
     case 'colecionador': {
@@ -201,6 +208,26 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     }
     case 'pechincheiro':
       return { chips: [{ text: 'LOJA 15% MAIS BARATA', color: GREEN }], description: 'Enquanto estiver no elenco (titular ou reserva): Turbinar, remover característica, pacotes, Caça-Talentos e troca de técnico custam 15% a menos.' };
+    case 'mentor':
+      return { chips: [{ text: '+1 EVOLUÇÃO AO ELENCO POR VITÓRIA', color: GREEN }], description: 'Cada vitória com ele titular soma +1 titularidade na evolução de todo o elenco (titulares e reservas). Não acumula com outro Mentor.' };
+    case 'improvisador':
+      return { chips: [{ text: `+${IMPROVISADOR_SECONDARY_CHEM} / +${IMPROVISADOR_OOP_CHEM} QUÍMICA GERAL`, color: GREEN }], description: `Titular: +${IMPROVISADOR_SECONDARY_CHEM} na química geral por titular na posição secundária e +${IMPROVISADOR_OOP_CHEM} por titular fora de posição. Não acumula.` };
+    case 'desenfreado': {
+      const boost = charBoost?.sources.find(s => s.type === 'desenfreado')?.flatAll;
+      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO AO TIME`, color: GREEN }], description: `Todo o XI ganha +1 em cada atributo a cada ${DESENFREADO_CHEM_PER_BOOST} pontos de química geral acima de 100.` };
+    }
+    case 'fazTudo': {
+      const learned = p.learnedPositions ?? [];
+      return { chips: learned.map(pos => ({ text: `APRENDEU ${POS_PT[pos] ?? pos}`, color: GREEN })), description: `Após ${FAZ_TUDO_STARTS_TO_LEARN} partidas como titular fora de posição numa mesma posição, ela vira posição secundária até o fim da competição.` };
+    }
+    case 'fominha': {
+      const goals = p.fominhaGoals ?? 0;
+      return { chips: [{ text: `+${goals * FOMINHA_STAT_BOOST_PER_GOAL} EM TUDO`, color: GREEN }, ...(goals > 0 ? [{ text: `−${goals * FOMINHA_CHEM_PENALTY_PER_GOAL} QUÍMICA GERAL`, color: RED }] : [])], description: `Titular: +${FOMINHA_STAT_BOOST_PER_GOAL} em tudo por gol dele, mas cada gol tira −${FOMINHA_CHEM_PENALTY_PER_GOAL} da química geral. ${goals} gol${goals === 1 ? '' : 's'} até agora.` };
+    }
+    case 'poliglota': {
+      const boost = charBoost?.sources.find(s => s.type === 'poliglota' && s.fromId === p.id)?.flatAll;
+      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO`, color: GREEN }], description: `Titular: +${POLIGLOTA_STAT_BOOST_PER_NATION} em tudo nele para cada nação diferente da dele entre os titulares.` };
+    }
     case 'midiatico':
       return { chips: [{ text: `+${MIDIATICO_CREDITS_PER_GOAL} CRÉDITOS POR GOL`, color: GREEN }], description: 'Cada gol dele rende créditos, somados aos créditos da partida.' };
     default:
@@ -220,6 +247,9 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   arrogante: { icon: '👑', label: 'ARROGANTE', color: '#E879F9' },
   padrinho: { icon: '🤵', label: 'PADRINHO', color: '#C4B5FD' },
   agregador: { icon: '🔗', label: 'AGREGADOR', color: '#A5ACC2' },
+  fominha: { icon: '🍽️', label: 'FOMINHA', color: '#B32D45' },
+  poliglota: { icon: '💬', label: 'POLIGLOTA', color: '#8FD6B4' },
+  desenfreado: { icon: '🚀', label: 'DESENFREADO', color: '#D2A86E' },
 };
 
 export default function BuffBreakdown({ model, collapsible = false }: { model: PlayerSheetModel; collapsible?: boolean }) {

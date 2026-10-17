@@ -25,6 +25,8 @@ import { DIFFICULTY_LEVELS, getRarityColor, type Rarity } from '@shared/game/gam
 import DifficultyEmblem from '../components/game/DifficultyEmblem';
 import SelectMenu, { type SelectMenuOption } from '../components/account/SelectMenu';
 import FramedAvatar, { FrameImage } from '../components/account/AvatarFrame';
+import SeasonBar from '../components/account/SeasonPanel';
+import { currentSeason } from '@shared/game/seasons';
 import GalleryPagination from '../components/account/GalleryPagination';
 import StyledName from '../components/account/StyledName';
 import { NAME_STYLES } from '@shared/game/nameStyles';
@@ -337,6 +339,15 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
   );
 }
 
+/** The one locked-state pill for appearance items (frames, covers): same look everywhere. */
+function LockedBadge({ text }: { text: string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-white/20 bg-black/70 px-2 py-0.5 text-[10px] font-bold leading-tight text-white">
+      <Lock size={10} className="shrink-0" aria-hidden="true" /><span className="truncate">{text}</span>
+    </span>
+  );
+}
+
 function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number }) {
   return (
     <article className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
@@ -604,7 +615,7 @@ function CareerFinishBreakdown({ counts, filter }: { counts: AccountStats['finis
 
 export default function AccountPage() {
   const { state, dispatch } = useGame();
-  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, peekOwnAchievements, getEvents, updateShowcase, getHistory, peekHistory, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, peekOwnAchievements, getEvents, updateShowcase, getHistory, peekHistory, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
   const accountId = account?.id ?? null;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>(() => peekHistory(1)?.history ?? []);
@@ -641,6 +652,9 @@ export default function AccountPage() {
   const [rankingTab, setRankingTab] = useState<RankingTab>('overall');
   const [recordRankingTab, setRecordRankingTab] = useState<PublicRecordEntry['category']>('goals');
   const [recordsDifficulty, setRecordsDifficulty] = useState<RankedDifficultyId>('immortal');
+  // Rankings and records are always read per season (no all-time view).
+  const [rankingSeason, setRankingSeason] = useState(() => currentSeason());
+  const [seasonStanding, setSeasonStanding] = useState<ScoreLeaderboardPosition | null>(null);
   const [friendsTab, setFriendsTab] = useState<FriendsTab>('friends');
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [scoreLoading, setScoreLoading] = useState(false);
@@ -707,7 +721,7 @@ export default function AccountPage() {
     kind: 'preset' as const,
     key: cover.key,
     cover,
-    owned: cover.shopPrice === undefined || albumCovers.includes(cover.key) || account?.coverKey === cover.key || appearanceDraft.coverKey === cover.key,
+    owned: (cover.shopPrice === undefined && !cover.rewardOnly) || albumCovers.includes(cover.key) || account?.coverKey === cover.key || appearanceDraft.coverKey === cover.key,
   }));
   const albumCoverItems = albumCovers.flatMap(coverKey => {
     const clubId = clubOfRewardKey(coverKey);
@@ -807,29 +821,35 @@ export default function AccountPage() {
   useEffect(() => {
     if (tab !== 'records') return;
     let active = true;
-    const cached = peekScoreLeaderboard(null);
-    if (cached) setScoreRanking(cached);
+    const cached = peekScoreLeaderboard(null, rankingSeason);
+    setScoreRanking(cached ?? []);
     setScoreLoading(!cached);
-    // One overall ranking: points from every difficulty add up.
-    void getScoreLeaderboard(null)
+    // One overall ranking per season: points from every difficulty add up.
+    void getScoreLeaderboard(null, rankingSeason)
       .then(ranking => { if (active) setScoreRanking(ranking); })
       .catch(err => { if (active) setError(err.message); })
       .finally(() => { if (active) setScoreLoading(false); });
+    setSeasonStanding(null);
+    if (accountId) {
+      void getSeasonStanding(rankingSeason)
+        .then(standing => { if (active) setSeasonStanding(standing); })
+        .catch(() => { /* the ranking still works without the viewer's position */ });
+    }
     return () => { active = false; };
-  }, [tab, getScoreLeaderboard, peekScoreLeaderboard]);
+  }, [tab, rankingSeason, accountId, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding]);
 
   useEffect(() => {
     if (tab !== 'records') return;
     let active = true;
-    const cached = peekRecords({ difficulty: recordsDifficulty });
-    if (cached) setRecords(cached);
+    const cached = peekRecords({ difficulty: recordsDifficulty, season: rankingSeason });
+    setRecords(cached ?? []);
     setLeaderboardLoading(!cached);
-    void getRecords({ difficulty: recordsDifficulty })
+    void getRecords({ difficulty: recordsDifficulty, season: rankingSeason })
       .then(list => { if (active) setRecords(list); })
       .catch(err => { if (active) setError(err.message); })
       .finally(() => { if (active) setLeaderboardLoading(false); });
     return () => { active = false; };
-  }, [tab, recordsDifficulty, getRecords, peekRecords]);
+  }, [tab, recordsDifficulty, rankingSeason, getRecords, peekRecords]);
 
   const authUsernameError = authSubmitted
     ? !authForm.username.trim()
@@ -1264,14 +1284,15 @@ export default function AccountPage() {
           </TabPanel>
 
           <TabPanel value="records" className="space-y-5 pt-0">
-            <SectionHeader title="Rankings" className="items-start" actions={<div className="flex w-10 justify-end sm:w-36">{rankingTab === 'overall' ? <Button type="button" intent="ghost" aria-label="Como funciona o ranking geral" title="Como funciona o ranking geral" onClick={() => setPointsInfoOpen(true)} className="min-h-9 gap-2 px-2 text-xs"><Info size={16} aria-hidden="true" /><span className="hidden sm:inline">COMO FUNCIONA</span></Button> : <span aria-hidden="true" className="size-9 shrink-0" />}</div>} />
+            <SectionHeader title="Rankings" className="items-center" actions={<div className="flex w-10 justify-end sm:w-36">{rankingTab === 'overall' ? <Button type="button" intent="ghost" aria-label="Como funciona o ranking geral" title="Como funciona o ranking geral" onClick={() => setPointsInfoOpen(true)} className="min-h-9 gap-2 px-2 text-xs"><Info size={16} aria-hidden="true" /><span className="hidden sm:inline">COMO FUNCIONA</span></Button> : <span aria-hidden="true" className="size-9 shrink-0" />}</div>} />
+            <SeasonBar season={rankingSeason} onSeasonChange={setRankingSeason} standing={seasonStanding} />
             <Tabs value={rankingTab} onValueChange={value => setRankingTab(value as RankingTab)}>
               <TabList aria-label="Seções do ranking" className="ui-tabs--equal">
                 {(Object.keys(RANKING_TAB_LABELS) as RankingTab[]).map(section => <Tab key={section} value={section} aria-label={RANKING_TAB_LABELS[section]} title={RANKING_TAB_LABELS[section]}>{RANKING_TAB_LABELS[section]}</Tab>)}
               </TabList>
               <TabPanel value="overall" className="space-y-3 pt-4">
                 <div className="flex min-h-12 items-start justify-between gap-3">
-                  <div><h2 className="font-display text-2xl leading-none text-[var(--ui-text)]">Ranking geral por pontos</h2><p className="mt-1 text-xs text-[var(--ui-text-muted)]">Soma dos pontos de todas as dificuldades.</p></div>
+                  <div><h2 className="font-display text-2xl leading-none text-[var(--ui-text)]">Ranking geral por pontos</h2><p className="mt-1 text-xs text-[var(--ui-text-muted)]">Soma dos pontos de todas as dificuldades nesta temporada.</p></div>
                   <Badge tone="brand" className="shrink-0 whitespace-nowrap">TOP 10</Badge>
                 </div>
                 {scoreLoading ? <div className="space-y-2" aria-label="Carregando ranking de pontos">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[76px] w-full rounded-xl" />)}</div>
@@ -1469,7 +1490,7 @@ export default function AccountPage() {
                       {frameKey ? <FrameImage frameKey={frameKey} className="absolute inset-0 size-full" /> : null}
                     </span>
                     <span className="text-xs font-bold text-[var(--ui-text)]">{label}</span>
-                    {!owned ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">{frame?.shopPrice !== undefined ? 'Disponível na loja' : `Complete o evento ${event?.name ?? ''}`}</span> : frameClub ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Página completa no álbum</span> : null}
+                    {!owned ? <LockedBadge text={frame?.rewardOnly ? 'Prêmio de temporada' : frame?.shopPrice !== undefined ? 'Disponível na loja' : `Evento ${event?.name ?? ''}`} /> : frameClub ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Página completa no álbum</span> : null}
                     {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
                   </Button>;
                 })}
@@ -1528,14 +1549,14 @@ export default function AccountPage() {
                     key={item.key}
                     intent="ghost"
                     disabled={!owned}
-                    aria-label={owned ? `Selecionar fundo: ${name}` : `${name}: bloqueado, disponível na loja por ${cover?.shopPrice} moedas`}
+                    aria-label={owned ? `Selecionar fundo: ${name}` : `${name}: bloqueado, ${cover?.rewardOnly ?? `disponível na loja por ${cover?.shopPrice} moedas`}`}
                     aria-pressed={selected}
                     onClick={() => setAppearanceDraft(draft => ({ ...draft, coverKey: item.key }))}
                     className={cn('relative aspect-[3/2] h-auto min-h-0 w-full overflow-hidden rounded-xl border p-0 disabled:opacity-100', selected ? 'border-[var(--ui-brand)] ring-2 ring-[var(--ui-brand)]/40' : 'border-[var(--ui-line-subtle)]')}
                   >
                     {cover ? <img src={cover.src} alt="" loading="lazy" decoding="async" className={cn('absolute inset-0 size-full object-cover', !owned && 'grayscale opacity-40')} /> : item.kind === 'club' ? <ClubCover clubId={item.clubId} className="absolute inset-0" /> : null}
                     {item.kind === 'club' ? <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-4 text-left text-[11px] font-bold text-white">{name}</span> : null}
-                    {!owned ? <span className="absolute inset-0 grid place-items-center bg-black/40"><span className="flex items-center gap-1 rounded-full border border-white/25 bg-black/70 px-2.5 py-1 text-[10px] font-bold text-white"><Lock size={11} aria-hidden="true" /> Disponível na loja</span></span> : null}
+                    {!owned ? <span className="absolute inset-0 grid place-items-center"><LockedBadge text={cover?.rewardOnly ? 'Prêmio de temporada' : 'Disponível na loja'} /></span> : null}
                     {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
                   </Button>;
                 })}

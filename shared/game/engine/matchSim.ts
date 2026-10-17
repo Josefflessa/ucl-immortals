@@ -385,8 +385,8 @@ export function runMatchSimulation(
   const homeCaptainBoost = captainBoostForTeam(home) ?? undefined;
   const awayCaptainBoost = captainBoostForTeam(away) ?? undefined;
   // 🩸❤️🪑🤝 Team-effect characteristics — computed once per side (constant across the match).
-  const homeCharBoosts = computeCharacteristicBoosts(home.players);
-  const awayCharBoosts = computeCharacteristicBoosts(away.players);
+  const homeCharBoosts = computeCharacteristicBoosts(home.players, home.totalChemistry);
+  const awayCharBoosts = computeCharacteristicBoosts(away.players, away.totalChemistry);
 
   const matchStats = { ...initialStats };
 

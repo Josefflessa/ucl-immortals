@@ -89,8 +89,8 @@ function result(overrides: Partial<MatchResult> = {}): MatchResult {
 
 describe('mission board', () => {
   it('contains the expanded catalog, rarity missions and no duplicate ids', () => {
-    expect(MISSION_CATALOG).toHaveLength(240);
-    expect(new Set(MISSION_CATALOG.map(definition => definition.id)).size).toBe(240);
+    expect(MISSION_CATALOG).toHaveLength(254);
+    expect(new Set(MISSION_CATALOG.map(definition => definition.id)).size).toBe(254);
     expect(MISSION_MAP.dominance_complete).toBeDefined();
     expect(MISSION_MAP.five_wins).toBeDefined();
     expect(MISSION_MAP.prodigy_goals_win).toBeDefined();
@@ -264,7 +264,7 @@ describe('mission board', () => {
     expect(updated.reward).toBe(270);
   });
 
-  it('recognizes a Coringa outside its natural positions and excludes it from the two secondary-position slots', () => {
+  it('recognizes a Coringa outside its natural positions and does not count it as the other secondary-position starter', () => {
     const homePlayers = [
       player('gk', { position: 'GK' }),
       player('lb', { position: 'LB' }),
@@ -296,7 +296,9 @@ describe('mission board', () => {
     expect(updateMissionsAfterMatch(stateFor('coringa_adapted_win'), context, 'L1:coringa-adapted').completed)
       .toEqual(['coringa_adapted_win']);
 
+    // Now one other secondary-position starter is enough: without any, it does not count.
     const oneSecondary = [...homePlayers];
+    oneSecondary[5] = player('regular-cm-1', { position: 'CM' });
     oneSecondary[7] = player('regular-cm', { position: 'CM' });
     const negativeContext = createMissionMatchContext(team('home', oneSecondary), away, result())!;
     expect(updateMissionsAfterMatch(stateFor('coringa_adapted_win'), negativeContext, 'L1:coringa-adapted-negative').completed)

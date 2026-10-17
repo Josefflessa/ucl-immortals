@@ -3,7 +3,7 @@ import * as seatRules from './seatRules';
 import {
   applyApostadorWins, applyShopVariant, computeCharacteristicBoosts, DRAFT_VARIANT_CHANCE, generateBotTeam,
   generateDraftOptions, apostadorStatBoost, hasVariant, midiaticoCredits, RECRUITMENT_VARIANT_CHANCE, statKey,
-  stripVariant, VARIANT_FLAGS, type MatchResult, type Team,
+  stripVariant, VARIANT_FLAGS, DRAFT_VARIANT_POOL, RETIRED_VARIANT_FLAGS, type MatchResult, type Team,
 } from './gameEngine';
 import { newlyWonBets, type Bet } from './bets';
 import { SHOP_COSTS, shopItemCost } from './shop';
@@ -43,8 +43,10 @@ describe('characteristics in the draft', () => {
     expect(draft.ratio).toBeGreaterThan(0.23);
     expect(draft.ratio).toBeLessThan(0.27);
     // Uniform: every characteristic shows up, none far from the mean.
-    expect(draft.seen.size).toBe(VARIANT_FLAGS.length);
-    const mean = [...draft.seen.values()].reduce((a, b) => a + b, 0) / VARIANT_FLAGS.length;
+    // Retired characteristics (Em Alta, Lobo, Pilar) never show up.
+    expect(draft.seen.size).toBe(DRAFT_VARIANT_POOL.length);
+    for (const retired of RETIRED_VARIANT_FLAGS) expect(draft.seen.has(retired)).toBe(false);
+    const mean = [...draft.seen.values()].reduce((a, b) => a + b, 0) / DRAFT_VARIANT_POOL.length;
     for (const count of draft.seen.values()) expect(Math.abs(count - mean) / mean).toBeLessThan(0.6);
 
     const recruitment = share(RECRUITMENT_VARIANT_CHANCE);

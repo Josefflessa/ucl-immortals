@@ -2,6 +2,7 @@
 
 import { Player, PLAYERS, STORE_UNIQUE_CARDS, UNIQUE_CARDS, EVENT_UNIQUE_CARDS, ALL_UNIQUE_CARDS, FORMATIONS, getPositionGroup, effectiveSecondaries, type Rarity } from '../gameData';
 import { rollPlayerTraits } from '../traits';
+import { RETIRED_VARIANTS } from '../shop';
 import { random } from '../random';
 
 // ============================================================
@@ -45,11 +46,27 @@ export function magnataPointMultiplier(starters: (Player | undefined)[]): number
 // RUNTIME (depende de context.isKnockout), por isso NÃO é assado no stat base como o Em Alta/Lobo.
 export const PIPOQUEIRO_LEAGUE_BOOST = 7;   // +7 em cada atributo na FASE DE LIGA
 export const PIPOQUEIRO_KO_PENALTY = 7;     // −7 em cada atributo no MATA-MATA
-// 🛟 Noé — só rende quando é o ÚNICO titular do XI com característica: +20 em tudo NELE e +50 na
-// química geral do time (ele "põe todo mundo na arca"). Condição/efeitos em computeCharacteristicBoosts
-// (atributos) e calculateChemistry (o +50). O custo é estrutural: abrir mão de toda outra característica.
-export const NOE_STAT_BOOST = 20;
-export const NOE_CHEM_BONUS = 50;
+// 🛟 Noé — titular: +2 em tudo NELE e +5 na química geral por titular SEM característica (ele "põe
+// todo mundo na arca"). Com 10 companheiros sem característica: +20/+50. Efeitos em
+// computeCharacteristicBoosts (atributos) e calculateChemistry (química).
+export const NOE_STAT_BOOST = 2;
+export const NOE_CHEM_BONUS = 5;
+// 🔀 Improvisador — +química geral por titular em posição secundária / fora de posição (não acumula).
+export const IMPROVISADOR_SECONDARY_CHEM = 8;
+export const IMPROVISADOR_OOP_CHEM = 12;
+// 🚀 Desenfreado — +1 em tudo ao XI a cada N pontos de química geral acima de 100.
+export const DESENFREADO_CHEM_THRESHOLD = 100;
+export const DESENFREADO_CHEM_PER_BOOST = 2;
+export function desenfreadoStatBoost(totalChemistry: number | undefined): number {
+  return Math.floor(Math.max(0, (totalChemistry ?? 0) - DESENFREADO_CHEM_THRESHOLD) / DESENFREADO_CHEM_PER_BOOST);
+}
+// 🔧 Faz-Tudo — titularidades fora de posição, na mesma posição, para aprendê-la.
+export const FAZ_TUDO_STARTS_TO_LEARN = 2;
+// 🍽️ Fominha — +N em tudo nele por gol; −N na química geral por gol.
+export const FOMINHA_STAT_BOOST_PER_GOAL = 1;
+export const FOMINHA_CHEM_PENALTY_PER_GOAL = 2;
+// 🗣️ Poliglota — +N em tudo nele por nação diferente da dele entre os titulares.
+export const POLIGLOTA_STAT_BOOST_PER_NATION = 2;
 // 🧳 Forasteiro — o anti-química: +9 em tudo quando é o ÚNICO titular do seu país E do seu clube.
 export const FORASTEIRO_STAT_BOOST = 9;
 /** ❤️ Ídolo: +N em cada atributo para os outros titulares do mesmo clube. */
@@ -136,10 +153,8 @@ function clampStat(v: number): number {
 
 function applyDraftVariant(p: Player, chance: number): Player {
   if (random() >= chance) return { ...p, traits: rollPlayerTraits(p.position, p.rarity) };
-  const variant = VARIANT_FLAGS[Math.floor(random() * VARIANT_FLAGS.length)];
-  // Em Alta and Lobo Solitário also come with an extra rolled trait.
-  const minTraits = variant === 'inForm' || variant === 'lobo' ? 2 : 1;
-  return { ...applyShopVariant(p, variant), traits: rollPlayerTraits(p.position, p.rarity, minTraits) };
+  const variant = DRAFT_VARIANT_POOL[Math.floor(random() * DRAFT_VARIANT_POOL.length)];
+  return { ...applyShopVariant(p, variant), traits: rollPlayerTraits(p.position, p.rarity) };
 }
 
 // A variant never pushes a card below the offer's overall floor (a recruitment
@@ -441,13 +456,20 @@ export function applyShopVariant(
   if (variant === 'padrinho') return { ...player, padrinho: true, padrinhoGoals: 0, padrinhoMatchIds: [] };
   if (variant === 'lapidador') return { ...player, lapidador: true, lapidadorMatchIds: [] };
   if (variant === 'apostador') return { ...player, apostador: true, apostadorWins: 0 };
+  if (variant === 'mentor') return { ...player, mentor: true, mentorMatchIds: [] };
+  if (variant === 'fazTudo') return { ...player, fazTudo: true, fazTudoStarts: {}, fazTudoMatchIds: [], learnedPositions: [] };
+  if (variant === 'fominha') return { ...player, fominha: true, fominhaGoals: 0, fominhaMatchIds: [] };
   return { ...player, [variant]: true };
 }
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-export const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico'] as const;
+export const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico', 'mentor', 'improvisador', 'desenfreado', 'fazTudo', 'fominha', 'poliglota'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
+// Características aposentadas: continuam reconhecidas nas cartas, no histórico e nos recordes,
+// mas não aparecem mais no draft, no Turbinar nem no quadro de missões.
+export const RETIRED_VARIANT_FLAGS: ReadonlySet<VariantFlag> = new Set<VariantFlag>(RETIRED_VARIANTS);
+export const DRAFT_VARIANT_POOL: readonly VariantFlag[] = VARIANT_FLAGS.filter(flag => !RETIRED_VARIANT_FLAGS.has(flag));
 export function hasVariant(p: Player): boolean {
   return VARIANT_FLAGS.some(f => (p as unknown as Record<string, unknown>)[f]);
 }
@@ -489,6 +511,9 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.padrinho; delete p.padrinhoTarget; delete p.padrinhoGoals; delete p.padrinhoMatchIds;
   delete p.lapidador; delete p.lapidadorMatchIds;
   delete p.apostador; delete p.apostadorWins; delete p.agregador; delete p.pechincheiro; delete p.midiatico;
+  delete p.mentor; delete p.mentorMatchIds; delete p.improvisador; delete p.desenfreado;
+  delete p.fazTudo; delete p.fazTudoStarts; delete p.fazTudoMatchIds; delete p.learnedPositions;
+  delete p.fominha; delete p.fominhaGoals; delete p.fominhaMatchIds; delete p.poliglota;
   return p;
 }
 
@@ -523,6 +548,9 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
   if (variant === 'padrinho') { delete p.padrinhoTarget; delete p.padrinhoGoals; delete p.padrinhoMatchIds; }
   if (variant === 'lapidador') delete p.lapidadorMatchIds;
   if (variant === 'apostador') delete p.apostadorWins;
+  if (variant === 'mentor') delete p.mentorMatchIds;
+  if (variant === 'fazTudo') { delete p.fazTudoStarts; delete p.fazTudoMatchIds; delete p.learnedPositions; }
+  if (variant === 'fominha') { delete p.fominhaGoals; delete p.fominhaMatchIds; }
   return p;
 }
 

@@ -53,4 +53,7 @@ export const EVENT_UNIQUE_CARD_LIST: Player[] = [
   // Evento A Aranha Negra: a Única de Lev Yashin, liberada apenas pela recompensa do evento.
   { id: 'yashin_unico', basePlayerId: 'yashin', historicalPlayerId: 'yashin', shortName: 'Yashin', fullName: 'Lev Ivanovich Yashin', position: 'GK', nation: 'União Soviética', club: 'Dynamo Moscow', season: 'Única', rarity: 'unique', overall: 99,
     pace: 72, shooting: 42, passing: 78, dribbling: 70, defending: 99, physical: 95, vision: 96, composure: 99, traits: [] },
+  // Temporada 0: prêmio exclusivo do 1º lugar do ranking de pontos (shared/game/seasons.ts).
+  { id: 'lampard_unico', basePlayerId: 'lampard', historicalPlayerId: 'lampard', shortName: 'Lampard', fullName: 'Frank James Lampard', position: 'CM', secondaryPositions: ['CAM', 'CDM'], nation: 'Inglaterra', club: 'Chelsea', season: 'Única', rarity: 'unique', overall: 99,
+    pace: 82, shooting: 97, passing: 95, dribbling: 88, defending: 84, physical: 93, vision: 95, composure: 99, traits: ['Chegada pelo Meio', 'Chute de Longe', 'Box-to-Box'], historicalCoaches: ['mourinho'], historicalPartners: ['drogba', 'terry', 'gerrard'] },
 ];

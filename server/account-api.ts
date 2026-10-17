@@ -18,6 +18,8 @@ import { isClubRewardKey } from '../shared/game/clubRewards.js';
 import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyDailyBannerCards, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, buyWeeklyBannerCards, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItem, sellCopies, sellCopiesBatch, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
 import { albumCatalog } from '../shared/game/album.js';
 import { WEEKLY_PACK_REWARDS } from '../shared/game/dailyRewards.js';
+import { currentSeason, seasonBounds } from '../shared/game/seasons.js';
+import { claimSeasonReward, finalizeEndedSeasons, loadSeasonReward, scoreTotalsBinds, scoreTotalsSql, seasonFromUrl, SCORE_RANKING_ORDER } from './seasons.js';
 import { isPushConfigured, isValidPushEndpoint, sendPushToUser, type PushEnvironment, type PushNotice } from './push.js';
 import {
   competitionStagePoints,
@@ -691,7 +693,8 @@ async function profileUpdate(request: Request, env: AccountEnv, account: Authent
   if (!/^[a-z0-9-]{3,40}$/.test(avatarKey) || !/^[a-z0-9-]{3,40}$/.test(coverKey) || !isProfileAvatarBackgroundKey(avatarBackgroundKey)) return json({ error: 'invalid_profile_asset' }, 400);
   // A club's cover is earned in the album: only an account that completed the club may use it.
   if (coverKey !== account.coverKey && isClubRewardKey(coverKey) && !(await loadOwnedCovers(env.DB, account.id)).includes(coverKey)) return json({ error: 'cover_not_owned' }, 403);
-  if (PROFILE_COVER_BY_KEY.get(coverKey)?.shopPrice !== undefined && !(await loadOwnedCovers(env.DB, account.id)).includes(coverKey)) return json({ error: 'cover_not_owned' }, 403);
+  const coverPreset = PROFILE_COVER_BY_KEY.get(coverKey);
+  if ((coverPreset?.shopPrice !== undefined || coverPreset?.rewardOnly) && coverKey !== account.coverKey && !(await loadOwnedCovers(env.DB, account.id)).includes(coverKey)) return json({ error: 'cover_not_owned' }, 403);
   await env.DB.prepare(`UPDATE profiles SET display_name = ?, bio = ?, avatar_key = ?, avatar_background_key = ?, avatar_frame_key = ?, name_style_key = ?, cover_key = ?, avatar_url = ?, cover_url = ?, favorite_crest_id = ?, updated_at = ? WHERE user_id = ?`)
     .bind(displayName, bio, avatarKey, avatarBackgroundKey, avatarFrameKey, nameStyleKey, coverKey, avatarUrl, coverUrl, favoriteCrestId, Date.now(), account.id).run();
   const updated = await accountById(env.DB, account.id);
@@ -880,8 +883,10 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
   const allowed = new Set(['goals', 'assists', 'saves', 'effective_overall']);
   if (category && !allowed.has(category)) return json({ error: 'invalid_category' }, 400);
   if (difficulty && !isRankedDifficulty(difficulty)) return json({ error: 'invalid_difficulty' }, 400);
-  const clauses: string[] = [];
-  const binds: unknown[] = [];
+  const { bounds, invalid } = seasonFromUrl(url);
+  if (invalid) return json({ error: 'invalid_season' }, 400);
+  const clauses: string[] = ['COALESCE(r.completed_at, r.created_at) >= ?', 'COALESCE(r.completed_at, r.created_at) < ?'];
+  const binds: unknown[] = [bounds.start, bounds.end];
   if (category) { clauses.push('r.category = ?'); binds.push(category); }
   if (difficulty) { clauses.push('r.difficulty_id = ?'); binds.push(difficulty); }
   const where = ['r.verified = 1', ...clauses].join(' AND ');
@@ -922,7 +927,7 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
       ...cardData,
     };
   });
-  return json({ records });
+  return json({ records, season: bounds.season });
 }
 
 function recordPlayerCard(reportJson: unknown, playerId: string): Record<string, unknown> | null {
@@ -1273,19 +1278,12 @@ function scoreDifficultyFilter(url: URL): { difficulty: RankedDifficultyId | nul
   return { difficulty: raw };
 }
 
-function scoreTotalsSql(difficulty: RankedDifficultyId | null): string {
-  return `SELECT user_id,
-        SUM(competition_points) AS points,
-        SUM(CASE WHEN competition_points > 0 THEN 1 ELSE 0 END) AS scored_competitions,
-        SUM(champion) AS titles
-      FROM competition_history
-      ${difficulty ? 'WHERE difficulty_id = ?' : ''}
-      GROUP BY user_id`;
-}
-
 async function scoreLeaderboard(env: AccountEnv, url: URL): Promise<Response> {
   const { difficulty, error } = scoreDifficultyFilter(url);
   if (error) return error;
+  const { bounds, invalid } = seasonFromUrl(url);
+  if (invalid) return json({ error: 'invalid_season' }, 400);
+  await finalizeEndedSeasons(env.DB);
   const rows = await env.DB.prepare(`WITH totals AS (
       ${scoreTotalsSql(difficulty)}
     )
@@ -1301,24 +1299,24 @@ async function scoreLeaderboard(env: AccountEnv, url: URL): Promise<Response> {
       LIMIT 1
     )
     WHERE p.visibility = 'public' AND totals.points > 0
-    ORDER BY totals.points DESC, totals.titles DESC, totals.scored_competitions DESC, LOWER(p.username) ASC
-    LIMIT 10`).bind(...(difficulty ? [difficulty] : [])).all();
+    ORDER BY ${SCORE_RANKING_ORDER}
+    LIMIT 10`).bind(...scoreTotalsBinds(bounds, difficulty)).all();
   const ranking = rows.results.map((row: any) => ({
     ...row,
     points: Number(row.points ?? 0),
     scored_competitions: Number(row.scored_competitions ?? 0),
     titles: Number(row.titles ?? 0),
   }));
-  return json({ ranking, difficulty });
+  return json({ ranking, difficulty, season: bounds.season, seasonStart: bounds.start, seasonEnd: bounds.end });
 }
 
-async function getScoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount, difficulty: RankedDifficultyId | null = null) {
+async function getScoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount, difficulty: RankedDifficultyId | null = null, bounds = seasonBounds(currentSeason())) {
   const row = await env.DB.prepare(`WITH totals AS (
       ${scoreTotalsSql(difficulty)}
     ), ranked AS (
       SELECT p.user_id,
         ROW_NUMBER() OVER (
-          ORDER BY totals.points DESC, totals.titles DESC, totals.scored_competitions DESC, LOWER(p.username) ASC
+          ORDER BY ${SCORE_RANKING_ORDER}
         ) AS position
       FROM totals
       JOIN profiles p ON p.user_id = totals.user_id
@@ -1331,7 +1329,7 @@ async function getScoreLeaderboardPosition(env: AccountEnv, account: Authenticat
       (SELECT COUNT(*) FROM ranked) AS participants
     FROM (SELECT ? AS user_id) viewer
     LEFT JOIN totals ON totals.user_id = viewer.user_id
-    LEFT JOIN ranked ON ranked.user_id = viewer.user_id`).bind(...(difficulty ? [difficulty] : []), account.id).first<{
+    LEFT JOIN ranked ON ranked.user_id = viewer.user_id`).bind(...scoreTotalsBinds(bounds, difficulty), account.id).first<{
       position: number | null;
       points: number;
       scored_competitions: number;
@@ -1354,7 +1352,24 @@ async function getScoreLeaderboardPosition(env: AccountEnv, account: Authenticat
 async function scoreLeaderboardPosition(env: AccountEnv, account: AuthenticatedAccount, url: URL): Promise<Response> {
   const { difficulty, error } = scoreDifficultyFilter(url);
   if (error) return error;
-  return json({ ...(await getScoreLeaderboardPosition(env, account, difficulty)), difficulty });
+  const { bounds, invalid } = seasonFromUrl(url);
+  if (invalid) return json({ error: 'invalid_season' }, 400);
+  await finalizeEndedSeasons(env.DB);
+  const [position, reward] = await Promise.all([
+    getScoreLeaderboardPosition(env, account, difficulty, bounds),
+    loadSeasonReward(env.DB, account.id, bounds.season),
+  ]);
+  return json({ ...position, difficulty, season: bounds.season, reward });
+}
+
+async function claimSeasonRewardResponse(request: Request, env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
+  const body = await readJson(request);
+  const season = Number(body?.season);
+  // Only a closed season can be claimed.
+  if (!Number.isSafeInteger(season) || season < 0 || season >= currentSeason()) return json({ error: 'invalid_season' }, 400);
+  const reward = await claimSeasonReward(env.DB, account.id, season);
+  if (!reward) return json({ error: 'no_season_reward' }, 404);
+  return json({ reward });
 }
 
 async function friendsList(env: AccountEnv, account: AuthenticatedAccount): Promise<Response> {
@@ -2088,6 +2103,8 @@ export async function handleAccountRequest(
   if (url.pathname === '/api/auth/login' && request.method === 'POST') return loginLocalAccount(request, env);
   if (url.pathname === '/api/auth/me' && request.method === 'GET') {
     const account = await authenticatedAccount(request, env);
+    // Opening the app freezes the standings of any season that closed meanwhile (throttled, idempotent).
+    if (account) await finalizeEndedSeasons(env.DB).catch(error => console.error('season_finalize_failed', error));
     return json({ account: account ? publicAccount(account) : null });
   }
   if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
@@ -2119,6 +2136,7 @@ export async function handleAccountRequest(
     if (url.pathname === '/api/account/solo-campaign' && request.method === 'PUT') return accountSoloCampaignSave(request, env, account);
     if (url.pathname === '/api/account/solo-campaign' && request.method === 'DELETE') return accountSoloCampaignDelete(env, account);
     if (url.pathname === '/api/account/leaderboards/score-position' && request.method === 'GET') return scoreLeaderboardPosition(env, account, url);
+    if (url.pathname === '/api/account/seasons/claim' && request.method === 'POST') return claimSeasonRewardResponse(request, env, account);
     if (url.pathname === '/api/account/records' && request.method === 'GET') return accountRecordHighlights(env, account);
     if (url.pathname === '/api/account/achievements' && request.method === 'GET') return accountAchievements(env, account, url);
     if (url.pathname === '/api/account/showcase' && request.method === 'PUT') return updateShowcase(request, env, account);

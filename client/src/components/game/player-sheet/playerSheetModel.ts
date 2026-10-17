@@ -118,7 +118,7 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
   const formationRole = isStarter ? (roles[index] ?? player.position) : player.position;
   const fit = isStarter ? positionFit(player, formationRole) : 'native';
   const chemData = calculateChemistry(xi, input.coachId, roles, input.formationId);
-  const charBoosts = computeCharacteristicBoosts(players);
+  const charBoosts = computeCharacteristicBoosts(players, chemData.total);
   const captainBoost = captainBoostFromStarters(xi, input.captainId ?? undefined) ?? undefined;
   const playStyle = input.playStyle ?? 'balanced';
   const credits = Math.max(0, input.credits ?? 0);

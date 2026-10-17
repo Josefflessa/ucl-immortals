@@ -101,7 +101,7 @@ export interface Player {
   idolo?: boolean;      // ❤️ Ídolo — +3 em tudo a cada OUTRO titular do mesmo clube (não a ele)
   decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 em todos os atributos a todo o XI
   pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +7 em tudo na FASE DE LIGA, −7 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
-  noe?: boolean;         // 🛟 Noé — só quando é o ÚNICO titular do XI com característica: +20 em tudo NELE + 50 na química geral
+  noe?: boolean;         // 🛟 Noé — titular: +2 em tudo NELE e +5 na química geral por titular sem característica
   forasteiro?: boolean;  // 🧳 Forasteiro — +9 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
   colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva
   estribado?: boolean;    // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
@@ -137,6 +137,18 @@ export interface Player {
   agregador?: boolean;   // 🧩 Agregador — titular: +1 em tudo ao XI por característica diferente entre os titulares
   pechincheiro?: boolean; // 🏷️ Pechincheiro — no elenco: itens da loja custam 15% a menos
   midiatico?: boolean;   // 📺 Midiático — cada gol dele rende 20 créditos
+  mentor?: boolean;      // 🧑‍🏫 Mentor — vitória com ele titular: +1 no contador de evolução de todo o elenco (não acumula)
+  mentorMatchIds?: string[]; // 🧑‍🏫 partidas já contabilizadas (idempotência online/reconexão)
+  improvisador?: boolean; // 🔀 Improvisador — titular: +8 de química geral por titular na secundária, +12 por titular fora de posição (não acumula)
+  desenfreado?: boolean; // 🚀 Desenfreado — +1 em tudo ao XI a cada 2 de química geral acima de 100
+  fazTudo?: boolean;     // 🔧 Faz-Tudo — 2 partidas como titular fora de posição numa posição → ela vira secundária
+  fazTudoStarts?: Record<string, number>; // 🔧 titularidades fora de posição, por posição ainda não aprendida
+  fazTudoMatchIds?: string[]; // 🔧 partidas já contabilizadas
+  learnedPositions?: string[]; // 🔧 posições aprendidas pelo Faz-Tudo (contam como secundárias)
+  fominha?: boolean;     // 🍽️ Fominha — titular: +1 em tudo por gol dele; cada gol tira −2 da química geral
+  fominhaGoals?: number; // 🍽️ gols acumulados desde que recebeu a característica
+  fominhaMatchIds?: string[]; // 🍽️ partidas já contabilizadas
+  poliglota?: boolean;   // 🗣️ Poliglota — titular: +2 em tudo nele por nação diferente da dele entre os titulares
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).
@@ -266,10 +278,11 @@ const SECONDARY_ADJACENCY: Record<string, string[]> = {
   CAM: ['CM'], LM: ['LW', 'LWB'], RM: ['RW', 'RWB'],
   LW: ['LM'], RW: ['RM'], ST: [],
 };
-export function effectiveSecondaries(p: { position: string; secondaryPositions?: string[] }): string[] {
+export function effectiveSecondaries(p: { position: string; secondaryPositions?: string[]; learnedPositions?: string[] }): string[] {
   const primary = p.position;
   const configured = p.secondaryPositions ?? SECONDARY_ADJACENCY[primary] ?? [];
-  return Array.from(new Set(configured)).filter(position => position !== primary);
+  // 🔧 Faz-Tudo: posições aprendidas na competição contam como secundárias.
+  return Array.from(new Set([...configured, ...(p.learnedPositions ?? [])])).filter(position => position !== primary);
 }
 
 // ============================================================

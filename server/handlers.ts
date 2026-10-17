@@ -23,7 +23,7 @@ import {
   normalizeMatchPlan,
   validateMatchPlan,
   magnataPointMultiplier,
-  bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
+  bumpStarterAppearances, applyPostMatchCardProgress, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth,
   EVOLVE_POINTS, applyDefeatGrowth,
   applyMercenarioProgress,
   applyApostadorWins,
@@ -44,7 +44,7 @@ import {
 import { COACHES, FORMATIONS, DIFFICULTY_LEVELS, POSITION_GROUPS, TACTICS, Player } from "../shared/game/gameData.js";
 import { ALL_CRESTS } from "../shared/game/crests.js";
 import * as seatRules from "../shared/game/seatRules.js";
-import { computeMatchPointsWithConfig, MatchPoints, ShopVariant, TrainAttr, TRAIN_ATTRS, TURBINAR_VARIANTS, lossStreakBonus, nextLossStreak, isRegularPlayerPackRarity } from "../shared/game/shop.js";
+import { computeMatchPointsWithConfig, MatchPoints, ShopVariant, TrainAttr, TRAIN_ATTRS, TURBINAR_VARIANTS, VARIANT_CATALOG, lossStreakBonus, nextLossStreak, isRegularPlayerPackRarity } from "../shared/game/shop.js";
 import type { RegularPlayerPackRarity } from "../shared/game/shop.js";
 import { Bet, BetMarket, buildLeagueMatchKey, buildKnockoutMatchKey, newlyWonBets, settleBet } from "../shared/game/bets.js";
 import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockoutLegWasPlayed } from "../shared/game/onlineReadiness.js";
@@ -631,6 +631,8 @@ const VALID_CREST_IDS = new Set(ALL_CRESTS.map(c => c.id));
 const VALID_POSITION_IDS = new Set(Object.values(POSITION_GROUPS).flat());
 const VALID_TRAIN_ATTRS = new Set(TRAIN_ATTRS.map(a => a.key));
 const VALID_VARIANTS = new Set(TURBINAR_VARIANTS.map(v => v.key));
+// Remover aceita também as aposentadas (cartas antigas ainda podem tê-las).
+const REMOVABLE_VARIANTS = new Set(VARIANT_CATALOG.map(v => v.key));
 const MAX_PLAYER_NAME_LENGTH = 32;
 const MAX_CLIENT_ID_LENGTH = 80;
 const MAX_COMMAND_ID_LENGTH = 120;
@@ -2459,7 +2461,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
-      if (!isValidId(playerId) || (variantKey != null && !VALID_VARIANTS.has(variantKey))) return;
+      if (!isValidId(playerId) || (variantKey != null && !REMOVABLE_VARIANTS.has(variantKey))) return;
       applySeatRule(socket, io, room, player, "shop_remove_variant", seat => seatRules.removeVariant(seat, seatContext(room), playerId, variantKey));
     });
 
@@ -2975,6 +2977,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
               startingIdsForResult(fixture.result, p.team.id, p.team),
               buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId),
             );
+            p.team = applyPostMatchCardProgress(p.team, fixture.result, buildLeagueMatchKey(fixture.round, fixture.homeTeamId, fixture.awayTeamId));
             const rewards = room.competitionFormat.rewards;
             const mp = computeMatchPointsWithConfig(fixture.result, p.team.id, rewards.points);
             const rewardVenue = fixture.result.homeTeamId === p.team.id ? 'home' : 'away';
@@ -3311,6 +3314,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
             startingIdsForResult(result, p.team.id, p.team),
             matchKey,
           );
+          p.team = applyPostMatchCardProgress(p.team, result, matchKey);
           p.team = { ...p.team, credits: p.points };
           p.team = applyMedicalRecoveries(p.team, disciplineResult.recoveredInjuries);
         });

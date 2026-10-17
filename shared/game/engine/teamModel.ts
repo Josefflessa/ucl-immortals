@@ -1,9 +1,9 @@
 // Cards, teams, match plans and match results; post-match card growth.
 
-import { Player, FORMATIONS, getCompetitionAlbumBonus } from '../gameData';
+import { Player, FORMATIONS, getCompetitionAlbumBonus, effectiveSecondaries } from '../gameData';
 import { type ClubProjectsState } from '../clubProjects';
 import type { AlbumLevel } from '../album';
-import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL } from './draft';
+import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL, FAZ_TUDO_STARTS_TO_LEARN } from './draft';
 
 // Premium variants keep their own card IDs for inventory/UI. Cards that represent
 // a different club/era may provide historicalPlayerId so historical chemistry
@@ -530,8 +530,37 @@ export function applyMatchStatGrowth(team: Team, result: MatchResult, matchId = 
         changed = true;
       }
     }
+    if (player.fominha) {
+      const receipts = Array.isArray(player.fominhaMatchIds) ? player.fominhaMatchIds : [];
+      if (!receipts.includes(matchId)) {
+        next.fominhaGoals = (player.fominhaGoals ?? 0) + Math.max(0, stat.goals ?? 0);
+        next.fominhaMatchIds = Array.from(new Set([...receipts, matchId])).slice(-64);
+        changed = true;
+      }
+    }
     return next;
   });
+
+  // 🔧 Faz-Tudo: cada partida como titular FORA de posição conta para aquela posição; na 2ª, ela
+  // vira secundária (learnedPositions) até o fim da competição.
+  for (let i = 0; i < Math.min(11, players.length); i++) {
+    const card = players[i];
+    if (!card?.fazTudo || card.coringa) continue;
+    const receipts = Array.isArray(card.fazTudoMatchIds) ? card.fazTudoMatchIds : [];
+    if (receipts.includes(matchId)) continue;
+    const role = FORMATIONS.find(f => f.id === team.formationId)?.positions[i]?.role;
+    const next: PlayerCard = { ...card, fazTudoMatchIds: Array.from(new Set([...receipts, matchId])).slice(-64) };
+    if (role && role !== card.position && !effectiveSecondaries(card).includes(role)) {
+      const starts = { ...(card.fazTudoStarts ?? {}), [role]: (card.fazTudoStarts?.[role] ?? 0) + 1 };
+      if (starts[role] >= FAZ_TUDO_STARTS_TO_LEARN) {
+        delete starts[role];
+        next.learnedPositions = Array.from(new Set([...(card.learnedPositions ?? []), role]));
+      }
+      next.fazTudoStarts = starts;
+    }
+    players[i] = next;
+    changed = true;
+  }
 
   const lineup = team.players;
   const goalsOf = (playerId: string): number => {

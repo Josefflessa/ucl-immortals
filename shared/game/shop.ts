@@ -179,8 +179,11 @@ export const TRAIN_ATTRS: { key: TrainAttr; label: string }[] = [
 ];
 
 // ── "Turbinar Carta" — the special variants the player can buy onto a card. ──
-export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador' | 'apostador' | 'agregador' | 'pechincheiro' | 'midiatico';
-export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
+export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador' | 'apostador' | 'agregador' | 'pechincheiro' | 'midiatico' | 'mentor' | 'improvisador' | 'desenfreado' | 'fazTudo' | 'fominha' | 'poliglota';
+/** Aposentadas: seguem válidas nas cartas e no histórico, mas saem do draft, do Turbinar e das missões. */
+export const RETIRED_VARIANTS: readonly ShopVariant[] = ['inForm', 'lobo', 'pilar'];
+/** Catálogo completo (inclui as aposentadas) — rótulos/ícones para cartas antigas. */
+export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: '+4 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: '+7 em todos os atributos, mas −12 na química geral do time.' },
   { key: 'coringa', icon: '🃏', label: 'Coringa', color: '#EF4444', desc: 'Joga em qualquer posição sem penalidade de stats nem química.' },
@@ -190,7 +193,7 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'idolo', icon: '❤️', label: 'Ídolo', color: '#F59E0B', desc: '+3 em todos os atributos a cada titular do MESMO CLUBE que ele.' },
   { key: 'decimoHomem', icon: '🪑', label: '12º Homem', color: '#14B8A6', desc: 'No banco, dá +1 em todos os atributos a todo o time.' },
   { key: 'pipoqueiro', icon: '🍿', label: 'Pipoqueiro', color: '#EC4899', desc: '+7 em todos os atributos na fase de liga, mas −7 em tudo no mata-mata.' },
-  { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: '+20 em tudo NELE e +50 na química geral — SÓ enquanto for o único titular com característica.' },
+  { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: 'Titular: +2 em todos os atributos nele e +5 na química geral para cada titular sem característica.' },
   { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: '+9 em tudo quando é o único titular do seu país E do seu clube.' },
   { key: 'colecionador', icon: '🧩', label: 'Colecionador', color: '#C084FC', desc: '+1 em todos os atributos por jogador que estiver na reserva.' },
   { key: 'estribado', icon: '💰', label: 'Estribado', color: '#FACC15', desc: '+1 em todos os atributos a cada 100 créditos que você possui.' },
@@ -210,4 +213,12 @@ export const TURBINAR_VARIANTS: { key: ShopVariant; icon: string; label: string;
   { key: 'agregador', icon: '🔗', label: 'Agregador', color: '#A5ACC2', desc: 'Titular: todo o time ganha +1 em todos os atributos para cada característica diferente entre os titulares.' },
   { key: 'pechincheiro', icon: '🏷️', label: 'Pechincheiro', color: '#E0315F', desc: 'No elenco: Turbinar, remover característica, pacotes, Caça-Talentos e troca de técnico custam 15% a menos.' },
   { key: 'midiatico', icon: '📺', label: 'Midiático', color: '#7C6FF0', desc: 'Cada gol dele rende 20 créditos.' },
+  { key: 'mentor', icon: '🧑‍🏫', label: 'Mentor', color: '#8B5E3C', desc: 'Cada vitória com ele titular soma +1 titularidade na evolução de todo o elenco. Não acumula com outro Mentor.' },
+  { key: 'improvisador', icon: '🔀', label: 'Improvisador', color: '#A6A83C', desc: 'Titular: +8 na química geral por titular na posição secundária e +12 por titular fora de posição. Não acumula.' },
+  { key: 'desenfreado', icon: '🚀', label: 'Desenfreado', color: '#D2A86E', desc: 'Todo o time ganha +1 em todos os atributos a cada 2 pontos de química geral acima de 100.' },
+  { key: 'fazTudo', icon: '🔧', label: 'Faz-Tudo', color: '#4A6FD9', desc: 'Após 2 partidas como titular fora de posição numa mesma posição, ela vira posição secundária até o fim da competição.' },
+  { key: 'fominha', icon: '🍽️', label: 'Fominha', color: '#B32D45', desc: 'Titular: +1 em todos os atributos por gol marcado. Cada gol também tira −2 da química geral do time. Acumula.' },
+  { key: 'poliglota', icon: '💬', label: 'Poliglota', color: '#8FD6B4', desc: 'Titular: +2 em todos os atributos nele para cada nação diferente da dele entre os titulares.' },
 ];
+/** O que dá pra comprar no Turbinar: o catálogo sem as aposentadas. */
+export const TURBINAR_VARIANTS = VARIANT_CATALOG.filter(v => !RETIRED_VARIANTS.includes(v.key));

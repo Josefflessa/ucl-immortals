@@ -222,6 +222,20 @@ export interface ScoreLeaderboardPosition {
   scored_competitions: number;
   titles: number;
   status: 'ranked' | 'no_points' | 'profile_not_public';
+  /** Season the position belongs to (the current one when not asked). */
+  season?: number;
+  /** The viewer's prize, once that season was closed and paid. */
+  reward?: SeasonRewardEntry | null;
+}
+
+export interface SeasonRewardEntry {
+  season: number;
+  position: number;
+  points: number;
+  coins: number;
+  granted_at: number;
+  /** null while the prize waits to be claimed in the season modal. */
+  claimed_at: number | null;
 }
 
 export interface ProfileRecordEntry {
@@ -356,12 +370,14 @@ interface AccountContextValue {
   /** Event Únicas the account unlocked; empty for guests. */
   eventCards: string[];
   updateShowcase: (items: ShowcaseItem[]) => Promise<AchievementsPayload['showcase']>;
-  getRecords: (filters?: { category?: string; difficulty?: string }) => Promise<PublicRecordEntry[]>;
-  peekRecords: (filters?: { category?: string; difficulty?: string }) => PublicRecordEntry[] | null;
+  getRecords: (filters?: { category?: string; difficulty?: string; season?: number }) => Promise<PublicRecordEntry[]>;
+  peekRecords: (filters?: { category?: string; difficulty?: string; season?: number }) => PublicRecordEntry[] | null;
   getOwnRecordHighlights: () => Promise<ProfileRecordEntry[]>;
   peekOwnRecordHighlights: () => ProfileRecordEntry[] | null;
-  getScoreLeaderboard: (difficulty?: RankedDifficultyId | null) => Promise<ScoreLeaderboardEntry[]>;
-  peekScoreLeaderboard: (difficulty?: RankedDifficultyId | null) => ScoreLeaderboardEntry[] | null;
+  getScoreLeaderboard: (difficulty?: RankedDifficultyId | null, season?: number) => Promise<ScoreLeaderboardEntry[]>;
+  peekScoreLeaderboard: (difficulty?: RankedDifficultyId | null, season?: number) => ScoreLeaderboardEntry[] | null;
+  getSeasonStanding: (season: number) => Promise<ScoreLeaderboardPosition>;
+  claimSeasonReward: (season: number) => Promise<SeasonRewardEntry>;
   getScoreLeaderboardPosition: () => Promise<ScoreLeaderboardPosition>;
   peekScoreLeaderboardPosition: () => ScoreLeaderboardPosition | null;
   getPublicProfile: (username: string) => Promise<PublicProfileData>;
@@ -705,21 +721,23 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return result.showcase;
   }, [accountId, readCacheFor]);
 
-  const recordsCacheKey = useCallback((filters: { category?: string; difficulty?: string } = {}) => {
+  const recordsCacheKey = useCallback((filters: { category?: string; difficulty?: string; season?: number } = {}) => {
     const params = new URLSearchParams();
     if (filters.category) params.set('category', filters.category);
     if (filters.difficulty) params.set('difficulty', filters.difficulty);
+    if (filters.season !== undefined) params.set('season', String(filters.season));
     return params.toString();
   }, []);
 
-  const peekRecords = useCallback((filters: { category?: string; difficulty?: string } = {}) => {
+  const peekRecords = useCallback((filters: { category?: string; difficulty?: string; season?: number } = {}) => {
     return accountId ? readCacheFor(accountId).recordsByFilter.get(recordsCacheKey(filters))?.value ?? null : null;
   }, [accountId, readCacheFor, recordsCacheKey]);
 
-  const getRecords = useCallback(async (filters: { category?: string; difficulty?: string } = {}) => {
+  const getRecords = useCallback(async (filters: { category?: string; difficulty?: string; season?: number } = {}) => {
     const params = new URLSearchParams();
     if (filters.category) params.set('category', filters.category);
     if (filters.difficulty) params.set('difficulty', filters.difficulty);
+    if (filters.season !== undefined) params.set('season', String(filters.season));
     const cache = accountId ? readCacheFor(accountId) : null;
     const key = recordsCacheKey(filters);
     const entry = cache?.recordsByFilter.get(key);
@@ -766,15 +784,18 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   }, [accountId, readCacheFor]);
 
-  const peekScoreLeaderboard = useCallback((difficulty?: RankedDifficultyId | null) => {
-    const key = difficulty ?? 'all';
+  const peekScoreLeaderboard = useCallback((difficulty?: RankedDifficultyId | null, season?: number) => {
+    const key = `${difficulty ?? 'all'}:${season ?? 'current'}`;
     return accountId ? readCacheFor(accountId).scoreLeaderboards.get(key)?.value ?? null : null;
   }, [accountId, readCacheFor]);
 
-  const getScoreLeaderboard = useCallback(async (difficulty?: RankedDifficultyId | null) => {
-    const query = difficulty ? `?difficulty=${encodeURIComponent(difficulty)}` : '';
+  const getScoreLeaderboard = useCallback(async (difficulty?: RankedDifficultyId | null, season?: number) => {
+    const params = new URLSearchParams();
+    if (difficulty) params.set('difficulty', difficulty);
+    if (season !== undefined) params.set('season', String(season));
+    const query = params.toString() ? `?${params}` : '';
     const cache = accountId ? readCacheFor(accountId) : null;
-    const key = difficulty ?? 'all';
+    const key = `${difficulty ?? 'all'}:${season ?? 'current'}`;
     const entry = cache?.scoreLeaderboards.get(key);
     if (isReadCacheFresh(entry)) return entry.value;
     if (entry?.request) return entry.request;
@@ -823,6 +844,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       if (read.request === request) read.request = undefined;
     }
   }, [accountId, readCacheFor]);
+
+  // The viewer's position and prize in one season (not cached: it is read once per season pick).
+  const getSeasonStanding = useCallback((season: number) => {
+    return api<ScoreLeaderboardPosition>(`/api/account/leaderboards/score-position?season=${season}`);
+  }, []);
+
+  const claimSeasonReward = useCallback(async (season: number) => {
+    const result = await api<{ reward: SeasonRewardEntry }>('/api/account/seasons/claim', { method: 'POST', body: JSON.stringify({ season }) });
+    return result.reward;
+  }, []);
 
   const getPublicProfile = useCallback(async (username: string) => {
     return api<PublicProfileData>(`/api/users/${encodeURIComponent(username)}`);
@@ -886,9 +917,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AccountContextValue>(() => ({
-    account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile,
+    account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding, claimSeasonReward, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile,
     getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+  }), [account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding, claimSeasonReward, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

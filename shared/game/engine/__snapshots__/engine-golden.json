@@ -3580,7 +3580,7 @@
    [
     12,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
@@ -3858,168 +3858,15 @@
    ],
    [
     39,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1004."
-   ],
-   [
-    39,
-    "save",
-    "H",
-    "H0",
-    "A9",
-    null,
-    "🧤 Cabeceio perigoso de Henrique Dourado, mas Donnarumma voa no ângulo e espalma! Escanteio!"
-   ],
-   [
-    40,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1004."
-   ],
-   [
-    40,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
-   ],
-   [
-    45,
-    "foul",
-    "A",
-    "A4",
-    "H8",
-    null,
-    "🤙 Arrascaeta sofre a falta de Cláudio Winck em ótima posição para a cobrança."
-   ],
-   [
-    46,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    46,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "⚡ Encarada! Henrique Dourado tenta superar Nino Paraíba em duelo individual..."
-   ],
-   [
-    46,
-    "miss",
-    "A",
-    "A9",
-    null,
-    null,
-    "❌ Henrique Dourado passou por Nino Paraíba mas bateu torto na hora da finalização!"
-   ],
-   [
-    50,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "💣 Cherki domina fora da área e avalia o chute de longe..."
-   ],
-   [
-    50,
     "duel",
     "H",
     "H3",
-    "A8",
+    "A9",
     null,
-    "🛡️ Pressão de De Vrij! Fechou o espaço e Cherki não conseguiu bater!"
+    "🛡️ Cruzamento interceptado! De Vrij lê a jogada antes de Henrique Dourado!"
    ],
    [
-    52,
-    "foul",
-    "A",
-    "A3",
-    "H7",
-    null,
-    "⚠️ Leandro Castán para Gosens na infração. Bola parada na entrada da área."
-   ],
-   [
-    56,
-    "foul",
-    "H",
-    "H5",
-    "A2",
-    null,
-    "🤙 Rüdiger sofre a falta de Rijkaard em ótima posição para a cobrança."
-   ],
-   [
-    57,
-    "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "🏃 Transição rápida! Eto'o lidera o contra com Gosens na ponta!"
-   ],
-   [
-    57,
-    "duel",
-    "A",
-    "A4",
-    "H10",
-    null,
-    "🛡️ Desarme providencial de Cláudio Winck — encerrou o perigo do contra-ataque!"
-   ],
-   [
-    58,
-    "foul",
-    "H",
-    "H10",
-    "A10",
-    null,
-    "✋ Eto'o chega atrasado e derruba Savinho — falta perigosa!"
-   ],
-   [
-    59,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    60,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    61,
-    "momentum",
-    "H",
-    "H5",
-    null,
-    null,
-    "⚡ Posse recuperada! Casa 1004 tenta sair rápido em transição."
-   ],
-   [
-    64,
+    40,
     "momentum",
     "A",
     "A5",
@@ -4028,169 +3875,16 @@
     "🔄 Trent tenta impor ritmo após o desarme no meio do campo."
    ],
    [
-    65,
-    "stat",
+    41,
+    "foul",
     "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    65,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "🎯 Lançamento por cima da defesa — Henrique Dourado domina dentro da área..."
-   ],
-   [
-    65,
-    "duel",
-    "H",
-    "H1",
-    "A9",
-    null,
-    "🛡️ Renan Lodi retorna em velocidade e corta o passe profundo antes de Henrique Dourado!"
-   ],
-   [
-    68,
-    "momentum",
-    "H",
+    "A8",
     "H9",
     null,
-    null,
-    "🏃 Casa 1004 constrói pelo lado após ganhar a bola no meio."
+    "✋ Cherki chega atrasado e derruba Beckham — falta perigosa!"
    ],
    [
-    69,
-    "momentum",
-    "A",
-    "A6",
-    null,
-    null,
-    "🏃 Fora 1004 constrói pelo lado após ganhar a bola no meio."
-   ],
-   [
-    70,
-    "momentum",
-    "H",
-    "H8",
-    null,
-    null,
-    "🔄 Arrascaeta tenta impor ritmo após o desarme no meio do campo."
-   ],
-   [
-    71,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "🏃 Henrique Dourado acelera pela esquerda tentando deixar Rijkaard para trás..."
-   ],
-   [
-    71,
-    "duel",
-    "H",
-    "H5",
-    "A9",
-    null,
-    "🛡️ Entrada limpa de Rijkaard — rouba a bola de Henrique Dourado com precisão!"
-   ],
-   [
-    74,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    74,
-    "momentum",
-    "A",
-    "A5",
-    null,
-    null,
-    "🔄 Trent tenta impor ritmo após o desarme no meio do campo."
-   ],
-   [
-    75,
-    "momentum",
-    "H",
-    "H6",
-    null,
-    null,
-    "🔄 Pierre tenta impor ritmo após o desarme no meio do campo."
-   ],
-   [
-    76,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "🔥 Fora 1004 quebra a pressão e sai em dois contra um!"
-   ],
-   [
-    76,
-    "duel",
-    "H",
-    "H5",
-    "A9",
-    null,
-    "🛡️ Contra-ataque anulado! Rijkaard retorna em velocidade e recupera de Henrique Dourado!"
-   ],
-   [
-    77,
-    "foul",
-    "H",
-    "H4",
-    "A6",
-    null,
-    "🤙 João Gomes sofre a falta de Nino Paraíba em ótima posição para a cobrança."
-   ],
-   [
-    78,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1004."
-   ],
-   [
-    78,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
-   ],
-   [
-    79,
-    "foul",
-    "H",
-    "H6",
-    "A3",
-    null,
-    "⚠️ Pierre para Leandro Castán na infração. Bola parada na entrada da área."
-   ],
-   [
-    79,
-    "momentum",
-    "H",
-    "H7",
-    null,
-    null,
-    "⚡ Posse recuperada! Casa 1004 tenta sair rápido em transição."
-   ],
-   [
-    80,
+    42,
     "corner",
     "H",
     null,
@@ -4199,7 +3893,7 @@
     "🚩 Escanteio para Casa 1004."
    ],
    [
-    80,
+    42,
     "stat",
     "H",
     null,
@@ -4208,7 +3902,88 @@
     "📊 Finalização adicional desviada."
    ],
    [
-    82,
+    42,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🏃 Fora 1004 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    44,
+    "momentum",
+    "H",
+    "H6",
+    null,
+    null,
+    "🔄 Pierre tenta impor ritmo após o desarme no meio do campo."
+   ],
+   [
+    45,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "⚡ Posse recuperada! Fora 1004 tenta sair rápido em transição."
+   ],
+   [
+    46,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    46,
+    "momentum",
+    "H",
+    null,
+    null,
+    null,
+    "🏃 Eto'o pede a bola no corredor central e escapa em velocidade de Leandro Castán..."
+   ],
+   [
+    46,
+    "duel",
+    "A",
+    "A3",
+    "H10",
+    null,
+    "🛡️ Leandro Castán retorna em velocidade e corta o passe profundo antes de Eto'o!"
+   ],
+   [
+    47,
+    "foul",
+    "H",
+    "H9",
+    "A10",
+    null,
+    "⚠️ Beckham para Savinho na infração. Bola parada na entrada da área."
+   ],
+   [
+    47,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    49,
+    "foul",
+    "H",
+    "H1",
+    "A9",
+    null,
+    "🤙 Henrique Dourado sofre a falta de Renan Lodi em ótima posição para a cobrança."
+   ],
+   [
+    49,
     "momentum",
     "H",
     "H9",
@@ -4217,22 +3992,274 @@
     "⚡ Posse recuperada! Casa 1004 tenta sair rápido em transição."
    ],
    [
-    85,
+    50,
     "momentum",
     "H",
     null,
     null,
     null,
-    "🔑 Eto'o tabela com Gosens e parte nas costas de Leandro Castán..."
+    "🔥 Casa 1004 quebra a pressão e sai em dois contra um!"
    ],
    [
-    85,
+    50,
     "duel",
     "A",
     "A3",
+    "H8",
+    null,
+    "🛡️ Leandro Castán cobre perfeitamente e rouba a bola de Arrascaeta na entrada da área!"
+   ],
+   [
+    51,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "🔄 João Gomes tenta impor ritmo após o desarme no meio do campo."
+   ],
+   [
+    56,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    57,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    57,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "💣 Savinho recebe na intermediária, ajeita o corpo e prepara o chute..."
+   ],
+   [
+    57,
+    "miss",
+    "A",
+    "A10",
+    null,
+    null,
+    "💥 NA TRAVE! Savinho arrisca de longe e a bola explode no poste!"
+   ],
+   [
+    59,
+    "momentum",
+    "A",
+    "A7",
+    null,
+    null,
+    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
+   ],
+   [
+    61,
+    "corner",
+    "A",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Fora 1004."
+   ],
+   [
+    61,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    64,
+    "foul",
+    "H",
+    "H2",
+    "A10",
+    null,
+    "✋ Diouf chega atrasado e derruba Savinho — falta perigosa!"
+   ],
+   [
+    65,
+    "foul",
+    "H",
+    "H3",
+    "A10",
+    null,
+    "🦶 Falta de De Vrij em Savinho. O árbitro marca."
+   ],
+   [
+    65,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "💡 Henrique Dourado finta para direita, para para esquerda — Pierre está perdido!"
+   ],
+   [
+    65,
+    "corner",
+    "A",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Fora 1004."
+   ],
+   [
+    65,
+    "save",
+    "H",
+    "H0",
+    "A9",
+    null,
+    "🧤 Donnarumma fecha bem o ângulo após o drible de Henrique Dourado — fantástica saída! Escanteio!"
+   ],
+   [
+    67,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🚩 Fora 1004 cobra o escanteio — a zaga se prepara para afastar..."
+   ],
+   [
+    71,
+    "momentum",
+    "H",
+    null,
+    null,
+    null,
+    "⚡ Bola recuperada! Casa 1004 dispara no contra-ataque com Eto'o..."
+   ],
+   [
+    71,
+    "corner",
+    "H",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Casa 1004."
+   ],
+   [
+    71,
+    "save",
+    "A",
+    "A0",
     "H10",
     null,
-    "🛡️ Leandro Castán retorna em velocidade e corta o passe profundo antes de Eto'o!"
+    "🧤 Eto'o saiu em velocidade mas encontrou Jordi perfeitamente posicionado! Escanteio!"
+   ],
+   [
+    73,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    73,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🔄 Bola afastada pela defesa! Fora 1004 tenta organizar novamente."
+   ],
+   [
+    74,
+    "momentum",
+    "H",
+    "H6",
+    null,
+    null,
+    "⚽ Jordi distribui rápido após a defesa, e o jogo se abre pelo lado."
+   ],
+   [
+    76,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "💣 Cherki recebe na intermediária, ajeita o corpo e prepara o chute..."
+   ],
+   [
+    76,
+    "miss",
+    "A",
+    "A8",
+    null,
+    null,
+    "💥 NA TRAVE! Cherki arrisca de longe e a bola explode no poste!"
+   ],
+   [
+    78,
+    "foul",
+    "A",
+    "A7",
+    "H5",
+    null,
+    "🤙 Rijkaard sofre a falta de Arda Güler em ótima posição para a cobrança."
+   ],
+   [
+    80,
+    "momentum",
+    "H",
+    "H7",
+    null,
+    null,
+    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
+   ],
+   [
+    81,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
+   ],
+   [
+    82,
+    "foul",
+    "A",
+    "A1",
+    "H10",
+    null,
+    "⚠️ T. Hernández para Eto'o na infração. Bola parada na entrada da área."
+   ],
+   [
+    85,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "📐 Savinho se posiciona na segunda trave aguardando o cruzamento de Cherki..."
+   ],
+   [
+    85,
+    "miss",
+    "A",
+    "A10",
+    null,
+    null,
+    "❌ Savinho sobe para o cabeceio mas não tem direção — bola vai à esquerda do gol!"
    ],
    [
     86,
@@ -4250,28 +4277,19 @@
     null,
     null,
     null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    88,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
     "📊 Finalização adicional para fora."
    ],
    [
-    88,
+    87,
     "momentum",
     "A",
     "A7",
     null,
     null,
-    "🔄 Arda Güler tenta impor ritmo após o desarme no meio do campo."
+    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
    ],
    [
-    90,
+    89,
     "foul",
     "A",
     "A6",
@@ -5052,25 +5070,25 @@
    [
     82,
     "foul",
-    "A",
-    "A2",
-    "H1",
+    "H",
+    "H2",
+    "A1",
     null,
-    "🤙 Rafael Carioca sofre a falta de David Braz em ótima posição para a cobrança."
+    "🤙 Manolas sofre a falta de Clayton Sampaio em ótima posição para a cobrança."
    ],
    [
     82,
     "corner",
-    "H",
+    "A",
     null,
     null,
     null,
-    "🚩 Escanteio para Casa 1005."
+    "🚩 Escanteio para Fora 1005."
    ],
    [
     82,
     "stat",
-    "H",
+    "A",
     null,
     null,
     null,
@@ -6953,7 +6971,7 @@
  },
  {
   "score": [
-   2,
+   1,
    0
   ],
   "winner": "H",
@@ -7784,21 +7802,66 @@
    ],
    [
     87,
-    "goal",
+    "corner",
     "H",
-    "H9",
-    "A4",
-    "H4",
-    "⚽ GOL! Cruzamento preciso de Taison e Henrique Dourado aparece na segunda trave para completar! 2-0"
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Casa 1008."
    ],
    [
-    90,
+    87,
+    "save",
+    "A",
+    "A0",
+    "H9",
+    null,
+    "🧤 Hrádecký domina o cruzamento com segurança antes de Henrique Dourado completar!"
+   ],
+   [
+    88,
+    "foul",
+    "A",
+    "A2",
+    "H9",
+    null,
+    "⚠️ Gabriel Xavier para Henrique Dourado na infração. Bola parada na entrada da área."
+   ],
+   [
+    88,
+    "momentum",
+    "A",
+    "A8",
+    null,
+    null,
+    "⚽ Hrádecký distribui rápido após a defesa, e o jogo se abre pelo lado."
+   ],
+   [
+    89,
     "stat",
     "H",
     null,
     null,
     null,
     "📊 Finalização adicional defendida."
+   ],
+   [
+    89,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "🔄 Reposicionamento após o susto. Casa 1008 se fecha bem no contra-ataque."
+   ],
+   [
+    90,
+    "foul",
+    "A",
+    "A6",
+    "H10",
+    null,
+    "✋ Lucas Leiva chega atrasado e derruba Lucas Moura — falta perigosa!"
    ]
   ]
  },
@@ -10347,11 +10410,11 @@
    [
     64,
     "foul",
-    "H",
-    "H3",
-    "A1",
+    "A",
+    "A3",
+    "H1",
     null,
-    "✋ Léo Santos chega atrasado e derruba Victor Luís — falta perigosa!"
+    "✋ Clayton Sampaio chega atrasado e derruba Lucas Hernández — falta perigosa!"
    ],
    [
     65,
@@ -10599,20 +10662,20 @@
    [
     86,
     "foul",
-    "H",
-    "H10",
-    "A5",
+    "A",
+    "A10",
+    "H5",
     null,
-    "🦶 Falta de Gonzalo Carneiro em Yago Pikachu. O árbitro marca."
+    "🦶 Falta de Mané em Emerson Royal. O árbitro marca."
    ],
    [
     86,
     "yellow",
-    "H",
-    "H10",
+    "A",
+    "A10",
     null,
     null,
-    "🟨 Falta clara de Gonzalo Carneiro na saída de bola — cartão amarelo!"
+    "🟨 Falta clara de Mané na saída de bola — cartão amarelo!"
    ],
    [
     86,
@@ -12019,9 +12082,9 @@
  {
   "score": [
    2,
-   3
+   1
   ],
-  "winner": "A",
+  "winner": "H",
   "penalties": [
    null,
    null
@@ -12292,11 +12355,11 @@
    [
     26,
     "foul",
-    "A",
-    "A3",
-    "H9",
+    "H",
+    "H3",
+    "A9",
     null,
-    "🤙 Henrique Dourado sofre a falta de Digão em ótima posição para a cobrança."
+    "🤙 Abde sofre a falta de Rhodolfo em ótima posição para a cobrança."
    ],
    [
     27,
@@ -12346,11 +12409,11 @@
    [
     29,
     "foul",
-    "A",
-    "A1",
-    "H5",
+    "H",
+    "H1",
+    "A5",
     null,
-    "🤙 Fernandinho sofre a falta de William Matheus em ótima posição para a cobrança."
+    "🤙 Sabitzer sofre a falta de Diogo Barbosa em ótima posição para a cobrança."
    ],
    [
     30,
@@ -12498,84 +12561,39 @@
    ],
    [
     44,
-    "goal",
-    "A",
-    "H10",
-    "H2",
-    null,
-    "⚽ GOL! Lance individual de Robben — correu, dominou e bateu com precisão! 1-2"
-   ],
-   [
-    46,
-    "foul",
-    "A",
-    "A4",
-    "H7",
-    null,
-    "✋ Jean chega atrasado e derruba Giuliano — falta perigosa!"
-   ],
-   [
-    46,
-    "stat",
+    "save",
     "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    47,
-    "foul",
-    "H",
-    "H6",
+    "H0",
     "H10",
     null,
-    "🤙 Robben sofre a falta de Pablo Barrios em ótima posição para a cobrança."
+    "🧤 Um a um! Robben vai cara a cara, mas E. Mendy fecha o ângulo e defende!"
    ],
    [
-    47,
-    "miss",
-    "A",
-    "A8",
-    null,
-    null,
-    "❌ POR CIMA! Van Persie caprichou na cobrança, mas mandou para a arquibancada."
-   ],
-   [
-    47,
-    "momentum",
-    "A",
-    "A7",
-    null,
-    null,
-    "🔄 Recomeço após o gol. Casa 1013 tenta reorganizar o ataque rapidamente."
-   ],
-   [
-    48,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    48,
+    45,
     "momentum",
     "H",
     "H5",
     null,
     null,
-    "⚡ Casa 1013 pressiona após o gol sofrido — o duelo fica mais aberto!"
+    "🔄 Bola afastada pela defesa! Casa 1013 tenta organizar novamente."
    ],
    [
-    50,
-    "stat",
+    48,
+    "foul",
+    "A",
+    "A4",
+    "H1",
+    null,
+    "🤙 Diogo Barbosa sofre a falta de Jean em ótima posição para a cobrança."
+   ],
+   [
+    48,
+    "momentum",
     "H",
+    "H6",
     null,
     null,
-    null,
-    "📊 Finalização adicional para fora."
+    "⚽ E. Mendy distribui rápido após a defesa, e o jogo se abre pelo lado."
    ],
    [
     50,
@@ -12588,12 +12606,30 @@
    ],
    [
     50,
-    "duel",
+    "goal",
+    "H",
+    "H10",
+    "A6",
+    "H1",
+    "⚽ GOL! Contra-ataque fulminante de Robben com assistência de Diogo Barbosa! 2-1"
+   ],
+   [
+    52,
+    "foul",
     "A",
     "A6",
-    "H8",
+    "H1",
     null,
-    "🛡️ Desarme providencial de Rijkaard — encerrou o perigo do contra-ataque!"
+    "⚠️ Rijkaard para Diogo Barbosa na infração. Bola parada na entrada da área."
+   ],
+   [
+    52,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "🎯 Fora 1013 com a bola, tentando administrar a vantagem de 2-1."
    ],
    [
     54,
@@ -12602,61 +12638,25 @@
     "H6",
     null,
     null,
-    "⚡ Posse recuperada! Casa 1013 tenta sair rápido em transição."
+    "⚡ Fora 1013 pressiona após o gol sofrido — o duelo fica mais aberto!"
    ],
    [
-    56,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    57,
+    55,
     "foul",
     "H",
-    "H7",
-    "A6",
+    "H2",
+    "A2",
     null,
-    "⚠️ Giuliano para Rijkaard na infração. Bola parada na entrada da área."
+    "⚠️ Varane para Konsa na infração. Bola parada na entrada da área."
    ],
    [
-    57,
-    "miss",
-    "A",
+    59,
+    "foul",
+    "H",
+    "H9",
     "A8",
     null,
-    null,
-    "❌ NA BARREIRA! A falta de Van Persie é afastada pela barreira."
-   ],
-   [
-    57,
-    "momentum",
-    "A",
-    "A7",
-    null,
-    null,
-    "⚡ Posse recuperada! Fora 1013 tenta sair rápido em transição."
-   ],
-   [
-    59,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1013."
-   ],
-   [
-    59,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
+    "⚠️ Henrique Dourado para Van Persie na infração. Bola parada na entrada da área."
    ],
    [
     59,
@@ -12760,16 +12760,16 @@
    [
     66,
     "momentum",
-    "H",
+    "A",
     null,
     null,
     null,
-    "⚡ Encarada! Robben tenta superar Rijkaard em duelo individual..."
+    "⚡ Encarada! Robben tenta superar Pablo Barrios em duelo individual..."
    ],
    [
     66,
     "miss",
-    "H",
+    "A",
     "H10",
     null,
     null,
@@ -12778,7 +12778,7 @@
    [
     67,
     "stat",
-    "H",
+    "A",
     null,
     null,
     null,
@@ -12805,11 +12805,11 @@
    [
     70,
     "foul",
-    "A",
-    "A7",
+    "H",
+    "H7",
     "H10",
     null,
-    "⚠️ Enzo Fernández para Robben na infração. Bola parada na entrada da área."
+    "⚠️ Giuliano para Robben na infração. Bola parada na entrada da área."
    ],
    [
     71,
@@ -12831,21 +12831,21 @@
    ],
    [
     71,
-    "goal",
-    "H",
-    "H9",
+    "duel",
+    "A",
     "A1",
-    "H7",
-    "⚽ GOL! Contra-ataque fulminante de Henrique Dourado com assistência de Giuliano! 2-2"
+    "H9",
+    null,
+    "🛡️ William Matheus cobre perfeitamente e rouba a bola de Henrique Dourado na entrada da área!"
    ],
    [
     72,
     "foul",
-    "A",
-    "A6",
-    "H7",
+    "H",
+    "H2",
+    "A5",
     null,
-    "⚠️ Rijkaard para Giuliano na infração. Bola parada na entrada da área."
+    "🦶 Falta de Varane em Sabitzer. O árbitro marca."
    ],
    [
     72,
@@ -12854,115 +12854,142 @@
     "A5",
     null,
     null,
-    "🔄 Recomeço após o gol. Fora 1013 tenta reorganizar o ataque rapidamente."
+    "⚡ Posse recuperada! Fora 1013 tenta sair rápido em transição."
    ],
    [
     73,
+    "momentum",
+    "H",
+    "H6",
+    null,
+    null,
+    "⚡ Posse recuperada! Casa 1013 tenta sair rápido em transição."
+   ],
+   [
+    74,
+    "foul",
+    "A",
+    "A6",
+    "H2",
+    null,
+    "🤙 Varane sofre a falta de Rijkaard em ótima posição para a cobrança."
+   ],
+   [
+    74,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "⚡ Posse recuperada! Fora 1013 tenta sair rápido em transição."
+   ],
+   [
+    75,
+    "foul",
+    "H",
+    "H3",
+    "A5",
+    null,
+    "⚠️ Rhodolfo para Sabitzer na infração. Bola parada na entrada da área."
+   ],
+   [
+    76,
+    "foul",
+    "H",
+    "H2",
+    "A4",
+    null,
+    "🤙 Jean sofre a falta de Varane em ótima posição para a cobrança."
+   ],
+   [
+    77,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "⚡ Robben enxerga o movimento de Van Persie nas costas da zaga e passa!"
+   ],
+   [
+    77,
+    "miss",
+    "A",
+    "A8",
+    null,
+    null,
+    "❌ Mano a mano! Van Persie bate e E. Mendy toca de pontinha para fora!"
+   ],
+   [
+    78,
+    "foul",
+    "H",
+    "H7",
+    "H10",
+    null,
+    "⚠️ Giuliano para Robben na infração. Bola parada na entrada da área."
+   ],
+   [
+    79,
     "momentum",
     "A",
     "A7",
     null,
     null,
-    "⚽ Fora 1013 reinicia no centro buscando resposta imediata."
+    "🛡️ Casa 1013 respira após o perigo. Posse recuperada no meio."
    ],
    [
-    75,
-    "stat",
+    81,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
+   ],
+   [
+    82,
+    "foul",
     "H",
+    "H6",
+    "A4",
+    null,
+    "🦶 Falta de Pablo Barrios em Jean. O árbitro marca."
+   ],
+   [
+    82,
+    "stat",
+    "A",
     null,
     null,
     null,
     "📊 Finalização adicional defendida."
    ],
    [
-    75,
+    82,
     "momentum",
     "A",
-    "A5",
+    "A7",
     null,
     null,
-    "🔄 Recomeço após o gol. Fora 1013 tenta reorganizar o ataque rapidamente."
+    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
    ],
    [
-    76,
-    "momentum",
-    "A",
-    "A6",
-    null,
-    null,
-    "⚽ Fora 1013 reinicia no centro buscando resposta imediata."
-   ],
-   [
-    77,
-    "foul",
-    "H",
-    "H5",
-    "A3",
-    null,
-    "✋ Fernandinho chega atrasado e derruba Digão — falta perigosa!"
-   ],
-   [
-    77,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1013."
-   ],
-   [
-    77,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
-   ],
-   [
-    77,
+    84,
     "momentum",
     "A",
     null,
     null,
     null,
-    "⚡ Encarada! Abde tenta superar Varane em duelo individual..."
+    "🎯 Lançamento por cima da defesa — Van Persie domina dentro da área..."
    ],
    [
-    77,
+    84,
     "duel",
     "H",
-    "H2",
-    "A9",
+    "H6",
+    "A8",
     null,
-    "🛡️ Entrada limpa de Varane — rouba a bola de Abde com precisão!"
-   ],
-   [
-    79,
-    "foul",
-    "A",
-    "A6",
-    "H3",
-    null,
-    "⚠️ Rijkaard para Rhodolfo na infração. Bola parada na entrada da área."
-   ],
-   [
-    84,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "🏃 Van Persie para no fundo, levanta na cabeça de Robben na área..."
-   ],
-   [
-    84,
-    "goal",
-    "A",
-    "H10",
-    "H1",
-    null,
-    "⚽ GOL! Jogada aérea de Robben vence Diogo Barbosa no duelo e marca! 2-3"
+    "🛡️ Bloqueio preciso de Pablo Barrios! Antecipou o movimento de Van Persie!"
    ],
    [
     85,
@@ -12971,52 +12998,61 @@
     "H5",
     null,
     null,
-    "⚽ Casa 1013 reinicia no centro buscando resposta imediata."
+    "⚡ Posse recuperada! Casa 1013 tenta sair rápido em transição."
    ],
    [
     86,
-    "foul",
+    "momentum",
     "A",
-    "A7",
-    "H7",
+    "A6",
     null,
-    "🦶 Falta de Enzo Fernández em Giuliano. O árbitro marca."
+    null,
+    "🏃 Fora 1013 constrói pelo lado após ganhar a bola no meio."
    ],
    [
     88,
     "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    88,
+    "momentum",
     "H",
+    "H5",
     null,
     null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    89,
-    "foul",
-    "A",
-    "A1",
-    "H10",
-    null,
-    "⚠️ William Matheus para Robben na infração. Bola parada na entrada da área."
-   ],
-   [
-    89,
-    "yellow",
-    "A",
-    "A1",
-    null,
-    null,
-    "🟨 William Matheus comete falta na intermediária e é advertido: amarelo!"
+    "🏃 Casa 1013 constrói pelo lado após ganhar a bola no meio."
    ],
    [
     89,
     "momentum",
     "A",
-    "A7",
+    "A5",
     null,
     null,
-    "⚽ Casa 1013 reinicia no centro buscando resposta imediata."
+    "🏃 Fora 1013 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    90,
+    "foul",
+    "H",
+    "H4",
+    "A6",
+    null,
+    "✋ Tomori chega atrasado e derruba Rijkaard — falta perigosa!"
+   ],
+   [
+    90,
+    "miss",
+    "A",
+    "A8",
+    null,
+    null,
+    "❌ POR CIMA! Van Persie caprichou na cobrança, mas mandou para a arquibancada."
    ]
   ]
  },
@@ -13955,9 +13991,9 @@
  {
   "score": [
    1,
-   0
+   1
   ],
-  "winner": "H",
+  "winner": null,
   "penalties": [
    null,
    null
@@ -14488,75 +14524,111 @@
    ],
    [
     66,
+    "goal",
+    "A",
+    "A10",
+    "H6",
+    "A4",
+    "⚽ GOL! Muniain levanta, John Kennedy antecipa Rithely e manda para as redes de cabeça! 1-1"
+   ],
+   [
+    67,
+    "momentum",
+    "A",
+    "A8",
+    null,
+    null,
+    "🔄 Recomeço após o gol. Casa 1015 tenta reorganizar o ataque rapidamente."
+   ],
+   [
+    68,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "⚽ Casa 1015 reinicia no centro buscando resposta imediata."
+   ],
+   [
+    69,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🎯 Fora 1015 com a bola, tentando administrar a vantagem de 1-1."
+   ],
+   [
+    71,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "🔥 Fora 1015 quebra a pressão e sai em dois contra um!"
+   ],
+   [
+    71,
     "duel",
     "H",
-    "H6",
+    "H3",
     "A10",
     null,
-    "🛡️ Cruzamento interceptado! Rithely lê a jogada antes de John Kennedy!"
+    "🛡️ Zé Gabriel cobre perfeitamente e rouba a bola de John Kennedy na entrada da área!"
    ],
    [
-    68,
-    "foul",
-    "H",
-    "H5",
-    "A2",
-    null,
-    "⚠️ Pablo Maia para Maguire na infração. Bola parada na entrada da área."
-   ],
-   [
-    68,
-    "save",
-    "H",
-    "H0",
-    "A4",
-    null,
-    "🧤 NO CANTINHO... mas Rodolfo se estica e salva a cobrança de Muniain!"
-   ],
-   [
-    69,
-    "foul",
-    "H",
-    "H9",
-    "A6",
-    null,
-    "🦶 Falta de Juan Mata em Archie Gray. O árbitro marca."
-   ],
-   [
-    69,
-    "momentum",
-    "A",
-    "A4",
-    null,
-    null,
-    "⚡ Posse recuperada! Fora 1015 tenta sair rápido em transição."
-   ],
-   [
-    71,
-    "momentum",
+    72,
+    "stat",
     "A",
     null,
     null,
     null,
-    "⚽ Jogada coletiva! Muniain abre pelo lado e cruza para Havertz dentro da área..."
+    "📊 Finalização adicional defendida."
    ],
    [
-    71,
-    "duel",
-    "H",
-    "H2",
-    "A9",
+    73,
+    "corner",
+    "A",
     null,
-    "🛡️ Maidana aparece bem e bloqueia o cruzamento na entrada da área!"
+    null,
+    null,
+    "🚩 Escanteio para Fora 1015."
+   ],
+   [
+    73,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    73,
+    "miss",
+    "A",
+    "A10",
+    null,
+    null,
+    "❌ John Kennedy cabeceia no escanteio, mas a bola raspa a trave e sai!"
    ],
    [
     74,
     "foul",
     "H",
     "H6",
-    "A7",
+    "A3",
     null,
-    "✋ Rithely chega atrasado e derruba Rice — falta perigosa!"
+    "⚠️ Rithely para Werley na infração. Bola parada na entrada da área."
+   ],
+   [
+    74,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
    ],
    [
     74,
@@ -14705,11 +14777,11 @@
    [
     89,
     "momentum",
-    "H",
-    "H5",
+    "A",
+    "A4",
     null,
     null,
-    "⚡ Posse recuperada! Casa 1015 tenta sair rápido em transição."
+    "⚡ Posse recuperada! Fora 1015 tenta sair rápido em transição."
    ],
    [
     90,
@@ -15465,15 +15537,51 @@
    ],
    [
     71,
-    "miss",
-    "H",
+    "duel",
+    "A",
+    "A4",
     "H10",
     null,
-    null,
-    "❌ Fred sai sozinho, mas finaliza por cima do travessão!"
+    "🛡️ Alex Silva lê a jogada cedo e se interpõe antes de Fred receber!"
    ],
    [
     72,
+    "foul",
+    "A",
+    "A9",
+    "H3",
+    null,
+    "🤙 Glik sofre a falta de Samu Castillejo em ótima posição para a cobrança."
+   ],
+   [
+    72,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    74,
+    "foul",
+    "H",
+    "H4",
+    "A4",
+    null,
+    "🤙 Alex Silva sofre a falta de De Rossi em ótima posição para a cobrança."
+   ],
+   [
+    75,
+    "foul",
+    "A",
+    "A7",
+    "H8",
+    null,
+    "✋ Kerkez chega atrasado e derruba Marc Bernal — falta perigosa!"
+   ],
+   [
+    76,
     "stat",
     "A",
     null,
@@ -15482,103 +15590,49 @@
     "📊 Finalização adicional para fora."
    ],
    [
-    74,
-    "foul",
-    "H",
-    "H1",
-    "A8",
-    null,
-    "🦶 Falta de Uendel em Bruno Nazário. O árbitro marca."
-   ],
-   [
-    75,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    75,
+    77,
     "momentum",
-    "A",
-    "A8",
+    "H",
     null,
     null,
-    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
+    null,
+    "💨 Fred recebe de frente para Alex Silva e decide partir para o drible!"
    ],
    [
     77,
-    "momentum",
+    "save",
     "A",
+    "A0",
+    "H10",
     null,
-    null,
-    null,
-    "⚡ Encarada! Higuaín tenta superar Laimer em duelo individual..."
+    "🧤 Drible bem-sucedido de Fred, porém o chute bate em cheio em Courtois!"
    ],
    [
-    77,
-    "duel",
-    "H",
-    "H7",
-    "A10",
-    null,
-    "🛡️ Laimer fecha o ângulo e não deixa Higuaín avançar. Ótima marcação!"
-   ],
-   [
-    79,
-    "momentum",
-    "A",
-    "A9",
-    null,
-    null,
-    "🔄 Samu Castillejo tenta impor ritmo após o desarme no meio do campo."
-   ],
-   [
-    80,
+    78,
     "foul",
     "A",
     "A7",
-    "H3",
+    "H8",
     null,
-    "✋ Kerkez chega atrasado e derruba Glik — falta perigosa!"
+    "🤙 Marc Bernal sofre a falta de Kerkez em ótima posição para a cobrança."
    ],
    [
-    81,
-    "foul",
-    "H",
-    "H7",
-    "A10",
-    null,
-    "⚠️ Laimer para Higuaín na infração. Bola parada na entrada da área."
-   ],
-   [
-    81,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1016."
-   ],
-   [
-    81,
+    78,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
-    "📊 Finalização adicional desviada."
+    "📊 Finalização adicional para fora."
    ],
    [
-    81,
-    "momentum",
+    79,
+    "foul",
     "A",
-    "A9",
+    "A3",
+    "H5",
     null,
-    null,
-    "⚡ Posse recuperada! Fora 1016 tenta sair rápido em transição."
+    "🦶 Falta de Juan em Wesley. O árbitro marca."
    ],
    [
     83,
@@ -17439,8 +17493,8 @@
  },
  {
   "score": [
-   5,
-   1
+   3,
+   2
   ],
   "winner": "H",
   "penalties": [
@@ -17659,7 +17713,7 @@
    [
     26,
     "stat",
-    "H",
+    "A",
     null,
     null,
     null,
@@ -17668,7 +17722,7 @@
    [
     28,
     "stat",
-    "H",
+    "A",
     null,
     null,
     null,
@@ -17973,57 +18027,57 @@
    ],
    [
     58,
-    "goal",
-    "H",
+    "save",
+    "A",
+    "A0",
     "H9",
-    "A2",
     null,
-    "⚽ GOL! Drible desconcertante de Lucas Moura sobre Nkoulou e chute seco no canto! 3-1"
+    "🧤 Lucas Moura superou Ruffier no drible, mas o goleiro se recuperou e defendeu!"
    ],
    [
     59,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    59,
-    "momentum",
-    "H",
-    "H6",
-    null,
-    null,
-    "🔄 Recomeço após o gol. Fora 1019 tenta reorganizar o ataque rapidamente."
-   ],
-   [
-    60,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    60,
-    "momentum",
-    "A",
-    "A4",
-    null,
-    null,
-    "🔄 Recomeço após o gol. Fora 1019 tenta reorganizar o ataque rapidamente."
-   ],
-   [
-    62,
     "foul",
-    "H",
-    "H7",
-    "A7",
+    "A",
+    "A2",
+    "H2",
     null,
-    "⚠️ Musiala para B. Fernandes na infração. Bola parada na entrada da área."
+    "🦶 Falta de Nkoulou em Lúcio. O árbitro marca."
+   ],
+   [
+    59,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🚩 Fora 1019 cobra o escanteio — a zaga se prepara para afastar..."
+   ],
+   [
+    60,
+    "corner",
+    "H",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Casa 1019."
+   ],
+   [
+    60,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    60,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "🔄 Reposicionamento após o susto. Casa 1019 se fecha bem no contra-ataque."
    ],
    [
     62,
@@ -18032,16 +18086,16 @@
     "A4",
     null,
     null,
-    "⚡ Fora 1019 pressiona após o gol sofrido — o duelo fica mais aberto!"
+    "🔄 Reposicionamento após o susto. Casa 1019 se fecha bem no contra-ataque."
    ],
    [
     63,
     "momentum",
-    "H",
-    "H5",
+    "A",
+    "A5",
     null,
     null,
-    "🔄 Recomeço após o gol. Fora 1019 tenta reorganizar o ataque rapidamente."
+    "🚩 Fora 1019 cobra o escanteio — a zaga se prepara para afastar..."
    ],
    [
     64,
@@ -18118,16 +18172,16 @@
    [
     73,
     "corner",
-    "H",
+    "A",
     null,
     null,
     null,
-    "🚩 Escanteio para Casa 1019."
+    "🚩 Escanteio para Fora 1019."
    ],
    [
     73,
     "stat",
-    "H",
+    "A",
     null,
     null,
     null,
@@ -18136,20 +18190,20 @@
    [
     73,
     "momentum",
-    "H",
+    "A",
     null,
     null,
     null,
-    "🔥 Luiz Araújo corta para o meio em cima de Fabián Balbuena buscando o espaço..."
+    "🔥 Dembélé corta para o meio em cima de Ayrton Lucas buscando o espaço..."
    ],
    [
     73,
     "goal",
-    "H",
-    "H10",
-    "A1",
-    "H5",
-    "⚽ GOL! Schweini arma a jogada e Luiz Araújo deixa Fabián Balbuena sentado antes de bater no cantinho! 5-1"
+    "A",
+    "A10",
+    "H1",
+    "A5",
+    "⚽ GOL! Paulinho arma a jogada e Dembélé deixa Ayrton Lucas sentado antes de bater no cantinho! 3-2"
    ],
    [
     74,
@@ -18171,48 +18225,48 @@
    ],
    [
     76,
-    "save",
+    "duel",
     "A",
-    "A0",
+    "A6",
     "H9",
     null,
-    "🧤 Ruffier sai rápido dos pés e abafa a finalização de Lucas Moura em velocidade!"
+    "🛡️ Rodrigo Villagra retorna em velocidade e corta o passe profundo antes de Lucas Moura!"
+   ],
+   [
+    77,
+    "foul",
+    "A",
+    "A1",
+    "H1",
+    null,
+    "🤙 Ayrton Lucas sofre a falta de Fabián Balbuena em ótima posição para a cobrança."
+   ],
+   [
+    77,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "⚡ Posse recuperada! Fora 1019 tenta sair rápido em transição."
+   ],
+   [
+    78,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
    ],
    [
     79,
-    "stat",
+    "momentum",
     "A",
+    "A7",
     null,
     null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    80,
-    "foul",
-    "A",
-    "A6",
-    "H10",
-    null,
-    "🤙 Luiz Araújo sofre a falta de Rodrigo Villagra em ótima posição para a cobrança."
-   ],
-   [
-    80,
-    "corner",
-    "H",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Casa 1019."
-   ],
-   [
-    80,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
+    "🔄 B. Fernandes tenta impor ritmo após o desarme no meio do campo."
    ],
    [
     80,
@@ -18221,28 +18275,55 @@
     "A4",
     null,
     null,
-    "🚩 Fora 1019 cobra o escanteio — a zaga se prepara para afastar..."
+    "⚡ Posse recuperada! Fora 1019 tenta sair rápido em transição."
    ],
    [
     83,
     "momentum",
-    "H",
+    "A",
     null,
     null,
     null,
-    "⚡ CONTRA-ATAQUE! Casa 1019 rouba a bola no meio e sai em velocidade!"
+    "⚡ CONTRA-ATAQUE! Fora 1019 rouba a bola no meio e sai em velocidade!"
    ],
    [
     83,
-    "miss",
+    "duel",
     "H",
-    "H10",
+    "H2",
+    "A10",
     null,
-    null,
-    "❌ Nkoulou volta correndo e rouba de Luiz Araújo no último segundo!"
+    "🛡️ Desarme providencial de Lúcio — encerrou o perigo do contra-ataque!"
    ],
    [
-    85,
+    84,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    86,
+    "momentum",
+    "H",
+    "H5",
+    null,
+    null,
+    "🔄 Schweini tenta impor ritmo após o desarme no meio do campo."
+   ],
+   [
+    88,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    89,
     "stat",
     "H",
     null,
@@ -18251,76 +18332,13 @@
     "📊 Finalização adicional defendida."
    ],
    [
-    86,
-    "corner",
-    "H",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Casa 1019."
-   ],
-   [
-    86,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
-   ],
-   [
-    88,
-    "foul",
-    "A",
-    "A1",
-    "H5",
-    null,
-    "✋ Fabián Balbuena chega atrasado e derruba Schweini — falta perigosa!"
-   ],
-   [
-    88,
-    "yellow",
-    "A",
-    "A1",
-    null,
-    null,
-    "🟨 Puxão de braço de Fabián Balbuena na disputa de bola — cartão amarelo!"
-   ],
-   [
-    88,
-    "momentum",
-    "H",
-    "H6",
-    null,
-    null,
-    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
-   ],
-   [
-    89,
-    "foul",
-    "A",
-    "A10",
-    "H8",
-    null,
-    "✋ Dembélé chega atrasado e derruba Gabriel Jesus — falta perigosa!"
-   ],
-   [
-    89,
+    90,
     "stat",
     "H",
     null,
     null,
     null,
     "📊 Finalização adicional para fora."
-   ],
-   [
-    89,
-    "momentum",
-    "H",
-    "H5",
-    null,
-    null,
-    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
    ]
   ]
  },
@@ -23926,9 +23944,9 @@
  {
   "score": [
    1,
-   2
+   0
   ],
-  "winner": "A",
+  "winner": "H",
   "penalties": [
    null,
    null
@@ -24144,69 +24162,24 @@
    ],
    [
     28,
-    "goal",
+    "corner",
     "A",
-    "A10",
-    "H6",
-    "A8",
-    "⚽ GOL! Passe primoroso de Mahrez e Miguel Borja sai cara a cara com Ederson, desloca e marca! 0-1"
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Fora 1026."
    ],
    [
-    30,
-    "foul",
+    28,
+    "save",
     "H",
-    "H8",
-    "A3",
-    null,
-    "🤙 Vertonghen sofre a falta de Janderson em ótima posição para a cobrança."
-   ],
-   [
-    30,
-    "momentum",
-    "A",
-    "A6",
-    null,
-    null,
-    "⚽ Casa 1026 reinicia no centro buscando resposta imediata."
-   ],
-   [
-    33,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    33,
-    "momentum",
-    "A",
-    "A8",
-    null,
-    null,
-    "⚽ Casa 1026 reinicia no centro buscando resposta imediata."
-   ],
-   [
-    34,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "💣 Miguel Borja recebe na intermediária, ajeita o corpo e prepara o chute..."
-   ],
-   [
-    34,
-    "miss",
-    "A",
+    "H0",
     "A10",
     null,
-    null,
-    "💥 NA TRAVE! Miguel Borja arrisca de longe e a bola explode no poste!"
+    "🧤 Um a um! Miguel Borja vai cara a cara, mas Ederson fecha o ângulo e defende! Escanteio!"
    ],
    [
-    35,
+    31,
     "stat",
     "A",
     null,
@@ -24215,22 +24188,76 @@
     "📊 Finalização adicional para fora."
    ],
    [
-    37,
+    34,
     "foul",
     "H",
-    "H9",
-    "A1",
+    "H4",
+    "A10",
     null,
-    "🦶 Falta de Mahrez em Jaílson. O árbitro marca."
+    "🦶 Falta de Marcos Rocha em Miguel Borja. O árbitro marca."
+   ],
+   [
+    34,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "🎯 Cavani se livra da marcação na intermediária e olha para o gol!"
+   ],
+   [
+    34,
+    "duel",
+    "H",
+    "H5",
+    "A9",
+    null,
+    "🛡️ Petros adianta o corpo e bloqueia o chute de Cavani antes de sair!"
+   ],
+   [
+    35,
+    "foul",
+    "H",
+    "H7",
+    "A7",
+    null,
+    "⚠️ Bernard para Laimer na infração. Bola parada na entrada da área."
+   ],
+   [
+    36,
+    "foul",
+    "H",
+    "H10",
+    "A3",
+    null,
+    "🦶 Falta de Pedro em Vertonghen. O árbitro marca."
+   ],
+   [
+    36,
+    "miss",
+    "A",
+    "A10",
+    null,
+    null,
+    "❌ NA BARREIRA! A falta de Miguel Borja é afastada pela barreira."
+   ],
+   [
+    36,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🔄 M. Dembélé tenta impor ritmo após o desarme no meio do campo."
    ],
    [
     37,
-    "momentum",
-    "A",
-    "A4",
+    "stat",
+    "H",
     null,
     null,
-    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
+    null,
+    "📊 Finalização adicional defendida."
    ],
    [
     38,
@@ -24626,7 +24653,7 @@
     "A6",
     null,
     null,
-    "🎯 Fora 1026 com a bola, tentando administrar a vantagem de 1-1."
+    "🎯 Fora 1026 com a bola, tentando administrar a vantagem de 1-0."
    ],
    [
     77,
@@ -24774,30 +24801,48 @@
    ],
    [
     88,
-    "goal",
-    "A",
+    "save",
+    "H",
+    "H0",
     "A9",
-    "H3",
     null,
-    "⚽ GOL DE FORA DA ÁREA! Bomba de Cavani que não deu para Ederson! 1-2 Gol de seguro nos instantes finais!"
+    "🧤 Chutão de fora da área de Cavani, Ederson espalma com segurança!"
    ],
    [
     89,
-    "stat",
-    "A",
+    "foul",
+    "H",
+    "H9",
+    "A10",
+    null,
+    "🦶 Falta de Mahrez em Miguel Borja. O árbitro marca."
+   ],
+   [
+    89,
+    "momentum",
+    "H",
+    "H5",
     null,
     null,
+    "🔄 Reposicionamento após o susto. Fora 1026 se fecha bem no contra-ataque."
+   ],
+   [
+    90,
+    "foul",
+    "H",
+    "H4",
+    "A9",
     null,
-    "📊 Finalização adicional para fora."
+    "⚠️ Marcos Rocha para Cavani na infração. Bola parada na entrada da área."
    ],
    [
     90,
     "momentum",
     "H",
-    "H9",
+    "H8",
     null,
     null,
-    "⚽ Casa 1026 reinicia no centro buscando resposta imediata."
+    "🔄 Reposicionamento após o susto. Fora 1026 se fecha bem no contra-ataque."
    ]
   ]
  },
@@ -30088,29 +30133,29 @@
    [
     60,
     "foul",
-    "H",
-    "H8",
-    "A6",
+    "A",
+    "A8",
+    "H6",
     null,
-    "⚠️ Lucas Paquetá para Llorente na infração. Bola parada na entrada da área."
+    "⚠️ Lewis Hall para Merino na infração. Bola parada na entrada da área."
    ],
    [
     60,
     "momentum",
-    "A",
+    "H",
     null,
     null,
     null,
-    "🎯 Lançamento por cima da defesa — Rafael Navarro domina dentro da área..."
+    "↗️ Felipe Anderson cruza fechado e Lucas Paquetá aparece entre os zagueiros..."
    ],
    [
     60,
     "duel",
-    "H",
-    "H1",
-    "A9",
+    "A",
+    "A2",
+    "H8",
     null,
-    "🛡️ Akanji retorna em velocidade e corta o passe profundo antes de Rafael Navarro!"
+    "🛡️ Leandro Castán vence o duelo aéreo com Lucas Paquetá e afasta de cabeça!"
    ],
    [
     61,
@@ -30223,29 +30268,29 @@
    [
     72,
     "foul",
-    "A",
-    "A5",
-    "H2",
+    "H",
+    "H5",
+    "A2",
     null,
-    "🦶 Falta de Trippier em Philipe Sampaio. O árbitro marca."
+    "🦶 Falta de Kudus em Leandro Castán. O árbitro marca."
    ],
    [
     72,
     "momentum",
-    "H",
+    "A",
     null,
     null,
     null,
-    "💣 Carrascal recebe na intermediária, ajeita o corpo e prepara o chute..."
+    "💣 Ben Yedder recebe na intermediária, ajeita o corpo e prepara o chute..."
    ],
    [
     72,
     "duel",
-    "A",
-    "A4",
-    "H10",
+    "H",
+    "H2",
+    "A10",
     null,
-    "🛡️ Pressão de Felipe Melo! Fechou o espaço e Carrascal não conseguiu bater!"
+    "🛡️ Pressão de Philipe Sampaio! Fechou o espaço e Ben Yedder não conseguiu bater!"
    ],
    [
     73,
@@ -30295,16 +30340,16 @@
    [
     79,
     "foul",
-    "H",
-    "H5",
-    "A10",
+    "A",
+    "A6",
+    "H10",
     null,
-    "🤙 Ben Yedder sofre a falta de Kudus em ótima posição para a cobrança."
+    "🤙 Carrascal sofre a falta de Llorente em ótima posição para a cobrança."
    ],
    [
     79,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
@@ -30422,8 +30467,8 @@
  },
  {
   "score": [
-   3,
-   2
+   4,
+   3
   ],
   "winner": "H",
   "penalties": [
@@ -30776,53 +30821,44 @@
    ],
    [
     34,
-    "duel",
-    "A",
-    "A3",
+    "goal",
+    "H",
     "H10",
+    "A3",
     null,
-    "🛡️ Terry vence o duelo aéreo com Pedro e afasta de cabeça!"
+    "⚽ GOL! Pedro domina o cruzamento no peito e chuta no ângulo antes de Terry! 2-1"
    ],
    [
     35,
-    "stat",
-    "H",
+    "foul",
+    "A",
+    "A2",
+    "H1",
     null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
+    "✋ Konsa chega atrasado e derruba Víctor Cuesta — falta perigosa!"
    ],
    [
     35,
     "momentum",
     "H",
-    "H5",
+    "H4",
     null,
     null,
-    "🏃 Casa 1033 constrói pelo lado após ganhar a bola no meio."
-   ],
-   [
-    36,
-    "momentum",
-    "H",
-    "H6",
-    null,
-    null,
-    "⚡ Posse recuperada! Casa 1033 tenta sair rápido em transição."
+    "🎯 Casa 1033 com a bola, tentando administrar a vantagem de 2-1."
    ],
    [
     38,
     "corner",
-    "A",
+    "H",
     null,
     null,
     null,
-    "🚩 Escanteio para Fora 1033."
+    "🚩 Escanteio para Casa 1033."
    ],
    [
     38,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
@@ -30831,20 +30867,20 @@
    [
     38,
     "momentum",
-    "A",
+    "H",
     null,
     null,
     null,
-    "📐 Hulk se posiciona na segunda trave aguardando o cruzamento de Gaitán..."
+    "🔑 Chico da Costa tabela com Forsberg e parte nas costas de Terry..."
    ],
    [
     38,
-    "miss",
+    "duel",
     "A",
-    "A10",
+    "A3",
+    "H9",
     null,
-    null,
-    "❌ Cruzamento rasteiro desviado pela defesa para escanteio!"
+    "🛡️ Terry lê a jogada cedo e se interpõe antes de Chico da Costa receber!"
    ],
    [
     42,
@@ -30853,7 +30889,7 @@
     "A5",
     null,
     null,
-    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
+    "⚡ Posse recuperada! Fora 1033 tenta sair rápido em transição."
    ],
    [
     43,
@@ -30871,7 +30907,7 @@
     "A10",
     "H1",
     null,
-    "⚽ GOL! Hulk faz a finta, deixa Víctor Cuesta no chão e bate cruzado no ângulo! 1-2"
+    "⚽ GOL! Hulk faz a finta, deixa Víctor Cuesta no chão e bate cruzado no ângulo! 2-2"
    ],
    [
     45,
@@ -30907,7 +30943,7 @@
     "A4",
     null,
     null,
-    "🎯 Fora 1033 com a bola, tentando administrar a vantagem de 1-2."
+    "🎯 Fora 1033 com a bola, tentando administrar a vantagem de 2-2."
    ],
    [
     49,
@@ -30956,33 +30992,51 @@
    ],
    [
     52,
-    "corner",
+    "goal",
     "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1033."
-   ],
-   [
-    52,
-    "save",
-    "H",
-    "H0",
     "A9",
+    "H1",
     null,
-    "🧤 Um a um! Morata vai cara a cara, mas Vanderlei fecha o ângulo e defende! Escanteio!"
+    "⚽ GOL! Morata escapa de Víctor Cuesta, sai sozinho e desloca Vanderlei com categoria! 2-3"
    ],
    [
     53,
-    "foul",
+    "corner",
     "H",
-    "H3",
-    "A6",
     null,
-    "⚠️ André Ramalho para Ismaël Doukouré na infração. Bola parada na entrada da área."
+    null,
+    null,
+    "🚩 Escanteio para Casa 1033."
    ],
    [
     53,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    54,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    54,
+    "momentum",
+    "A",
+    "A8",
+    null,
+    null,
+    "🔄 Recomeço após o gol. Casa 1033 tenta reorganizar o ataque rapidamente."
+   ],
+   [
+    55,
     "stat",
     "A",
     null,
@@ -30991,25 +31045,232 @@
     "📊 Finalização adicional para fora."
    ],
    [
-    54,
+    55,
+    "momentum",
+    "A",
+    "A4",
+    null,
+    null,
+    "⚽ Casa 1033 reinicia no centro buscando resposta imediata."
+   ],
+   [
+    57,
+    "foul",
+    "A",
+    "A10",
+    "H7",
+    null,
+    "✋ Hulk chega atrasado e derruba Višća — falta perigosa!"
+   ],
+   [
+    58,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    58,
+    "momentum",
+    "A",
+    "A4",
+    null,
+    null,
+    "⚽ Casa 1033 reinicia no centro buscando resposta imediata."
+   ],
+   [
+    59,
     "foul",
     "H",
-    "H3",
+    "H8",
     "A5",
     null,
-    "⚠️ André Ramalho para Cucurella na infração. Bola parada na entrada da área."
+    "✋ Gouiri chega atrasado e derruba Cucurella — falta perigosa!"
    ],
    [
-    54,
-    "injury",
+    59,
+    "momentum",
     "A",
-    "A5",
     null,
     null,
-    "🩹 Susto para a torcida: Cucurella se contunde na dividida e joga machucado!"
+    null,
+    "🎯 Lançamento por cima da defesa — Hulk domina dentro da área..."
    ],
    [
-    56,
+    59,
+    "duel",
+    "H",
+    "H2",
+    "A10",
+    null,
+    "🛡️ R. Carvalho retorna em velocidade e corta o passe profundo antes de Hulk!"
+   ],
+   [
+    60,
+    "foul",
+    "H",
+    "H4",
+    "A4",
+    null,
+    "⚠️ Forsberg para Gaitán na infração. Bola parada na entrada da área."
+   ],
+   [
+    60,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    61,
+    "corner",
+    "H",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Casa 1033."
+   ],
+   [
+    61,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    61,
+    "momentum",
+    "H",
+    "H5",
+    null,
+    null,
+    "🏃 Casa 1033 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    62,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "🏃 Fora 1033 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    64,
+    "corner",
+    "H",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Casa 1033."
+   ],
+   [
+    64,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    64,
+    "momentum",
+    "A",
+    "A4",
+    null,
+    null,
+    "🏃 Fora 1033 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    65,
+    "foul",
+    "A",
+    "A3",
+    "H6",
+    null,
+    "🦶 Falta de Terry em Bruno G.. O árbitro marca."
+   ],
+   [
+    65,
+    "momentum",
+    "H",
+    null,
+    null,
+    null,
+    "📐 Gouiri se posiciona na segunda trave aguardando o cruzamento de Forsberg..."
+   ],
+   [
+    65,
+    "goal",
+    "H",
+    "H8",
+    "A2",
+    "H6",
+    "⚽ GOL! Bruno G. levanta, Gouiri antecipa Konsa e manda para as redes de cabeça! 3-3"
+   ],
+   [
+    66,
+    "momentum",
+    "A",
+    "A8",
+    null,
+    null,
+    "🔄 Recomeço após o gol. Fora 1033 tenta reorganizar o ataque rapidamente."
+   ],
+   [
+    67,
+    "foul",
+    "H",
+    "H5",
+    "A5",
+    null,
+    "⚠️ Marlon Gomes para Cucurella na infração. Bola parada na entrada da área."
+   ],
+   [
+    67,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    67,
+    "momentum",
+    "A",
+    "A4",
+    null,
+    null,
+    "🔄 Recomeço após o gol. Fora 1033 tenta reorganizar o ataque rapidamente."
+   ],
+   [
+    68,
+    "momentum",
+    "H",
+    "H4",
+    null,
+    null,
+    "🎯 Casa 1033 com a bola, tentando administrar a vantagem de 3-3."
+   ],
+   [
+    69,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    70,
     "corner",
     "A",
     null,
@@ -31018,7 +31279,7 @@
     "🚩 Escanteio para Fora 1033."
    ],
    [
-    56,
+    70,
     "stat",
     "A",
     null,
@@ -31027,153 +31288,36 @@
     "📊 Finalização adicional desviada."
    ],
    [
-    59,
-    "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "💨 Chico da Costa recebe de frente para Botman e decide partir para o drible!"
-   ],
-   [
-    59,
-    "goal",
-    "H",
-    "H9",
-    "A1",
-    "H6",
-    "⚽ GOL! Combinação linda! Bruno G. passa, Chico da Costa dribla Botman e finaliza! 2-2"
-   ],
-   [
-    61,
-    "foul",
-    "H",
-    "H10",
-    "A8",
-    null,
-    "⚠️ Pedro para Mount na infração. Bola parada na entrada da área."
-   ],
-   [
-    62,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    64,
-    "momentum",
-    "A",
-    "A8",
-    null,
-    null,
-    "🔄 Recomeço após o gol. Fora 1033 tenta reorganizar o ataque rapidamente."
-   ],
-   [
-    65,
-    "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "🏃 Forsberg para no fundo, levanta na cabeça de Pedro na área..."
-   ],
-   [
-    65,
-    "goal",
-    "H",
-    "H10",
-    "A1",
-    "H8",
-    "⚽ GOL! Gouiri levanta, Pedro antecipa Botman e manda para as redes de cabeça! 3-2"
-   ],
-   [
-    66,
-    "momentum",
-    "H",
-    "H4",
-    null,
-    null,
-    "⚽ Fora 1033 reinicia no centro buscando resposta imediata."
-   ],
-   [
-    67,
-    "foul",
-    "A",
-    "A5",
-    "H2",
-    null,
-    "⚠️ Cucurella para R. Carvalho na infração. Bola parada na entrada da área."
-   ],
-   [
-    67,
-    "momentum",
-    "H",
-    "H7",
-    null,
-    null,
-    "🔄 Recomeço após o gol. Fora 1033 tenta reorganizar o ataque rapidamente."
-   ],
-   [
-    68,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    69,
-    "foul",
-    "A",
-    "A10",
-    "H10",
-    null,
-    "🤙 Pedro sofre a falta de Hulk em ótima posição para a cobrança."
-   ],
-   [
-    71,
-    "foul",
-    "H",
-    "H9",
-    "A7",
-    null,
-    "🤙 Joelinton sofre a falta de Chico da Costa em ótima posição para a cobrança."
-   ],
-   [
     71,
     "momentum",
     "A",
     null,
     null,
     null,
-    "🔑 Hulk tabela com Gaitán e parte nas costas de André Ramalho..."
+    "🏃 Gaitán para no fundo, levanta na cabeça de Morata na área..."
    ],
    [
     71,
     "miss",
     "A",
-    "A10",
+    "A9",
     null,
     null,
-    "❌ Hulk sai sozinho, mas finaliza por cima do travessão!"
+    "❌ Cruzamento rasteiro desviado pela defesa para escanteio!"
    ],
    [
-    72,
+    73,
     "corner",
-    "A",
+    "H",
     null,
     null,
     null,
-    "🚩 Escanteio para Fora 1033."
+    "🚩 Escanteio para Casa 1033."
    ],
    [
-    72,
+    73,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
@@ -31181,15 +31325,87 @@
    ],
    [
     73,
-    "foul",
+    "goal",
     "H",
-    "H10",
-    "A10",
-    null,
-    "⚠️ Pedro para Hulk na infração. Bola parada na entrada da área."
+    "H5",
+    "A0",
+    "H7",
+    "⚽ DE CABEÇA! Marlon Gomes sobe mais que todos no escanteio e testa firme, sem chance para Bono!"
    ],
    [
-    74,
+    73,
+    "momentum",
+    "H",
+    "H6",
+    null,
+    null,
+    "🎯 Casa 1033 com a bola, tentando administrar a vantagem de 4-3."
+   ],
+   [
+    75,
+    "foul",
+    "H",
+    "H3",
+    "A1",
+    null,
+    "⚠️ André Ramalho para Botman na infração. Bola parada na entrada da área."
+   ],
+   [
+    76,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    76,
+    "momentum",
+    "A",
+    "A8",
+    null,
+    null,
+    "⚽ Fora 1033 reinicia no centro buscando resposta imediata."
+   ],
+   [
+    77,
+    "foul",
+    "H",
+    "H3",
+    "A3",
+    null,
+    "⚠️ André Ramalho para Terry na infração. Bola parada na entrada da área."
+   ],
+   [
+    77,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "🔭 Morata com espaço a 25 metros — vai arriscar?"
+   ],
+   [
+    77,
+    "miss",
+    "A",
+    "A9",
+    null,
+    null,
+    "❌ Chute potente de Morata da intermediária, mas vai altão!"
+   ],
+   [
+    78,
+    "momentum",
+    "A",
+    "A8",
+    null,
+    null,
+    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
+   ],
+   [
+    80,
     "corner",
     "A",
     null,
@@ -31198,7 +31414,7 @@
     "🚩 Escanteio para Fora 1033."
    ],
    [
-    74,
+    80,
     "stat",
     "A",
     null,
@@ -31207,76 +31423,40 @@
     "📊 Finalização adicional desviada."
    ],
    [
-    76,
-    "foul",
-    "A",
-    "A3",
-    "H1",
-    null,
-    "⚠️ Terry para Víctor Cuesta na infração. Bola parada na entrada da área."
-   ],
-   [
-    76,
-    "yellow",
-    "A",
-    "A3",
-    null,
-    null,
-    "🟨 Terry derruba o adversário em velocidade e leva o amarelo!"
-   ],
-   [
-    77,
+    80,
     "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "🎯 Forsberg cobra da ponta e a bola sobra na área para Chico da Costa..."
-   ],
-   [
-    77,
-    "duel",
     "A",
-    "A2",
-    "H9",
+    "A6",
     null,
-    "🛡️ Konsa vence o duelo aéreo com Chico da Costa e afasta de cabeça!"
+    null,
+    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
    ],
    [
-    79,
-    "foul",
+    81,
+    "momentum",
     "A",
-    "A3",
-    "H4",
-    null,
-    "✋ Terry chega atrasado e derruba Forsberg — falta perigosa!"
-   ],
-   [
-    79,
-    "stat",
-    "H",
+    "A6",
     null,
     null,
-    null,
-    "📊 Finalização adicional defendida."
+    "🛡️ Casa 1033 respira após o perigo. Posse recuperada no meio."
    ],
    [
     82,
-    "momentum",
-    "H",
-    "H7",
+    "foul",
+    "A",
+    "A8",
+    "H6",
     null,
-    null,
-    "🏃 Casa 1033 constrói pelo lado após ganhar a bola no meio."
+    "⚠️ Mount para Bruno G. na infração. Bola parada na entrada da área."
    ],
    [
     83,
     "momentum",
     "H",
-    "H5",
+    "H6",
     null,
     null,
-    "⚡ Posse recuperada! Casa 1033 tenta sair rápido em transição."
+    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
    ],
    [
     84,
@@ -31285,7 +31465,7 @@
     null,
     null,
     null,
-    "📊 Finalização adicional defendida."
+    "📊 Finalização adicional para fora."
    ],
    [
     84,
@@ -31294,28 +31474,28 @@
     null,
     null,
     null,
-    "🏃 Hulk pede a bola no corredor central e escapa em velocidade de R. Carvalho..."
+    "🔑 Morata tabela com Gaitán e parte nas costas de R. Carvalho..."
    ],
    [
     84,
     "duel",
     "H",
     "H2",
-    "A10",
+    "A9",
     null,
-    "🛡️ R. Carvalho lê a jogada cedo e se interpõe antes de Hulk receber!"
+    "🛡️ R. Carvalho retorna em velocidade e corta o passe profundo antes de Morata!"
    ],
    [
-    86,
-    "foul",
+    87,
+    "stat",
     "A",
-    "A2",
-    "H6",
     null,
-    "🦶 Falta de Konsa em Bruno G.. O árbitro marca."
+    null,
+    null,
+    "📊 Finalização adicional defendida."
    ],
    [
-    86,
+    89,
     "stat",
     "H",
     null,
@@ -31324,22 +31504,22 @@
     "📊 Finalização adicional para fora."
    ],
    [
-    87,
-    "momentum",
-    "H",
-    "H4",
-    null,
-    null,
-    "⚡ Posse recuperada! Casa 1033 tenta sair rápido em transição."
-   ],
-   [
-    88,
+    90,
     "foul",
     "H",
-    "H1",
-    "A10",
+    "H3",
+    "A3",
     null,
-    "⚠️ Víctor Cuesta para Hulk na infração. Bola parada na entrada da área."
+    "✋ André Ramalho chega atrasado e derruba Terry — falta perigosa!"
+   ],
+   [
+    90,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "⚡ Posse recuperada! Fora 1033 tenta sair rápido em transição."
    ]
   ]
  },
@@ -35861,10 +36041,10 @@
  },
  {
   "score": [
-   1,
-   2
+   0,
+   0
   ],
-  "winner": "A",
+  "winner": null,
   "penalties": [
    null,
    null
@@ -36188,93 +36368,66 @@
    ],
    [
     37,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1039."
-   ],
-   [
-    37,
-    "save",
+    "duel",
     "H",
-    "H0",
+    "H1",
     "A10",
     null,
-    "🧤 Rayan domina e bate — Courtois cai no ângulo e salva com a ponta dos dedos! Escanteio!"
+    "🛡️ Sakho retorna em velocidade e corta o passe profundo antes de Rayan!"
    ],
    [
     38,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    40,
     "foul",
-    "A",
-    "A5",
+    "H",
     "H5",
+    "A6",
     null,
-    "🦶 Falta de Pará em Çalhanoğlu. O árbitro marca."
+    "🤙 Marlon Gomes sofre a falta de Çalhanoğlu em ótima posição para a cobrança."
    ],
    [
     40,
-    "goal",
-    "H",
-    "H10",
-    "A0",
+    "foul",
+    "A",
+    "A2",
+    "H6",
     null,
-    "⚽ NA MARCA DA CAL! Pará chegou atrasado em Çalhanoğlu e foi pênalti — Fernando Torres converte com frieza diante de Donnarumma!"
+    "🦶 Falta de Yago Fernando em Schweini. O árbitro marca."
    ],
    [
     41,
     "foul",
-    "H",
-    "H7",
-    "A4",
-    null,
-    "🦶 Falta de Álex Baena em Réver. O árbitro marca."
-   ],
-   [
-    41,
-    "yellow",
-    "H",
-    "H7",
-    null,
-    null,
-    "🟨 Álex Baena bate boca com o rival após a jogada e leva o amarelo!"
-   ],
-   [
-    41,
-    "corner",
     "A",
+    "A4",
+    "H3",
     null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1039."
+    "🤙 Glik sofre a falta de Réver em ótima posição para a cobrança."
    ],
    [
     41,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
-    "📊 Finalização adicional desviada."
+    "📊 Finalização adicional para fora."
    ],
    [
     42,
+    "momentum",
+    "H",
+    "H8",
+    null,
+    null,
+    "🏃 Casa 1039 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    43,
     "foul",
     "A",
-    "A10",
-    "H4",
+    "A4",
+    "H3",
     null,
-    "⚠️ Rayan para Perišić na infração. Bola parada na entrada da área."
+    "✋ Réver chega atrasado e derruba Glik — falta perigosa!"
    ],
    [
     43,
@@ -36288,20 +36441,20 @@
    [
     44,
     "momentum",
-    "H",
+    "A",
     null,
     null,
     null,
-    "🎯 Lucas Moura se livra da marcação na intermediária e olha para o gol!"
+    "💨 Bola recuperada — Cavani parte em disparada com a zaga desorganizada!"
    ],
    [
     44,
     "miss",
-    "H",
-    "H9",
+    "A",
+    "A9",
     null,
     null,
-    "💥 NA TRAVE! Lucas Moura arrisca de longe e a bola explode no poste!"
+    "❌ Contra-ataque desperdiçado! Cavani tinha mais tempo mas bateu fora!"
    ],
    [
     45,
@@ -36315,29 +36468,20 @@
    [
     45,
     "momentum",
-    "A",
-    "A6",
+    "H",
+    "H4",
     null,
     null,
-    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
+    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
    ],
    [
     46,
     "foul",
     "A",
-    "A7",
-    "H2",
+    "A6",
+    "H4",
     null,
-    "✋ Verratti chega atrasado e derruba Félix Torres — falta perigosa!"
-   ],
-   [
-    46,
-    "yellow",
-    "A",
-    "A7",
-    null,
-    null,
-    "🟨 Verratti comete falta na intermediária e é advertido: amarelo!"
+    "🦶 Falta de Marlon Gomes em Perišić. O árbitro marca."
    ],
    [
     46,
@@ -36494,60 +36638,24 @@
    ],
    [
     64,
-    "goal",
-    "A",
+    "save",
+    "H",
+    "H0",
     "A10",
-    "H6",
-    "A8",
-    "⚽ GOL! Rayan recebe de Pogba nas costas da zaga, domina e empurra! 1-1"
+    null,
+    "🧤 Um a um! Rayan vai cara a cara, mas Courtois fecha o ângulo e defende!"
    ],
    [
     66,
-    "corner",
-    "H",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Casa 1039."
-   ],
-   [
-    66,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
-   ],
-   [
-    66,
-    "miss",
-    "H",
-    "H1",
-    null,
-    null,
-    "❌ NA ÁREA... Sakho testa de cabeça, mas sem direção. Tiro de meta."
-   ],
-   [
-    68,
     "foul",
     "H",
-    "H10",
-    "A4",
+    "H1",
+    "A2",
     null,
-    "🦶 Falta de Fernando Torres em Réver. O árbitro marca."
+    "⚠️ Sakho para Yago Fernando na infração. Bola parada na entrada da área."
    ],
    [
-    68,
-    "goal",
-    "A",
-    "A8",
-    "H0",
-    null,
-    "⚽ GOL DE PÊNALTI! Falta de Fernando Torres sobre Réver na área; Pogba bate firme no canto, sem chances para Courtois!"
-   ],
-   [
-    68,
+    66,
     "corner",
     "A",
     null,
@@ -36556,7 +36664,7 @@
     "🚩 Escanteio para Fora 1039."
    ],
    [
-    68,
+    66,
     "stat",
     "A",
     null,
@@ -36565,16 +36673,196 @@
     "📊 Finalização adicional desviada."
    ],
    [
-    71,
+    66,
     "momentum",
     "H",
+    "H5",
+    null,
+    null,
+    "🔄 Reposicionamento após o susto. Fora 1039 se fecha bem no contra-ataque."
+   ],
+   [
+    68,
+    "foul",
+    "H",
     "H4",
+    "A3",
+    null,
+    "⚠️ Perišić para Scalvini na infração. Bola parada na entrada da área."
+   ],
+   [
+    68,
+    "momentum",
+    "H",
+    "H8",
     null,
     null,
-    "⚡ Casa 1039 pressiona após o gol sofrido — o duelo fica mais aberto!"
+    "🔄 Bola afastada pela defesa! Casa 1039 tenta organizar novamente."
+   ],
+   [
+    69,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "🔄 Reposicionamento após o susto. Casa 1039 se fecha bem no contra-ataque."
+   ],
+   [
+    71,
+    "momentum",
+    "A",
+    "A6",
+    null,
+    null,
+    "⚽ Courtois distribui rápido após a defesa, e o jogo se abre pelo lado."
    ],
    [
     72,
+    "corner",
+    "A",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Fora 1039."
+   ],
+   [
+    72,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    72,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "💨 Cavani encara Félix Torres de frente e parte para cima com a bola dominada..."
+   ],
+   [
+    72,
+    "save",
+    "H",
+    "H0",
+    "A9",
+    null,
+    "🧤 Courtois fecha bem o ângulo após o drible de Cavani — fantástica saída!"
+   ],
+   [
+    73,
+    "momentum",
+    "H",
+    "H7",
+    null,
+    null,
+    "🔄 Reposicionamento após o susto. Fora 1039 se fecha bem no contra-ataque."
+   ],
+   [
+    76,
+    "foul",
+    "H",
+    "H10",
+    "A8",
+    null,
+    "✋ Fernando Torres chega atrasado e derruba Pogba — falta perigosa!"
+   ],
+   [
+    77,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    78,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "⚡ Marlon Gomes enxerga o movimento de Rayan nas costas da zaga e passa!"
+   ],
+   [
+    78,
+    "duel",
+    "H",
+    "H2",
+    "A10",
+    null,
+    "🛡️ Bloqueio preciso de Félix Torres! Antecipou o movimento de Rayan!"
+   ],
+   [
+    79,
+    "foul",
+    "H",
+    "H3",
+    "A6",
+    null,
+    "⚠️ Glik para Marlon Gomes na infração. Bola parada na entrada da área."
+   ],
+   [
+    79,
+    "corner",
+    "A",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Fora 1039."
+   ],
+   [
+    79,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    80,
+    "momentum",
+    "A",
+    "A7",
+    null,
+    null,
+    "🏃 Fora 1039 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    81,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    83,
+    "foul",
+    "A",
+    "A7",
+    "H9",
+    null,
+    "🤙 Lucas Moura sofre a falta de Verratti em ótima posição para a cobrança."
+   ],
+   [
+    83,
+    "momentum",
+    "H",
+    "H7",
+    null,
+    null,
+    "⚡ Posse recuperada! Casa 1039 tenta sair rápido em transição."
+   ],
+   [
+    84,
     "foul",
     "A",
     "A9",
@@ -36583,61 +36871,25 @@
     "✋ Cavani chega atrasado e derruba Félix Torres — falta perigosa!"
    ],
    [
-    72,
+    84,
     "momentum",
     "H",
     null,
     null,
     null,
-    "💨 Lucas Moura encara Scalvini de frente e parte para cima com a bola dominada..."
+    "💨 Fernando Torres recebe de frente para Verratti e decide partir para o drible!"
    ],
    [
-    72,
+    84,
     "duel",
     "A",
-    "A3",
-    "H9",
-    null,
-    "🛡️ Scalvini fecha o ângulo e não deixa Lucas Moura avançar. Ótima marcação!"
-   ],
-   [
-    77,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    78,
-    "foul",
-    "H",
-    "H4",
     "A7",
+    "H10",
     null,
-    "✋ Perišić chega atrasado e derruba Verratti — falta perigosa!"
+    "🛡️ Parada firme! Verratti antecipa o drible de Fernando Torres com categoria!"
    ],
    [
-    78,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "⚡ CONTRA-ATAQUE! Fora 1039 rouba a bola no meio e sai em velocidade!"
-   ],
-   [
-    78,
-    "duel",
-    "H",
-    "H2",
-    "A9",
-    null,
-    "🛡️ Contra-ataque anulado! Félix Torres retorna em velocidade e recupera de Cavani!"
-   ],
-   [
-    79,
+    85,
     "stat",
     "H",
     null,
@@ -36646,97 +36898,34 @@
     "📊 Finalização adicional para fora."
    ],
    [
-    80,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    82,
-    "foul",
-    "H",
-    "H6",
-    "A4",
-    null,
-    "⚠️ Schweini para Réver na infração. Bola parada na entrada da área."
-   ],
-   [
-    83,
+    86,
     "corner",
-    "A",
+    "H",
     null,
     null,
     null,
-    "🚩 Escanteio para Fora 1039."
+    "🚩 Escanteio para Casa 1039."
    ],
    [
-    83,
+    86,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
     "📊 Finalização adicional desviada."
    ],
    [
-    84,
-    "foul",
-    "H",
-    "H6",
-    "A1",
-    null,
-    "⚠️ Schweini para Lucas Hernández na infração. Bola parada na entrada da área."
-   ],
-   [
-    84,
-    "momentum",
+    87,
+    "stat",
     "A",
     null,
     null,
     null,
-    "💡 Cavani finta para direita, para para esquerda — Glik está perdido!"
-   ],
-   [
-    84,
-    "duel",
-    "H",
-    "H3",
-    "A9",
-    null,
-    "🛡️ Entrada limpa de Glik — rouba a bola de Cavani com precisão!"
-   ],
-   [
-    85,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
     "📊 Finalização adicional para fora."
-   ],
-   [
-    85,
-    "momentum",
-    "H",
-    "H7",
-    null,
-    null,
-    "🏃 Casa 1039 constrói pelo lado após ganhar a bola no meio."
    ],
    [
     88,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    89,
     "foul",
     "H",
     "H9",
@@ -36745,7 +36934,7 @@
     "🤙 Marlon Gomes sofre a falta de Lucas Moura em ótima posição para a cobrança."
    ],
    [
-    89,
+    88,
     "momentum",
     "A",
     "A7",
@@ -36754,13 +36943,22 @@
     "⚡ Posse recuperada! Fora 1039 tenta sair rápido em transição."
    ],
    [
-    90,
+    89,
     "momentum",
     "A",
     "A8",
     null,
     null,
     "⚡ Posse recuperada! Fora 1039 tenta sair rápido em transição."
+   ],
+   [
+    90,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
    ]
   ]
  }

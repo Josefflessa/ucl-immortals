@@ -1,11 +1,11 @@
 // Per-minute effective attributes, balance knobs, evolution and formation counters.
 
-import { Player, Coach, effectiveSecondaries, getCompetitionAlbumBonus, PLAYER_SPECIALIZATIONS, type Rarity, type EvolutionLevel, type PlayerSpecialization } from '../gameData';
+import { Player, Coach, FORMATIONS, effectiveSecondaries, getCompetitionAlbumBonus, PLAYER_SPECIALIZATIONS, type Rarity, type EvolutionLevel, type PlayerSpecialization } from '../gameData';
 import { AttrKey, getTraitAttributeBonus } from '../traits';
 import { Stadium } from '../stadium';
 import { stadiumHomeBonus } from '../clubProjects';
-import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS } from './teamModel';
-import { getCoachModifiersForPlayer, type CharBoostMap } from './chemistry';
+import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS, teamWonMatch } from './teamModel';
+import { getCoachModifiersForPlayer, calculateChemistry, type CharBoostMap } from './chemistry';
 import { tacticStatBonus } from './matchSim';
 import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, estribadoStatBoost, ESTRIBADO_CREDITS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost, apostadorStatBoost } from './draft';
 
@@ -289,6 +289,8 @@ export function bumpStarterAppearances(
   team: Team,
   capturedStarterIds: readonly string[] = starterPlayerIds(team),
   appearanceMatchId?: string,
+  // false = só o contador de evolução (🧑‍🏫 Mentor): não conta como titularidade do Prodígio.
+  countsAsStart = true,
 ): Team {
   const starterIds = new Set(capturedStarterIds);
   if (starterIds.size === 0) return team;
@@ -307,7 +309,7 @@ export function bumpStarterAppearances(
     const next: PlayerCard = {
       ...player,
       appearances: (player.appearances ?? 0) + 1,
-      ...(player.prodigio ? { prodigioStarts: (player.prodigioStarts ?? 0) + 1 } : {}),
+      ...(player.prodigio && countsAsStart ? { prodigioStarts: (player.prodigioStarts ?? 0) + 1 } : {}),
     };
     const nextEvolutionLevel = getEvolutionLevel(next);
     const previousPointLevel = Math.min(EVOLVE_POINT_LEVELS, previousEvolutionLevel);
@@ -326,6 +328,46 @@ export function bumpStarterAppearances(
   });
 
   return changed ? { ...team, players } : team;
+}
+
+/**
+ * Card progress that depends on the finished match and the whole squad:
+ * - 🧑‍🏫 Mentor titular numa vitória: +1 no contador de evolução de todo o elenco (não acumula
+ *   entre Mentores; não conta como titularidade do Prodígio).
+ * - 🍽️ Fominha / 🔧 Faz-Tudo mudam a química (gols / posição aprendida): recalcula a química do time.
+ * Idempotent per `matchId`, like the other post-match growth helpers.
+ */
+export function applyPostMatchCardProgress(team: Team, result: MatchResult, matchId = `${result.homeTeamId}:${result.awayTeamId}`): Team {
+  let next = team;
+  const starters = new Set(startingIdsForResult(result, team.id, team));
+  const mentor = team.players.find(player => player.mentor && starters.has(player.id));
+  if (mentor && teamWonMatch(result, team.id)) {
+    const receipts = Array.isArray(mentor.mentorMatchIds) ? mentor.mentorMatchIds : [];
+    if (!receipts.includes(matchId)) {
+      next = bumpStarterAppearances(next, next.players.map(player => player.id), `mentor:${matchId}`, false);
+      next = {
+        ...next,
+        players: next.players.map(player => player.id === mentor.id
+          ? { ...player, mentorMatchIds: Array.from(new Set([...receipts, matchId])).slice(-64) }
+          : player),
+      };
+    }
+  }
+  if (next.players.some(player => player.fominha || player.fazTudo)) {
+    const formation = FORMATIONS.find(f => f.id === next.formationId);
+    const chemData = calculateChemistry(next.players.slice(0, 11), next.coachId, formation?.positions.map(p => p.role) ?? [], next.formationId);
+    next = {
+      ...next,
+      totalChemistry: chemData.total,
+      players: next.players.map(player => ({
+        ...player,
+        chemistryScore: chemData.individual[player.id] ?? 1,
+        isOOP: chemData.outOfPosition[player.id] ?? false,
+        isSecondary: chemData.secondaryPos[player.id] ?? false,
+      })),
+    };
+  }
+  return next;
 }
 
 /** Attaches the captured XI to an authoritative result without changing the score. */

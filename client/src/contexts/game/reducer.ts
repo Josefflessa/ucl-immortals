@@ -2,7 +2,7 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player, FORMATIONS, DIFFICULTY_LEVELS } from '@shared/game/gameData';
-import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress, applyApostadorWins, midiaticoCredits } from '@shared/game/gameEngine';
+import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, applyPostMatchCardProgress, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress, applyApostadorWins, midiaticoCredits } from '@shared/game/gameEngine';
 import { computeMatchPointsWithConfig, MatchPoints, lossStreakBonus, nextLossStreak } from '@shared/game/shop';
 import { buildLeagueMatchKey, buildKnockoutMatchKey, newlyWonBets, revealEligibleKoBets, settleBet } from '@shared/game/bets';
 import { applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout } from '@shared/game/discipline';
@@ -666,13 +666,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...b, settled: true, revealed: true, won: r.won, tier: r.tier, payout: r.payout, protectionRefund };
       });
 
-      const updatedPlayerTeam = bumpStarterAppearances(
-        applyMatchStatGrowth(
-          applyDefeatGrowth(state.playerTeam, playerResult),
-          playerResult,
+      const updatedPlayerTeam = applyPostMatchCardProgress(
+        bumpStarterAppearances(
+          applyMatchStatGrowth(
+            applyDefeatGrowth(state.playerTeam, playerResult),
+            playerResult,
+            buildLeagueMatchKey(playerFixture.round, playerFixture.homeTeamId, playerFixture.awayTeamId),
+          ),
+          startingIdsForResult(playerResult, state.playerTeam.id, replayHome?.id === state.playerTeam.id ? replayHome : replayAway?.id === state.playerTeam.id ? replayAway : state.playerTeam),
           buildLeagueMatchKey(playerFixture.round, playerFixture.homeTeamId, playerFixture.awayTeamId),
         ),
-        startingIdsForResult(playerResult, state.playerTeam.id, replayHome?.id === state.playerTeam.id ? replayHome : replayAway?.id === state.playerTeam.id ? replayAway : state.playerTeam),
+        playerResult,
         buildLeagueMatchKey(playerFixture.round, playerFixture.homeTeamId, playerFixture.awayTeamId),
       );
       const recoveredPlayerTeam = applyMedicalRecoveries(updatedPlayerTeam, disc.recoveredInjuries);
@@ -842,9 +846,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const playerResult = legResults.find(result => result.homeTeamId === state.playerTeam!.id || result.awayTeamId === state.playerTeam!.id);
       const playerTie = active.find(tie => tie.homeTeamId === state.playerTeam!.id || tie.awayTeamId === state.playerTeam!.id);
       const playedPlayerTeam = playerResult && playerTie
-        ? bumpStarterAppearances(
-            playerTeamAfterGrowth,
-            startingIdsForResult(playerResult, state.playerTeam.id, resolvedTeams.get(state.playerTeam.id) ?? state.playerTeam),
+        ? applyPostMatchCardProgress(
+            bumpStarterAppearances(
+              playerTeamAfterGrowth,
+              startingIdsForResult(playerResult, state.playerTeam.id, resolvedTeams.get(state.playerTeam.id) ?? state.playerTeam),
+              buildKnockoutMatchKey(playerTie.id, legNum),
+            ),
+            playerResult,
             buildKnockoutMatchKey(playerTie.id, legNum),
           )
         : playerTeamAfterGrowth;

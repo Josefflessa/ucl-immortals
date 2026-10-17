@@ -64,7 +64,7 @@ export function calculateTeamStrength(
   if (starters.length === 0) return 0;
   // Captain leadership: +CAPTAIN_BOOST on the captain's best stat, for every teammate (🗣️ Capitão Nato triplica).
   const captainBoost = captainBoostForTeam(team) ?? undefined;
-  const charBoosts = computeCharacteristicBoosts(team.players);
+  const charBoosts = computeCharacteristicBoosts(team.players, team.totalChemistry);
   const avgStrength = starters.reduce((sum, p) => {
     // Strength is built from the EFFECTIVE attributes (not raw): individual + global chemistry,
     // the coach, traits, the captain, characteristics and the match situation are all folded in
@@ -213,7 +213,7 @@ function shootoutSide(team: Team, playStyle: string, isHome: boolean, situation:
       isLosing: false,
       coachPrime: team.coachPrime,
       captainBoost: captainBoostForTeam(team) ?? undefined,
-      charBoosts: computeCharacteristicBoosts(team.players),
+      charBoosts: computeCharacteristicBoosts(team.players, team.totalChemistry),
       credits: team.credits,
       analysisLevel: projectLevel(team.clubProjects, 'analysis'),
     },

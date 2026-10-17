@@ -7,7 +7,7 @@ import { random } from '../random';
 import { type PlayerCard, type Team, type MatchResult } from './teamModel';
 import { calculateChemistry } from './chemistry';
 import { formationProfile } from './matchSim';
-import { applyShopVariant } from './draft';
+import { INFORM_STAT_BOOST } from './draft';
 
 // ============================================================
 // BOT TEAM GENERATOR
@@ -123,6 +123,17 @@ export function pickBotNames(count: number, humans: HumanTeamIdentity[]): string
   return picked;
 }
 
+/** Reforço liso de um titular de bot: +4 em cada atributo, sem marcar característica na carta. */
+function boostBotStarter(player: Player): Player {
+  const b = INFORM_STAT_BOOST;
+  return {
+    ...player,
+    overall: player.overall + b, pace: player.pace + b, shooting: player.shooting + b,
+    passing: player.passing + b, dribbling: player.dribbling + b, defending: player.defending + b,
+    physical: player.physical + b, vision: player.vision + b, composure: player.composure + b,
+  };
+}
+
 export function generateBotTeam(name: string, difficulty: number): Team {
   const teamName = canonicalClubName(name);
   const prof = difficultyProfile(difficulty);
@@ -166,13 +177,13 @@ export function generateBotTeam(name: string, difficulty: number): Team {
     selected.push(pickChemAware(rem, selected, prof.chemBias));
   }
 
-  // 🎖️ Características: nos níveis altos, alguns titulares ganham uma variante SEMPRE-BOA
-  // (Em Alta +4 em tudo, ou Pilar +química) — antes de calcular a química e o banco.
+  // 🎖️ Reforço dos níveis altos: alguns titulares ganham +4 em tudo, sem característica visível
+  // (Em Alta e Pilar foram aposentados do sorteio) — antes de calcular a química e o banco.
   if (prof.variantChance > 0) {
     for (let i = 0; i < Math.min(11, selected.length); i++) {
       if (random() < prof.variantChance) {
-        // Favorece Em Alta (boost liso de stats) sobre Pilar (+12 química, que pode cruzar marcos e criar degrau).
-        selected[i] = applyShopVariant(selected[i], random() < 0.75 ? 'inForm' : 'pilar');
+        random(); // mantém a sequência do RNG da antiga escolha Em Alta/Pilar (partidas reproduzíveis)
+        selected[i] = boostBotStarter(selected[i]);
       }
     }
   }

@@ -28,7 +28,7 @@ export function squadEffectiveStats(ctx: SquadStatsContext): Record<string, Effe
   const formationRoles = FORMATIONS.find(f => f.id === ctx.formationId)?.positions.map(p => p.role) ?? [];
   const chemData = calculateChemistry(xi, ctx.coachId, formationRoles, ctx.formationId);
   const captainBoost = captainBoostFromStarters(xi, ctx.captain ?? undefined) ?? undefined;
-  const charBoosts = computeCharacteristicBoosts(ctx.players);
+  const charBoosts = computeCharacteristicBoosts(ctx.players, chemData.total);
   const playStyle = ctx.playStyle ?? 'balanced';
   return Object.fromEntries(ctx.players.map((player, index) => {
     const isStarter = index < 11;

@@ -252,12 +252,12 @@ export const MISSION_CATALOG: MissionDefinition[] = [
   m('historical_trio', 'Trio Histórico', 'Vencer com um trio histórico completo entre os titulares.', 'setup', 'rare', 1, 110, { kind: 'historical_trio_and_win' }),
   m('national_core', 'Nação em Campo', 'Vencer começando com pelo menos 4 titulares da mesma nacionalidade.', 'setup', 'uncommon', 1, 75, { kind: 'same_nation_and_win', value: 4 }),
 
-  m('noe_play', 'A Arca', 'Jogar uma partida com a característica Noé ativa no início da partida.', 'special', 'rare', 1, 100, { kind: 'noe_active' }),
-  m('noe_win', 'Noé Sobrevive', 'Vencer uma partida com a característica Noé ativa.', 'special', 'epic', 1, 170, { kind: 'noe_and_win' }),
+  m('noe_play', 'A Arca', 'Jogar uma partida com Noé como único titular com característica.', 'special', 'rare', 1, 100, { kind: 'noe_active' }),
+  m('noe_win', 'Noé Sobrevive', 'Vencer uma partida com Noé como único titular com característica.', 'special', 'epic', 1, 170, { kind: 'noe_and_win' }),
   m('todos_por_um', 'Todos por Um', 'Jogar uma partida com os 11 titulares possuindo Todos por um ativo.', 'special', 'legendary', 2, 400, { kind: 'todos_por_um_active' }),
   m('twelfth_man_play', '12º Homem', 'Jogar uma partida mantendo um jogador com 12º Homem no banco.', 'special', 'common', 1, 30, { kind: 'twelfth_man_bench' }),
   m('twelfth_man_win', 'Banco que Ajuda', 'Vencer mantendo um jogador com 12º Homem no banco.', 'special', 'rare', 1, 85, { kind: 'twelfth_man_bench_and_win' }),
-  m('goleador_hat_trick', 'O Homem do Jogo', 'Fazer um jogador com Goleador marcar 3 gols na mesma partida.', 'special', 'legendary', 2, 350, { kind: 'goleador_goals', value: 3 }),
+  m('goleador_hat_trick', 'O Homem do Jogo', 'Fazer um jogador com Goleador marcar 3 gols na mesma partida.', 'special', 'legendary', 1, 300, { kind: 'goleador_goals', value: 3 }),
   m('garcom_assists', 'Garçom de Luxo', 'Fazer um jogador com Garçom dar 2 assistências na mesma partida.', 'special', 'rare', 1, 130, { kind: 'garcom_assists', value: 2 }),
   m('magnata_win', 'Dinheiro em Campo', 'Vencer com um jogador com Magnata entre os titulares.', 'special', 'rare', 1, 90, { kind: 'magnata_and_win' }),
   m('pipoqueiro_win', 'Pipoca na Pressão', 'Vencer com um jogador com Pipoqueiro entre os titulares.', 'special', 'epic', 1, 140, { kind: 'pipoqueiro_and_win' }),
@@ -282,14 +282,14 @@ export const MISSION_CATALOG: MissionDefinition[] = [
   m('chemistry_85_89', 'Química Controlada', 'Vencer iniciando a partida com química entre 85 e 89.', 'setup', 'rare', 1, 95, { kind: 'chemistry_range_and_win', value: 85, values: ['89'] }),
   m('seven_nations', 'Seleção Internacional', 'Vencer com pelo menos 7 nacionalidades diferentes entre os titulares.', 'setup', 'rare', 1, 110, { kind: 'distinct_nations_and_win', value: 7 }),
   m('no_specials_win', 'Elenco Tradicional', 'Vencer sem nenhum titular possuir uma característica especial ativa.', 'special', 'uncommon', 1, 60, { kind: 'no_specials_and_win' }),
-  m('special_variety', 'Características Variadas', 'Vencer com pelo menos 4 características especiais diferentes presentes entre os titulares.', 'special', 'epic', 1, 180, { kind: 'special_variety_and_win', value: 4 }),
+  m('special_variety', 'Características Variadas', 'Vencer com pelo menos 3 características especiais diferentes presentes entre os titulares.', 'special', 'epic', 1, 180, { kind: 'special_variety_and_win', value: 3 }),
   m('club_unity', 'Clube Unido', 'Vencer com pelo menos 5 titulares do mesmo clube.', 'special', 'rare', 1, 95, { kind: 'same_club_and_win', value: 5 }),
   m('deep_bench', 'Banco Profundo', 'Vencer com pelo menos 10 jogadores fora do XI titular disponíveis no banco.', 'special', 'uncommon', 1, 65, { kind: 'bench_size_and_win', value: 10 }),
-  m('historical_pairs', 'História Compartilhada', 'Vencer com pelo menos 2 pares de jogadores que possuam vínculo histórico entre si entre os titulares.', 'special', 'epic', 1, 160, { kind: 'historical_pairs_and_win', value: 2 }),
+  m('historical_pairs', 'História Compartilhada', 'Vencer com pelo menos 1 par de jogadores com vínculo histórico entre os titulares.', 'special', 'epic', 1, 160, { kind: 'historical_pairs_and_win', value: 1 }),
   m('in_form_win', 'Em Alta', 'Vencer com um jogador com Em Alta entre os titulares.', 'special', 'uncommon', 1, 65, { kind: 'in_form_and_win' }),
   m('prodigy_goals_win', 'Prodígio Decisivo', 'Vencer com um jogador com Prodígio entre os titulares, e esse jogador marcar pelo menos 2 gols na partida.', 'special', 'epic', 1, 165, { kind: 'trait_player_goals_and_win', values: ['prodigio'], value: 2 }),
   m('coringa_lobo_win', 'Dupla de Características', 'Vencer com jogadores com Coringa e Lobo Solitário entre os titulares.', 'special', 'legendary', 1, 220, { kind: 'coringa_lobo_and_win' }),
-  m('noe_clean_sheet_win', 'Noé Invencível', 'Vencer uma partida com Noé ativo e sem sofrer gols.', 'special', 'epic', 1, 190, { kind: 'noe_clean_sheet_and_win' }),
+  m('noe_clean_sheet_win', 'Noé Invencível', 'Vencer sem sofrer gols com Noé como único titular com característica.', 'special', 'epic', 1, 190, { kind: 'noe_clean_sheet_and_win' }),
   m('double_in_form_win', 'Em Alta em Dobro', 'Vencer com pelo menos 2 titulares com Em Alta.', 'special', 'epic', 1, 150, { kind: 'in_form_count_and_win', value: 2 }),
   m('double_goleador_win', 'Dupla de Goleadores', 'Vencer com pelo menos 2 titulares diferentes com Goleador marcando pelo menos 1 gol cada.', 'special', 'legendary', 1, 190, { kind: 'distinct_trait_scorers_and_win', values: ['goleador'], value: 2 }),
   m('garcom_goleador_win', 'Garçom e Goleador', 'Vencer com um titular com Garçom dando assistência e um titular com Goleador marcando gol.', 'special', 'epic', 1, 165, { kind: 'trait_combo_goal_assist_and_win', values: ['garcom', 'goleador'] }),
@@ -334,30 +334,45 @@ export const MISSION_CATALOG: MissionDefinition[] = [
 
   // Approved expansion: 39 additional missions.
   m('pilar_in_form_win', 'Pilar em Alta', 'Vencer com um jogador com Pilar e um jogador com Em Alta entre os titulares.', 'special', 'epic', 1, 160, { kind: 'pilar_in_form_and_win' }),
-  m('idolo_mass_win', 'Ídolo em Massa', 'Vencer com Ídolo titular e pelo menos 5 outros titulares do mesmo clube.', 'special', 'epic', 1, 165, { kind: 'idolo_and_win', value: 5 }),
+  m('idolo_mass_win', 'Ídolo em Massa', 'Vencer com Ídolo titular e pelo menos 4 outros titulares do mesmo clube.', 'special', 'epic', 1, 165, { kind: 'idolo_and_win', value: 4 }),
   m('twelfth_man_attack_win', '12º Homem Ofensivo', 'Vencer com 12º Homem no banco e pelo menos 3 titulares diferentes marcando gols.', 'special', 'epic', 1, 150, { kind: 'twelfth_man_scorers_and_win', value: 3 }),
   m('collector_twelfth_win', 'Banco de Efeitos', 'Vencer com Colecionador titular e 12º Homem no banco.', 'special', 'epic', 1, 145, { kind: 'collector_twelfth_and_win' }),
   m('magnata_decisive_win', 'Magnata no Sacrifício', 'Vencer com Magnata titular e esse jogador marcando um gol ou dando uma assistência.', 'special', 'epic', 1, 140, { kind: 'trait_player_goal_or_assist_and_win', values: ['magnata'] }),
   m('magnata_estribado_win', 'Magnata e Estribado', 'Vencer com Magnata e Estribado entre os titulares e começar com pelo menos 500 créditos.', 'special', 'legendary', 1, 220, { kind: 'magnata_estribado_and_win', value: 500 }),
   m('pipoqueiro_decisive_win', 'Pipoqueiro Decisivo', 'Vencer com Pipoqueiro titular e esse jogador marcando um gol ou dando uma assistência.', 'special', 'epic', 1, 145, { kind: 'trait_player_goal_or_assist_and_win', values: ['pipoqueiro'] }),
-  m('estribado_rich_win', 'Estribado Abastado', 'Vencer com Estribado titular e começar com pelo menos 1.000 créditos.', 'special', 'rare', 1, 130, { kind: 'estribado_credits_and_win', value: 1000 }),
-  m('collector_deep_bench_win', 'Colecionador de Reservas', 'Vencer com Colecionador titular e pelo menos 15 jogadores fora do XI titular disponíveis no banco.', 'special', 'rare', 1, 120, { kind: 'collector_bench_and_win', value: 15 }),
+  m('estribado_rich_win', 'Estribado Abastado', 'Vencer com Estribado titular e começar com pelo menos 800 créditos.', 'special', 'rare', 1, 130, { kind: 'estribado_credits_and_win', value: 800 }),
+  m('collector_deep_bench_win', 'Colecionador de Reservas', 'Vencer com Colecionador titular e pelo menos 12 jogadores fora do XI titular disponíveis no banco.', 'special', 'rare', 1, 120, { kind: 'collector_bench_and_win', value: 12 }),
   m('capitao_nato_decisive_win', 'Capitão Nato Decisivo', 'Vencer com Capitão Nato como capitão e esse jogador marcando um gol ou dando uma assistência.', 'special', 'epic', 1, 145, { kind: 'capitao_nato_goal_or_assist_and_win' }),
   m('prodigio_streak_goals_win', 'Prodígio em Série', 'Vencer 2 partidas consecutivas com um jogador com Prodígio titular marcando pelo menos 1 gol em cada partida.', 'special', 'epic', 2, 175, { kind: 'trait_player_goals_and_win', values: ['prodigio'], value: 1 }, 2, 'streak'),
   m('arrogante_three_goals_win', 'Arrogante Dominante', 'Vencer com Arrogante titular e esse jogador marcando pelo menos 3 gols.', 'special', 'epic', 1, 200, { kind: 'arrogante_goals_and_win', value: 3 }),
   m('fragil_goal_win', 'Frágil Goleador', 'Vencer com Frágil titular, sem esse jogador sofrer lesão, e ele marcar pelo menos 2 gols.', 'special', 'epic', 1, 190, { kind: 'fragil_goals_and_win', value: 2 }),
   m('resiliente_attack_win', 'Resiliente Ofensivo', 'Vencer com Resiliente titular e marcar pelo menos 3 gols na partida.', 'special', 'epic', 1, 160, { kind: 'resiliente_goals_and_win', value: 3 }),
   m('lobo_possession_win', 'Lobo sob Controle', 'Vencer com Lobo Solitário titular, química inicial de no máximo 40 e pelo menos 60% de posse.', 'special', 'epic', 1, 195, { kind: 'lobo_chemistry_possession_and_win', value: 40, values: ['60'] }),
-  m('nomade_stable_win', 'Nômade Estável', 'Vencer com Nômade titular e começar com pelo menos 70 de química.', 'special', 'epic', 1, 160, { kind: 'nomade_chemistry_and_win', value: 70 }),
+  m('nomade_stable_win', 'Nômade Estável', 'Vencer com Nômade titular e começar com pelo menos 60 de química.', 'special', 'epic', 1, 160, { kind: 'nomade_chemistry_and_win', value: 60 }),
   m('forasteiro_clean_sheet_win', 'Forasteiro de Ferro', 'Vencer com Forasteiro ativo entre os titulares e sem sofrer gols.', 'special', 'epic', 1, 180, { kind: 'forasteiro_clean_sheet_and_win' }),
   m('pilar_elite_win', 'Pilar Imponente', 'Vencer com Pilar titular e começar com pelo menos 90 de química.', 'special', 'epic', 1, 160, { kind: 'pilar_chemistry_and_win', value: 90 }),
-  m('coringa_adapted_win', 'Coringa Adaptado', 'Vencer com Coringa titular fora da posição natural e pelo menos 2 outros titulares em posições secundárias.', 'special', 'epic', 1, 170, { kind: 'coringa_secondary_and_win', value: 2 }),
+  m('coringa_adapted_win', 'Coringa Adaptado', 'Vencer com Coringa titular fora da posição natural e pelo menos 1 outro titular em posição secundária.', 'special', 'epic', 1, 170, { kind: 'coringa_secondary_and_win', value: 1 }),
   m('in_form_prodigy_win', 'Em Alta e Prodígio', 'Vencer com Em Alta e Prodígio titulares, com Em Alta marcando e Prodígio dando uma assistência.', 'special', 'legendary', 1, 230, { kind: 'in_form_prodigy_goal_assist_and_win' }),
   m('goleador_streak_win', 'Goleador em Série', 'Vencer 2 partidas consecutivas com Goleador titular marcando pelo menos 1 gol em cada partida.', 'special', 'epic', 2, 180, { kind: 'trait_player_goals_and_win', values: ['goleador'], value: 1 }, 2, 'streak'),
   m('garcom_streak_win', 'Garçom em Série', 'Vencer 2 partidas consecutivas com Garçom titular dando pelo menos 1 assistência em cada partida.', 'special', 'epic', 2, 170, { kind: 'trait_player_assists_and_win', values: ['garcom'], value: 1 }, 2, 'streak'),
   m('arrogante_garcom_win', 'Arrogante e Garçom', 'Vencer com um titular com Arrogante marcando e um titular com Garçom dando assistência.', 'special', 'legendary', 1, 220, { kind: 'arrogante_garcom_goal_assist_and_win' }),
   m('martir_idolo_win', 'Dupla de Efeitos', 'Vencer com Mártir e Ídolo entre os titulares.', 'special', 'legendary', 1, 210, { kind: 'martir_idolo_and_win' }),
-  m('twelfth_man_elite_win', '12º Homem de Elite', 'Vencer com 12º Homem no banco e começar com pelo menos 80 de química.', 'special', 'rare', 1, 130, { kind: 'twelfth_man_chemistry_and_win', value: 80 }),
+  m('twelfth_man_elite_win', '12º Homem de Elite', 'Vencer com 12º Homem no banco e começar com pelo menos 70 de química.', 'special', 'rare', 1, 130, { kind: 'twelfth_man_chemistry_and_win', value: 70 }),
+  // Características novas e as que ainda não tinham missão.
+  m('mentor_win', 'Mestre do Vestiário', 'Vencer com um jogador com Mentor entre os titulares.', 'special', 'uncommon', 1, 65, { kind: 'trait_starter_and_win', values: ['mentor'] }),
+  m('improvisador_win', 'Plano B', 'Vencer com Improvisador titular e começar com pelo menos 70 de química.', 'special', 'rare', 1, 110, { kind: 'trait_chemistry_and_win', values: ['improvisador'], value: 70 }),
+  m('desenfreado_play', 'Química no Talo', 'Vencer com um jogador com Desenfreado entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['desenfreado'] }),
+  m('desenfreado_win', 'Sem Limites', 'Vencer com Desenfreado titular e começar com mais de 100 de química.', 'special', 'epic', 1, 170, { kind: 'trait_chemistry_and_win', values: ['desenfreado'], value: 101 }),
+  m('faz_tudo_win', 'Pau pra Toda Obra', 'Vencer com Faz-Tudo titular jogando fora da posição natural.', 'special', 'rare', 1, 100, { kind: 'trait_off_position_and_win', values: ['fazTudo'] }),
+  m('fominha_goal_win', 'Fome de Gol', 'Vencer com Fominha titular marcando pelo menos 1 gol.', 'special', 'uncommon', 1, 75, { kind: 'trait_player_goal_and_win', values: ['fominha'] }),
+  m('fominha_two_goals_win', 'Fominha Insaciável', 'Vencer com Fominha titular marcando pelo menos 2 gols.', 'special', 'epic', 1, 150, { kind: 'trait_player_goals_and_win', values: ['fominha'], value: 2 }),
+  m('poliglota_win', 'Vestiário Internacional', 'Vencer com Poliglota titular e pelo menos 5 nações diferentes entre os titulares.', 'special', 'rare', 1, 110, { kind: 'trait_nations_and_win', values: ['poliglota'], value: 5 }),
+  m('midiatico_goal_win', 'Holofote', 'Vencer com Midiático titular marcando pelo menos 1 gol.', 'special', 'uncommon', 1, 75, { kind: 'trait_player_goal_and_win', values: ['midiatico'] }),
+  m('padrinho_win', 'Família Unida', 'Vencer com um jogador com Padrinho entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['padrinho'] }),
+  m('lapidador_win', 'Joia Rara', 'Vencer com um jogador com Lapidador entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['lapidador'] }),
+  m('agregador_win', 'Soma de Talentos', 'Vencer com um jogador com Agregador entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['agregador'] }),
+  m('conquistador_win', 'Contrato Cumprido', 'Vencer com um jogador com Conquistador entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['mercenario'] }),
+  m('apostador_win', 'Aposta Certa', 'Vencer com um jogador com Apostador entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['apostador'] }),
 
   m('complete_time_blocks_win', 'Bloco Completo', 'Vencer marcando pelo menos 1 gol entre os minutos 1–30, 31–60 e 61–90.', 'results', 'epic', 1, 160, { kind: 'goals_in_time_blocks_and_win' }),
   m('late_pressure_win', 'Pressão Final', 'Vencer marcando pelo menos 2 gols depois do minuto 75.', 'goals', 'rare', 1, 120, { kind: 'second_half_goals_after_and_win', value: 2, values: ['75'] }),
@@ -422,6 +437,15 @@ export const MISSION_CATALOG: MissionDefinition[] = [
 
 export const MISSION_MAP: Record<string, MissionDefinition> = Object.fromEntries(MISSION_CATALOG.map(definition => [definition.id, definition]));
 
+// Missões fora do quadro (características aposentadas e as inviáveis): saem do quadro, mas
+// continuam no catálogo para que missões já aceitas em campanhas salvas terminem normalmente.
+export const RETIRED_MISSION_IDS: ReadonlySet<string> = new Set([
+  'pilar_win', 'lobo_win', 'in_form_win', 'coringa_lobo_win', 'double_in_form_win', 'pilar_clean_sheet_win',
+  'lobo_goal_win', 'in_form_goal_win', 'pilar_in_form_win', 'lobo_possession_win', 'pilar_elite_win', 'in_form_prodigy_win',
+  // Exige os 11 titulares com Todos por um: praticamente impossível no quadro.
+  'todos_por_um',
+]);
+
 function hashSeed(input: string): number {
   let hash = 2166136261;
   for (let i = 0; i < input.length; i++) {
@@ -472,7 +496,7 @@ function buildBoard(seed: string, cycleKey: string, excludedIds: Set<string> = n
   // only for the current draw (for example, replacing the five visible offers),
   // so a mission can appear again in a later round.
   return seededShuffle(
-    MISSION_CATALOG.filter(definition => !excludedIds.has(definition.id)),
+    MISSION_CATALOG.filter(definition => !excludedIds.has(definition.id) && !RETIRED_MISSION_IDS.has(definition.id)),
     `${seed}:${cycleKey}:board`,
   ).slice(0, 5).map(definition => definition.id);
 }
@@ -495,7 +519,7 @@ export function createMissionState(seed: string, cycleKey = 'L1'): MissionState 
 function hasValidBoard(boardIds: string[]): boolean {
   const valid = boardIds.length <= 5
     && new Set(boardIds).size === boardIds.length
-    && boardIds.every(id => Boolean(MISSION_MAP[id]));
+    && boardIds.every(id => Boolean(MISSION_MAP[id]) && !RETIRED_MISSION_IDS.has(id));
   return valid && boardIds.length === 5;
 }
 
@@ -669,6 +693,7 @@ const SPECIAL_TRAIT_KEYS: Array<keyof PlayerCard> = [
   'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm',
   'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante',
   'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico',
+  'mentor', 'improvisador', 'desenfreado', 'fazTudo', 'fominha', 'poliglota',
 ];
 
 function specialCarded(player: PlayerCard): boolean {
@@ -1191,6 +1216,25 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
     case 'pilar_clean_sheet_and_win': return { matched: context.isWin && starters.some(player => player.pilar) && context.scoreAgainst === 0 };
     case 'lobo_chemistry_and_win': return { matched: context.isWin && starters.some(player => player.lobo) && context.chemistry <= (rule.value ?? 40) };
     case 'nomade_and_win': return { matched: context.isWin && starters.some(player => player.nomade) };
+    case 'trait_starter_and_win': {
+      const traitKey = rule.values?.[0] as keyof PlayerCard | undefined;
+      return { matched: context.isWin && !!traitKey && starters.some(player => Boolean(player[traitKey])) };
+    }
+    case 'trait_chemistry_and_win': {
+      const traitKey = rule.values?.[0] as keyof PlayerCard | undefined;
+      return { matched: context.isWin && !!traitKey && starters.some(player => Boolean(player[traitKey])) && context.chemistry >= (rule.value ?? 70) };
+    }
+    case 'trait_off_position_and_win': {
+      const traitKey = rule.values?.[0] as keyof PlayerCard | undefined;
+      return { matched: context.isWin && !!traitKey && starters.some((player, index) => {
+        const role = formation?.positions[index]?.role;
+        return Boolean(role && player[traitKey] && isOutsideNaturalPositions(player, role));
+      }) };
+    }
+    case 'trait_nations_and_win': {
+      const traitKey = rule.values?.[0] as keyof PlayerCard | undefined;
+      return { matched: context.isWin && !!traitKey && starters.some(player => Boolean(player[traitKey])) && new Set(starters.map(player => player.nation)).size >= (rule.value ?? 5) };
+    }
     case 'forasteiro_and_win': return { matched: context.isWin && traitIsActive(context, 'forasteiro') };
     case 'martir_active': return { matched: starters.some(player => player.martir) };
     case 'idolo_and_win': return { matched: context.isWin && starters.some(idol => idol.idolo && starters.filter(other => other.id !== idol.id && sameClub(other.club, idol.club)).length >= (rule.value ?? 3)) };

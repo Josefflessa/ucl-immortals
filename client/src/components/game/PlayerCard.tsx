@@ -2,7 +2,7 @@ import { useEffect, useState, memo } from 'react';
 import TraitIcon from './TraitIcon';
 import { motion } from 'framer-motion';
 import { getCompetitionAlbumBonus, PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
-import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
+import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
 import { canonicalClubName, crestIdForClub } from '@shared/game/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -926,6 +926,7 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
   zidane_unico: { texture: '/cards/zidane_unico.webp', render: '/players/unico/zidane.webp', font: '#FFF6E2', ring: '#D5AE4A', photoX: 6, photoY: -2, photoW: 100 },
   figo_unico: { texture: '/cards/figo_unico.webp', render: '/players/unico/figo.webp', font: '#F7E08C', ring: '#1F8A55', photoX: 7, photoY: -2, photoW: 100 },
   yashin_unico: { texture: '/cards/yashin_unico.webp', render: '/players/unico/yashin.webp', font: '#FFF5D9', ring: '#C3A76A', photoX: 10, photoY: 4, photoW: 86, blurPhotoBottom: true },
+  lampard_unico: { texture: '/cards/lampard_unico.webp', render: '/players/unico/lampard.webp', font: '#FFF5D9', ring: '#C9A35C', photoX: 15, photoY: 10, photoW: 88, blurPhotoBottom: true },
 };
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
@@ -1019,8 +1020,14 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   agregador: { color: '#A5ACC2', icon: '🔗', label: 'AGREGADOR', treatment: 'halo' },
   pechincheiro: { color: '#E0315F', icon: '🏷️', label: 'PECHINCHEIRO', treatment: 'calm' },
   midiatico: { color: '#7C6FF0', icon: '📺', label: 'MIDIÁTICO', treatment: 'ring' },
+  mentor: { color: '#8B5E3C', icon: '🧑‍🏫', label: 'MENTOR', treatment: 'calm' },
+  improvisador: { color: '#A6A83C', icon: '🔀', label: 'IMPROVISADOR', treatment: 'halo' },
+  desenfreado: { color: '#D2A86E', icon: '🚀', label: 'DESENFREADO', treatment: 'ring' },
+  fazTudo: { color: '#4A6FD9', icon: '🔧', label: 'FAZ-TUDO', treatment: 'calm' },
+  fominha: { color: '#B32D45', icon: '🍽️', label: 'FOMINHA', treatment: 'pulse' },
+  poliglota: { color: '#8FD6B4', icon: '💬', label: 'POLIGLOTA', treatment: 'halo' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico', 'mentor', 'improvisador', 'desenfreado', 'fazTudo', 'fominha', 'poliglota'] as const;
 type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -1044,7 +1051,7 @@ function variantDesc(player: Player): string {
   if (player.idolo) return 'ÍDOLO: +3 em cada atributo aos OUTROS titulares do mesmo clube (não a ele)';
   if (player.decimoHomem) return `12º HOMEM: no banco, dá +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time`;
   if (player.pipoqueiro) return `PIPOQUEIRO: +${PIPOQUEIRO_LEAGUE_BOOST} em cada atributo na FASE DE LIGA, mas −${PIPOQUEIRO_KO_PENALTY} no MATA-MATA`;
-  if (player.noe) return `NOÉ: +${NOE_STAT_BOOST} em cada atributo NELE e +${NOE_CHEM_BONUS} na química geral — só enquanto for o ÚNICO titular com característica`;
+  if (player.noe) return `NOÉ: titular, +${NOE_STAT_BOOST} em cada atributo NELE e +${NOE_CHEM_BONUS} na química geral por titular sem característica`;
   if (player.forasteiro) return 'FORASTEIRO: +9 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
   if (player.colecionador) return 'COLECIONADOR: +1 em cada atributo por jogador que estiver na reserva';
   if (player.estribado) return 'ESTRIBADO: +1 em cada atributo a cada 100 créditos disponíveis';
@@ -1088,6 +1095,18 @@ function variantDesc(player: Player): string {
   if (player.agregador) return `AGREGADOR: titular, dá +${AGREGADOR_STAT_BOOST_PER_TRAIT} em cada atributo ao time por característica diferente entre os titulares`;
   if (player.pechincheiro) return 'PECHINCHEIRO: no elenco, os itens da loja custam 15% a menos';
   if (player.midiatico) return `MIDIÁTICO: cada gol dele rende ${MIDIATICO_CREDITS_PER_GOAL} créditos`;
+  if (player.mentor) return 'MENTOR: cada vitória com ele titular soma +1 titularidade na evolução de todo o elenco';
+  if (player.improvisador) return `IMPROVISADOR: titular, +${IMPROVISADOR_SECONDARY_CHEM} na química geral por titular na secundária e +${IMPROVISADOR_OOP_CHEM} por titular fora de posição`;
+  if (player.desenfreado) return `DESENFREADO: +1 em cada atributo ao time a cada ${DESENFREADO_CHEM_PER_BOOST} de química geral acima de 100`;
+  if (player.fazTudo) {
+    const learned = player.learnedPositions ?? [];
+    return `FAZ-TUDO: ${FAZ_TUDO_STARTS_TO_LEARN} partidas fora de posição numa posição a tornam secundária${learned.length ? ` · aprendeu: ${learned.map(pos => POS_PT[pos] ?? pos).join(', ')}` : ''}`;
+  }
+  if (player.fominha) {
+    const goals = player.fominhaGoals ?? 0;
+    return `FOMINHA: +${goals * FOMINHA_STAT_BOOST_PER_GOAL} em cada atributo · −${goals * FOMINHA_CHEM_PENALTY_PER_GOAL} na química geral (${goals} gol${goals === 1 ? '' : 's'})`;
+  }
+  if (player.poliglota) return `POLIGLOTA: titular, +${POLIGLOTA_STAT_BOOST_PER_NATION} em cada atributo nele por nação diferente da dele entre os titulares`;
   return '';
 }
 

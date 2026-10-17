@@ -9,7 +9,7 @@ import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedP
 import { getEffectiveAttribute, SECONDARY_STAT_MULT, positionFit, specializationAttributeBonus } from './attributes';
 import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
-import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost } from './draft';
+import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, FOMINHA_CHEM_PENALTY_PER_GOAL, FOMINHA_STAT_BOOST_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, desenfreadoStatBoost } from './draft';
 
 // Playing in the coach's preferred formation gels the side: a flat bonus to the team's
 // TOTAL chemistry, which can push it into a higher global-bonus tier (passe/ritmo/especial).
@@ -101,11 +101,20 @@ export function calculateChemistry(
   // 🧱 Pilar lifts the team's chemistry · 🐺 Lobo Solitário drains it (per such player in the XI).
   const pilarBonus = players.filter(p => p.pilar).length * PILAR_CHEM_BONUS;
   const loboPenalty = players.filter(p => p.lobo).length * LOBO_CHEM_PENALTY;
-  // 🛟 Noé — +50 na química geral, SÓ quando ele é o único titular com característica (põe o time na arca).
-  const cardedXI = players.slice(0, 11).filter((p): p is Player => !!p && hasVariant(p));
-  const noeBonus = (cardedXI.length === 1 && cardedXI[0].noe) ? NOE_CHEM_BONUS : 0;
+  // 🛟 Noé — +5 na química geral por titular SEM característica (cada Noé titular soma o seu).
+  const xi = players.slice(0, 11).filter((p): p is Player => !!p);
+  const plainStarters = xi.filter(p => !hasVariant(p)).length;
+  const noeBonus = xi.filter(p => p.noe).length * plainStarters * NOE_CHEM_BONUS;
+  // 🔀 Improvisador — +8 por titular na secundária, +12 por titular fora de posição (não acumula).
+  const improvisadorBonus = xi.some(p => p.improvisador)
+    ? xi.filter(p => secondaryPos[p.id]).length * IMPROVISADOR_SECONDARY_CHEM
+      + xi.filter(p => outOfPosition[p.id]).length * IMPROVISADOR_OOP_CHEM
+    : 0;
+  // 🍽️ Fominha — cada gol dele (como titular) tira −2 da química geral.
+  const fominhaPenalty = xi.reduce((sum, p) => sum + (p.fominha ? Math.max(0, p.fominhaGoals ?? 0) * FOMINHA_CHEM_PENALTY_PER_GOAL : 0), 0);
   const total = Math.max(0,
-    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus);
+    Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus
+      + improvisadorBonus - fominhaPenalty);
 
   return { individual, total, trios, outOfPosition, secondaryPos };
 }
@@ -583,11 +592,14 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho' | 'agregador'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho' | 'agregador' | 'fominha' | 'poliglota' | 'desenfreado'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
-export function computeCharacteristicBoosts(players: (Player | undefined)[]): CharBoostMap {
+/**
+ * `teamChemTotal` (química geral do XI) só é usado pelo 🚀 Desenfreado; sem ele, o bônus é zero.
+ */
+export function computeCharacteristicBoosts(players: (Player | undefined)[], teamChemTotal?: number): CharBoostMap {
   const map: CharBoostMap = {};
   const xi = players.slice(0, 11).filter((p): p is Player => !!p);
   const slot = (id: string) => map[id] ?? (map[id] = { flatAll: 0, perStat: {}, sources: [] });
@@ -668,12 +680,30 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[]): Ch
     if (!agg.agregador) continue;
     for (const mate of xi) contribute(mate.id, { type: 'agregador', fromId: agg.id, fromName: agg.shortName, flatAll: distinctTraits * AGREGADOR_STAT_BOOST_PER_TRAIT, perStat: {} });
   }
-  // 🛟 Noé — SÓ rende se ele é o ÚNICO titular do XI com característica: +20 em tudo NELE.
-  // (o +50 de química vive em calculateChemistry). Dois Noés no XI se cancelam (nenhum é "o único").
-  const carded = xi.filter(hasVariant);
-  if (carded.length === 1 && carded[0].noe) {
-    const n = carded[0];
-    contribute(n.id, { type: 'noe', fromId: n.id, fromName: n.shortName, flatAll: NOE_STAT_BOOST, perStat: {}, self: true });
+  // 🛟 Noé — +2 em tudo NELE por titular SEM característica (a química vive em calculateChemistry).
+  const plainStarters = xi.filter(p => !hasVariant(p)).length;
+  for (const n of xi) {
+    if (!n.noe || plainStarters === 0) continue;
+    contribute(n.id, { type: 'noe', fromId: n.id, fromName: n.shortName, flatAll: plainStarters * NOE_STAT_BOOST, perStat: {}, self: true });
+  }
+  // 🍽️ Fominha — titular: +1 em tudo NELE por gol (a perda de química vive em calculateChemistry).
+  for (const f of xi) {
+    const goals = Math.max(0, f.fominhaGoals ?? 0);
+    if (!f.fominha || goals === 0) continue;
+    contribute(f.id, { type: 'fominha', fromId: f.id, fromName: f.shortName, flatAll: goals * FOMINHA_STAT_BOOST_PER_GOAL, perStat: {}, self: true });
+  }
+  // 🌐 Poliglota — titular: +2 em tudo NELE por nação diferente da dele entre os titulares.
+  for (const pl of xi) {
+    if (!pl.poliglota) continue;
+    const otherNations = new Set(xi.filter(p => p.nation !== pl.nation).map(p => p.nation)).size;
+    if (otherNations === 0) continue;
+    contribute(pl.id, { type: 'poliglota', fromId: pl.id, fromName: pl.shortName, flatAll: otherNations * POLIGLOTA_STAT_BOOST_PER_NATION, perStat: {}, self: true });
+  }
+  // 🚀 Desenfreado — +1 em tudo ao XI a cada 2 de química geral acima de 100 (não acumula).
+  const unbridled = xi.find(p => p.desenfreado);
+  const perfectBoost = unbridled ? desenfreadoStatBoost(teamChemTotal) : 0;
+  if (unbridled && perfectBoost > 0) {
+    for (const mate of xi) contribute(mate.id, { type: 'desenfreado', fromId: unbridled.id, fromName: unbridled.shortName, flatAll: perfectBoost, perStat: {} });
   }
   // 🧳 Forasteiro — +9 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
   for (const f of xi) {
@@ -715,7 +745,7 @@ export function getTeamEffectiveStats(
   const starters = team.players.slice(0, 11);
   const chemistry = calculateChemistry(starters, team.coachId, formationRoles, team.formationId);
   const captainBoost = captainBoostForTeam(team) ?? undefined;
-  const charBoosts = computeCharacteristicBoosts(team.players);
+  const charBoosts = computeCharacteristicBoosts(team.players, chemistry.total);
   const playStyle = options.playStyle ?? team.playStyle ?? 'balanced';
 
   return Object.fromEntries(team.players.map((player, index) => {
@@ -793,7 +823,7 @@ export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): 
   const coach = COACHES.find(c => c.id === team.coachId)!;
   const chemBonus = getChemistryBonus(team.totalChemistry);
   const captainBoost = captainBoostForTeam(team) ?? undefined;
-  const charBoosts = computeCharacteristicBoosts(team.players);
+  const charBoosts = computeCharacteristicBoosts(team.players, team.totalChemistry);
   const eff = (p: PlayerCard, attr: 'passing' | 'vision') =>
     getEffectiveAttribute(p, attr, coach, chemBonus, playStyleOverride ?? 'balanced', {
       captainBoost,

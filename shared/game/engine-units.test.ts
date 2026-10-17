@@ -638,40 +638,37 @@ describe('char boosts flow through getEffectiveAttribute (engine = the buff)', (
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🛟 Noé — só rende como ÚNICO titular com característica (+20 e +50 química)', () => {
+describe('🛟 Noé — +2 em tudo nele e +5 de química por titular sem característica', () => {
   const xiOf = (extra: Player[]) => [...extra, ...Array.from({ length: 11 - extra.length }, () => mkP())];
 
-  it('+20 em tudo quando é o único carimbado do XI', () => {
+  it('+20 em tudo quando os outros 10 titulares não têm característica', () => {
     const noe = mkP({ id: 'noe', noe: true });
     const boosts = computeCharacteristicBoosts(xiOf([noe]));
-    expect(boosts['noe']?.flatAll).toBe(NOE_STAT_BOOST);
+    expect(boosts['noe']?.flatAll).toBe(10 * NOE_STAT_BOOST);
   });
 
-  it('desliga se QUALQUER outro titular tem característica', () => {
+  it('cai 2 por titular com característica, sem desligar', () => {
     const noe = mkP({ id: 'noe', noe: true });
-    const other = mkP({ id: 'p', pilar: true });
+    const other = mkP({ id: 'p', pechincheiro: true });
     const boosts = computeCharacteristicBoosts(xiOf([noe, other]));
-    expect(boosts['noe']?.flatAll ?? 0).toBe(0);
+    expect(boosts['noe']?.flatAll).toBe(9 * NOE_STAT_BOOST);
   });
 
-  it('dois Noés se cancelam (nenhum é "o único")', () => {
+  it('cada Noé conta os titulares sem característica', () => {
     const a = mkP({ id: 'a', noe: true }), b = mkP({ id: 'b', noe: true });
     const boosts = computeCharacteristicBoosts(xiOf([a, b]));
-    expect(boosts['a']?.flatAll ?? 0).toBe(0);
-    expect(boosts['b']?.flatAll ?? 0).toBe(0);
+    expect(boosts['a']?.flatAll).toBe(9 * NOE_STAT_BOOST);
+    expect(boosts['b']?.flatAll).toBe(9 * NOE_STAT_BOOST);
   });
 
-  it('+50 na química geral quando ativo (e nada quando desligado)', () => {
+  it('+5 na química geral por titular sem característica', () => {
     // XI com nação/clube DISTINTOS → química base baixa, para validar o bônus do Noé.
     const plainXI = Array.from({ length: 11 }, (_, i) => mkP({ id: `n${i}`, nation: `Nat${i}`, club: `Club${i}` }));
     const noeXI = plainXI.map(p => p.id === 'n0' ? { ...p, noe: true } : p);
     const base = calculateChemistry(plainXI, 'default').total;
-    const withNoe = calculateChemistry(noeXI, 'default').total;
-    expect(withNoe - base).toBe(NOE_CHEM_BONUS);
-    // com outro carimbado no XI, o +50 não vale
-    const noeXIblocked = noeXI.map(p => p.id === 'n1' ? { ...p, pilar: true } : p);
-    const blocked = calculateChemistry(noeXIblocked, 'default').total;
-    expect(blocked - base).toBeLessThan(NOE_CHEM_BONUS);
+    expect(calculateChemistry(noeXI, 'default').total - base).toBe(10 * NOE_CHEM_BONUS);
+    const withOther = noeXI.map(p => p.id === 'n1' ? { ...p, pechincheiro: true } : p);
+    expect(calculateChemistry(withOther, 'default').total - base).toBe(9 * NOE_CHEM_BONUS);
   });
 });
 
