@@ -493,15 +493,14 @@ export default function MenuPage() {
           <div className="relative flex items-center justify-center">
             <img src={LOGO_URL} alt="UCL Immortals" className="home-menu-screen__logo relative h-36 w-36 object-contain sm:h-44 sm:w-44" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
           </div>
-          <h1 className="home-menu-screen__heading mt-4 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] font-normal leading-[0.85] tracking-wider">
+          <h1 className="home-menu-screen__heading mt-4 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] font-normal leading-[0.85] tracking-wider sm:mt-7">
             <span className="block text-[var(--ui-brand-strong)]">UCL</span>
             <span className="block text-[var(--ui-text)]">IMMORTALS</span>
           </h1>
         </div>
 
-        {/* Régua + tagline */}
+        {/* Tagline */}
         <div className="home-menu-screen__tagline flex flex-col items-center mt-4 mb-7">
-          <div className="h-px w-40 shrink-0 bg-[var(--ui-brand)] opacity-70 sm:w-56" />
           <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base">
             Jogadores de todas as épocas e ligas. Monte seu time e conquiste a <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
           </p>
