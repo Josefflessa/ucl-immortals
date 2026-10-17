@@ -4,8 +4,10 @@
  * goal, a save, a miss, the woodwork). Web Audio, so the crowd loops with no seam and
  * every sound starts on the exact moment it is asked for. Each file is levelled when it
  * loads (to a loudness target per kind), so they sit together whatever their recording.
- * The mute choice is remembered between matches.
+ * The mute and volume choices are shared with the interface sounds (see soundSettings).
  */
+
+import { soundSettings } from './soundSettings';
 
 export type MatchSound = 'whistleStart' | 'whistleEnd' | 'goal' | 'save' | 'miss' | 'post';
 type Track = MatchSound | 'crowd';
@@ -74,13 +76,11 @@ function synthWhistle(ctx: AudioContext, blasts: { at: number; dur: number }[]):
 /** How low the steady crowd dips (share of its level) while each reaction plays. */
 const DUCK: Partial<Record<MatchSound, number>> = { goal: 0.2, save: 0.45, miss: 0.45, post: 0.45 };
 
-const MUTE_KEY ='ucl-immortals:sound-muted';
+/** The match sounds were levelled for the default volume: the slider moves them around it. */
+const DEFAULT_VOLUME = 0.7;
+const matchGain = (): number => { const { muted, volume } = soundSettings.get(); return muted ? 0 : Math.min(1.5, volume / DEFAULT_VOLUME); };
 const CROWD_FADE_IN_S = 1.2;
 const CROWD_FADE_OUT_S = 3.5;
-
-function readMuted(): boolean {
-  try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
-}
 
 /**
  * A decoded sound: its levelling gain, the span to loop (the crowd), and where it is strong
@@ -141,27 +141,23 @@ class MatchAudio {
   private crowd: AudioBufferSourceNode | null = null;
   private readonly sounds = new Map<Track, Loaded>();
   private loading: Promise<void> | null = null;
-  private muted = readMuted();
-  private readonly listeners = new Set<() => void>();
   private unlock: (() => void) | null = null;
 
   // ── React store (the mute button) ──
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  };
-  isMuted = (): boolean => this.muted;
+  subscribe = (listener: () => void): (() => void) => soundSettings.subscribe(listener);
+  isMuted = (): boolean => soundSettings.get().muted;
 
   setMuted(muted: boolean): void {
-    this.muted = muted;
-    try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch { /* private mode: not remembered */ }
-    if (this.ctx && this.master) {
-      const now = this.ctx.currentTime;
-      this.master.gain.cancelScheduledValues(now);
-      this.master.gain.setTargetAtTime(muted ? 0 : 1, now, 0.08);
-    }
-    this.listeners.forEach(l => l());
+    soundSettings.setMuted(muted);
   }
+
+  /** Follows the shared settings (mute and volume) with a short fade. */
+  private applyLevel = (): void => {
+    if (!this.ctx || !this.master) return;
+    const now = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setTargetAtTime(matchGain(), now, 0.08);
+  };
 
   /** The audio graph, created on first use (null where Web Audio is unavailable). */
   private context(): AudioContext | null {
@@ -174,7 +170,8 @@ class MatchAudio {
       return null;
     }
     this.master = this.ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 1;
+    this.master.gain.value = matchGain();
+    soundSettings.subscribe(this.applyLevel);
     // A limiter on the way out: a goal can ring out loud over the crowd without distorting.
     const limiter = this.ctx.createDynamicsCompressor();
     limiter.threshold.value = -1;

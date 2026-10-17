@@ -4,16 +4,17 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Check, Copy, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, Check } from 'lucide-react';
 import { parseItemKey, type AlbumItemKey } from '@shared/game/album';
 import { getCrest } from '@shared/game/crests';
 import { Button } from '../../design-system';
-import PlayerCard from '../game/PlayerCard';
+import BannerGachaReveal from '../store/gacha/BannerGachaReveal';
+import { playSound, revealSoundForBest } from '../../audio/uiSound';
 import { PackFront } from '../game/UniquePackOpening';
 import AlbumPackArt, { ALBUM_PACK_ASPECT, ALBUM_PACK_TEAR_AT } from './AlbumPackArt';
 import { ClubCover, ClubFrameRing } from '../account/ClubRewards';
 import { useAlbum, type OpenResult, type PageReward } from '../../contexts/AlbumContext';
-import { albumCard, CATALOG, groupKeys, itemColor, itemLabel, RARITY_LABEL } from './albumData';
+import { albumCard, CATALOG, groupKeys, itemColor, itemLabel } from './albumData';
 import { ItemArt } from './AlbumPieces';
 
 type Stage = 'sealed' | 'tearing' | 'revealed';
@@ -23,16 +24,6 @@ const MUTED = '#9693A5';
 const PACK_HEIGHT = 'min(52vh, 460px)';
 const PACK_BOX = { height: PACK_HEIGHT, width: `calc(${PACK_HEIGHT} * ${ALBUM_PACK_ASPECT})` };
 const TEAR_MS = 900;
-
-function useNarrow() {
-  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720);
-  useEffect(() => {
-    const update = () => setNarrow(window.innerWidth < 720);
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-  return narrow;
-}
 
 /** What a completed page unlocked: a club's frame and cover, or packs. */
 export function PageRewardCard({ reward }: { reward: PageReward }) {
@@ -82,44 +73,11 @@ export function PageRewardCard({ reward }: { reward: PageReward }) {
   );
 }
 
-function RevealedCard({ id, isNew, index, scale }: { id: string; isNew: boolean; index: number; scale: number }) {
-  const card = albumCard(id);
-  const sticker = CATALOG.stickers.get(id);
-  if (!card) return null;
-  const tagColor = isNew ? '#7BD88F' : '#E9C46A';
-  return (
-    <motion.div
-      initial={{ rotateY: 90, opacity: 0, y: 12 }}
-      animate={{ rotateY: 0, opacity: 1, y: 0 }}
-      transition={{ duration: .55, delay: .15 + index * .32, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col items-center"
-      style={{ perspective: 1000 }}
-    >
-      <div className="relative">
-        <PlayerCard player={card} lite scale={scale} showAlbumLevel />
-        <motion.span
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: .5 + index * .32, type: 'spring', stiffness: 420, damping: 18 }}
-          className="absolute left-1/2 top-0 z-[5] inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-[0.12em] text-[#0B0C12] shadow-lg"
-          style={{ background: tagColor, ...FONT }}
-        >
-          {isNew ? <Sparkles size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />}
-          {isNew ? 'NOVA' : 'REPETIDA'}
-        </motion.span>
-      </div>
-      <div className="mt-1.5 text-center text-xs font-semibold leading-tight text-white/65" style={{ ...FONT, maxWidth: Math.max(200 * scale, 84) }}>
-        Nº {sticker?.number ?? '—'} · {RARITY_LABEL[card.rarity]}
-      </div>
-    </motion.div>
-  );
-}
-
 /** The envelope: tap to break the seal. */
 function EnvelopeFront({ itemKey, opening, onOpen }: { itemKey: AlbumItemKey; opening: boolean; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} disabled={opening} className="group relative flex flex-col items-center outline-none" aria-label="Abrir envelope">
-      <div aria-hidden="true" className="pointer-events-none absolute -inset-[30%] -z-[1] rounded-full blur-3xl" style={{ background: `radial-gradient(circle, ${itemColor(itemKey)}44 0%, transparent 70%)` }} />
+      <div aria-hidden="true" className="pointer-events-none absolute -inset-[40%] -z-[1] rounded-full" style={{ background: `radial-gradient(circle, ${itemColor(itemKey)}44 0%, transparent 70%)` }} />
       <motion.div
         animate={opening ? { scale: [1, 1.06, .2], opacity: [1, 1, 0], rotate: [0, -2, 6] } : { scale: [1, 1.015, 1] }}
         transition={opening ? { duration: .7, ease: 'easeIn' } : { duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
@@ -132,13 +90,14 @@ function EnvelopeFront({ itemKey, opening, onOpen }: { itemKey: AlbumItemKey; op
 
 export default function AlbumPackOpening({ items, onClose }: { items: readonly AlbumItemKey[]; onClose: () => void }) {
   const { open } = useAlbum();
-  const narrow = useNarrow();
   const [index, setIndex] = useState(0);
   const [stage, setStage] = useState<Stage>('sealed');
   const [result, setResult] = useState<OpenResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cutProgress, setCutProgress] = useState(0);
   const [cutStartX, setCutStartX] = useState<number | null>(null);
+  /** The staged reveal of the cards runs once per pack, on top of the summary screen. */
+  const [staged, setStaged] = useState(false);
   const packRef = useRef<HTMLDivElement | null>(null);
   const timer = useRef<number | null>(null);
 
@@ -159,12 +118,18 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
   const startOpening = () => {
     if (stage !== 'sealed' || !itemKey) return;
     setStage('tearing');
+    playSound('packTear');
     setCutProgress(100);
     setCutStartX(null);
     setError(null);
     const minDelay = new Promise(resolve => { timer.current = window.setTimeout(resolve, TEAR_MS); });
     Promise.all([open(itemKey), minDelay])
-      .then(([opened]) => { setResult(opened); setStage('revealed'); })
+      .then(([opened]) => {
+        setResult(opened);
+        setStaged(true);
+        setStage('revealed');
+        playSound(revealSoundForBest(opened.cards.map(card => albumCard(card.id)?.rarity ?? 'bronze')));
+      })
       .catch(cause => {
         setError(cause instanceof Error ? cause.message : 'Não foi possível abrir agora.');
         setCutProgress(0);
@@ -175,6 +140,7 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
   const next = () => {
     setIndex(value => value + 1);
     setResult(null);
+    setStaged(false);
     setCutProgress(0);
     setStage('sealed');
   };
@@ -203,8 +169,6 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
   if (!itemKey || !parsed) return null;
   const cards = result?.cards ?? [];
   const newCount = cards.filter(card => card.isNew).length;
-  // Three per row on phones (two rows for a pack), even at 360px.
-  const cardScale = narrow ? (cards.length > 2 ? (window.innerWidth < 400 ? .46 : .5) : .62) : .74;
 
   return createPortal(
     <div
@@ -267,10 +231,6 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
                   {cards.length - newCount > 0 ? 'As cartas repetidas ficam guardadas: use uma para subir o nível ou venda por moedas.' : 'Já adicionadas ao seu álbum.'}
                 </p>
               </div>
-              {/* Keep the wrapped rows' full height so flex shrinking cannot move the buttons over the last card. */}
-              <div className="flex w-full shrink-0 flex-wrap items-start justify-center gap-x-3 gap-y-6 sm:gap-x-5">
-                {cards.map((card, i) => <RevealedCard key={`${card.id}-${i}`} id={card.id} isNew={card.isNew} index={i} scale={cardScale} />)}
-              </div>
               {result && result.pageRewards.length > 0 ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .4 + cards.length * .32 }} className="mt-8 flex w-full max-w-[520px] shrink-0 flex-col gap-3">
                   {result.pageRewards.map(reward => <PageRewardCard key={reward.pageId} reward={reward} />)}
@@ -293,6 +253,16 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
             </Button>
           </div>
         </footer>
+      ) : null}
+      {staged && result ? (
+        <BannerGachaReveal
+          skipCharge
+          onClose={() => setStaged(false)}
+          draws={{
+            cards: result.cards.map(card => ({ card, rarity: albumCard(card.id)?.rarity ?? 'bronze', pityTriggered: false })),
+            dayStart: '', price: 0, pageRewards: [],
+          }}
+        />
       ) : null}
     </div>,
     document.body,

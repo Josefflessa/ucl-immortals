@@ -12,6 +12,7 @@ import StyledName from './StyledName';
 import FramedAvatar from './AvatarFrame';
 import { EventsHomeButton } from './GameEvents';
 import DailyRewardsHomeButton from './DailyRewards';
+import SoundControl from './SoundControl';
 
 function incomingIdentity(friendship: FriendshipEntry, accountId: string) {
   return friendship.requester_id === accountId
@@ -244,6 +245,7 @@ export default function AccountHeader() {
             </Button>
             <EventsHomeButton pending={pendingEvents} onOpen={() => dispatch({ type: 'SET_PHASE', phase: 'events' })} />
             <DailyRewardsHomeButton />
+            <SoundControl />
           </div>
 
           <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { playSound } from '../../audio/uiSound';
 import { Check, DoorOpen, X } from 'lucide-react';
 import { useAccount, type RoomInvitationEntry } from '../../contexts/AccountContext';
 import { useGame } from '../../contexts/GameContext';
@@ -99,6 +100,7 @@ export default function RoomInvitationPrompt() {
 
   useEffect(() => {
     if (!invitation) return;
+    playSound('notify');
     setStep('invite');
     setTeamName('');
     setError('');

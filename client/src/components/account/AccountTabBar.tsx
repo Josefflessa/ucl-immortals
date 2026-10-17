@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { House, ShoppingBag, Trophy, Users } from 'lucide-react';
+import { playSound } from '../../audio/uiSound';
 import { Button } from '../../design-system';
 import { useAccount } from '../../contexts/AccountContext';
 import type { AccountSection } from '../../contexts/GameContext';
@@ -22,6 +24,13 @@ const NAV_ITEMS: Array<{ id: AccountNavigationTab; label: string; ariaLabel: str
 export default function AccountTabBar({ active, incomingFriendRequestCount = 0, onNavigate }: AccountTabBarProps) {
   const { unreadMessageCount } = useAccount();
   const friendsBadgeCount = incomingFriendRequestCount + unreadMessageCount;
+  // A new friend request or message while you are here gets a soft cue (not what was already waiting).
+  const seen = useRef({ requests: incomingFriendRequestCount, messages: unreadMessageCount });
+  useEffect(() => {
+    if (unreadMessageCount > seen.current.messages) playSound('message');
+    else if (incomingFriendRequestCount > seen.current.requests) playSound('notify');
+    seen.current = { requests: incomingFriendRequestCount, messages: unreadMessageCount };
+  }, [incomingFriendRequestCount, unreadMessageCount]);
   const friendsLabel = [
     incomingFriendRequestCount > 0 ? `${incomingFriendRequestCount} ${incomingFriendRequestCount === 1 ? 'solicitação recebida' : 'solicitações recebidas'}` : '',
     unreadMessageCount > 0 ? `${unreadMessageCount} ${unreadMessageCount === 1 ? 'mensagem não lida' : 'mensagens não lidas'}` : '',

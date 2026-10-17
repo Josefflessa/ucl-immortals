@@ -1,6 +1,7 @@
 // UCL Immortals — Menu Page
 // Design: Dark Premium Gaming UI — hero with stadium background, gold accents
 
+import SoundControl from '../components/account/SoundControl';
 import AccountAvatar from '../components/account/AccountAvatar';
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -465,6 +466,7 @@ export default function MenuPage() {
       {/* Content */}
       {!account ? (
         <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-end gap-2 sm:inset-x-6 sm:top-6">
+          <SoundControl />
           <div className="shrink-0">
             <Button
               type="button"

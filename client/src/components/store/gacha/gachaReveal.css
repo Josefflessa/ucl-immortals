@@ -1,0 +1,119 @@
+/* Banner reveal: the summoning circle, the burst and the card backs. Transform and opacity only. */
+
+.gacha-root { isolation: isolate; contain: layout paint; }
+
+/* Stars: an oversized tiled layer moved by transform only (compositor, no repaint). Each loop is a whole number of tiles, so it is seamless. */
+.gacha-stars {
+  position: absolute; left: 0; top: 0; width: calc(100% + 520px); height: calc(100% + 480px); opacity: .75; pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 20px 30px, #fff, transparent),
+    radial-gradient(1px 1px at 90px 120px, rgba(255,255,255,.6), transparent),
+    radial-gradient(1.5px 1.5px at 160px 60px, #fff, transparent),
+    radial-gradient(1px 1px at 230px 170px, rgba(255,255,255,.55), transparent),
+    radial-gradient(1px 1px at 60px 200px, rgba(255,255,255,.5), transparent);
+  background-size: 260px 240px;
+  will-change: transform;
+  animation: gacha-drift 90s linear infinite;
+}
+.gacha-stars--far { width: calc(100% + 760px); height: calc(100% + 680px); opacity: .4; background-size: 380px 340px; animation-name: gacha-drift-far; animation-duration: 160s; }
+@keyframes gacha-drift { to { transform: translate3d(-520px, -480px, 0); } }
+@keyframes gacha-drift-far { to { transform: translate3d(-760px, -680px, 0); } }
+
+/* Particles pulled into the orb while it charges, and thrown out by the burst. */
+.gacha-particle {
+  position: absolute; left: 50%; top: 50%; width: var(--s, 4px); height: var(--s, 4px);
+  margin: calc(var(--s, 4px) / -2); border-radius: 50%; background: var(--c);
+  box-shadow: 0 0 6px var(--c); opacity: 0; pointer-events: none; will-change: transform, opacity;
+}
+.gacha-particle--in { animation: gacha-in var(--d, 1.4s) cubic-bezier(.45, 0, .9, .45) var(--delay, 0s) infinite; }
+.gacha-particle--out { animation: gacha-out var(--d, 1s) cubic-bezier(.1, .75, .3, 1) var(--delay, 0s) forwards; }
+@keyframes gacha-in {
+  0% { transform: translate(var(--x), var(--y)) scale(1); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(0, 0) scale(.2); opacity: 0; }
+}
+@keyframes gacha-out {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--x), var(--y)) scale(0); opacity: 0; }
+}
+
+/* Shockwave ring. */
+.gacha-shock {
+  position: absolute; left: 50%; top: 50%; width: 520px; height: 520px; margin: -260px;
+  border-radius: 50%; border: 4px solid var(--c); opacity: 0; pointer-events: none; will-change: transform, opacity;
+  box-shadow: 0 0 22px var(--c), inset 0 0 22px var(--c);
+  animation: gacha-shock var(--d, 1.1s) cubic-bezier(.12, .7, .3, 1) var(--delay, 0s) forwards;
+}
+@keyframes gacha-shock {
+  0% { transform: scale(.12); opacity: .95; }
+  100% { transform: scale(var(--to, 1.5)); opacity: 0; }
+}
+
+/* Light rays behind the card. */
+.gacha-rays { position: absolute; left: 50%; top: 50%; width: min(125vmax, 1300px); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; }
+.gacha-rays__spin {
+  width: 100%; height: 100%; opacity: var(--o, .4); will-change: transform;
+  background: repeating-conic-gradient(from 0deg, var(--c) 0deg 3deg, transparent 3deg 15deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0, rgba(0,0,0,.6) 22%, transparent 60%);
+  mask-image: radial-gradient(circle, #000 0, rgba(0,0,0,.6) 22%, transparent 60%);
+  animation: gacha-spin 60s linear infinite;
+}
+.gacha-rays__spin--accent { background: repeating-conic-gradient(from 7deg, var(--a) 0deg 2deg, transparent 2deg 15deg); animation-duration: 90s; animation-direction: reverse; opacity: calc(var(--o, .4) * .8); }
+@keyframes gacha-spin { to { transform: rotate(360deg); } }
+
+/* The rings of the summoning circle. */
+.gacha-ring { transform-origin: 50% 50%; will-change: transform; }
+.gacha-ring--a { animation: gacha-spin 14s linear infinite; }
+.gacha-ring--b { animation: gacha-spin 9s linear infinite reverse; }
+.gacha-ring--c { animation: gacha-spin 22s linear infinite; }
+
+/* Screen shake at a big burst. */
+.gacha-shake { animation: gacha-shake .5s cubic-bezier(.36, .07, .19, .97) both; will-change: transform; }
+@keyframes gacha-shake {
+  10%, 90% { transform: translate3d(-2px, 1px, 0); }
+  20%, 80% { transform: translate3d(4px, -2px, 0); }
+  30%, 50%, 70% { transform: translate3d(-7px, 3px, 0); }
+  40%, 60% { transform: translate3d(7px, -3px, 0); }
+}
+
+/* Face-down card: a dark plate with a slow diagonal sheen. */
+.gacha-back {
+  overflow: hidden; border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255,255,255,.07) 0, transparent 55%),
+    linear-gradient(160deg, #1B1E33 0%, #0E1020 55%, #171A2E 100%);
+  border: 2px solid rgba(255,255,255,.14);
+  box-shadow: 0 8px 22px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.04);
+}
+.gacha-back::before {
+  content: ''; position: absolute; inset: 7%; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 6px, transparent 6px 12px);
+}
+.gacha-back::after {
+  content: ''; position: absolute; top: -20%; bottom: -20%; width: 40%; left: 0;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.14), transparent);
+  transform: translateX(-150%) skewX(-18deg); will-change: transform; animation: gacha-sheen 3.6s ease-in-out infinite;
+}
+.gacha-back[data-flipped="true"]::after { animation: none; }
+@keyframes gacha-sheen { 0%, 55% { transform: translateX(-150%) skewX(-18deg); } 100% { transform: translateX(380%) skewX(-18deg); } }
+
+/* The card floating a little once it has landed: transform only, on the compositor. */
+.gacha-float { animation: gacha-float 4.2s ease-in-out 1.4s infinite; will-change: transform; }
+@keyframes gacha-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .gacha-stars, .gacha-rays__spin, .gacha-ring, .gacha-back::after, .gacha-float { animation: none; }
+  .gacha-shake { animation: none; }
+  .gacha-shock { display: none; }
+  .gacha-particle--in { animation: none; opacity: .6; }
+}
+
+/* Scrolling areas inside the reveal keep their scroll but not the bar. */
+.gacha-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.gacha-scroll::-webkit-scrollbar { display: none; }
+
+/* A pack about to give way: a faint, fast tremble. */
+.gacha-tremble { animation: gacha-tremble .09s linear infinite; will-change: transform; }
+@keyframes gacha-tremble { 0% { transform: translate(0, 0); } 25% { transform: translate(-1.2px, .6px); } 50% { transform: translate(.8px, -.8px); } 75% { transform: translate(-.6px, -.4px); } 100% { transform: translate(0, 0); } }
+@media (prefers-reduced-motion: reduce) { .gacha-tremble { animation: none; } }

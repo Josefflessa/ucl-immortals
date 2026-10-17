@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { playSound, revealSoundFor } from '../../audio/uiSound';
+import { Particles, PlayerRevealOverlay } from '../store/gacha/BannerGachaReveal';
+import '../store/gacha/gachaReveal.css';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Scissors, X } from 'lucide-react';
 import type { Player } from '@shared/game/gameData';
@@ -38,14 +41,25 @@ export function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPoi
   const accent = PLAYER_PACK_META[rarity].color;
   const src = `/packs/${rarity}.webp`;
   return (
-    <div className="relative h-full w-full select-none">
-      {/* Glow of the rarity behind the pack. */}
-      <div aria-hidden="true" className="pointer-events-none absolute -inset-[18%] -z-[1] rounded-full blur-3xl" style={{ background: `radial-gradient(circle, ${accent}55 0%, ${accent}1F 38%, transparent 70%)` }} />
+    <div className={`relative h-full w-full select-none ${cutProgress > 55 && !isTearing ? 'gacha-tremble' : ''}`}>
+      {/* Glow of the rarity behind the pack: it brightens as the tear goes on. */}
+      <div aria-hidden="true" className="pointer-events-none absolute -inset-x-[60%] -inset-y-[24%] -z-[1]" style={{ background: `radial-gradient(closest-side, ${accent}66 0%, ${accent}30 40%, ${accent}12 68%, transparent 100%)`, opacity: 0.45 + cutProgress * 0.0055, transition: 'opacity .15s linear' }} />
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-5 left-[6%] right-[6%] h-8 rounded-[50%]" style={{ background: 'radial-gradient(ellipse, rgba(0,0,0,.55) 0%, transparent 70%)' }} />
 
       {/* Body: everything below the tear line. */}
       {art
-        ? <div className="pointer-events-none absolute inset-0" style={{ clipPath: `inset(${tearAt}% 0 0 0)`, filter: 'drop-shadow(0 24px 40px rgba(0,0,0,.55))' }}>{art}</div>
-        : <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-fill" style={{ clipPath: `inset(${tearAt}% 0 0 0)`, filter: 'drop-shadow(0 24px 40px rgba(0,0,0,.55))' }} />}
+        ? <div className="pointer-events-none absolute inset-0" style={{ clipPath: `inset(${tearAt}% 0 0 0)` }}>{art}</div>
+        : <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-fill" style={{ clipPath: `inset(${tearAt}% 0 0 0)` }} />}
+
+      {/* The tear opening behind the finger: a seam of light that grows with the swipe. */}
+      {cutProgress > 0 && !isTearing ? (
+        <div aria-hidden="true" className="pointer-events-none absolute left-[3%] z-[2] h-[3px] rounded-full" style={{ top: `${tearAt}%`, width: `${cutProgress * 0.94}%`, background: `linear-gradient(90deg, ${accent}00, #FFFFFF 60%, ${accent})`, boxShadow: `0 0 14px ${accent}` }} />
+      ) : null}
+      {isTearing ? (
+        <div aria-hidden="true" className="pointer-events-none absolute left-0 z-[3] h-0 w-full" style={{ top: `${tearAt}%` }}>
+          <Particles count={18} color={accent} mode="out" seed={7} spread={190} />
+        </div>
+      ) : null}
 
       {/* Light escaping from the opened pack. */}
       <AnimatePresence>
@@ -116,9 +130,11 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
     setCutProgress(100);
     setCutStartX(null);
     setIsTearing(true);
+    playSound('packTear');
     tearTimer.current = window.setTimeout(() => {
       setIsTearing(false);
       setStage('revealed');
+      playSound(revealSoundFor(card.rarity));
     }, 900);
   };
 
@@ -128,6 +144,7 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
     setCutStartX(null);
     setIsTearing(false);
     setStage('revealed');
+    playSound(revealSoundFor(card.rarity));
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
@@ -199,20 +216,9 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
             </motion.section>
           )}
 
-          {stage === 'revealed' && (
-            <motion.section key="revealed" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="flex w-full flex-col items-center">
-              <div className="mb-4 text-[13px] font-bold tracking-[0.24em]" style={{ color: accent, fontFamily: 'var(--font-game), sans-serif' }}>CARTA {meta.label} REVELADA</div>
-              <motion.div initial={{ rotateY: 90, scale: .82, opacity: 0 }} animate={{ rotateY: 0, scale: 1, opacity: 1 }} transition={{ duration: .78, ease: [0.22, 1, 0.36, 1] }} className="mx-auto flex w-fit justify-center" style={{ perspective: 1200 }}>
-                <PlayerCard player={card} lite scale={1.18} />
-              </motion.div>
-              <p className="mx-auto mt-5 max-w-[330px] text-center text-xs leading-relaxed" style={{ color: MUTED, fontFamily: 'var(--font-game), sans-serif' }}>Esta carta foi reservada para o seu time. Adicione-a ao banco para concluir.</p>
-              <Button type="button" intent="primary" size="large" onClick={onClaim} className="mx-auto mt-5 flex w-full max-w-[420px] items-center justify-center gap-2" style={{ minHeight: 70, borderRadius: 14, fontSize: 24, boxShadow: `0 16px 36px ${accent}33` }}>
-                ADICIONAR AO BANCO <ArrowRight size={17} />
-              </Button>
-            </motion.section>
-          )}
         </AnimatePresence>
       </main>
+      {stage === 'revealed' ? <PlayerRevealOverlay player={card} ctaLabel="ADICIONAR AO BANCO" onCta={onClaim} note="Esta carta foi reservada para o seu time. Adicione-a ao banco para concluir." /> : null}
     </div>
   );
 }

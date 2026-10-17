@@ -1,6 +1,7 @@
 // UCL Immortals — achievements and the profile showcase (mural).
 // Pure presentation: every value comes from the server payload.
 
+import { useSoundOnMount } from '../../audio/uiSound';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   Activity, Award, BadgeCheck, BrickWall, CalendarCheck, CalendarDays, Castle, ChartColumnIncreasing, Check, ChevronsUp,
@@ -551,6 +552,7 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
 export function UnlockedAchievements({ unlocks }: { unlocks: Array<{ id: string; level: number }> }) {
   const [open, setOpen] = useState(false);
   const shown = unlocks.filter(unlock => ACHIEVEMENT_BY_ID.has(unlock.id) && tierForLevel(unlock.level));
+  useSoundOnMount(shown.length > 0 ? 'achievement' : null);
   if (shown.length === 0) return null;
   // Highest levels first, so the summary row shows the best medals.
   const sorted = [...shown].sort((a, b) => b.level - a.level);

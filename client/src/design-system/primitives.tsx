@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
 import * as React from 'react';
 import { cn } from '../lib/utils';
+import { useSoundOnMount } from '../audio/uiSound';
 
 type UiTone = 'default' | 'accent' | 'inset' | 'live';
 export type UiIntent = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'info';
@@ -147,6 +148,8 @@ export function Badge({ tone = 'default', className, children, ...props }: HTMLA
 }
 
 export function StatusBanner({ tone = 'default', title, children, className, ...props }: HTMLAttributes<HTMLDivElement> & { tone?: 'default' | 'success' | 'warning' | 'danger' | 'live'; title?: string }) {
+  // A banner that appears tells you what happened: a soft cue for the two kinds that matter.
+  useSoundOnMount(tone === 'danger' ? 'error' : tone === 'success' ? 'success' : null);
   return <div className={cn('ui-status', tone !== 'default' && `ui-status--${tone}`, className)} {...props}>{title ? <strong>{title}</strong> : null}{children ? <span>{children}</span> : null}</div>;
 }
 

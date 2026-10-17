@@ -3,6 +3,18 @@
  * uses. The match plays the files in /sounds; the options are in /sounds/options.
  */
 import { matchAudio, type MatchSound } from '../../audio/matchAudio';
+import { playSound, UI_SOUND_NAMES, type UiSound } from '../../audio/uiSound';
+
+/** The interface sounds, by family (all synthesised: nothing to download). */
+const UI_GROUPS: { title: string; sounds: UiSound[] }[] = [
+  { title: 'Interface', sounds: ['tap', 'select', 'tab', 'confirm', 'back', 'toggleOn', 'toggleOff'] },
+  { title: 'Avisos', sounds: ['error', 'success', 'notify', 'message'] },
+  { title: 'Moedas e recompensas', sounds: ['coin', 'spend', 'claim', 'achievement'] },
+  { title: 'Pacotes de cartas', sounds: ['packTear', 'revealBronze', 'revealSilver', 'revealGold', 'revealLegendary', 'revealImmortal'] },
+  { title: 'Título', sounds: ['champion'] },
+];
+// Anything added to the catalogue but not grouped above still shows up.
+const UNGROUPED = UI_SOUND_NAMES.filter(name => !UI_GROUPS.some(group => group.sounds.includes(name)));
 
 const SOUNDS: { name: string; file: string; label: string; options: string[] }[] = [
   { name: 'Torcida de fundo (loop)', file: 'torcida', label: 'Constante durante a partida', options: ['a', 'b'] },
@@ -33,6 +45,14 @@ export default function SoundsPage() {
           <button key={e.sound} type="button" className={button} onClick={() => { void matchAudio.load().then(() => matchAudio.play(e.sound)); }}>▶ {e.label}</button>
         ))}
       </div>
+      {[...UI_GROUPS, ...(UNGROUPED.length ? [{ title: 'Outros', sounds: UNGROUPED }] : [])].map(group => (
+        <div key={group.title} className="mb-4 max-w-3xl">
+          <div className="mb-2 text-xs font-black tracking-widest text-yellow-400">{group.title.toUpperCase()}</div>
+          <div className="flex flex-wrap gap-2">
+            {group.sounds.map(name => <button key={name} type="button" data-sound="none" className={button} onClick={() => playSound(name)}>{name}</button>)}
+          </div>
+        </div>
+      ))}
       <div className="grid max-w-3xl gap-3">
         {SOUNDS.map(s => (
           <div key={s.file} className="rounded-xl border border-white/10 bg-white/5 p-3">

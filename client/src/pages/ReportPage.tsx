@@ -1,6 +1,7 @@
 // UCL Immortals — Championship End Screen
 // Cinematic celebration / campaign summary after the tournament
 
+import { playSound } from '../audio/uiSound';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Armchair, ArrowLeft, Home, Medal, Trophy, Zap } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -153,6 +154,13 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const knockoutBracket = state.knockoutBracket;
 
   const isChampion = champion === localTeamId;
+  // The title is worth a fanfare, once, when the live report opens (not when browsing history).
+  const titleSounded = useRef(false);
+  useEffect(() => {
+    if (titleSounded.current || historySnapshot || partialReport || !isChampion) return;
+    titleSounded.current = true;
+    playSound('champion');
+  }, [historySnapshot, partialReport, isChampion]);
 
   const formation = FORMATIONS.find(f => f.id === playerTeam?.formationId);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];

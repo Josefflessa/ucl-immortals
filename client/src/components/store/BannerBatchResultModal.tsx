@@ -1,48 +1,7 @@
-import { Check, Copy, Sparkles } from 'lucide-react';
-import { getRarityColor } from '@shared/game/gameData';
-import type { AlbumLevel } from '@shared/game/album';
-import { GameModal } from '../../design-system';
-import { useAlbum, type BannerBatchResult } from '../../contexts/AlbumContext';
-import PlayerCard from '../game/PlayerCard';
-import { albumCard, RARITY_LABEL, stickerLevel } from '../album/albumData';
+import type { BannerBatchResult } from '../../contexts/AlbumContext';
+import BannerGachaReveal from './gacha/BannerGachaReveal';
 
+/** The result of a banner draw, staged as a summoning (see BannerGachaReveal). */
 export default function BannerBatchResultModal({ draws, onClose }: { draws: BannerBatchResult | null; onClose: () => void }) {
-  const { album } = useAlbum();
-
-  return (
-    <GameModal
-      open={draws !== null}
-      onOpenChange={open => { if (!open) onClose(); }}
-      size="wide"
-      title={draws ? `${draws.cards.length} ${draws.cards.length === 1 ? 'carta recebida' : 'cartas recebidas'}` : 'Resultado do sorteio'}
-      closeLabel="Fechar resultado dos sorteios"
-    >
-      {draws ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 justify-items-center gap-x-2 gap-y-4 sm:grid-cols-3 md:grid-cols-5" aria-label="Cartas sorteadas">
-            {draws.cards.map((draw, index) => {
-              const player = albumCard(draw.card.id);
-              if (!player) return null;
-              const isNew = draw.card.isNew;
-              const rarityColor = getRarityColor(draw.rarity);
-              return (
-                <article key={`${draw.card.id}:${index}`} className="flex min-w-0 flex-col items-center text-center">
-                  <div className="relative">
-                    <PlayerCard player={player} lite scale={draws.cards.length === 1 ? 0.72 : 0.42} albumLevel={stickerLevel(album, player.id) > 0 ? stickerLevel(album, player.id) as AlbumLevel : undefined} />
-                    <span className="absolute left-1/2 top-0 z-[5] inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-bold tracking-[0.08em] text-[#0B0C12] shadow-lg" style={{ backgroundColor: isNew ? '#7BD88F' : '#E9C46A' }}>
-                      {isNew ? <Sparkles size={10} aria-hidden="true" /> : <Copy size={10} aria-hidden="true" />}{isNew ? 'NOVA' : 'REPETIDA'}
-                    </span>
-                  </div>
-                  <span className="mt-1.5 w-full truncate text-[11px] font-bold text-[var(--ui-text)]">{player.shortName}</span>
-                  <span className="mt-0.5 text-[10px] font-semibold" style={{ color: rarityColor }}>{RARITY_LABEL[draw.rarity]}</span>
-                  {draw.pityTriggered ? <span className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-[var(--ui-brand-strong)]"><Check size={10} aria-hidden="true" /> Garantida</span> : null}
-                </article>
-              );
-            })}
-          </div>
-          {draws.pageRewards.length > 0 ? <p className="rounded-lg border border-[var(--ui-success)]/25 bg-[var(--ui-success)]/[.06] px-3 py-2 text-xs text-[var(--ui-success)]">{draws.pageRewards.length} {draws.pageRewards.length === 1 ? 'página do álbum concluída' : 'páginas do álbum concluídas'}.</p> : null}
-        </div>
-      ) : null}
-    </GameModal>
-  );
+  return draws && draws.cards.length > 0 ? <BannerGachaReveal draws={draws} onClose={onClose} /> : null;
 }

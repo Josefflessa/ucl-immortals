@@ -5,6 +5,7 @@ import type { AchievementLevel, ShowcaseItem } from '@shared/game/achievements';
 import type { ItemGrant } from './AlbumContext';
 import type { AlbumSummary } from '../components/album/ProfileAlbumSummary';
 import type { SoloSave } from '../lib/soloSave';
+import { playSound, soundForRequest } from '../audio/uiSound';
 
 export interface AchievementState {
   id: string;
@@ -459,6 +460,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw withStatus(`Não foi possível concluir essa ação (erro ${response.status}).`);
   }
+  const sound = soundForRequest(init?.method, path);
+  if (sound) playSound(sound);
   return body;
 }
 
