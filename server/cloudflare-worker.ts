@@ -1,5 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { RoomPlayerProfile } from '../shared/profileAppearance.js';
 import {
   createGameRuntime,
   armRoomWatchdog,
@@ -83,6 +84,7 @@ interface SocketAttachment {
   socketId: string;
   accountId?: string;
   eventCardIds?: string[];
+  profile?: RoomPlayerProfile;
   /** Durable Object identity, retained even before a player joins the game. */
   roomCode?: string;
   /** Socket.IO-style room membership; absent until join_room/create_room succeeds. */
@@ -297,6 +299,7 @@ class DurableSocket implements RealtimeSocket {
   private lastSeenAt: number;
   readonly accountId?: string;
   readonly eventCardIds?: string[];
+  readonly profile?: RoomPlayerProfile;
   verifiedAlbumLevelSnapshot?: Partial<Record<string, 1 | 2 | 3 | 4 | 5>>;
   verifiedAlbumPageBonusSnapshot?: Partial<Record<string, 3>>;
 
@@ -308,11 +311,13 @@ class DurableSocket implements RealtimeSocket {
     attachment?: SocketAttachment,
     accountId?: string,
     eventCardIds?: string[],
+    profile?: RoomPlayerProfile,
   ) {
     this.joinedRoomCode = attachment?.joinedRoomCode;
     this.lastSeenAt = Number.isFinite(attachment?.lastSeenAt) ? attachment!.lastSeenAt! : Date.now();
     this.accountId = accountId ?? attachment?.accountId;
     this.eventCardIds = eventCardIds ?? attachment?.eventCardIds;
+    this.profile = profile ?? attachment?.profile;
   }
 
   getLastSeenAt(): number {
@@ -471,16 +476,16 @@ class DurableRealtimeServer implements RealtimeServer {
     };
   }
 
-  attach(webSocket: WebSocket, roomCode: string, restored = false, accountId?: string, eventCardIds?: string[]): DurableSocket {
+  attach(webSocket: WebSocket, roomCode: string, restored = false, accountId?: string, eventCardIds?: string[], profile?: RoomPlayerProfile): DurableSocket {
     const attachment = webSocket.deserializeAttachment() as SocketAttachment | null;
     const socketId = attachment?.socketId || crypto.randomUUID();
-    const socket = new DurableSocket(socketId, webSocket, this, roomCode, attachment ?? undefined, accountId, eventCardIds);
+    const socket = new DurableSocket(socketId, webSocket, this, roomCode, attachment ?? undefined, accountId, eventCardIds, profile);
     this.byWebSocket.set(webSocket, socket);
     this.sockets.sockets.set(socketId, socket);
     socket.restoreMembership();
     this.connectionHandlers.forEach((handler) => handler(socket));
     if (!restored) {
-      webSocket.serializeAttachment({ socketId, roomCode, accountId: socket.accountId, eventCardIds: socket.eventCardIds, lastSeenAt: socket.getLastSeenAt() } satisfies SocketAttachment);
+      webSocket.serializeAttachment({ socketId, roomCode, accountId: socket.accountId, eventCardIds: socket.eventCardIds, profile: socket.profile, lastSeenAt: socket.getLastSeenAt() } satisfies SocketAttachment);
       webSocket.send(encodeRealtimeMessage({ type: 'system', event: 'connected', socketId }));
     }
     return socket;
@@ -579,13 +584,24 @@ export class GameRoom {
       this.state.acceptWebSocket(server);
       let accountId: string | undefined;
       let eventCardIds: string[] | undefined;
+      let profile: RoomPlayerProfile | undefined;
       try {
-        accountId = (await authenticatedAccount(request, this.env))?.id;
+        const account = await authenticatedAccount(request, this.env);
+        accountId = account?.id;
+        if (account) {
+          profile = {
+            avatarKey: account.avatarKey,
+            avatarUrl: account.avatarUrl,
+            avatarBackgroundKey: account.avatarBackgroundKey,
+            avatarFrameKey: account.avatarFrameKey,
+            nameStyleKey: account.nameStyleKey,
+          };
+        }
         if (accountId) eventCardIds = await loadOwnedEventCards(this.env.DB, accountId);
       } catch {
         // Account identity is additive. A temporary D1 issue must not block guests.
       }
-      runWithGameRuntime(this.runtime, () => this.server.attach(server, roomCode, false, accountId, eventCardIds));
+      runWithGameRuntime(this.runtime, () => this.server.attach(server, roomCode, false, accountId, eventCardIds, profile));
       return new Response(null, { status: 101, webSocket: client });
     });
   }

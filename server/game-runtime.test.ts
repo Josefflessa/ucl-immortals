@@ -1,3 +1,4 @@
+import type { RoomPlayerProfile } from '../shared/profileAppearance.js';
 import { describe, expect, it } from 'vitest';
 import { createGameRuntime, registerSocketHandlers, runGameTimer, runWithGameRuntime } from './handlers';
 import type { RealtimeEventHandler, RealtimeServer, RealtimeSocket } from './realtime';
@@ -43,6 +44,8 @@ class FakeServer implements RealtimeServer {
 }
 
 class FakeSocket implements RealtimeSocket {
+  accountId?: string;
+  profile?: RoomPlayerProfile;
   readonly sent: Array<{ event: string; payload?: unknown }> = [];
   private readonly handlers = new Map<string, RealtimeEventHandler>();
 
@@ -158,6 +161,33 @@ describe('game runtime isolation', () => {
     const joinedPayload = guest.sent.find(message => message.event === 'joined_room')?.payload as any;
     const ownView = joinedPayload.roomState.players.find((player: any) => player.name === 'Bruno');
     expect(ownView.clientId).toBe('bruno-secret');
+  });
+
+  it('shows the public look of each account (avatar, frame, name style) to the other players, never to guests', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    const profile = { avatarKey: 'default-1', avatarUrl: null, avatarBackgroundKey: 'ocean', avatarFrameKey: 'genese', nameStyleKey: null };
+    host.accountId = 'usr_host';
+    host.profile = profile;
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+
+    runWithGameRuntime(runtime, () => host.receive('create_room', {
+      roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice',
+    }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+
+    const joined = guest.sent.find(message => message.event === 'joined_room')?.payload as any;
+    const hostInGuestView = joined.roomState.players.find((player: any) => player.name === 'Alice');
+    const guestInGuestView = joined.roomState.players.find((player: any) => player.name === 'Bruno');
+    expect(hostInGuestView.profile).toEqual(profile);
+    expect(hostInGuestView.accountId).toBeUndefined();
+    expect(guestInGuestView.profile).toBeUndefined();
   });
 
   it('rejects empty or oversized player names before creating a room', () => {

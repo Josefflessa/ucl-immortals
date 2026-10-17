@@ -1,3 +1,4 @@
+import type { RoomPlayerProfile } from '@shared/profileAppearance';
 // Game phases, state shape, actions and the initial state.
 
 import { Player, type PlayerSpecialization } from '@shared/game/gameData';
@@ -47,6 +48,8 @@ export interface RoomPlayer {
   kicked?: boolean; // removido pelo anfitrião; não pode reconectar nesta sala
   id: string; // e.g. "player_0"
   name: string;
+  /** Public look of the player's account (absent for guests). */
+  profile?: RoomPlayerProfile | null;
   crestId?: string | null; // selected club crest
   coachId: string;
   formationId: string;

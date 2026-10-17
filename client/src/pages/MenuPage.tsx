@@ -1,6 +1,7 @@
 // UCL Immortals — Menu Page
 // Design: Dark Premium Gaming UI — hero with stadium background, gold accents
 
+import AccountAvatar from '../components/account/AccountAvatar';
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Gamepad2, Medal, Play, Trophy, Plus, LogIn, LibraryBig, Send, UserRound, Users } from 'lucide-react';
@@ -284,12 +285,24 @@ export default function MenuPage() {
                 {state.onlinePlayers.map(p => (
                   <div 
                     key={p.id} 
-                    className="flex items-center justify-between p-2.5 rounded-lg border" 
+                    className="flex items-center justify-between gap-3 p-2.5 rounded-lg border" 
                     style={{ background: '#08080f', borderColor: '#171725' }}
                   >
-                    <span className="font-bold text-white text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                      {p.name} {p.socketId === state.socketId && <span className="text-xs text-primary font-normal">(Você)</span>}
-                    </span>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {p.profile ? (
+                        <AccountAvatar
+                          name={p.name}
+                          avatarKey={p.profile.avatarKey}
+                          avatarUrl={p.profile.avatarUrl}
+                          backgroundKey={p.profile.avatarBackgroundKey}
+                          frameKey={p.profile.avatarFrameKey}
+                          sizeClassName="size-11"
+                        />
+                      ) : null}
+                      <span className="min-w-0 truncate font-bold text-white text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                        {p.profile?.nameStyleKey ? <StyledName name={p.name} styleKey={p.profile.nameStyleKey} size="sm" /> : p.name} {p.socketId === state.socketId && <span className="text-xs text-primary font-normal">(Você)</span>}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                       <span className="text-[12px] text-green-500 font-bold uppercase tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>

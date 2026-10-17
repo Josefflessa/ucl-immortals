@@ -1,3 +1,12 @@
+/** The public look of an account, shown next to its player in an online room. */
+export interface RoomPlayerProfile {
+  avatarKey: string;
+  avatarUrl: string | null;
+  avatarBackgroundKey: string;
+  avatarFrameKey: string | null;
+  nameStyleKey: string | null;
+}
+
 export const PROFILE_AVATAR_BACKGROUNDS = [
   { key: 'graphite', label: 'Grafite', color: '#252737' },
   { key: 'ocean', label: 'Azul oceano', color: '#1d3f58' },

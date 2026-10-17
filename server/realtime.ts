@@ -1,3 +1,4 @@
+import type { RoomPlayerProfile } from "../shared/profileAppearance.js";
 /**
  * Minimal transport contract used by the online game rules.
  *
@@ -14,6 +15,8 @@ export interface RealtimeSocket {
   accountId?: string;
   /** Event Únicas that account unlocked (its personal Pacote Único pool), loaded with the session. */
   eventCardIds?: string[];
+  /** Public look (avatar, frame, name style) of that account, loaded with the session. */
+  profile?: RoomPlayerProfile;
   /** Server-verified Album levels used only while freezing a competition roster. */
   verifiedAlbumLevelSnapshot?: Partial<Record<string, 1 | 2 | 3 | 4 | 5>>;
   /** Server-verified completed-page bonuses used when locking cards for a competition. */

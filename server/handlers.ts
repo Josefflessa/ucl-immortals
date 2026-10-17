@@ -1,3 +1,4 @@
+import type { RoomPlayerProfile } from "../shared/profileAppearance.js";
 import type { RealtimeServer, RealtimeSocket } from "./realtime.js";
 
 // Import game engine functions
@@ -89,6 +90,8 @@ export interface RoomPlayer {
   socketId: string;
   /** Authenticated account identity; omitted for guest players. */
   accountId?: string;
+  /** Public look of that account (avatar, frame, name style), shown in the room's player list. */
+  profile?: RoomPlayerProfile;
   /** Event Únicas of that account: they join its Pacote Único pool. */
   eventUniqueIds?: string[];
   clientId?: string; // identidade persistente do cliente (reconexão robusta, mesmo entre refreshes)
@@ -1758,6 +1761,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
           {
             socketId: socket.id,
             accountId: socket.accountId,
+            profile: socket.profile,
             eventUniqueIds: socket.eventCardIds,
             clientId,
             id: 'player_0',
@@ -1864,6 +1868,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
         byClient.socketId = socket.id;
         byClient.accountId = socket.accountId;
         byClient.eventUniqueIds = socket.eventCardIds;
+        byClient.profile = socket.profile;
         byClient.connected = true;
         cancelRoomCleanup(code);
         scheduleRoomWatchdog(io, room);
@@ -1900,6 +1905,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const newPlayer: RoomPlayer = {
         socketId: socket.id,
         accountId: socket.accountId,
+        profile: socket.profile,
         eventUniqueIds: socket.eventCardIds,
         clientId,
         id: `player_${room.players.length}`,
