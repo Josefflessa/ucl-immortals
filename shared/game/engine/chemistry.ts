@@ -13,7 +13,7 @@ import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, 
 
 // Playing in the coach's preferred formation gels the side: a flat bonus to the team's
 // TOTAL chemistry, which can push it into a higher global-bonus tier (passe/ritmo/especial).
-export const PREFERRED_FORMATION_CHEM_BONUS = 8;
+export const PREFERRED_FORMATION_CHEM_BONUS = 10;
 
 export function calculateChemistry(
   players: Player[],

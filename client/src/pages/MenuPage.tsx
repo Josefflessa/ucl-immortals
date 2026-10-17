@@ -770,9 +770,12 @@ export default function MenuPage() {
         </div>
 
         <div aria-hidden="true" className="flex-1" />
-        <footer className="home-menu-screen__footer pointer-events-none flex justify-center pt-8">
-          <span className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
-        </footer>
+        {/* The credit belongs to the home screen only, not to the solo/online setup steps. */}
+        {menuMode === 'selection' && (
+          <footer className="home-menu-screen__footer pointer-events-none flex justify-center pt-8">
+            <span className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
+          </footer>
+        )}
       </div>
 
 

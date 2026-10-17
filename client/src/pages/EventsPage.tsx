@@ -1,6 +1,7 @@
 // UCL Immortals — Events page
 // Every account event in one place: what is running now, what is coming and what
-// already ended, each with its challenges and the frame it unlocks.
+// is over (ended, or already completed by the account), each with its challenges
+// and the reward it unlocks.
 
 import { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
@@ -11,10 +12,22 @@ import { AppShell, Button, EmptyState, PageContainer, SectionHeader, Skeleton, S
 
 type EventStatus = GameEventState['status'];
 
+/** The account already got what the event gives (a name style event counts once the style is picked). */
+function rewardObtained(event: GameEventState): boolean {
+  if (event.rewardNameStyles) return !!event.chosenKey;
+  return event.frameUnlocked || event.cardUnlocked || event.crestUnlocked;
+}
+
+/** The tab an event lives in: finished events (ended or completed with the reward in hand) go to 'ended'. */
+function sectionOf(event: GameEventState): EventStatus {
+  if (event.status === 'ended') return 'ended';
+  return event.status === 'active' && event.completed && rewardObtained(event) ? 'ended' : event.status;
+}
+
 const SECTIONS: { status: EventStatus; title: string; emptyTitle: string; empty: string }[] = [
   { status: 'active', title: 'Em andamento', emptyTitle: 'Nenhum evento em andamento', empty: 'Nenhum evento acontecendo agora. Fique de olho: os próximos aparecem em "Em breve".' },
   { status: 'upcoming', title: 'Em breve', emptyTitle: 'Nenhum evento a caminho', empty: 'Nenhum evento anunciado por enquanto.' },
-  { status: 'ended', title: 'Encerrados', emptyTitle: 'Nenhum evento encerrado', empty: 'Os eventos que terminarem ficam guardados aqui.' },
+  { status: 'ended', title: 'Encerrados', emptyTitle: 'Nenhum evento encerrado', empty: 'Os eventos que terminarem ou que você concluir ficam guardados aqui.' },
 ];
 
 export default function EventsPage() {
@@ -73,14 +86,14 @@ export default function EventsPage() {
           <Tabs value={tab} onValueChange={value => setTab(value as EventStatus)}>
             <TabList aria-label="Situação dos eventos" className="ui-tabs--equal">
               {SECTIONS.map(section => {
-                const count = payload.events.filter(event => event.status === section.status).length;
+                const count = payload.events.filter(event => sectionOf(event) === section.status).length;
                 return <Tab key={section.status} value={section.status} title={section.title} className="inline-flex items-center justify-center gap-1.5">
                   {section.title}{count > 0 ? <span className="tabular-nums opacity-70">{count}</span> : null}
                 </Tab>;
               })}
             </TabList>
             {SECTIONS.map(section => {
-              const events = payload.events.filter(event => event.status === section.status);
+              const events = payload.events.filter(event => sectionOf(event) === section.status);
               return (
                 <TabPanel key={section.status} value={section.status} className="space-y-3 pt-4">
                   {events.length === 0

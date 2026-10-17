@@ -1,10 +1,11 @@
 // UCL Immortals — Coach Selection Page
 
 import { motion } from 'framer-motion';
-import { Brain, Flame, Heart, Scale, Shield, Star, Zap, type LucideIcon } from 'lucide-react';
+import { Brain, Check, Flame, Heart, Scale, Shield, Sparkles, Star, Zap, type LucideIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { COACHES } from '@shared/game/gameData';
+import { PREFERRED_FORMATION_CHEM_BONUS } from '@shared/game/gameEngine';
 import { AppShell, Button, ChoiceCard, FixedActionBar, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 /** Shown when a coach has no photo: his style, as a line icon. */
@@ -68,7 +69,7 @@ export default function CoachPage() {
           />
 
           {/* Coach grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {COACHES.map((coach) => {
               const isSelected = state.selectedCoachId === coach.id;
               const color = COACH_COLORS[coach.id] || '#C9A84C';
@@ -82,102 +83,94 @@ export default function CoachPage() {
                   onClick={() => handleSelect(coach.id)}
                   onDoubleClick={() => handleDoubleClick(coach.id)}
                   title="Clique duas vezes para escolher e continuar"
-                  className="ui-choice text-left p-5"
+                  className="ui-choice relative text-left p-6"
                   style={{
                     background: isSelected ? 'var(--ui-surface-2)' : undefined,
                     border: `1px solid ${isSelected ? 'var(--ui-brand-strong)' : 'var(--ui-line-subtle)'}`,
                     boxShadow: isSelected ? '0 0 0 1px var(--ui-brand-soft)' : 'none',
                   }}
                 >
-                  {/* Icon/Photo + Name */}
-                  <div className="flex items-center gap-3 mb-3">
+                  {/* Selected badge */}
+                  {isSelected && (
+                    <span
+                      className="absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-full"
+                      style={{ background: 'var(--ui-brand-strong)', color: '#0A0A12' }}
+                      aria-hidden="true"
+                    >
+                      <Check size={18} strokeWidth={3.2} />
+                    </span>
+                  )}
+
+                  {/* Photo + name + philosophy */}
+                  <div className="flex items-center gap-4 pr-10">
                     {coach.photoUrl ? (
                       <img
                         src={coach.photoUrl}
                         alt={coach.name}
                         referrerPolicy="no-referrer"
-                        className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
+                        className="size-[84px] flex-shrink-0 rounded-2xl object-cover"
                         style={{
-                          border: `1px solid ${isSelected ? 'var(--ui-brand-strong)' : 'var(--ui-line-subtle)'}`,
+                          objectPosition: 'center top',
+                          border: `2px solid ${isSelected ? 'var(--ui-brand-strong)' : color + '66'}`,
                         }}
                       />
                     ) : (
                       <div
-                        className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-                        style={{
-                          background: `${color}22`,
-                          border: `1px solid ${color}44`,
-                        }}
+                        className="flex size-[84px] flex-shrink-0 items-center justify-center rounded-2xl text-3xl"
+                        style={{ background: `${color}22`, border: `2px solid ${color}66` }}
                       >
                         {icon}
                       </div>
                     )}
-                    <div>
+                    <div className="min-w-0">
                       <div
-                        className="font-black text-lg leading-tight"
+                        className="text-[22px] font-black leading-none"
                         style={{
                           fontFamily: 'var(--font-display), sans-serif',
                           color: isSelected ? 'var(--ui-brand-strong)' : '#FFFFFF',
-                          letterSpacing: '0.05em',
+                          letterSpacing: '0.04em',
                         }}
                       >
                         {coach.name.toUpperCase()}
                       </div>
-                      <div className="text-xs font-semibold" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
-                        {coach.philosophy}
-                      </div>
                     </div>
                   </div>
 
-                  {/* Description */}
-                  <p className="text-xs mb-3 leading-relaxed" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
-                    {coach.description}
-                  </p>
-
-                  {/* Effect */}
-                  <div className="px-3 py-2 rounded-lg mb-3"
-                    style={{ background: `${color}11`, border: `1px solid ${color}22` }}>
-                    <div className="text-xs font-bold" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
-                      EFEITO TÁTICO
+                  {/* Bonus */}
+                  <div className="mt-5">
+                    <div className="mb-1.5 flex items-center gap-2 text-[12px] font-black tracking-[0.14em]" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
+                      <Zap size={14} strokeWidth={2.6} aria-hidden="true" />BÔNUS DO TÉCNICO
                     </div>
-                    <div className="text-xs mt-0.5" style={{ color: '#CCC', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <p className="text-[15px] font-semibold leading-snug" style={{ color: '#ECECF4', fontFamily: 'var(--font-game), sans-serif' }}>
                       {coach.effect}
-                    </div>
+                    </p>
                   </div>
 
-                  {/* Special ability */}
-                  <div className="flex items-start gap-2">
-                    <Zap size={14} strokeWidth={2.4} color="var(--ui-brand)" className="mt-0.5 flex-shrink-0" aria-hidden="true" />
-                    <div>
-                      <div className="text-xs font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-                        {coach.specialAbilityName}
-                      </div>
-                      <div className="text-xs" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                        {coach.specialAbility}
-                      </div>
+                  {/* Ability */}
+                  <div className="mt-4 rounded-xl p-3.5" style={{ background: `${color}12`, border: `1px solid ${color}2E` }}>
+                    <div className="mb-1 flex items-center gap-2 text-[12px] font-black tracking-[0.14em]" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
+                      <Sparkles size={14} strokeWidth={2.6} aria-hidden="true" />HABILIDADE · {coach.specialAbilityName.toUpperCase()}
                     </div>
+                    <p className="text-[15px] leading-snug" style={{ color: '#D6D6E2', fontFamily: 'var(--font-game), sans-serif' }}>
+                      {coach.specialAbility}
+                    </p>
                   </div>
 
                   {/* Preferred formation */}
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="text-xs" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                      Formação preferida:
+                  <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t pt-4" style={{ borderColor: 'var(--ui-line-subtle)' }}>
+                    <span className="text-[13px] font-bold tracking-wide" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                      FORMAÇÃO PREFERIDA
                     </span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded"
-                      style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <span
+                      className="rounded-lg px-3 py-1 text-[15px] font-black"
+                      style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}
+                    >
                       {coach.preferredFormation}
                     </span>
+                    <span className="basis-full text-[14px] leading-snug" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>
+                      Jogando no {coach.preferredFormation}, o time inteiro ganha <b>+{PREFERRED_FORMATION_CHEM_BONUS} de Química Geral</b>.
+                    </span>
                   </div>
-
-                  {/* Selected indicator */}
-                  {isSelected && (
-                    <div className="mt-3 flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ background: 'var(--ui-brand-strong)' }} />
-                      <span className="text-xs font-bold" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}>
-                        SELECIONADO
-                      </span>
-                    </div>
-                  )}
                 </ChoiceCard>
               );
             })}

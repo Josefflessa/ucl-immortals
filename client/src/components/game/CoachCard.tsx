@@ -60,8 +60,8 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
             <span style={{ color: 'var(--ui-text-faint)' }}>Formação preferida:</span>
             <span className="px-2 py-0.5 rounded font-black" style={{ background: '#C9A84C22', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C44' }}>{coach.preferredFormation}</span>
             {formation?.id === coach.preferredFormation
-              ? <span className="font-bold inline-flex items-center gap-1" style={{ color: 'var(--ui-success)' }}><Check size="1em" strokeWidth={3} aria-hidden="true" />em uso · <span style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} química</span></span>
-              : <span style={{ color: '#8A8A9A' }}>jogue nela pra <b style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} química</b> do time</span>}
+              ? <span className="font-bold inline-flex items-center gap-1" style={{ color: 'var(--ui-success)' }}><Check size="1em" strokeWidth={3} aria-hidden="true" />em uso · <span style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} Química Geral</span></span>
+              : <span style={{ color: '#8A8A9A' }}>jogue nela pra <b style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} Química Geral</b> do time inteiro</span>}
           </div>
         )}
       </div>
