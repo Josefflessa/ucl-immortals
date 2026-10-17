@@ -7,12 +7,14 @@ import { useAlbum } from '../../contexts/AlbumContext';
 import { resolveProfileAvatarImage } from '../../lib/profileAvatars';
 import PlayerCard from '../game/PlayerCard';
 import FramedAvatar from './AvatarFrame';
+import StyledName from './StyledName';
 import { albumCard, CATALOG } from '../album/albumData';
 import { Button, GameModal, Input, StatusBanner, Tab, TabList, TabPanel, Tabs } from '../../design-system';
 
 interface FriendActionsProps {
   friendshipId: string;
   friendName: string;
+  friendNameStyleKey?: string | null;
   friendAvatarKey: string;
   friendAvatarBackgroundKey: string;
   friendAvatarUrl?: string | null;
@@ -121,7 +123,7 @@ function ProfilePhoto({ profile, sizeClassName = 'size-8' }: { profile: ProfileP
   </span></FramedAvatar>;
 }
 
-export default function FriendActions({ friendshipId, friendName, friendAvatarKey, friendAvatarBackgroundKey, friendAvatarUrl, friendAvatarFrameKey, friendOnline, friendAvailable, unreadMessageCount = 0, initiallyOpenChat = false, onInitialChatOpened, onMessagesRead, onRemove, removeDisabled = false }: FriendActionsProps) {
+export default function FriendActions({ friendshipId, friendName, friendNameStyleKey, friendAvatarKey, friendAvatarBackgroundKey, friendAvatarUrl, friendAvatarFrameKey, friendOnline, friendAvailable, unreadMessageCount = 0, initiallyOpenChat = false, onInitialChatOpened, onMessagesRead, onRemove, removeDisabled = false }: FriendActionsProps) {
   const { account } = useAccount();
   const [chatOpen, setChatOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
@@ -206,17 +208,18 @@ export default function FriendActions({ friendshipId, friendName, friendAvatarKe
           document.body,
         ) : null}
       </div>
-      {chatOpen ? <FriendChatDialog open onOpenChange={setChatOpen} friendshipId={friendshipId} friendName={friendName} friendProfile={friendProfile} viewerProfile={viewerProfile} accountId={account?.id ?? ''} hasUnreadMessages={unreadMessageCount > 0} onMessagesRead={onMessagesRead} /> : null}
+      {chatOpen ? <FriendChatDialog open onOpenChange={setChatOpen} friendshipId={friendshipId} friendName={friendName} friendNameStyleKey={friendNameStyleKey} friendProfile={friendProfile} viewerProfile={viewerProfile} accountId={account?.id ?? ''} hasUnreadMessages={unreadMessageCount > 0} onMessagesRead={onMessagesRead} /> : null}
       {tradeOpen ? <FriendTradeDialog open onOpenChange={setTradeOpen} friendshipId={friendshipId} friendName={friendName} friendOnline={friendOnline} friendAvailable={friendAvailable} accountId={account?.id ?? ''} /> : null}
     </>
   );
 }
 
-function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friendProfile, viewerProfile, accountId, hasUnreadMessages, onMessagesRead }: {
+function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friendNameStyleKey, friendProfile, viewerProfile, accountId, hasUnreadMessages, onMessagesRead }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   friendshipId: string;
   friendName: string;
+  friendNameStyleKey?: string | null;
   friendProfile: ProfilePhotoData;
   viewerProfile: ProfilePhotoData;
   accountId: string;
@@ -286,8 +289,7 @@ function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friend
     <GameModal
       open={open}
       onOpenChange={onOpenChange}
-      title={<span className="flex min-w-0 items-center gap-3 normal-case tracking-normal"><ProfilePhoto profile={friendProfile} sizeClassName="size-10" /><span className="min-w-0"><span className="block truncate font-sans text-base font-semibold leading-tight tracking-normal text-[var(--ui-text)]">{friendName}</span><span className="mt-0.5 block font-sans text-[11px] font-normal tracking-normal text-[var(--ui-text-muted)]">Conversa</span></span></span>}
-      subtitle="As mensagens desaparecem após 24 horas."
+      title={<span className="flex min-w-0 items-center gap-3 normal-case tracking-normal"><ProfilePhoto profile={friendProfile} sizeClassName="size-10" /><span className="min-w-0"><StyledName name={friendName} styleKey={friendNameStyleKey} size="sm" className="block max-w-full truncate font-sans text-base font-semibold leading-tight tracking-normal text-[var(--ui-text)]" /><span className="mt-0.5 block font-sans text-[11px] font-normal tracking-normal text-[var(--ui-text-muted)]">Conversa</span><span className="mt-1.5 block max-w-[48ch] whitespace-normal font-sans text-[11px] font-normal leading-snug tracking-normal text-[var(--ui-text-muted)]">As mensagens desaparecem após 24 horas.</span></span></span>}
       bodyClassName="flex min-h-[min(62dvh,520px)] flex-col gap-3 p-3 sm:p-4"
       footer={<form onSubmit={sendMessage} className="flex items-center gap-2">
         <label className="sr-only" htmlFor={`friend-message-${friendshipId}`}>Mensagem para {friendName}</label>
