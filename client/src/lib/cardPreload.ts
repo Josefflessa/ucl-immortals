@@ -1,0 +1,60 @@
+/**
+ * Warms the images a player card needs (photo, flag, club crest) before the card is shown, so
+ * a goal's card or a line-up does not pop in piece by piece. Photos have a chain of fallbacks
+ * (local webp, png, then the CDN): each source is tried in the card's own order and the first
+ * that loads stops the chain, so the card later hits the browser cache on its first try.
+ * Work is spread over a few at a time and only starts when the browser is idle.
+ */
+
+import { crestIdForClub, getCrest } from '@shared/game/crests';
+import type { Player } from '@shared/game/gameData';
+import { buildPlayerPhotoSources, getFlagUrl } from '../components/game/PlayerCard';
+
+const CONCURRENCY = 4;
+const requested = new Set<string>();
+/** Kept alive so the decoded images are not collected before the cards use them. */
+const alive: HTMLImageElement[] = [];
+
+function load(url: string): Promise<boolean> {
+  return new Promise(resolve => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => { alive.push(image); void image.decode?.().catch(() => undefined); resolve(true); };
+    image.onerror = () => resolve(false);
+    image.src = url;
+  });
+}
+
+async function firstThatLoads(urls: readonly string[]): Promise<void> {
+  for (const url of urls) {
+    if (requested.has(url)) return;
+    requested.add(url);
+    if (await load(url)) return;
+  }
+}
+
+/** The jobs for one player: its photo (with the fallback chain), its flag and its club crest. */
+export function cardAssetJobs(player: Player): Array<() => Promise<void>> {
+  const jobs: Array<() => Promise<void>> = [];
+  const photos = buildPlayerPhotoSources(player.id, false, player.photoUrl);
+  if (photos.length > 0) jobs.push(() => firstThatLoads(photos));
+  const flag = getFlagUrl(player.nation);
+  if (flag) jobs.push(() => firstThatLoads([flag]));
+  const crestId = crestIdForClub(player.club);
+  const crest = crestId ? getCrest(crestId) : null;
+  if (crest?.url) jobs.push(() => firstThatLoads([crest.url]));
+  return jobs;
+}
+
+/** Starts warming the cards of these players (safe to call again with the same players). */
+export function preloadCardAssets(players: readonly Player[]): () => void {
+  const queue = players.flatMap(cardAssetJobs);
+  let cancelled = false;
+  const worker = async () => {
+    for (let job = queue.shift(); job && !cancelled; job = queue.shift()) await job().catch(() => undefined);
+  };
+  const start = () => { for (let i = 0; i < CONCURRENCY; i++) void worker(); };
+  const idle = (window as unknown as { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }).requestIdleCallback;
+  if (idle) idle(start, { timeout: 800 }); else setTimeout(start, 200);
+  return () => { cancelled = true; };
+}

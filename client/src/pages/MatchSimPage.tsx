@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { preloadCardAssets } from '../lib/cardPreload';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shirt, Eye, Play, Pause, SkipForward, Volume2, VolumeX, Maximize2, Swords, Hand, Flag, ChartColumn, Repeat, Target, Megaphone, Star } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
@@ -274,6 +275,8 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     return () => matchAudio.leave();
   }, []);
   useEffect(() => { if (userPaused) matchAudio.pause(); else matchAudio.resume(); }, [userPaused]);
+  // The cards that will show up in the match (goals, line-ups) load their photos, flags and badges now, not when they appear.
+  useEffect(() => preloadCardAssets([...homeTeam.players, ...awayTeam.players]), [homeTeam, awayTeam]);
   const matchOver = isFinished || !!penaltyWinner;
   useEffect(() => { if (matchOver) matchAudio.endMatch(); }, [matchOver]);
   // Full screen ends with the match: a moment on the final card, then back to the summary.

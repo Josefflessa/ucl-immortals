@@ -193,17 +193,14 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-4">
       <Rays tier={tier} />
-      <motion.div
-        initial={{ opacity: 0, y: -14, letterSpacing: '0.6em' }}
-        animate={{ opacity: 1, y: 0, letterSpacing: '0.32em' }}
-        transition={{ delay: 0.25, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 flex items-center gap-3 text-[15px] font-black uppercase sm:text-lg"
-        style={{ color: tier.color, textShadow: `0 0 18px ${withAlpha(tier.color, 0.8)}`, ...FONT }}
+      <div
+        className="gacha-drop relative z-10 flex items-center gap-3 text-[15px] font-black uppercase tracking-[0.32em] sm:text-lg"
+        style={{ color: tier.color, textShadow: `0 0 18px ${withAlpha(tier.color, 0.8)}`, '--delay': '0.25s', ...FONT } as React.CSSProperties}
       >
         <span aria-hidden="true" className="h-px w-10 sm:w-16" style={{ background: `linear-gradient(90deg, transparent, ${tier.color})` }} />
         {RARITY_LABEL[rarity]}
         <span aria-hidden="true" className="h-px w-10 sm:w-16" style={{ background: `linear-gradient(270deg, transparent, ${tier.color})` }} />
-      </motion.div>
+      </div>
 
       <div className="gacha-float relative z-10">
         <Shockwaves tier={tier} />
@@ -220,7 +217,7 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
         <div aria-hidden="true" className="absolute -bottom-5 left-1/2 h-5 w-[72%] -translate-x-1/2 rounded-[50%]" style={{ background: `radial-gradient(ellipse, ${withAlpha(tier.color, 0.45)} 0%, transparent 70%)` }} />
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7, duration: 0.5 }} className="relative z-10 flex flex-col items-center gap-2 text-center">
+      <div className="gacha-rise relative z-10 flex flex-col items-center gap-2 text-center" style={{ '--delay': '0.7s' } as React.CSSProperties}>
         <div className="text-3xl leading-none text-white sm:text-4xl" style={{ ...DISPLAY, textShadow: '0 2px 14px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</div>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <NewTag isNew={isNew} />
@@ -228,11 +225,11 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
         </div>
         {pageRewards.length > 0 ? <p className="max-w-sm text-xs text-[var(--ui-success)]" style={FONT}>{pageRewards.length === 1 ? 'Uma página do álbum foi completada: recompensa recebida.' : `${pageRewards.length} páginas do álbum completadas: recompensas recebidas.`}</p> : null}
         {note ? <p className="max-w-[20rem] text-xs leading-relaxed text-white/60" style={FONT}>{note}</p> : null}
-      </motion.div>
+      </div>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.95, duration: 0.55, ease: [0.22, 1, 0.36, 1] }} className="relative z-10 mt-1 w-full max-w-xs">
+      <div className="gacha-rise relative z-10 mt-1 w-full max-w-xs" style={{ '--delay': '0.95s' } as React.CSSProperties}>
         <Button intent="primary" size="large" onClick={onCta} className="w-full">{ctaLabel}</Button>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -350,14 +347,14 @@ function GridReveal({ draws, onClose, reduced, autoplay }: { draws: BannerBatchR
 
       <div className="shrink-0 px-4 pb-5 pt-2" style={{ minHeight: 120 }} onClick={event => event.stopPropagation()}>
         {done ? (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mx-auto flex max-w-md flex-col items-center gap-2 text-center">
+          <div className="gacha-rise mx-auto flex max-w-md flex-col items-center gap-2 text-center">
             <p className="text-[13px] text-white/75" style={FONT}>
               {newCount > 0 ? <><strong className="text-[#7BD88F]">{newCount} {newCount === 1 ? 'nova' : 'novas'}</strong> · {cards.length - newCount} {cards.length - newCount === 1 ? 'repetida' : 'repetidas'}</> : <>{cards.length} repetidas</>}
               {cards.some(draw => draw.pityTriggered) ? <> · <span className="text-[var(--ui-brand-strong)]">garantia ativada</span></> : null}
             </p>
             {draws.pageRewards.length > 0 ? <p className="text-xs text-[var(--ui-success)]" style={FONT}>{draws.pageRewards.length === 1 ? 'Uma página do álbum foi completada: recompensa recebida.' : `${draws.pageRewards.length} páginas do álbum completadas: recompensas recebidas.`}</p> : null}
             <Button intent="primary" size="large" onClick={onClose} className="w-full max-w-xs">CONTINUAR</Button>
-          </motion.div>
+          </div>
         ) : (
           <p className="text-center text-[12px] tracking-[0.18em] text-white/45" style={FONT}>TOQUE PARA ACELERAR</p>
         )}

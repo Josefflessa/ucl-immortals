@@ -36,3 +36,16 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
 }
+
+// The opening screen in index.html stays until the app has drawn its first frame, then fades out.
+(function hideSplash() {
+  const splash = document.getElementById("splash");
+  if (!splash) return;
+  const out = () => {
+    splash.classList.add("splash--out");
+    setTimeout(() => splash.remove(), 450);
+  };
+  // Two frames after the first render: the app is on screen by then (a short minimum keeps it from flashing).
+  const started = performance.now();
+  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(out, Math.max(0, 450 - (performance.now() - started)))));
+})();

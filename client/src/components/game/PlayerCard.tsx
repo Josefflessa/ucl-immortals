@@ -547,7 +547,7 @@ const NATION_CODES: Record<string, string> = {
 // PT-BR position abbreviations (single source of truth lives in gameData/POS_PT)
 const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
-function getFlagUrl(nation: string): string | null {
+export function getFlagUrl(nation: string): string | null {
   const code = NATION_CODES[nation];
   if (!code) return 'https://flagcdn.com/un.svg'; // fallback
   return `https://flagcdn.com/${code}.svg`;

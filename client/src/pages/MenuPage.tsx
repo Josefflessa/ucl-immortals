@@ -301,7 +301,7 @@ export default function MenuPage() {
                         />
                       ) : null}
                       <span className="min-w-0 truncate font-bold text-white text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                        {p.profile?.nameStyleKey ? <StyledName name={p.name} styleKey={p.profile.nameStyleKey} size="sm" /> : p.name} {p.socketId === state.socketId && <span className="text-xs text-primary font-normal">(Você)</span>}
+                        {p.name} {p.socketId === state.socketId && <span className="text-xs text-primary font-normal">(Você)</span>}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">

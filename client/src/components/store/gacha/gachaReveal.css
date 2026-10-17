@@ -123,3 +123,10 @@
 .gacha-tremble { animation: gacha-tremble .09s linear infinite; will-change: transform; }
 @keyframes gacha-tremble { 0% { transform: translate(0, 0); } 25% { transform: translate(-1.2px, .6px); } 50% { transform: translate(.8px, -.8px); } 75% { transform: translate(-.6px, -.4px); } 100% { transform: translate(0, 0); } }
 @media (prefers-reduced-motion: reduce) { .gacha-tremble { animation: none; } }
+
+/* Entrances as plain CSS keyframes with fill "both": hidden from the first frame, final state held at the end. No handoff between an animation and an inline style, so nothing can blink. */
+.gacha-rise, .gacha-drop { animation: gacha-rise .55s cubic-bezier(.22, 1, .36, 1) var(--delay, 0s) both; }
+.gacha-drop { animation-name: gacha-drop; }
+@keyframes gacha-rise { from { opacity: 0; transform: translate3d(0, 14px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes gacha-drop { from { opacity: 0; transform: translate3d(0, -14px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+@media (prefers-reduced-motion: reduce) { .gacha-rise, .gacha-drop { animation: none; } }
