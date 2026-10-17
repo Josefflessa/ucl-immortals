@@ -378,6 +378,7 @@ function ProfileCareerContent({
   achievements,
   achievementsLoading = false,
   onEditShowcase,
+  twoColumns = false,
   showcaseEmptyText = 'Nenhum destaque ainda: conquistas e recordes podem ser fixados aqui conforme as competições são concluídas.',
 }: {
   scorePosition: ScoreLeaderboardPosition | null;
@@ -390,6 +391,8 @@ function ProfileCareerContent({
   recordsLoading?: boolean;
   achievements?: AchievementsPayload | null;
   achievementsLoading?: boolean;
+  /** Full-page desktop layout: summary on the left, mural on the right. */
+  twoColumns?: boolean;
   onEditShowcase?: () => void;
   showcaseEmptyText?: string;
 }) {
@@ -402,8 +405,8 @@ function ProfileCareerContent({
     ? finishCounts
     : finishCountsByDifficulty?.[finishDifficulty] ?? EMPTY_FINISH_COUNTS;
   return (
-    <div className="space-y-5">
-      {/* Desktop: ranking and competitions side by side. */}
+    <div className={twoColumns ? 'space-y-5 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-6 lg:space-y-0' : 'space-y-5'}>
+      <div className="space-y-5">
       <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
         {scorePositionLoading ? <div className="space-y-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3"><Skeleton className="h-3 w-28" /><Skeleton className="h-8 w-16" /><Skeleton className="h-3 w-36" /></div>
           : <Metric
@@ -420,14 +423,15 @@ function ProfileCareerContent({
           />}
         <Metric label="Competições" value={competitionsCompleted} detail="concluídas no total" />
       </div>
-      {/* Pinned records come from the records list, so wait for both. */}
-      {achievementsLoading || recordsLoading
-        ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Carregando mural">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-[150px] w-full rounded-xl" />)}</div>
-        : achievements ? <ShowcaseSection payload={achievements} records={records} onEdit={onEditShowcase} emptyText={showcaseEmptyText} renderRecord={record => <PersonalRecordCard category={record.category} record={record} />} /> : null}
       <CareerFinishBreakdown
         counts={shownFinishCounts}
         filter={<DifficultyFilter label="Dificuldade das competições" includeAll value={finishDifficulty} onChange={setFinishDifficulty} available={finishDifficulties} />}
       />
+      </div>
+      {/* Pinned records come from the records list, so wait for both. */}
+      {achievementsLoading || recordsLoading
+        ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Carregando mural">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-[150px] w-full rounded-xl" />)}</div>
+        : achievements ? <ShowcaseSection payload={achievements} records={records} onEdit={onEditShowcase} emptyText={showcaseEmptyText} renderRecord={record => <PersonalRecordCard category={record.category} record={record} />} /> : null}
     </div>
   );
 }
@@ -611,7 +615,7 @@ function CareerFinishBreakdown({ counts, filter }: { counts: AccountStats['finis
       <div className="space-y-2">
         <Metric label="Campeão" value={counts.champion} tone="brand" className="p-3" />
         {/* Six fixed phases: 2, 3 or 6 per row always fill every row. */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {finishes.map(finish => <Metric key={finish.label} label={finish.label} value={finish.value} className="p-3" />)}
         </div>
       </div>
@@ -1255,6 +1259,7 @@ export default function AccountPage() {
         <Tabs value={tab}>
           <TabPanel value="profile" className="space-y-5 pt-0">
             <ProfileCareerContent
+              twoColumns
               scorePosition={scorePosition}
               scorePositionLoading={scorePositionLoading}
               competitionsCompleted={account.stats.competitionsCompleted}
@@ -1303,7 +1308,7 @@ export default function AccountPage() {
                 </div>
                 {scoreLoading ? <div className="space-y-2" aria-label="Carregando ranking de pontos">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[76px] w-full rounded-xl" />)}</div>
                   : scoreRanking.length === 0 ? <EmptyState title="O ranking começa com as próximas campanhas" description="Cada competição concluída registra pontos conforme a fase alcançada e a dificuldade." />
-                    : <ol className="space-y-2">{scoreRanking.slice(0, 10).map((entry, index) => <li key={entry.username}><ScoreCard entry={entry} rank={index + 1} /></li>)}</ol>}
+                    : <ol className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{scoreRanking.slice(0, 10).map((entry, index) => <li key={entry.username}><ScoreCard entry={entry} rank={index + 1} /></li>)}</ol>}
               </TabPanel>
               <TabPanel value="records" className="space-y-3 pt-4">
                 <DifficultyFilter label="Dificuldade dos recordes" value={recordsDifficulty} onChange={value => { if (value !== 'all') setRecordsDifficulty(value); }} />
@@ -1324,7 +1329,7 @@ export default function AccountPage() {
                       </div>
                       {leaderboardLoading ? <div className="space-y-2" aria-label={`Carregando ranking de ${meta.label.toLowerCase()}`}>{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[210px] w-full rounded-xl" />)}</div>
                         : categoryRecords.length === 0 ? <EmptyState title={`Ainda sem recordes no ${difficultyName(recordsDifficulty)}`} description="Os recordes aparecem quando uma competição é concluída nesta dificuldade." />
-                          : <ol className="space-y-2">{categoryRecords.map((record, index) => <li key={record.id}><RecordCard record={record} rank={index + 1} /></li>)}</ol>}
+                          : <ol className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{categoryRecords.map((record, index) => <li key={record.id}><RecordCard record={record} rank={index + 1} /></li>)}</ol>}
                     </TabPanel>;
                   })}
                 </Tabs>
@@ -1337,7 +1342,7 @@ export default function AccountPage() {
             {historyLoading ? <div className="space-y-2" aria-label="Carregando histórico">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-[96px] w-full rounded-xl" />)}</div>
               : history.length === 0 ? <EmptyState title="Nenhuma competição salva" description="Suas competições concluídas aparecerão aqui." />
                 : <>
-                  <div className="space-y-2">{history.map(entry => <HistoryCard key={entry.id} entry={entry} onView={setSelectedHistory} />)}</div>
+                  <div className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{history.map(entry => <HistoryCard key={entry.id} entry={entry} onView={setSelectedHistory} />)}</div>
                   {historyTotalPages > 1 ? <nav aria-label="Paginação do histórico" className="flex flex-col items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-3 sm:flex-row">
                     <span className="text-xs text-[var(--ui-text-muted)]">Mostrando <strong className="tabular-nums text-[var(--ui-text)]">{historyStart}–{historyEnd}</strong> de <strong className="tabular-nums text-[var(--ui-text)]">{historyTotal}</strong> · Página <strong className="tabular-nums text-[var(--ui-text)]">{historyPage}</strong> de <strong className="tabular-nums text-[var(--ui-text)]">{historyTotalPages}</strong></span>
                     <div className="flex items-center gap-2">
@@ -1350,7 +1355,7 @@ export default function AccountPage() {
 
           <TabPanel value="friends" className="space-y-5 pt-0">
             <SectionHeader title="Amigos" />
-            <div className="mx-auto w-full max-w-3xl space-y-5">
+            <div className="mx-auto w-full max-w-3xl space-y-5 lg:max-w-5xl">
               <Panel density="compact"><PanelBody className="p-3 sm:p-4"><form className="flex flex-col gap-2 sm:flex-row" onSubmit={event => { event.preventDefault(); void addFriend(); }}><label className="relative min-w-0 flex-1"><span className="sr-only">Nome de usuário</span><Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-[var(--ui-text-faint)]" /><Input className="pl-9" value={friendUsername} placeholder="Buscar por nome de usuário" onChange={event => setFriendUsername(event.target.value)} /></label><Button type="submit" intent="primary" loading={busy} disabled={!friendUsername.trim()} className="sm:min-w-40"><UserPlus size={16} aria-hidden="true" /> ADICIONAR</Button></form></PanelBody></Panel>
               <Tabs value={friendsTab} onValueChange={value => setFriendsTab(value as FriendsTab)}>
                 <TabList aria-label="Seções de amigos" className="mx-auto w-fit max-w-full flex-wrap justify-center gap-2 sm:gap-4">
@@ -1358,7 +1363,7 @@ export default function AccountPage() {
                   <Tab value="incoming" className="inline-flex items-center gap-2"><Check size={14} aria-hidden="true" /> RECEBIDAS <span className="tabular-nums">{pendingIncoming.length}</span></Tab>
                   <Tab value="outgoing" className="inline-flex items-center gap-2"><UserPlus size={14} aria-hidden="true" /> ENVIADAS <span className="tabular-nums">{pendingOutgoing.length}</span></Tab>
                 </TabList>
-                <TabPanel value="friends" className="space-y-2 pt-4">
+                <TabPanel value="friends" className="space-y-2 pt-4 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 lg:[&>*:only-child]:col-span-2">
                   {friendsLoading ? <div className="space-y-2" aria-label="Carregando amigos">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-[72px] w-full rounded-xl" />)}</div>
                     : acceptedFriends.length === 0 ? <EmptyState title="Você ainda não tem amigos" description="Adicione alguém pelo nome de usuário." />
                       : acceptedFriends.map(friend => {
@@ -1374,7 +1379,7 @@ export default function AccountPage() {
                         </article>;
                       })}
               </TabPanel>
-              <TabPanel value="incoming" className="space-y-2 pt-4">
+              <TabPanel value="incoming" className="space-y-2 pt-4 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 lg:[&>*:only-child]:col-span-2">
                 {friendsLoading ? <div className="space-y-2" aria-label="Carregando solicitações">{Array.from({ length: 2 }, (_, index) => <Skeleton key={index} className="h-[72px] w-full rounded-xl" />)}</div>
                   : pendingIncoming.length === 0 ? <EmptyState title="Nenhuma solicitação recebida" />
                     : pendingIncoming.map(friend => {
@@ -1387,7 +1392,7 @@ export default function AccountPage() {
                       </article>;
                     })}
               </TabPanel>
-              <TabPanel value="outgoing" className="space-y-2 pt-4">
+              <TabPanel value="outgoing" className="space-y-2 pt-4 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 lg:[&>*:only-child]:col-span-2">
                 {friendsLoading ? <div className="space-y-2" aria-label="Carregando solicitações">{Array.from({ length: 2 }, (_, index) => <Skeleton key={index} className="h-[72px] w-full rounded-xl" />)}</div>
                   : pendingOutgoing.length === 0 ? <EmptyState title="Nenhuma solicitação enviada" />
                     : pendingOutgoing.map(friend => {

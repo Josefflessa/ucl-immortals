@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estilos de nome</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Pirata+One&family=Metal+Mania&family=Cinzel:wght@900&family=Press+Start+2P&family=Nabla&family=Uncial+Antiqua&family=Creepster&family=Orbitron:wght@900&family=Bungee+Shade&family=New+Rocker&family=Black+Ops+One&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #0b0c14; --panel: #141522; --line: #262838; --muted: #9a9cb0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: #e8e8f0; font-family: Inter, system-ui, sans-serif; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; overflow: hidden; }
+  .tag { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .font { font-size: 12px; color: #6f7186; margin-top: 2px; }
+  .big { font-size: 44px; line-height: 1.25; margin: 14px 0 12px; text-align: center; white-space: nowrap; }
+  .row { display: flex; align-items: center; gap: 10px; background: #0f1019; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .row .pos { color: var(--muted); font-weight: 800; width: 22px; font-size: 13px; }
+  .row .av { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg,#3a3d55,#20222f); flex: none; }
+  .row .nm { font-size: 18px; flex: 1; white-space: nowrap; }
+  .row .pts { color: #e8c84a; font-weight: 800; font-size: 13px; }
+
+  /* 1. Lendário: ouro metálico com reflexo passando */
+  .lendario { font-family: 'Cinzel Decorative', serif; font-weight: 900;
+    background: linear-gradient(100deg, #7a4e12 0%, #f6d77a 22%, #fff4c4 30%, #c8901f 45%, #fbe39a 62%, #8a5a14 100%);
+    background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-text-stroke: 1px #4a2d06; filter: drop-shadow(0 2px 0 #2a1902) drop-shadow(0 0 10px rgba(246,200,90,.45));
+    animation: shine 3.2s linear infinite; }
+  @keyframes shine { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+  /* 2. Imortal: roxo com brilho pulsando */
+  .imortal { font-family: 'Pirata One', serif; color: #e9d5ff;
+    text-shadow: 0 0 6px #a855f7, 0 0 16px #7e22ce, 0 3px 0 #2e1065, 0 0 30px #a855f7;
+    animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { text-shadow: 0 0 10px #c084fc, 0 0 26px #9333ea, 0 3px 0 #2e1065, 0 0 44px #c084fc; } }
+
+  /* 3. Infernal: fogo com tremor */
+  .infernal { font-family: 'Metal Mania', cursive;
+    background: linear-gradient(0deg, #7f1d1d 0%, #dc2626 35%, #f97316 65%, #fde047 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 6px rgba(249,115,22,.8)) drop-shadow(0 2px 0 #3b0a0a);
+    animation: flicker 1.6s infinite; display: inline-block; }
+  @keyframes flicker { 0%,100% { transform: translateY(0); filter: drop-shadow(0 0 6px rgba(249,115,22,.8)) drop-shadow(0 2px 0 #3b0a0a); }
+    40% { transform: translateY(-1px); filter: drop-shadow(0 0 12px rgba(239,68,68,.9)) drop-shadow(0 2px 0 #3b0a0a); }
+    70% { transform: translateY(.5px); } }
+
+  /* 4. Glacial: gelo */
+  .glacial { font-family: 'Cinzel', serif; font-weight: 900; letter-spacing: .04em;
+    background: linear-gradient(180deg, #ffffff 0%, #bae6fd 45%, #38bdf8 75%, #1e3a8a 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-text-stroke: 1px #0c2a52; filter: drop-shadow(0 0 8px rgba(125,211,252,.75)); }
+
+  /* 5. Arcade: pixel neon */
+  .arcade { font-family: 'Press Start 2P', monospace; color: #39ff14; font-size: .62em;
+    text-shadow: 3px 3px 0 #0a5c00, 0 0 12px rgba(57,255,20,.7); }
+
+  /* 6. Rei da Arena: fonte colorida 3D */
+  .arena { font-family: 'Nabla', system-ui; font-palette: --gold; }
+  @font-palette-values --gold { font-family: Nabla; base-palette: 2; }
+
+  /* 7. Rúnico: pedra antiga com runa brilhando */
+  .runico { font-family: 'Uncial Antiqua', serif; color: #d6d3c4;
+    text-shadow: 0 1px 0 #6b6650, 0 2px 0 #4b4738, 0 3px 0 #2c2a20, 0 0 14px rgba(94,234,212,.55); }
+
+  /* 8. Assombrado: verde tóxico gotejando */
+  .assombrado { font-family: 'Creepster', cursive; letter-spacing: .04em;
+    background: linear-gradient(180deg, #d9f99d, #65a30d 60%, #14532d);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 8px rgba(132,204,22,.75)) drop-shadow(0 3px 0 #052e16); }
+
+  /* 9. Ciber: cromado futurista com scan */
+  .ciber { font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: .8em; letter-spacing: .06em;
+    background: linear-gradient(180deg, #f0f9ff 0%, #94a3b8 48%, #1e293b 52%, #e2e8f0 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 1px #22d3ee) drop-shadow(0 0 10px rgba(34,211,238,.6)); }
+
+  /* 10. Néon arcade: contorno duplo */
+  .shade { font-family: 'Bungee Shade', cursive; font-size: .78em; color: #f472b6;
+    text-shadow: 0 0 10px rgba(244,114,182,.75); }
+
+  /* 11. Pirata: couro e ouro velho */
+  .pirata { font-family: 'New Rocker', cursive; color: #f5deb3;
+    -webkit-text-stroke: 1px #5b3a18; text-shadow: 2px 2px 0 #3d2410, 0 0 12px rgba(234,179,8,.45); }
+
+  /* 12. Militar: estêncil camuflado */
+  .militar { font-family: 'Black Ops One', cursive; letter-spacing: .03em;
+    background: repeating-linear-gradient(135deg, #4d5d2e 0 8px, #6b7d3a 8px 16px, #3a4522 16px 24px);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-text-stroke: 1px #1a1f0e; filter: drop-shadow(0 2px 0 #11140a); }
+</style>
+</head>
+<body>
+  <h1>Estilos de nome</h1>
+  <p class="lead">Cada estilo no tamanho do perfil e como apareceria numa linha do ranking.</p>
+  <div class="grid" id="grid"></div>
+<script>
+  const NAME = 'J.Lessa';
+  const STYLES = [
+    ['lendario', 'Lendário', 'Cinzel Decorative · ouro com reflexo'],
+    ['imortal', 'Imortal', 'Pirata One · roxo pulsando'],
+    ['infernal', 'Infernal', 'Metal Mania · fogo com tremor'],
+    ['glacial', 'Glacial', 'Cinzel · gelo'],
+    ['arcade', 'Arcade', 'Press Start 2P · pixel neon'],
+    ['arena', 'Rei da Arena', 'Nabla · fonte colorida 3D'],
+    ['runico', 'Rúnico', 'Uncial Antiqua · pedra e runa'],
+    ['assombrado', 'Assombrado', 'Creepster · verde tóxico'],
+    ['ciber', 'Ciber', 'Orbitron · cromado'],
+    ['shade', 'Neon', 'Bungee Shade · contorno duplo'],
+    ['pirata', 'Pirata', 'New Rocker · ouro velho'],
+    ['militar', 'Militar', 'Black Ops One · camuflado'],
+  ];
+  document.getElementById('grid').innerHTML = STYLES.map(([cls, name, font], i) => `
+    <section class="card">
+      <div class="tag">${name}</div>
+      <div class="font">${font}</div>
+      <div class="big"><span class="${cls}">${NAME}</span></div>
+      <div class="row"><span class="pos">${i + 1}º</span><span class="av"></span><span class="nm"><span class="${cls}">${NAME}</span></span><span class="pts">1.240 pts</span></div>
+    </section>`).join('');
+</script>
+</body>
+</html>
