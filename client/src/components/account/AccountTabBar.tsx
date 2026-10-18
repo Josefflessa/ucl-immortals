@@ -38,10 +38,9 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
   return (
     <nav
       aria-label="Navegação principal"
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:inset-x-auto xl:bottom-auto xl:left-1/2 xl:top-[17px] xl:z-40 xl:-translate-x-1/2 xl:rounded-full xl:border xl:p-1"
     >
-      <div className="mx-auto grid max-w-md grid-cols-4">
+      <div className="mx-auto grid max-w-md grid-cols-4 xl:flex xl:max-w-none xl:gap-1">
         {NAV_ITEMS.map(({ id, label, ariaLabel, icon: Icon }) => {
           const selected = active === id;
           const accessibleLabel = id === 'friends' && friendsBadgeCount > 0
@@ -57,7 +56,7 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
               aria-current={selected ? 'page' : undefined}
               onClick={() => onNavigate(id)}
               className={cn(
-                'flex h-14 flex-col gap-1 rounded-lg px-0 text-[12px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]',
+                'flex h-14 flex-col gap-1 rounded-lg px-0 text-[12px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] xl:h-10 xl:flex-row xl:gap-2 xl:rounded-full xl:px-5 xl:text-[13px]',
                 selected && 'bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] hover:text-[var(--ui-brand-strong)]',
               )}
             >

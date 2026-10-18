@@ -231,7 +231,16 @@ export default function AccountHeader() {
         className="sticky top-0 z-30 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-bg-raised)]/95 backdrop-blur-md"
       >
         <div className="mx-auto flex min-h-[72px] w-full max-w-[1280px] items-center justify-between gap-2 px-3 sm:min-h-[80px] sm:px-5">
-          <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            aria-label="Logo UCL Immortals"
+            onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}
+            className="hidden shrink-0 items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-focus)] xl:order-1 xl:flex"
+          >
+            <img src="/icons/logo_ucl.png" alt="" className="size-10 object-contain" />
+            <span className="font-display text-[1.45rem] leading-none tracking-[0.1em] text-[var(--ui-text)]">UCL <span className="text-[var(--ui-brand-strong)]">IMMORTALS</span></span>
+          </button>
+          <div className="flex shrink-0 items-center gap-1.5 xl:order-2 xl:ml-auto">
             <Button
               type="button"
               intent="ghost"
@@ -248,7 +257,7 @@ export default function AccountHeader() {
             <SoundControl />
           </div>
 
-          <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+          <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 xl:order-3 xl:ml-4">
             <button
               type="button"
               onClick={() => dispatch({ type: 'SET_PHASE', phase: 'store' })}

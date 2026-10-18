@@ -38,6 +38,18 @@
         background: linear-gradient(90deg, transparent, #E9C46A, transparent);
         animation: splash-run 1.3s cubic-bezier(.45, 0, .55, 1) infinite;
       }
+      /* Once the game is ready the bar gives way to a button: the first tap also starts the audio (browsers need one), so the music is playing as the game opens. */
+      #splash .splash__action { position: relative; display: flex; align-items: center; justify-content: center; height: 48px; }
+      #splash .splash__action > * { transition: opacity .35s ease; }
+      #splash .splash__enter {
+        position: absolute; opacity: 0; pointer-events: none; cursor: pointer; white-space: nowrap;
+        padding: 12px 38px; border-radius: 999px; border: 1.5px solid #E9C46A; background: transparent; color: #E9C46A;
+        font: 700 15px/1 Rajdhani, Inter, system-ui, sans-serif; letter-spacing: .24em; text-transform: uppercase;
+        transition: opacity .35s ease, background .2s ease, color .2s ease;
+      }
+      #splash .splash__enter:hover, #splash .splash__enter:focus-visible { background: #E9C46A; color: #0A0A12; outline: none; }
+      #splash.splash--ready .splash__bar { opacity: 0; }
+      #splash.splash--ready .splash__enter { opacity: 1; pointer-events: auto; }
       @keyframes splash-run { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
       @keyframes splash-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
       @media (prefers-reduced-motion: reduce) { #splash img, #splash .splash__bar::after { animation: none; } #splash .splash__bar::after { width: 100%; opacity: .5; } }
@@ -46,7 +58,10 @@
   <body>
     <div id="splash" role="status" aria-label="Carregando">
       <div class="splash__logo"><img src="/icons/logo_ucl.png" alt="" width="200" height="200" decoding="async" /></div>
-      <div class="splash__bar"></div>
+      <div class="splash__action">
+        <div class="splash__bar"></div>
+        <button type="button" id="splash-enter" class="splash__enter" tabindex="-1">Entrar</button>
+      </div>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

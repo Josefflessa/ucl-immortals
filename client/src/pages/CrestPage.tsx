@@ -120,7 +120,7 @@ export default function CrestPage() {
 
           {/* League tabs (hidden while searching) */}
           {!search && (
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1 lg:flex-wrap lg:overflow-visible">
               <Button onClick={() => setOpenLeague(NATIONAL_TEAMS_TAB)} intent="ghost"
                 className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold transition-all"
                 style={{

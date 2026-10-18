@@ -2,6 +2,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { installUiSounds } from "./audio/uiSound";
+import { getAudioContext } from "./audio/audioCore";
+import { soundSettings } from "./audio/soundSettings";
 
 // Dev-only pitch gallery (#lances). `import.meta.env.DEV` is false in production
 // builds, so this branch and its chunk are removed entirely.
@@ -37,15 +39,26 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// The opening screen in index.html stays until the app has drawn its first frame, then fades out.
-(function hideSplash() {
+// The opening screen in index.html stays until the app has drawn its first frame. If the music is on and the
+// browser has not allowed sound yet, it then turns into an "Entrar" button: that tap is the one the browser needs,
+// so the game opens with the music already playing. Otherwise it simply fades out.
+(function runSplash() {
   const splash = document.getElementById("splash");
   if (!splash) return;
-  const out = () => {
+  const finish = () => {
     splash.classList.add("splash--out");
     setTimeout(() => splash.remove(), 450);
   };
-  // Two frames after the first render: the app is on screen by then (a short minimum keeps it from flashing).
   const started = performance.now();
-  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(out, Math.max(0, 450 - (performance.now() - started)))));
+  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+    const enter = document.getElementById("splash-enter") as HTMLButtonElement | null;
+    const context = getAudioContext();
+    const needsTap = !!enter && !!context && context.state !== "running" && !soundSettings.get().musicMuted
+      && !(import.meta.env.DEV && location.hash);
+    if (!needsTap) { finish(); return; }
+    splash.classList.add("splash--ready");
+    enter!.tabIndex = 0;
+    enter!.focus({ preventScroll: true });
+    enter!.addEventListener("click", () => { void context!.resume().catch(() => undefined); finish(); }, { once: true });
+  }, Math.max(0, 450 - (performance.now() - started)))));
 })();
