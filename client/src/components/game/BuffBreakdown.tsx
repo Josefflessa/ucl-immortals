@@ -138,8 +138,8 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
       const ko = model.isKnockout;
       return {
         chips: [
-          { text: `+${PIPOQUEIRO_LEAGUE_BOOST} EM TUDO NA LIGA${!ko ? ' · AGORA' : ''}`, color: GREEN, dim: ko },
-          { text: `−${PIPOQUEIRO_KO_PENALTY} EM TUDO NO MATA-MATA${ko ? ' · AGORA' : ''}`, color: RED, dim: !ko },
+          { text: `+${PIPOQUEIRO_LEAGUE_BOOST} EM TUDO NA LIGA`, color: GREEN, dim: ko },
+          { text: `−${PIPOQUEIRO_KO_PENALTY} EM TUDO NO MATA-MATA`, color: RED, dim: !ko },
         ],
         description: ko ? `Está no mata-mata: vale a penalidade de −${PIPOQUEIRO_KO_PENALTY}.` : `Está na fase de liga: vale o bônus de +${PIPOQUEIRO_LEAGUE_BOOST}. No mata-mata vira −${PIPOQUEIRO_KO_PENALTY}.`,
       };
@@ -211,7 +211,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'mentor':
       return { chips: [{ text: '+1 EVOLUÇÃO AO ELENCO POR VITÓRIA', color: GREEN }], description: 'A cada vitória em uma partida em que for titular, aumenta em 1 o progresso de evolução de todo o elenco, titulares e reservas. Não acumula com outro Mentor.' };
     case 'improvisador':
-      return { chips: model.isStarter ? [{ text: `+${model.chemBonuses.improvisador} QUÍMICA GERAL AGORA`, color: model.chemBonuses.improvisador > 0 ? GREEN : '#94A3B8' }] : [{ text: `+${IMPROVISADOR_SECONDARY_CHEM} / +${IMPROVISADOR_OOP_CHEM} QUÍMICA GERAL`, color: GREEN }], description: `Se for titular, cada jogador em posição secundária acrescenta +${IMPROVISADOR_SECONDARY_CHEM} à química geral. Cada jogador fora de posição acrescenta +${IMPROVISADOR_OOP_CHEM}. O bônus não acumula.` };
+      return { chips: model.isStarter ? [{ text: `+${model.chemBonuses.improvisador} QUÍMICA GERAL`, color: model.chemBonuses.improvisador > 0 ? GREEN : '#94A3B8' }] : [{ text: `+${IMPROVISADOR_SECONDARY_CHEM} / +${IMPROVISADOR_OOP_CHEM} QUÍMICA GERAL`, color: GREEN }], description: `Se for titular, cada jogador em posição secundária acrescenta +${IMPROVISADOR_SECONDARY_CHEM} à química geral. Cada jogador fora de posição acrescenta +${IMPROVISADOR_OOP_CHEM}. O bônus não acumula.` };
     case 'desenfreado': {
       const boost = charBoost?.sources.find(s => s.type === 'desenfreado')?.flatAll;
       return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO AO TIME`, color: GREEN }], description: `Todo o XI ganha +1 em cada atributo a cada ${DESENFREADO_CHEM_PER_BOOST} pontos de química geral acima de 100.` };
