@@ -1,4 +1,5 @@
 import { UserRound } from 'lucide-react';
+import { setNavSlot } from '../../lib/navSlot';
 import { Button } from '../../design-system';
 import { useGame } from '../../contexts/GameContext';
 import AccountTabBar from './AccountTabBar';
@@ -19,6 +20,7 @@ export default function GuestHeader() {
           <img src="/icons/logo_ucl.png" alt="" className="size-10 object-contain" />
           <span className="font-display text-[1.45rem] leading-none tracking-[0.1em] text-[var(--ui-text)]">UCL <span className="text-[var(--ui-brand-strong)]">IMMORTALS</span></span>
         </div>
+        <div ref={setNavSlot} className="flex min-w-0 flex-1 items-center justify-center" />
         <AccountTabBar guest active="home" onNavigate={tab => { if (tab !== 'home') toLogin(); }} />
         <div className="flex shrink-0 items-center gap-2">
           <SoundControl />

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { House, Lock, ShoppingBag, Trophy, Users } from 'lucide-react';
 import { playSound } from '../../audio/uiSound';
+import { useNavSlot, useWideNav } from '../../lib/navSlot';
 import { Button } from '../../design-system';
 import { useAccount } from '../../contexts/AccountContext';
 import type { AccountSection } from '../../contexts/GameContext';
@@ -26,6 +27,8 @@ const NAV_ITEMS: Array<{ id: AccountNavigationTab; label: string; ariaLabel: str
 
 export default function AccountTabBar({ active, incomingFriendRequestCount = 0, onNavigate, guest = false }: AccountTabBarProps) {
   const { unreadMessageCount } = useAccount();
+  const slot = useNavSlot();
+  const wide = useWideNav();
   const friendsBadgeCount = incomingFriendRequestCount + unreadMessageCount;
   // A new friend request or message while you are here gets a soft cue (not what was already waiting).
   const seen = useRef({ requests: incomingFriendRequestCount, messages: unreadMessageCount });
@@ -40,10 +43,12 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
   ].filter(Boolean).join(' e ');
   // Drawn on the page itself, not inside whichever screen asked for it: a screen's own layers (the home's, for one)
   // would otherwise sit above this bar's and put the top bar's glass over it.
+  const target = wide ? slot : document.body;
+  if (!target) return null;
   return createPortal(
     <nav
       aria-label="Navegação principal"
-      className={cn(guest && 'hidden xl:block', 'fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:inset-x-auto xl:bottom-auto xl:left-1/2 xl:top-[15px] xl:z-40 xl:-translate-x-1/2 xl:rounded-full xl:border xl:p-1')}
+      className={cn(guest && 'hidden xl:block', 'fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:static xl:inset-auto xl:z-auto xl:rounded-full xl:border xl:p-1')}
     >
       <div className="mx-auto grid max-w-md grid-cols-4 xl:flex xl:max-w-none xl:gap-1">
         {NAV_ITEMS.map(({ id, label, ariaLabel, icon: Icon }) => {
@@ -83,6 +88,6 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
         })}
       </div>
     </nav>,
-    document.body,
+    target,
   );
 }

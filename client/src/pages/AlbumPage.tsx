@@ -187,16 +187,19 @@ function PlayerDetail({
         <div className="md:origin-top-left md:scale-[1.2] md:mb-16">
           <PlayerCard player={player} lite />
         </div>
-        <button
-          type="button"
-          onClick={onZoomCard}
-          title="Zoom"
-          aria-label={`Ampliar carta de ${player.shortName}`}
-          className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface-2)] px-3 text-xs font-black text-[var(--ui-text-soft)] transition-colors hover:bg-[var(--ui-surface-3)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
-        >
-          <Search size={15} aria-hidden="true" />
-          ZOOM
-        </button>
+        {/* The card is drawn 1.2x larger (240px wide): the button is centred under that, not under its 200px box. */}
+        <div className="flex w-full justify-center md:w-[240px]">
+          <button
+            type="button"
+            onClick={onZoomCard}
+            title="Zoom"
+            aria-label={`Ampliar carta de ${player.shortName}`}
+            className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface-2)] px-3 text-xs font-black text-[var(--ui-text-soft)] transition-colors hover:bg-[var(--ui-surface-3)] hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
+          >
+            <Search size={15} aria-hidden="true" />
+            ZOOM
+          </button>
+        </div>
       </div>
 
       <div className="min-w-0">
