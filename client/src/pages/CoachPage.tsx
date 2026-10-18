@@ -65,7 +65,7 @@ export default function CoachPage() {
           {/* Title */}
           <SectionHeader
             title="Escolha seu treinador"
-            description="Todo técnico dá +5 em cada um de dois atributos de foco ao elenco. Sua habilidade só dá bônus em todos os atributos quando a condição própria é cumprida, e apenas aos jogadores elegíveis. No Prime, o bônus base sobe para +8 e a habilidade fica mais forte. A formação preferida e os vínculos históricos também aumentam a Química Geral."
+            description="Cada técnico reforça dois atributos do elenco e traz uma habilidade própria."
             className="mb-8"
           />
 

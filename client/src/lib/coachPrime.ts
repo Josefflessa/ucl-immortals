@@ -14,8 +14,8 @@ export function coachPrimeDefinition(coach: Coach): CoachPrimeDefinition {
     name: coach.specialAbilityName,
     baseNormal: coach.baseEffects.map(effect => effect.description).join(' '),
     basePrime: coach.baseEffects.map(effect => effect.primeDescription ?? effect.description).join(' '),
-    normal: coach.specialEffects.map(effect => effect.description).join(' '),
-    prime: coach.specialEffects.map(effect => effect.primeDescription ?? effect.description).join(' '),
+    normal: coach.specialEffects.map(effect => effect.description).filter(Boolean).join(' '),
+    prime: coach.specialEffects.map(effect => effect.primeDescription ?? effect.description).filter(Boolean).join(' '),
   };
 }
 

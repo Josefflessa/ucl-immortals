@@ -274,7 +274,7 @@ export function getCoachModifiersForPlayer(
       for (const attribute of allAttributes) modifiers[attribute] += allBonus + (bonuses[attribute] ?? 0);
 
       const description = coachPrime && rule.primeDescription ? rule.primeDescription : rule.description;
-      modifiers.activeEffects.push(`${rule.name}: ${description}`);
+      if (description) modifiers.activeEffects.push(`${rule.name}: ${description}`);
     }
   };
 
