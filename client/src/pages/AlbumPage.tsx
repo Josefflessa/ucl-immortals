@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
@@ -333,8 +333,10 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
     return counts;
   }, []);
 
+  // Typing stays responsive: the filter over the whole catalogue follows the text a moment later.
+  const deferredSearch = useDeferredValue(search);
   const filteredPlayers = useMemo(() => {
-    const normalizedSearch = normalize(search);
+    const normalizedSearch = normalize(deferredSearch);
     const filtered = ALBUM_PLAYERS.filter(player => {
       const path = getPlayerCatalogPath(player);
       const matchesSearch = !normalizedSearch || [
@@ -365,7 +367,7 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
       if (sortMode === 'rarity') return RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity] || b.overall - a.overall || a.shortName.localeCompare(b.shortName, 'pt-BR');
       return a.shortName.localeCompare(b.shortName, 'pt-BR') || canonicalClubName(a.club).localeCompare(canonicalClubName(b.club), 'pt-BR') || b.overall - a.overall;
     });
-  }, [clubCountryFilter, clubFilter, leagueFilter, nationFilter, positionFilter, rarityFilter, search, sortMode]);
+  }, [clubCountryFilter, clubFilter, leagueFilter, nationFilter, positionFilter, rarityFilter, deferredSearch, sortMode]);
 
   const pageSize = gridColumns * 4;
   const totalPages = Math.max(1, Math.ceil(filteredPlayers.length / pageSize));
@@ -422,14 +424,14 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
     const metaDescription = `${getPositionLabel(shownPosition)} · ${positionDescription} · ${RARITY_LABELS[player.rarity]}`;
 
     return (
-      <article key={player.id} className="group flex min-w-0 flex-col items-center">
+      <article key={player.id} className="group flex min-w-0 flex-col items-center" style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${Math.round(208 * albumCardScale)}px auto ${Math.round(324 * albumCardScale + 112)}px` }}>
         <button
           type="button"
           onClick={() => setSelectedPlayer(player)}
           className="mx-auto rounded-[18px] p-1 outline-none transition-transform duration-150 ease-out hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
           aria-label={`Ver detalhes de ${player.shortName}, versão ${canonicalClubName(player.club)}`}
         >
-          <PlayerCard player={player} lite scale={albumCardScale} />
+          <PlayerCard player={player} lite flat scale={albumCardScale} />
         </button>
         <div className="mt-2 w-full min-w-0 text-center">
           <h3 className="truncate text-xs font-bold text-[var(--ui-text)]">{player.shortName}</h3>

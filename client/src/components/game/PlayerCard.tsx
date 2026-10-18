@@ -55,6 +55,8 @@ interface PlayerCardProps {
   onClick?: () => void;
   compact?: boolean;
   lite?: boolean;
+  /** For long grids: no per-card filters (cheaper to paint, a soft glow instead of the silhouette shadow). */
+  flat?: boolean;
   showChemistry?: boolean;
   chemScore?: number;
   // Optional team-context values. When omitted, a requested account Album level is shown;
@@ -931,7 +933,7 @@ export const UNIQUE_STYLE: Record<string, { texture: string; render: string; fon
 
 // Dedicated Player Photo using local transparent portraits, with SoFIFA as a last resort.
 // Fallback chain: local → latest_ver_360 → ver23_360 → ver22_360 → latest_ver_120 → placeholder
-function PlayerPhoto({ playerId, fullName, size, lowRes = false, photoUrl }: { playerId: string; fullName: string; size: number; lowRes?: boolean; photoUrl?: string }) {
+function PlayerPhoto({ playerId, fullName, size, lowRes = false, photoUrl, flat = false }: { playerId: string; fullName: string; size: number; lowRes?: boolean; flat?: boolean; photoUrl?: string }) {
   const urls = buildPlayerPhotoSources(playerId, lowRes, photoUrl);
 
   const [urlIdx, setUrlIdx] = useState(0);
@@ -977,7 +979,7 @@ function PlayerPhoto({ playerId, fullName, size, lowRes = false, photoUrl }: { p
         height: '100%',
         objectFit: 'contain',
         objectPosition: 'center bottom',
-        filter: 'drop-shadow(0 6px 14px rgba(0,0,0,.65))',
+        filter: flat ? undefined : 'drop-shadow(0 6px 14px rgba(0,0,0,.65))',
       }}
     />
   );
@@ -1110,7 +1112,7 @@ function variantDesc(player: Player): string {
   return '';
 }
 
-function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, showChemistry = false, chemScore = 0, effectiveStats, scale = 1, albumLevel: albumLevelProp, showAlbumLevel = false }: PlayerCardProps) {
+function PlayerCard({ player, selected = false, onClick, compact = false, lite = false, flat = false, showChemistry = false, chemScore = 0, effectiveStats, scale = 1, albumLevel: albumLevelProp, showAlbumLevel = false }: PlayerCardProps) {
   const ownAlbumLevel = useAlbumLevel(player.id);
   const hasCompetitionAlbumSnapshot = player.competitionAlbumLevel !== undefined || player.competitionAlbumPageBonus !== undefined;
   const resolvedAlbumLevel = hasCompetitionAlbumSnapshot
@@ -1253,8 +1255,9 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
       onContextMenu={event => event.preventDefault()}
       data-player-card="true"
       className={`relative select-none flex ${onClick ? 'cursor-pointer' : ''}`}
-      style={{ width: 200, height: 324, filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 8px 14px rgba(0,0,0,.5))` }}
+      style={{ width: 200, height: 324, filter: flat ? undefined : `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 8px 14px rgba(0,0,0,.5))`, isolation: flat ? 'isolate' : undefined }}
     >
+      {flat ? <div aria-hidden="true" style={{ position: 'absolute', inset: '-7% -12%', zIndex: -1, pointerEvents: 'none', background: `radial-gradient(closest-side, color-mix(in srgb, ${glowColor} 42%, transparent) 0%, color-mix(in srgb, ${glowColor} 14%, transparent) 62%, transparent 100%)` }} /> : null}
       <AlbumLevelFrame level={albumLevel} color={ringColor} />
       {/* moldura do escudo (contorno + borda dourada reais), tingida por raridade */}
       <img src={FRAME_URL} alt="" className="absolute inset-0" style={{ width: '100%', height: '100%', objectFit: 'fill', zIndex: 0, pointerEvents: 'none', filter: vis.frameFilter }} />
@@ -1296,13 +1299,13 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           <span style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 40, lineHeight: .8 }}>{displayOverall}</span>
           <span style={{ fontFamily: 'var(--font-game), sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
           <div style={{ width: 30, height: 1, background: 'rgba(247,238,202,.55)', margin: '3px 0' }} />
-          {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
+          {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: flat ? undefined : 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
           <Crest crestId={clubCrestId} name={canonicalClubName(player.club)} size={22} />
         </div>
         {/* foto (cartas normais; as Únicas usam o render grande atrás do conteúdo) */}
         {!uniq && (
           <div className="absolute flex items-end justify-center" style={{ right: '6%', top: '5%', width: '66%', height: '49%' }}>
-            {hasPhoto ? <PlayerPhoto playerId={player.id} fullName={player.fullName} size={150} lowRes={lite} photoUrl={player.photoUrl} /> : <span style={{ fontSize: 40, opacity: .2 }}>⚽</span>}
+            {hasPhoto ? <PlayerPhoto playerId={player.id} fullName={player.fullName} size={150} lowRes={lite} flat={flat} photoUrl={player.photoUrl} /> : <span style={{ fontSize: 40, opacity: .2 }}>⚽</span>}
           </div>
         )}
         {/* chip de raridade (mesmo estilo de hoje, sem emoji) */}

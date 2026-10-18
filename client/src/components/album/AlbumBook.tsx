@@ -244,10 +244,10 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
             const has = owned.has(card.id);
             const level = stickerLevel(album, card.id);
             return (
-              <article key={card.id} className="flex min-w-0 flex-col items-center" style={{ paddingTop: Math.round(324 * scale * 0.12) }}>
+              <article key={card.id} className="flex min-w-0 flex-col items-center" style={{ paddingTop: Math.round(324 * scale * 0.12), contentVisibility: 'auto', containIntrinsicSize: `auto ${Math.round(200 * scale * 1.2)}px auto ${Math.round(324 * scale * 1.12 + 96)}px` }}>
                 <button type="button" onClick={() => setSelected(card.id)} aria-label={`${card.shortName}, ${has ? 'ver carta e cópias' : 'ver carta exclusiva'}`} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)]">
                   <span className={cn('block', !has && 'opacity-50 grayscale')}>
-                    <PlayerCard player={card} lite scale={scale} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
+                    <PlayerCard player={card} lite flat scale={scale} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
                   </span>
                 </button>
                 <span className={cn('mt-1.5 line-clamp-2 text-center text-[12px] font-bold leading-tight', has ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')} style={{ maxWidth: Math.max(200 * scale, 96) }}>{card.shortName}</span>

@@ -82,13 +82,13 @@ export function AlbumSlot({ card, number, owned, level, spare, scale, onClick }:
     <button
       type="button"
       onClick={onClick}
-      style={{ paddingTop: Math.round(height * 0.12) }}
+      style={{ paddingTop: Math.round(height * 0.12), contentVisibility: 'auto', containIntrinsicSize: `auto ${Math.round(Math.max(width, 96))}px auto ${Math.round(height * 1.12 + 70)}px` }}
       className="group relative flex min-w-0 flex-col items-center rounded-xl outline-none transition-transform duration-150 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
       aria-label={owned ? `${card.shortName}, carta ${number}, nível ${level}` : `Carta ${number}, ${card.shortName}, faltando`}
     >
       {owned ? (
         <div className="relative">
-          <PlayerCard player={card} lite scale={scale} albumLevel={level as AlbumLevel} />
+          <PlayerCard player={card} lite flat scale={scale} albumLevel={level as AlbumLevel} />
           {spare > 0 ? (
             <span className="absolute -right-1 top-1 z-[5] rounded-full border border-black/40 bg-[#E9C46A] px-1.5 py-0.5 text-[11px] font-bold leading-none text-[#171208] shadow" aria-label={`${spare} ${spare === 1 ? 'cópia extra desta carta' : 'cópias extras desta carta'}`}>
               +{spare}
@@ -99,7 +99,7 @@ export function AlbumSlot({ card, number, owned, level, spare, scale, onClick }:
         // Missing: the card itself, in grey and faded, so you know who to look for (its number below).
         <div className="relative" style={{ width, height }}>
           <div className="pointer-events-none" style={{ filter: 'grayscale(1) brightness(.8) contrast(.92)', opacity: .5 }}>
-            <PlayerCard player={card} lite scale={scale} />
+            <PlayerCard player={card} lite flat scale={scale} />
           </div>
         </div>
       )}
