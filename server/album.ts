@@ -35,6 +35,7 @@ import { PLAYERS, STORE_UNIQUE_CARDS, type Rarity } from '../shared/game/gameDat
 import { AVATAR_FRAME_BY_KEY } from '../shared/game/events.js';
 import { PROFILE_COVER_BY_KEY } from '../shared/profileCovers.js';
 import { NAME_STYLE_BY_KEY } from '../shared/game/nameStyles.js';
+import { loadOwnedEventCards } from './events.js';
 import {
   competitionCoinReward,
   isCompetitionFinishStage,
@@ -792,14 +793,16 @@ export async function albumSummary(db: D1Database, userId: string): Promise<{ ow
   const album = await db.prepare('SELECT 1 AS ok FROM user_album WHERE user_id = ?').bind(userId).first<Row>();
   if (!album) return null;
   const catalog = albumCatalog();
-  const [stickers, pages] = await Promise.all([
+  const [stickers, pages, eventCards] = await Promise.all([
     loadStickers(db, userId),
     db.prepare('SELECT page_id FROM user_album_pages WHERE user_id = ?').bind(userId).all<{ page_id: string }>(),
+    loadOwnedEventCards(db, userId),
   ]);
   const completed = pages.results.map(r => r.page_id).filter(id => catalog.pageById.has(id));
+  const ownedIds = new Set([...stickers.keys(), ...eventCards]);
   return {
-    owned: Array.from(stickers.keys()).filter(id => catalog.stickers.get(id)?.pageId != null).length,
-    total: catalog.total,
+    owned: Array.from(ownedIds).filter(id => catalog.stickers.has(id)).length,
+    total: catalog.stickers.size,
     completedPages: completed.length,
     clubsCompleted: completed.filter(id => id.startsWith('club:')).map(id => id.slice(5)),
   };

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { AlbumItemKey } from '@shared/game/album';
 import { Button, EmptyState, Metric, SectionHeader, Skeleton, Tab, TabList, TabPanel, Tabs } from '../../design-system';
 import { useAlbum } from '../../contexts/AlbumContext';
+import { useAccount } from '../../contexts/AccountContext';
 import { cn } from '../../lib/utils';
 import { albumProgress, CATALOG, sortedItems } from './albumData';
 import AlbumBook from './AlbumBook';
@@ -14,13 +15,14 @@ type AlbumTab = 'album' | 'inventory' | 'catalog';
 
 export default function AlbumCollection({ catalog }: { catalog: ReactNode }) {
   const { album, loading, error, refresh } = useAlbum();
+  const { eventCards } = useAccount();
   const [tab, setTab] = useState<AlbumTab>('album');
   const [opening, setOpening] = useState<AlbumItemKey[] | null>(null);
 
   // Fresh on every visit: packs of campaigns finished elsewhere (online rooms, another device).
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const progress = albumProgress(album);
+  const progress = albumProgress(album, eventCards);
   const percent = progress.total ? Math.floor((progress.owned / progress.total) * 100) : 0;
   const itemCount = album ? sortedItems(album.inventory).reduce((n, [, q]) => n + q, 0) : 0;
 

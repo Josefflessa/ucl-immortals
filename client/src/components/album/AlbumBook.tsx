@@ -13,7 +13,7 @@ import { useAccount } from '../../contexts/AccountContext';
 import PlayerCard from '../game/PlayerCard';
 import { cn } from '../../lib/utils';
 import { albumCard, CATALOG, pageProgress, RARITY_LABEL, REGIONS, stickerLevel, itemLabel } from './albumData';
-import { AlbumSlot, ItemArt } from './AlbumPieces';
+import { AlbumSlot, ItemArt, LevelStars } from './AlbumPieces';
 import StickerSheet from './StickerSheet';
 import SelectMenu from '../account/SelectMenu';
 import AlbumFilterToolbar from './AlbumFilterToolbar';
@@ -242,6 +242,7 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
         <div className="mt-5 grid justify-items-center gap-x-3 gap-y-5 sm:gap-x-5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(200 * scale * 1.2)}px, 1fr))` }}>
           {visible.map(card => {
             const has = owned.has(card.id);
+            const albumSticker = album?.stickers.get(card.id);
             const level = stickerLevel(album, card.id);
             return (
               <article key={card.id} className="flex min-w-0 flex-col items-center" style={{ paddingTop: Math.round(324 * scale * 0.12), contentVisibility: 'auto', containIntrinsicSize: `auto ${Math.round(200 * scale * 1.2)}px auto ${Math.round(324 * scale * 1.12 + 96)}px` }}>
@@ -252,7 +253,9 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
                 </button>
                 <span className={cn('mt-1.5 line-clamp-2 text-center text-[12px] font-bold leading-tight', has ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')} style={{ maxWidth: Math.max(200 * scale, 96) }}>{card.shortName}</span>
                 <span className="mt-0.5 text-center text-[11px] text-[var(--ui-text-muted)]" style={{ maxWidth: Math.max(200 * scale, 96) }}>{exclusiveCardSource(card)}</span>
-                <span className={cn('mt-1 text-center text-[11px] font-semibold', has ? 'text-[#55CBA0]' : 'text-[var(--ui-text-faint)]')}>{has ? `No álbum · ★${stickerLevel(album, card.id) || 1}${(album?.stickers.get(card.id)?.spare ?? 0) > 0 ? ` · ${album!.stickers.get(card.id)!.spare} repetida${album!.stickers.get(card.id)!.spare === 1 ? '' : 's'}` : ''}` : 'Ainda não conquistada'}</span>
+                <span className={cn('mt-1 flex min-h-[13px] items-center justify-center gap-1.5 text-[11px] font-semibold', has ? 'text-[#55CBA0]' : 'text-[var(--ui-text-faint)]')}>
+                  {has ? albumSticker ? <><LevelStars level={level} size={10} />{albumSticker.spare > 0 ? <span>{albumSticker.spare} repetida{albumSticker.spare === 1 ? '' : 's'}</span> : null}</> : 'Conquistada' : 'Ainda não conquistada'}
+                </span>
               </article>
             );
           })}
@@ -505,9 +508,10 @@ const OWNED_RARITIES: Rarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immo
 /** A searchable, flat view of the cards already in the account's collection. */
 function OwnedCardsView() {
   const { album } = useAlbum();
+  const { eventCards } = useAccount();
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<OwnedSort>('number');
-  const [direction, setDirection] = useState<OwnedDirection>('asc');
+  const [sort, setSort] = useState<OwnedSort>('rarity');
+  const [direction, setDirection] = useState<OwnedDirection>('desc');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
   const scale = useSlotScale();
@@ -516,13 +520,17 @@ function OwnedCardsView() {
   const cards = useMemo(() => {
     if (!album) return [];
     const query = normalize(search);
-    return Array.from(album.stickers.entries())
-      .flatMap(([id, copies]) => {
+    const ownedIds = new Set([...album.stickers.keys(), ...eventCards]);
+    return Array.from(ownedIds)
+      .filter(id => CATALOG.stickers.has(id))
+      .flatMap(id => {
         const sticker = CATALOG.stickers.get(id);
         const card = albumCard(id);
-        if (!sticker || sticker.pageId === null || !card) return [];
-        const albumPage = CATALOG.pageById.get(sticker.pageId);
-        if (query && !normalize(`${card.shortName} ${card.fullName ?? ''} ${card.club} ${sticker.number} ${albumPage?.title ?? ''} ${card.position} ${RARITY_LABEL[card.rarity]}`).includes(query)) return [];
+        if (!sticker || !card) return [];
+        const copies = album.stickers.get(id) ?? { copies: 0, spare: 0 };
+        const albumPage = sticker.pageId ? CATALOG.pageById.get(sticker.pageId) : undefined;
+        const source = sticker.pageId === null ? EVENT_OF_CARD.get(id) ?? (WEEKLY_BANNER_CARD_IDS.has(id) ? 'Banner' : card.club) : '';
+        if (query && !normalize(`${card.shortName} ${card.fullName ?? ''} ${card.club} ${sticker.number} ${albumPage?.title ?? ''} ${source} ${card.position} ${RARITY_LABEL[card.rarity]}`).includes(query)) return [];
         return [{ id, card, sticker, copies, pageTitle: albumPage?.title ?? card.club }];
       })
       .sort((a, b) => {
@@ -539,14 +547,14 @@ function OwnedCardsView() {
         if (result === 0) result = a.sticker.number - b.sticker.number;
         return direction === 'asc' ? result : -result;
       });
-  }, [album, search, sort, direction]);
+  }, [album, eventCards, search, sort, direction]);
 
   const totalPages = Math.max(1, Math.ceil(cards.length / perPage));
   const currentPage = Math.min(page, totalPages);
   const visible = cards.slice((currentPage - 1) * perPage, currentPage * perPage);
   const repeatedCopies = cards.reduce((total, entry) => total + entry.copies.spare, 0);
   useEffect(() => { setPage(1); }, [search, sort, direction, perPage]);
-  const clearFilters = () => { setSearch(''); setSort('number'); setDirection('asc'); };
+  const clearFilters = () => { setSearch(''); setSort('rarity'); setDirection('desc'); };
 
   return (
     <section aria-label="Minhas cartas no álbum">
@@ -561,7 +569,7 @@ function OwnedCardsView() {
         sortOptions={[{ value: 'number', label: 'Nº do álbum' }, { value: 'name', label: 'Nome' }, { value: 'level', label: 'Nível' }, { value: 'spares', label: 'Repetidas' }, { value: 'rarity', label: 'Raridade' }]}
         direction={direction}
         onDirectionChange={() => setDirection(value => value === 'asc' ? 'desc' : 'asc')}
-        hasActiveFilters={search.trim() !== '' || sort !== 'number' || direction !== 'asc'}
+        hasActiveFilters={search.trim() !== '' || sort !== 'rarity' || direction !== 'desc'}
         onClear={clearFilters}
       />
 
@@ -631,10 +639,7 @@ export default function AlbumBook() {
   const [view, setView] = useState<'collection' | 'pages'>('collection');
   const [pageId, setPageId] = useState<string | null>(null);
   const page = pageId ? CATALOG.pageById.get(pageId) : undefined;
-  const ownedCount = album ? Array.from(album.stickers.keys()).filter(id => {
-    const sticker = CATALOG.stickers.get(id);
-    return sticker !== undefined && sticker.pageId !== null;
-  }).length : 0;
+  const ownedCount = new Set([...(album?.stickers.keys() ?? []), ...eventCards].filter(id => CATALOG.stickers.has(id))).size;
 
   useEffect(() => { if (pageId) window.scrollTo({ top: 0 }); }, [pageId]);
 

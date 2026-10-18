@@ -84,7 +84,7 @@ export function AlbumSlot({ card, number, owned, level, spare, scale, onClick }:
       onClick={onClick}
       style={{ paddingTop: Math.round(height * 0.12), contentVisibility: 'auto', containIntrinsicSize: `auto ${Math.round(Math.max(width, 96))}px auto ${Math.round(height * 1.12 + 70)}px` }}
       className="group relative flex min-w-0 flex-col items-center rounded-xl outline-none transition-transform duration-150 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
-      aria-label={owned ? `${card.shortName}, carta ${number}, nível ${level}` : `Carta ${number}, ${card.shortName}, faltando`}
+      aria-label={owned ? `${card.shortName}, carta ${number}${level > 0 ? `, nível ${level}` : ', conquistada'}` : `Carta ${number}, ${card.shortName}, faltando`}
     >
       {owned ? (
         <div className="relative">
@@ -105,7 +105,7 @@ export function AlbumSlot({ card, number, owned, level, spare, scale, onClick }:
       )}
       <div className="mt-1.5 flex w-full min-w-0 flex-col items-center" style={{ maxWidth: Math.max(width, 96) }}>
         <span className={cn('line-clamp-2 w-full text-center text-[12px] font-bold leading-tight [overflow-wrap:anywhere]', owned ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')}>{card.shortName}</span>
-        {owned ? <LevelStars level={level} size={10} className="mt-0.5" /> : <span className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--ui-text-faint)]">Nº {number}</span>}
+        {owned ? level > 0 ? <LevelStars level={level} size={10} className="mt-0.5" /> : <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#55CBA0]">Conquistada</span> : <span className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--ui-text-faint)]">Nº {number}</span>}
       </div>
     </button>
   );

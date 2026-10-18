@@ -11,6 +11,7 @@ import { Button, GameModal } from '../../design-system';
 import PlayerCard from '../game/PlayerCard';
 import type { AlbumLevel } from '../game/AlbumLevelFrame';
 import { useAlbum } from '../../contexts/AlbumContext';
+import { useAccount } from '../../contexts/AccountContext';
 import { cn } from '../../lib/utils';
 import { albumCard, CATALOG, RARITY_LABEL } from './albumData';
 import { CoinAmount, LevelStars } from './AlbumPieces';
@@ -56,6 +57,7 @@ function LevelTrack({ copies }: { copies: number }) {
 
 export default function StickerSheet({ cardId, onClose }: { cardId: string | null; onClose: () => void }) {
   const { album, applyCopy, sell } = useAlbum();
+  const { eventCards } = useAccount();
   const [busy, setBusy] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
@@ -65,6 +67,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
   const card = cardId ? albumCard(cardId) : undefined;
   const sticker = cardId ? CATALOG.stickers.get(cardId) : undefined;
   const owned = cardId ? album?.stickers.get(cardId) : undefined;
+  const eventOwned = cardId ? eventCards.includes(cardId) : false;
   const page = sticker?.pageId ? CATALOG.pageById.get(sticker.pageId) : undefined;
 
   const run = async (action: () => Promise<void>) => {
@@ -88,11 +91,11 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
       onOpenChange={open => { if (!open) onClose(); }}
       size="wide"
       title={<span className="font-display text-3xl font-normal tracking-wide">{card.shortName}</span>}
-      subtitle={`Nº ${sticker.number} · ${page?.title ?? canonicalClubName(card.club)} · ${RARITY_LABEL[card.rarity]}`}
+      subtitle={`Nº ${sticker.number} · ${page?.title ?? (sticker.pageId === null ? 'Cartas Exclusivas' : canonicalClubName(card.club))} · ${RARITY_LABEL[card.rarity]}`}
       closeLabel="Fechar carta"
     >
       <div className="grid gap-4 sm:grid-cols-[minmax(150px,220px)_minmax(0,1fr)] sm:items-start sm:gap-5">
-        <div className={cn('mx-auto pt-1 sm:pt-0', !owned && 'opacity-45 grayscale')}>
+        <div className={cn('mx-auto pt-1 sm:pt-0', !owned && !eventOwned && 'opacity-45 grayscale')}>
           <PlayerCard player={card} lite scale={0.76} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
         </div>
 
@@ -151,6 +154,11 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
                 )}
               </section>
             </>
+          ) : eventOwned ? (
+            <section className="rounded-xl border border-[#55CBA0]/25 bg-[#55CBA0]/[.04] p-4">
+              <div className="text-sm font-bold text-[#55CBA0]">Carta exclusiva conquistada</div>
+              <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Esta carta já está disponível na sua coleção. Ela não tem cópias do álbum para aplicar ou vender.</p>
+            </section>
           ) : (
             <section className="rounded-xl border border-[var(--ui-line-subtle)] p-4">
               <div className="text-sm font-bold text-[var(--ui-text)]">Carta faltando</div>

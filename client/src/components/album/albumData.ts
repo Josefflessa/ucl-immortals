@@ -39,11 +39,11 @@ export function pageProgress(page: AlbumPage, album: AlbumState | null): PagePro
   return { owned, total: page.stickers.length, complete: owned === page.stickers.length };
 }
 
-export function albumProgress(album: AlbumState | null): { owned: number; total: number; pages: number } {
-  let owned = 0;
-  album?.stickers.forEach((_, id) => { if (CATALOG.stickers.get(id)?.pageId != null) owned++; });
+export function albumProgress(album: AlbumState | null, eventCards: readonly string[] = []): { owned: number; total: number; pages: number } {
+  const ownedIds = new Set([...(album?.stickers.keys() ?? []), ...eventCards]);
+  const owned = Array.from(ownedIds).filter(id => CATALOG.stickers.has(id)).length;
   const pages = album ? CATALOG.pages.filter(page => pageProgress(page, album).complete).length : 0;
-  return { owned, total: CATALOG.total, pages };
+  return { owned, total: CATALOG.stickers.size, pages };
 }
 
 /** The album level of an owned sticker (1–5), or 0 when missing. */
