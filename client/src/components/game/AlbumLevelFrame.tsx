@@ -48,12 +48,16 @@ export default function AlbumLevelFrame({ level, color, compact = false }: {
   return (
     <div aria-hidden="true" style={box}>
       {/* The metal, in the card's colour. */}
-      <div style={{ position: 'absolute', inset: 0, ...mask, background: ringGradient(color), filter: compact ? `drop-shadow(0 0 0.6px ${color}) drop-shadow(0 0 0.4px ${color})` : undefined }} />
+      <div key={`metal-${url}`} style={{ position: 'absolute', inset: 0, ...mask, background: ringGradient(color), filter: compact ? `drop-shadow(0 0 0.6px ${color}) drop-shadow(0 0 0.4px ${color})` : undefined }} />
       {/* Its relief (bevels, highlights) from the artwork itself, laid over the colour. */}
       <img
+        key={`relief-${url}`}
         src={url}
         alt=""
         draggable={false}
+        loading="eager"
+        fetchPriority="high"
+        decoding="sync"
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', filter: 'grayscale(1) contrast(1.15)', mixBlendMode: 'overlay', opacity: 0.85 }}
       />
     </div>

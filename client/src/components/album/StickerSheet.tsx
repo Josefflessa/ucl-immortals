@@ -17,6 +17,19 @@ import { CoinAmount, LevelStars } from './AlbumPieces';
 
 const EVENT_UNIQUE_CARD_IDS = new Set(EVENT_UNIQUE_CARDS.map(card => card.id));
 const STORE_UNIQUE_CARD_IDS = new Set(STORE_UNIQUE_CARDS.map(card => card.id));
+const albumLevelFramePreloads = new Map<number, HTMLImageElement>();
+
+function preloadAlbumLevelFrames() {
+  for (const level of [2, 3, 4, 5]) {
+    if (albumLevelFramePreloads.has(level)) continue;
+    const image = new Image();
+    image.decoding = 'sync';
+    image.fetchPriority = 'high';
+    image.src = `/cards/album-level-${level}.webp`;
+    albumLevelFramePreloads.set(level, image);
+    void image.decode().catch(() => undefined);
+  }
+}
 
 function exclusiveAvailability(cardId: string): string {
   if (EVENT_UNIQUE_CARD_IDS.has(cardId)) return 'Esta carta exclusiva é conquistada em eventos e não sai no banner nem em pacotes.';
@@ -47,6 +60,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
   const [quantity, setQuantity] = useState(1);
 
   useEffect(() => { setQuantity(1); }, [cardId]);
+  useEffect(() => { if (cardId !== null) preloadAlbumLevelFrames(); }, [cardId]);
 
   const card = cardId ? albumCard(cardId) : undefined;
   const sticker = cardId ? CATALOG.stickers.get(cardId) : undefined;

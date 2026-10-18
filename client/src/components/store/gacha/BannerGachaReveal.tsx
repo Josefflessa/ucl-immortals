@@ -244,8 +244,8 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
         <div aria-hidden="true" className="absolute -bottom-5 left-1/2 h-5 w-[72%] -translate-x-1/2 rounded-[50%]" style={{ background: `radial-gradient(ellipse, ${withAlpha(tier.color, 0.45)} 0%, transparent 70%)` }} />
       </div>
 
-      <div className="gacha-rise relative z-10 flex flex-col items-center gap-2 text-center" style={{ '--delay': '0.7s' } as React.CSSProperties}>
-        <div className="text-3xl leading-none text-white sm:text-4xl" style={{ ...DISPLAY, textShadow: '0 2px 14px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</div>
+      <div className="relative z-10 flex flex-col items-center gap-2 text-center">
+        <div className="gacha-rise text-3xl leading-none text-white sm:text-4xl" style={{ '--delay': '0.7s', ...DISPLAY, textShadow: '0 2px 14px rgba(0,0,0,.8)' } as React.CSSProperties}>{player.shortName.toUpperCase()}</div>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <NewTag isNew={isNew} />
           {pity ? <span className="inline-flex items-center gap-1 rounded-full border border-white/25 px-2.5 py-0.5 text-[11px] font-bold tracking-[0.12em] text-white/85" style={FONT}><Check size={11} aria-hidden="true" />GARANTIA ATIVADA</span> : null}
@@ -292,11 +292,7 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
             {flipped || charging || upcoming ? <PlayerCard player={player} lite scale={scale} /> : null}
           </div>
         </motion.div>
-        {flipped ? (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="absolute left-1/2 top-0 z-[5] -translate-x-1/2 -translate-y-1/2">
-            <NewTag isNew={draw.card.isNew} />
-          </motion.div>
-        ) : null}
+        {flipped ? <div className="absolute left-1/2 top-0 z-[5] -translate-x-1/2 -translate-y-1/2"><NewTag isNew={draw.card.isNew} /></div> : null}
       </div>
       <div className="mt-2 flex h-9 flex-col items-center text-center" style={{ opacity: flipped ? 1 : 0, transition: 'opacity .4s .3s' }}>
         <span className="w-full truncate text-[12px] font-bold text-white" style={{ ...FONT, maxWidth: Math.max(width, 80) }}>{player.shortName}</span>
