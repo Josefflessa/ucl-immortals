@@ -55,7 +55,7 @@ function Preview() {
           <UniquePackOpening rarity={pack} card={albumCard(pick(pack === 'unique' ? 'unique' : pack, 3))!} onClaim={() => setPack(null)} onClose={() => setPack(null)} />
         </div>
       ) : null}
-      {draws ? <BannerGachaReveal key={run} draws={draws} onClose={() => setDraws(null)} summary={withSummary ? { primaryLabel: 'Abrir próximo (2)', onPrimary: () => setDraws(null), secondaryLabel: 'Guardar o resto', onSecondary: () => setDraws(null) } : undefined} /> : null}
+      {draws ? <BannerGachaReveal key={run} draws={draws} skipCharge={withSummary} onClose={() => setDraws(null)} summary={withSummary ? { primaryLabel: 'Abrir próximo (2)', onPrimary: () => setDraws(null), secondaryLabel: 'Guardar o resto', onSecondary: () => setDraws(null) } : undefined} /> : null}
     </div>
   );
 }

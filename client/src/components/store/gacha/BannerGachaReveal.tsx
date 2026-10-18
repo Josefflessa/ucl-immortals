@@ -18,7 +18,7 @@ import { playSound, revealSoundFor } from '../../../audio/uiSound';
 import { useMusicDuck } from '../../../audio/musicPlayer';
 import PlayerCard from '../../game/PlayerCard';
 import { albumCard, RARITY_LABEL, stickerLevel } from '../../album/albumData';
-import { bestDraw, flipOrder, gridLayout, seeded, tierOf, type GachaTier } from './gachaTiers';
+import { bestDraw, flipOrder, gridLayout, NEUTRAL_TIER, seeded, tierOf, type GachaTier } from './gachaTiers';
 import './gachaReveal.css';
 
 const FONT = { fontFamily: 'var(--font-game), sans-serif' };
@@ -492,6 +492,9 @@ export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipC
   const { leaving, close, leave } = useFadeOut(onClose);
   const best = bestDraw(draws.cards);
   const tier = tierOf((best?.rarity ?? 'bronze') as Rarity);
+  // A pack's tear was the build-up, and its cards are face down at the burst: the sky, the flash and the shake must not
+  // already carry the best card's colour (that would give it away). One card on its own is shown at once, so it may.
+  const stageTier = skipCharge && draws.cards.length > 1 ? NEUTRAL_TIER : tier;
   const [phase, setPhase] = useState<'charge' | 'reveal'>(skipCharge ? 'reveal' : 'charge');
   const { width } = useViewport();
   const narrow = width < 720;
@@ -525,11 +528,11 @@ export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipC
     return () => window.removeEventListener('keydown', onKey);
   }, [phase, close]);
 
-  const shakeAtBurst = phase === 'reveal' && tier.shake && !reduced;
+  const shakeAtBurst = phase === 'reveal' && stageTier.shake && !reduced;
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Resultado do sorteio" className={`gacha-screen fixed inset-0 z-[90] select-none overflow-hidden text-white ${leaving ? 'gacha-screen--leaving' : ''}`}>
-      <Sky tier={tier} shaking={shakeAtBurst}>
+      <Sky tier={stageTier} shaking={shakeAtBurst}>
         {phase === 'charge' ? (
           <button type="button" aria-label="Pular animação" onClick={() => setPhase('reveal')} className="absolute inset-0 z-10 cursor-pointer outline-none">
             <ChargeStage tier={tier} durationMs={chargeMs} reduced={reduced} />
@@ -542,7 +545,7 @@ export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipC
         ) : (
           <GridReveal draws={draws} onClose={close} reduced={reduced} autoplay={!narrow} summary={summary} leave={leave} />
         )}
-        {phase === 'reveal' ? <Flash tier={tier} /> : null}
+        {phase === 'reveal' ? <Flash tier={stageTier} /> : null}
         {phase === 'charge' && warm ? <Warmup draws={draws} /> : null}
       </Sky>
       {/* Screen readers get the result at once, whatever the animation is doing. */}

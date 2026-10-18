@@ -36,6 +36,12 @@ export const TIERS: Record<Rarity, GachaTier> = {
   unique:    { rank: 5, label: 'Única',    color: '#FFF1C2', accent: '#6BE6FF', chargeMs: 3300, suspenseMs: 1600, rays: 0.8, shockwaves: 2, particles: 56, shake: true },
 };
 
+/**
+ * The look of a screen that must not reveal what is coming: a calm silver-blue, no rays, no shock, no shake.
+ * A pack's burst uses it while its cards are still face down (each card then shows its own colour as it flips).
+ */
+export const NEUTRAL_TIER: GachaTier = { rank: 0, label: '', color: '#AEB6CC', accent: '#7F8AA8', chargeMs: 0, suspenseMs: 0, rays: 0, shockwaves: 0, particles: 0, shake: false };
+
 export const tierOf = (rarity: Rarity): GachaTier => TIERS[rarity] ?? TIERS.bronze;
 
 /** The best draw of a batch (the first one on a tie): its tier sets the colour of the whole charge. */
