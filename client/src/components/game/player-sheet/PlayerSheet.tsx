@@ -1,8 +1,8 @@
 // The player sheet shared by the squad modal (Meu Time) and the read-only report modal:
 // identity + effective overall, the eight attributes (tap one to see where every point comes
 // from), chemistry/positions summary and the grouped bonus breakdown.
-import TraitIcon from '../TraitIcon';
-import { Repeat, Star, TriangleAlert } from 'lucide-react';
+import TraitIcon, { hasTraitArt } from '../TraitIcon';
+import { ClipboardList, Crown, Dumbbell, GraduationCap, Hand, Handshake, HeartPulse, Link, Gem, Palette, Repeat, Scale, Star, TriangleAlert, X, type LucideIcon } from 'lucide-react';
 import { INLINE_ICON } from '../inlineIcon';
 import { useState } from 'react';
 import { POS_PT, effectiveSecondaries, getRarityColor } from '@shared/game/gameData';
@@ -15,6 +15,19 @@ import { ATTR_LONG, ATTR_SHORT, type PlayerSheetModel, type SheetAttr } from './
 
 const FONT = { fontFamily: 'var(--font-game), sans-serif' } as const;
 const DISPLAY = { fontFamily: 'var(--font-display), sans-serif' } as const;
+
+/** Line icons for the attribute breakdown sources that have no trait artwork (same set the bonus list below uses). */
+const SOURCE_ICONS: Record<string, LucideIcon> = {
+  album: Star, chem: Link, position: Repeat, goalkeeper: Hand, coach: GraduationCap, trait: Palette, tactic: ClipboardList,
+  globalChem: Star, captain: Crown, train: Dumbbell, specialization: Gem, char: Handshake, medical: HeartPulse, floor: Scale,
+  lapidado: Gem,
+};
+
+function SourceIcon({ source }: { source: { key: string; trait?: string } }) {
+  if (hasTraitArt(source.trait)) return <TraitIcon trait={source.trait} size={24} />;
+  const Icon = SOURCE_ICONS[source.key];
+  return Icon ? <Icon size={16} strokeWidth={2.4} aria-hidden="true" className="mx-1 shrink-0" /> : <span className="w-6" />;
+}
 
 export default function PlayerSheet({ model, collapsibleBreakdown = false }: { model: PlayerSheetModel; collapsibleBreakdown?: boolean }) {
   const [selected, setSelected] = useState<SheetAttr | null>(null);
@@ -84,13 +97,13 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
         <div className="border-t px-4 py-3" style={{ borderColor: '#161626', background: '#0b0b14' }} aria-live="polite">
           <div className="flex items-center justify-between text-[12px] font-black tracking-widest" style={FONT}>
             <span className="text-[var(--ui-text-soft)]">{ATTR_LONG[selectedStat.attr].toUpperCase()}</span>
-            <button type="button" onClick={() => setSelected(null)} className="text-[var(--ui-text-muted)] hover:text-white">Fechar ✕</button>
+            <button type="button" onClick={() => setSelected(null)} className="text-[var(--ui-text-muted)] hover:text-white">Fechar <X size={14} strokeWidth={2.6} aria-hidden="true" className="inline align-[-2px]" /></button>
           </div>
           <dl className="mt-2 space-y-1 text-[13px]" style={FONT}>
             <div className="flex justify-between gap-3 text-[var(--ui-text-muted)]"><dt>Valor da carta</dt><dd className="tabular-nums">{selectedStat.base}</dd></div>
             {selectedStat.sources.map(src => (
               <div key={src.key} className="flex justify-between gap-3">
-                <dt className="flex min-w-0 items-center gap-1 truncate text-[var(--ui-text-soft)]"><TraitIcon trait={src.trait} fallback={src.icon} size={24} /> {src.label}</dt>
+                <dt className="flex min-w-0 items-center gap-1 truncate text-[var(--ui-text-soft)]"><SourceIcon source={src} /> {src.label}</dt>
                 <dd className="font-black tabular-nums" style={{ color: src.value > 0 ? '#22C55E' : '#EF4444' }}>{src.value > 0 ? '+' : ''}{src.value}</dd>
               </div>
             ))}
