@@ -73,6 +73,16 @@ const CLUB_METADATA_OVERRIDES: Record<string, CompetitionMetadata> = {
   sassuolo: { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-a', leagueName: 'Serie A' },
   reggiana: { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-a', leagueName: 'Serie A' },
   'toronto-fc': { countryId: 'canada', countryName: 'Canadá', leagueId: 'mls', leagueName: 'MLS' },
+  udinese: { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-a', leagueName: 'Serie A' },
+  'stoke-city': { countryId: 'england', countryName: 'Inglaterra', leagueId: 'premier-league', leagueName: 'Premier League' },
+  'swansea-city': { countryId: 'england', countryName: 'Inglaterra', leagueId: 'premier-league', leagueName: 'Premier League' },
+  genoa: { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-a', leagueName: 'Serie A' },
+  palermo: { countryId: 'italy', countryName: 'Itália', leagueId: 'serie-b', leagueName: 'Serie B' },
+  'shanghai-sipg': { countryId: 'china', countryName: 'China', leagueId: 'chinese-super-league', leagueName: 'Chinese Super League' },
+  'anzhi-makhachkala': { countryId: 'russia', countryName: 'Rússia', leagueId: 'russian-premier-league', leagueName: 'Premier League Russa' },
+  malaga: { countryId: 'spain', countryName: 'Espanha', leagueId: 'la-liga', leagueName: 'La Liga' },
+  'hamburger-sv': { countryId: 'germany', countryName: 'Alemanha', leagueId: 'bundesliga', leagueName: 'Bundesliga' },
+  'nacional-uruguai': { countryId: 'uruguay', countryName: 'Uruguai', leagueId: 'primera-division-uruguai', leagueName: 'Primera División Uruguaia' },
   // Brasil representa uma seleção, não um clube de campeonato nacional.
   brazil: { countryId: 'brazil', countryName: 'Brasil', leagueId: 'national-teams', leagueName: 'Seleções' },
 };

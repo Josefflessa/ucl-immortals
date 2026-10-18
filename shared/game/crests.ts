@@ -239,6 +239,7 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "malaga", name: "Málaga", url: "https://upload.wikimedia.org/wikipedia/en/6/6d/M%C3%A1laga_CF.svg" },
       { id: "hamburger-sv", name: "Hamburger SV", url: "https://upload.wikimedia.org/wikipedia/commons/f/f7/Hamburger_SV_logo.svg" },
       { id: "nacional-uruguai", name: "Nacional", url: "https://upload.wikimedia.org/wikipedia/commons/1/1e/Club_Nacional_de_Football_logo.svg" },
+      { id: "palermo", name: "Palermo", url: "https://upload.wikimedia.org/wikipedia/en/d/df/Palermo_Calcio_logo_%282019%29.svg" },
     ]
   },
 ];

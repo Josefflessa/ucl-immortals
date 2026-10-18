@@ -19,12 +19,12 @@ const CLUB: Record<string, string> = {
   'FC Schalke 04': 'Schalke', 'VfL Wolfsburg': 'Wolfsburg', '1. FC Köln': 'Köln', 'Wolverhampton Wanderers': 'Wolves',
   'TSG 1899 Hoffenheim': 'Hoffenheim', 'Valencia CF': 'Valencia', 'Villarreal CF': 'Villarreal', 'Sevilla FC': 'Sevilla', 'FC Porto': 'Porto',
   'SL Benfica': 'Benfica', 'LOSC Lille': 'Lille', 'OGC Nice': 'Nice', 'Roma FC': 'Roma', 'Newcastle Utd': 'Newcastle',
-  'Bayer 04 Leverkusen': 'Bayer Leverkusen', 'Spartak Moskva': 'Spartak Moscow', 'A. Makhachkala': 'Anzhi Makhachkala',
+  'Bayer 04 Leverkusen': 'Bayer Leverkusen', 'Stade Rennes': 'Rennes', 'Manchester Utd': 'Manchester United', 'CSKA Moskva': 'CSKA Moscow', 'Spartak Moskva': 'Spartak Moscow', 'A. Makhachkala': 'Anzhi Makhachkala',
   'Nacional de Montevideo': 'Nacional', 'L.A. Galaxy': 'LA Galaxy', 'Málaga CF': 'Málaga', 'Galatasaray SK': 'Galatasaray', 'West Ham United': 'West Ham', 'Lokomotiv Moskva': 'Lokomotiv Moscow',
 };
 const NATION: Record<string, string> = { 'Países Baixos': 'Holanda', 'Bósnia e Herz.': 'Bósnia' };
 const SHORT: Record<string, string> = {
-  'Givanildo Vieira de Souza': 'Hulk', 'Ronaldo Aparecido Rodrigues Naldo': 'Naldo', 'Kevin-Prince Boateng': 'K.-P. Boateng',
+  'Givanildo Vieira de Souza': 'Hulk', 'Anderson Luis de Carvalho': 'Nenê', 'Rio Antonio Mavuba': 'Mavuba', 'Yevgen Konoplyanka': 'Konoplyanka', 'Seydou Doumbia': 'Doumbia', 'Ronaldo Aparecido Rodrigues Naldo': 'Naldo', 'Kevin-Prince Boateng': 'K.-P. Boateng',
   'Klaas-Jan Huntelaar': 'Huntelaar', 'Hatem Ben Arfa': 'Ben Arfa', 'Stephan El Shaarawy': 'El Shaarawy', 'Rafael van der Vaart': 'Van der Vaart',
   'Mark van Bommel': 'Van Bommel', 'Stefan de Vrij': 'De Vrij', 'Kevin De Bruyne': 'De Bruyne', 'Virgil van Dijk': 'Van Dijk',
   'Matthijs de Ligt': 'De Ligt', 'Donny van de Beek': 'Van de Beek', 'Giovanni Di Lorenzo': 'Di Lorenzo', 'Antonio Di Natale': 'Di Natale',
@@ -32,7 +32,7 @@ const SHORT: Record<string, string> = {
 };
 const NAMEFULL: Record<string, string> = { 'Ronaldo Aparecido Rodrigues Naldo': 'Ronaldo Aparecido Rodrigues' };
 
-const existing = PLAYER_SOURCES.flatMap(s => s.players);
+const existing = PLAYER_SOURCES.filter(s => s.file !== 'fifaIndex2000Expansion').flatMap(s => s.players);
 const ids = new Set(existing.map(p => p.id));
 const out: string[] = [];
 const drops: string[] = [];
@@ -44,6 +44,7 @@ const mismatch: string[] = [];
 rows.forEach((row, i) => {
   const [key, posRaw, ovrS, nationRaw, clubRaw, face, visS, jumpS] = row.split('|');
   if (!nameBy.has(key)) { mismatch.push(key); return; }
+  if (['200641_16', '170481_15', '170481_13', '169051_13', '176949_13'].includes(key)) return;
   const full0 = nameBy.get(key)!;
   const ed = +key.split('_')[1];
   const season = (2000 + ed - 1) + '/' + String(ed).padStart(2, '0');
