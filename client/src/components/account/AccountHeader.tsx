@@ -48,7 +48,7 @@ function decodeApplicationServerKey(value: string): Uint8Array {
 export default function AccountHeader() {
   const { account, getEvents, getFriends, updateFriendship } = useAccount();
   const { album } = useAlbum();
-  const { dispatch } = useGame();
+  const { state, dispatch } = useGame();
   const [friendships, setFriendships] = useState<FriendshipEntry[]>([]);
   const [pendingEvents, setPendingEvents] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -315,7 +315,7 @@ export default function AccountHeader() {
         </div>
       </header>
 
-      {weekendBonusActive ? (
+      {weekendBonusActive && state.phase === 'menu' ? (
         <div className="px-3 pt-3 sm:px-5 sm:pt-4">
           <section
             role="status"
