@@ -178,6 +178,9 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
               isKnockout={isKnockout}
               isFinal={isFinal}
               isLosing={team.id === result.homeTeamId ? result.homeGoals < result.awayGoals : result.awayGoals < result.homeGoals}
+              isLeading={team.id === result.homeTeamId ? result.homeGoals > result.awayGoals : result.awayGoals > result.homeGoals}
+              isDrawing={result.homeGoals === result.awayGoals}
+              teamHasScored={team.id === result.homeTeamId ? result.homeGoals > 0 : result.awayGoals > 0}
               showAlbumLevel={team.id === localTeamId}
             />
           ) : (

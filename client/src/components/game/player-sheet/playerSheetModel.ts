@@ -86,6 +86,9 @@ export interface PlayerSheetInput {
   isKnockout?: boolean;
   isFinal?: boolean;
   isLosing?: boolean;
+  isLeading?: boolean;
+  isDrawing?: boolean;
+  teamHasScored?: boolean;
   coachPrime?: boolean;
   analysisLevel?: number;
   stadiumProjectLevel?: number;
@@ -128,6 +131,10 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
     isKnockout: input.isKnockout ?? false,
     isFinal: input.isFinal ?? false,
     isLosing: input.isLosing ?? false,
+    isLeading: input.isLeading ?? false,
+    isDrawing: input.isDrawing ?? false,
+    teamHasScored: input.teamHasScored ?? false,
+    formationId: input.formationId,
     coachPrime: input.coachPrime,
     analysisLevel: input.analysisLevel,
     role: formationRole,
@@ -255,6 +262,7 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
 
   // Bonuses that only switch on during a match situation, asked to the engine itself.
   const situationDefs: Array<{ label: string; ctx: Partial<typeof baseContext> }> = [
+    ...(!input.isLeading ? [{ label: 'Quando o time está vencendo', ctx: { isLeading: true } }] : []),
     { label: 'Quando o time está perdendo', ctx: { isLosing: true } },
     ...(input.isKnockout ? [] : [{ label: 'No mata-mata', ctx: { isKnockout: true } }]),
     ...(input.isFinal ? [] : [{ label: 'Na final', ctx: { isKnockout: true, isFinal: true } }]),

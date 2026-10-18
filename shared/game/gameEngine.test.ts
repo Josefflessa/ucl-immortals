@@ -177,11 +177,12 @@ describe('getEffectiveAttribute', () => {
     expect(final - normal).toBe(8);
   });
 
-  it('uses the real formation role for positional coach bonuses', () => {
+  it('uses the real formation role for Luis Enrique when his team is leading', () => {
     const player = asCard({ ...outfield, position: 'CM', vision: 70, passing: 70, traits: [] });
-    const forward = getEffectiveAttribute(player, 'passing', coach, noChem, '__neutral__', { role: 'ST' });
-    const midfielder = getEffectiveAttribute(player, 'passing', coach, noChem, '__neutral__', { role: 'CM' });
-    expect(midfielder - forward).toBe(5); // DNA Guardiola: +5 Passe nos meio-campistas
+    const luisEnrique = COACHES.find(candidate => candidate.id === 'luis_enrique')!;
+    const defender = getEffectiveAttribute(player, 'passing', luisEnrique, noChem, '__neutral__', { isLeading: true, role: 'CB' });
+    const midfielder = getEffectiveAttribute(player, 'passing', luisEnrique, noChem, '__neutral__', { isLeading: true, role: 'CM' });
+    expect(midfielder - defender).toBe(4); // Vencendo, a habilidade fortalece o meio-campo e o ataque.
   });
 });
 
@@ -204,27 +205,27 @@ describe('Técnico Prime', () => {
     );
   };
 
-  it('aumenta a assinatura específica de cada técnico, sem alterar outras regras', () => {
-    const visionPlayer = { ...outfield, vision: 80, traits: [] };
-    expect(effective('guardiola', visionPlayer, 'pace', { coachPrime: true }) - effective('guardiola', visionPlayer, 'pace')).toBe(4);
+  it('amplia o bônus base focado e as habilidades próprias no Prime', () => {
+    const midfielder = { ...outfield, position: 'CM', traits: [] };
+    expect(effective('guardiola', midfielder, 'passing', { isDrawing: true, coachPrime: true }) - effective('guardiola', midfielder, 'passing', { isDrawing: true })).toBe(5);
 
-    const losingPlayer = { ...outfield, traits: [] };
-    expect(effective('klopp', losingPlayer, 'pace', { isLosing: true, coachPrime: true }) - effective('klopp', losingPlayer, 'pace', { isLosing: true })).toBe(6);
-    expect(effective('ferguson', losingPlayer, 'pace', { isLosing: true, coachPrime: true }) - effective('ferguson', losingPlayer, 'pace', { isLosing: true })).toBe(6);
+    const losingPlayer = { ...outfield, position: 'CM', traits: [] };
+    expect(effective('klopp', losingPlayer, 'vision', { teamHasScored: true, coachPrime: true }) - effective('klopp', losingPlayer, 'vision', { teamHasScored: true })).toBe(2);
+    expect(effective('ferguson', losingPlayer, 'dribbling', { isLosing: true, role: 'ST', coachPrime: true }) - effective('ferguson', losingPlayer, 'dribbling', { isLosing: true, role: 'ST' })).toBe(3);
 
     const defender = { ...outfield, position: 'CB', traits: [] };
-    expect(effective('mourinho', defender, 'defending', { isKnockout: true, role: 'CB', coachPrime: true }) - effective('mourinho', defender, 'defending', { isKnockout: true, role: 'CB' })).toBe(6);
-    expect(effective('ancelotti', losingPlayer, 'pace', { isFinal: true, coachPrime: true }) - effective('ancelotti', losingPlayer, 'pace', { isFinal: true })).toBe(6);
+    expect(effective('mourinho', defender, 'pace', { isKnockout: true, role: 'CB', coachPrime: true }) - effective('mourinho', defender, 'pace', { isKnockout: true, role: 'CB' })).toBe(3);
+    expect(effective('ancelotti', losingPlayer, 'vision', { isFinal: true, coachPrime: true }) - effective('ancelotti', losingPlayer, 'vision', { isFinal: true })).toBe(3);
 
     const legend = { ...outfield, rarity: 'legendary' as const, traits: [] };
-    expect(effective('zidane', legend, 'pace', { isKnockout: true, coachPrime: true }) - effective('zidane', legend, 'pace', { isKnockout: true })).toBe(4);
+    expect(effective('zidane', legend, 'dribbling', { coachPrime: true }) - effective('zidane', legend, 'dribbling')).toBe(5);
   });
 
-  it('preserva os dois bônus posicionais do Luis Enrique e melhora ambos no Prime', () => {
+  it('melhora os dois bônus posicionais do Luis Enrique no Prime', () => {
     const midfielder = { ...outfield, position: 'CM', traits: [] };
     const attacker = { ...outfield, position: 'ST', traits: [] };
-    expect(effective('luis_enrique', midfielder, 'vision', { role: 'CM', coachPrime: true }) - effective('luis_enrique', midfielder, 'vision', { role: 'CM' })).toBe(4);
-    expect(effective('luis_enrique', attacker, 'pace', { role: 'ST', coachPrime: true }) - effective('luis_enrique', attacker, 'pace', { role: 'ST' })).toBe(4);
+    expect(effective('luis_enrique', midfielder, 'vision', { isLeading: true, role: 'CM', coachPrime: true }) - effective('luis_enrique', midfielder, 'vision', { isLeading: true, role: 'CM' })).toBe(3);
+    expect(effective('luis_enrique', attacker, 'shooting', { isLeading: true, role: 'ST', coachPrime: true }) - effective('luis_enrique', attacker, 'shooting', { isLeading: true, role: 'ST' })).toBe(3);
   });
 });
 

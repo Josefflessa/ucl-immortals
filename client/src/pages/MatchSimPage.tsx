@@ -492,10 +492,16 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             const scorerId = isOwnGoal ? goalEv.opponentId : goalEv.playerId;
             const scorer = scorerTeam.players.find(p => p.id === scorerId);
             const assister = !isOwnGoal && goalEv.assisterId ? atkTeam.players.find(p => p.id === goalEv.assisterId) : undefined;
+            const homeScoreAtMoment = homeScore + homeDelta;
+            const awayScoreAtMoment = awayScore + awayDelta;
             const statsFor = (team: Team) => getTeamEffectiveStats(team, {
               playStyle: tacticAtMinute(team, [...events, ...otherEvs], nextMin),
               isKnockout,
               isFinal,
+              isLosing: team.id === homeTeam.id ? homeScoreAtMoment < awayScoreAtMoment : awayScoreAtMoment < homeScoreAtMoment,
+              isLeading: team.id === homeTeam.id ? homeScoreAtMoment > awayScoreAtMoment : awayScoreAtMoment > homeScoreAtMoment,
+              isDrawing: homeScoreAtMoment === awayScoreAtMoment,
+              teamHasScored: team.id === homeTeam.id ? homeScoreAtMoment > 0 : awayScoreAtMoment > 0,
             });
             const scorerStats = scorer ? statsFor(scorerTeam)[scorer.id] : undefined;
             const assisterStats = assister ? statsFor(atkTeam)[assister.id] : undefined;
@@ -1397,6 +1403,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                       isKnockout={isKnockout}
                       isFinal={isFinal}
                       isLosing={t.id === homeTeam.id ? homeScore < awayScore : awayScore < homeScore}
+                      isLeading={t.id === homeTeam.id ? homeScore > awayScore : awayScore > homeScore}
+                      isDrawing={homeScore === awayScore}
+                      teamHasScored={t.id === homeTeam.id ? homeScore > 0 : awayScore > 0}
                       disableEntryAnimation
               showAlbumLevel={t.id === playerTeamId}
                     />

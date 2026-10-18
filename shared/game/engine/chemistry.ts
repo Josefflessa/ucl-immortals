@@ -1,6 +1,6 @@
 // Chemistry, effective stats, team-effect characteristics and possession.
 
-import { Player, COACHES, FORMATIONS, getCompetitionAlbumBonus, HISTORICAL_TRIOS } from '../gameData';
+import { Player, COACHES, FORMATIONS, getCompetitionAlbumBonus, getPositionGroup, HISTORICAL_TRIOS, type CoachEffectRule, type CoachCondition, type CoachAttribute } from '../gameData';
 import { activePlayerTraits, AttrKey, getTraitAttributeBonus, hasPlayerTrait } from '../traits';
 import { sameClub } from '../crests';
 import { projectLevel } from '../clubProjects';
@@ -11,8 +11,8 @@ import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
 import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, FOMINHA_CHEM_PENALTY_PER_GOAL, FOMINHA_STAT_BOOST_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, desenfreadoStatBoost } from './draft';
 
-// Playing in the coach's preferred formation gels the side: a flat bonus to the team's
-// TOTAL chemistry, which can push it into a higher global-bonus tier (passe/ritmo/especial).
+// The preferred formation adds chemistry for the whole team, which can move it into a
+// higher team-chemistry bonus tier.
 export const PREFERRED_FORMATION_CHEM_BONUS = 10;
 
 export function calculateChemistry(
@@ -188,7 +188,7 @@ export interface EffectiveStats {
   activeCoachEffects: string[];
   // Per-source breakdown so the UI can explain WHERE each buff comes from.
   chemMult: number;                                   // individual-chem multiplier (1.00–1.10; OOP lives in posMult)
-  globalChemBonus: { passing: number; pace: number; special: number }; // team-wide bonus in stat points (special = +1/+2/+3/+5 to every attr by chem tier)
+  globalChemBonus: { passing: number; pace: number; special: number }; // team-wide bonus in stat points (special = +2/+3/+5/+7 to every attr by chem tier)
   breakdown: Record<'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure', StatBreakdown>;
 }
 
@@ -199,6 +199,10 @@ export function getCoachModifiersForPlayer(
     isKnockout?: boolean;
     isFinal?: boolean;
     isLosing?: boolean;
+    isLeading?: boolean;
+    isDrawing?: boolean;
+    teamHasScored?: boolean;
+    formationId?: string;
     coachPrime?: boolean;
     role?: string;
   }
@@ -218,6 +222,10 @@ export function getCoachModifiersForPlayer(
   const isKnockout = context?.isKnockout ?? false;
   const isFinal = context?.isFinal ?? false;
   const isLosing = context?.isLosing ?? false;
+  const isLeading = context?.isLeading ?? false;
+  const isDrawing = context?.isDrawing ?? false;
+  const teamHasScored = context?.teamHasScored ?? false;
+  const formationId = context?.formationId;
   const coachPrime = context?.coachPrime ?? false;
   const role = context?.role ?? player.position;
 
@@ -236,156 +244,42 @@ export function getCoachModifiersForPlayer(
   const coach = COACHES.find(c => c.id === coachId);
   if (!coach) return modifiers;
 
-  // Apply every coach bonus to its named attribute. The `phase` field
-  // ('Criação'/'Finalização'/'Defesa'/'Todos') is descriptive: each attribute is only
-  // read during its natural phase of play in the sim (shooting→finalização,
-  // pace/dribbling→criação, defending/physical→defesa), so a per-attribute bonus
-  // effectively only "fires" in that phase. Team strength uses RAW stats, so these
-  // never inflate favouritism — they tilt the in-phase duels only. Display and sim
-  // both read this function, so the breakdown UI stays in sync.
-  for (const bonus of coach.bonuses) {
-    const val = bonus.value;
-    if (bonus.attribute === 'all') {
-      modifiers.pace += val;
-      modifiers.shooting += val;
-      modifiers.passing += val;
-      modifiers.dribbling += val;
-      modifiers.defending += val;
-      modifiers.physical += val;
-      modifiers.composure += val;
-      modifiers.vision += val;
-    } else {
-      const attr = bonus.attribute as keyof typeof modifiers;
-      if (attr in modifiers && attr !== 'activeEffects') {
-        (modifiers[attr] as number) += val;
-      }
-    }
-  }
-
-  // Active conditional effects
   const pos = role || player.position;
-  const isMidfielder = ['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(pos);
-  const isDefender = ['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(pos);
-  const isGK = pos === 'GK';
+  const positionGroup = getPositionGroup(pos);
+  const allAttributes: Exclude<CoachAttribute, 'all'>[] = [
+    'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'composure', 'vision',
+  ];
 
-  if (coachId === 'guardiola') {
-    if (isMidfielder) {
-      modifiers.passing += 5;
-      modifiers.vision += 5;
-      modifiers.activeEffects.push("DNA Guardiola: +5 Passe/Visão (MC)");
+  const conditionMatches = (condition: CoachCondition): boolean => {
+    switch (condition.type) {
+      case 'losing': return isLosing;
+      case 'leading': return isLeading;
+      case 'knockout': return isKnockout || isFinal;
+      case 'final': return isFinal;
+      case 'drawing': return isDrawing;
+      case 'scored': return teamHasScored;
+      case 'formationIs': return formationId === condition.value;
+      case 'rarityIn': return condition.rarities.includes(player.rarity);
     }
-    if (player.vision + getCompetitionAlbumBonus(player) >= 80) {
-      const b = coachPrime ? 7 : 3;
-      modifiers.pace += b;
-      modifiers.shooting += b;
-      modifiers.passing += b;
-      modifiers.dribbling += b;
-      modifiers.defending += b;
-      modifiers.physical += b;
-      modifiers.composure += b;
-      modifiers.vision += b;
-      modifiers.activeEffects.push("Visão de Jogo" + (coachPrime ? " Prime" : "") + ": +" + b + " Geral");
+  };
+
+  const applyRules = (rules: CoachEffectRule[]) => {
+    for (const rule of rules) {
+      const targetMatches = rule.target === 'ALL'
+        || (rule.target === 'BACKLINE' ? positionGroup === 'DEF' || positionGroup === 'GK' : rule.target === positionGroup);
+      if (!targetMatches || rule.conditions?.some(condition => !conditionMatches(condition))) continue;
+
+      const bonuses = coachPrime && rule.primeBonuses ? rule.primeBonuses : rule.bonuses;
+      const allBonus = bonuses.all ?? 0;
+      for (const attribute of allAttributes) modifiers[attribute] += allBonus + (bonuses[attribute] ?? 0);
+
+      const description = coachPrime && rule.primeDescription ? rule.primeDescription : rule.description;
+      modifiers.activeEffects.push(`${rule.name}: ${description}`);
     }
-  } else if (coachId === 'klopp') {
-    if (isLosing) {
-      const b = coachPrime ? 14 : 8;
-      modifiers.pace += b;
-      modifiers.shooting += b;
-      modifiers.passing += b;
-      modifiers.dribbling += b;
-      modifiers.defending += b;
-      modifiers.physical += b;
-      modifiers.composure += b;
-      modifiers.vision += b;
-      modifiers.activeEffects.push("Gegenpressing" + (coachPrime ? " Prime" : "") + ": +" + b + " Geral");
-    }
-  } else if (coachId === 'mourinho') {
-    if (isGK) {
-      modifiers.defending += 5;
-      modifiers.activeEffects.push("Goleiro Mourinho: +5 Defesa");
-    }
-    if (isKnockout && isDefender) {
-      const b = coachPrime ? 12 : 6;
-      modifiers.defending += b;
-      modifiers.activeEffects.push("Muralha Mourinho" + (coachPrime ? " Prime" : "") + ": +" + b + " Defesa");
-    }
-  } else if (coachId === 'ancelotti') {
-    if (player.overall + getCompetitionAlbumBonus(player) >= 85) {
-      const b = 4;
-      modifiers.pace += b;
-      modifiers.shooting += b;
-      modifiers.passing += b;
-      modifiers.dribbling += b;
-      modifiers.defending += b;
-      modifiers.physical += b;
-      modifiers.composure += b;
-      modifiers.vision += b;
-      modifiers.activeEffects.push("Gestão de Estrelas: +4 Geral");
-    }
-    if (isFinal) {
-      const b = coachPrime ? 12 : 6;
-      modifiers.pace += b;
-      modifiers.shooting += b;
-      modifiers.passing += b;
-      modifiers.dribbling += b;
-      modifiers.defending += b;
-      modifiers.physical += b;
-      modifiers.composure += b;
-      modifiers.vision += b;
-      modifiers.activeEffects.push("Mentalidade Decisiva" + (coachPrime ? " Prime" : "") + ": +" + b + " Geral");
-    }
-  } else if (coachId === 'zidane') {
-    if (player.rarity === 'legendary' || player.rarity === 'immortal') {
-      // Every player already has the +2 base bonus above. Legends/immortals get a higher all-round
-      // bump: +4 total normally, +6 in a knockout/final. `b` is the EXTRA added on top of the +2 base;
-      // the label states the TOTAL (so it matches the per-attribute chips the player sees).
-      let b = 2; // +2 base + 2 = +4 total
-      let label = "Galácticos Zidane: +4 Geral";
-      if (isFinal || isKnockout) {
-        b = coachPrime ? 8 : 4; // +2 base + extra = +10 Prime or +6 normal total
-        const total = coachPrime ? 10 : 6;
-        label = isFinal
-          ? "Rei da Final" + (coachPrime ? " Prime" : "") + ": +" + total + " Geral"
-          : "Rei do Mata-Mata" + (coachPrime ? " Prime" : "") + ": +" + total + " Geral";
-      }
-      modifiers.pace += b;
-      modifiers.shooting += b;
-      modifiers.passing += b;
-      modifiers.dribbling += b;
-      modifiers.defending += b;
-      modifiers.physical += b;
-      modifiers.composure += b;
-      modifiers.vision += b;
-      modifiers.activeEffects.push(label);
-    }
-  } else if (coachId === 'ferguson') {
-    if (isLosing) {
-      const b = coachPrime ? 16 : 10;
-      modifiers.pace += b;
-      modifiers.shooting += b;
-      modifiers.passing += b;
-      modifiers.dribbling += b;
-      modifiers.defending += b;
-      modifiers.physical += b;
-      modifiers.composure += b;
-      modifiers.vision += b;
-      modifiers.activeEffects.push("Fergie Time" + (coachPrime ? " Prime" : "") + ": +" + b + " Geral");
-    }
-  } else if (coachId === 'luis_enrique') {
-    // Luis Enrique's identity is vertical circulation: midfielders find the next pass,
-    // while the front line attacks the space immediately after the build-up.
-    if (isMidfielder) {
-      const b = coachPrime ? 7 : 3;
-      modifiers.vision += b;
-      modifiers.activeEffects.push("Transição Vertical" + (coachPrime ? " Prime" : "") + ": +" + b + " Visão (MC)");
-    }
-    if (['ST', 'LW', 'RW'].includes(pos)) {
-      const b = coachPrime ? 6 : 2;
-      modifiers.pace += b;
-      modifiers.dribbling += b;
-      modifiers.activeEffects.push("Transição Vertical" + (coachPrime ? " Prime" : "") + ": +" + b + " Ritmo/Drible (ataque)");
-    }
-  }
+  };
+
+  applyRules(coach.baseEffects);
+  applyRules(coach.specialEffects);
 
   return modifiers;
 }
@@ -401,6 +295,10 @@ export function getPlayerEffectiveStats(
     isKnockout?: boolean;
     isFinal?: boolean;
     isLosing?: boolean;
+    isLeading?: boolean;
+    isDrawing?: boolean;
+    teamHasScored?: boolean;
+    formationId?: string;
     coachPrime?: boolean;
     role?: string;
     // The captain's single best attribute is boosted by +amount for EVERY teammate
@@ -429,7 +327,9 @@ export function getPlayerEffectiveStats(
   const applyMult = (base: number) => Math.round(withAlbum(base) * chemMult * posMult);
   const chemOnly = (base: number) => Math.round(withAlbum(base) * chemMult);
 
-  const modifiers = getCoachModifiersForPlayer(player, coachId, context);
+  const modifiers = getCoachModifiersForPlayer(player, coachId, {
+    ...context,
+  });
   const chemBonus = getChemistryBonus(teamChemTotal);
 
   // Unconditional trait bonuses (no context → only 'always' boosts count; conditional
@@ -440,7 +340,7 @@ export function getPlayerEffectiveStats(
   const styleBonus = (attr: AttrKey): number => tacticStatBonus(playStyle, attr, context?.analysisLevel);
 
   // Global chemistry bonus, same as the engine: +passing/+pace by tier, PLUS a flat
-  // +1/+2/+3/+5 to every attribute by chemistry tier (45/60/75/90, chemBonus.special).
+  // +2/+3/+5/+7 to every attribute by chemistry tier (45/60/75/90, chemBonus.special).
   const globalChem = (attr: AttrKey): number => {
     let v = chemBonus.special;
     if (attr === 'passing') v += chemBonus.passing * 2;
@@ -578,12 +478,12 @@ export function getPlayerEffectiveStats(
 }
 
 // `special` = flat "+N to EVERY attribute" awarded at each chemistry milestone (tiered): a gelled
-// team gets steadily stronger, peaking at +5 for perfect chemistry (90+).
+// team gets steadily stronger, peaking at +7 for strong chemistry (90+).
 export function getChemistryBonus(total: number): { passing: number; pace: number; special: number } {
-  if (total >= 90) return { passing: 3, pace: 2, special: 5 };
-  if (total >= 75) return { passing: 2, pace: 1, special: 3 };
-  if (total >= 60) return { passing: 1, pace: 1, special: 2 };
-  if (total >= 45) return { passing: 1, pace: 0, special: 1 };
+  if (total >= 90) return { passing: 3, pace: 2, special: 7 };
+  if (total >= 75) return { passing: 2, pace: 1, special: 5 };
+  if (total >= 60) return { passing: 1, pace: 1, special: 3 };
+  if (total >= 45) return { passing: 1, pace: 0, special: 2 };
   return { passing: 0, pace: 0, special: 0 };
 }
 
@@ -722,6 +622,9 @@ interface TeamEffectiveStatsOptions {
   isKnockout?: boolean;
   isFinal?: boolean;
   isLosing?: boolean;
+  isLeading?: boolean;
+  isDrawing?: boolean;
+  teamHasScored?: boolean;
   // Match-only role changes, e.g. a line player taking the goal after a red card.
   roleOverrides?: Record<string, string>;
 }
@@ -747,7 +650,6 @@ export function getTeamEffectiveStats(
   const captainBoost = captainBoostForTeam(team) ?? undefined;
   const charBoosts = computeCharacteristicBoosts(team.players, chemistry.total);
   const playStyle = options.playStyle ?? team.playStyle ?? 'balanced';
-
   return Object.fromEntries(team.players.map((player, index) => {
     const isStarter = index < 11;
     const effective = getPlayerEffectiveStats(
@@ -764,6 +666,10 @@ export function getTeamEffectiveStats(
         isKnockout: options.isKnockout,
         isFinal: options.isFinal,
         isLosing: options.isLosing,
+        isLeading: options.isLeading,
+        isDrawing: options.isDrawing,
+        teamHasScored: options.teamHasScored,
+        formationId: team.formationId,
         coachPrime: team.coachPrime,
         analysisLevel: projectLevel(team.clubProjects, 'analysis'),
         role: options.roleOverrides?.[player.id]
@@ -813,7 +719,11 @@ export function getCardIntrinsicStats(player: Player, options: { isKnockout?: bo
 // Midfield build-up rating: passing (execution) blended with vision (the incisive idea /
 // final ball). Vision is ~35% so a true playmaker lifts chance creation noticeably, without
 // overshadowing pure passing. Feeds midfieldBuildUpEdge → the QUALITY of chances created.
-export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): number {
+export function teamPlaymaking(
+  team: Team,
+  playStyleOverride = team.playStyle,
+  situation: { isDrawing?: boolean; isLeading?: boolean; teamHasScored?: boolean } = {},
+): number {
   const xi = team.players.slice(0, 11);
   const mids = xi.filter(p => ['CM', 'CAM', 'CDM', 'LM', 'RM'].includes(matchRoleForPlayer(team, p)));
   const pool = mids.length > 0 ? mids : xi;
@@ -832,6 +742,10 @@ export function teamPlaymaking(team: Team, playStyleOverride = team.playStyle): 
       analysisLevel: projectLevel(team.clubProjects, 'analysis'),
       role: formationRoleForPlayer(team, p),
       credits: team.credits,
+      formationId: team.formationId,
+      isDrawing: situation.isDrawing,
+      isLeading: situation.isLeading,
+      teamHasScored: situation.teamHasScored,
     });
   return pool.reduce((s, p) => s + eff(p as PlayerCard, 'passing') * 0.65 + eff(p as PlayerCard, 'vision') * 0.35, 0) / pool.length;
 }

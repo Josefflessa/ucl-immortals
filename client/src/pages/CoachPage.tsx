@@ -6,6 +6,7 @@ import { useGame } from '../contexts/GameContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { COACHES } from '@shared/game/gameData';
 import { PREFERRED_FORMATION_CHEM_BONUS } from '@shared/game/gameEngine';
+import { coachBaseDescription, coachPrimeDefinition } from '../lib/coachPrime';
 import { AppShell, Button, ChoiceCard, FixedActionBar, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 /** Shown when a coach has no photo: his style, as a line icon. */
@@ -64,7 +65,7 @@ export default function CoachPage() {
           {/* Title */}
           <SectionHeader
             title="Escolha seu treinador"
-            description="O treinador define sua filosofia de jogo e bônus táticos. Jogadores que trabalharam com ele ganham química extra."
+            description="Todo técnico dá +5 em cada um de dois atributos de foco ao elenco. Sua habilidade só dá bônus em todos os atributos quando a condição própria é cumprida, e apenas aos jogadores elegíveis. No Prime, o bônus base sobe para +8 e a habilidade fica mais forte. A formação preferida e os vínculos históricos também aumentam a Química Geral."
             className="mb-8"
           />
 
@@ -75,6 +76,8 @@ export default function CoachPage() {
               const color = COACH_COLORS[coach.id] || '#C9A84C';
               const CoachStyle = COACH_ICONS[coach.id];
               const icon = CoachStyle ? <CoachStyle size={26} strokeWidth={2.2} color={color} /> : '⚽';
+              const baseDescription = coachBaseDescription(coach);
+              const abilityDescription = coachPrimeDefinition(coach).normal;
 
               return (
                 <ChoiceCard
@@ -133,32 +136,35 @@ export default function CoachPage() {
                       >
                         {coach.name.toUpperCase()}
                       </div>
+                      <div className="mt-1 text-sm font-bold leading-snug" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
+                        {coach.philosophy}
+                      </div>
                     </div>
                   </div>
 
                   {/* Bonus */}
                   <div className="mt-5">
-                    <div className="mb-1.5 flex items-center gap-2 text-[12px] font-black tracking-[0.14em]" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
-                      <Zap size={14} strokeWidth={2.6} aria-hidden="true" />BÔNUS DO TÉCNICO
+                    <div className="mb-1.5 flex items-center gap-2 text-[13px] font-black tracking-[0.14em]" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
+                      <Zap size={14} strokeWidth={2.6} aria-hidden="true" />BÔNUS BASE
                     </div>
-                    <p className="text-[15px] font-semibold leading-snug" style={{ color: '#ECECF4', fontFamily: 'var(--font-game), sans-serif' }}>
-                      {coach.effect}
-                    </p>
+                    <div className="space-y-1 text-base font-semibold leading-snug" style={{ color: '#ECECF4', fontFamily: 'var(--font-game), sans-serif' }}>
+                      {baseDescription.map((line, index) => <p key={index}>{line}</p>)}
+                    </div>
                   </div>
 
                   {/* Ability */}
                   <div className="mt-4 rounded-xl p-3.5" style={{ background: `${color}12`, border: `1px solid ${color}2E` }}>
-                    <div className="mb-1 flex items-center gap-2 text-[12px] font-black tracking-[0.14em]" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
+                    <div className="mb-1 flex items-center gap-2 text-[13px] font-black tracking-[0.14em]" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
                       <Sparkles size={14} strokeWidth={2.6} aria-hidden="true" />HABILIDADE · {coach.specialAbilityName.toUpperCase()}
                     </div>
-                    <p className="text-[15px] leading-snug" style={{ color: '#D6D6E2', fontFamily: 'var(--font-game), sans-serif' }}>
-                      {coach.specialAbility}
+                    <p className="text-base leading-snug" style={{ color: '#D6D6E2', fontFamily: 'var(--font-game), sans-serif' }}>
+                      {abilityDescription}
                     </p>
                   </div>
 
                   {/* Preferred formation */}
                   <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t pt-4" style={{ borderColor: 'var(--ui-line-subtle)' }}>
-                    <span className="text-[13px] font-bold tracking-wide" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <span className="text-sm font-bold tracking-wide" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                       FORMAÇÃO PREFERIDA
                     </span>
                     <span
@@ -167,8 +173,8 @@ export default function CoachPage() {
                     >
                       {coach.preferredFormation}
                     </span>
-                    <span className="basis-full text-[14px] leading-snug" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>
-                      Jogando no {coach.preferredFormation}, o time inteiro ganha <b>+{PREFERRED_FORMATION_CHEM_BONUS} de Química Geral</b>.
+                    <span className="basis-full text-[15px] leading-snug" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>
+                      Nessa formação, o time recebe <b>+{PREFERRED_FORMATION_CHEM_BONUS} de Química Geral</b>.
                     </span>
                   </div>
                 </ChoiceCard>

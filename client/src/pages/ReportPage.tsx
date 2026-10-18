@@ -382,8 +382,19 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         isKnockout: reportIsKnockout,
         isFinal: reportIsFinal,
         isLosing: reportIsLosing,
+        isLeading: !!reportFinalResult && (
+          reportFinalResult.homeTeamId === playerTeam?.id
+            ? reportFinalResult.homeGoals > reportFinalResult.awayGoals
+            : reportFinalResult.awayGoals > reportFinalResult.homeGoals
+        ),
+        isDrawing: !!reportFinalResult && reportFinalResult.homeGoals === reportFinalResult.awayGoals,
+        teamHasScored: !!reportFinalResult && (
+          reportFinalResult.homeTeamId === playerTeam?.id
+            ? reportFinalResult.homeGoals > 0
+            : reportFinalResult.awayGoals > 0
+        ),
       })
-    : {}, [playerTeam, reportPlayStyle, reportIsKnockout, reportIsFinal, reportIsLosing]);
+    : {}, [playerTeam, reportPlayStyle, reportIsKnockout, reportIsFinal, reportIsLosing, reportFinalResult]);
   const effectiveCardStatsById = useMemo<Record<string, SavedEffectiveCardStats>>(() => {
     if (!playerTeam) return {};
     return Object.fromEntries(playerTeam.players.map(player => {
@@ -1065,6 +1076,9 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           isKnockout={reportIsKnockout}
           isFinal={reportIsFinal}
           isLosing={reportIsLosing}
+          isLeading={!!reportFinalResult && (reportFinalResult.homeTeamId === playerTeam.id ? reportFinalResult.homeGoals > reportFinalResult.awayGoals : reportFinalResult.awayGoals > reportFinalResult.homeGoals)}
+          isDrawing={!!reportFinalResult && reportFinalResult.homeGoals === reportFinalResult.awayGoals}
+          teamHasScored={!!reportFinalResult && (reportFinalResult.homeTeamId === playerTeam.id ? reportFinalResult.homeGoals > 0 : reportFinalResult.awayGoals > 0)}
           coachPrime={!!playerTeam.coachPrime}
           analysisLevel={projectLevel(playerTeam.clubProjects, 'analysis')}
           onClose={() => setSelectedPlayer(null)}

@@ -2,8 +2,8 @@
 
 ## Resumo da decisão
 
-O Técnico Prime será uma evolução individualizada por treinador. Cada técnico
-receberá uma melhoria forte e característica da sua habilidade especial. O
+O Técnico Prime é uma evolução individualizada por treinador. Ele amplia os
+atributos de foco do bônus base e fortalece a habilidade especial do técnico. O
 Estádio deixará de fazer parte dessa evolução e ficará responsável somente pela
 vantagem de mando e pela sua própria progressão no projeto do clube.
 
@@ -26,19 +26,28 @@ deve funcionar de forma idêntica no solo e no online.
 
 ## Assinaturas Prime
 
-| Técnico | Efeito normal | Efeito Prime |
-|---|---|---|
-| Pep Guardiola | Visão ≥80: +3 em tudo | Visão ≥80: **+7 em tudo** |
-| Jürgen Klopp | Quando perdendo: +8 em tudo | Quando perdendo: **+14 em tudo** |
-| José Mourinho | Defensores no mata-mata: +6 Defesa | Defensores no mata-mata: **+12 Defesa** |
-| Carlo Ancelotti | Na final: +6 em tudo | Na final: **+12 em tudo** |
-| Zinedine Zidane | Lendários/Imortais no mata-mata: +6 em tudo | Lendários/Imortais no mata-mata: **+10 em tudo** |
-| Sir Alex Ferguson | Quando perdendo: +10 em tudo | Quando perdendo: **+16 em tudo** |
-| Luis Enrique | Meio-campistas +3 Visão; atacantes +2 Ritmo/Drible | Meio-campistas **+7 Visão**; atacantes **+6 Ritmo/Drible** |
+Todos os técnicos dão +5 em cada um de dois atributos de foco a todo o elenco
+em qualquer partida. A habilidade de cada técnico tem condição, alcance e força
+próprios. Os bônus em todos os atributos só aparecem para os jogadores elegíveis
+quando a condição da habilidade é cumprida. No Prime, cada bônus base sobe +3
+e a habilidade fica mais forte.
 
-Os valores Prime são os valores totais daquela habilidade, não um segundo
-gatilho separado. Por exemplo, Klopp Prime recebe +14 em tudo quando está
-perdendo, e não +8 mais +14.
+| Técnico | Bônus base | Habilidade normal | Habilidade Prime |
+|---|---|---|---|
+| Pep Guardiola | +6 em Passe e +5 em Visão (+9 e +8 Prime) | Com o placar empatado: elenco +3 em tudo | Com o placar empatado: elenco **+5 em tudo** |
+| Jürgen Klopp | +4 em Ritmo e Físico (+7 Prime) | Depois de marcar: elenco +2 em tudo | Depois de marcar: elenco **+4 em tudo** |
+| José Mourinho | +5 em Defesa e Físico (+8 Prime) | No mata-mata: defesa e goleiro +3 em tudo | No mata-mata: defesa e goleiro **+6 em tudo** |
+| Carlo Ancelotti | +5 em Passe e Defesa (+8 Prime) | Mata-mata: elenco +1 em tudo; final: +5 em tudo no total | Mata-mata: elenco **+2 em tudo**; final: **+8 em tudo** no total |
+| Zinedine Zidane | +4 em Drible e Finalização (+7 Prime) | Lendários e Imortais: +2 em tudo em todas as partidas | Lendários e Imortais: **+4 em tudo** em todas as partidas |
+| Sir Alex Ferguson | +5 em Finalização e +4 em Físico (+8 e +7 Prime) | Perdendo: elenco +3 em tudo | Perdendo: elenco **+6 em tudo** |
+| Luis Enrique | +5 em Ritmo e Drible (+8 Prime) | Vencendo: meio-campistas e atacantes +4 em tudo | Vencendo: meio-campistas e atacantes **+7 em tudo** |
+
+O Prime preserva as condições e os jogadores afetados. O bônus de todos os
+atributos tem valores diferentes porque algumas habilidades cobrem o elenco
+inteiro ou ficam ativas por mais tempo, enquanto outras se limitam a jogadores
+específicos ou a uma situação decisiva. Quando a habilidade ativa, ela se soma
+ao bônus base. As regras e descrições permanecem juntas no catálogo de técnicos
+para manter motor e interface sincronizados.
 
 ## Estádio independente
 
@@ -60,7 +69,7 @@ O modal de evolução exibirá somente:
 
 - foto atual e foto Prime do técnico;
 - nome da habilidade normal e da habilidade Prime;
-- comparação objetiva do valor, como `+8 em tudo → +14 em tudo`;
+- comparação objetiva do bônus base e da habilidade normal e Prime;
 - condições de ativação;
 - requisitos de 4 vitórias e 350 créditos;
 - botões Cancelar e Confirmar.

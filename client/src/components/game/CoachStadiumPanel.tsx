@@ -61,7 +61,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
   const [showModal, setShowModal] = useState(false);
   const [reportStadiumImgOk, setReportStadiumImgOk] = useState(true);
   const canEvolve = wins >= PRIME_WINS_REQUIRED && points >= PRIME_COST;
-  const primeDefinition = coachPrimeDefinition(coach.id);
+  const primeDefinition = coachPrimeDefinition(coach);
   const primeCoachPhotoUrl = stadiumFor(coach.id, true).coachPhotoUrl;
   // Nível 5 unlocks the Prime stadium image as the club's visual stadium;
   // it does not evolve the coach or grant the Prime thematic coach effects.
@@ -187,12 +187,14 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
                 </div>
                 <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2" style={{ background: '#0d0d16', fontFamily: 'var(--font-game), sans-serif' }}>
                   <div className="rounded-lg border border-[#24243A] bg-[#0A0A14] p-2.5">
-                    <div className="text-[12px] font-black tracking-widest text-[#8A8A9A]">ANTES</div>
-                    <p className="mt-1.5 text-xs leading-relaxed text-[#C9C9D5]">{primeDefinition?.normal ?? coach.specialAbility}</p>
+                    <div className="text-[13px] font-black tracking-widest text-[#8A8A9A]">ANTES</div>
+                    <p className="mt-1.5 text-sm leading-relaxed text-[#C9C9D5]"><b>Bônus base:</b> {primeDefinition.baseNormal}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-[#C9C9D5]"><b>{primeDefinition.name}:</b> {primeDefinition.normal}</p>
                   </div>
                   <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5">
-                    <div className="text-[12px] font-black tracking-widest text-brand-strong">DEPOIS · PRIME</div>
-                    <p className="mt-1.5 text-xs leading-relaxed text-[#F1E5B2]">{primeDefinition?.prime ?? 'A habilidade especial fica mais forte.'}</p>
+                    <div className="text-[13px] font-black tracking-widest text-brand-strong">DEPOIS · PRIME</div>
+                    <p className="mt-1.5 text-sm leading-relaxed text-[#F1E5B2]"><b>Bônus base:</b> {primeDefinition.basePrime}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-[#F1E5B2]"><b>{primeDefinition.name}:</b> {primeDefinition.prime}</p>
                   </div>
                 </div>
               </section>

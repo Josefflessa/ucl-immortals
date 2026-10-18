@@ -24,6 +24,7 @@ import { FIFAINDEX_FAMOUS_ADDITIONS } from './fifaIndexFamousExpansion';
 import { FIFAINDEX_VERSION_ADDITIONS } from './fifaIndexVersionsExpansion';
 import { FIFAINDEX_ALBUM_CLUB_ADDITIONS } from './fifaIndexAlbumClubsExpansion';
 import { FIFAINDEX_2000_ADDITIONS } from './fifaIndex2000Expansion';
+import { withExtraCoachLinks } from './coachLinks';
 import { ORIGINAL_PLAYERS } from './originalCatalog';
 import { EVENT_UNIQUE_CARD_LIST, UNIQUE_CARD_LIST } from './uniqueCards';
 import { WEEKLY_BANNER_UNIQUE_CARDS } from './weeklyBannerCards';
@@ -65,6 +66,7 @@ function withCanonicalClub(player: Player): Player {
 export const PLAYERS: Player[] = PLAYER_SOURCES
   .flatMap(source => source.players)
   .map(normalizeRegularPlayerRarity)
+  .map(withExtraCoachLinks)
   .map(withCanonicalClub);
 
 export const UNIQUE_CARDS: Player[] = UNIQUE_CARD_LIST.map(withCanonicalClub);

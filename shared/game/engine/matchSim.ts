@@ -368,11 +368,11 @@ export function runMatchSimulation(
   const homeMatchPlan = normalizeMatchPlan(home.matchPlan);
   const awayMatchPlan = normalizeMatchPlan(away.matchPlan);
   const playmakingCache = new Map<string, number>();
-  const playmakingFor = (team: Team, style: string) => {
-    const key = `${team.id}:${style}`;
+  const playmakingFor = (team: Team, style: string, isDrawing: boolean, isLeading: boolean, teamHasScored: boolean) => {
+    const key = `${team.id}:${style}:${isDrawing}:${isLeading}:${teamHasScored}`;
     const cached = playmakingCache.get(key);
     if (cached !== undefined) return cached;
-    const value = teamPlaymaking(team, style);
+    const value = teamPlaymaking(team, style, { isDrawing, isLeading, teamHasScored });
     playmakingCache.set(key, value);
     return value;
   };
@@ -411,9 +411,8 @@ export function runMatchSimulation(
   // 📉 Ímpeto COMPRIMIDO só para cartão/lesão → aproxima pico e vale sem mudar tempo/gols.
   const cardAggression = compressAggression(matchAggression);
 
-  // Team strength only changes with discipline events (red cards, injuries) and with the score
-  // (coach/trait bonuses "while losing"). It is cached for both score states and recomputed only
-  // on discipline events. It includes the host's stadium edge, like the duels do.
+  // Team strength is cached for each score situation, with discipline penalties recomputed on card
+  // events. Timed coach effects trigger a refresh when the match reaches their activation minute.
   // 🩹🟥 Estado disciplinar da partida: força base MUTÁVEL (recomputada por evento).
   const sentOff = new Set<string>();                 // teamId::playerId removidos (🟥) → time joga com 10
   const injuredDebuff: Record<string, number> = {};  // teamId::playerId → jogador lesionado (capengando)
@@ -445,19 +444,39 @@ export function runMatchSimulation(
   const disc = () => ({ sentOff, injuredDebuff, injuryDebuff: INJURY_DEBUFF });
   const isSentOff = (team: Team, player: Player) => isExcludedPlayer(team, player, sentOff);
   const hasMatchInjury = (team: Team, player: Player) => Boolean(injuredDebuff[statKey(team.id, player.id)]);
-  type StrengthByScore = { level: number; losing: number };
+  type StrengthState = { leading: number; losing: number; drawing: number };
+  type StrengthByScore = { beforeScoring: StrengthState; afterScoring: StrengthState };
   const strengthFor = (team: Team, coach: Coach, chem: typeof homeChem, formBonus: number): StrengthByScore => {
-    const strength = (isLosing: boolean, venue: { homeStadium?: Stadium; stadiumProjectLevel?: number }) =>
-      calculateTeamStrength(team, coach, chem, formBonus, disc(), { isKnockout, isFinal, isLosing, ...venue });
+    const strength = (isLosing: boolean, isDrawing: boolean, isLeading: boolean, teamHasScored: boolean, venue: { homeStadium?: Stadium; stadiumProjectLevel?: number }) =>
+      calculateTeamStrength(team, coach, chem, formBonus, disc(), {
+        isKnockout,
+        isFinal,
+        isLosing,
+        isDrawing,
+        isLeading,
+        teamHasScored,
+        formationId: team.formationId,
+        ...venue,
+      });
+    const state = (teamHasScored: boolean, venue: { homeStadium?: Stadium; stadiumProjectLevel?: number }): StrengthState => ({
+      leading: strength(false, false, true, teamHasScored, venue),
+      losing: strength(true, false, false, teamHasScored, venue),
+      drawing: strength(false, true, false, teamHasScored, venue),
+    });
     // The host's stadium edge counts in full in every duel, and by HOME_INITIATIVE_SHARE in the
     // territory battle (strength → who attacks each minute). Not on a neutral final venue.
-    if (team !== home || neutralFinal) return { level: strength(false, {}), losing: strength(true, {}) };
+    if (team !== home || neutralFinal) return { beforeScoring: state(false, {}), afterScoring: state(true, {}) };
     const venue = { homeStadium: stadiumFor(home.coachId, false), stadiumProjectLevel: projectLevel(home.clubProjects, 'stadium') };
-    const blend = (isLosing: boolean) => {
-      const neutral = strength(isLosing, {});
-      return neutral + (strength(isLosing, venue) - neutral) * HOME_INITIATIVE_SHARE;
+    const blend = (teamHasScored: boolean): StrengthState => {
+      const neutral = state(teamHasScored, {});
+      const hosted = state(teamHasScored, venue);
+      return {
+        leading: neutral.leading + (hosted.leading - neutral.leading) * HOME_INITIATIVE_SHARE,
+        losing: neutral.losing + (hosted.losing - neutral.losing) * HOME_INITIATIVE_SHARE,
+        drawing: neutral.drawing + (hosted.drawing - neutral.drawing) * HOME_INITIATIVE_SHARE,
+      };
     };
-    return { level: blend(false), losing: blend(true) };
+    return { beforeScoring: blend(false), afterScoring: blend(true) };
   };
   let homeBaseStrength = strengthFor(home, homeCoach, homeChem, homeFormBonus);
   let awayBaseStrength = strengthFor(away, awayCoach, awayChem, awayFormBonus);
@@ -632,9 +651,6 @@ export function runMatchSimulation(
       }
     }
 
-    const homeStrength = (homeGoals < awayGoals ? homeBaseStrength.losing : homeBaseStrength.level) - homeExtraPenalty;
-    const awayStrength = (awayGoals < homeGoals ? awayBaseStrength.losing : awayBaseStrength.level) - awayExtraPenalty;
-
     homeMomentum += (50 - homeMomentum) * MOMENTUM_REVERSION;
     awayMomentum += (50 - awayMomentum) * MOMENTUM_REVERSION;
     const homeMomBonus = (homeMomentum - 50) * 0.25;
@@ -652,11 +668,19 @@ export function runMatchSimulation(
     );
     homePlayStyle = nextHomeStyle;
     awayPlayStyle = nextAwayStyle;
+    const homeDrawing = homeGoals === awayGoals;
+    const awayDrawing = homeDrawing;
+    const homeScored = homeGoals > 0;
+    const awayScored = awayGoals > 0;
+    const homeScoreState = homeDrawing ? 'drawing' : homeGoals < awayGoals ? 'losing' : 'leading';
+    const awayScoreState = awayDrawing ? 'drawing' : awayGoals < homeGoals ? 'losing' : 'leading';
+    const homeStrength = homeBaseStrength[homeScored ? 'afterScoring' : 'beforeScoring'][homeScoreState] - homeExtraPenalty;
+    const awayStrength = awayBaseStrength[awayScored ? 'afterScoring' : 'beforeScoring'][awayScoreState] - awayExtraPenalty;
     const homeTac = tacticProfile(homePlayStyle);
     const awayTac = tacticProfile(awayPlayStyle);
     // Midfield passing ratings feed the quality of chances and follow the active tactic.
-    const homeMid = playmakingFor(home, homePlayStyle);
-    const awayMid = playmakingFor(away, awayPlayStyle);
+    const homeMid = playmakingFor(home, homePlayStyle, homeDrawing, homeGoals > awayGoals, homeScored);
+    const awayMid = playmakingFor(away, awayPlayStyle, awayDrawing, awayGoals > homeGoals, awayScored);
 
     // Who carries the play this minute. CONTROL decides which side creates the sequence: it is
     // the volume axis, so it affects initiative, box-score attempts and the side of each clear
@@ -677,8 +701,11 @@ export function runMatchSimulation(
 
     const homeIsLosing = homeGoals < awayGoals;
     const awayIsLosing = awayGoals < homeGoals;
-    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, coachPrime: home.coachPrime, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, credits: home.credits, analysisLevel: projectLevel(home.clubProjects, 'analysis'), stadiumProjectLevel: projectLevel(home.clubProjects, 'stadium'), homeStadium: neutralFinal ? undefined : stadiumFor(home.coachId, false) };
-    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, coachPrime: away.coachPrime, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts, credits: away.credits, analysisLevel: projectLevel(away.clubProjects, 'analysis') };
+    const homeIsLeading = homeGoals > awayGoals;
+    const awayIsLeading = awayGoals > homeGoals;
+    const isDrawing = homeGoals === awayGoals;
+    const matchCtxHome = { isKnockout, isFinal, isLosing: homeIsLosing, isLeading: homeIsLeading, isDrawing, teamHasScored: homeGoals > 0, formationId: home.formationId, coachPrime: home.coachPrime, captainBoost: homeCaptainBoost, charBoosts: homeCharBoosts, credits: home.credits, analysisLevel: projectLevel(home.clubProjects, 'analysis'), stadiumProjectLevel: projectLevel(home.clubProjects, 'stadium'), homeStadium: neutralFinal ? undefined : stadiumFor(home.coachId, false) };
+    const matchCtxAway = { isKnockout, isFinal, isLosing: awayIsLosing, isLeading: awayIsLeading, isDrawing, teamHasScored: awayGoals > 0, formationId: away.formationId, coachPrime: away.coachPrime, captainBoost: awayCaptainBoost, charBoosts: awayCharBoosts, credits: away.credits, analysisLevel: projectLevel(away.clubProjects, 'analysis') };
     const attackCtx = homeAttacks ? matchCtxHome : matchCtxAway;
     const defendCtx = homeAttacks ? matchCtxAway : matchCtxHome;
     const playerContext = (team: Team, player: PlayerCard, ctx: typeof attackCtx) => ({
@@ -1254,7 +1281,7 @@ export function runMatchSimulation(
     if (homeGoals > awayGoals) winner = home.id;
     else if (awayGoals > homeGoals) winner = away.id;
     else if (isKnockout) {
-      const pRes = simulatePenalties(home, away, playerStats, homePlayStyle, awayPlayStyle, { isFinal, neutralVenue: neutralFinal });
+      const pRes = simulatePenalties(home, away, playerStats, homePlayStyle, awayPlayStyle, { isFinal, neutralVenue: neutralFinal, homeHasScored: homeGoals > 0, awayHasScored: awayGoals > 0 });
       penaltyKicks = pRes.kicks;
       penaltyWinner = pRes.winner;
       homePenalties = pRes.homeScore;
@@ -1315,8 +1342,12 @@ export function runMatchSimulation(
     : '';
 
   // Real possession (was hardcoded 50/50): strength + chance share + the final active tactic.
-  const homeBaseStr = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus);
-  const awayBaseStr = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus);
+  const homeBaseStr = calculateTeamStrength(home, homeCoach, homeChem, homeFormBonus, undefined, {
+    isKnockout, isFinal, isLosing: homeGoals < awayGoals, isLeading: homeGoals > awayGoals, isDrawing: homeGoals === awayGoals, teamHasScored: homeGoals > 0, formationId: home.formationId,
+  });
+  const awayBaseStr = calculateTeamStrength(away, awayCoach, awayChem, awayFormBonus, undefined, {
+    isKnockout, isFinal, isLosing: awayGoals < homeGoals, isLeading: awayGoals > homeGoals, isDrawing: homeGoals === awayGoals, teamHasScored: awayGoals > 0, formationId: away.formationId,
+  });
   const possessionModel = { homeStrength: homeBaseStr, awayStrength: awayBaseStr, homeShapeControl: homeProf.control, awayShapeControl: awayProf.control };
   matchStats.homePos = computePossession(
     homeBaseStr, awayBaseStr, matchStats.homeShots, matchStats.awayShots,

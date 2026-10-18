@@ -54,9 +54,9 @@ export function calculateTeamStrength(
   // 🩹🟥 Disciplina in-match (opcional): jogadores expulsos SAEM da média (10 homens) e lesionados
   // entram com −injuryDebuff em cada atributo. Sem `disc`, comportamento idêntico ao original.
   disc?: { sentOff?: Set<string>; injuredDebuff?: Record<string, number>; injuryDebuff?: number },
-  // Match situation. Every conditional bonus that applies in a duel (coach in the knockout/final
-  // or while losing, traits, Pipoqueiro) applies to team strength too — one rule for both.
-  situation?: { isKnockout?: boolean; isFinal?: boolean; isLosing?: boolean; homeStadium?: Stadium; stadiumProjectLevel?: number },
+  // Match situation. Conditional coach bonuses, traits and Pipoqueiro apply to
+  // team strength as well as direct duels.
+  situation?: { isKnockout?: boolean; isFinal?: boolean; isLosing?: boolean; isLeading?: boolean; isDrawing?: boolean; teamHasScored?: boolean; formationId?: string; homeStadium?: Stadium; stadiumProjectLevel?: number },
 ): number {
   let starters = team.players.slice(0, 11) as PlayerCard[];
   if (disc?.sentOff && disc.sentOff.size > 0) starters = starters.filter(p => !isExcludedPlayer(team, p, disc.sentOff));
@@ -85,6 +85,10 @@ export function calculateTeamStrength(
       isKnockout: situation?.isKnockout,
       isFinal: situation?.isFinal,
       isLosing: situation?.isLosing,
+      isLeading: situation?.isLeading,
+      isDrawing: situation?.isDrawing,
+      teamHasScored: situation?.teamHasScored,
+      formationId: situation?.formationId,
       homeStadium: situation?.homeStadium,
       stadiumProjectLevel: situation?.stadiumProjectLevel,
     }) - debuff;
@@ -200,7 +204,7 @@ type ShootoutSide = {
 // Share of the stadium bonus that counts in a shootout. Nerves decide shootouts far more than the
 // venue; at full share the host won ~61% of shootouts between equal teams.
 export const SHOOTOUT_HOME_SHARE = 0.5;
-function shootoutSide(team: Team, playStyle: string, isHome: boolean, situation: { isFinal?: boolean; neutralVenue?: boolean }): ShootoutSide {
+function shootoutSide(team: Team, playStyle: string, isHome: boolean, situation: { isFinal?: boolean; neutralVenue?: boolean; homeHasScored?: boolean; awayHasScored?: boolean }): ShootoutSide {
   const homeVenue = isHome && !situation.neutralVenue;
   return {
     team,
@@ -211,11 +215,14 @@ function shootoutSide(team: Team, playStyle: string, isHome: boolean, situation:
       isKnockout: true,
       isFinal: situation.isFinal,
       isLosing: false,
+      isDrawing: true,
+      teamHasScored: isHome ? situation.homeHasScored : situation.awayHasScored,
       coachPrime: team.coachPrime,
       captainBoost: captainBoostForTeam(team) ?? undefined,
       charBoosts: computeCharacteristicBoosts(team.players, team.totalChemistry),
       credits: team.credits,
       analysisLevel: projectLevel(team.clubProjects, 'analysis'),
+      formationId: team.formationId,
     },
     homeBonus: homeVenue ? stadiumHomeBonus(projectLevel(team.clubProjects, 'stadium')) * SHOOTOUT_HOME_SHARE : 0,
   };
@@ -237,7 +244,7 @@ export function simulatePenalties(
   _playerStats?: Record<string, PlayerMatchStat>,
   homePlayStyle = home.playStyle ?? 'balanced',
   awayPlayStyle = away.playStyle ?? 'balanced',
-  situation: { isFinal?: boolean; neutralVenue?: boolean } = {},
+  situation: { isFinal?: boolean; neutralVenue?: boolean; homeHasScored?: boolean; awayHasScored?: boolean } = {},
 ): {
   winner: string;
   homeScore: number;

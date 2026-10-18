@@ -22,6 +22,9 @@ interface MatchFieldViewProps {
   isKnockout?: boolean;
   isFinal?: boolean;
   isLosing?: boolean;
+  isLeading?: boolean;
+  isDrawing?: boolean;
+  teamHasScored?: boolean;
   disableEntryAnimation?: boolean;
   /** Whether this team belongs to the viewer's account (for a local album fallback). */
   showAlbumLevel?: boolean;
@@ -42,7 +45,7 @@ function Chip({ icon, label, value, color }: { icon: React.ReactNode; label: str
   );
 }
 
-export default function MatchFieldView({ team, activePlayStyle, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent, isKnockout, isFinal, isLosing, disableEntryAnimation = false, showAlbumLevel = false }: MatchFieldViewProps) {
+export default function MatchFieldView({ team, activePlayStyle, ratings, goalsByPlayer, assistsByPlayer, disciplineByPlayer, accent, isKnockout, isFinal, isLosing, isLeading, isDrawing, teamHasScored, disableEntryAnimation = false, showAlbumLevel = false }: MatchFieldViewProps) {
   const formation = FORMATIONS.find(f => f.id === team.formationId) ?? FORMATIONS[0];
   const coach = COACHES.find(c => c.id === team.coachId);
   const tactic = getTacticById(activePlayStyle ?? team.playStyle);
@@ -81,6 +84,9 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
     isKnockout,
     isFinal,
     isLosing,
+    isLeading,
+    isDrawing,
+    teamHasScored,
     roleOverrides: emergencyGoalkeeper ? { [emergencyGoalkeeper.playerId]: 'GK' } : undefined,
   });
 

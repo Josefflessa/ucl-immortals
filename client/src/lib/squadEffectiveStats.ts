@@ -45,6 +45,7 @@ export function squadEffectiveStats(ctx: SquadStatsContext): Record<string, Effe
         captainBoost: isStarter ? captainBoost : undefined,
         charBoosts,
         isKnockout: ctx.isKnockout,
+        formationId: ctx.formationId,
         coachPrime: ctx.coachPrime,
         analysisLevel: ctx.analysisLevel,
         role: isStarter ? (formationRoles[index] ?? player.position) : player.position,

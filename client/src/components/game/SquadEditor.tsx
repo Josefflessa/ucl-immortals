@@ -165,10 +165,10 @@ export default function SquadEditor({
 
   const teamOverall = useMemo(() => xi.length === 11
     ? Math.round(xi.reduce((sum, p, idx) => {
-      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, coachPrime, analysisLevel, role: formationRoles[idx] ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false, credits: points });
+      const eff = getPlayerEffectiveStats(p, chemData.individual[p.id] ?? 0, chemData.outOfPosition[p.id] ?? false, coachId, chemData.total, playStyle, { captainBoost, charBoosts, isKnockout, formationId, coachPrime, analysisLevel, role: formationRoles[idx] ?? p.position, isSecondary: chemData.secondaryPos[p.id] ?? false, credits: points });
       return sum + eff.overall;
     }, 0) / 11)
-    : null, [xi, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, coachPrime, analysisLevel, formationRoles, points]);
+    : null, [xi, chemData, coachId, playStyle, captainBoost, charBoosts, isKnockout, formationId, coachPrime, analysisLevel, formationRoles, points]);
 
   // Meu Time is the only card context that renders effective values. Draft, shop and
   // reinforcement pickers omit this map and therefore keep the card's own values.

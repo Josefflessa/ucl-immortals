@@ -14,6 +14,7 @@ import PlayerCard, { getCardVariants, UNIQUE_STYLE } from './PlayerCard';
 import UniquePackOpening from './UniquePackOpening';
 import { Button, GameModal } from '../../design-system';
 import { teamEffectiveStats } from '../../lib/squadEffectiveStats';
+import { coachBaseDescription, coachPrimeDefinition } from '../../lib/coachPrime';
 import CoinIcon, { withCoins } from './CoinIcon';
 import { Armchair, Eraser, ShoppingCart, Star } from 'lucide-react';
 import { INLINE_ICON } from './inlineIcon';
@@ -487,8 +488,9 @@ export default function ShopTab() {
                         {c.photoUrl && <img src={c.photoUrl} alt={c.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" style={{ objectPosition: 'center top', border: '1px solid #C9A84C44' }} />}
                         <div className="min-w-0">
                           <div className="text-base font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{c.name}</div>
-                          <div className="text-[13px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{c.philosophy}</div>
-                          <div className="text-[12px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>{c.effect}</div>
+                          <div className="text-sm font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{c.philosophy}</div>
+                          <div className="text-sm mt-1 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>{coachBaseDescription(c).join(' ')}</div>
+                          <div className="text-sm mt-1.5 leading-snug" style={{ color: '#BCA8F3', fontFamily: 'var(--font-game), sans-serif' }}><b>{c.specialAbilityName}:</b> {coachPrimeDefinition(c).normal}</div>
                         </div>
                       </button>
                     ))}

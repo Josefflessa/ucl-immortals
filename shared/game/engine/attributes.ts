@@ -22,6 +22,10 @@ export function getEffectiveAttribute(
     isKnockout?: boolean;
     isFinal?: boolean;
     isLosing?: boolean;
+    isLeading?: boolean;
+    isDrawing?: boolean;
+    teamHasScored?: boolean;
+    formationId?: string;
     coachPrime?: boolean;
     role?: string;
     // The captain's single best attribute is boosted by +amount for EVERY teammate.
@@ -51,7 +55,7 @@ export function getEffectiveAttribute(
   // Chemistry global bonus (passing & pace)
   if (attribute === 'passing') base += chemBonus.passing * 2;
   if (attribute === 'pace') base += chemBonus.pace * 2;
-  // Team chemistry tier: a flat +1/+2/+3/+5 to EVERY attribute (45/60/75/90), for every
+  // Team chemistry tier: a flat +2/+3/+5/+7 to EVERY attribute (45/60/75/90), for every
   // starter. Lives here so it flows through both the match engine and the modal.
   base += chemBonus.special;
 
@@ -60,6 +64,10 @@ export function getEffectiveAttribute(
     isKnockout: context?.isKnockout,
     isFinal: context?.isFinal,
     isLosing: context?.isLosing,
+    isLeading: context?.isLeading,
+    isDrawing: context?.isDrawing,
+    teamHasScored: context?.teamHasScored,
+    formationId: context?.formationId,
     coachPrime: context?.coachPrime,
     role: context?.role ?? player.position,
   });

@@ -1,6 +1,6 @@
 import { Coach, Formation } from '@shared/game/gameData';
 import { PREFERRED_FORMATION_CHEM_BONUS } from '@shared/game/gameEngine';
-import { coachPrimeDefinition } from '../../lib/coachPrime';
+import { coachBaseDescription, coachPrimeDefinition } from '../../lib/coachPrime';
 import { Check, GraduationCap, Sparkles, Zap } from 'lucide-react';
 import { INLINE_ICON } from './inlineIcon';
 
@@ -16,9 +16,10 @@ interface CoachCardProps {
 // Card do técnico — extraído do inline da SquadEditor pra ser reusado (MEU TIME + fim de campanha).
 export default function CoachCard({ coach, formation, isPrime = false, primePhotoUrl, bare = false, showHeader = true }: CoachCardProps) {
   const photo = isPrime && primePhotoUrl ? primePhotoUrl : coach.photoUrl;
-  const primeDefinition = isPrime ? coachPrimeDefinition(coach.id) : null;
-  const abilityName = primeDefinition?.name ?? coach.specialAbilityName;
-  const abilityDescription = primeDefinition?.prime ?? coach.specialAbility;
+  const primeDefinition = coachPrimeDefinition(coach);
+  const baseDescription = coachBaseDescription(coach, isPrime);
+  const abilityName = primeDefinition.name;
+  const abilityDescription = isPrime ? primeDefinition.prime : primeDefinition.normal;
   return (
     <div className={bare ? '' : 'rounded-xl overflow-hidden'} style={bare ? undefined : { background: '#0F0F1A', border: `1px solid ${isPrime ? '#C9A84C55' : '#1A1A2A'}` }}>
       {showHeader && (
@@ -42,26 +43,28 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
               <span className="text-[11px] font-black px-1.5 py-0.5 rounded leading-none" style={{ background: 'linear-gradient(90deg, var(--ui-brand), var(--ui-brand-strong))', color: '#0A0A12', fontFamily: 'var(--font-game), sans-serif', letterSpacing: '0.1em' }}>PRIME</span>
             )}
           </div>
-          <div className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{coach.philosophy}</div>
-          <div className="text-[13px] mt-1 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>{coach.description}</div>
+          <div className="text-sm font-bold mt-0.5" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{coach.philosophy}</div>
+          <div className="text-sm mt-1 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>{coach.description}</div>
         </div>
       </div>
       <div className="px-4 pb-4 space-y-2">
         <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid var(--ui-surface-3)' }}>
-          <div className="text-[11px] font-black tracking-widest mb-1" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}><Zap {...INLINE_ICON} fill="currentColor" />EFEITO NO ELENCO</div>
-          <div className="text-[13px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'var(--font-game), sans-serif' }}>{coach.effect}</div>
+          <div className="text-xs font-black tracking-widest mb-1" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}><Zap {...INLINE_ICON} fill="currentColor" />BÔNUS BASE</div>
+          <div className="space-y-1 text-sm leading-snug" style={{ color: '#C9C9D5', fontFamily: 'var(--font-game), sans-serif' }}>
+            {baseDescription.map((line, index) => <p key={index}>{line}</p>)}
+          </div>
         </div>
         <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #2A2A4A' }}>
-          <div className="text-[11px] font-black tracking-widest mb-1" style={{ color: isPrime ? 'var(--ui-brand-strong)' : '#A78BFA', fontFamily: 'var(--font-game), sans-serif' }}><Sparkles {...INLINE_ICON} />HABILIDADE{isPrime ? ' PRIME' : ''}: {abilityName?.toUpperCase()}</div>
-          <div className="text-[13px] leading-snug" style={{ color: '#C9C9D5', fontFamily: 'var(--font-game), sans-serif' }}>{abilityDescription}</div>
+          <div className="text-xs font-black tracking-widest mb-1" style={{ color: isPrime ? 'var(--ui-brand-strong)' : '#A78BFA', fontFamily: 'var(--font-game), sans-serif' }}><Sparkles {...INLINE_ICON} />HABILIDADE{isPrime ? ' PRIME' : ''}: {abilityName?.toUpperCase()}</div>
+          <div className="text-sm leading-snug" style={{ color: '#C9C9D5', fontFamily: 'var(--font-game), sans-serif' }}>{abilityDescription}</div>
         </div>
         {coach.preferredFormation && (
-          <div className="flex items-center gap-2 text-[12px] pt-0.5 flex-wrap" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+          <div className="flex items-center gap-2 text-[13px] pt-0.5 flex-wrap" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
             <span style={{ color: 'var(--ui-text-faint)' }}>Formação preferida:</span>
             <span className="px-2 py-0.5 rounded font-black" style={{ background: '#C9A84C22', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C44' }}>{coach.preferredFormation}</span>
             {formation?.id === coach.preferredFormation
               ? <span className="font-bold inline-flex items-center gap-1" style={{ color: 'var(--ui-success)' }}><Check size="1em" strokeWidth={3} aria-hidden="true" />em uso · <span style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} Química Geral</span></span>
-              : <span style={{ color: '#8A8A9A' }}>jogue nela pra <b style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} Química Geral</b> do time inteiro</span>}
+              : <span style={{ color: '#8A8A9A' }}>Use essa formação para dar <b style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} de Química Geral</b> ao time.</span>}
           </div>
         )}
       </div>

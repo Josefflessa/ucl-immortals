@@ -186,10 +186,25 @@ export function getCompetitionAlbumBonus(player: Pick<Player, 'competitionAlbumL
   return (player.competitionAlbumLevel ?? 0) + (player.competitionAlbumPageBonus ?? 0);
 }
 
-export interface CoachBonus {
-  phase: string;
-  attribute: string;
-  value: number;
+export type CoachAttribute = AttrKey | 'all';
+export type CoachPositionTarget = 'ALL' | PositionGroup | 'BACKLINE';
+export type CoachCondition =
+  | { type: 'formationIs'; value: string }
+  | { type: 'losing' | 'leading' | 'knockout' | 'final' | 'drawing' | 'scored' }
+  | { type: 'rarityIn'; rarities: Rarity[] };
+
+/** One source of truth for coach effects, descriptions, and Prime upgrades.
+ * All listed conditions must match. Prime bonuses replace the normal value for
+ * a rule. Base and signature effects stack as usual.
+ */
+export interface CoachEffectRule {
+  name: string;
+  target: CoachPositionTarget;
+  conditions?: CoachCondition[];
+  bonuses: Partial<Record<CoachAttribute, number>>;
+  primeBonuses?: Partial<Record<CoachAttribute, number>>;
+  description: string;
+  primeDescription?: string;
 }
 
 export interface Coach {
@@ -197,11 +212,10 @@ export interface Coach {
   name: string;
   philosophy: string;
   description: string;
-  effect: string;
   specialAbilityName: string;
-  specialAbility: string;
+  baseEffects: CoachEffectRule[];
+  specialEffects: CoachEffectRule[];
   preferredFormation: string;
-  bonuses: CoachBonus[];
   photoUrl?: string;
 }
 
@@ -353,108 +367,132 @@ export const DIFFICULTY_LEVELS: DifficultyLevel[] = [
 // ============================================================
 // COACHES
 // ============================================================
+// Every coach grants +5 to two focused attributes of the full team in every
+// match. Prime raises those values to +8. The all-attribute signature only
+// applies when its trigger is met. Its strength varies with its frequency and scope.
 export const COACHES: Coach[] = [
   {
     id: 'guardiola',
     name: 'Pep Guardiola',
     philosophy: 'Posse e Pressão Alta',
-    description: 'Mestre do tiki-taka e da posse de bola. Transforma times comuns em máquinas de futebol.',
-    effect: '+5 Passe e Visão para os meio-campistas. +2 Passe para todo o elenco.',
-    specialAbilityName: 'Visão de Jogo',
-    specialAbility: 'Jogadores com Visão ≥ 80 ganham +3 em todos os atributos.',
-    preferredFormation: '4-3-3',
-    bonuses: [
-      { phase: 'Todos', attribute: 'passing', value: 2 },
+    description: 'Posse controlada e circulação curta, com foco em passe e visão.',
+    specialAbilityName: 'Domínio de Jogo',
+    baseEffects: [
+      { name: 'Posse de bola', target: 'ALL', bonuses: { passing: 6, vision: 5 }, primeBonuses: { passing: 9, vision: 8 }, description: 'Em todas as partidas, todo o elenco recebe +6 em Passe e +5 em Visão.', primeDescription: 'Em todas as partidas, todo o elenco recebe +9 em Passe e +8 em Visão.' },
     ],
+    specialEffects: [{
+      name: 'Domínio de Jogo', target: 'ALL', conditions: [{ type: 'drawing' }],
+      bonuses: { all: 3 }, primeBonuses: { all: 5 },
+      description: 'Com o placar empatado, todo o elenco recebe +3 em todos os atributos.',
+      primeDescription: 'Com o placar empatado, todo o elenco recebe +5 em todos os atributos.',
+    }],
+    preferredFormation: '4-3-3',
     photoUrl: '/coaches/guardiola.jpg',
   },
   {
     id: 'klopp',
     name: 'Jürgen Klopp',
     philosophy: 'Gegenpressing e Intensidade',
-    description: 'Futebol de alta intensidade e pressão implacável. Cria times com coração de leão.',
-    effect: '+6 Físico, +4 Ritmo e +4 Defesa para todo o elenco.',
-    specialAbilityName: 'Pressão Máxima',
-    specialAbility: 'Quando perdendo, todos os jogadores ganham +8 em todos os atributos.',
+    description: 'Pressão intensa, ritmo alto e recuperação rápida da bola.',
+    specialAbilityName: 'Intensidade Implacável',
+    baseEffects: [{ name: 'Intensidade', target: 'ALL', bonuses: { pace: 4, physical: 4 }, primeBonuses: { pace: 7, physical: 7 }, description: 'Em todas as partidas, todo o elenco recebe +4 em Ritmo e Físico.', primeDescription: 'Em todas as partidas, todo o elenco recebe +7 em Ritmo e Físico.' }],
+    specialEffects: [{
+      name: 'Intensidade Implacável', target: 'ALL', conditions: [{ type: 'scored' }],
+      bonuses: { all: 2 }, primeBonuses: { all: 4 },
+      description: 'Depois de marcar um gol, todo o elenco recebe +2 em todos os atributos.',
+      primeDescription: 'Depois de marcar um gol, todo o elenco recebe +4 em todos os atributos.',
+    }],
     preferredFormation: '4-3-3',
-    bonuses: [
-      { phase: 'Todos', attribute: 'physical', value: 6 },
-      { phase: 'Todos', attribute: 'pace', value: 4 },
-      { phase: 'Defesa', attribute: 'defending', value: 4 },
-    ],
     photoUrl: '/coaches/klopp.jpg',
   },
   {
     id: 'mourinho',
     name: 'José Mourinho',
     philosophy: 'Organização Defensiva',
-    description: 'O Special One. Mestre da organização tática e de vencer jogos difíceis.',
-    effect: '+8 Defesa e +5 Físico para todo o elenco. O goleiro ganha +5 em Defesa.',
+    description: 'Bloco defensivo organizado que recompensa um time bem entrosado.',
     specialAbilityName: 'Fortaleza',
-    specialAbility: 'No mata-mata, todos os defensores ganham +6 em Defesa.',
+    baseEffects: [{ name: 'Organização defensiva', target: 'ALL', bonuses: { defending: 5, physical: 5 }, primeBonuses: { defending: 8, physical: 8 }, description: 'Em todas as partidas, todo o elenco recebe +5 em Defesa e Físico.', primeDescription: 'Em todas as partidas, todo o elenco recebe +8 em Defesa e Físico.' }],
+    specialEffects: [{
+      name: 'Fortaleza', target: 'BACKLINE', conditions: [{ type: 'knockout' }],
+      bonuses: { all: 3 }, primeBonuses: { all: 6 },
+      description: 'No mata-mata, defensores e goleiro recebem +3 em todos os atributos.',
+      primeDescription: 'No mata-mata, defensores e goleiro recebem +6 em todos os atributos.',
+    }],
     preferredFormation: '4-2-3-1',
-    bonuses: [
-      { phase: 'Defesa', attribute: 'defending', value: 8 },
-      { phase: 'Defesa', attribute: 'physical', value: 5 },
-    ],
     photoUrl: '/coaches/mourinho.jpg',
   },
   {
     id: 'ancelotti',
     name: 'Carlo Ancelotti',
     philosophy: 'Equilíbrio e Gestão',
-    description: 'O treinador mais campeão da Champions League. Equilibra ataque e defesa com maestria.',
-    effect: '+2 em todos os atributos para o elenco. Craques (Overall ≥ 85) ganham +4 a mais.',
+    description: 'Equilibra o time e acelera o ritmo na final.',
     specialAbilityName: 'Maestro da Final',
-    specialAbility: 'Na final, todos os jogadores ganham +6 em todos os atributos.',
+    baseEffects: [{ name: 'Equilíbrio', target: 'ALL', bonuses: { passing: 5, defending: 5 }, primeBonuses: { passing: 8, defending: 8 }, description: 'Em todas as partidas, todo o elenco recebe +5 em Passe e Defesa.', primeDescription: 'Em todas as partidas, todo o elenco recebe +8 em Passe e Defesa.' }],
+    specialEffects: [{
+      name: 'Maestro da Final', target: 'ALL', conditions: [{ type: 'knockout' }],
+      bonuses: { all: 1 }, primeBonuses: { all: 2 },
+      description: 'No mata-mata, todo o elenco recebe +1 em todos os atributos.',
+      primeDescription: 'No mata-mata, todo o elenco recebe +2 em todos os atributos.',
+    }, {
+      name: 'Maestro da Final', target: 'ALL', conditions: [{ type: 'final' }],
+      bonuses: { all: 4 }, primeBonuses: { all: 6 },
+      description: 'Na final, todo o elenco recebe mais +4 em todos os atributos (+5 no total).',
+      primeDescription: 'Na final, todo o elenco recebe mais +6 em todos os atributos (+8 no total).',
+    }],
     preferredFormation: '4-4-2',
-    bonuses: [
-      { phase: 'Todos', attribute: 'all', value: 2 },
-    ],
     photoUrl: '/coaches/ancelotti.jpg',
   },
   {
     id: 'zidane',
     name: 'Zinedine Zidane',
     philosophy: 'Gestão de Estrelas',
-    description: 'Ganhou 3 Champions seguidas. Sabe como motivar os maiores craques do mundo.',
-    effect: '+2 em todos os atributos. Lendários e Imortais ganham +4 (total).',
-    specialAbilityName: 'Rei do Mata-Mata',
-    specialAbility: 'O bônus dos Lendários/Imortais sobe para +6 no mata-mata e na final.',
+    description: 'Valoriza o talento técnico e potencializa os jogadores mais raros.',
+    specialAbilityName: 'Aura Galáctica',
+    baseEffects: [{ name: 'Qualidade técnica', target: 'ALL', bonuses: { dribbling: 4, shooting: 4 }, primeBonuses: { dribbling: 7, shooting: 7 }, description: 'Em todas as partidas, todo o elenco recebe +4 em Drible e Finalização.', primeDescription: 'Em todas as partidas, todo o elenco recebe +7 em Drible e Finalização.' }],
+    specialEffects: [{
+      name: 'Aura Galáctica', target: 'ALL', conditions: [
+        { type: 'rarityIn', rarities: ['legendary', 'immortal'] },
+      ],
+      bonuses: { all: 2 }, primeBonuses: { all: 4 },
+      description: 'Em todas as partidas, Lendários e Imortais recebem +2 em todos os atributos.',
+      primeDescription: 'Em todas as partidas, Lendários e Imortais recebem +4 em todos os atributos.',
+    }],
     preferredFormation: '4-3-3',
-    bonuses: [
-      { phase: 'Todos', attribute: 'all', value: 2 },
-    ],
     photoUrl: '/coaches/zidane.jpg',
   },
   {
     id: 'ferguson',
     name: 'Sir Alex Ferguson',
     philosophy: 'Mentalidade Vencedora',
-    description: 'A lenda de Old Trafford. Nunca desiste. Seus times sempre acreditam na virada.',
-    effect: '+5 Físico e +3 Passe para todos, e +5 na Finalização.',
+    description: 'Mentalidade de reação: a equipe cresce quando está atrás no placar.',
     specialAbilityName: 'Fergie Time',
-    specialAbility: 'Quando perdendo, todos os jogadores ganham +10 em todos os atributos.',
+    baseEffects: [{ name: 'Mentalidade vencedora', target: 'ALL', bonuses: { shooting: 5, physical: 4 }, primeBonuses: { shooting: 8, physical: 7 }, description: 'Em todas as partidas, todo o elenco recebe +5 em Finalização e +4 em Físico.', primeDescription: 'Em todas as partidas, todo o elenco recebe +8 em Finalização e +7 em Físico.' }],
+    specialEffects: [{
+      name: 'Fergie Time', target: 'ALL', conditions: [{ type: 'losing' }],
+      bonuses: { all: 3 }, primeBonuses: { all: 6 },
+      description: 'Quando o time está perdendo, todo o elenco recebe +3 em todos os atributos.',
+      primeDescription: 'Quando o time está perdendo, todo o elenco recebe +6 em todos os atributos.',
+    }],
     preferredFormation: '4-4-2',
-    bonuses: [
-      { phase: 'Todos', attribute: 'physical', value: 5 },
-      { phase: 'Todos', attribute: 'passing', value: 3 },
-      { phase: 'Finalização', attribute: 'shooting', value: 5 },
-    ],
     photoUrl: '/coaches/ferguson.jpg',
   },
   {
     id: 'luis_enrique',
     name: 'Luis Enrique',
     philosophy: 'Posse, Pressão e Verticalidade',
-    description: 'Um futebol intenso e técnico, que combina circulação de bola com aceleração imediata no ataque.',
-    effect: '+3 em todos os atributos. Meio-campistas e atacantes recebem bônus na construção vertical.',
+    description: 'Construção pelo meio e aceleração dos atacantes para atacar o espaço.',
     specialAbilityName: 'Transição Vertical',
-    specialAbility: 'Meio-campistas ganham +3 Visão e atacantes +2 Ritmo e +2 Drible.',
+    baseEffects: [{ name: 'Circulação rápida', target: 'ALL', bonuses: { pace: 5, dribbling: 5 }, primeBonuses: { pace: 8, dribbling: 8 }, description: 'Em todas as partidas, todo o elenco recebe +5 em Ritmo e Drible.', primeDescription: 'Em todas as partidas, todo o elenco recebe +8 em Ritmo e Drible.' }],
+    specialEffects: [{
+      name: 'Transição Vertical', target: 'MID', conditions: [{ type: 'leading' }], bonuses: { all: 4 }, primeBonuses: { all: 7 },
+      description: 'Quando o time está vencendo, os meio-campistas recebem +4 em todos os atributos.',
+      primeDescription: 'Quando o time está vencendo, os meio-campistas recebem +7 em todos os atributos.',
+    }, {
+      name: 'Transição Vertical', target: 'ATT', conditions: [{ type: 'leading' }], bonuses: { all: 4 }, primeBonuses: { all: 7 },
+      description: 'Quando o time está vencendo, os atacantes recebem +4 em todos os atributos.',
+      primeDescription: 'Quando o time está vencendo, os atacantes recebem +7 em todos os atributos.',
+    }],
     preferredFormation: '4-3-3',
-    bonuses: [
-      { phase: 'Todos', attribute: 'all', value: 3 },
-    ],
     photoUrl: '/coaches/luis-enrique.jpg',
   },
 ];
@@ -543,7 +581,7 @@ const FORMATIONS_BASE: Omit<Formation, 'counteredBy'>[] = [
     ],
     strengths: ['Maior volume de criação pelo meio', 'Duas referências ofensivas', 'Largura pelos alas'],
     weaknesses: ['Corredores dependem da recomposição dos alas', 'Exige zagueiros bons no 1x1'],
-    counters: ['4-4-2', '4-2-3-1'],
+    counters: ['4-2-3-1', '3-4-3'],
   },
   {
     id: '3-4-3',

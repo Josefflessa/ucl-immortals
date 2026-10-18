@@ -62,11 +62,11 @@ describe('getChemistryBonus — milestone tiers', () => {
   it('returns the exact buff at each chemistry milestone', () => {
     expect(getChemistryBonus(0)).toEqual({ passing: 0, pace: 0, special: 0 });
     expect(getChemistryBonus(44)).toEqual({ passing: 0, pace: 0, special: 0 });
-    expect(getChemistryBonus(45)).toEqual({ passing: 1, pace: 0, special: 1 });
-    expect(getChemistryBonus(60)).toEqual({ passing: 1, pace: 1, special: 2 });
-    expect(getChemistryBonus(75)).toEqual({ passing: 2, pace: 1, special: 3 });
-    expect(getChemistryBonus(90)).toEqual({ passing: 3, pace: 2, special: 5 });
-    expect(getChemistryBonus(100).special).toBe(5);
+    expect(getChemistryBonus(45)).toEqual({ passing: 1, pace: 0, special: 2 });
+    expect(getChemistryBonus(60)).toEqual({ passing: 1, pace: 1, special: 3 });
+    expect(getChemistryBonus(75)).toEqual({ passing: 2, pace: 1, special: 5 });
+    expect(getChemistryBonus(90)).toEqual({ passing: 3, pace: 2, special: 7 });
+    expect(getChemistryBonus(100).special).toBe(7);
   });
   it('is monotonic non-decreasing in the special buff', () => {
     let prev = -1;

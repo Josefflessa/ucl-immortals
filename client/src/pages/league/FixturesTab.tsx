@@ -21,8 +21,21 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
     handleAdvanceRound, handleAdvanceKnockout, isPlayerMatchPlayed, handlePlayPlayerMatch,
     qualifies, handleFinishEliminatedCampaign, handleWatchRemainingCompetition,
   } = hub;
+  // Keep the round's main action within thumb reach on phones. When a room is
+  // waiting for matches/results, there is no actionable control to pin.
+  const pinRoundAction = state.mode === 'solo'
+    || (state.isHost
+      ? !allFixturesPlayed || allPlayersWatched
+      : !allFixturesPlayed && isActiveLeagueParticipant);
+  const mobileActionBarClasses = pinRoundAction
+    ? 'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:mt-0 max-lg:rounded-t-2xl max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0 max-lg:px-4 max-lg:pt-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))] max-lg:shadow-[0_-10px_30px_rgba(0,0,0,0.45)]'
+    : '';
+  const mobileActionBarStyle = {
+    background: pinRoundAction ? 'rgba(8, 8, 16, 0.96)' : undefined,
+    backdropFilter: pinRoundAction ? 'blur(14px)' : undefined,
+  };
   return (
-          <div className="space-y-3">
+          <div className={`space-y-3 ${pinRoundAction ? (state.mode === 'solo' ? 'pb-32 lg:pb-0' : 'pb-56 lg:pb-0') : ''}`}>
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-bold tracking-widest text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 {isGroupStage ? 'TODAS AS PARTIDAS DA RODADA' : 'PARTIDAS DA RODADA'}
@@ -215,8 +228,8 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
 
             {/* Advance controls */}
             {state.mode === 'online' ? (
-              <div className="mt-6 p-4 rounded-xl text-center border"
-                style={{ background: 'var(--ui-surface-1)', borderColor: 'var(--ui-surface-3)' }}
+              <div className={`mt-6 p-4 rounded-xl text-center border ${mobileActionBarClasses}`}
+                style={{ ...mobileActionBarStyle, background: mobileActionBarStyle.background ?? 'var(--ui-surface-1)', borderColor: 'var(--ui-surface-3)' }}
               >
                 {state.isHost ? (
                   !allFixturesPlayed ? (
@@ -259,7 +272,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                       >
                         <Play {...INLINE_ICON} fill="currentColor" />JOGAR RODADA {leagueRound}
                       </button>
-                      <div className="mt-2 text-[13px] font-bold text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                      <div className={`mt-2 text-[13px] font-bold text-gray-500 ${pinRoundAction ? 'max-lg:hidden' : ''}`} style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         {allReady
                           ? 'Todas as partidas começam ao mesmo tempo para todos.'
                           : 'Todos os participantes com partida precisam confirmar que estão prontos.'}
@@ -357,7 +370,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                 )}
               </div>
             ) : (
-              <div className="mt-6">
+              <div className={`mt-6 ${mobileActionBarClasses} ${pinRoundAction ? 'max-lg:border-t max-lg:border-[var(--ui-line-subtle)]' : ''}`} style={mobileActionBarStyle}>
                 {!isPlayerMatchPlayed ? (
                   /* Solo: o botão de JOGAR fica embaixo dos confrontos (igual ao host no online). */
                   <>

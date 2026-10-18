@@ -16,6 +16,9 @@ interface Props {
   isKnockout?: boolean;
   isFinal?: boolean;
   isLosing?: boolean;
+  isLeading?: boolean;
+  isDrawing?: boolean;
+  teamHasScored?: boolean;
   coachPrime?: boolean;
   analysisLevel?: number;
   onClose: () => void;
@@ -31,6 +34,9 @@ export default function PlayerDetailsModal({
   isKnockout = false,
   isFinal = false,
   isLosing = false,
+  isLeading = false,
+  isDrawing = false,
+  teamHasScored = false,
   coachPrime = false,
   analysisLevel = 1,
   onClose,
@@ -47,11 +53,14 @@ export default function PlayerDetailsModal({
     isKnockout,
     isFinal,
     isLosing,
+    isLeading,
+    isDrawing,
+    teamHasScored,
     coachPrime,
     analysisLevel,
     stadiumProjectLevel: projectLevel(team.clubProjects, 'stadium'),
     credits: team.credits,
-  }), [player, team, positionIndex, activePlayStyle, isKnockout, isFinal, isLosing, coachPrime, analysisLevel]);
+  }), [player, team, positionIndex, activePlayStyle, isKnockout, isFinal, isLosing, isLeading, isDrawing, teamHasScored, coachPrime, analysisLevel]);
   const texture = UNIQUE_STYLE[player.id]?.texture ?? cardTexture(player.rarity, getEvolutionLevel(player), player.specialization);
   const where = model.isStarter ? `titular · ${POS_PT[model.formationRole] ?? model.formationRole}` : 'reserva';
 

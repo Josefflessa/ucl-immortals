@@ -142,10 +142,10 @@ const DraftOptions = memo(function DraftOptions({
               {sel.shortName.toUpperCase()}
             </div>
             {/* Vision & composure — hidden attributes (vision drives possession/playmaking and
-                the Guardiola trigger ≥80; composure drives penalties/clutch), shown here so the
+                can activate Guardiola's ability; composure drives penalties/clutch), shown here so the
                 pick can be weighed without bloating the card. */}
             <div className="flex items-center gap-4 mb-2 text-[13px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-              <span className="inline-flex items-center gap-1.5 text-gray-400" title="Visão: peso de armação — influencia quem controla a posse e dispara habilidades como a do Guardiola (Visão ≥ 80).">
+              <span className="inline-flex items-center gap-1.5 text-gray-400" title="Visão influencia a criação de jogadas e pode ativar a habilidade do Guardiola.">
                 <Eye size="1em" strokeWidth={2.5} aria-hidden="true" /> Visão <b className="text-white">{sel.vision}</b>
               </span>
               <span className="inline-flex items-center gap-1.5 text-gray-400" title="Compostura: frieza nos momentos decisivos — pênaltis e a escolha do batedor/finalizador.">
