@@ -491,47 +491,52 @@ export default function MenuPage() {
       <div className={cn(
         'relative z-10 flex flex-col items-center px-4',
         account && menuMode === 'selection' ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8' : account ? 'min-h-dvh py-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24',
-        menuMode === 'selection' && 'home-menu-screen__content',
+        menuMode === 'selection' && 'home-menu-screen__content lg:mx-auto lg:grid lg:w-full lg:max-w-[1100px] lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:grid-rows-[1fr_auto] lg:items-center lg:gap-x-14 lg:px-8',
         menuMode === 'selection' && (account ? 'home-menu-screen__content--account' : 'home-menu-screen__content--guest'),
       )}>
         {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
-        <div aria-hidden="true" className="flex-1" />
+        <div aria-hidden="true" className={cn('flex-1', menuMode === 'selection' && 'lg:hidden')} />
 
         {/* The logo and the tagline belong to the home screen; the room options stand alone. */}
         {menuMode === 'selection' ? (
-          <>
+          <div className="flex flex-col items-center lg:col-start-1 lg:row-start-1">
           {/* Logo (herói) + título */}
           <div className="flex flex-col items-center">
             <div className="relative flex items-center justify-center">
-              <img src={LOGO_URL} alt="UCL Immortals" className="home-menu-screen__logo relative h-40 w-40 object-contain sm:h-52 sm:w-52" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
+              <img src={LOGO_URL} alt="UCL Immortals" className="home-menu-screen__logo relative h-40 w-40 object-contain sm:h-52 sm:w-52 lg:h-[min(31dvh,18rem)] lg:w-[min(31dvh,18rem)]" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
             </div>
-            <h1 className="home-menu-screen__heading mt-3 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] font-normal leading-[0.85] tracking-wider sm:mt-7">
+            <h1 className="home-menu-screen__heading mt-3 lg:mt-0 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] lg:text-[clamp(3rem,12dvh,6.75rem)] font-normal leading-[0.85] tracking-wider sm:mt-7">
               <span className="block text-[var(--ui-brand-strong)]">UCL</span>
               <span className="block text-[var(--ui-text)]">IMMORTALS</span>
             </h1>
           </div>
 
           {/* Tagline */}
-          <div className="home-menu-screen__tagline flex flex-col items-center mt-4 mb-7">
-            <div className="h-px w-40 shrink-0 bg-[var(--ui-brand)] opacity-70 sm:w-56" />
-            <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base">
+          <div className="home-menu-screen__tagline flex flex-col items-center mt-4 mb-7 lg:mb-0 lg:mt-5">
+            <div className="h-px w-40 shrink-0 bg-[var(--ui-brand)] opacity-70 sm:w-56 lg:w-72" />
+            <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base lg:max-w-[32ch] lg:text-lg">
               Jogadores de todas as épocas e ligas. Monte seu time e conquiste a <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
             </p>
           </div>
-          </>
+          </div>
+        ) : null}
+
+        {/* A thin golden line between the brand and the actions (wide screens only). */}
+        {menuMode === 'selection' ? (
+          <div aria-hidden="true" className="hidden h-[min(46dvh,22rem)] w-px bg-gradient-to-b from-transparent via-[var(--ui-brand)]/40 to-transparent lg:col-start-2 lg:row-start-1 lg:block" />
         ) : null}
 
         {/* Dynamic Mode Forms */}
-        <div className="flex w-full justify-center">
+        <div className={cn('flex w-full justify-center', menuMode === 'selection' && 'lg:col-start-3 lg:row-start-1')}>
           {menuMode === 'selection' && (
-            <div className="home-menu-screen__actions mb-5 flex w-full max-w-xs flex-col gap-3 lg:max-w-sm sm:mb-8">
+            <div className="home-menu-screen__actions mb-5 flex w-full max-w-xs flex-col gap-3 sm:mb-8 lg:mb-0 lg:max-w-[30rem] lg:gap-4">
               <Button
                 type="button"
                 intent="primary"
                 size="large"
                 onClick={() => (savedSoloCampaign ? setSoloSaveConfirm('choose') : handlePlaySolo())}
                 disabled={accountLoading || (!!account && soloCampaignSyncStatus === 'syncing')}
-                className="w-full"
+                className="w-full lg:min-h-[4.75rem]"
               >
                 <span className="flex flex-col items-center justify-center leading-tight">
                   <span className="inline-flex items-center justify-center gap-2.5">
@@ -550,7 +555,7 @@ export default function MenuPage() {
                 intent="secondary"
                 size="large"
                 onClick={() => setMenuMode('online')}
-                className="w-full"
+                className="w-full lg:min-h-[4.75rem]"
               >
                 <span className="inline-flex items-center justify-center gap-2.5">
                   <Trophy size={22} strokeWidth={2.5} /> MULTIPLAYER ONLINE
@@ -563,7 +568,7 @@ export default function MenuPage() {
                   type="button"
                   intent="ghost"
                   onClick={() => dispatch({ type: 'SET_PHASE', phase: 'album' })}
-                  className="w-full min-w-0 border border-[var(--ui-line-subtle)] px-2"
+                  className="w-full min-w-0 border border-[var(--ui-line-subtle)] px-2 lg:min-h-[3.75rem] lg:text-base"
                 >
                   <span className="inline-flex min-w-0 items-center justify-center gap-2">
                     <LibraryBig size={16} strokeWidth={2.5} className="shrink-0" />
@@ -575,7 +580,7 @@ export default function MenuPage() {
                     type="button"
                     intent="ghost"
                     onClick={() => dispatch({ type: 'SET_PHASE', phase: 'achievements' })}
-                    className="w-full min-w-0 border border-[var(--ui-line-subtle)] px-2"
+                    className="w-full min-w-0 border border-[var(--ui-line-subtle)] px-2 lg:min-h-[3.75rem] lg:text-base"
                   >
                     <span className="inline-flex min-w-0 items-center justify-center gap-2">
                       <Medal size={16} strokeWidth={2.5} className="shrink-0" /> CONQUISTAS
@@ -744,10 +749,10 @@ export default function MenuPage() {
           )}
         </div>
 
-        <div aria-hidden="true" className="flex-1" />
+        <div aria-hidden="true" className={cn('flex-1', menuMode === 'selection' && 'lg:hidden')} />
         {/* The credit belongs to the home screen only, not to the solo/online setup steps. */}
         {menuMode === 'selection' && (
-          <footer className="home-menu-screen__footer pointer-events-none flex justify-center pt-8">
+          <footer className="home-menu-screen__footer pointer-events-none flex justify-center pt-8 lg:col-span-3 lg:row-start-2">
             <span className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
           </footer>
         )}

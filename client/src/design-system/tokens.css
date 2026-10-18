@@ -980,27 +980,29 @@ body.home-menu-scroll-lock {
     padding-top: 0.5rem;
   }
 
-  .home-menu-screen__logo {
-    width: clamp(5.5rem, 18dvh, 9rem);
-    height: clamp(5.5rem, 18dvh, 9rem);
-  }
+  @media (max-width: 1023px) {
+    .home-menu-screen__logo {
+      width: clamp(5.5rem, 18dvh, 9rem);
+      height: clamp(5.5rem, 18dvh, 9rem);
+    }
 
-  .home-menu-screen__heading {
-    font-size: clamp(2.3rem, 6.8dvh, 3.2rem);
-  }
+    .home-menu-screen__heading {
+      font-size: clamp(2.3rem, 6.8dvh, 3.2rem);
+    }
 
-  .home-menu-screen__tagline {
-    margin-top: 0.75rem;
-    margin-bottom: 1rem;
-  }
+    .home-menu-screen__tagline {
+      margin-top: 0.75rem;
+      margin-bottom: 1rem;
+    }
 
-  .home-menu-screen__actions {
-    gap: 0.5rem;
-    margin-bottom: 0;
-  }
+    .home-menu-screen__actions {
+      gap: 0.5rem;
+      margin-bottom: 0;
+    }
 
-  .home-menu-screen__footer {
-    padding-top: 0.5rem;
+    .home-menu-screen__footer {
+      padding-top: 0.5rem;
+    }
   }
 }
 
