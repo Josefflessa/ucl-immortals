@@ -1,7 +1,7 @@
 import type { Player } from '../gameData';
 
 /**
- * 206 cartas novas (fifaindex.com, FIFA 12 → FIFA 23): pessoas que ainda não estavam no jogo e
+ * 205 cartas novas (fifaindex.com, FIFA 12 → FIFA 23): pessoas que ainda não estavam no jogo e
  * versões (outro clube/fase) de quem já estava, para chegar a 2000 jogadores. Atributos da edição
  * da carta; goleiros no padrão do catálogo (defesa = geral + 4, físico = impulsão). A compostura
  * vem da primeira edição que a traz (FIFA 17+), quando a da carta não tinha. A foto é a da própria
@@ -282,8 +282,6 @@ export const FIFAINDEX_2000_ADDITIONS: Player[] = [
     pace: 86, shooting: 82, passing: 82, dribbling: 82, defending: 69, physical: 71, composure: 83, vision: 83, traits: [], photoUrl: '/players/fifaindex-versions/139843_12.webp' },
   { id: 'pjanic_roma_2015_16', shortName: 'Pjanić', fullName: 'Miralem Pjanić', position: 'CM', nation: 'Bósnia', club: 'Roma', season: '2015/16', rarity: 'gold', overall: 84,
     pace: 71, shooting: 77, passing: 87, dribbling: 82, defending: 63, physical: 66, composure: 84, vision: 88, traits: [], photoUrl: '/players/fifaindex-versions/180206_16.webp' },
-  { id: 'klose_lazio_2012_13', shortName: 'Klose', fullName: 'Miroslav Klose', position: 'ST', nation: 'Alemanha', club: 'Lazio', season: '2012/13', rarity: 'gold', overall: 84,
-    pace: 75, shooting: 80, passing: 62, dribbling: 75, defending: 39, physical: 72, composure: 70, vision: 64, traits: [], photoUrl: '/players/fifaindex-versions/11141_13.webp' },
   { id: 'keita_rb_leipzig_2017_18', shortName: 'Keïta', fullName: 'Naby Keïta', position: 'CM', nation: 'Guiné', club: 'RB Leipzig', season: '2017/18', rarity: 'gold', overall: 83,
     pace: 74, shooting: 68, passing: 82, dribbling: 86, defending: 59, physical: 69, composure: 79, vision: 81, traits: [], photoUrl: '/players/fifaindex-versions/220971_18.webp' },
   { id: 'matic_chelsea_2016_17', shortName: 'Matić', fullName: 'Nemanja Matić', position: 'CDM', nation: 'Sérvia', club: 'Chelsea', season: '2016/17', rarity: 'gold', overall: 84,
