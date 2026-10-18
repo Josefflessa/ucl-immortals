@@ -499,7 +499,7 @@ export default function MenuPage() {
         {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
         <div aria-hidden="true" className={cn('flex-1', menuMode === 'selection' && 'lg:hidden')} />
 
-        {/* The logo and the tagline belong to the home screen; the room options stand alone. */}
+        {/* The logo and title belong to the home screen; the room options stand alone. */}
         {menuMode === 'selection' ? (
           <div className="flex flex-col items-center lg:col-start-1 lg:row-start-1">
           {/* Logo (herói) + título */}
@@ -513,12 +513,8 @@ export default function MenuPage() {
             </h1>
           </div>
 
-          {/* Tagline */}
-          <div className="home-menu-screen__tagline flex flex-col items-center mt-4 mb-7 lg:mb-0 lg:mt-5">
-            <div className="h-px w-40 shrink-0 bg-[var(--ui-brand)] opacity-70 sm:w-56 lg:w-72" />
-            <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base lg:max-w-[32ch] lg:text-lg">
-              Jogadores de todas as épocas e ligas. Monte seu time e conquiste a <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
-            </p>
+          <div className="home-menu-screen__tagline mt-4 mb-7 lg:mb-0 lg:mt-5">
+            <div aria-hidden="true" className="h-px w-40 shrink-0 bg-[var(--ui-brand)] opacity-70 sm:w-56 lg:w-72" />
           </div>
           </div>
         ) : null}
