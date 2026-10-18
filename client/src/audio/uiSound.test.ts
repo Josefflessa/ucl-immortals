@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { revealSoundFor, revealSoundForBest, soundForClick, soundForRequest, UI_SOUND_NAMES } from './uiSound';
+import { revealSoundFor, revealSoundForBest, soundForClick, soundForRequest, soundsOnPointerDown, UI_SOUND_NAMES } from './uiSound';
 import { soundSettings } from './soundSettings';
 
 const btn = (classes: string[], extra: Record<string, unknown> = {}) => ({ classes, ...extra });
@@ -30,6 +30,18 @@ describe('soundForClick', () => {
   it('lets data-sound pick any known sound, and ignores unknown names', () => {
     expect(soundForClick(btn(['ui-btn'], { dataSound: 'coin' }))).toBe('coin');
     expect(soundForClick(btn(['ui-btn'], { dataSound: 'nope' }))).toBe('tap');
+  });
+});
+
+describe('soundsOnPointerDown', () => {
+  it('stays silent for a finger landing (it may be a scroll) and waits for the click', () => {
+    expect(soundsOnPointerDown({ pointerType: 'touch', button: 0 })).toBe(false);
+  });
+
+  it('plays at once for the primary mouse button and for a pen, not for the other mouse buttons', () => {
+    expect(soundsOnPointerDown({ pointerType: 'mouse', button: 0 })).toBe(true);
+    expect(soundsOnPointerDown({ pointerType: 'mouse', button: 2 })).toBe(false);
+    expect(soundsOnPointerDown({ pointerType: 'pen', button: 0 })).toBe(true);
   });
 });
 

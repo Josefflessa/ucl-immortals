@@ -4,12 +4,11 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Check } from 'lucide-react';
+import { BookOpen, Check } from 'lucide-react';
 import { parseItemKey, type AlbumItemKey } from '@shared/game/album';
 import { getCrest } from '@shared/game/crests';
-import { Button } from '../../design-system';
 import BannerGachaReveal from '../store/gacha/BannerGachaReveal';
-import { playSound, revealSoundForBest } from '../../audio/uiSound';
+import { playSound } from '../../audio/uiSound';
 import { useMusicDuck } from '../../audio/musicPlayer';
 import { PackFront } from '../game/UniquePackOpening';
 import AlbumPackArt, { ALBUM_PACK_ASPECT, ALBUM_PACK_TEAR_AT } from './AlbumPackArt';
@@ -116,9 +115,13 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, stage]);
 
+  /** True from the moment the tear starts: many pointer events can arrive before the state catches up, and each must not open another pack. */
+  const opening = useRef(false);
+
   /** Tears the pack: asks the server for the stickers while the tear plays. */
   const startOpening = () => {
-    if (stage !== 'sealed' || !itemKey) return;
+    if (opening.current || stage !== 'sealed' || !itemKey) return;
+    opening.current = true;
     setStage('tearing');
     playSound('packTear');
     setCutProgress(100);
@@ -130,9 +133,9 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
         setResult(opened);
         setStaged(true);
         setStage('revealed');
-        playSound(revealSoundForBest(opened.cards.map(card => albumCard(card.id)?.rarity ?? 'bronze')));
       })
       .catch(cause => {
+        opening.current = false;
         setError(cause instanceof Error ? cause.message : 'Não foi possível abrir agora.');
         setCutProgress(0);
         setStage('sealed');
@@ -140,6 +143,7 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
   };
 
   const next = () => {
+    opening.current = false;
     setIndex(value => value + 1);
     setResult(null);
     setStaged(false);
@@ -169,8 +173,6 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
   };
 
   if (!itemKey || !parsed) return null;
-  const cards = result?.cards ?? [];
-  const newCount = cards.filter(card => card.isNew).length;
 
   return createPortal(
     <div
@@ -223,43 +225,20 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
               )}
               {error ? <p role="alert" className="mt-4 max-w-sm text-center text-sm text-[#FF8A8A]">{error}</p> : null}
             </motion.section>
-          ) : (
-            <motion.section key={`revealed-${index}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex w-full max-w-[1000px] shrink-0 flex-col items-center">
-              <div className="mb-4 w-full max-w-[26rem] px-2 text-center sm:mb-6">
-                <div className="mx-auto max-w-full break-words text-sm font-bold leading-snug tracking-[0.1em] sm:text-base sm:tracking-[0.18em]" style={{ color: accent, ...FONT }}>
-                  {newCount > 0 ? `${newCount} CARTA${newCount > 1 ? 'S' : ''} NOVA${newCount > 1 ? 'S' : ''} PARA O ÁLBUM` : 'TODAS REPETIDAS'}
-                </div>
-                <p className="mx-auto mt-2 max-w-[26rem] text-sm leading-relaxed" style={{ color: MUTED, ...FONT }}>
-                  {cards.length - newCount > 0 ? 'As cartas repetidas ficam guardadas: use uma para subir o nível ou venda por moedas.' : 'Já adicionadas ao seu álbum.'}
-                </p>
-              </div>
-              {result && result.pageRewards.length > 0 ? (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .4 + cards.length * .32 }} className="mt-8 flex w-full max-w-[520px] shrink-0 flex-col gap-3">
-                  {result.pageRewards.map(reward => <PageRewardCard key={reward.pageId} reward={reward} />)}
-                </motion.div>
-              ) : null}
-            </motion.section>
-          )}
+          ) : null}
         </AnimatePresence>
       </main>
-      {stage === 'revealed' ? (
-        <footer className="z-10 shrink-0 border-t border-white/10 bg-[#080911]/95 px-3 pt-3 backdrop-blur sm:px-8 sm:pt-4" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
-          <div className="mx-auto flex w-full max-w-[420px] flex-col gap-2.5">
-            {remaining > 0 ? (
-              <Button intent="primary" size="large" onClick={next} className="flex min-h-[64px] w-full items-center justify-center gap-2 py-3.5 text-[22px]">
-                Abrir próximo <span className="opacity-70">({remaining})</span> <ArrowRight size={17} aria-hidden="true" />
-              </Button>
-            ) : null}
-            <Button intent={remaining > 0 ? 'ghost' : 'primary'} size={remaining > 0 ? 'default' : 'large'} onClick={onClose} className="w-full">
-              {remaining > 0 ? 'Guardar o resto' : 'Concluir'}
-            </Button>
-          </div>
-        </footer>
-      ) : null}
       {staged && result ? (
         <BannerGachaReveal
           skipCharge
-          onClose={() => setStaged(false)}
+          onClose={onClose}
+          summary={{
+            primaryLabel: remaining > 0 ? `Abrir próximo (${remaining})` : 'Concluir',
+            onPrimary: remaining > 0 ? next : onClose,
+            secondaryLabel: remaining > 0 ? 'Guardar o resto' : undefined,
+            onSecondary: remaining > 0 ? onClose : undefined,
+            extra: result.pageRewards.length > 0 ? <div className="flex w-full max-w-[520px] flex-col gap-3">{result.pageRewards.map(reward => <PageRewardCard key={reward.pageId} reward={reward} />)}</div> : null,
+          }}
           draws={{
             cards: result.cards.map(card => ({ card, rarity: albumCard(card.id)?.rarity ?? 'bronze', pityTriggered: false })),
             dayStart: '', price: 0, pageRewards: [],

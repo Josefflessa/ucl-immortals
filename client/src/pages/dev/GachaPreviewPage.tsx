@@ -15,6 +15,7 @@ function Preview() {
   const [draws, setDraws] = useState<BannerBatchResult | null>(null);
   const [run, setRun] = useState(0);
   const [pack, setPack] = useState<PlayerPackRarity | null>(null);
+  const [withSummary, setWithSummary] = useState(false);
   const byRarity = useMemo(() => {
     const groups = new Map<Rarity, string[]>();
     CATALOG.stickers.forEach((_, id) => {
@@ -28,7 +29,7 @@ function Preview() {
     cards: rarities.map((rarity, index) => ({ card: { id: pick(rarity, index * 7), isNew: index % 3 !== 1 }, rarity, pityTriggered: rarity === 'unique' })),
     dayStart: '2026-10-17', price: 100, pageRewards: [],
   });
-  const play = (rarities: Rarity[]) => { setRun(value => value + 1); setDraws(make(rarities)); };
+  const play = (rarities: Rarity[], summary = false) => { setRun(value => value + 1); setWithSummary(summary); setDraws(make(rarities)); };
   const ten = (best: Rarity): Rarity[] => ['bronze', 'silver', 'bronze', 'gold', 'silver', 'bronze', 'silver', best, 'bronze', 'gold'];
   const button = 'rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10';
   return (
@@ -42,6 +43,7 @@ function Preview() {
       <div className="flex flex-wrap gap-2">
         {(['silver', 'gold', 'legendary', 'immortal', 'unique'] as Rarity[]).map(rarity => <button key={rarity} type="button" className={button} onClick={() => play(ten(rarity))}>{rarity}</button>)}
         <button type="button" className={button} onClick={() => play(['gold', 'silver'])}>2 cartas</button>
+        <button type="button" className={button} onClick={() => play(['gold', 'gold', 'silver', 'bronze', 'legendary'], true)}>pacote (botões do pacote)</button>
         <button type="button" className={button} onClick={() => play(Array.from({ length: 5 }, () => 'bronze' as Rarity))}>5 comuns</button>
       </div>
       <div className="mb-2 mt-5 text-xs font-black tracking-widest text-yellow-400">PACOTE DE JOGADOR (loja da competição)</div>
@@ -53,7 +55,7 @@ function Preview() {
           <UniquePackOpening rarity={pack} card={albumCard(pick(pack === 'unique' ? 'unique' : pack, 3))!} onClaim={() => setPack(null)} onClose={() => setPack(null)} />
         </div>
       ) : null}
-      {draws ? <BannerGachaReveal key={run} draws={draws} onClose={() => setDraws(null)} /> : null}
+      {draws ? <BannerGachaReveal key={run} draws={draws} onClose={() => setDraws(null)} summary={withSummary ? { primaryLabel: 'Abrir próximo (2)', onPrimary: () => setDraws(null), secondaryLabel: 'Guardar o resto', onSecondary: () => setDraws(null) } : undefined} /> : null}
     </div>
   );
 }

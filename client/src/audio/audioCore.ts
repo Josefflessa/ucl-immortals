@@ -5,6 +5,9 @@
  * that must not start before then (the music) wait for it.
  */
 
+/** Presses and releases that count as the player's first interaction (iOS wants the release of the touch). */
+const UNLOCK_EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'] as const;
+
 let context: AudioContext | null = null;
 let limiter: DynamicsCompressorNode | null = null;
 let unlockInstalled = false;
@@ -57,10 +60,8 @@ export function installAudioUnlock(): void {
     const ctx = getAudioContext();
     if (ctx && ctx.state !== 'running') void ctx.resume().then(flushWaiters).catch(() => undefined);
     if (ctx && ctx.state === 'running') {
-      window.removeEventListener('pointerdown', unlock, true);
-      window.removeEventListener('keydown', unlock, true);
+      for (const type of UNLOCK_EVENTS) window.removeEventListener(type, unlock, true);
     }
   };
-  window.addEventListener('pointerdown', unlock, true);
-  window.addEventListener('keydown', unlock, true);
+  for (const type of UNLOCK_EVENTS) window.addEventListener(type, unlock, true);
 }

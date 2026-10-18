@@ -127,8 +127,12 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
     if (tearTimer.current !== null) window.clearTimeout(tearTimer.current);
   }, []);
 
+  /** True from the first moment the tear finishes (several pointer events can arrive before the state catches up). */
+  const cutting = useRef(false);
+
   const finishCut = () => {
-    if (isTearing) return;
+    if (cutting.current || isTearing) return;
+    cutting.current = true;
     setCutProgress(100);
     setCutStartX(null);
     setIsTearing(true);
@@ -141,6 +145,7 @@ export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'un
   };
 
   const skipCut = () => {
+    cutting.current = true;
     if (tearTimer.current !== null) window.clearTimeout(tearTimer.current);
     setCutProgress(100);
     setCutStartX(null);

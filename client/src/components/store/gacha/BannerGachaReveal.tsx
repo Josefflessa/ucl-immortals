@@ -28,16 +28,17 @@ const LOGO_URL = '/icons/logo_ucl.png';
 const withAlpha = (hex: string, alpha: number) => `${hex}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
 
 /** Close with a short fade instead of cutting away: returns the screen's extra class and a close that waits for it. */
-function useFadeOut(onClose: () => void): { leaving: boolean; close: () => void } {
+function useFadeOut(onClose: () => void): { leaving: boolean; close: () => void; leave: (action: () => void) => void } {
   const [leaving, setLeaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
-  const close = useCallback(() => {
+  const leave = useCallback((action: () => void) => {
     if (timer.current) return;
     setLeaving(true);
-    timer.current = setTimeout(onClose, 240);
-  }, [onClose]);
-  return { leaving, close };
+    timer.current = setTimeout(action, 240);
+  }, []);
+  const close = useCallback(() => leave(onClose), [leave, onClose]);
+  return { leaving, close, leave };
 }
 
 function useViewport(): { width: number; height: number } {
@@ -48,6 +49,26 @@ function useViewport(): { width: number; height: number } {
     return () => window.removeEventListener('resize', onResize);
   }, []);
   return size;
+}
+
+/** What the last screen offers when "continue" is not all: its own buttons, and a line or card list above them. */
+export interface RevealSummary {
+  primaryLabel: string;
+  onPrimary: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+  extra?: React.ReactNode;
+}
+
+/** The last screen's buttons: just "continue", or the caller's own (each leaves with the fade). */
+function RevealButtons({ summary, onDefault, leave }: { summary?: RevealSummary; onDefault: () => void; leave: (action: () => void) => void }) {
+  if (!summary) return <Button intent="primary" size="large" onClick={onDefault} className="w-full max-w-xs">CONTINUAR</Button>;
+  return (
+    <div className="flex w-full max-w-xs flex-col gap-2">
+      <Button intent="primary" size="large" onClick={() => leave(summary.onPrimary)} className="w-full">{summary.primaryLabel}</Button>
+      {summary.secondaryLabel && summary.onSecondary ? <Button intent="ghost" onClick={() => leave(summary.onSecondary!)} className="w-full">{summary.secondaryLabel}</Button> : null}
+    </div>
+  );
 }
 
 // ── Pieces ──────────────────────────────────────────────────────────────────────
@@ -182,10 +203,13 @@ interface HeroProps {
   note?: string;
   ctaLabel: string;
   onCta: () => void;
+  /** Replaces the single button with the caller's own (see RevealSummary). */
+  summary?: RevealSummary;
+  leave?: (action: () => void) => void;
 }
 
 /** One card, big: the rarity banner, rays and a shockwave behind it, the name and a single button. */
-function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], note, ctaLabel, onCta }: HeroProps) {
+function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], note, ctaLabel, onCta, summary, leave }: HeroProps) {
   const { album } = useAlbum();
   const { height } = useViewport();
   const tier = tierOf(rarity);
@@ -229,7 +253,7 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
       </div>
 
       <div className="gacha-rise relative z-10 mt-1 w-full max-w-xs" style={{ '--delay': '0.95s' } as React.CSSProperties}>
-        <Button intent="primary" size="large" onClick={onCta} className="w-full">{ctaLabel}</Button>
+        {summary && leave ? <div className="flex w-full flex-col items-center gap-3">{summary.extra}<RevealButtons summary={summary} onDefault={onCta} leave={leave} /></div> : <Button intent="primary" size="large" onClick={onCta} className="w-full">{ctaLabel}</Button>}
       </div>
     </div>
   );
@@ -282,7 +306,7 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
 });
 
 /** Several cards on a wide screen: dealt face down and flipped in order. On a phone the same grid is only the summary (autoplay off: everything is already face up). */
-function GridReveal({ draws, onClose, reduced, autoplay }: { draws: BannerBatchResult; onClose: () => void; reduced: boolean; autoplay: boolean }) {
+function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { draws: BannerBatchResult; onClose: () => void; reduced: boolean; autoplay: boolean; summary?: RevealSummary; leave: (action: () => void) => void }) {
   const { width, height } = useViewport();
   const cards = draws.cards;
   const order = useMemo(() => flipOrder(cards.map(draw => draw.rarity)), [cards]);
@@ -354,7 +378,8 @@ function GridReveal({ draws, onClose, reduced, autoplay }: { draws: BannerBatchR
               {cards.some(draw => draw.pityTriggered) ? <> · <span className="text-[var(--ui-brand-strong)]">garantia ativada</span></> : null}
             </p>
             {draws.pageRewards.length > 0 ? <p className="text-xs text-[var(--ui-success)]" style={FONT}>{draws.pageRewards.length === 1 ? 'Uma página do álbum foi completada: recompensa recebida.' : `${draws.pageRewards.length} páginas do álbum completadas: recompensas recebidas.`}</p> : null}
-            <Button intent="primary" size="large" onClick={onClose} className="w-full max-w-xs">CONTINUAR</Button>
+            {summary?.extra}
+            <RevealButtons summary={summary} onDefault={onClose} leave={leave} />
           </div>
         ) : (
           <p className="text-center text-[12px] tracking-[0.18em] text-white/45" style={FONT}>TOQUE PARA ACELERAR</p>
@@ -460,10 +485,11 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
 
 // ── The whole sequence ──────────────────────────────────────────────────────────
 
-export default function BannerGachaReveal({ draws, onClose, skipCharge = false }: { draws: BannerBatchResult; onClose: () => void; /** Straight to the burst: the pack's tear was the build-up. */ skipCharge?: boolean }) {
+export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipCharge = false, summary }: { draws: BannerBatchResult; onClose: () => void; /** Straight to the burst: the pack's tear was the build-up. */ skipCharge?: boolean; /** The last screen's own buttons (a pack's "open the next" / "finish"), instead of "continue". */ summary?: RevealSummary }) {
+  const [draws] = useState(incomingDraws);
   const reduced = useReducedMotion() ?? false;
   useMusicDuck();
-  const { leaving, close } = useFadeOut(onClose);
+  const { leaving, close, leave } = useFadeOut(onClose);
   const best = bestDraw(draws.cards);
   const tier = tierOf((best?.rarity ?? 'bronze') as Rarity);
   const [phase, setPhase] = useState<'charge' | 'reveal'>(skipCharge ? 'reveal' : 'charge');
@@ -484,9 +510,12 @@ export default function BannerGachaReveal({ draws, onClose, skipCharge = false }
     const timer = setTimeout(() => setPhase('reveal'), chargeMs);
     return () => clearTimeout(timer);
   }, [phase, chargeMs]);
+  const revealSounded = useRef(false);
   useEffect(() => {
-    if (phase === 'reveal' && best) playSound(revealSoundFor(best.rarity));
-  }, [phase, best]);
+    if (phase !== 'reveal' || revealSounded.current || !best || draws.cards.length !== 1) return;
+    revealSounded.current = true;
+    playSound(revealSoundFor(best.rarity));
+  }, [phase, best, draws.cards.length]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
@@ -507,11 +536,11 @@ export default function BannerGachaReveal({ draws, onClose, skipCharge = false }
             <div className="absolute inset-x-0 bottom-[9%] text-center text-[12px] tracking-[0.3em] text-white/50" style={FONT}>TOQUE PARA PULAR</div>
           </button>
         ) : draws.cards.length === 1 && best && albumCard(best.card.id) ? (
-          <HeroReveal player={albumCard(best.card.id)!} rarity={best.rarity} isNew={best.card.isNew} pity={best.pityTriggered} pageRewards={draws.pageRewards} ctaLabel="CONTINUAR" onCta={close} />
+          <HeroReveal player={albumCard(best.card.id)!} rarity={best.rarity} isNew={best.card.isNew} pity={best.pityTriggered} pageRewards={draws.pageRewards} ctaLabel="CONTINUAR" onCta={close} summary={summary} leave={leave} />
         ) : narrow && !stackDone ? (
           <StackReveal draws={draws} reduced={reduced} onDone={() => setStackDone(true)} />
         ) : (
-          <GridReveal draws={draws} onClose={close} reduced={reduced} autoplay={!narrow} />
+          <GridReveal draws={draws} onClose={close} reduced={reduced} autoplay={!narrow} summary={summary} leave={leave} />
         )}
         {phase === 'reveal' ? <Flash tier={tier} /> : null}
         {phase === 'charge' && warm ? <Warmup draws={draws} /> : null}

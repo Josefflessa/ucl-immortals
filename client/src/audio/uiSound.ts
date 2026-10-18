@@ -375,6 +375,16 @@ function describe(element: Element): ClickTarget {
   };
 }
 
+/**
+ * Whether a press makes its sound the moment it lands (a mouse, a pen) or only when it turns out to be a click
+ * (a finger). A finger lands on a button just as often to scroll as to tap, and a scroll must stay silent: the
+ * browser sends the click only if the finger did not move.
+ */
+export function soundsOnPointerDown(event: { pointerType: string; button: number }): boolean {
+  if (event.pointerType === 'touch') return false;
+  return event.pointerType !== 'mouse' || event.button === 0;
+}
+
 let installed = false;
 
 /**
@@ -393,9 +403,10 @@ export function installUiSounds(): void {
     const name = soundForClick(describe(element));
     if (name) playSound(name);
   };
-  // Pointer first (no wait for the finger to lift), then keyboard-driven clicks, which have no pointer.
+  // A mouse or pen: right away, with no wait for the button to come back up. A finger and the keyboard: on the click,
+  // which only comes when nothing was scrolled or dragged.
   window.addEventListener('pointerdown', event => {
-    if (event.button !== 0 && event.pointerType === 'mouse') return;
+    if (!soundsOnPointerDown(event)) return;
     pointerHandled = true;
     handle(event);
   }, true);
