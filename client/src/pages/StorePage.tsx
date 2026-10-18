@@ -46,7 +46,7 @@ export default function StorePage() {
 
   return (
     <AppShell>
-      <PageContainer wide className="space-y-4 py-5 pb-28 sm:py-8 sm:pb-28">
+      <PageContainer wide className="space-y-4 py-5 pb-28 sm:py-8 sm:pb-28 xl:pb-10">
         <SectionHeader title="Loja" />
 
         {!account || albumLoading ? (
@@ -64,8 +64,8 @@ export default function StorePage() {
             {albumError}{' '}
             <Button type="button" intent="ghost" onClick={() => void refresh()} className="ml-1 min-h-8 px-2 text-xs">TENTAR NOVAMENTE</Button>
           </StatusBanner> : null}
-          <Tabs value={category} onValueChange={value => setCategory(value as StoreCategory)}>
-            <TabList aria-label="Categorias da loja" className="ui-tabs--equal">
+          <Tabs value={category} onValueChange={value => setCategory(value as StoreCategory)} className="ui-tabs-root--side">
+            <TabList aria-label="Categorias da loja" className="ui-tabs--equal ui-tabs--side">
               <Tab value="packs" className="inline-flex items-center gap-2"><PackageOpen size={15} aria-hidden="true" /><span>Pacotes</span></Tab>
               <Tab value="banners" className="inline-flex items-center gap-2"><Sparkles size={15} aria-hidden="true" /><span>Banners</span></Tab>
               <Tab value="customization" className="inline-flex items-center gap-2"><Palette size={15} aria-hidden="true" /><span>Aparência</span></Tab>

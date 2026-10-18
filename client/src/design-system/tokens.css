@@ -1108,3 +1108,19 @@ body.home-menu-scroll-lock {
     padding-inline: 2px;
   }
 }
+
+/* Side tabs: on a wide screen a tab list can stand on the left as a vertical menu with its panel beside it. */
+@media (min-width: 1280px) {
+  .ui-tabs-root--side { display: grid; grid-template-columns: 230px minmax(0, 1fr); column-gap: 40px; align-items: start; }
+  .ui-tabs-root--side > .ui-tab-panel { grid-column: 2; grid-row: 1; padding-top: 0; }
+  .ui-tabs--side {
+    grid-column: 1; grid-row: 1; position: sticky; top: 104px; flex-direction: column; gap: 4px; min-height: 0;
+    padding: 8px; border: 1px solid var(--ui-line-subtle); border-radius: 16px; background: var(--ui-surface-1); overflow: visible;
+  }
+  .ui-tabs--side > .ui-tab {
+    flex: 0 0 auto; justify-content: flex-start; gap: 12px; min-height: 48px; padding: 0 16px;
+    border-radius: 10px; font-size: 13px; letter-spacing: 0.08em; text-align: left; overflow: visible;
+  }
+  .ui-tabs--side > .ui-tab:hover { background: var(--ui-surface-2); }
+  .ui-tabs--side > .ui-tab[data-state="active"] { box-shadow: inset 3px 0 0 var(--ui-brand); }
+}

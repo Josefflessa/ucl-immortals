@@ -1217,7 +1217,7 @@ export default function AccountPage() {
 
   return (
     <AppShell>
-      <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
+      <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28 xl:pb-10">
         {logoutError ? <StatusBanner tone="danger" title="Não foi possível sair">{logoutError}</StatusBanner> : null}
         {tab === 'profile' ? <Panel className="relative isolate overflow-hidden" style={coverStyle}>
           <ProfileCoverLayer coverKey={account.coverKey} coverUrl={account.coverUrl} />

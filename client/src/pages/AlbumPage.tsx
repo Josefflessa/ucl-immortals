@@ -657,7 +657,7 @@ export default function AlbumPage() {
       /> : null}
 
       {/* With an account: the same shell and spacing as the other account screens. */}
-      <PageContainer wide className={account ? 'space-y-5 py-5 pb-28 sm:py-8 sm:pb-28' : 'pb-10 pt-5 sm:pt-8'}>
+      <PageContainer wide className={account ? 'space-y-5 py-5 pb-28 sm:py-8 sm:pb-28 xl:pb-10' : 'pb-10 pt-5 sm:pt-8'}>
         {account
           ? <AlbumCollection catalog={<CatalogBrowser showIntro={false} />} />
           : <CatalogBrowser showIntro />}

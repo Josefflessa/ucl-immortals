@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import GuestHeader from "./components/account/GuestHeader";
 import { useChromeHidden } from "./lib/chrome";
 import { music, musicZoneForPhase } from "./audio/musicPlayer";
 import { warmAccountScreens } from "./lib/appPrefetch";
@@ -108,7 +109,9 @@ function ModalScrollLock() {
 
 function GameRouter() {
   const { state, dispatch } = useGame();
-  const { account } = useAccount();
+  const { account, loading: accountLoading } = useAccount();
+  // Hooks stay above the early return below (their order must not change between renders).
+  const chromeHidden = useChromeHidden();
   // Accounts play a fixed format but choose the difficulty (the 'setup' page).
   const accountOnLegacySetup = !!account && state.phase === 'format';
 
@@ -157,12 +160,12 @@ function GameRouter() {
   // state points at the guest-only format page, go straight to the difficulty.
   if (accountOnLegacySetup) return renderPhase('setup');
 
-  const chromeHidden = useChromeHidden();
   const showAccountHeader = !!account && ACCOUNT_PAGE_PHASES.has(state.phase) && !chromeHidden;
 
   return (
     <>
       {showAccountHeader ? <AccountHeader /> : null}
+      {!account && !accountLoading && state.phase === 'menu' ? <GuestHeader /> : null}
       {renderPhase(state.phase)}
     </>
   );

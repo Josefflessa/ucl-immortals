@@ -41,7 +41,7 @@ export default function AchievementsPage() {
   return (
     <AppShell>
       {/* Same shell and header as the other account screens (history, friends). */}
-      <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
+      <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28 xl:pb-10">
         <SectionHeader
           title="Conquistas"
           actions={payload ? (

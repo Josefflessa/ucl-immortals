@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { House, ShoppingBag, Trophy, Users } from 'lucide-react';
+import { House, Lock, ShoppingBag, Trophy, Users } from 'lucide-react';
 import { playSound } from '../../audio/uiSound';
 import { Button } from '../../design-system';
 import { useAccount } from '../../contexts/AccountContext';
@@ -9,6 +9,8 @@ import { cn } from '../../lib/utils';
 type AccountNavigationTab = 'home' | 'store' | AccountSection;
 
 interface AccountTabBarProps {
+  /** Someone without an account sees the tabs too, with all but the home locked (the caller sends them to the login). Wide screens only. */
+  guest?: boolean;
   active: AccountNavigationTab | null;
   incomingFriendRequestCount?: number;
   onNavigate: (tab: AccountNavigationTab) => void;
@@ -21,7 +23,7 @@ const NAV_ITEMS: Array<{ id: AccountNavigationTab; label: string; ariaLabel: str
   { id: 'friends', label: 'AMIGOS', ariaLabel: 'Abrir amigos', icon: Users },
 ];
 
-export default function AccountTabBar({ active, incomingFriendRequestCount = 0, onNavigate }: AccountTabBarProps) {
+export default function AccountTabBar({ active, incomingFriendRequestCount = 0, onNavigate, guest = false }: AccountTabBarProps) {
   const { unreadMessageCount } = useAccount();
   const friendsBadgeCount = incomingFriendRequestCount + unreadMessageCount;
   // A new friend request or message while you are here gets a soft cue (not what was already waiting).
@@ -38,14 +40,17 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
   return (
     <nav
       aria-label="Navegação principal"
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:inset-x-auto xl:bottom-auto xl:left-1/2 xl:top-[17px] xl:z-40 xl:-translate-x-1/2 xl:rounded-full xl:border xl:p-1"
+      className={cn(guest && 'hidden xl:block', 'fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:inset-x-auto xl:bottom-auto xl:left-1/2 xl:top-[17px] xl:z-40 xl:-translate-x-1/2 xl:rounded-full xl:border xl:p-1')}
     >
       <div className="mx-auto grid max-w-md grid-cols-4 xl:flex xl:max-w-none xl:gap-1">
         {NAV_ITEMS.map(({ id, label, ariaLabel, icon: Icon }) => {
           const selected = active === id;
-          const accessibleLabel = id === 'friends' && friendsBadgeCount > 0
-            ? `Abrir amigos, ${friendsLabel}`
-            : ariaLabel;
+          const locked = guest && id !== 'home';
+          const accessibleLabel = locked
+            ? `${ariaLabel}. Entre na sua conta para usar.`
+            : id === 'friends' && friendsBadgeCount > 0
+              ? `Abrir amigos, ${friendsLabel}`
+              : ariaLabel;
 
           return (
             <Button
@@ -69,6 +74,7 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
                 ) : null}
               </span>
               {label}
+              {locked ? <Lock size={11} aria-hidden="true" className="hidden opacity-60 xl:block" /> : null}
             </Button>
           );
         })}

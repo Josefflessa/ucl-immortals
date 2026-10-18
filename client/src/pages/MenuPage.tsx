@@ -468,11 +468,13 @@ export default function MenuPage() {
       'relative overflow-hidden',
       menuMode === 'selection' && 'home-menu-screen',
       menuMode === 'selection' && account && 'home-menu-screen--account',
+      // Someone without an account has the guest bar on a wide screen: the screen is what is left under it.
+      menuMode === 'selection' && !account && 'xl:!h-[calc(100dvh-81px)]',
     )}>
 
       {/* Content */}
       {!account ? (
-        <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-end gap-2 sm:inset-x-6 sm:top-6">
+        <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-end gap-2 sm:inset-x-6 sm:top-6 xl:hidden">
           <SoundControl />
           <div className="shrink-0">
             <Button
@@ -490,7 +492,7 @@ export default function MenuPage() {
 
       <div className={cn(
         'relative z-10 flex flex-col items-center px-4',
-        account && menuMode === 'selection' ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8 xl:pb-8' : account ? 'min-h-dvh py-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24',
+        account && menuMode === 'selection' ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8 xl:pb-8' : account ? 'min-h-dvh py-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24 xl:min-h-0 xl:pb-8 xl:pt-6',
         menuMode === 'selection' && 'home-menu-screen__content lg:mx-auto lg:grid lg:w-full lg:max-w-[1100px] lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:grid-rows-[1fr_auto] lg:items-center lg:gap-x-14 lg:px-8',
         menuMode === 'selection' && (account ? 'home-menu-screen__content--account' : 'home-menu-screen__content--guest'),
       )}>

@@ -68,7 +68,7 @@ export default function EventsPage() {
   return (
     <AppShell>
       {/* Same shell and header as the other account screens. */}
-      <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28">
+      <PageContainer wide className="space-y-5 py-5 pb-28 sm:py-8 sm:pb-28 xl:pb-10">
         <SectionHeader title="Eventos" />
         {error && !payload ? (
           <StatusBanner tone="danger" title="Não foi possível carregar os eventos">
