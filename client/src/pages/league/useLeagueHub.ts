@@ -98,9 +98,8 @@ export function useLeagueHub() {
     (recruitmentOffer?.freeRerolls ?? 0) - (recruitmentOffer?.rerollsUsed ?? 0),
   );
 
-  // Warm the compact portraits before the reinforcement modal is painted. The
-  // modal has only a handful of cards, but waiting for lazy image loading here
-  // makes the offer feel like a single, immediate interaction on mobile.
+  // Warm the compact portraits as soon as the offer is created. The modal waits
+  // for its frame and texture separately before showing the cards.
   const reinforcementPhotoKey = state.reinforcementOptions?.map(option => option.id).join('|') ?? '';
   useEffect(() => {
     if (!reinforcementPhotoKey) return;

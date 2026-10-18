@@ -70,7 +70,12 @@ export default function AppearanceShop() {
         await buyFrame(confirmingItem.key);
         const purchasedKey = confirmingItem.key;
         setOwnedFrames(current => current?.includes(purchasedKey) ? current : [...(current ?? []), purchasedKey]);
-        void getEvents().then(result => setOwnedFrames(result.frames)).catch(() => undefined);
+        try {
+          const result = await getEvents(true);
+          setOwnedFrames(result.frames);
+        } catch {
+          // Keep the optimistic ownership update if refreshing the inventory fails.
+        }
       } else if (confirming.kind === 'cover') {
         await buyCover(confirmingItem.key);
       } else {

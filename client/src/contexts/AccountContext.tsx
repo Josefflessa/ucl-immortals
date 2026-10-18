@@ -364,7 +364,7 @@ interface AccountContextValue {
   }) => Promise<{ id: string; duplicate: boolean; achievementsUnlocked?: AchievementUnlock[]; framesUnlocked?: FrameUnlock[]; eventCardsUnlocked?: EventCardUnlock[]; albumGrants?: ItemGrant[] }>;
   getOwnAchievements: (since?: number) => Promise<AchievementsPayload & { recentlyUnlocked: AchievementUnlock[] }>;
   peekOwnAchievements: () => AchievementsPayload | null;
-  getEvents: () => Promise<EventsPayload>;
+  getEvents: (forceRefresh?: boolean) => Promise<EventsPayload>;
   peekEvents: () => EventsPayload | null;
   /** Picks the account's option in a choice event (for good). */
   chooseEventOption: (eventId: string, choice: string) => Promise<EventsPayload>;
@@ -667,24 +667,24 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return accountId ? readCacheFor(accountId).events?.value ?? null : null;
   }, [accountId, readCacheFor]);
 
-  const getEvents = useCallback(async () => {
+  const getEvents = useCallback(async (forceRefresh = false) => {
     const cache = accountId ? readCacheFor(accountId) : null;
     const entry = cache ? (cache.events ??= { updatedAt: 0 }) : null;
-    if (isReadCacheFresh(entry)) {
+    if (!forceRefresh && isReadCacheFresh(entry)) {
       setEventCards(entry.value.eventCards ?? []);
       return entry.value;
     }
-    if (entry?.request) return entry.request;
+    if (!forceRefresh && entry?.request) return entry.request;
     const revision = cache?.revision;
     const request = api<EventsPayload>('/api/account/events');
     if (entry) entry.request = request;
     try {
       const payload = await request;
-      if (cache && cache.revision === revision && entry) {
+      if (cache && cache.revision === revision && entry && entry.request === request) {
         entry.value = payload;
         entry.updatedAt = Date.now();
       }
-      if (!cache || cache.revision === revision) setEventCards(payload.eventCards ?? []);
+      if ((!cache || cache.revision === revision) && (!entry || entry.request === request)) setEventCards(payload.eventCards ?? []);
       return payload;
     } finally {
       if (entry?.request === request) entry.request = undefined;

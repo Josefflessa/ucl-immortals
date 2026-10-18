@@ -1,6 +1,9 @@
-import { UserPlus, AlertTriangle, Ban, Pointer, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { UserPlus, AlertTriangle, Ban, LoaderCircle, Pointer, RefreshCw } from 'lucide-react';
 import { INLINE_ICON } from '../../components/game/inlineIcon';
 import PlayerCard from '../../components/game/PlayerCard';
+import { preloadPlayerCardArtwork } from '../../lib/cardPreload';
+import type { Player } from '@shared/game/gameData';
 import MatchDetailsModal from '../../components/game/MatchDetailsModal';
 import MatchCreditsModal from '../../components/game/MatchCreditsModal';
 import MissionResolutionModal from '../../components/game/MissionResolutionModal';
@@ -13,6 +16,60 @@ import { MAX_RESERVE_PLAYERS } from '@shared/game/gameEngine';
 import { POS_PT } from '@shared/game/gameData';
 import { Button, GameModal } from '../../design-system';
 import type { LeagueHub } from './useLeagueHub';
+
+function RecruitmentOfferCards({
+  options,
+  selectionsRemaining,
+  onPick,
+}: {
+  options: Player[];
+  selectionsRemaining: number;
+  onPick: (player: Player) => void;
+}) {
+  const [loadedArtKey, setLoadedArtKey] = useState('');
+  const artKey = options.map(option => [
+    option.id,
+    option.rarity,
+    option.evolutionLevel ?? '',
+    option.appearances ?? '',
+    option.specialization ?? '',
+    option.specializationUnlocked ? 1 : 0,
+    option.competitionAlbumLevel ?? 0,
+  ].join(':')).join('|');
+
+  useEffect(() => {
+    let active = true;
+    void preloadPlayerCardArtwork(options).then(() => {
+      if (active) setLoadedArtKey(artKey);
+    });
+    return () => { active = false; };
+  }, [artKey, options]);
+
+  if (loadedArtKey !== artKey) {
+    return (
+      <div className="flex min-h-40 items-center justify-center gap-2 text-sm font-semibold text-[var(--ui-text-muted)]" role="status">
+        <LoaderCircle size={17} className="animate-spin" aria-hidden="true" />
+        Preparando as cartas…
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-3 justify-items-center gap-2 sm:grid-cols-6 sm:gap-3">
+      {options.map(option => (
+        <button
+          key={option.id}
+          onClick={() => onPick(option)}
+          className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ui-focus)]"
+          title={`Contratar ${option.shortName} (${selectionsRemaining} escolha${selectionsRemaining === 1 ? '' : 's'} restante${selectionsRemaining === 1 ? '' : 's'})`}
+          aria-label={`Contratar ${option.shortName}`}
+        >
+          <PlayerCard player={option} compact lite />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // Modals rendered at the end of the league hub page.
 export default function HubModals({ hub }: { hub: LeagueHub }) {
@@ -152,21 +209,11 @@ export default function HubModals({ hub }: { hub: LeagueHub }) {
               </div>
             }
           >
-                {/* Options — bigger full cards (light, no animations) */}
-                {/* Opções: grade que cabe SEM rolagem (3 col no celular, 6 no PC) */}
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 justify-items-center">
-                  {state.reinforcementOptions.map(option => (
-                    <button
-                      key={option.id}
-                      onClick={() => online ? pickReinforcementOnline(option) : dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
-                      className="transition-transform hover:scale-[1.06] active:scale-[0.97] focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ui-focus)]"
-                      title={`Contratar ${option.shortName} (${recruitmentSelectionsRemaining} escolha${recruitmentSelectionsRemaining === 1 ? '' : 's'} restante${recruitmentSelectionsRemaining === 1 ? '' : 's'})`}
-                      aria-label={`Contratar ${option.shortName}`}
-                    >
-                      <PlayerCard player={option} compact lite />
-                    </button>
-                  ))}
-                </div>
+                <RecruitmentOfferCards
+                  options={state.reinforcementOptions}
+                  selectionsRemaining={recruitmentSelectionsRemaining}
+                  onPick={option => online ? pickReinforcementOnline(option) : dispatch({ type: 'PICK_REINFORCEMENT', player: option })}
+                />
           </GameModal>
         )}
       </>

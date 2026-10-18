@@ -8,12 +8,47 @@
 
 import { crestIdForClub, getCrest } from '@shared/game/crests';
 import type { Player } from '@shared/game/gameData';
-import { buildPlayerPhotoSources, getFlagUrl } from '../components/game/PlayerCard';
+import { getEvolutionLevel } from '@shared/game/gameEngine';
+import { FRAME_URL } from '../components/game/CardShield';
+import { buildPlayerPhotoSources, cardTexture, getFlagUrl, UNIQUE_STYLE } from '../components/game/PlayerCard';
 
 const CONCURRENCY = 4;
 const requested = new Set<string>();
 /** Kept alive so the decoded images are not collected before the cards use them. */
 const alive: HTMLImageElement[] = [];
+const cardArtworkLoads = new Map<string, Promise<void>>();
+
+function preloadDecodedImage(url: string): Promise<void> {
+  const existing = cardArtworkLoads.get(url);
+  if (existing) return existing;
+
+  const pending = new Promise<void>(resolve => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => {
+      alive.push(image);
+      const decoded = image.decode?.();
+      if (decoded) void decoded.catch(() => undefined).then(resolve);
+      else resolve();
+    };
+    image.onerror = () => resolve();
+    image.src = url;
+  });
+  cardArtworkLoads.set(url, pending);
+  return pending;
+}
+
+/** Waits for the frame, texture and album trim used by compact recruitment cards to decode. */
+export function preloadPlayerCardArtwork(players: readonly Player[]): Promise<void> {
+  const urls = new Set<string>([FRAME_URL]);
+  for (const player of players) {
+    const unique = UNIQUE_STYLE[player.id];
+    urls.add(unique?.texture ?? cardTexture(player.rarity, getEvolutionLevel(player), player.specialization));
+    if (unique?.render) urls.add(unique.render);
+    if ((player.competitionAlbumLevel ?? 0) >= 2) urls.add(`/cards/album-level-${player.competitionAlbumLevel}.webp`);
+  }
+  return Promise.all(Array.from(urls, preloadDecodedImage)).then(() => undefined);
+}
 
 function load(url: string): Promise<boolean> {
   return new Promise(resolve => {
