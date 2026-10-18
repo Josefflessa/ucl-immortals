@@ -14,7 +14,7 @@ export {
   PREFERRED_FORMATION_CHEM_BONUS, calculateChemistry, getChemistryLinks, getPlayerEffectiveStats, getChemistryBonus, computeCharacteristicBoosts, getTeamEffectiveStats, getCardIntrinsicStats, computePossession, getFreeKickTaker,
 } from './engine/chemistry';
 export type {
-  ChemLinkType, ChemLink, StatBreakdown, EffectiveStats, CharSource, CharBoost,
+  ChemLinkType, ChemLink, ChemistryBonuses, StatBreakdown, EffectiveStats, CharSource, CharBoost,
 } from './engine/chemistry';
 export {
   getEffectiveAttribute, DUEL_SCALE, FINISH_EDGE, KEEPER_DUEL_SCALE, SET_PIECE_SCALE, FREE_KICK_EDGE, HEADER_EDGE, PENALTY_EDGE, PENALTY_SCALE, ON_TARGET_RESISTANCE, HOME_ATTR_BONUS, SECONDARY_STAT_MULT, positionFit, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_GAMES, EVOLVE_POINTS, SPECIALIZATION_LEVEL, SPECIALIZATION_POINTS, SPECIALIZATION_UNLOCK_COST, evolvePointsBudget, getEvolutionLevel, isEvolved, evolvePointsSpent, chooseEvolveAttribute, applyEvolvePoint, specializationAttributeBonus, canChooseSpecialization, canUnlockSpecialization, unlockPlayerSpecialization, choosePlayerSpecialization, starterPlayerIds, bumpStarterAppearances, applyPostMatchCardProgress, stampMatchStartingLineups, teamAtKickoff, startingIdsForResult, formationCounterBonusForAnalysisLevel, formationAdvantageLabelForAnalysisLevel, formationAdvantageColorForAnalysisLevel,

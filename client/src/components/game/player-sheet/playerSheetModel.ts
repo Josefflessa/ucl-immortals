@@ -5,7 +5,7 @@ import { COACHES, FORMATIONS, POS_PT, type Player } from '@shared/game/gameData'
 import {
   calculateChemistry, captainBestStatFromStarters, captainBoostFromStarters, computeCharacteristicBoosts,
   getChemistryLinks, getPlayerEffectiveStats, goalkeeperShotStoppingRating, isOutfieldGoalkeeper, padrinhoGodchildId, positionFit,
-  type CharBoost, type EffectiveStats, type StatBreakdown,
+  type CharBoost, type ChemistryBonuses, type EffectiveStats, type StatBreakdown,
 } from '@shared/game/gameEngine';
 import { activePlayerTraits, TRAIT_MAP, getGoalkeeperTraitBonus, traitEffectLabel } from '@shared/game/traits';
 import { stadiumHomeBonus } from '@shared/game/clubProjects';
@@ -61,6 +61,8 @@ export interface PlayerSheetModel {
   traits: SheetTrait[];
   captain: SheetCaptain | null;
   charBoost?: CharBoost;
+  /** What each source adds to the team chemistry total (Pilar, Noé, Improvisador...). */
+  chemBonuses: ChemistryBonuses;
   coachName: string;
   situations: SheetSituation[];
   homeBonus: number;
@@ -290,6 +292,7 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
     traits,
     captain,
     charBoost: charBoosts[player.id],
+    chemBonuses: chemData.bonuses,
     coachName: COACHES.find(c => c.id === input.coachId)?.name ?? '',
     situations,
     homeBonus: isStarter ? stadiumHomeBonus(input.stadiumProjectLevel ?? 1) : 0,

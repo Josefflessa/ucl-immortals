@@ -15,6 +15,17 @@ import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, 
 // higher team-chemistry bonus tier.
 export const PREFERRED_FORMATION_CHEM_BONUS = 10;
 
+/** What each source adds to (or takes from) the team chemistry total, so the UI can explain the number. */
+export interface ChemistryBonuses {
+  coachFormation: number;
+  trios: number;
+  pilar: number;
+  lobo: number;
+  noe: number;
+  improvisador: number;
+  fominha: number;
+}
+
 export function calculateChemistry(
   players: Player[],
   coachId: string,
@@ -26,6 +37,7 @@ export function calculateChemistry(
   trios: string[];
   outOfPosition: Record<string, boolean>;
   secondaryPos: Record<string, boolean>;
+  bonuses: ChemistryBonuses;
 } {
   const individual: Record<string, number> = {};
   const outOfPosition: Record<string, boolean> = {};
@@ -116,7 +128,11 @@ export function calculateChemistry(
     Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus
       + improvisadorBonus - fominhaPenalty);
 
-  return { individual, total, trios, outOfPosition, secondaryPos };
+  const bonuses: ChemistryBonuses = {
+    coachFormation: coachFormBonus, trios: trioBonus, pilar: pilarBonus, lobo: loboPenalty, noe: noeBonus,
+    improvisador: improvisadorBonus, fominha: fominhaPenalty,
+  };
+  return { individual, total, trios, outOfPosition, secondaryPos, bonuses };
 }
 
 // The chemistry LINKS between players (who connects with whom and why). Same priority

@@ -370,23 +370,33 @@ export default function SquadEditor({
             <span className="min-w-0 break-words">Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do técnico ({coach.name})</span>
           </div>
         )}
-        {/* Cartas especiais que mexem na QUÍMICA GERAL (total) do time — Pilar (+) e Lobo Solitário (−). */}
+        {/* Cartas especiais que mexem na QUÍMICA GERAL (total) do time: Pilar, Noé, Improvisador (+) e Lobo Solitário, Fominha (−). */}
         {(() => {
-          const pilars = xi.filter(p => p?.pilar);
-          const lobos = xi.filter(p => p?.lobo);
-          if (pilars.length === 0 && lobos.length === 0) return null;
+          const GREEN = { background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80' };
+          const RED = { background: '#EF444418', border: '1px solid #EF444440', color: '#FCA5A5' };
+          const MUTED = { background: '#64748B18', border: '1px solid #64748B40', color: '#94A3B8' };
+          const chips: { key: string; trait: string; fallback: string; who: string; value: string; style: typeof GREEN; note?: string }[] = [];
+          for (const p of xi.filter(p => p?.pilar)) chips.push({ key: `pilar-${p.id}`, trait: 'pilar', fallback: '🧱', who: p.shortName, value: `+${PILAR_CHEM_BONUS}`, style: GREEN });
+          for (const p of xi.filter(p => p?.lobo)) chips.push({ key: `lobo-${p.id}`, trait: 'lobo', fallback: '🐺', who: p.shortName, value: `−${LOBO_CHEM_PENALTY}`, style: RED });
+          const noes = xi.filter(p => p?.noe);
+          for (const p of noes) chips.push({ key: `noe-${p.id}`, trait: 'noe', fallback: '🛟', who: p.shortName, value: `+${Math.round(chemData.bonuses.noe / noes.length)}`, style: chemData.bonuses.noe > 0 ? GREEN : MUTED, note: chemData.bonuses.noe > 0 ? undefined : 'nenhum titular sem característica' });
+          const improvisador = xi.find(p => p?.improvisador);
+          if (improvisador) {
+            const secondary = xi.filter(p => chemData.secondaryPos[p.id]).length;
+            const off = xi.filter(p => chemData.outOfPosition[p.id]).length;
+            chips.push({ key: 'improvisador', trait: 'improvisador', fallback: '🔀', who: improvisador.shortName, value: `+${chemData.bonuses.improvisador}`, style: chemData.bonuses.improvisador > 0 ? GREEN : MUTED, note: chemData.bonuses.improvisador > 0 ? `${secondary} na secundária, ${off} fora de posição` : 'ninguém na secundária ou fora de posição' });
+          }
+          for (const p of xi.filter(p => p?.fominha)) {
+            const penalty = Math.round(chemData.bonuses.fominha / Math.max(1, xi.filter(q => q?.fominha).length));
+            if (penalty > 0) chips.push({ key: `fominha-${p.id}`, trait: 'fominha', fallback: '🍽️', who: p.shortName, value: `−${penalty}`, style: RED });
+          }
+          if (chips.length === 0) return null;
           return (
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {pilars.map(p => (
-                <span key={p.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px]"
-                  style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'var(--font-game), sans-serif' }}>
-                  <TraitIcon trait="pilar" fallback="🧱" size={18} /> {p.shortName} <b>+{PILAR_CHEM_BONUS}</b> química geral
-                </span>
-              ))}
-              {lobos.map(p => (
-                <span key={p.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px]"
-                  style={{ background: '#EF444418', border: '1px solid #EF444440', color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>
-                  <TraitIcon trait="lobo" fallback="🐺" size={18} /> {p.shortName} <b>−{LOBO_CHEM_PENALTY}</b> química geral
+              {chips.map(c => (
+                <span key={c.key} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px]"
+                  style={{ ...c.style, fontFamily: 'var(--font-game), sans-serif' }}>
+                  <TraitIcon trait={c.trait as never} fallback={c.fallback} size={18} /> {c.who} <b>{c.value}</b> química geral{c.note ? <span className="opacity-80"> ({c.note})</span> : null}
                 </span>
               ))}
             </div>
