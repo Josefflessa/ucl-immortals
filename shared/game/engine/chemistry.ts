@@ -113,7 +113,7 @@ export function calculateChemistry(
   // 🧱 Pilar lifts the team's chemistry · 🐺 Lobo Solitário drains it (per such player in the XI).
   const pilarBonus = players.filter(p => p.pilar).length * PILAR_CHEM_BONUS;
   const loboPenalty = players.filter(p => p.lobo).length * LOBO_CHEM_PENALTY;
-  // 🛟 Noé — +5 de química geral por titular SEM característica (cada Noé titular soma o seu).
+  // 🛟 Noé — +3 de química geral por titular SEM característica (cada Noé titular soma o seu).
   const xi = players.slice(0, 11).filter((p): p is Player => !!p);
   const plainStarters = xi.filter(p => !hasVariant(p)).length;
   const noeBonus = xi.filter(p => p.noe).length * plainStarters * NOE_CHEM_BONUS;

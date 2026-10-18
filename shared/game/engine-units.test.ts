@@ -638,7 +638,7 @@ describe('char boosts flow through getEffectiveAttribute (engine = the buff)', (
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🛟 Noé — +2 em tudo nele e +5 de química por titular sem característica', () => {
+describe('🛟 Noé — +2 em tudo nele e +3 de química por titular sem característica', () => {
   const xiOf = (extra: Player[]) => [...extra, ...Array.from({ length: 11 - extra.length }, () => mkP())];
 
   it('+20 em tudo quando os outros 10 titulares não têm característica', () => {

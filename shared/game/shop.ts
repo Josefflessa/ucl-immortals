@@ -193,7 +193,7 @@ export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; c
   { key: 'idolo', icon: '❤️', label: 'Ídolo', color: '#F59E0B', desc: 'Dá +3 em cada atributo aos outros titulares do mesmo clube.' },
   { key: 'decimoHomem', icon: '🪑', label: '12º Homem', color: '#14B8A6', desc: 'No banco, dá +1 em todos os atributos aos titulares.' },
   { key: 'pipoqueiro', icon: '🍿', label: 'Pipoqueiro', color: '#EC4899', desc: 'Na fase de liga, recebe +7 em todos os atributos. No mata-mata, recebe −7.' },
-  { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: 'Se for titular, o Noé recebe +2 em todos os atributos por cada jogador titular sem característica especial. O time recebe +5 de química geral por cada um.' },
+  { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: 'Se for titular, o Noé recebe +2 em todos os atributos por cada jogador titular sem característica especial. O time recebe +3 de química geral por cada um.' },
   { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: 'Se for o único titular do seu país e do seu clube, recebe +9 em todos os atributos.' },
   { key: 'colecionador', icon: '🧩', label: 'Colecionador', color: '#C084FC', desc: 'Se for titular, recebe +1 em todos os atributos por jogador na reserva.' },
   { key: 'estribado', icon: '💰', label: 'Estribado', color: '#FACC15', desc: 'Ganha +1 em todos os atributos a cada 100 créditos no seu saldo.' },

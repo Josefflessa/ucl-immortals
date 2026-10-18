@@ -46,11 +46,11 @@ export function magnataPointMultiplier(starters: (Player | undefined)[]): number
 // RUNTIME (depende de context.isKnockout), por isso NÃO é assado no stat base como o Em Alta/Lobo.
 export const PIPOQUEIRO_LEAGUE_BOOST = 7;   // +7 em cada atributo na FASE DE LIGA
 export const PIPOQUEIRO_KO_PENALTY = 7;     // −7 em cada atributo no MATA-MATA
-// 🛟 Noé — se titular, +2 em tudo ao Noé e +5 na química geral por jogador titular SEM característica (ele "põe
-// todo mundo na arca"). Com 10 companheiros sem característica: +20/+50. Efeitos em
+// 🛟 Noé — se titular, +2 em tudo ao Noé e +3 na química geral por jogador titular SEM característica (ele "põe
+// todo mundo na arca"). Com 10 companheiros sem característica: +20/+30. Efeitos em
 // computeCharacteristicBoosts (atributos) e calculateChemistry (química).
 export const NOE_STAT_BOOST = 2;
-export const NOE_CHEM_BONUS = 5;
+export const NOE_CHEM_BONUS = 3;
 // 🔀 Improvisador — +química geral por titular em posição secundária / fora de posição (não acumula).
 export const IMPROVISADOR_SECONDARY_CHEM = 8;
 export const IMPROVISADOR_OOP_CHEM = 12;

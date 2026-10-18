@@ -101,7 +101,7 @@ export interface Player {
   idolo?: boolean;      // ❤️ Ídolo — +3 em tudo a cada OUTRO titular do mesmo clube (não a ele)
   decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 em todos os atributos a todo o XI
   pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +7 em tudo na FASE DE LIGA, −7 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
-  noe?: boolean;         // 🛟 Noé — se titular, +2 em tudo ao Noé e +5 de química geral por jogador titular sem característica especial
+  noe?: boolean;         // 🛟 Noé — se titular, +2 em tudo ao Noé e +3 de química geral por jogador titular sem característica especial
   forasteiro?: boolean;  // 🧳 Forasteiro — +9 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
   colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva
   estribado?: boolean;    // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis

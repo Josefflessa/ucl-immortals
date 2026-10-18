@@ -382,9 +382,7 @@ export default function SquadEditor({
           for (const p of noes) chips.push({ key: `noe-${p.id}`, trait: 'noe', fallback: '🛟', who: p.shortName, value: `+${Math.round(chemData.bonuses.noe / noes.length)}`, style: chemData.bonuses.noe > 0 ? GREEN : MUTED, note: chemData.bonuses.noe > 0 ? undefined : 'nenhum titular sem característica' });
           const improvisador = xi.find(p => p?.improvisador);
           if (improvisador) {
-            const secondary = xi.filter(p => chemData.secondaryPos[p.id]).length;
-            const off = xi.filter(p => chemData.outOfPosition[p.id]).length;
-            chips.push({ key: 'improvisador', trait: 'improvisador', fallback: '🔀', who: improvisador.shortName, value: `+${chemData.bonuses.improvisador}`, style: chemData.bonuses.improvisador > 0 ? GREEN : MUTED, note: chemData.bonuses.improvisador > 0 ? `${secondary} na secundária, ${off} fora de posição` : 'ninguém na secundária ou fora de posição' });
+            chips.push({ key: 'improvisador', trait: 'improvisador', fallback: '🔀', who: improvisador.shortName, value: `+${chemData.bonuses.improvisador}`, style: chemData.bonuses.improvisador > 0 ? GREEN : MUTED });
           }
           for (const p of xi.filter(p => p?.fominha)) {
             const penalty = Math.round(chemData.bonuses.fominha / Math.max(1, xi.filter(q => q?.fominha).length));
