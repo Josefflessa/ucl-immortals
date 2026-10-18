@@ -213,7 +213,9 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
   const { album } = useAlbum();
   const { height } = useViewport();
   const tier = tierOf(rarity);
-  const level = stickerLevel(album, player.id);
+  // What was drawn is the base card, as in the catalogue: not the level the player's copy has reached. (The competition's
+  // player pack, which passes no new/repeated tag, keeps showing what it always showed.)
+  const level = isNew === null ? stickerLevel(album, player.id) : 0;
   const scale = Math.max(0.7, Math.min(1.05, (height - 330) / 324));
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-4">
@@ -262,9 +264,7 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
 // ── Several cards, face down then flipped ───────────────────────────────────────
 
 const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, index, upcoming }: { draw: BannerDraw; tier: GachaTier; scale: number; flipped: boolean; charging: boolean; index: number; /** It is the next to flip: mount the front now so the flip starts with it ready. */ upcoming: boolean }) {
-  const { album } = useAlbum();
   const player = albumCard(draw.card.id);
-  const level = player ? stickerLevel(album, player.id) : 0;
   const width = 200 * scale;
   const height = 324 * scale;
   if (!player) return null;
@@ -288,7 +288,8 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
           </div>
           <div className="absolute inset-0" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
             <div aria-hidden="true" className="absolute -inset-x-[34%] -inset-y-[22%] -z-[1]" style={{ background: `radial-gradient(closest-side, ${withAlpha(tier.color, tier.rank >= 3 ? 0.5 : 0.3)} 0%, ${withAlpha(tier.color, tier.rank >= 3 ? 0.2 : 0.1)} 55%, transparent 100%)`, opacity: flipped ? 1 : 0, transition: 'opacity .5s' }} />
-            {flipped || charging || upcoming ? <PlayerCard player={player} lite scale={scale} albumLevel={level > 0 ? level as AlbumLevel : undefined} /> : null}
+            {/* The base card, as in the catalogue: the level of the player's copy is not part of what was drawn. */}
+            {flipped || charging || upcoming ? <PlayerCard player={player} lite scale={scale} /> : null}
           </div>
         </motion.div>
         {flipped ? (
