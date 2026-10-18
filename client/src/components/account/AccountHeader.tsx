@@ -240,7 +240,7 @@ export default function AccountHeader() {
             <img src="/icons/logo_ucl.png" alt="" className="size-10 object-contain" />
             <span className="font-display text-[1.45rem] leading-none tracking-[0.1em] text-[var(--ui-text)]">UCL <span className="text-[var(--ui-brand-strong)]">IMMORTALS</span></span>
           </button>
-          <div className="flex shrink-0 items-center gap-1.5 xl:order-2 xl:ml-auto">
+          <div className="flex shrink-0 items-center gap-1.5 xl:order-2 xl:ml-auto xl:gap-0.5 xl:rounded-full xl:border xl:border-[var(--ui-line-subtle)] xl:bg-[var(--ui-surface)] xl:p-1 xl:[&_button]:border-transparent xl:[&_button]:bg-transparent xl:[&_button]:hover:bg-[var(--ui-surface-3)]">
             <Button
               type="button"
               intent="ghost"
@@ -256,6 +256,7 @@ export default function AccountHeader() {
             <DailyRewardsHomeButton />
             <SoundControl />
           </div>
+          <span aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-[var(--ui-line-subtle)] xl:order-2 xl:ml-4 xl:block" />
 
           <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 xl:order-3 xl:ml-4">
             <button

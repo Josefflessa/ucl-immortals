@@ -43,7 +43,7 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
   return createPortal(
     <nav
       aria-label="Navegação principal"
-      className={cn(guest && 'hidden xl:block', 'fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:inset-x-auto xl:bottom-auto xl:left-1/2 xl:top-[17px] xl:z-40 xl:-translate-x-1/2 xl:rounded-full xl:border xl:p-1')}
+      className={cn(guest && 'hidden xl:block', 'fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:inset-x-auto xl:bottom-auto xl:left-1/2 xl:top-[15px] xl:z-40 xl:-translate-x-1/2 xl:rounded-full xl:border xl:p-1')}
     >
       <div className="mx-auto grid max-w-md grid-cols-4 xl:flex xl:max-w-none xl:gap-1">
         {NAV_ITEMS.map(({ id, label, ariaLabel, icon: Icon }) => {
@@ -65,7 +65,7 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
               onClick={() => onNavigate(id)}
               className={cn(
                 'flex h-14 flex-col gap-1 rounded-lg px-0 text-[12px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] xl:h-10 xl:flex-row xl:gap-2 xl:rounded-full xl:px-5 xl:text-[13px]',
-                selected && 'bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] hover:text-[var(--ui-brand-strong)]',
+                selected && 'bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] hover:text-[var(--ui-brand-strong)] xl:bg-[var(--ui-brand)]/15 xl:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--ui-brand)_35%,transparent)]',
               )}
             >
               <span className="relative inline-flex size-4 items-center justify-center">

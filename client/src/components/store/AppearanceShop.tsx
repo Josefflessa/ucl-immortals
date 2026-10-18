@@ -15,10 +15,22 @@ import StyledName from '../account/StyledName';
 const SHOP_FRAMES = AVATAR_FRAMES.filter(frame => frame.shopPrice !== undefined);
 const SHOP_COVERS = PROFILE_COVER_PRESETS.filter(cover => cover.shopPrice !== undefined);
 const SHOP_NAME_STYLES = NAME_STYLES.filter(style => style.shopPrice !== undefined);
-const ITEMS_PER_PAGE = 6;
+/** Four columns from 1280px: a page of 8 fills two whole rows (a page of 6 left two empty places). */
+function usePerPage(): number {
+  const query = '(min-width: 1280px)';
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setWide(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return wide ? 8 : 6;
+}
 type ConfirmingItem = { kind: 'frame' | 'cover' | 'name-style'; key: string };
 
 export default function AppearanceShop() {
+  const perPage = usePerPage();
   const { account, getEvents, updateProfile } = useAccount();
   const { album, buyFrame, buyCover, buyNameStyle } = useAlbum();
   const [ownedFrames, setOwnedFrames] = useState<string[] | null>(null);
@@ -28,6 +40,10 @@ export default function AppearanceShop() {
   const [busy, setBusy] = useState<string | null>(null);
   const [equipping, setEquipping] = useState<string | null>(null);
   const [pages, setPages] = useState({ frames: 0, covers: 0, fonts: 0 });
+  useEffect(() => {
+    const last = (total: number) => Math.max(0, Math.ceil(total / perPage) - 1);
+    setPages(current => ({ frames: Math.min(current.frames, last(SHOP_FRAMES.length)), covers: Math.min(current.covers, last(SHOP_COVERS.length)), fonts: Math.min(current.fonts, last(SHOP_NAME_STYLES.length)) }));
+  }, [perPage]);
   const confirmingFrame = confirming?.kind === 'frame' ? SHOP_FRAMES.find(frame => frame.key === confirming.key) ?? null : null;
   const confirmingCover = confirming?.kind === 'cover' ? SHOP_COVERS.find(cover => cover.key === confirming.key) ?? null : null;
   const confirmingNameStyle = confirming?.kind === 'name-style' ? SHOP_NAME_STYLES.find(style => style.key === confirming.key) ?? null : null;
@@ -127,11 +143,11 @@ export default function AppearanceShop() {
         {appearanceLoadError ? <StatusBanner tone="danger" title="Não foi possível carregar os itens de aparência">{appearanceLoadError}</StatusBanner> : null}
         {ownedFrames === null && !appearanceLoadError ? (
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4" aria-label="Carregando molduras">
-            {SHOP_FRAMES.slice(pages.frames * ITEMS_PER_PAGE, (pages.frames + 1) * ITEMS_PER_PAGE).map(frame => <div key={frame.key} className="h-44 animate-pulse rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] sm:h-48" />)}
+            {SHOP_FRAMES.slice(pages.frames * perPage, (pages.frames + 1) * perPage).map(frame => <div key={frame.key} className="h-44 animate-pulse rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] sm:h-48" />)}
           </div>
         ) : ownedFrames ? (
           <div className="grid grid-cols-2 items-stretch gap-2 sm:gap-3 xl:grid-cols-4">
-            {SHOP_FRAMES.slice(pages.frames * ITEMS_PER_PAGE, (pages.frames + 1) * ITEMS_PER_PAGE).map(frame => {
+            {SHOP_FRAMES.slice(pages.frames * perPage, (pages.frames + 1) * perPage).map(frame => {
               const price = frame.shopPrice!;
               const owned = ownedFrames.includes(frame.key);
               const equipped = account?.avatarFrameKey === frame.key;
@@ -164,11 +180,11 @@ export default function AppearanceShop() {
             })}
           </div>
         ) : null}
-        {ownedFrames !== null ? <GalleryPagination page={pages.frames} pageCount={Math.ceil(SHOP_FRAMES.length / ITEMS_PER_PAGE)} label="Paginação das molduras da loja" onPageChange={page => setPages(current => ({ ...current, frames: page }))} /> : null}
+        {ownedFrames !== null ? <GalleryPagination page={pages.frames} pageCount={Math.ceil(SHOP_FRAMES.length / perPage)} label="Paginação das molduras da loja" onPageChange={page => setPages(current => ({ ...current, frames: page }))} /> : null}
       </TabPanel>
       <TabPanel value="covers" className="pt-4">
         <div className="grid grid-cols-2 items-stretch gap-2 sm:gap-3 xl:grid-cols-4">
-          {SHOP_COVERS.slice(pages.covers * ITEMS_PER_PAGE, (pages.covers + 1) * ITEMS_PER_PAGE).map(cover => {
+          {SHOP_COVERS.slice(pages.covers * perPage, (pages.covers + 1) * perPage).map(cover => {
             const price = cover.shopPrice!;
             const owned = album?.covers.includes(cover.key) ?? false;
             const equipped = account?.coverKey === cover.key && !account.coverUrl;
@@ -198,17 +214,17 @@ export default function AppearanceShop() {
             );
           })}
         </div>
-        <GalleryPagination page={pages.covers} pageCount={Math.ceil(SHOP_COVERS.length / ITEMS_PER_PAGE)} label="Paginação dos fundos da loja" onPageChange={page => setPages(current => ({ ...current, covers: page }))} />
+        <GalleryPagination page={pages.covers} pageCount={Math.ceil(SHOP_COVERS.length / perPage)} label="Paginação dos fundos da loja" onPageChange={page => setPages(current => ({ ...current, covers: page }))} />
       </TabPanel>
       <TabPanel value="fonts" className="pt-4">
         {appearanceLoadError ? <StatusBanner tone="danger" title="Não foi possível carregar suas fontes">{appearanceLoadError}</StatusBanner> : null}
         {ownedNameStyles === null && !appearanceLoadError ? (
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4" aria-label="Carregando fontes">
-            {SHOP_NAME_STYLES.slice(pages.fonts * ITEMS_PER_PAGE, (pages.fonts + 1) * ITEMS_PER_PAGE).map(style => <div key={style.key} className="h-40 animate-pulse rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]" />)}
+            {SHOP_NAME_STYLES.slice(pages.fonts * perPage, (pages.fonts + 1) * perPage).map(style => <div key={style.key} className="h-40 animate-pulse rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]" />)}
           </div>
         ) : ownedNameStyles ? (
           <div className="grid grid-cols-2 items-stretch gap-2 sm:gap-3 xl:grid-cols-4">
-            {SHOP_NAME_STYLES.slice(pages.fonts * ITEMS_PER_PAGE, (pages.fonts + 1) * ITEMS_PER_PAGE).map(style => {
+            {SHOP_NAME_STYLES.slice(pages.fonts * perPage, (pages.fonts + 1) * perPage).map(style => {
               const price = style.shopPrice!;
               const owned = ownedNameStyles.includes(style.key);
               const equipped = account?.nameStyleKey === style.key;
@@ -239,7 +255,7 @@ export default function AppearanceShop() {
             })}
           </div>
         ) : null}
-        {ownedNameStyles !== null ? <GalleryPagination page={pages.fonts} pageCount={Math.ceil(SHOP_NAME_STYLES.length / ITEMS_PER_PAGE)} label="Paginação das fontes da loja" onPageChange={page => setPages(current => ({ ...current, fonts: page }))} /> : null}
+        {ownedNameStyles !== null ? <GalleryPagination page={pages.fonts} pageCount={Math.ceil(SHOP_NAME_STYLES.length / perPage)} label="Paginação das fontes da loja" onPageChange={page => setPages(current => ({ ...current, fonts: page }))} /> : null}
       </TabPanel>
 
       <GameModal
