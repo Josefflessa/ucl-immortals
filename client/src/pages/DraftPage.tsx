@@ -421,9 +421,9 @@ export default function DraftPage() {
       {/* Progress bar */}
       <Progress value={progressPct} max={100} tone="brand" className="h-1 rounded-none" aria-label={`Progresso do draft: rodada ${round} de ${totalRounds}`} />
 
-      <div className="ui-shell flex-1 flex flex-col gap-4 py-4 lg:grid lg:grid-cols-4">
+      <div className="ui-shell flex-1 flex flex-col gap-4 py-4 lg:grid lg:grid-cols-4 xl:w-[min(100%,1320px)] xl:grid-cols-[minmax(0,1fr)_440px] xl:gap-8">
         {/* Left Column: Draft state, Queue, cards grid */}
-        <div className="lg:col-span-3 flex flex-col min-w-0">
+        <div className="lg:col-span-3 flex flex-col min-w-0 xl:col-span-1">
           
           {renderQueue()}
 
@@ -489,7 +489,7 @@ export default function DraftPage() {
         </div>
 
         {/* Right Column: Tática preview + Pick history */}
-        <div className="lg:col-span-1 flex flex-col gap-4">
+        <div className="lg:col-span-1 flex flex-col gap-4 xl:col-span-1 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:self-start xl:overflow-y-auto">
           
           {renderPickHistory()}
 

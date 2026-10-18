@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { House, Lock, ShoppingBag, Trophy, Users } from 'lucide-react';
 import { playSound } from '../../audio/uiSound';
 import { Button } from '../../design-system';
@@ -37,7 +38,9 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
     incomingFriendRequestCount > 0 ? `${incomingFriendRequestCount} ${incomingFriendRequestCount === 1 ? 'solicitação recebida' : 'solicitações recebidas'}` : '',
     unreadMessageCount > 0 ? `${unreadMessageCount} ${unreadMessageCount === 1 ? 'mensagem não lida' : 'mensagens não lidas'}` : '',
   ].filter(Boolean).join(' e ');
-  return (
+  // Drawn on the page itself, not inside whichever screen asked for it: a screen's own layers (the home's, for one)
+  // would otherwise sit above this bar's and put the top bar's glass over it.
+  return createPortal(
     <nav
       aria-label="Navegação principal"
       className={cn(guest && 'hidden xl:block', 'fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:inset-x-auto xl:bottom-auto xl:left-1/2 xl:top-[17px] xl:z-40 xl:-translate-x-1/2 xl:rounded-full xl:border xl:p-1')}
@@ -79,6 +82,7 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
           );
         })}
       </div>
-    </nav>
+    </nav>,
+    document.body,
   );
 }
