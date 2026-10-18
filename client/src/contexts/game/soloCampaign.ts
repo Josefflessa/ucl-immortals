@@ -35,7 +35,8 @@ export interface SavedSoloCampaign {
 }
 
 export function savedCampaignSummary(state: GameState, savedAt: number): SavedSoloCampaign {
-  return { savedAt, teamName: state.playerName || 'Seu time', phase: state.phase, leagueRound: state.leagueRound };
+  return { savedAt, // Empty until the club is named (that comes after the difficulty): the player's own name is not the club's.
+    teamName: (state.teamName ?? '').trim(), phase: state.phase, leagueRound: state.leagueRound };
 }
 
 // ── Player seat: the same rules the online server applies (lib/seatRules) ──

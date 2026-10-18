@@ -266,6 +266,50 @@ describe('game runtime isolation', () => {
     expect(guestView.lastCheckpoint).toBeUndefined();
   });
 
+  it('turns the lobby name into the team name when the setup is sent, keeping names unique and tidy', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', { roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice' }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+    runWithGameRuntime(runtime, () => host.receive('start_setup', { roomCode: 'ABCD' }));
+    const room = runtime.rooms.get('ABCD')!;
+    // In the lobby they are who they are.
+    expect(room.players.map(player => player.name)).toEqual(['Alice', 'Bruno']);
+
+    runWithGameRuntime(runtime, () => host.receive('submit_setup', { roomCode: 'ABCD', coachId: 'guardiola', formationId: '4-3-3', teamName: '  Real   Madrid '+String.fromCharCode(10)+' Lendário  ' }));
+    runWithGameRuntime(runtime, () => guest.receive('submit_setup', { roomCode: 'ABCD', coachId: 'klopp', formationId: '4-2-3-1', teamName: 'real madrid lendário' }));
+    // Tidied, then the second one gets a number instead of clashing.
+    expect(room.players[0].name).toBe('Real Madrid Lendário');
+    expect(room.players[1].name).toBe('real madrid lendár 2');
+  });
+
+  it('rejects a team name that is too short and keeps the lobby name', () => {
+    const runtime = createGameRuntime({ roomCode: 'ABCD' });
+    const server = new FakeServer();
+    const host = new FakeSocket('socket-host', server);
+    const guest = new FakeSocket('socket-guest', server);
+    registerSocketHandlers(server);
+    runWithGameRuntime(runtime, () => server.connect(host));
+    runWithGameRuntime(runtime, () => host.receive('create_room', { roomCode: 'ABCD', creatorName: 'Alice', difficulty: 'gold', clientId: 'alice' }));
+    runWithGameRuntime(runtime, () => {
+      server.connect(guest);
+      guest.receive('join_room', { roomCode: 'ABCD', playerName: 'Bruno', clientId: 'bruno' });
+    });
+    runWithGameRuntime(runtime, () => host.receive('start_setup', { roomCode: 'ABCD' }));
+    runWithGameRuntime(runtime, () => host.receive('submit_setup', { roomCode: 'ABCD', coachId: 'guardiola', formationId: '4-3-3', teamName: ' x ' }));
+    const room = runtime.rooms.get('ABCD')!;
+    expect(room.players[0].name).toBe('Alice');
+    expect(room.players[0].ready).toBe(false);
+    expect(host.sent.some(message => message.event === 'action_error')).toBe(true);
+  });
+
   it('rejects a queued command from the previous match after a room restart', () => {
     const runtime = createGameRuntime({ roomCode: 'ABCD' });
     const server = new FakeServer();

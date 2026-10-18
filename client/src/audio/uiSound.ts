@@ -11,6 +11,7 @@
 
 import { useEffect } from 'react';
 import { soundSettings } from './soundSettings';
+import { getAudioContext, getOutput, installAudioUnlock } from './audioCore';
 
 export type UiSound =
   // Everyday interface
@@ -29,13 +30,14 @@ export type UiSound =
  * installed and the volume button is hidden (the match keeps its own sounds and mute button).
  * Turn it on to bring everything back; no other code needs to change.
  */
-export const UI_SOUNDS_ENABLED = false;
+export const UI_SOUNDS_ENABLED = true;
 
 /** Where a sound is drawn: the audio context, the node it feeds and the time it starts. */
-interface Voice { ctx: BaseAudioContext; out: AudioNode; t: number; noise: AudioBuffer }
+interface Voice { ctx: BaseAudioContext; out: AudioNode; t: number; noise: AudioBuffer; /** Pitch multiplier of this play (1 = as written). */ pitch: number }
 
 const C5 = 523.25, D5 = 587.33, E5 = 659.25, G5 = 783.99, A5 = 880, B5 = 987.77;
 const C6 = 1046.5, E6 = 1318.5, G6 = 1568, C7 = 2093;
+const F5 = 698.46, A5b = 880, D6 = 1174.66, F6 = 1396.91, A6 = 1760;
 
 // ── Building blocks ─────────────────────────────────────────────────────────────
 
@@ -57,8 +59,8 @@ function tone(v: Voice, o: ToneOptions): void {
   const osc = v.ctx.createOscillator();
   const amp = v.ctx.createGain();
   osc.type = o.type ?? 'sine';
-  osc.frequency.setValueAtTime(o.freq, start);
-  if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, start + o.dur);
+  osc.frequency.setValueAtTime(o.freq * v.pitch, start);
+  if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to * v.pitch, start + o.dur);
   envelope(amp.gain, start, o.gain, o.attack ?? 0.004, o.dur);
   let node: AudioNode = osc;
   if (o.lowpass) {
@@ -106,6 +108,18 @@ function noise(v: Voice, o: NoiseOptions): void {
 /** A tiny noise tick: the "click" under a button press. */
 const click = (v: Voice, at: number, gain: number, f = 4200) => noise(v, { at, dur: 0.014, gain, type: 'highpass', f0: f, attack: 0.001 });
 
+/**
+ * A game-UI blip: a round triangle note with a hint of square for edge, sliding a little, and a
+ * low-pass that keeps it warm. Arcade in character, but never shrill or chiptune-bright.
+ */
+const blip = (v: Voice, freq: number, at: number, dur: number, gain: number, to?: number) => {
+  tone(v, { freq, to, dur, gain, at, type: 'triangle', attack: 0.002, lowpass: 3400 });
+  tone(v, { freq, to, dur: dur * 0.8, gain: gain * 0.22, at, type: 'square', attack: 0.002, lowpass: 2600 });
+};
+
+/** The small low knock under a button press, like a pad being hit. */
+const knock = (v: Voice, at: number, gain: number, dur = 0.055) => tone(v, { freq: 210, to: 85, dur, gain, at, attack: 0.001 });
+
 /** Low thump: a sine that drops in pitch, the weight under a card landing or a reveal. */
 const thump = (v: Voice, gain: number, at = 0, from = 170, to = 70, dur = 0.16) => tone(v, { freq: from, to, dur, gain, at, attack: 0.003 });
 
@@ -124,40 +138,38 @@ function sparkles(v: Voice, count: number, from: number, to: number, gain: numbe
 
 const SOUNDS: Record<UiSound, (v: Voice) => void> = {
   // Everyday interface: short, soft and never tiring.
-  tap: v => { tone(v, { freq: 1100, to: 760, dur: 0.05, gain: 0.07 }); click(v, 0, 0.025); },
-  select: v => { tone(v, { freq: G5, dur: 0.07, gain: 0.07, type: 'triangle' }); tone(v, { freq: C6, dur: 0.1, gain: 0.06, type: 'triangle', at: 0.045 }); },
-  tab: v => { tone(v, { freq: 640, to: 470, dur: 0.07, gain: 0.08 }); click(v, 0, 0.02, 2600); },
-  confirm: v => { bell(v, C6, 0.075, 0.24); tone(v, { freq: G5, dur: 0.2, gain: 0.06, type: 'triangle', at: 0.05 }); tone(v, { freq: E6, dur: 0.12, gain: 0.035, at: 0.09 }); },
-  back: v => { tone(v, { freq: 600, to: 420, dur: 0.09, gain: 0.07 }); click(v, 0, 0.015, 3000); },
-  toggleOn: v => { tone(v, { freq: 700, to: 980, dur: 0.09, gain: 0.08 }); click(v, 0, 0.02); },
-  toggleOff: v => { tone(v, { freq: 980, to: 640, dur: 0.09, gain: 0.07 }); click(v, 0, 0.015, 3000); },
+  tap: v => { blip(v, 660, 0, 0.055, 0.2, 780); knock(v, 0, 0.15); },
+  select: v => { blip(v, D5, 0, 0.055, 0.17); blip(v, 784, 0.05, 0.1, 0.15); knock(v, 0, 0.09); },
+  tab: v => { blip(v, 520, 0, 0.06, 0.18, 620); knock(v, 0, 0.12, 0.06); },
+  confirm: v => { blip(v, D5, 0, 0.07, 0.17); blip(v, A5b, 0.055, 0.2, 0.17); knock(v, 0, 0.15, 0.07); },
+  back: v => { blip(v, 740, 0, 0.09, 0.17, 520); knock(v, 0, 0.1, 0.06); },
+  toggleOn: v => { blip(v, D5, 0, 0.055, 0.16); blip(v, A5b, 0.05, 0.1, 0.16); },
+  toggleOff: v => { blip(v, A5b, 0, 0.055, 0.15); blip(v, D5, 0.05, 0.1, 0.15); },
 
   // Feedback: each reads at a glance even with the screen out of sight.
   error: v => {
-    tone(v, { freq: 174, to: 150, dur: 0.15, gain: 0.06, type: 'square', lowpass: 900 });
-    tone(v, { freq: 174, to: 140, dur: 0.18, gain: 0.06, type: 'square', lowpass: 900, at: 0.17 });
+    tone(v, { freq: 294, to: 196, dur: 0.2, gain: 0.16, type: 'triangle', attack: 0.003, lowpass: 1500 });
+    tone(v, { freq: 294, to: 196, dur: 0.16, gain: 0.04, type: 'square', attack: 0.003, lowpass: 1100 });
+    knock(v, 0, 0.12, 0.07);
   },
-  success: v => { bell(v, E5, 0.07, 0.35); bell(v, G5, 0.07, 0.35, 0.07); bell(v, C6, 0.075, 0.45, 0.14); },
-  notify: v => { bell(v, E6, 0.06, 0.5); bell(v, C6, 0.055, 0.5, 0.12); },
-  message: v => { bell(v, A5, 0.05, 0.25); bell(v, E6, 0.045, 0.3, 0.08); },
+  success: v => { [D5, F5, A5b].forEach((f, i) => blip(v, f, i * 0.07, 0.1, 0.15)); bell(v, D6, 0.05, 0.5, 0.2); knock(v, 0, 0.1, 0.06); },
+  notify: v => { blip(v, A5b, 0, 0.08, 0.14); blip(v, D6, 0.09, 0.16, 0.13); bell(v, D6, 0.03, 0.45, 0.1); },
+  message: v => { blip(v, 784, 0, 0.06, 0.12); blip(v, 1046.5, 0.06, 0.1, 0.11); },
 
   // Money and rewards.
-  coin: v => {
-    tone(v, { freq: B5, dur: 0.07, gain: 0.08, type: 'triangle' });
-    tone(v, { freq: E6, dur: 0.32, gain: 0.08, type: 'triangle', at: 0.065 });
-    tone(v, { freq: E6 * 2, dur: 0.16, gain: 0.025, at: 0.065 });
-  },
-  spend: v => { tone(v, { freq: E6, dur: 0.07, gain: 0.07, type: 'triangle' }); tone(v, { freq: B5, dur: 0.18, gain: 0.07, type: 'triangle', at: 0.06 }); click(v, 0, 0.03); },
+  coin: v => { bell(v, D6, 0.085, 0.38); bell(v, A6, 0.045, 0.34, 0.06); knock(v, 0, 0.08, 0.05); },
+  spend: v => { bell(v, A5b, 0.07, 0.24); bell(v, D5, 0.07, 0.3, 0.07); knock(v, 0, 0.1, 0.06); },
   claim: v => {
-    [C5, E5, G5, C6, E6].forEach((f, i) => bell(v, f, 0.07, 0.5, i * 0.075));
-    noise(v, { at: 0.3, dur: 0.55, gain: 0.018, type: 'highpass', f0: 6000, attack: 0.05 });
+    [D5, F5, A5b, D6].forEach((f, i) => blip(v, f, i * 0.065, 0.1, 0.13));
+    bell(v, D6, 0.06, 0.55, 0.26); bell(v, A6, 0.035, 0.6, 0.31);
+    noise(v, { at: 0.3, dur: 0.55, gain: 0.015, type: 'highpass', f0: 6000, attack: 0.05 });
+    knock(v, 0, 0.12, 0.07);
   },
   achievement: v => {
-    bell(v, C5, 0.085, 0.55); bell(v, G5, 0.075, 0.55);
-    bell(v, C6, 0.075, 0.6, 0.12); bell(v, E6, 0.07, 0.6, 0.24); bell(v, G6, 0.07, 0.8, 0.36);
-    [C6, E6, G6].forEach(f => bell(v, f, 0.05, 1.1, 0.5));
-    tone(v, { freq: 130.8, dur: 0.6, gain: 0.09, at: 0.5 });
-    noise(v, { at: 0.5, dur: 0.9, gain: 0.02, type: 'highpass', f0: 5500, attack: 0.08 });
+    [D5, F5, A5b].forEach((f, i) => blip(v, f, i * 0.09, i === 2 ? 0.22 : 0.08, 0.14));
+    [D6, F6, A6].forEach(f => bell(v, f, 0.06, 1.2, 0.34));
+    tone(v, { freq: 73.4, dur: 0.7, gain: 0.12, at: 0.34 });
+    noise(v, { at: 0.34, dur: 0.9, gain: 0.018, type: 'highpass', f0: 5500, attack: 0.08 });
   },
 
   // Cards: paper and weight, then the reveal grows with the rarity.
@@ -236,17 +248,25 @@ export const UI_SOUND_NAMES = Object.keys(SOUNDS) as UiSound[];
  * to an immortal reveal is about 7 dB, and nothing reaches the limiter by accident.
  */
 const TRIM: Partial<Record<UiSound, number>> = {
-  coin: 2.6, spend: 2.6, claim: 2.2, achievement: 1.8, packTear: 2.4,
-  revealBronze: 2.4, revealSilver: 2.3, revealGold: 2.1, revealLegendary: 1.2, revealImmortal: 1, champion: 1.3,
+  // everyday
+  tap: 0.87, select: 1.2, tab: 0.97, confirm: 1.16, back: 1.14, toggleOn: 1.44, toggleOff: 1.52,
+  // feedback
+  error: 1.25, success: 1.45, notify: 1.83, message: 1.92,
+  // money and rewards
+  coin: 1.98, spend: 1.92, claim: 1.67, achievement: 0.46,
+  // packs, reveals and the title
+  packTear: 2.4, revealBronze: 2.4, revealSilver: 2.3, revealGold: 2.1, revealLegendary: 1.2, revealImmortal: 1, champion: 1.3,
 };
 const DEFAULT_TRIM = 3.2;
+/** Which sounds get a touch of random pitch each time (the ones heard hundreds of times). */
+const JITTER: ReadonlySet<UiSound> = new Set<UiSound>(['tap', 'select', 'tab', 'back', 'toggleOn', 'toggleOff']);
 
 /** Draws one sound into any audio context (live or offline), starting at `t`. */
-export function renderUiSound(name: UiSound, ctx: BaseAudioContext, out: AudioNode, t: number, noiseBuffer: AudioBuffer): void {
+export function renderUiSound(name: UiSound, ctx: BaseAudioContext, out: AudioNode, t: number, noiseBuffer: AudioBuffer, pitch = 1): void {
   const trim = ctx.createGain();
   trim.gain.value = TRIM[name] ?? DEFAULT_TRIM;
   trim.connect(out);
-  SOUNDS[name]({ ctx, out: trim, t, noise: noiseBuffer });
+  SOUNDS[name]({ ctx, out: trim, t, noise: noiseBuffer, pitch });
 }
 
 /** Two seconds of white noise, shared by every noise-based sound of a context. */
@@ -263,34 +283,26 @@ export function createNoiseBuffer(ctx: BaseAudioContext): AudioBuffer {
 
 // ── The live player ─────────────────────────────────────────────────────────────
 
-let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let noiseBuffer: AudioBuffer | null = null;
 const lastPlayed = new Map<UiSound, number>();
 const recent: number[] = [];
 
-function audioContext(): AudioContext | null {
-  if (ctx) return ctx;
-  const Ctor = typeof window !== 'undefined'
-    ? (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
-    : undefined;
-  if (!Ctor) return null;
-  try { ctx = new Ctor(); } catch { return null; }
-  master = ctx.createGain();
-  master.gain.value = soundSettings.gain();
-  // A limiter on the way out: several sounds at once (or a legendary reveal) never distort.
-  const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -6;
-  limiter.knee.value = 6;
-  limiter.ratio.value = 12;
-  limiter.attack.value = 0.002;
-  limiter.release.value = 0.2;
-  master.connect(limiter).connect(ctx.destination);
-  noiseBuffer = createNoiseBuffer(ctx);
-  soundSettings.subscribe(() => {
-    if (ctx && master) master.gain.setTargetAtTime(soundSettings.gain(), ctx.currentTime, 0.05);
-  });
-  return ctx;
+/** The effects' own volume stage, plugged into the shared output (created once). */
+function effectsOutput(): { context: AudioContext; master: GainNode; noise: AudioBuffer } | null {
+  const context = getAudioContext();
+  const output = getOutput();
+  if (!context || !output) return null;
+  if (!master) {
+    master = context.createGain();
+    master.gain.value = soundSettings.gain();
+    master.connect(output);
+    noiseBuffer = createNoiseBuffer(context);
+    soundSettings.subscribe(() => {
+      if (master) master.gain.setTargetAtTime(soundSettings.gain(), context.currentTime, 0.05);
+    });
+  }
+  return { context, master, noise: noiseBuffer! };
 }
 
 /** Plays one interface sound (nothing when muted, in a hidden tab or before the first tap). */
@@ -298,8 +310,9 @@ export function playSound(name: UiSound): void {
   if (!UI_SOUNDS_ENABLED) return;
   if (soundSettings.gain() <= 0) return;
   if (typeof document !== 'undefined' && document.hidden) return;
-  const context = audioContext();
-  if (!context || !noiseBuffer) return;
+  const stage = effectsOutput();
+  if (!stage) return;
+  const { context } = stage;
   // Browsers keep the context suspended until a tap; a sound asked before that is dropped
   // (not queued), so it cannot burst out later.
   if (context.state !== 'running') { void context.resume().catch(() => undefined); return; }
@@ -311,20 +324,9 @@ export function playSound(name: UiSound): void {
   lastPlayed.set(name, now);
   recent.push(now);
   try {
-    renderUiSound(name, context, master!, context.currentTime + 0.005, noiseBuffer);
+    const pitch = JITTER.has(name) ? 1 + (Math.random() - 0.5) * 0.05 : 1;
+    renderUiSound(name, context, stage.master, context.currentTime + 0.005, stage.noise, pitch);
   } catch { /* a sound must never break the screen that asked for it */ }
-}
-
-/** Starts the audio context on the first tap or key (the browsers' rule), so later sounds can play. */
-function unlockOnFirstGesture(): void {
-  const unlock = () => {
-    const context = audioContext();
-    if (context && context.state !== 'running') void context.resume().catch(() => undefined);
-    window.removeEventListener('pointerdown', unlock, true);
-    window.removeEventListener('keydown', unlock, true);
-  };
-  window.addEventListener('pointerdown', unlock, true);
-  window.addEventListener('keydown', unlock, true);
 }
 
 // ── What a click sounds like ────────────────────────────────────────────────────
@@ -356,7 +358,8 @@ export function soundForClick(target: ClickTarget): UiSound | null {
   return 'tap';
 }
 
-const INTERACTIVE = 'button, a[href], summary, [role="tab"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="option"], input[type="checkbox"], input[type="radio"]';
+// A player card is not a <button>, but when it has an onClick it is one (the draft, the squad): it is marked with cursor-pointer.
+const INTERACTIVE = 'button, a[href], summary, [data-player-card="true"].cursor-pointer, [role="tab"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="option"], input[type="checkbox"], input[type="radio"]';
 
 function describe(element: Element): ClickTarget {
   const role = element.getAttribute('role') ?? (element instanceof HTMLInputElement ? element.type : null);
@@ -368,7 +371,7 @@ function describe(element: Element): ClickTarget {
     label: element.getAttribute('aria-label') ?? element.textContent?.trim().slice(0, 40),
     checked,
     disabled: (element as HTMLButtonElement).disabled === true || element.getAttribute('aria-disabled') === 'true',
-    dataSound: element.closest('[data-sound]')?.getAttribute('data-sound') ?? null,
+    dataSound: element.closest('[data-sound]')?.getAttribute('data-sound') ?? (element.hasAttribute('data-player-card') ? 'select' : null),
   };
 }
 
@@ -382,7 +385,7 @@ let installed = false;
 export function installUiSounds(): void {
   if (!UI_SOUNDS_ENABLED || installed || typeof window === 'undefined') return;
   installed = true;
-  unlockOnFirstGesture();
+  installAudioUnlock();
   let pointerHandled = false;
   const handle = (event: Event) => {
     const element = event.target instanceof Element ? event.target.closest(INTERACTIVE) : null;

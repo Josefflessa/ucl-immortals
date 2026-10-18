@@ -10,6 +10,7 @@ import { getCrest } from '@shared/game/crests';
 import { Button } from '../../design-system';
 import BannerGachaReveal from '../store/gacha/BannerGachaReveal';
 import { playSound, revealSoundForBest } from '../../audio/uiSound';
+import { useMusicDuck } from '../../audio/musicPlayer';
 import { PackFront } from '../game/UniquePackOpening';
 import AlbumPackArt, { ALBUM_PACK_ASPECT, ALBUM_PACK_TEAR_AT } from './AlbumPackArt';
 import { ClubCover, ClubFrameRing } from '../account/ClubRewards';
@@ -89,6 +90,7 @@ function EnvelopeFront({ itemKey, opening, onOpen }: { itemKey: AlbumItemKey; op
 }
 
 export default function AlbumPackOpening({ items, onClose }: { items: readonly AlbumItemKey[]; onClose: () => void }) {
+  useMusicDuck();
   const { open } = useAlbum();
   const [index, setIndex] = useState(0);
   const [stage, setStage] = useState<Stage>('sealed');

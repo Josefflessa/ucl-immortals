@@ -1,6 +1,7 @@
 // UCL Immortals — Menu Page
 // Design: Dark Premium Gaming UI — hero with stadium background, gold accents
 
+import { useHideChrome } from '../lib/chrome';
 import SoundControl from '../components/account/SoundControl';
 import AccountAvatar from '../components/account/AccountAvatar';
 import { useCallback, useEffect, useState } from 'react';
@@ -57,7 +58,9 @@ export default function MenuPage() {
     getFriends,
     inviteFriendToRoom,
   } = useAccount();
-  const [menuMode, setMenuMode] = useState<'selection' | 'solo' | 'online' | 'online_join'>('selection');
+  const [menuMode, setMenuMode] = useState<'selection' | 'online' | 'online_join'>('selection');
+  // The room options (create / join) stand alone on the screen: no top bar, no logo.
+  useHideChrome(menuMode !== 'selection' && !!account);
   const [soloSaveConfirm, setSoloSaveConfirm] = useState<'choose' | 'new' | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
@@ -169,10 +172,11 @@ export default function MenuPage() {
     }
   };
 
+  /** Solo goes straight to the difficulty; the team's name comes later, with its crest. */
   const handlePlaySolo = () => {
-    if (!playerName.trim()) return;
     dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null });
-    dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
+    dispatch({ type: 'SET_TEAM_NAME', name: '' });
+    dispatch({ type: 'SET_PLAYER_NAME', name: account?.displayName ?? '' });
     if (account) {
       // Ranked play: fixed format, free difficulty (chosen on the next screen).
       dispatch({ type: 'SET_COMPETITION_FORMAT', format: createCompetitionFormat('league_knockout') });
@@ -182,23 +186,26 @@ export default function MenuPage() {
     dispatch({ type: 'SET_PHASE', phase: 'format' });
   };
 
+  /** In the lobby a player is who they are: the profile name when signed in, the typed name otherwise. */
+  const lobbyName = account ? account.displayName : playerName.trim();
+
   const handleCreateRoom = () => {
-    if (!playerName.trim()) return;
+    if (!lobbyName) return;
     if (account) {
-      dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
+      dispatch({ type: 'SET_PLAYER_NAME', name: lobbyName });
       dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: 'create' });
       dispatch({ type: 'SET_COMPETITION_FORMAT', format: createCompetitionFormat('league_knockout') });
       dispatch({ type: 'SET_PHASE', phase: 'setup' });
       return;
     }
-    dispatch({ type: 'SET_PLAYER_NAME', name: playerName.trim() });
+    dispatch({ type: 'SET_PLAYER_NAME', name: lobbyName });
     dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: 'create' });
     dispatch({ type: 'SET_PHASE', phase: 'format' });
   };
 
   const handleJoinRoom = () => {
-    if (!playerName.trim() || !roomCodeInput.trim()) return;
-    joinRoom(roomCodeInput.trim().toUpperCase(), playerName.trim());
+    if (!lobbyName || !roomCodeInput.trim()) return;
+    joinRoom(roomCodeInput.trim().toUpperCase(), lobbyName);
   };
 
   const handleRoomAction = (action: RoomMenuAction) => {
@@ -301,7 +308,7 @@ export default function MenuPage() {
                         />
                       ) : null}
                       <span className="min-w-0 truncate font-bold text-white text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                        {p.name} {p.socketId === state.socketId && <span className="text-xs text-primary font-normal">(Você)</span>}
+                        {p.profile?.nameStyleKey ? <StyledName name={p.name} styleKey={p.profile.nameStyleKey} size="sm" /> : p.name} {p.socketId === state.socketId && <span className="text-xs text-primary font-normal">(Você)</span>}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -483,30 +490,36 @@ export default function MenuPage() {
 
       <div className={cn(
         'relative z-10 flex flex-col items-center px-4',
-        account ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24',
+        account && menuMode === 'selection' ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8' : account ? 'min-h-dvh py-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24',
         menuMode === 'selection' && 'home-menu-screen__content',
         menuMode === 'selection' && (account ? 'home-menu-screen__content--account' : 'home-menu-screen__content--guest'),
       )}>
         {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
         <div aria-hidden="true" className="flex-1" />
 
-        {/* Logo (herói) + título */}
-        <div className="flex flex-col items-center">
-          <div className="relative flex items-center justify-center">
-            <img src={LOGO_URL} alt="UCL Immortals" className="home-menu-screen__logo relative h-36 w-36 object-contain sm:h-44 sm:w-44" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
+        {/* The logo and the tagline belong to the home screen; the room options stand alone. */}
+        {menuMode === 'selection' ? (
+          <>
+          {/* Logo (herói) + título */}
+          <div className="flex flex-col items-center">
+            <div className="relative flex items-center justify-center">
+              <img src={LOGO_URL} alt="UCL Immortals" className="home-menu-screen__logo relative h-40 w-40 object-contain sm:h-52 sm:w-52" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
+            </div>
+            <h1 className="home-menu-screen__heading mt-3 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] font-normal leading-[0.85] tracking-wider sm:mt-7">
+              <span className="block text-[var(--ui-brand-strong)]">UCL</span>
+              <span className="block text-[var(--ui-text)]">IMMORTALS</span>
+            </h1>
           </div>
-          <h1 className="home-menu-screen__heading mt-4 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] font-normal leading-[0.85] tracking-wider sm:mt-7">
-            <span className="block text-[var(--ui-brand-strong)]">UCL</span>
-            <span className="block text-[var(--ui-text)]">IMMORTALS</span>
-          </h1>
-        </div>
 
-        {/* Tagline */}
-        <div className="home-menu-screen__tagline flex flex-col items-center mt-4 mb-7">
-          <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base">
-            Jogadores de todas as épocas e ligas. Monte seu time e conquiste a <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
-          </p>
-        </div>
+          {/* Tagline */}
+          <div className="home-menu-screen__tagline flex flex-col items-center mt-4 mb-7">
+            <div className="h-px w-40 shrink-0 bg-[var(--ui-brand)] opacity-70 sm:w-56" />
+            <p className="ui-subtitle mt-3 max-w-[34ch] text-center text-sm sm:text-base">
+              Jogadores de todas as épocas e ligas. Monte seu time e conquiste a <span className="font-bold text-[var(--ui-brand-strong)]">Ultimate Champions League</span>.
+            </p>
+          </div>
+          </>
+        ) : null}
 
         {/* Dynamic Mode Forms */}
         <div className="flex w-full justify-center">
@@ -516,7 +529,7 @@ export default function MenuPage() {
                 type="button"
                 intent="primary"
                 size="large"
-                onClick={() => (savedSoloCampaign ? setSoloSaveConfirm('choose') : setMenuMode('solo'))}
+                onClick={() => (savedSoloCampaign ? setSoloSaveConfirm('choose') : handlePlaySolo())}
                 disabled={accountLoading || (!!account && soloCampaignSyncStatus === 'syncing')}
                 className="w-full"
               >
@@ -526,7 +539,7 @@ export default function MenuPage() {
                   </span>
                   {savedSoloCampaign ? (
                     <span className="mt-0.5 max-w-full truncate text-[12px] font-semibold normal-case tracking-normal opacity-80" style={{ fontFamily: "var(--font-ui), sans-serif" }}>
-                      Campanha salva · {savedSoloCampaign.teamName}{account && soloCampaignSyncStatus !== 'error' ? ` · ${soloCampaignSyncStatus === 'synced' ? 'salva na conta' : soloCampaignSyncStatus === 'syncing' ? 'sincronizando…' : 'neste dispositivo'}` : ''}
+                      Campanha salva · {savedSoloCampaign.teamName || soloCampaignStageLabel(savedSoloCampaign)}
                     </span>
                   ) : null}
                 </span>
@@ -592,13 +605,13 @@ export default function MenuPage() {
             title="Começar nova campanha?"
             description={`A campanha salva${savedSoloCampaign ? ` (${savedSoloCampaign.teamName})` : ''} será substituída pela nova.`}
             confirmLabel="Começar nova"
-            onConfirm={() => { setSoloSaveConfirm(null); void discardSoloCampaign().then(() => setMenuMode('solo')); }}
+            onConfirm={() => { setSoloSaveConfirm(null); void discardSoloCampaign().then(handlePlaySolo); }}
           />
           <GameModal
             open={soloSaveConfirm === 'choose'}
             onOpenChange={open => { if (!open) setSoloSaveConfirm(null); }}
             title="JOGAR SOLO"
-            subtitle={savedSoloCampaign ? `Campanha salva: ${savedSoloCampaign.teamName} · ${soloCampaignStageLabel(savedSoloCampaign)}` : undefined}
+            subtitle={savedSoloCampaign ? `Campanha salva: ${savedSoloCampaign.teamName ? `${savedSoloCampaign.teamName} · ` : ''}${soloCampaignStageLabel(savedSoloCampaign)}` : undefined}
             footer={(
               <div className="flex w-full flex-col gap-1.5 sm:flex-row sm:justify-end">
                 <Button type="button" intent="secondary" onClick={() => setSoloSaveConfirm('new')}>
@@ -615,67 +628,26 @@ export default function MenuPage() {
             </p>
           </GameModal>
 
-          {menuMode === 'solo' && (
-            <div
-              className="w-full max-w-xs space-y-4 lg:max-w-sm"
-            >
-              <div>
-                <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  NOME DO SEU TIME
-                </label>
-                <Input
-                  type="text"
-                  value={playerName}
-                  onChange={e => setPlayerName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handlePlaySolo()}
-                  placeholder="Ex: Real Madrid Lendário"
-                  maxLength={20}
-                  autoFocus
-                  className="ui-input"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  intent="ghost"
-                  onClick={() => setMenuMode('selection')}
-                  className="border border-[var(--ui-line-subtle)] px-4 text-xs"
-                >
-                  Voltar
-                </Button>
-                <Button
-                  type="button"
-                  intent="primary"
-                  onClick={handlePlaySolo}
-                  disabled={!playerName.trim()}
-                  className="flex-1"
-
-                >
-                  Avançar →
-                </Button>
-              </div>
-            </div>
-          )}
-
           {menuMode === 'online' && (
             <div
               className="w-full max-w-xs space-y-4 lg:max-w-sm"
             >
-              <div>
-                <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  NOME DO SEU TIME
-                </label>
-                <Input
-                  type="text"
-                  value={playerName}
-                  onChange={e => setPlayerName(e.target.value)}
-                  placeholder="Ex: Real Madrid Lendário"
-                  maxLength={20}
-                  autoFocus
-                  className="ui-input mb-3"
-                />
-              </div>
+              {!account ? (
+                <div>
+                  <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                    SEU NOME
+                  </label>
+                  <Input
+                    type="text"
+                    value={playerName}
+                    onChange={e => setPlayerName(e.target.value)}
+                    placeholder="Como você quer aparecer na sala"
+                    maxLength={20}
+                    autoFocus
+                    className="ui-input mb-3"
+                  />
+                </div>
+              ) : null}
 
               {!account ? (
                 <Panel tone="inset" className="space-y-3 p-3">
@@ -693,12 +665,13 @@ export default function MenuPage() {
                 </Panel>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className={account ? 'flex flex-col gap-3' : 'grid grid-cols-2 gap-2'}>
                 <Button
                   type="button"
                   intent="primary"
+                  size={account ? 'large' : undefined}
                   onClick={handleCreateRoom}
-                  disabled={!playerName.trim()}
+                  disabled={!lobbyName}
                 >
                   <span className="inline-flex items-center justify-center gap-1.5">
                     <Plus size={16} strokeWidth={3} /> CRIAR SALA
@@ -707,8 +680,9 @@ export default function MenuPage() {
                 <Button
                   type="button"
                   intent="secondary"
+                  size={account ? 'large' : undefined}
                   onClick={() => setMenuMode('online_join')}
-                  disabled={!playerName.trim()}
+                  disabled={!lobbyName}
                 >
                   <span className="inline-flex items-center justify-center gap-1.5">
                     <LogIn size={16} strokeWidth={3} /> ENTRAR EM SALA

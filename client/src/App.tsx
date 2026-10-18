@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { useChromeHidden } from "./lib/chrome";
+import { music, musicZoneForPhase } from "./audio/musicPlayer";
 import { warmAccountScreens } from "./lib/appPrefetch";
 import { Toaster } from "@/components/ui/sonner";
 import { GameProvider, useGame } from "./contexts/GameContext";
@@ -155,7 +157,8 @@ function GameRouter() {
   // state points at the guest-only format page, go straight to the difficulty.
   if (accountOnLegacySetup) return renderPhase('setup');
 
-  const showAccountHeader = !!account && ACCOUNT_PAGE_PHASES.has(state.phase);
+  const chromeHidden = useChromeHidden();
+  const showAccountHeader = !!account && ACCOUNT_PAGE_PHASES.has(state.phase) && !chromeHidden;
 
   return (
     <>
@@ -209,6 +212,14 @@ function AccountPrefetcher() {
   return null;
 }
 
+/** The music follows the screen: the account side, the competition, or silence for the match. */
+function MusicController() {
+  const { state } = useGame();
+  const zone = musicZoneForPhase(state.phase);
+  useEffect(() => { music.setZone(zone); }, [zone]);
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -219,6 +230,7 @@ function App() {
             <ModalScrollLock />
             <EventCardsSync />
             <AccountPrefetcher />
+            <MusicController />
             <GameRouter />
             <RoomInvitationPrompt />
             <InstallPrompt />

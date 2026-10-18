@@ -15,6 +15,7 @@ import type { Player, Rarity } from '@shared/game/gameData';
 import { Button } from '../../../design-system';
 import { useAlbum, type BannerBatchResult, type BannerDraw } from '../../../contexts/AlbumContext';
 import { playSound, revealSoundFor } from '../../../audio/uiSound';
+import { useMusicDuck } from '../../../audio/musicPlayer';
 import PlayerCard from '../../game/PlayerCard';
 import { albumCard, RARITY_LABEL, stickerLevel } from '../../album/albumData';
 import { bestDraw, flipOrder, gridLayout, seeded, tierOf, type GachaTier } from './gachaTiers';
@@ -461,6 +462,7 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
 
 export default function BannerGachaReveal({ draws, onClose, skipCharge = false }: { draws: BannerBatchResult; onClose: () => void; /** Straight to the burst: the pack's tear was the build-up. */ skipCharge?: boolean }) {
   const reduced = useReducedMotion() ?? false;
+  useMusicDuck();
   const { leaving, close } = useFadeOut(onClose);
   const best = bestDraw(draws.cards);
   const tier = tierOf((best?.rarity ?? 'bronze') as Rarity);
@@ -529,6 +531,7 @@ export default function BannerGachaReveal({ draws, onClose, skipCharge = false }
  */
 export function PlayerRevealOverlay({ player, ctaLabel, onCta, note }: { player: Player; ctaLabel: string; onCta: () => void; note?: string }) {
   const tier = tierOf(player.rarity);
+  useMusicDuck();
   const { leaving, close } = useFadeOut(onCta);
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Carta revelada" className={`gacha-screen fixed inset-0 z-[90] select-none overflow-hidden text-white ${leaving ? 'gacha-screen--leaving' : ''}`}>

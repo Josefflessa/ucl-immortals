@@ -1,7 +1,7 @@
 // UCL Immortals — Setup Page
 // Choose difficulty level before coach selection
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Info } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
@@ -26,7 +26,7 @@ const FINISH_STAGE_LABELS: Record<CompetitionFinishStage, string> = {
 };
 
 export default function SetupPage() {
-  const { state, dispatch, createRoom } = useGame();
+  const { state, dispatch, createRoom, prepareRoom } = useGame();
   const { account } = useAccount();
   const canViewDifficultyRewards = Boolean(account);
   const isOnlineRoomCreation = state.onlineSetupIntent === 'create';
@@ -38,9 +38,21 @@ export default function SetupPage() {
     dispatch({ type: 'SET_DIFFICULTY', difficulty: diffId });
   };
 
+  // While the player picks the difficulty, the room's code is already being reserved: creating it then costs one round trip less.
+  useEffect(() => { if (isOnlineRoomCreation) prepareRoom(); }, [isOnlineRoomCreation, prepareRoom]);
+  // The room takes a moment to open: say so right away, and do not let a second tap start another.
+  const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    if (!creating) return undefined;
+    const timer = setTimeout(() => setCreating(false), 12000);
+    return () => clearTimeout(timer);
+  }, [creating]);
+
   const handleContinue = (difficultyOverride?: string) => {
     const difficulty = difficultyOverride ?? state.difficulty;
     if (isOnlineRoomCreation) {
+      if (creating) return;
+      setCreating(true);
       createRoom(state.playerName.trim(), state.competitionFormat, difficulty);
       return;
     }
@@ -145,9 +157,10 @@ export default function SetupPage() {
           intent="primary"
           size="large"
           onClick={() => handleContinue()}
+          loading={creating}
           className="flex-1"
         >
-          {isOnlineRoomCreation ? 'CRIAR SALA →' : 'ESCOLHER ESCUDO →'}
+          {isOnlineRoomCreation ? (creating ? 'CRIANDO SALA…' : 'CRIAR SALA →') : 'NOME E ESCUDO →'}
         </Button>
       </FixedActionBar>
 

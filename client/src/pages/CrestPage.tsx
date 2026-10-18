@@ -45,7 +45,10 @@ export default function CrestPage() {
     if (crest?.teamType === 'national-team' && !unlockedCrests.includes(id)) return;
     dispatch({ type: 'SET_CREST', crestId: selected === id ? null : id });
   };
-  const handleContinue = () => dispatch({ type: 'SET_PHASE', phase: 'coach' });
+  // The club's name is asked here, with its crest (the lobby only ever showed the player's own name).
+  const teamName = state.teamName ?? '';
+  const nameValid = teamName.trim().length >= 2;
+  const handleContinue = () => { if (nameValid) dispatch({ type: 'SET_PHASE', phase: 'coach' }); };
   const handleBack = () => dispatch({ type: 'SET_PHASE', phase: 'setup' });
 
   const activeGroup = PLAYABLE_CREST_CATALOG.find(g => g.league === openLeague);
@@ -60,10 +63,30 @@ export default function CrestPage() {
       <PageContainer wide className="pb-32">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
           <SectionHeader
-            title="Escolha seu escudo"
-            description="Represente um clube no torneio. É só visual — não muda os atributos. Opcional: pode pular e usar as iniciais do time."
+            title="Nome e escudo do time"
+            description="Dê um nome ao seu time e represente um clube no torneio. O escudo é só visual — não muda os atributos — e é opcional: pode pular e usar as iniciais."
             className="mb-6"
           />
+
+          {/* The club's name */}
+          <Panel tone="inset" className="mx-auto mb-6 max-w-md space-y-2 p-4">
+            <label htmlFor="team-name" className="block text-xs font-bold tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>NOME DO SEU TIME</label>
+            <Input
+              id="team-name"
+              type="text"
+              value={teamName}
+              onChange={event => dispatch({ type: 'SET_TEAM_NAME', name: event.target.value })}
+              onKeyDown={event => { if (event.key === 'Enter') handleContinue(); }}
+              placeholder="Ex: Real Madrid Lendário"
+              maxLength={20}
+              autoFocus
+              autoComplete="off"
+              className="ui-input"
+            />
+            <p className="text-[12px] text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+              {nameValid ? 'É assim que seu time aparece na competição e no histórico.' : 'Escolha um nome com pelo menos 2 letras para continuar.'}
+            </p>
+          </Panel>
 
           {/* Selected preview */}
           <div className="flex items-center justify-center gap-3 mb-5 min-h-[56px]">
@@ -196,6 +219,7 @@ export default function CrestPage() {
           intent="primary"
           size="large"
           onClick={handleContinue}
+          disabled={!nameValid}
           className={state.mode === 'online' ? 'w-full' : 'flex-1'}
         >
           {selected ? 'ESCOLHER TREINADOR →' : 'PULAR / ESCOLHER TREINADOR →'}

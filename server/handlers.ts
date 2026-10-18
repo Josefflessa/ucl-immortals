@@ -882,6 +882,25 @@ function autoPickOfflineReinforcement(player: RoomPlayer): void {
   player.reinforcementOffer = null;
 }
 
+/** A team name as typed, tidied: no control characters, single spaces, at most 20 characters; null if too short. */
+export function cleanTeamName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const name = raw.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20).trim();
+  return name.length >= 2 ? name : null;
+}
+
+/** The name, or the name with a number if another team in the room already has it (case aside). */
+export function uniqueTeamName(taken: readonly string[], name: string): string {
+  const used = new Set(taken.map(entry => entry.toLowerCase()));
+  if (!used.has(name.toLowerCase())) return name;
+  for (let n = 2; n < 100; n++) {
+    const suffix = ` ${n}`;
+    const candidate = name.slice(0, 20 - suffix.length).trim() + suffix;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+  return name;
+}
+
 function isValidId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 80;
 }
@@ -1965,7 +1984,7 @@ export function registerSocketHandlers(io: RealtimeServer) {
     });
 
     // Player submits coach & formation
-    on("submit_setup", ({ roomCode, coachId, formationId, crestId }) => {
+    on("submit_setup", ({ roomCode, coachId, formationId, crestId, teamName }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       if (room.phase !== 'setup') return;
@@ -1984,6 +2003,16 @@ export function registerSocketHandlers(io: RealtimeServer) {
 
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
+
+      // The lobby shows who the player is; from here on the club's own name takes over.
+      if (teamName !== undefined && teamName !== null) {
+        const chosen = cleanTeamName(teamName);
+        if (!chosen) {
+          socket.emit('action_error', { event: 'submit_setup', message: 'Digite o nome do seu time (de 2 a 20 caracteres).' });
+          return;
+        }
+        player.name = uniqueTeamName(room.players.filter(p => p !== player).map(p => p.name), chosen);
+      }
 
       player.coachId = coachId;
       player.formationId = formationId;

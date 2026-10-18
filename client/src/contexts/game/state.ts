@@ -77,7 +77,10 @@ export interface RoomPlayer {
 export interface GameState {
   phase: GamePhase;
   accountSection: AccountSection;
+  /** Who the player is in the lobby (the profile name when signed in). */
   playerName: string;
+  /** The club's name, chosen after the difficulty (with the crest), once the competition starts. */
+  teamName: string;
   difficulty: string;
   competitionFormat: CompetitionFormat;
   /** Frozen account Album levels captured before the solo draft; missing legacy saves resolve to zero. */
@@ -216,6 +219,7 @@ export type GameAction =
   | { type: 'SET_PHASE'; phase: GamePhase }
   | { type: 'SET_ACCOUNT_SECTION'; section: AccountSection }
   | { type: 'SET_CREST'; crestId: string | null }
+  | { type: 'SET_TEAM_NAME'; name: string }
   | { type: 'SET_PLAYER_NAME'; name: string }
   | { type: 'SET_ONLINE_SETUP_INTENT'; intent: 'create' | null }
   | { type: 'SET_DIFFICULTY'; difficulty: string }
@@ -301,6 +305,7 @@ export const initialState: GameState = {
   phase: 'menu',
   accountSection: 'profile',
   playerName: '',
+  teamName: '',
   difficulty: 'gold',
   competitionFormat: { ...DEFAULT_COMPETITION_FORMAT },
   competitionAlbumLevelSnapshot: {},

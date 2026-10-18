@@ -34,7 +34,7 @@ export default function FormationPage() {
 
   const handleContinue = async () => {
     if (state.mode === 'online') {
-      submitSetupOnline(state.selectedCoachId, state.selectedFormationId, state.selectedCrestId);
+      submitSetupOnline(state.selectedCoachId, state.selectedFormationId, state.selectedCrestId, state.teamName);
     } else {
       if (albumLoading) return;
       try {

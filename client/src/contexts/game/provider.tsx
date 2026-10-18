@@ -34,9 +34,11 @@ export interface GameContextType {
   
   // Online Multiplayer Socket emitters
   createRoom: (creatorName: string, competitionFormat: CompetitionFormat, difficulty?: string) => void;
+  /** Reserves the room code ahead of time (while the player picks the difficulty), so creating the room waits for one round trip less. */
+  prepareRoom: () => void;
   joinRoom: (roomCode: string, playerName: string) => void;
   startSetupOnline: () => void;
-  submitSetupOnline: (coachId: string, formationId: string, crestId?: string | null) => void;
+  submitSetupOnline: (coachId: string, formationId: string, crestId?: string | null, teamName?: string) => void;
   draftPickOnline: (playerId: string) => void;
   draftVetoOnline: () => void;
   submitSquadReviewOnline: (captain: string | null, penaltyTaker: string | null, freeKickTaker: string | null, draftedPlayers: (Player | undefined)[], playStyle: string, formationId: string, matchPlan: MatchPlan) => void;
@@ -475,6 +477,30 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return socketInstance;
   }, []);
 
+  /** A room code and its reservation, asked for ahead of the click and valid for ten minutes on the server. */
+  const reservationRef = useRef<{ promise: Promise<{ roomCode: string; reservationToken: string }>; at: number } | null>(null);
+
+  const requestReservation = useCallback(async () => {
+    const response = await fetch('/api/realtime/room-code', { method: 'POST' });
+    const body = await response.json().catch(() => null) as { roomCode?: unknown; reservationToken?: unknown; message?: unknown } | null;
+    if (!response.ok || typeof body?.roomCode !== 'string') {
+      throw new Error(typeof body?.message === 'string' ? body.message : 'Não foi possível criar a sala online.');
+    }
+    if (typeof body.reservationToken !== 'string' || body.reservationToken.length === 0) {
+      throw new Error('A reserva da sala não foi confirmada. Tente criar novamente.');
+    }
+    return { roomCode: body.roomCode.toUpperCase(), reservationToken: body.reservationToken };
+  }, []);
+
+  const prepareRoom = useCallback(() => {
+    if (!usesDurableRealtime()) return;
+    const current = reservationRef.current;
+    if (current && Date.now() - current.at < 5 * 60_000) return;
+    const promise = requestReservation();
+    promise.catch(() => { if (reservationRef.current?.promise === promise) reservationRef.current = null; });
+    reservationRef.current = { promise, at: Date.now() };
+  }, [requestReservation]);
+
   const createRoom = useCallback((creatorName: string, competitionFormat: CompetitionFormat, difficulty?: string) => {
     if (!usesDurableRealtime()) {
       const s = connectSocket();
@@ -484,22 +510,23 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     void (async () => {
       try {
-        const response = await fetch('/api/realtime/room-code', { method: 'POST' });
-        const body = await response.json().catch(() => null) as { roomCode?: unknown; reservationToken?: unknown; message?: unknown } | null;
-        if (!response.ok || typeof body?.roomCode !== 'string') {
-          throw new Error(typeof body?.message === 'string' ? body.message : 'Não foi possível criar a sala online.');
+        // The reservation asked for ahead of time (if there is one); otherwise ask now. A reservation is used once.
+        const prepared = reservationRef.current;
+        reservationRef.current = null;
+        let reservation: { roomCode: string; reservationToken: string };
+        try {
+          reservation = prepared && Date.now() - prepared.at < 5 * 60_000 ? await prepared.promise : await requestReservation();
+        } catch {
+          reservation = await requestReservation();
         }
-        if (typeof body.reservationToken !== 'string' || body.reservationToken.length === 0) {
-          throw new Error('A reserva da sala não foi confirmada. Tente criar novamente.');
-        }
-        const roomCode = body.roomCode.toUpperCase();
+        const { roomCode, reservationToken } = reservation;
         const socket = connectSocket(roomCode);
-        socket.emit('create_room', { creatorName, competitionFormat, difficulty, clientId: getClientId(), roomCode, reservationToken: body.reservationToken });
+        socket.emit('create_room', { creatorName, competitionFormat, difficulty, clientId: getClientId(), roomCode, reservationToken });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Não foi possível criar a sala online.');
       }
     })();
-  }, [connectSocket]);
+  }, [connectSocket, requestReservation]);
 
   const joinRoom = useCallback((roomCode: string, playerName: string) => {
     const normalizedRoomCode = roomCode.trim().toUpperCase();
@@ -511,8 +538,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     emitOnlineAction("start_setup", { roomCode: state.roomCode });
   }, [emitOnlineAction, state.roomCode]);
 
-  const submitSetupOnline = useCallback((coachId: string, formationId: string, crestId?: string | null) => {
-    emitOnlineAction("submit_setup", { roomCode: state.roomCode, coachId, formationId, crestId });
+  const submitSetupOnline = useCallback((coachId: string, formationId: string, crestId?: string | null, teamName?: string) => {
+    emitOnlineAction("submit_setup", { roomCode: state.roomCode, coachId, formationId, crestId, teamName });
   }, [emitOnlineAction, state.roomCode]);
 
   const draftPickOnline = useCallback((playerId: string) => {
@@ -968,7 +995,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue = useMemo(() => ({
     state, dispatch, getTeamById,
-    createRoom, joinRoom, startSetupOnline, submitSetupOnline,
+    createRoom, prepareRoom, joinRoom, startSetupOnline, submitSetupOnline,
     draftPickOnline, draftVetoOnline, submitSquadReviewOnline, setMatchRolesOnline, setMatchPlanOnline,
     playRoundOnline, advanceRoundOnline, playKnockoutRoundOnline, advanceKnockoutRoundOnline,
     restartRoomOnline, transferHostOnline, removePlayerOnline, leaveRoomOnline, closeRoomOnline, notifyMatchWatchedOnline,

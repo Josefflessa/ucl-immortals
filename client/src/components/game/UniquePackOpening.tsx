@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { playSound, revealSoundFor } from '../../audio/uiSound';
+import { useMusicDuck } from '../../audio/musicPlayer';
 import { Particles, PlayerRevealOverlay } from '../store/gacha/BannerGachaReveal';
 import '../store/gacha/gachaReveal.css';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -112,6 +113,7 @@ export function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPoi
 }
 
 export default function UniquePackOpening({ card, onClaim, onClose, rarity = 'unique' }: PlayerPackOpeningProps) {
+  useMusicDuck();
   const meta = PLAYER_PACK_META[rarity];
   const accent = meta.color;
   const [stage, setStage] = useState<OpeningStage>('sealed');

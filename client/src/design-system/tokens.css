@@ -981,8 +981,8 @@ body.home-menu-scroll-lock {
   }
 
   .home-menu-screen__logo {
-    width: clamp(5rem, 16dvh, 8rem);
-    height: clamp(5rem, 16dvh, 8rem);
+    width: clamp(5.5rem, 18dvh, 9rem);
+    height: clamp(5.5rem, 18dvh, 9rem);
   }
 
   .home-menu-screen__heading {

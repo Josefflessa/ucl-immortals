@@ -72,6 +72,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_CREST':
       return { ...state, selectedCrestId: action.crestId };
+    case 'SET_TEAM_NAME':
+      return { ...state, teamName: action.name };
 
     case 'SET_PLAYER_NAME':
       return { ...state, playerName: action.name };
@@ -401,7 +403,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       const playerTeam: Team = {
         id: 'player_team',
-        name: state.playerName || 'Meu Time',
+        name: (state.teamName ?? '').trim() || state.playerName || 'Meu Time',
         coachId: state.selectedCoachId,
         formationId: state.selectedFormationId,
         playStyle: state.selectedPlayStyle,
