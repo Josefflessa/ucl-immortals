@@ -6,6 +6,7 @@ import SoundControl from '../components/account/SoundControl';
 import AccountAvatar from '../components/account/AccountAvatar';
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { Check, Gamepad2, Medal, Play, Trophy, Plus, LogIn, LibraryBig, Send, UserRound, Users } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import AccountTabBar from '../components/account/AccountTabBar';
@@ -13,6 +14,7 @@ import { useGame, type SavedSoloCampaign } from '../contexts/GameContext';
 import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
 import { competitionFormatSummary, createCompetitionFormat } from '@shared/game/competition';
+import { isWeekendCompetitionCoinBonusActive } from '@shared/game/competitionRanking';
 import { cn } from '../lib/utils';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
 import StyledName from '../components/account/StyledName';
@@ -74,6 +76,7 @@ export default function MenuPage() {
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
+  const weekendBonusActive = isWeekendCompetitionCoinBonusActive();
 
   useEffect(() => {
     if (menuMode !== 'selection') return;
@@ -468,6 +471,7 @@ export default function MenuPage() {
       'relative overflow-hidden',
       menuMode === 'selection' && 'home-menu-screen',
       menuMode === 'selection' && account && 'home-menu-screen--account',
+      menuMode === 'selection' && account && state.phase === 'menu' && weekendBonusActive && 'home-menu-screen--account-weekend',
       // Someone without an account has the guest bar on a wide screen: the screen is what is left under it.
       menuMode === 'selection' && !account && 'xl:!h-[calc(100dvh-81px)]',
     )}>
@@ -750,9 +754,17 @@ export default function MenuPage() {
         <div aria-hidden="true" className={cn('flex-1', menuMode === 'selection' && 'lg:hidden')} />
         {/* The credit belongs to the home screen only, not to the solo/online setup steps. */}
         {menuMode === 'selection' && (
-          <footer className="home-menu-screen__footer pointer-events-none flex justify-center pt-8 lg:col-span-3 lg:row-start-2">
-            <span className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
-          </footer>
+          <>
+            <footer className="home-menu-screen__footer pointer-events-none hidden justify-center pt-8 lg:col-span-3 lg:row-start-2 xl:flex">
+              <span className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
+            </footer>
+            {createPortal(
+              <footer className="home-menu-screen__footer home-menu-screen__footer--mobile pointer-events-none flex justify-center xl:hidden">
+                <span className="text-[12px] font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
+              </footer>,
+              document.body,
+            )}
+          </>
         )}
       </div>
 

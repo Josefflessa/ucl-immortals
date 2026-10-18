@@ -961,13 +961,34 @@ body.home-menu-scroll-lock {
 }
 
 .home-menu-screen--account {
-  height: calc(100dvh - 64px);
+  height: calc(100dvh - 72px);
+}
+
+.home-menu-screen--account-weekend {
+  height: calc(100dvh - 176px);
+}
+
+@media (min-width: 640px) {
+  .home-menu-screen--account {
+    height: calc(100dvh - 80px);
+  }
+
+  .home-menu-screen--account-weekend {
+    height: calc(100dvh - 200px);
+  }
 }
 
 .home-menu-screen__content {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+.home-menu-screen__footer--mobile {
+  position: fixed;
+  z-index: 21;
+  inset-inline: 0;
+  bottom: calc(73px + env(safe-area-inset-bottom) + 4px);
 }
 
 @media (max-height: 720px) {
