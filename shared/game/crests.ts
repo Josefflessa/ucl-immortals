@@ -230,6 +230,15 @@ export const CREST_CATALOG: CrestGroup[] = [
       { id: "sassuolo", name: "Sassuolo", url: "https://upload.wikimedia.org/wikipedia/en/1/1c/US_Sassuolo_Calcio_logo.svg" },
       { id: "reggiana", name: "Reggiana", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Emblema%20Reggiana.jpg" },
       { id: "toronto-fc", name: "Toronto FC", url: "https://upload.wikimedia.org/wikipedia/en/7/7c/Toronto_FC_Logo.svg" },
+      { id: "udinese", name: "Udinese", url: "https://upload.wikimedia.org/wikipedia/en/c/ce/Udinese_Calcio_logo.svg" },
+      { id: "stoke-city", name: "Stoke City", url: "https://upload.wikimedia.org/wikipedia/en/b/bf/Stoke_City_FC_crest_2026.svg" },
+      { id: "swansea-city", name: "Swansea City", url: "https://upload.wikimedia.org/wikipedia/en/f/f9/Swansea_City_AFC_logo.svg" },
+      { id: "genoa", name: "Genoa", url: "https://upload.wikimedia.org/wikipedia/en/2/2c/Genoa_CFC_crest.svg" },
+      { id: "shanghai-sipg", name: "Shanghai SIPG", url: "https://upload.wikimedia.org/wikipedia/en/7/7a/Shanghai_Port_F.C.svg" },
+      { id: "anzhi-makhachkala", name: "Anzhi Makhachkala", url: "https://upload.wikimedia.org/wikipedia/en/3/36/FC_Anzhi_Makhachkala_logo.svg" },
+      { id: "malaga", name: "Málaga", url: "https://upload.wikimedia.org/wikipedia/en/6/6d/M%C3%A1laga_CF.svg" },
+      { id: "hamburger-sv", name: "Hamburger SV", url: "https://upload.wikimedia.org/wikipedia/commons/f/f7/Hamburger_SV_logo.svg" },
+      { id: "nacional-uruguai", name: "Nacional", url: "https://upload.wikimedia.org/wikipedia/commons/1/1e/Club_Nacional_de_Football_logo.svg" },
     ]
   },
 ];

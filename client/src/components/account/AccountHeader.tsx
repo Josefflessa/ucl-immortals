@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setNavSlot } from '../../lib/navSlot';
-import { Bell, BellOff, BellRing, Check, Coins, LoaderCircle, X } from 'lucide-react';
+import { Bell, BellOff, BellRing, Check, Coins, LoaderCircle, Sparkles, X } from 'lucide-react';
 import { api, useAccount, type FriendshipEntry } from '../../contexts/AccountContext';
 import { useAlbum } from '../../contexts/AlbumContext';
 import { useGame } from '../../contexts/GameContext';
 import { getProfileAvatarBackground } from '@shared/profileAppearance';
+import { isWeekendCompetitionCoinBonusActive } from '@shared/game/competitionRanking';
 import { clubOfRewardKey } from '@shared/game/clubRewards';
 import { cn } from '../../lib/utils';
 import { resolveProfileAvatarImage } from '../../lib/profileAvatars';
@@ -56,6 +57,7 @@ export default function AccountHeader() {
   const [pushStatus, setPushStatus] = useState<PushStatus>('idle');
   const [pushConfig, setPushConfig] = useState<{ enabled: boolean; publicKey: string | null } | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
+  const [weekendBonusActive, setWeekendBonusActive] = useState(() => isWeekendCompetitionCoinBonusActive());
   const [pushError, setPushError] = useState('');
   const pushSubscription = useRef<PushSubscription | null>(null);
 
@@ -205,6 +207,21 @@ export default function AccountHeader() {
   }, [account?.id, refreshPushSettings]);
 
   useEffect(() => {
+    const refreshWeekendBonus = () => setWeekendBonusActive(isWeekendCompetitionCoinBonusActive());
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshWeekendBonus();
+    };
+    const interval = window.setInterval(refreshWeekendBonus, 60_000);
+    window.addEventListener('focus', refreshWeekendBonus);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWeekendBonus);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, []);
+
+  useEffect(() => {
     if (notificationsOpen) void refreshPushSettings();
   }, [notificationsOpen, refreshPushSettings]);
 
@@ -297,6 +314,32 @@ export default function AccountHeader() {
           </div>
         </div>
       </header>
+
+      {weekendBonusActive ? (
+        <div className="px-3 pt-3 sm:px-5 sm:pt-4">
+          <section
+            role="status"
+            aria-label="Bônus de fim de semana: moedas em dobro ao concluir competições"
+            className="relative isolate mx-auto flex w-full max-w-[1280px] items-center gap-2.5 overflow-hidden rounded-2xl border border-[var(--ui-brand)]/45 bg-gradient-to-r from-[var(--ui-brand)]/10 via-[var(--ui-surface)] to-[var(--ui-brand)]/5 px-2.5 py-3 shadow-[0_8px_28px_rgba(234,199,68,0.08)] sm:gap-4 sm:px-4 sm:py-3.5"
+          >
+            <span aria-hidden="true" className="absolute -right-8 -top-12 -z-10 size-36 rounded-full bg-[var(--ui-brand)]/10 blur-2xl" />
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[var(--ui-brand)]/30 bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] sm:size-11">
+              <Coins size={20} aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="mb-1 flex items-center gap-1 text-[9px] font-extrabold uppercase leading-none tracking-[0.16em] text-[var(--ui-brand-strong)] sm:text-[10px]">
+                <Sparkles size={11} aria-hidden="true" /> Bônus de fim de semana
+              </span>
+              <span className="block text-sm font-extrabold leading-tight text-[var(--ui-text)] sm:text-base">Moedas em dobro!</span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-[var(--ui-text-muted)] sm:text-xs">Conclua competições e ganhe o dobro.</span>
+            </span>
+            <span className="inline-flex h-12 w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-[var(--ui-brand-strong)] bg-[var(--ui-brand-strong)] px-1 text-[var(--ui-bg)] shadow-[0_3px_12px_rgba(232,200,74,0.22)] sm:h-14 sm:w-16">
+              <span className="font-display text-2xl font-black leading-none sm:text-[1.7rem]">×2</span>
+              <span className="mt-1 text-[9px] font-black uppercase leading-none tracking-[0.1em] sm:text-[10px]">moedas</span>
+            </span>
+          </section>
+        </div>
+      ) : null}
 
       <GameModal open={notificationsOpen} onOpenChange={setNotificationsOpen} title="NOTIFICAÇÕES" subtitle="Avisos e solicitações da sua conta." size="wide">
         <div className="space-y-3">

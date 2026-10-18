@@ -2,10 +2,10 @@
  * The game's background music: one track for the account side (menu, store, album, ranking…)
  * and one for the competition (set-up, draft, league). Each plays as an endless loop whose
  * seam is a long equal-power crossfade between two copies of the same stretch of the track,
- * and the stretch was picked so the beat and the chords line up at the seam. The tracks are
- * decoded on demand (one in memory at a time, at 32 kHz, only the looping stretch), levelled
- * to the same loudness, and move out of the way of the match (silence), of pack openings
- * (ducked) and of a hidden tab (paused).
+ * and the stretch was picked so the beat and the chords line up at the seam. Each track starts
+ * at its intro once, then loops seamlessly. Tracks are decoded on demand (one in memory at a
+ * time, at 32 kHz), levelled to the same loudness, and move out of the way of the match
+ * (silence), of pack openings (ducked) and of a hidden tab (paused).
  */
 
 import { useEffect } from 'react';
@@ -96,9 +96,9 @@ async function loadTrack(zone: MusicZone): Promise<Loaded | null> {
     if (!response.ok) return null;
     const full = await decode(await response.arrayBuffer());
     const rate = full.sampleRate;
-    const from = Math.max(0, Math.floor((spec.loopStart - CROSSFADE_S) * rate));
+    const from = 0;
     const to = Math.min(full.length, Math.floor(spec.loopEnd * rate));
-    // Only the looping stretch (plus the lead-in for the crossfade) is kept; the rest is let go.
+    // Keep the intro for the first play, then the looping stretch; the rest is let go.
     const ctx = getAudioContext();
     if (!ctx || to <= from) return null;
     const buffer = ctx.createBuffer(2, to - from, rate);
@@ -109,7 +109,7 @@ async function loadTrack(zone: MusicZone): Promise<Loaded | null> {
       buffer.copyToChannel(source, channel);
       if (channel === 0) {
         // Loudness of the looping stretch (every 4th sample is plenty).
-        for (let i = Math.floor(CROSSFADE_S * rate); i < source.length; i += 4) { sum += source[i] * source[i]; count++; }
+        for (let i = Math.floor(spec.loopStart * rate); i < source.length; i += 4) { sum += source[i] * source[i]; count++; }
       }
     }
     return { buffer, gain: trackGainFor(Math.sqrt(sum / Math.max(1, count))) };
@@ -143,28 +143,40 @@ class ZonePlayer {
     const now = this.ctx.currentTime + 0.05;
     this.fade.gain.setValueAtTime(0, now);
     this.fade.gain.linearRampToValueAtTime(1, now + fadeInS);
-    this.scheduleVoice(now, true);
+    this.nextStart = now + TRACKS[this.zone].loopEnd - CROSSFADE_S;
+    this.playIntro(now);
     this.timer = setInterval(() => {
-      while (this.ctx.currentTime + 2 >= this.nextStart) this.scheduleVoice(this.nextStart, false);
+      while (this.ctx.currentTime + 2 >= this.nextStart) this.scheduleLoopVoice(this.nextStart);
     }, 400);
   }
 
-  /** `at` is when this copy starts sounding; the first copy starts at the loop point itself. */
-  private scheduleVoice(at: number, first: boolean): void {
+  /** Play the track's intro once, fading into the first loop as its outro reaches the seam. */
+  private playIntro(at: number): void {
     const { buffer } = this.track;
-    const offset = first ? CROSSFADE_S : 0;
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
     const gain = this.ctx.createGain();
     source.connect(gain).connect(this.fade);
-    if (first) gain.gain.setValueAtTime(1, at);
-    else gain.gain.setValueCurveAtTime(this.curves.fadeIn, at, CROSSFADE_S);
-    // The next copy starts one period after this one's virtual start; this one fades out as it comes in.
-    const virtualStart = at - offset;
-    const next = virtualStart + this.period;
+    gain.gain.setValueAtTime(1, at);
+    gain.gain.setValueCurveAtTime(this.curves.fadeOut, this.nextStart, CROSSFADE_S);
+    source.start(at);
+    this.voices.add(source);
+    source.onended = () => { this.voices.delete(source); };
+  }
+
+  /** Start each loop copy at loopStart − crossfade so the seam lines up with the intro/outro. */
+  private scheduleLoopVoice(at: number): void {
+    const { buffer } = this.track;
+    const offset = TRACKS[this.zone].loopStart - CROSSFADE_S;
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = this.ctx.createGain();
+    source.connect(gain).connect(this.fade);
+    gain.gain.setValueCurveAtTime(this.curves.fadeIn, at, CROSSFADE_S);
+    const next = at + this.period;
     gain.gain.setValueCurveAtTime(this.curves.fadeOut, next, CROSSFADE_S);
     source.start(at, offset);
-    source.stop(virtualStart + buffer.duration + 0.1);
+    source.stop(at + buffer.duration - offset + 0.1);
     this.voices.add(source);
     source.onended = () => { this.voices.delete(source); };
     this.nextStart = next;

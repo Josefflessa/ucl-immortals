@@ -5,7 +5,7 @@ import TraitIcon from '../TraitIcon';
 import { Repeat, Star, TriangleAlert } from 'lucide-react';
 import { INLINE_ICON } from '../inlineIcon';
 import { useState } from 'react';
-import { getCompetitionAlbumBonus, POS_PT, effectiveSecondaries, getRarityColor } from '@shared/game/gameData';
+import { POS_PT, effectiveSecondaries, getRarityColor } from '@shared/game/gameData';
 import { getEvolutionLevel } from '@shared/game/gameEngine';
 import { canonicalClubName } from '@shared/game/crests';
 import PlayerPortrait from '../PlayerPortrait';
@@ -21,9 +21,6 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
   const { player, eff, chem } = model;
   const rarity = getRarityColor(player.rarity);
   const evolutionLevel = getEvolutionLevel(player);
-  const albumLevel = player.competitionAlbumLevel ?? 0;
-  const albumPageBonus = player.competitionAlbumPageBonus ?? 0;
-  const albumBonus = getCompetitionAlbumBonus(player);
   const selectedStat = selected ? model.stats.find(s => s.attr === selected) ?? null : null;
   const anyDelta = model.stats.some(s => s.delta !== 0);
   // Special characteristics right in the identity row, not only in the bonus breakdown.
@@ -48,15 +45,6 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
                 <TraitIcon trait={variant.key} fallback={variant.icon} size={22} />
               </span>
             ))}
-            {albumBonus > 0 && (
-              <span title="Bônus do Álbum congelados para esta competição" className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-black leading-none"
-                style={{ color: '#201805', background: 'linear-gradient(135deg,#ffe783,#d0a93a)', border: '1px solid #fff1af', ...FONT }}>
-                {albumLevel > 0 && <><Star {...INLINE_ICON} fill="currentColor" />ÁLBUM ★{albumLevel}</>}
-                {albumLevel > 0 && albumPageBonus > 0 && <span aria-hidden="true">·</span>}
-                {albumPageBonus > 0 && <>PÁGINA COMPLETA +{albumPageBonus}</>}
-                <span aria-hidden="true">·</span>+{albumBonus} EM TODOS OS ATRIBUTOS
-              </span>
-            )}
             {model.fit === 'off' && <span className="rounded px-2 py-0.5 text-[12px] font-black" style={{ background: '#EF444422', color: 'var(--ui-danger)', border: '1px solid #EF444444', ...FONT }}><TriangleAlert {...INLINE_ICON} />FORA DE POSIÇÃO · −15%</span>}
             {model.fit === 'secondary' && <span className="whitespace-nowrap rounded px-2 py-0.5 text-[12px] font-black" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', ...FONT }}><Repeat {...INLINE_ICON} />2ª POSIÇÃO · −5%</span>}
             {evolutionLevel > 0 && <span className="rounded px-2 py-0.5 text-[12px] font-black leading-none" style={{ background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success))', color: '#04120a', letterSpacing: '0.06em' }}><Star {...INLINE_ICON} fill="currentColor" />NÍVEL {evolutionLevel}</span>}

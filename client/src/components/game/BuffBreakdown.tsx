@@ -275,7 +275,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
 
   const cardRows = [
     albumLevel > 0 && (
-      <Row key="album" icon={<Star size={15} strokeWidth={2.4} fill="currentColor" />} name={`ÁLBUM ★${albumLevel}`} color="#D8B84E">
+      <Row key="album" icon={<Star size={15} strokeWidth={2.4} fill="currentColor" />} name="ÁLBUM" color="#D8B84E">
         <Chips items={[{ text: `+${albumLevel} EM TODOS OS ATRIBUTOS`, color: '#D8B84E' }]} />
         <Note>Nível congelado no início da competição; acompanha a carta se ela for negociada.</Note>
       </Row>

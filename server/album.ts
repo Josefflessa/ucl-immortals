@@ -35,7 +35,13 @@ import { PLAYERS, STORE_UNIQUE_CARDS, type Rarity } from '../shared/game/gameDat
 import { AVATAR_FRAME_BY_KEY } from '../shared/game/events.js';
 import { PROFILE_COVER_BY_KEY } from '../shared/profileCovers.js';
 import { NAME_STYLE_BY_KEY } from '../shared/game/nameStyles.js';
-import { competitionCoinReward, isCompetitionFinishStage, isRankedDifficulty } from '../shared/game/competitionRanking.js';
+import {
+  competitionCoinReward,
+  isCompetitionFinishStage,
+  isRankedDifficulty,
+  isWeekendCompetitionCoinBonusActive,
+  WEEKEND_COMPETITION_COIN_MULTIPLIER,
+} from '../shared/game/competitionRanking.js';
 
 export type GrantSource = 'campaign' | 'page' | 'shop';
 export interface ItemGrant { key: AlbumItemKey; source: GrantSource; competitionId?: string; pageId?: string; coinsAwarded?: number }
@@ -257,7 +263,10 @@ export async function syncCampaignGrants(db: D1Database, userId: string, albumCr
     const tier = row.difficulty_id as AlbumPackTier;
     const champion = row.champion === 1;
     const finishStage = isCompetitionFinishStage(row.finish_stage) ? row.finish_stage : champion ? 'champion' : 'leaguePhase';
-    const coinsAwarded = competitionCoinReward(finishStage, tier);
+    const baseCoinsAwarded = competitionCoinReward(finishStage, tier);
+    const coinsAwarded = isWeekendCompetitionCoinBonusActive(row.completed_at)
+      ? baseCoinsAwarded * WEEKEND_COMPETITION_COIN_MULTIPLIER
+      : baseCoinsAwarded;
     const competitionGrants = campaignGrant(tier, champion).map((key, index): ItemGrant => ({
       key,
       source: 'campaign',

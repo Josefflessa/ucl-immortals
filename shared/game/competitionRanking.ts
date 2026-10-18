@@ -30,6 +30,21 @@ export const COMPETITION_RANKING_POINTS: Record<CompetitionFinishStage, number> 
 export const RANKED_DIFFICULTY_IDS = ['bronze', 'silver', 'gold', 'legendary', 'immortal'] as const;
 export type RankedDifficultyId = (typeof RANKED_DIFFICULTY_IDS)[number];
 
+/** Competition coin rewards are doubled from Friday through Sunday in São Paulo time. */
+export const WEEKEND_COMPETITION_COIN_MULTIPLIER = 2;
+const SAO_PAULO_WEEKDAY = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Sao_Paulo',
+  weekday: 'short',
+});
+
+export function isWeekendCompetitionCoinBonusActive(timestamp = Date.now()): boolean {
+  if (!Number.isFinite(timestamp)) return false;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return false;
+  const weekday = SAO_PAULO_WEEKDAY.format(date);
+  return weekday === 'Fri' || weekday === 'Sat' || weekday === 'Sun';
+}
+
 /**
  * Share of the full points each difficulty is worth, in whole percent so the
  * rounding is exact (15 × 0.7 is 10.4999… in floating point). The curve is
