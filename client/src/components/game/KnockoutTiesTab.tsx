@@ -170,8 +170,17 @@ export default function KnockoutTiesTab() {
     </div>
   );
 
+  // Keep the main action within thumb reach on phones, like the league round. Nothing is pinned
+  // while the screen only waits for others (the waiting messages and the host's wait).
+  const pinAction = canControl
+    ? (idaPlayed && !allPlayersWatched ? false : !allPlayed || allPlayersWatched)
+    : (!(idaPlayed && !allPlayersWatched) && !allPlayed && iPlayThisRound);
+  const actionBarClasses = pinAction
+    ? 'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:mt-0 max-lg:rounded-t-2xl max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0 max-lg:px-4 max-lg:pt-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))] max-lg:shadow-[0_-10px_30px_rgba(0,0,0,0.45)]'
+    : '';
+
   return (
-    <>
+    <div className={pinAction ? 'pb-40 lg:pb-0' : undefined}>
         {/* Confrontos da fase atual */}
         {/* Desktop: ties in two columns; your own tie keeps the full width. */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -470,10 +479,12 @@ export default function KnockoutTiesTab() {
 
         {/* Round controls — solo: the player drives; online: only the host */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: pinAction ? 0 : 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-6 p-4 rounded-xl text-center border"
-          style={{ background: 'var(--ui-surface-1)', borderColor: 'var(--ui-surface-3)' }}
+          className={`mt-6 p-4 rounded-xl text-center border ${actionBarClasses}`}
+          style={pinAction
+            ? { background: 'rgba(8, 8, 16, 0.96)', backdropFilter: 'blur(14px)', borderColor: 'var(--ui-surface-3)' }
+            : { background: 'var(--ui-surface-1)', borderColor: 'var(--ui-surface-3)' }}
         >
           {canControl ? (
             // Between the ida and the volta the host must also wait for everyone to
@@ -687,6 +698,6 @@ export default function KnockoutTiesTab() {
           </div>
         )}
       </GameModal>
-    </>
+    </div>
   );
 }
