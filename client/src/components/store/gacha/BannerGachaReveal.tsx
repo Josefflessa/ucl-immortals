@@ -75,15 +75,15 @@ function RevealButtons({ summary, onDefault, leave }: { summary?: RevealSummary;
 // ── Pieces ──────────────────────────────────────────────────────────────────────
 
 /** Particles drifting to the centre (charging) or flung out of it (burst). */
-export function Particles({ count, color, mode, seed, spread = 260 }: { count: number; color: string; mode: 'in' | 'out'; seed: number; spread?: number }) {
+export function Particles({ count, color, mode, seed, spread = 260, lead = 0 }: { count: number; color: string; mode: 'in' | 'out'; seed: number; spread?: number; /** Seconds to hold the burst back (a flipping card must not show it edge-on). */ lead?: number }) {
   const items = useMemo(() => {
     const rand = seeded(seed);
     return Array.from({ length: count }, () => {
       const angle = rand() * Math.PI * 2;
       const distance = spread * (0.45 + rand() * 0.75);
-      return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance, size: 2 + rand() * 4, delay: rand() * (mode === 'in' ? 1.4 : 0.15), duration: mode === 'in' ? 1 + rand() * 0.9 : 0.8 + rand() * 0.9 };
+      return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance, size: 2 + rand() * 4, delay: lead + rand() * (mode === 'in' ? 1.4 : 0.15), duration: mode === 'in' ? 1 + rand() * 0.9 : 0.8 + rand() * 0.9 };
     });
-  }, [count, mode, seed, spread]);
+  }, [count, mode, seed, spread, lead]);
   return (
     <>
       {items.map((item, index) => (
@@ -98,11 +98,11 @@ export function Particles({ count, color, mode, seed, spread = 260 }: { count: n
   );
 }
 
-function Shockwaves({ tier, scale = 1 }: { tier: GachaTier; scale?: number }) {
+function Shockwaves({ tier, scale = 1, lead = 0 }: { tier: GachaTier; scale?: number; lead?: number }) {
   return (
     <>
       {Array.from({ length: tier.shockwaves }, (_, index) => (
-        <span key={index} aria-hidden="true" className="gacha-shock" style={{ '--c': index === 0 ? tier.color : tier.accent, '--delay': `${index * 0.18}s`, '--to': 1.5 * scale } as React.CSSProperties} />
+        <span key={index} aria-hidden="true" className="gacha-shock" style={{ '--c': index === 0 ? tier.color : tier.accent, '--delay': `${lead + index * 0.18}s`, '--to': 1.5 * scale } as React.CSSProperties} />
       ))}
     </>
   );
@@ -231,8 +231,8 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
       </div>
 
       <div className="gacha-float relative z-10">
-        <Shockwaves tier={tier} />
-        <Particles count={tier.particles} color={tier.color} mode="out" seed={tier.rank + 11} spread={300} />
+        <Shockwaves tier={tier} lead={0.3} />
+        <Particles count={tier.particles} color={tier.color} mode="out" seed={tier.rank + 11} spread={300} lead={0.3} />
         <motion.div
           initial={{ opacity: 0, scale: 0.35, rotateY: 150, y: 40 }}
           animate={{ opacity: 1, scale: 1, rotateY: 0, y: 0 }}
@@ -274,8 +274,8 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
       <div className="relative" style={{ width, height, perspective: 900 }}>
         {flipped && tier.rank >= 2 ? (
           <div className="pointer-events-none absolute inset-0 z-0">
-            <Shockwaves tier={tier} scale={0.6} />
-            <Particles count={Math.round(tier.particles * 0.35)} color={tier.color} mode="out" seed={index + tier.rank * 7} spread={170} />
+            <Shockwaves tier={tier} scale={0.6} lead={0.35} />
+            <Particles count={Math.round(tier.particles * 0.35)} color={tier.color} mode="out" seed={index + tier.rank * 7} spread={170} lead={0.35} />
           </div>
         ) : null}
         <motion.div
