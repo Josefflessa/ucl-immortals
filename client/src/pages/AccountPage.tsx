@@ -625,7 +625,7 @@ function CareerFinishBreakdown({ counts, filter }: { counts: AccountStats['finis
 
 export default function AccountPage() {
   const { state, dispatch } = useGame();
-  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, peekOwnAchievements, getEvents, updateShowcase, getHistory, peekHistory, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
+  const { account, loading, refreshProfileIfStale, login, logout, register, updateProfile, getOwnAchievements, peekOwnAchievements, getEvents, updateShowcase, peekFriends, getHistory, peekHistory, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, getFriends, sendFriendRequest, updateFriendship } = useAccount();
   const tab: AccountSection = state.accountSection;
   const accountId = account?.id ?? null;
   const [history, setHistory] = useState<CompetitionHistoryEntry[]>(() => peekHistory(1)?.history ?? []);
@@ -642,7 +642,7 @@ export default function AccountPage() {
   const [ownAchievements, setOwnAchievements] = useState<AchievementsPayload | null>(() => peekOwnAchievements());
   const [ownAchievementsLoading, setOwnAchievementsLoading] = useState(false);
   const [showcaseEditorOpen, setShowcaseEditorOpen] = useState(false);
-  const [friends, setFriends] = useState<FriendshipEntry[]>([]);
+  const [friends, setFriends] = useState<FriendshipEntry[]>(() => peekFriends() ?? []);
   const [chatFriendshipRequestId, setChatFriendshipRequestId] = useState<string | null>(null);
   const markFriendMessagesRead = useCallback((friendshipId: string) => {
     setFriends(current => {
@@ -806,14 +806,16 @@ export default function AccountPage() {
     }
 
     if (tab === 'friends' && accountId) {
-      setFriendsLoading(true);
+      const cachedFriends = peekFriends();
+      if (cachedFriends) setFriends(cachedFriends);
+      setFriendsLoading(!cachedFriends);
       void getFriends().then(rows => { if (active) setFriends(rows); }).catch(err => { if (active) setError(err.message); }).finally(() => { if (active) setFriendsLoading(false); });
       friendsRefreshTimer = window.setInterval(() => {
         void getFriends().then(rows => { if (active) setFriends(rows); }).catch(() => {});
       }, 8000);
     }
     return () => { active = false; if (friendsRefreshTimer !== undefined) window.clearInterval(friendsRefreshTimer); };
-  }, [tab, accountId, historyPage, getHistory, peekHistory, getOwnRecordHighlights, peekOwnRecordHighlights, getOwnAchievements, peekOwnAchievements, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getFriends, refreshProfileIfStale]);
+  }, [tab, accountId, historyPage, getHistory, peekHistory, peekFriends, getOwnRecordHighlights, peekOwnRecordHighlights, getOwnAchievements, peekOwnAchievements, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getFriends, refreshProfileIfStale]);
 
   useEffect(() => {
     if (tab !== 'friends' || !account || typeof window === 'undefined') return;

@@ -1040,7 +1040,6 @@ export default function SquadEditor({
                               playerId={candidate.id}
                               photoUrl={candidate.photoUrl}
                               alt={candidate.shortName}
-                              loading="lazy"
                               className="w-full h-full object-cover"
                               style={{ objectPosition: 'center top', scale: '1.2' }}
                               fallback={<span className="text-sm font-bold" style={{ color: getRarityColor(candidate.rarity) }}>⚽</span>}

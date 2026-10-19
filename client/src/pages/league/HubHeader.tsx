@@ -6,7 +6,6 @@ import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
 import SpoilerLock from './SpoilerLock';
 import type { LeagueHub } from './useLeagueHub';
 
-const FIELD_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-field-bg-TNi7gMGy2VJGpi28zWLUUX.webp';
 
 export function HubHeader({ hub }: { hub: LeagueHub }) {
   const {
@@ -35,13 +34,6 @@ export function HubHeader({ hub }: { hub: LeagueHub }) {
 
       {/* Hero banner */}
       <div className="relative h-20 sm:h-32 overflow-hidden">
-        <div className="absolute inset-0"
-          style={{
-            backgroundImage: `url(${FIELD_BG})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            opacity: 0.3,
-          }} />
         <div className="absolute inset-0" style={{
           background: 'linear-gradient(180deg, transparent, var(--ui-bg))',
         }} />

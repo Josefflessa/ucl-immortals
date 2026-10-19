@@ -19,7 +19,6 @@ import { cn } from '../lib/utils';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
 import StyledName from '../components/account/StyledName';
 
-const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663774909050/NneEChWpuMBUGrgKbtsKZM/ucl-hero-bg-h6Wx2jrfCPsrWkvEcMdhqo.webp';
 const LOGO_URL = '/icons/logo_ucl.png';
 
 function friendIdentity(friendship: FriendshipEntry, accountId: string | undefined) {
@@ -228,7 +227,7 @@ export default function MenuPage() {
   // If already in lobby, render Lobby view
   if (state.roomCode && state.phase === 'lobby') {
     return (
-      <AppShell immersive backgroundImage={HERO_BG} className="relative overflow-hidden">
+      <AppShell immersive className="relative overflow-hidden">
         
         <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center px-4 max-w-md mx-auto">
           {/* Logo */}
@@ -467,7 +466,7 @@ export default function MenuPage() {
   }
 
   return (
-    <AppShell immersive backgroundImage={HERO_BG} className={cn(
+    <AppShell immersive className={cn(
       'relative overflow-hidden',
       menuMode === 'selection' && 'home-menu-screen',
       menuMode === 'selection' && account && 'home-menu-screen--account',

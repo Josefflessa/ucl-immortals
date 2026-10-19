@@ -36,7 +36,7 @@ export default function AccountAvatar({ name, avatarKey, avatarUrl, backgroundKe
         style={{ backgroundColor: getProfileAvatarBackground(backgroundKey).color }}
       >
         <span aria-hidden="true" hidden={!!image}>{initials(name)}</span>
-        {image ? <img key={image} src={image} alt="" loading="lazy" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={showFallback} /> : null}
+        {image ? <img key={image} src={image} alt="" className={cn('absolute inset-0 size-full', avatarUrl ? 'object-cover' : 'object-contain')} onError={showFallback} /> : null}
       </div>
     </FramedAvatar>
   );

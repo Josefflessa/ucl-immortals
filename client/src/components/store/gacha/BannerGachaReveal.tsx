@@ -18,6 +18,7 @@ import { playSound, revealSoundFor } from '../../../audio/uiSound';
 import { useMusicDuck } from '../../../audio/musicPlayer';
 import PlayerCard from '../../game/PlayerCard';
 import { albumCard, RARITY_LABEL, stickerLevel } from '../../album/albumData';
+import { preloadCardAssets } from '../../../lib/cardPreload';
 import { bestDraw, flipOrder, gridLayout, NEUTRAL_TIER, seeded, tierOf, type GachaTier } from './gachaTiers';
 import './gachaReveal.css';
 
@@ -494,6 +495,11 @@ export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipC
   // Start the warm-up during the charge, or immediately when a pack skips it,
   // so every hidden card has its frame and texture ready before its turn.
   const [warm, setWarm] = useState(skipCharge);
+  // The photos, flags and crests too, so a card turned over never shows them popping in.
+  useEffect(() => {
+    const players = draws.cards.flatMap(card => { const player = albumCard(card.card.id); return player ? [player] : []; });
+    return preloadCardAssets(players);
+  }, [draws]);
   useEffect(() => {
     if (skipCharge) return;
     const timer = setTimeout(() => setWarm(true), 350);

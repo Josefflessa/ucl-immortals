@@ -11,6 +11,7 @@ import { useAlbumLevel } from '../../contexts/AlbumContext';
 import Crest from './Crest';
 import { Star } from 'lucide-react';
 import { INLINE_ICON } from './inlineIcon';
+import { flagUrl } from '../../lib/flags';
 
 const CATALOG_PLAYER_PHOTO_URLS = new Map<string, string>(
   PLAYERS.flatMap(player => player.photoUrl ? [[player.id, player.photoUrl] as const] : []),
@@ -502,7 +503,7 @@ const SOFIFA_MAPPING: Record<string, { id: number; ver: number }> = {
   falcao_atleticomadrid: { id: 167397, ver: 14 },
 };
 
-const NATION_CODES: Record<string, string> = {
+export const NATION_CODES: Record<string, string> = {
   'Argentina': 'ar',
   'Portugal': 'pt',
   'Espanha': 'es',
@@ -544,6 +545,38 @@ const NATION_CODES: Record<string, string> = {
   // A seleção soviética deixou de existir; a bandeira russa é a referência
   // visual disponível para representar seus jogadores históricos.
   'União Soviética': 'ru',
+  'Suíça': 'ch',
+  'Chile': 'cl',
+  'Suécia': 'se',
+  'Camarões': 'cm',
+  'Gana': 'gh',
+  'Áustria': 'at',
+  'Noruega': 'no',
+  'Japão': 'jp',
+  'Nigéria': 'ng',
+  'Hungria': 'hu',
+  'Estados Unidos': 'us',
+  'Eslovênia': 'si',
+  'Costa Rica': 'cr',
+  'Geórgia': 'ge',
+  'Escócia': 'gb-sct',
+  'Armênia': 'am',
+  'Coreia do Sul': 'kr',
+  'Gabão': 'ga',
+  'Canadá': 'ca',
+  'Guiné': 'gn',
+  'Montenegro': 'me',
+  'Bulgária': 'bg',
+  'Islândia': 'is',
+  'Albânia': 'al',
+  'Honduras': 'hn',
+  'Bolívia': 'bo',
+  'Mali': 'ml',
+  'Finlândia': 'fi',
+  'Romênia': 'ro',
+  'Austrália': 'au',
+  'Arábia Saudita': 'sa',
+  'Rússia': 'ru',
 };
 
 // PT-BR position abbreviations (single source of truth lives in gameData/POS_PT)
@@ -551,8 +584,7 @@ const posLabel = (pos: string) => POS_PT[pos] ?? pos;
 
 export function getFlagUrl(nation: string): string | null {
   const code = NATION_CODES[nation];
-  if (!code) return 'https://flagcdn.com/un.svg'; // fallback
-  return `https://flagcdn.com/${code}.svg`;
+  return flagUrl(code ?? 'un');
 }
 
 // Club badges are resolved centrally by crestIdForClub() from lib/crests.
@@ -1218,7 +1250,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           <div className="flex flex-col items-center flex-shrink-0" style={{ paddingBottom: compactPhotoPadding, paddingLeft: '10%', paddingRight: '10%' }}>
             {/* bandeira (país) + escudo (clube) — ajudam a ler a química no MEU TIME */}
             <div className="flex items-center justify-center gap-1 mb-0.5">
-              {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
+              {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} decoding="async" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
               <Crest crestId={clubCrestId} name={canonicalClubName(player.club)} size={12} className="drop-shadow-[0_1px_1px_rgba(0,0,0,.7)]" />
             </div>
             <div className="w-full text-center truncate" style={{ fontFamily: 'var(--font-game), sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
@@ -1299,7 +1331,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
           <span style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 40, lineHeight: .8 }}>{displayOverall}</span>
           <span style={{ fontFamily: 'var(--font-game), sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '.04em' }}>{posLabel(player.position)}</span>
           <div style={{ width: 30, height: 1, background: 'rgba(247,238,202,.55)', margin: '3px 0' }} />
-          {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: flat ? undefined : 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
+          {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} decoding="async" style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, filter: flat ? undefined : 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
           <Crest crestId={clubCrestId} name={canonicalClubName(player.club)} size={22} />
         </div>
         {/* foto (cartas normais; as Únicas usam o render grande atrás do conteúdo) */}

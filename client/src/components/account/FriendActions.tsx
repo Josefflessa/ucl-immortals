@@ -119,7 +119,7 @@ function ProfilePhoto({ profile, sizeClassName = 'size-8' }: { profile: ProfileP
   const image = profile.avatarUrl || resolveProfileAvatarImage(profile.avatarKey);
   return <FramedAvatar frameKey={profile.avatarFrameKey} compact><span role="img" aria-label={`Foto de ${profile.name}`} className={`relative flex ${sizeClassName} shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-line-strong)] text-[11px] font-bold text-white`} style={{ backgroundColor: getProfileAvatarBackground(profile.avatarBackgroundKey || DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY).color }}>
     <span aria-hidden="true" hidden={!!image}>{nameInitials(profile.name)}</span>
-    {image ? <img src={image} alt="" loading="lazy" className={`absolute inset-0 ${sizeClassName} rounded-full object-cover`} onError={event => { event.currentTarget.style.display = 'none'; const fallback = event.currentTarget.previousElementSibling as HTMLElement | null; if (fallback) fallback.hidden = false; }} /> : null}
+    {image ? <img src={image} alt="" className={`absolute inset-0 ${sizeClassName} rounded-full object-cover`} onError={event => { event.currentTarget.style.display = 'none'; const fallback = event.currentTarget.previousElementSibling as HTMLElement | null; if (fallback) fallback.hidden = false; }} /> : null}
   </span></FramedAvatar>;
 }
 

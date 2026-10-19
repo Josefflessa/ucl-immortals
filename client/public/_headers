@@ -1,0 +1,55 @@
+# Cache dos arquivos estáticos (Cloudflare Workers Assets).
+# O padrão da Cloudflare é "max-age=0, must-revalidate": o navegador pergunta ao servidor por TODA
+# imagem a cada uso, e é isso que fazia escudos, bandeiras e cartas aparecerem aos pedaços.
+
+# Arquivos gerados pelo build (nome com hash): nunca mudam.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Fontes próprias: nunca mudam.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Arte do jogo: vale por um dia e, depois disso, o navegador usa a cópia e confere em segundo plano.
+/cards/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/players/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/crests/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/flags/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/traits/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/avatars/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/frames/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/packs/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/shop/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/difficulty/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/coaches/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/projects/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/profile-covers/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/stadiums/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/tactics/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/roles/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/album/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/achievements/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/icons/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/sounds/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/music/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000

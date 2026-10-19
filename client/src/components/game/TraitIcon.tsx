@@ -6,7 +6,7 @@
 import type { CSSProperties } from 'react';
 import { cn } from '../../lib/utils';
 
-const TRAIT_KEYS = new Set([
+export const TRAIT_KEYS = new Set([
   'inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro',
   'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil',
   'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador',
@@ -47,7 +47,6 @@ export default function TraitIcon({ trait, fallback, size = 18, className, style
         src={`/traits/${key}.webp`}
         alt=""
         draggable={false}
-        loading="lazy"
         decoding="async"
         className="pointer-events-none max-w-none select-none"
         style={{ width: art, height: art }}

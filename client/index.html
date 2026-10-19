@@ -16,9 +16,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="UCL Immortals" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Fontes próprias (client/src/fonts.css): as principais já saem pedidas junto com a página. -->
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/bebas-neue-latin-1.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-3.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/rajdhani-latin-9.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/rajdhani-latin-11.woff2" crossorigin />
 
     <!-- Abertura: pinta antes do JS e do CSS do app, para não haver tela vazia enquanto o jogo baixa. -->
     <link rel="preload" as="image" href="/icons/logo_ucl.png" />

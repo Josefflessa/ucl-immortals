@@ -227,7 +227,6 @@ export default function RolesSelector({
                         playerId={card.player.id}
                         photoUrl={card.player.photoUrl}
                         alt=""
-                        loading="lazy"
                         className="h-full w-full object-cover"
                         style={{ objectPosition: 'center top' }}
                         fallback={<span className="flex h-full w-full items-center justify-center text-[12px]">⚽</span>}

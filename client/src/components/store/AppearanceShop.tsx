@@ -31,10 +31,11 @@ type ConfirmingItem = { kind: 'frame' | 'cover' | 'name-style'; key: string };
 
 export default function AppearanceShop() {
   const perPage = usePerPage();
-  const { account, getEvents, updateProfile } = useAccount();
+  const { account, getEvents, peekEvents, updateProfile } = useAccount();
   const { album, buyFrame, buyCover, buyNameStyle } = useAlbum();
-  const [ownedFrames, setOwnedFrames] = useState<string[] | null>(null);
-  const [ownedNameStyles, setOwnedNameStyles] = useState<string[] | null>(null);
+  // What the account read last (see AccountContext): the shop opens with it, refreshed in the background, instead of a skeleton.
+  const [ownedFrames, setOwnedFrames] = useState<string[] | null>(() => peekEvents()?.frames ?? null);
+  const [ownedNameStyles, setOwnedNameStyles] = useState<string[] | null>(() => { const cached = peekEvents(); return cached ? cached.nameStyles ?? [] : null; });
   const [appearanceLoadError, setAppearanceLoadError] = useState('');
   const [confirming, setConfirming] = useState<ConfirmingItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);

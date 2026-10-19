@@ -34,7 +34,6 @@ export default function TacticIcon({ tactic, fallback, size = 20, className, sty
         src={`/tactics/${tactic}.webp`}
         alt=""
         draggable={false}
-        loading="lazy"
         decoding="async"
         className="pointer-events-none max-w-none select-none"
         style={{ width: art, height: art }}

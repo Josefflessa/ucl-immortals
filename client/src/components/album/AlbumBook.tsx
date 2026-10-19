@@ -1,5 +1,6 @@
 // The album itself: its regions, the pages of each region (a club's own page, or the region's
 // shared page for its smaller clubs) with their progress, and a page open with its slots.
+import { flagUrl } from '../../lib/flags';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Gift, Globe, Lock, Sparkles } from 'lucide-react';
 import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS, getRarityColor, type Rarity } from '@shared/game/gameData';
@@ -35,7 +36,7 @@ const REGION_FLAG: Partial<Record<AlbumRegionId, string>> = { england: 'gb-eng',
 function RegionFlag({ regionId }: { regionId: AlbumRegionId }) {
   const code = REGION_FLAG[regionId];
   if (!code) return <Globe size={18} className="shrink-0 text-[var(--ui-brand-strong)]" aria-hidden="true" />;
-  return <img src={`https://flagcdn.com/${code}.svg`} alt="" referrerPolicy="no-referrer" className="h-[14px] w-[21px] shrink-0 rounded-[2px] object-cover shadow-[0_1px_2px_rgba(0,0,0,.6)]" />;
+  return <img src={flagUrl(code)} alt="" className="h-[14px] w-[21px] shrink-0 rounded-[2px] object-cover shadow-[0_1px_2px_rgba(0,0,0,.6)]" />;
 }
 
 function PageCrest({ page, size = 40 }: { page: AlbumPage; size?: number }) {
@@ -46,7 +47,7 @@ function PageCrest({ page, size = 40 }: { page: AlbumPage; size?: number }) {
   return (
     <span className="flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2,#151622)]" style={{ width: size, height: size }}>
       {code
-        ? <img src={`https://flagcdn.com/${code}.svg`} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
+        ? <img src={flagUrl(code)} alt="" className="size-full object-cover" />
         : <Globe size={Math.round(size * 0.55)} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />}
     </span>
   );

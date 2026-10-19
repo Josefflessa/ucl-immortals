@@ -12,7 +12,7 @@ import { getEvolutionLevel } from '@shared/game/gameEngine';
 import { FRAME_URL } from '../components/game/CardShield';
 import { buildPlayerPhotoSources, cardTexture, getFlagUrl, UNIQUE_STYLE } from '../components/game/PlayerCard';
 
-const CONCURRENCY = 4;
+const CONCURRENCY = 6;
 const requested = new Set<string>();
 /** Kept alive so the decoded images are not collected before the cards use them. */
 const alive: HTMLImageElement[] = [];
@@ -47,7 +47,11 @@ export function preloadPlayerCardArtwork(players: readonly Player[]): Promise<vo
     if (unique?.render) urls.add(unique.render);
     if ((player.competitionAlbumLevel ?? 0) >= 2) urls.add(`/cards/album-level-${player.competitionAlbumLevel}.webp`);
   }
-  return Promise.all(Array.from(urls, preloadDecodedImage)).then(() => undefined);
+  // Photo, flag and crest too, but never holding the screen for more than a moment if one is slow.
+  const faces = Promise.all(players.flatMap(cardAssetJobs).map(job => job().catch(() => undefined)));
+  const patience = new Promise<void>(resolve => setTimeout(resolve, 700));
+  const art = Promise.all(Array.from(urls, preloadDecodedImage));
+  return Promise.all([art, Promise.race([faces, patience])]).then(() => undefined);
 }
 
 function load(url: string): Promise<boolean> {

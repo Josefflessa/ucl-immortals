@@ -92,7 +92,7 @@ export default function CrestPage() {
           <div className="flex items-center justify-center gap-3 mb-5 min-h-[56px]">
             {selectedDef ? (
               <>
-                <img src={selectedDef.url} alt={selectedDef.name} referrerPolicy="no-referrer" loading="lazy"
+                <img src={selectedDef.url} alt={selectedDef.name} referrerPolicy="no-referrer"
                   className="w-12 h-12 object-contain"
                   style={{ borderRadius: selectedDef.clipToCircle ? '50%' : undefined }} />
                 <span className="text-lg font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: GOLD }}>
@@ -187,7 +187,7 @@ export default function CrestPage() {
                     boxShadow: isSel ? `0 0 0 1px ${GOLD}22` : 'none',
                   }}
                 >
-                  <img src={c.url} alt={c.name} referrerPolicy="no-referrer" loading="lazy" decoding="async"
+                  <img src={c.url} alt={c.name} referrerPolicy="no-referrer" decoding="async"
                     className={`h-12 w-12 object-contain ${isUnlocked ? '' : 'grayscale'}`}
                     style={{ borderRadius: c.clipToCircle ? '50%' : undefined }} />
                   {!isUnlocked ? <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full border border-white/10 bg-black/75 text-white/80"><Lock size={11} aria-hidden="true" /></span> : null}

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import GuestHeader from "./components/account/GuestHeader";
 import { useChromeHidden } from "./lib/chrome";
 import { music, musicZoneForPhase } from "./audio/musicPlayer";
-import { warmAccountScreens } from "./lib/appPrefetch";
+import { warmAccountScreens, warmGameArt } from "./lib/appPrefetch";
 import { Toaster } from "@/components/ui/sonner";
 import { GameProvider, useGame } from "./contexts/GameContext";
 import { AccountProvider, useAccount } from "./contexts/AccountContext";
@@ -212,6 +212,8 @@ function AccountPrefetcher() {
   const { account } = useAccount();
   const accountId = account?.id ?? null;
   useEffect(() => (accountId ? warmAccountScreens() : undefined), [accountId]);
+  // The art of the game itself is warmed for guests too.
+  useEffect(() => warmGameArt(), []);
   return null;
 }
 

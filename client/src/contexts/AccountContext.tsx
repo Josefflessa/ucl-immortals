@@ -6,6 +6,7 @@ import type { ItemGrant } from './AlbumContext';
 import type { AlbumSummary } from '../components/album/ProfileAlbumSummary';
 import type { SoloSave } from '../lib/soloSave';
 import { playSound, soundForRequest } from '../audio/uiSound';
+import { currentSeason } from '@shared/game/seasons';
 
 export interface AchievementState {
   id: string;
@@ -384,6 +385,8 @@ interface AccountContextValue {
   getPublicProfile: (username: string) => Promise<PublicProfileData>;
   likeProfile: (username: string, like: boolean) => Promise<{ liked: boolean; likeCount: number }>;
   getFriends: () => Promise<FriendshipEntry[]>;
+  /** The last list of friends read (null before the first read): screens start from it instead of an empty skeleton. */
+  peekFriends: () => FriendshipEntry[] | null;
   setPresence: (presenceId: string, status: 'available' | 'busy' | 'away', revision: number, statusChanged?: boolean) => Promise<void>;
   getRoomInvitations: () => Promise<RoomInvitationEntry[]>;
   inviteFriendToRoom: (roomCode: string, friendshipId: string) => Promise<{ duplicate: boolean; expiresAt: number }>;
@@ -866,15 +869,35 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return api<{ liked: boolean; likeCount: number }>(`/api/users/${encodeURIComponent(username)}/like`, { method: like ? 'PUT' : 'DELETE' });
   }, []);
 
+  const lastFriends = useRef<{ accountId: string; list: FriendshipEntry[] } | null>(null);
+  const peekFriends = useCallback(() => (accountId && lastFriends.current?.accountId === accountId ? lastFriends.current.list : null), [accountId]);
   const getFriends = useCallback(async () => {
     const requestRevision = ++friendsRequestRevision.current;
     const result = await api<{ friends: FriendshipEntry[] }>('/api/account/friends');
+    if (accountId) lastFriends.current = { accountId, list: result.friends };
     if (accountId && requestRevision === friendsRequestRevision.current) {
       setUnreadMessageCount(result.friends.reduce((total, friendship) =>
         total + (friendship.status === 'accepted' ? Number(friendship.unread_message_count ?? 0) : 0), 0));
     }
     return result.friends;
   }, [accountId]);
+
+  // Right after sign-in, in idle moments, reads what the account screens show (events, achievements, rankings,
+  // history, friends) so the first visit to each one has its data on hand instead of loading in front of the player.
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      const quiet = (request: Promise<unknown>) => request.catch(() => undefined);
+      const season = currentSeason();
+      void Promise.all([
+        quiet(getEvents()), quiet(getOwnAchievements()), quiet(getOwnRecordHighlights()), quiet(getScoreLeaderboardPosition()),
+        quiet(getScoreLeaderboard(null, season)), quiet(getHistory(1)), quiet(getRecords({ difficulty: 'immortal', season })), quiet(getFriends()),
+      ]);
+    }, 1500);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [accountId, getEvents, getOwnAchievements, getOwnRecordHighlights, getScoreLeaderboardPosition, getScoreLeaderboard, getHistory, getRecords, getFriends]);
 
   useEffect(() => {
     if (!accountId || typeof navigator === 'undefined') return;
@@ -921,8 +944,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AccountContextValue>(() => ({
     account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding, claimSeasonReward, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile,
-    getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
-  }), [account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding, claimSeasonReward, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
+    getFriends, peekFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship,
+  }), [account, loading, unreadMessageCount, refresh, refreshProfileIfStale, markCompetitionCompleted, login, register, logout, updateProfile, getHistory, peekHistory, getSoloCampaign, saveSoloCampaign, deleteSoloCampaign, saveHistory, getOwnAchievements, peekOwnAchievements, getEvents, peekEvents, chooseEventOption, eventCards, updateShowcase, getRecords, peekRecords, getOwnRecordHighlights, peekOwnRecordHighlights, getScoreLeaderboard, peekScoreLeaderboard, getSeasonStanding, claimSeasonReward, getScoreLeaderboardPosition, peekScoreLeaderboardPosition, getPublicProfile, likeProfile, getFriends, peekFriends, setPresence, getRoomInvitations, inviteFriendToRoom, respondToRoomInvitation, sendFriendRequest, updateFriendship]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

@@ -37,7 +37,6 @@ function CrestImpl({ crestId, name, size = 24, className }: CrestProps) {
         alt={crest.name}
         width={size}
         height={size}
-        loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
         draggable={false}
