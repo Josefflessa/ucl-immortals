@@ -108,6 +108,20 @@ function Shockwaves({ tier, scale = 1, lead = 0 }: { tier: GachaTier; scale?: nu
   );
 }
 
+/**
+ * The pulse and sparks of a reveal, kept apart from the card on purpose: a sibling of the card's own box, never inside
+ * its perspective, flip or float. It is built with the card, invisible and paused, and released by `go` (so nothing is
+ * created while the card turns). It paints only plain gradients and dots, no blurred shadows.
+ */
+function BurstLayer({ tier, go, scale = 1, particles, seed, spread }: { tier: GachaTier; go: boolean; scale?: number; particles: number; seed: number; spread: number }) {
+  return (
+    <div aria-hidden="true" className={`gacha-burst pointer-events-none absolute inset-0 z-0 ${go ? 'gacha-burst--go' : ''}`}>
+      <Shockwaves tier={tier} scale={scale} />
+      <Particles count={particles} color={tier.color} mode="out" seed={seed} spread={spread} />
+    </div>
+  );
+}
+
 /** The sky: dark, tinted by the tier, with two layers of slowly drifting stars. */
 function Sky({ tier, children, shaking }: { tier: GachaTier; children: React.ReactNode; shaking?: boolean }) {
   return (
@@ -222,6 +236,12 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
   // player pack, which passes no new/repeated tag, keeps showing what it always showed.)
   const level = isNew === null ? stickerLevel(album, player.id) : 0;
   const scale = Math.max(0.7, Math.min(1.05, (height - 330) / 324));
+  // The burst is released only after the card has landed (it is built, paused, with the card).
+  const [burst, setBurst] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setBurst(true), 450);
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-4">
       <Rays tier={tier} />
@@ -234,9 +254,9 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
         <span aria-hidden="true" className="h-px w-10 sm:w-16" style={{ background: `linear-gradient(270deg, transparent, ${tier.color})` }} />
       </div>
 
-      <div className="gacha-float relative z-10">
-        <Shockwaves tier={tier} lead={0.3} />
-        <Particles count={tier.particles} color={tier.color} mode="out" seed={tier.rank + 11} spread={300} lead={0.3} />
+      <div className="relative z-10">
+       <BurstLayer tier={tier} go={burst} particles={tier.particles} seed={tier.rank + 11} spread={300} />
+       <div className="gacha-float relative z-[1]">
         <motion.div
           initial={{ opacity: 0, scale: 0.35, rotateY: 150, y: 40 }}
           animate={{ opacity: 1, scale: 1, rotateY: 0, y: 0 }}
@@ -247,6 +267,7 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
           <PlayerCard player={player} lite flat scale={scale} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
         </motion.div>
         <div aria-hidden="true" className="absolute -bottom-5 left-1/2 h-5 w-[72%] -translate-x-1/2 rounded-[50%]" style={{ background: `radial-gradient(ellipse, ${withAlpha(tier.color, 0.45)} 0%, transparent 70%)` }} />
+       </div>
       </div>
 
       <div className="relative z-10 flex flex-col items-center gap-2 text-center">
@@ -284,13 +305,9 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
   if (!player) return null;
   return (
     <div className="flex flex-col items-center" style={{ width }}>
-      <div className="relative" style={{ width, height, perspective: 900 }}>
-        {tier.rank >= 2 ? (
-          <div className={`gacha-burst pointer-events-none absolute inset-0 z-0 ${burst ? 'gacha-burst--go' : ''}`}>
-            <Shockwaves tier={tier} scale={0.6} />
-            <Particles count={Math.round(tier.particles * 0.35)} color={tier.color} mode="out" seed={index + tier.rank * 7} spread={170} />
-          </div>
-        ) : null}
+      <div className="relative" style={{ width, height }}>
+       {tier.rank >= 2 ? <BurstLayer tier={tier} go={burst} scale={0.6} particles={Math.round(tier.particles * 0.35)} seed={index + tier.rank * 7} spread={170} /> : null}
+       <div className="relative z-[1] size-full" style={{ perspective: 900 }}>
         <motion.div
           className="relative size-full"
           style={{ transformStyle: 'preserve-3d', WebkitTransformStyle: 'preserve-3d', willChange: 'transform' }}
@@ -307,6 +324,7 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
           </div>
         </motion.div>
         {flipped ? <div className="absolute left-1/2 top-0 z-[5] -translate-x-1/2 -translate-y-1/2"><NewTag isNew={draw.card.isNew} /></div> : null}
+       </div>
       </div>
       <div className="mt-2 flex h-9 flex-col items-center text-center" style={{ opacity: flipped ? 1 : 0, transition: 'opacity .4s .3s' }}>
         <span className="w-full truncate text-[12px] font-bold text-white" style={{ ...FONT, maxWidth: Math.max(width, 80) }}>{player.shortName}</span>

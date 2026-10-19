@@ -32,7 +32,7 @@
   box-shadow: 0 0 6px var(--c); opacity: 0; pointer-events: none; will-change: transform, opacity;
 }
 .gacha-particle--in { animation: gacha-in var(--d, 1.4s) cubic-bezier(.45, 0, .9, .45) var(--delay, 0s) infinite; }
-.gacha-particle--out { animation: gacha-out var(--d, 1s) cubic-bezier(.1, .75, .3, 1) var(--delay, 0s) forwards; }
+.gacha-particle--out { box-shadow: none; animation: gacha-out var(--d, 1s) cubic-bezier(.1, .75, .3, 1) var(--delay, 0s) forwards; }
 @keyframes gacha-in {
   0% { transform: translate(var(--x), var(--y)) scale(1); opacity: 0; }
   20% { opacity: 1; }
@@ -46,8 +46,9 @@
 /* Shockwave ring. */
 .gacha-shock {
   position: absolute; left: 50%; top: 50%; width: 520px; height: 520px; margin: -260px;
-  border-radius: 50%; border: 4px solid var(--c); opacity: 0; pointer-events: none; will-change: transform, opacity;
-  box-shadow: 0 0 22px var(--c), inset 0 0 22px var(--c);
+  border-radius: 50%; opacity: 0; pointer-events: none; will-change: transform, opacity;
+  /* A soft ring drawn as a gradient: no blurred box-shadow, which phones struggle to paint at this size and scale. */
+  background: radial-gradient(closest-side, transparent 80%, color-mix(in srgb, var(--c) 35%, transparent) 90%, var(--c) 96%, transparent 100%);
   animation: gacha-shock var(--d, 1.1s) cubic-bezier(.12, .7, .3, 1) var(--delay, 0s) forwards;
 }
 @keyframes gacha-shock {
