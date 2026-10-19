@@ -173,9 +173,13 @@ function Flash({ tier, strength = 1 }: { tier: GachaTier; strength?: number }) {
 }
 
 function Rays({ tier }: { tier: GachaTier }) {
-  if (tier.rays <= 0) return null;
+  // Kept mounted once seen and faded in and out: a big layer that pops in and out as the cards change reads as a blink.
+  const last = useRef(tier);
+  if (tier.rays > 0) last.current = tier;
+  const shown = last.current;
+  if (shown.rays <= 0) return null;
   return (
-    <div className="gacha-rays" aria-hidden="true" style={{ '--c': tier.color, '--a': tier.accent, '--o': tier.rays } as React.CSSProperties}>
+    <div className="gacha-rays" aria-hidden="true" style={{ '--c': shown.color, '--a': shown.accent, '--o': shown.rays, opacity: tier.rays > 0 ? 1 : 0, transition: 'opacity .45s ease' } as React.CSSProperties}>
       <div className="gacha-rays__spin" />
       {tier.rank >= 4 ? <div className="gacha-rays__spin gacha-rays__spin--accent" /> : null}
     </div>
@@ -268,14 +272,22 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
   const player = albumCard(draw.card.id);
   const width = 200 * scale;
   const height = 324 * scale;
+  // The burst is built only once the card has turned: creating its layers in the frame the flip starts in made the
+  // flip stutter, and shown earlier it would be seen through the card while it is edge-on.
+  const [burst, setBurst] = useState(false);
+  useEffect(() => {
+    if (!flipped || tier.rank < 2) return;
+    const timer = setTimeout(() => setBurst(true), 380);
+    return () => clearTimeout(timer);
+  }, [flipped, tier.rank]);
   if (!player) return null;
   return (
     <div className="flex flex-col items-center" style={{ width }}>
       <div className="relative" style={{ width, height, perspective: 900 }}>
-        {flipped && tier.rank >= 2 ? (
+        {burst ? (
           <div className="pointer-events-none absolute inset-0 z-0">
-            <Shockwaves tier={tier} scale={0.6} lead={0.35} />
-            <Particles count={Math.round(tier.particles * 0.35)} color={tier.color} mode="out" seed={index + tier.rank * 7} spread={170} lead={0.35} />
+            <Shockwaves tier={tier} scale={0.6} />
+            <Particles count={Math.round(tier.particles * 0.35)} color={tier.color} mode="out" seed={index + tier.rank * 7} spread={170} />
           </div>
         ) : null}
         <motion.div
@@ -326,7 +338,8 @@ function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { dra
       clearTimeout(begin); clearTimeout(suspense);
       setCharging(null);
       setFlipped(current => new Set(current).add(position));
-      if (tier.rank >= 2) playSound(revealSoundFor(cards[position].rarity));
+      // The sound is built a moment after the flip starts: doing it in the same frame made the turn stutter.
+      if (tier.rank >= 2) setTimeout(() => playSound(revealSoundFor(cards[position].rarity)), 200);
       setStep(current => current + 1);
     };
     flipNow.current = flip;
@@ -428,7 +441,7 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
       clearTimeout(begin); clearTimeout(suspense);
       setChargingStep(null);
       setFlippedStep(step);
-      if (tier.rank >= 2) playSound(revealSoundFor(draw.rarity));
+      if (tier.rank >= 2) setTimeout(() => playSound(revealSoundFor(draw.rarity)), 200);
       advanceNow.current = advance;
       flipNow.current = null;
       hold = setTimeout(advance, reduced ? 700 : tier.rank >= 3 ? 2300 : 1350);
@@ -454,7 +467,8 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
         </button>
       </div>
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
-        <Rays tier={tier} />
+        {/* Only once the card is face up: the rays must not give its rarity away while it is still face down. */}
+        <Rays tier={flipped ? tier : NEUTRAL_TIER} />
         <motion.div
           key={step}
           className="relative z-10"
