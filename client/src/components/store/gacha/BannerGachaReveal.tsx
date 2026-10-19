@@ -272,8 +272,9 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
   const player = albumCard(draw.card.id);
   const width = 200 * scale;
   const height = 324 * scale;
-  // The burst is built only once the card has turned: creating its layers in the frame the flip starts in made the
-  // flip stutter, and shown earlier it would be seen through the card while it is edge-on.
+  // The burst (pulse and sparks) is built with the card, invisible and paused, and only released once the card has
+  // turned. Creating its animated layers at the pulse made the card blink (the browser re-layers the card under them),
+  // and shown earlier it would be seen through the card while it is edge-on.
   const [burst, setBurst] = useState(false);
   useEffect(() => {
     if (!flipped || tier.rank < 2) return;
@@ -284,8 +285,8 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
   return (
     <div className="flex flex-col items-center" style={{ width }}>
       <div className="relative" style={{ width, height, perspective: 900 }}>
-        {burst ? (
-          <div className="pointer-events-none absolute inset-0 z-0">
+        {tier.rank >= 2 ? (
+          <div className={`gacha-burst pointer-events-none absolute inset-0 z-0 ${burst ? 'gacha-burst--go' : ''}`}>
             <Shockwaves tier={tier} scale={0.6} />
             <Particles count={Math.round(tier.particles * 0.35)} color={tier.color} mode="out" seed={index + tier.rank * 7} spread={170} />
           </div>

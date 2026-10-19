@@ -55,6 +55,12 @@
   100% { transform: scale(var(--to, 1.5)); opacity: 0; }
 }
 
+/* A face-down card's burst: ready but invisible and paused until `--go` (the card has turned). */
+.gacha-burst { opacity: 0; }
+.gacha-burst .gacha-shock, .gacha-burst .gacha-particle { animation-play-state: paused; }
+.gacha-burst--go { opacity: 1; }
+.gacha-burst--go .gacha-shock, .gacha-burst--go .gacha-particle { animation-play-state: running; }
+
 /* Light rays behind the card. */
 .gacha-rays { position: absolute; left: 50%; top: 50%; width: min(125vmax, 1300px); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; }
 .gacha-rays__spin {
