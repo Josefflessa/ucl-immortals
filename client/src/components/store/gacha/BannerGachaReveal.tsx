@@ -186,14 +186,14 @@ function Flash({ tier, strength = 1 }: { tier: GachaTier; strength?: number }) {
   );
 }
 
-function Rays({ tier }: { tier: GachaTier }) {
+function Rays({ tier, warm }: { tier: GachaTier; /** Built from the start at a barely visible opacity, so the first card that needs it does not pay for creating it. */ warm?: GachaTier }) {
   // Kept mounted once seen and faded in and out: a big layer that pops in and out as the cards change reads as a blink.
-  const last = useRef(tier);
+  const last = useRef(warm && warm.rays > 0 ? warm : tier);
   if (tier.rays > 0) last.current = tier;
   const shown = last.current;
   if (shown.rays <= 0) return null;
   return (
-    <div className="gacha-rays" aria-hidden="true" style={{ '--c': shown.color, '--a': shown.accent, '--o': shown.rays, opacity: tier.rays > 0 ? 1 : 0, transition: 'opacity .45s ease' } as React.CSSProperties}>
+    <div className="gacha-rays" aria-hidden="true" style={{ '--c': shown.color, '--a': shown.accent, '--o': shown.rays, opacity: tier.rays > 0 ? 1 : warm ? 0.001 : 0, transition: 'opacity .45s ease' } as React.CSSProperties}>
       <div className="gacha-rays__spin" />
       {tier.rank >= 4 ? <div className="gacha-rays__spin gacha-rays__spin--accent" /> : null}
     </div>
@@ -350,7 +350,8 @@ function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { dra
     const position = order[step];
     const tier = tierOf(cards[position].rarity);
     const previous = step > 0 ? tierOf(cards[order[step - 1]].rarity) : null;
-    const wait = reduced ? 160 : step === 0 ? 550 : previous && previous.rank >= 3 ? 1000 : 430;
+    // A card with a burst (gold and up) is given time to settle before it turns: its pulse, sparks and rays are built with it, and turning it while they are still being drawn made it blink on phones.
+    const wait = reduced ? 160 : Math.max(tier.rank >= 2 ? 900 : 0, step === 0 ? 550 : previous && previous.rank >= 3 ? 1000 : 430);
     let suspense: ReturnType<typeof setTimeout> | undefined;
     let begin: ReturnType<typeof setTimeout> | undefined;
     const flip = () => {
@@ -447,6 +448,7 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
   const tier = tierOf(draw.rarity);
   const flipped = flippedStep === step;
   const charging = chargingStep === step;
+  const bestTier = useMemo(() => tierOf((bestDraw(cards)?.rarity ?? 'bronze') as Rarity), [cards]);
 
   useEffect(() => {
     let begin: ReturnType<typeof setTimeout> | undefined;
@@ -469,7 +471,7 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
     advanceNow.current = null;
     begin = setTimeout(() => {
       if (tier.suspenseMs > 0 && !reduced) { setChargingStep(step); suspense = setTimeout(flip, tier.suspenseMs); } else flip();
-    }, reduced ? 120 : 520);
+    }, reduced ? 120 : tier.rank >= 2 ? 900 : 520);
     return () => { clearTimeout(begin); clearTimeout(suspense); clearTimeout(hold); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -487,7 +489,7 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
       </div>
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
         {/* Only once the card is face up: the rays must not give its rarity away while it is still face down. */}
-        <Rays tier={flipped ? tier : NEUTRAL_TIER} />
+        <Rays tier={flipped ? tier : NEUTRAL_TIER} warm={bestTier} />
         <motion.div
           key={step}
           className="relative z-10"
