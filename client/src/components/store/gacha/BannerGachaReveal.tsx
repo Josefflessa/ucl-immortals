@@ -18,7 +18,7 @@ import { playSound, revealSoundFor } from '../../../audio/uiSound';
 import { useMusicDuck } from '../../../audio/musicPlayer';
 import PlayerCard from '../../game/PlayerCard';
 import { albumCard, RARITY_LABEL, stickerLevel } from '../../album/albumData';
-import { preloadCardAssets } from '../../../lib/cardPreload';
+import { preloadCardAssets, preloadPlayerCardArtwork } from '../../../lib/cardPreload';
 import { bestDraw, flipOrder, gridLayout, NEUTRAL_TIER, seeded, tierOf, type GachaTier } from './gachaTiers';
 import './gachaReveal.css';
 
@@ -240,7 +240,7 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
           style={{ perspective: 1000 }}
         >
           <div aria-hidden="true" className="absolute -inset-x-[42%] -inset-y-[26%] -z-[1]" style={{ background: `radial-gradient(closest-side, ${withAlpha(tier.color, 0.5)} 0%, ${withAlpha(tier.color, 0.26)} 32%, ${withAlpha(tier.color, 0.1)} 62%, transparent 100%)` }} />
-          <PlayerCard player={player} lite scale={scale} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
+          <PlayerCard player={player} lite flat scale={scale} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
         </motion.div>
         <div aria-hidden="true" className="absolute -bottom-5 left-1/2 h-5 w-[72%] -translate-x-1/2 rounded-[50%]" style={{ background: `radial-gradient(ellipse, ${withAlpha(tier.color, 0.45)} 0%, transparent 70%)` }} />
       </div>
@@ -290,7 +290,7 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
           <div className="absolute inset-0" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
             <div aria-hidden="true" className="absolute -inset-x-[34%] -inset-y-[22%] -z-[1]" style={{ background: `radial-gradient(closest-side, ${withAlpha(tier.color, tier.rank >= 3 ? 0.5 : 0.3)} 0%, ${withAlpha(tier.color, tier.rank >= 3 ? 0.2 : 0.1)} 55%, transparent 100%)`, opacity: flipped ? 1 : 0, transition: 'opacity .5s' }} />
             {/* The base card, as in the catalogue: the level of the player's copy is not part of what was drawn. */}
-            <PlayerCard player={player} lite scale={scale} />
+            <PlayerCard player={player} lite flat scale={scale} />
           </div>
         </motion.div>
         {flipped ? <div className="absolute left-1/2 top-0 z-[5] -translate-x-1/2 -translate-y-1/2"><NewTag isNew={draw.card.isNew} /></div> : null}
@@ -498,6 +498,7 @@ export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipC
   // The photos, flags and crests too, so a card turned over never shows them popping in.
   useEffect(() => {
     const players = draws.cards.flatMap(card => { const player = albumCard(card.card.id); return player ? [player] : []; });
+    void preloadPlayerCardArtwork(players);
     return preloadCardAssets(players);
   }, [draws]);
   useEffect(() => {
