@@ -263,7 +263,7 @@ function HeroReveal({ player, rarity, isNew, pity = false, pageRewards = [], not
 
 // ── Several cards, face down then flipped ───────────────────────────────────────
 
-const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, index, upcoming }: { draw: BannerDraw; tier: GachaTier; scale: number; flipped: boolean; charging: boolean; index: number; /** It is the next to flip: mount the front now so the flip starts with it ready. */ upcoming: boolean }) {
+const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, index }: { draw: BannerDraw; tier: GachaTier; scale: number; flipped: boolean; charging: boolean; index: number }) {
   const player = albumCard(draw.card.id);
   const width = 200 * scale;
   const height = 324 * scale;
@@ -279,17 +279,17 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
         ) : null}
         <motion.div
           className="relative size-full"
-          style={{ transformStyle: 'preserve-3d', willChange: flipped ? 'auto' : 'transform' }}
+          style={{ transformStyle: 'preserve-3d', WebkitTransformStyle: 'preserve-3d', willChange: 'transform' }}
           animate={{ rotateY: flipped ? 180 : 0, scale: charging ? 1.07 : 1 }}
           transition={{ rotateY: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }, scale: { duration: 0.4 } }}
         >
-          <div className="gacha-back absolute inset-0" data-flipped={flipped} style={{ backfaceVisibility: 'hidden', borderColor: charging ? tier.color : undefined, boxShadow: charging ? `0 0 34px ${tier.color}, 0 0 70px ${withAlpha(tier.color, 0.55)}` : undefined, transition: 'box-shadow .5s, border-color .5s' }}>
+          <div className="gacha-back absolute inset-0" data-flipped={flipped} style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderColor: charging ? tier.color : undefined, boxShadow: charging ? `0 0 34px ${tier.color}, 0 0 70px ${withAlpha(tier.color, 0.55)}` : undefined, transition: 'box-shadow .5s, border-color .5s' }}>
             <img src={LOGO_URL} alt="" draggable={false} className="absolute left-1/2 top-1/2 w-[46%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-60" />
           </div>
-          <div className="absolute inset-0" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+          <div className="absolute inset-0" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
             <div aria-hidden="true" className="absolute -inset-x-[34%] -inset-y-[22%] -z-[1]" style={{ background: `radial-gradient(closest-side, ${withAlpha(tier.color, tier.rank >= 3 ? 0.5 : 0.3)} 0%, ${withAlpha(tier.color, tier.rank >= 3 ? 0.2 : 0.1)} 55%, transparent 100%)`, opacity: flipped ? 1 : 0, transition: 'opacity .5s' }} />
             {/* The base card, as in the catalogue: the level of the player's copy is not part of what was drawn. */}
-            {flipped || charging || upcoming ? <PlayerCard player={player} lite scale={scale} /> : null}
+            <PlayerCard player={player} lite scale={scale} />
           </div>
         </motion.div>
         {flipped ? <div className="absolute left-1/2 top-0 z-[5] -translate-x-1/2 -translate-y-1/2"><NewTag isNew={draw.card.isNew} /></div> : null}
@@ -310,7 +310,6 @@ function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { dra
   const [flipped, setFlipped] = useState<ReadonlySet<number>>(() => autoplay ? new Set() : new Set(cards.map((_, index) => index)));
   const [charging, setCharging] = useState<number | null>(null);
   const [step, setStep] = useState(() => autoplay ? 0 : order.length);
-  const [burst, setBurst] = useState<{ key: number; tier: GachaTier } | null>(null);
   const flipNow = useRef<(() => void) | null>(null);
   const done = step >= order.length;
 
@@ -326,7 +325,6 @@ function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { dra
       clearTimeout(begin); clearTimeout(suspense);
       setCharging(null);
       setFlipped(current => new Set(current).add(position));
-      if (tier.rank >= 3) setBurst({ key: step, tier });
       if (tier.rank >= 2) playSound(revealSoundFor(cards[position].rarity));
       setStep(current => current + 1);
     };
@@ -363,7 +361,7 @@ function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { dra
 
       <div className="gacha-scroll flex min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-2">
         <div className="m-auto grid justify-center gap-x-3 gap-y-5 pt-3" style={{ gridTemplateColumns: `repeat(${columns}, ${200 * scale}px)` }} aria-label="Cartas sorteadas">
-          {cards.map((draw, index) => <FlipCard key={`${draw.card.id}:${index}`} draw={draw} tier={tierOf(draw.rarity)} scale={scale} flipped={flipped.has(index)} charging={charging === index} index={index} upcoming={order[step] === index} />)}
+          {cards.map((draw, index) => <FlipCard key={`${draw.card.id}:${index}`} draw={draw} tier={tierOf(draw.rarity)} scale={scale} flipped={flipped.has(index)} charging={charging === index} index={index} />)}
         </div>
       </div>
 
@@ -382,14 +380,13 @@ function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { dra
           <p className="text-center text-[12px] tracking-[0.18em] text-white/45" style={FONT}>TOQUE PARA ACELERAR</p>
         )}
       </div>
-      {burst ? <Flash key={burst.key} tier={burst.tier} strength={burst.tier.rank >= 4 ? 0.7 : 0.45} /> : null}
     </div>
   );
 }
 
 /**
- * While the circle charges, the cards are drawn once out of sight so their photos, crests and
- * frames are already loaded and decoded when the burst shows them: no pop-in, no hitch.
+ * While the charge or pack tear plays, cards are drawn out of sight so their textures and frames
+ * are already in the browser cache before the reveal begins.
  */
 function Warmup({ draws }: { draws: BannerBatchResult }) {
   const ids = useMemo(() => Array.from(new Set(draws.cards.map(draw => draw.card.id))), [draws]);
@@ -408,18 +405,17 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
   const cards = draws.cards;
   const order = useMemo(() => flipOrder(cards.map(draw => draw.rarity)), [cards]);
   const [step, setStep] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-  const [charging, setCharging] = useState(false);
-  const [burst, setBurst] = useState<{ key: number; tier: GachaTier } | null>(null);
+  const [flippedStep, setFlippedStep] = useState<number | null>(null);
+  const [chargingStep, setChargingStep] = useState<number | null>(null);
   const flipNow = useRef<(() => void) | null>(null);
   const advanceNow = useRef<(() => void) | null>(null);
   const position = order[Math.min(step, order.length - 1)];
   const draw = cards[position];
   const tier = tierOf(draw.rarity);
+  const flipped = flippedStep === step;
+  const charging = chargingStep === step;
 
   useEffect(() => {
-    setFlipped(false);
-    setCharging(false);
     let begin: ReturnType<typeof setTimeout> | undefined;
     let suspense: ReturnType<typeof setTimeout> | undefined;
     let hold: ReturnType<typeof setTimeout> | undefined;
@@ -429,9 +425,8 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
     };
     const flip = () => {
       clearTimeout(begin); clearTimeout(suspense);
-      setCharging(false);
-      setFlipped(true);
-      if (tier.rank >= 3) setBurst({ key: step, tier });
+      setChargingStep(null);
+      setFlippedStep(step);
       if (tier.rank >= 2) playSound(revealSoundFor(draw.rarity));
       advanceNow.current = advance;
       flipNow.current = null;
@@ -440,7 +435,7 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
     flipNow.current = flip;
     advanceNow.current = null;
     begin = setTimeout(() => {
-      if (tier.suspenseMs > 0 && !reduced) { setCharging(true); suspense = setTimeout(flip, tier.suspenseMs); } else flip();
+      if (tier.suspenseMs > 0 && !reduced) { setChargingStep(step); suspense = setTimeout(flip, tier.suspenseMs); } else flip();
     }, reduced ? 120 : 520);
     return () => { clearTimeout(begin); clearTimeout(suspense); clearTimeout(hold); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -466,7 +461,7 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
           animate={{ opacity: 1, x: 0, scale: 1 }}
           transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
         >
-          <FlipCard draw={draw} tier={tier} scale={scale} flipped={flipped} charging={charging} index={step} upcoming />
+          <FlipCard draw={draw} tier={tier} scale={scale} flipped={flipped} charging={charging} index={step} />
         </motion.div>
       </div>
       <div className="shrink-0 pb-8 pt-2" onClick={event => event.stopPropagation()}>
@@ -475,7 +470,6 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
         </div>
         <p className="text-center text-[12px] tracking-[0.18em] text-white/45" style={FONT}>TOQUE PARA CONTINUAR</p>
       </div>
-      {burst ? <Flash key={burst.key} tier={burst.tier} strength={burst.tier.rank >= 4 ? 0.7 : 0.45} /> : null}
     </div>
   );
 }
@@ -497,12 +491,14 @@ export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipC
   const narrow = width < 720;
   const [stackDone, setStackDone] = useState(false);
   const chargeMs = reduced ? 500 : tier.chargeMs;
-  // Start the warm-up a moment after the circle appears, so the opening itself stays smooth.
-  const [warm, setWarm] = useState(false);
+  // Start the warm-up during the charge, or immediately when a pack skips it,
+  // so every hidden card has its frame and texture ready before its turn.
+  const [warm, setWarm] = useState(skipCharge);
   useEffect(() => {
+    if (skipCharge) return;
     const timer = setTimeout(() => setWarm(true), 350);
     return () => clearTimeout(timer);
-  }, []);
+  }, [skipCharge]);
 
   // The charge ends by itself; a tap or Esc skips straight to the burst.
   useEffect(() => {
@@ -543,7 +539,7 @@ export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipC
           <GridReveal draws={draws} onClose={close} reduced={reduced} autoplay={!narrow} summary={summary} leave={leave} />
         )}
         {phase === 'reveal' ? <Flash tier={stageTier} /> : null}
-        {phase === 'charge' && warm ? <Warmup draws={draws} /> : null}
+        {warm ? <Warmup draws={draws} /> : null}
       </Sky>
       {/* Screen readers get the result at once, whatever the animation is doing. */}
       <ul className="sr-only">
