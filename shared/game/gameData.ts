@@ -2,6 +2,7 @@
 // Types, coaches, formations, tactics and historical trios (the cards live in ./players)
 
 import type { AttrKey } from './traits';
+import { canonicalPrimaryPosition, samePrimaryPosition } from './positions';
 
 export type Rarity = 'bronze' | 'silver' | 'gold' | 'legendary' | 'immortal' | 'unique';
 type PositionGroup = 'GK' | 'DEF' | 'MID' | 'ATT';
@@ -140,7 +141,7 @@ export interface Player {
   mentor?: boolean;      // 🧑‍🏫 Mentor — vitória com ele titular: +1 no contador de evolução de todo o elenco (não acumula)
   mentorMatchIds?: string[]; // 🧑‍🏫 partidas já contabilizadas (idempotência online/reconexão)
   improvisador?: boolean; // 🔀 Improvisador — titular: +8 de química geral por titular na secundária, +12 por titular fora de posição (não acumula)
-  desenfreado?: boolean; // 🚀 Desenfreado — +1 em tudo ao XI a cada 2 de química geral acima de 100
+  desenfreado?: boolean; // 🚀 Desenfreado — +1 em tudo ao XI a cada 3 de química geral acima de 100
   fazTudo?: boolean;     // 🔧 Faz-Tudo — 2 partidas como titular fora de posição numa posição → ela vira secundária
   fazTudoStarts?: Record<string, number>; // 🔧 titularidades fora de posição, por posição ainda não aprendida
   fazTudoMatchIds?: string[]; // 🔧 partidas já contabilizadas
@@ -265,16 +266,22 @@ export function getRarityColor(rarity: Rarity): string {
 }
 
 export function getPositionGroup(position: string): PositionGroup {
+  // ME/MD remain midfield roles in formations even though legacy player cards
+  // are normalized to PE/PD. Keep the slot's tactical line separate from the
+  // player's canonical primary position.
+  if (position === 'LM' || position === 'RM') return 'MID';
+  position = canonicalPrimaryPosition(position);
   if (position === 'GK') return 'GK';
   if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(position)) return 'DEF';
-  if (['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(position)) return 'MID';
+  if (['CDM', 'CM', 'CAM'].includes(position)) return 'MID';
   return 'ATT';
 }
 
 export const POSITION_GROUPS: Record<PositionGroup, string[]> = {
   GK: ['GK'],
   DEF: ['CB', 'LB', 'RB', 'LWB', 'RWB'],
-  MID: ['CDM', 'CM', 'CAM', 'LM', 'RM'],
+  // LM/RM remain formation roles, not card positions or Album filter options.
+  MID: ['CDM', 'CM', 'CAM'],
   ATT: ['ST', 'LW', 'RW'],
 };
 
@@ -291,14 +298,16 @@ export const POS_PT: Record<string, string> = {
 const SECONDARY_ADJACENCY: Record<string, string[]> = {
   GK: [], CB: ['CDM'], LB: ['LWB', 'LM'], RB: ['RWB', 'RM'],
   LWB: ['LB', 'LM'], RWB: ['RB', 'RM'], CDM: ['CM', 'CB'], CM: ['CDM', 'CAM'],
-  CAM: ['CM'], LM: ['LW', 'LWB'], RM: ['RW', 'RWB'],
-  LW: ['LM'], RW: ['RM'], ST: [],
+  CAM: ['CM'], LM: ['LWB'], RM: ['RWB'],
+  LW: [], RW: [], ST: [],
 };
 export function effectiveSecondaries(p: { position: string; secondaryPositions?: string[]; learnedPositions?: string[] }): string[] {
-  const primary = p.position;
-  const configured = p.secondaryPositions ?? SECONDARY_ADJACENCY[primary] ?? [];
+  const primary = canonicalPrimaryPosition(p.position);
+  // Read old LM/RM adjacency while saved player snapshots are being migrated.
+  const configured = p.secondaryPositions ?? SECONDARY_ADJACENCY[p.position] ?? SECONDARY_ADJACENCY[primary] ?? [];
   // 🔧 Faz-Tudo: posições aprendidas na competição contam como secundárias.
-  return Array.from(new Set([...configured, ...(p.learnedPositions ?? [])])).filter(position => position !== primary);
+  return Array.from(new Set([...configured, ...(p.learnedPositions ?? [])]))
+    .filter(position => !samePrimaryPosition(position, primary));
 }
 
 // ============================================================

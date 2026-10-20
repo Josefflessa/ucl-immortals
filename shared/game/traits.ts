@@ -7,6 +7,7 @@
 // Effects are intentionally modest (3–8) so they reward squad-building without
 // dwarfing the base attributes.
 import { random } from './random';
+import { canonicalPrimaryPosition } from './positions';
 
 /** Temporary game-wide switch for individual player styles (traits). */
 export const PLAYER_STYLES_ENABLED = false;
@@ -187,9 +188,10 @@ export function getPenaltyComposureBonus(traits: string[]): number {
 type PosGroup = 'GK' | 'DEF' | 'MID' | 'ATK';
 
 export function positionGroup(position: string): PosGroup {
+  position = canonicalPrimaryPosition(position);
   if (position === 'GK') return 'GK';
   if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(position)) return 'DEF';
-  if (['CDM', 'CM', 'CAM', 'LM', 'RM'].includes(position)) return 'MID';
+  if (['CDM', 'CM', 'CAM'].includes(position)) return 'MID';
   return 'ATK';
 }
 

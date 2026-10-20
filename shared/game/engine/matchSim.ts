@@ -1207,10 +1207,10 @@ export function runMatchSimulation(
             lastKeyCtx = { type: 'miss', teamId: attackTeam.id, atkName: attacker.shortName, defName: defender.shortName, gkName: gk.shortName, approach };
           }
         } else {
-          // Defensive stop — attributed to a tackle or an interception (both tracked).
+          // A winning defensive duel is recorded as a tackle. Interceptions need
+          // an explicit pass-cut event, which this simulation does not emit yet.
           if (playerStats[defender.statId!]) {
-            if (random() < 0.5) playerStats[defender.statId!].tackles++;
-            else playerStats[defender.statId!].interceptions++;
+            playerStats[defender.statId!].tackles++;
             playerStats[defender.statId!].rating += 0.32;
           }
           if (playerStats[attacker.statId!]) playerStats[attacker.statId!].rating -= 0.12;

@@ -110,7 +110,7 @@ export function useLeagueHub() {
   const { allTeams, localTeamId, getTeamName } = useTeams();
   const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market' | 'missions'>('fixtures');
   const [classificationSubTab, setClassificationSubTab] = useState<'league' | 'bracket'>('league');
-  const [statsSubTab, setStatsSubTab] = useState<'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles' | 'cards'>('goals');
+  const [statsSubTab, setStatsSubTab] = useState<'squad' | 'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles' | 'cards'>('squad');
   // HISTÓRICO: alterna entre "MEUS JOGOS" (do jogador) e "RODADAS ANTERIORES" (todos os resultados por rodada)
   const [resultsSubTab, setResultsSubTab] = useState<'mine' | 'rounds'>('mine');
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null);
@@ -248,6 +248,15 @@ export function useLeagueHub() {
     topCards: [...allPlayers].filter(p => (p.stats.yellowCards + p.stats.redCards) > 0)
       .sort((a, b) => (b.stats.redCards * 10 + b.stats.yellowCards) - (a.stats.redCards * 10 + a.stats.yellowCards)),
   }), [allPlayers]);
+  const myPlayerStats = useMemo(
+    () => allPlayers
+      .filter(player => player.teamId === playerTeam?.id)
+      .map(player => {
+        const rosterIndex = playerTeam?.players.findIndex(rosterPlayer => rosterPlayer.id === player.id) ?? -1;
+        return { player, stats: player.stats, isReserve: rosterIndex >= 11 };
+      }),
+    [allPlayers, playerTeam],
+  );
 
   // MEUS JOGOS spans the whole season — league rounds AND knockout legs.
   const playerResults = useMemo(
@@ -663,6 +672,7 @@ export function useLeagueHub() {
     isKnockout, isLeagueOnly, hasGroupStage, hasLeagueClassification, isGroupStage,
     knockoutLabel, leagueRounds, qualifiedTeams, playoffTeams, directTeams, groupTables,
     // Stats
+    myPlayerStats,
     topScorers, topAssists, topRatings, topKeepers, topTacklers, topCards,
     // History
     playerResults, historyPeriods, historyKey, historyPeriod, historyFixtures, historyKoTies,

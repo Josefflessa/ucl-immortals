@@ -8,7 +8,7 @@ import { generateBotTeam, statKey } from '@shared/game/gameEngine';
 import type { MatchEvent, PlayKind } from '@shared/game/engine/teamModel';
 import { DANGER_KINDS, SHOOTOUT_BUILDUP_MS, SHOOTOUT_HOLD_MS, stageStartMs, type DangerOutcome } from '@shared/game/pitch';
 import { seededRandom, withRandomSource } from '@shared/game/random';
-import { epicFinishesFor, EPIC_FINISHES, finishesFor, isEpicVariant, PLAY_VARIANTS, type FinishStyle, type PlayVariant } from '@shared/game/playVariants';
+import { duelStylesFor, epicFinishesFor, EPIC_FINISHES, finishesFor, isEpicVariant, PLAY_VARIANTS, type FinishStyle, type PlayVariant } from '@shared/game/playVariants';
 import LivePitch from '../../components/game/pitch/LivePitch';
 import PitchErrorBoundary from '../../components/game/pitch/PitchErrorBoundary';
 import { PitchDirector } from '../../components/game/pitch/PitchDirector';
@@ -41,10 +41,12 @@ export default function PitchGalleryPage() {
   const [variant, setVariant] = useState<PlayVariant | ''>('');
   const [finish, setFinish] = useState<FinishStyle | ''>('');
   const [freezeAt, setFreezeAt] = useState('');
-  const variants = PLAY_VARIANTS[kind] as readonly PlayVariant[];
+  const variants = (PLAY_VARIANTS[kind] as readonly PlayVariant[]).filter(v => outcome !== 'duel' || duelStylesFor(kind, v).length > 0);
   const result = FORCED[kind] ?? outcome;
   // The epic finishes too (marked ⚡), so every ending can be reviewed.
-  const finishes = variant ? [...finishesFor(kind, variant, result), ...epicFinishesFor(kind, variant, result)] : [];
+  const finishes: readonly FinishStyle[] = variant
+    ? (result === 'duel' ? duelStylesFor(kind, variant) : [...finishesFor(kind, variant, result), ...epicFinishesFor(kind, variant, result)])
+    : [];
   useEffect(() => { setVariant(''); setFinish(''); }, [kind]);
   useEffect(() => { setFinish(''); }, [variant, outcome]);
   const [flow, setFlow] = useState(true);
@@ -72,9 +74,9 @@ export default function PitchGalleryPage() {
     const def = side === 'left' ? right : left;
     const event: MatchEvent = {
       minute: 50, type: result, description: '',
-      teamId: result === 'save' ? def.id : atk.id,
-      playerId: result === 'save' ? def.players[0].id : kind === 'own_goal' ? undefined : atk.players[10].id,
-      opponentId: result === 'save' ? atk.players[10].id : kind === 'own_goal' ? def.players[2].id : undefined,
+      teamId: result === 'save' || result === 'duel' ? def.id : atk.id,
+      playerId: result === 'save' ? def.players[0].id : result === 'duel' ? def.players[2].id : kind === 'own_goal' ? undefined : atk.players[10].id,
+      opponentId: result === 'save' || result === 'duel' ? atk.players[10].id : kind === 'own_goal' ? def.players[2].id : undefined,
       play: { kind, attackerId: atk.players[10].id, creatorId: atk.players[7].id, wideId: kind === 'cross' ? atk.players[8].id : undefined, defenderId: def.players[2].id, goalkeeperId: def.players[0].id },
     };
     const frozen = freezeAt === '' ? null : Math.max(0, Number(freezeAt));
@@ -128,7 +130,7 @@ export default function PitchGalleryPage() {
           {DANGER_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
         </select>
         <select className="rounded-lg bg-white/10 p-2" value={outcome} onChange={e => setOutcome(e.target.value as DangerOutcome)}>
-          <option value="goal">gol</option><option value="save">defesa</option><option value="miss">para fora</option>
+          <option value="goal">gol</option><option value="save">defesa</option><option value="miss">para fora</option><option value="duel">desarme (lance parado antes do chute)</option>
         </select>
         <select className="rounded-lg bg-white/10 p-2" value={side} onChange={e => setSide(e.target.value as 'left' | 'right')}>
           <option value="left">meu time ataca</option><option value="right">adversário ataca</option>

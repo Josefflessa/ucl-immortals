@@ -3,7 +3,7 @@
 
 import { playSound } from '../audio/uiSound';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Armchair, ArrowLeft, Home, Medal, Trophy, Zap } from 'lucide-react';
+import { Armchair, ArrowLeft, BarChart3, ClipboardList, Home, Medal, Table2, Trophy, Zap } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,6 +41,7 @@ import { FrameImage } from '../components/account/AvatarFrame';
 import { CardIcon } from '../components/game/StatusIcon';
 import { buildCareerSummary } from '@shared/game/careerSummary';
 import { completedMissionCount } from '@shared/game/missions';
+import CompetitionReview, { type CompetitionReviewSection } from './CompetitionReview';
 
 type SavedEffectiveCardStats = Pick<EffectiveStats,
   'overall' | 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'vision' | 'composure'>;
@@ -324,6 +325,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
 
   // ── Cinematic reveal phases ────────────────────────────────────────────────
   const [phase, setPhase] = useState(0);
+  const [reviewSection, setReviewSection] = useState<'overview' | CompetitionReviewSection>('overview');
   const [selectedPlayer, setSelectedPlayer] = useState<{ player: Player; positionIndex: number } | null>(null);
   useEffect(() => {
     const timers = [
@@ -778,8 +780,59 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         )}
       </div>
 
-      {/* ── SCROLLABLE CONTENT ────────────────────────────────────────────── */}
-      <PageContainer narrow className={`relative z-10 flex-1 space-y-5 lg:max-w-6xl ${historyEntry ? 'pb-28' : ''}`}>
+      {!historyEntry && !historySnapshot && (
+        <nav className="mx-auto w-full max-w-6xl px-4 pb-3" aria-label="Revisão da competição">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" role="tablist" aria-label="Seções do relatório">
+            {[
+              { id: 'overview' as const, label: 'RESUMO', Icon: ClipboardList },
+              ...(state.competitionFormat.id !== 'knockout' ? [{ id: 'table' as const, label: state.competitionFormat.id === 'groups_knockout' ? 'GRUPOS' : 'CLASSIFICAÇÃO', Icon: Table2 }] : []),
+              ...(state.knockoutBracket ? [{ id: 'bracket' as const, label: 'CHAVEAMENTO', Icon: Trophy }] : []),
+              { id: 'matches' as const, label: 'PARTIDAS', Icon: ClipboardList },
+              { id: 'stats' as const, label: 'ESTATÍSTICAS', Icon: BarChart3 },
+            ].map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                id={`competition-review-tab-${id}`}
+                type="button"
+                role="tab"
+                aria-selected={reviewSection === id}
+                aria-controls={`competition-review-panel-${id}`}
+                onClick={() => setReviewSection(id)}
+                className="ui-tab shrink-0 text-xs"
+                data-active={reviewSection === id}
+              >
+                <span className="inline-flex items-center gap-1.5"><Icon size={14} aria-hidden="true" />{label}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
+
+      {!historyEntry && !historySnapshot && reviewSection !== 'overview' ? (
+        <PageContainer
+          id={`competition-review-panel-${reviewSection}`}
+          role="tabpanel"
+          aria-labelledby={`competition-review-tab-${reviewSection}`}
+          tabIndex={0}
+          narrow
+          className="relative z-10 flex-1 space-y-5 pb-28 lg:max-w-6xl"
+        >
+          <CompetitionReview section={reviewSection} partial={partialReport} />
+          {phase >= 4 && (
+            <Button type="button" intent="primary" size="large" onClick={handleReturnHome} className="mt-2 w-full">
+              <><Home size={17} aria-hidden="true" /> VOLTAR AO INÍCIO</>
+            </Button>
+          )}
+        </PageContainer>
+      ) : (
+      <PageContainer
+        id={!historyEntry && !historySnapshot ? 'competition-review-panel-overview' : undefined}
+        role={!historyEntry && !historySnapshot ? 'tabpanel' : undefined}
+        aria-labelledby={!historyEntry && !historySnapshot ? 'competition-review-tab-overview' : undefined}
+        tabIndex={!historyEntry && !historySnapshot ? 0 : undefined}
+        narrow
+        className={`relative z-10 flex-1 space-y-5 lg:max-w-6xl ${historyEntry ? 'pb-28' : ''}`}
+      >
         {/* Desktop: campaign numbers and highlights on the left, the final XI on the right. */}
         <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start lg:gap-6 lg:space-y-0">
         <div className="min-w-0 space-y-5">
@@ -1058,6 +1111,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           </Button>
         )}
       </PageContainer>
+      )}
 
       {phase >= 4 && historyEntry && onHistoryBack ? (
         <FixedActionBar narrow>

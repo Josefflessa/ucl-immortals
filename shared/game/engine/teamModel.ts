@@ -337,7 +337,7 @@ export interface PlayerMatchStat {
   // Richer involvement data — feeds professional ratings (midfielders/defenders who
   // never score still get credit) and the balance harness.
   keyPasses: number;       // a pass that set up a shot (chance created), goal or not
-  interceptions: number;   // broke up an attack without it becoming a shot
+  interceptions: number;   // reserved for explicit pass-cut events; not emitted yet
   shotsOnTarget: number;   // shots that forced a save or scored
 }
 

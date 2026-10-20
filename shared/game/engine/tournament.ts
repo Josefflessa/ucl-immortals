@@ -788,7 +788,10 @@ export interface PlayerSeasonStats {
   ratingSum: number;
   ratingAvg: number;
   shots: number;
+  shotsOnTarget?: number;
+  keyPasses?: number;
   tackles: number;
+  interceptions?: number;
   saves: number;
   fouls: number;
   yellowCards: number;
@@ -810,7 +813,10 @@ export function getPlayerSeasonStats(
     ratingSum: 0,
     ratingAvg: 0.0,
     shots: 0,
+    shotsOnTarget: 0,
+    keyPasses: 0,
     tackles: 0,
+    interceptions: 0,
     saves: 0,
     fouls: 0,
     yellowCards: 0,
@@ -822,18 +828,19 @@ export function getPlayerSeasonStats(
     // player from the OTHER team.
     const ps = r.playerStats?.[statKey(teamId, playerId)];
     if (ps) {
-      {
-        stats.played++;
-        stats.goals += ps.goals;
-        stats.assists += ps.assists;
-        stats.shots += ps.shots;
-        stats.tackles += ps.tackles;
-        stats.saves += ps.saves;
-        stats.fouls += ps.fouls;
-        stats.yellowCards += ps.yellowCards;
-        stats.redCards += ps.redCards;
-        stats.ratingSum += ps.rating;
-      }
+      stats.played++;
+      stats.goals += ps.goals;
+      stats.assists += ps.assists;
+      stats.shots += ps.shots;
+      stats.shotsOnTarget = (stats.shotsOnTarget ?? 0) + (ps.shotsOnTarget ?? 0);
+      stats.keyPasses = (stats.keyPasses ?? 0) + (ps.keyPasses ?? 0);
+      stats.tackles += ps.tackles;
+      stats.interceptions = (stats.interceptions ?? 0) + (ps.interceptions ?? 0);
+      stats.saves += ps.saves;
+      stats.fouls += ps.fouls;
+      stats.yellowCards += ps.yellowCards;
+      stats.redCards += ps.redCards;
+      stats.ratingSum += ps.rating;
     }
   }
 

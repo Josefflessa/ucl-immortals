@@ -10,6 +10,7 @@ import { createInitialClubProjects, projectLevel, calculateClubReward, bettingLo
 import { DEFAULT_REWARDS_CONFIG, normalizeCompetitionFormat, validateCompetitionFormat } from '@shared/game/competition';
 import { createMissionMatchContext, createMissionState, missionCycleKey, normalizeMissionState, rotateMissionBoard, updateMissionsAfterMatch, completedMissionCount } from '@shared/game/missions';
 import { canonicalClubName } from '@shared/game/crests';
+import { normalizeLegacyPlayerPositionsDeep } from '@shared/game/positions';
 import { type GameState, type KnockoutBracket, type GameAction, initialState } from './state';
 
 function normalizeBotTeamNames(teams: Team[] | undefined): Team[] {
@@ -1103,11 +1104,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const watchKey = action.spectator ? null : action.knockout
         ? (action.knockout.leg ? `${action.knockout.matchId}_l${action.knockout.leg}` : action.knockout.matchId)
         : null;
+      const teams = normalizeLegacyPlayerPositionsDeep(action.teams);
       return {
         ...state,
         phase: 'match_sim',
         spectating: !!action.spectator,
-        currentMatchTeams: action.teams,
+        currentMatchTeams: teams,
         currentMatchResult: action.result,
         matchCreditsModalPending: state.mode === 'online' && !action.spectator
           ? true
@@ -1138,7 +1140,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return finishEliminatedOnlineCampaign(state);
 
     case 'SET_ONLINE_STATE': {
-      const { roomState, socketId } = action;
+      const { socketId } = action;
+      const roomState = normalizeLegacyPlayerPositionsDeep(action.roomState);
       const me = roomState.players.find((p: any) => p.socketId === socketId);
       
       let draftState: any = null;
@@ -1366,42 +1369,43 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...initialState };
 
     case 'RESTORE_SOLO_CAMPAIGN': {
+      const savedState = normalizeLegacyPlayerPositionsDeep(action.state);
       // A saved solo campaign never carries an online session.
       // Old saves predate Album snapshots; lock missing bonuses to zero so the
       // account's current Album cannot retroactively affect a running save.
-      const albumSnapshot = action.state.competitionAlbumLevelSnapshot ?? {};
-      const albumPageBonusSnapshot = action.state.competitionAlbumPageBonusSnapshot ?? {};
+      const albumSnapshot = savedState.competitionAlbumLevelSnapshot ?? {};
+      const albumPageBonusSnapshot = savedState.competitionAlbumPageBonusSnapshot ?? {};
       return {
         ...initialState,
-        ...action.state,
+        ...savedState,
         competitionAlbumLevelSnapshot: albumSnapshot,
         competitionAlbumPageBonusSnapshot: albumPageBonusSnapshot,
-        draftedPlayers: action.state.draftedPlayers.map(player => player
+        draftedPlayers: savedState.draftedPlayers.map(player => player
           ? lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot)
           : player),
-        draftState: action.state.draftState ? {
-          ...action.state.draftState,
-          currentOptions: lockSoloDraftOptions(action.state.draftState.currentOptions, albumSnapshot, albumPageBonusSnapshot),
+        draftState: savedState.draftState ? {
+          ...savedState.draftState,
+          currentOptions: lockSoloDraftOptions(savedState.draftState.currentOptions, albumSnapshot, albumPageBonusSnapshot),
         } : null,
-        playerTeam: action.state.playerTeam ? {
-          ...action.state.playerTeam,
-          players: action.state.playerTeam.players.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot)),
+        playerTeam: savedState.playerTeam ? {
+          ...savedState.playerTeam,
+          players: savedState.playerTeam.players.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot)),
         } : null,
-        reinforcementOptions: action.state.reinforcementOptions?.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot))
-          ?? action.state.reinforcementOptions
+        reinforcementOptions: savedState.reinforcementOptions?.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot))
+          ?? savedState.reinforcementOptions
           ?? null,
-        pendingPack: action.state.pendingPack ? {
-          ...action.state.pendingPack,
-          options: action.state.pendingPack.options.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot)),
+        pendingPack: savedState.pendingPack ? {
+          ...savedState.pendingPack,
+          options: savedState.pendingPack.options.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot)),
         } : null,
-        pendingPackReveal: action.state.pendingPackReveal ? {
-          ...action.state.pendingPackReveal,
-          card: lockSoloAlbumBonuses(action.state.pendingPackReveal.card, albumSnapshot, albumPageBonusSnapshot),
+        pendingPackReveal: savedState.pendingPackReveal ? {
+          ...savedState.pendingPackReveal,
+          card: lockSoloAlbumBonuses(savedState.pendingPackReveal.card, albumSnapshot, albumPageBonusSnapshot),
         } : null,
-        pendingUniquePack: action.state.pendingUniquePack
-          ? lockSoloAlbumBonuses(action.state.pendingUniquePack, albumSnapshot, albumPageBonusSnapshot)
+        pendingUniquePack: savedState.pendingUniquePack
+          ? lockSoloAlbumBonuses(savedState.pendingUniquePack, albumSnapshot, albumPageBonusSnapshot)
           : null,
-        botTeams: normalizeBotTeamNames(action.state.botTeams),
+        botTeams: normalizeBotTeamNames(savedState.botTeams),
         mode: 'solo', roomCode: null, socketId: null, isHost: false, onlinePlayers: [],
       };
     }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allowsAssist, epicFinishesFor, finishesFor, isEpic, isEpicVariant, PLAY_VARIANTS, variantFor, type PlayVariant } from './playVariants';
+import { allowsAssist, duelStylesFor, duelVariantFor, epicFinishesFor, finishesFor, isEpic, isEpicVariant, PLAY_VARIANTS, variantFor, type PlayVariant } from './playVariants';
 import { epicOptions, skillWeight } from './epicPlays';
 import { seededRandom } from './random';
 import { generateBotTeam } from './gameEngine';
@@ -131,8 +131,8 @@ describe('narrateDanger', () => {
     const post: MatchEvent = { minute: 60, type: 'miss', description: '', teamId: home.id, playerId: home.players[10].id, play: { kind: 'woodwork', attackerId: home.players[10].id } };
     for (let i = 0; i < 20; i++) {
       const n = narrateDanger({ event: post, eventIndex: i, homeTeam: home, awayTeam: away, fallbackGoalkeeperName: gkName });
-      expect(['post', 'bar', 'posts']).toContain(n.finish); // (the epic: off both posts)
-      expect(n.reveal.toUpperCase()).toMatch(n.finish === 'bar' ? /TRAVESSÃO/ : /TRAVE|POSTE/);
+      expect(['post', 'bar', 'posts', 'barline']).toContain(n.finish); // (the epics: off both posts, off the bar and the line)
+      expect(n.reveal.toUpperCase()).toMatch(n.finish === 'bar' || n.finish === 'barline' ? /TRAVESSÃO/ : /TRAVE|POSTE/);
     }
     const save: MatchEvent = { minute: 61, type: 'save', description: '', teamId: away.id, playerId: away.players[0].id, opponentId: home.players[9].id, play: { kind: 'through', attackerId: home.players[9].id, goalkeeperId: away.players[0].id } };
     const styles = new Set(Array.from({ length: 30 }, (_, i) => narrateDanger({ event: save, eventIndex: i, homeTeam: home, awayTeam: away, fallbackGoalkeeperName: gkName }).finish));
@@ -212,9 +212,9 @@ describe('narrateDanger', () => {
 
   it('pênalti e falta têm narração de bola parada', () => {
     const penalty = narrateDanger({ event: goal({ kind: 'penalty', shot: 'normal', attackerId: home.players[10].id, goalkeeperId: away.players[0].id }), eventIndex: 1, homeTeam: home, awayTeam: away, fallbackGoalkeeperName: gkName });
-    expect(penalty.buildUp).toContain('PÊNALTI');
+    expect(penalty.buildUp).toMatch(/pênalti/i);
     const freeKick = narrateDanger({ event: goal({ kind: 'freekick', shot: 'normal', attackerId: home.players[10].id, goalkeeperId: away.players[0].id }), eventIndex: 1, homeTeam: home, awayTeam: away, fallbackGoalkeeperName: gkName });
-    expect(freeKick.buildUp).toContain('Falta');
+    expect(freeKick.buildUp).toMatch(/falta|cobrança|barreira/i);
   });
 });
 
@@ -271,6 +271,51 @@ describe('lances épicos e variações novas', () => {
       for (const option of epicOptions(kind, 'goal', true)) {
         if (option.variant) expect(allowsAssist(kind, option.variant), `${kind}/${option.variant}`).toBe(true);
       }
+    }
+  });
+});
+
+describe('lances parados por um desarme (duelo)', () => {
+  const kinds = ['cross', 'through', 'dribble', 'longrange', 'counter', 'corner'] as const;
+  const duel = (kind: (typeof kinds)[number]): MatchEvent => ({
+    minute: 40, type: 'duel', description: '', teamId: away.id, playerId: away.players[3].id, opponentId: home.players[9].id,
+    play: { kind, attackerId: home.players[9].id, creatorId: home.players[7].id, defenderId: away.players[3].id, goalkeeperId: away.players[0].id },
+  });
+
+  it('o desfecho é um desarme possível para a jogada, e o texto cita o defensor ou o goleiro', () => {
+    for (const kind of kinds) {
+      for (let i = 0; i < 12; i++) {
+        const n = narrateDanger({ event: duel(kind), eventIndex: i, homeTeam: home, awayTeam: away, fallbackGoalkeeperName: gkName });
+        expect(n.outcome).toBe('duel');
+        expect(duelStylesFor(kind, n.variant), `${kind}/${n.variant}/${n.finish}`).toContain(n.finish);
+        const who = n.finish === 'sweep' ? away.players[0].shortName : away.players[3].shortName;
+        expect(n.reveal, `${kind}/${n.variant}/${n.finish}`).toContain(who);
+      }
+    }
+  });
+
+  it('o lance parado é desenhado: o ataque é do time de quem perdeu a bola e o desarmador fica no elenco', () => {
+    for (const kind of kinds) {
+      const event = duel(kind);
+      const n = narrateDanger({ event, eventIndex: 3, homeTeam: home, awayTeam: away, fallbackGoalkeeperName: gkName });
+      const sides = {
+        left: { teamId: home.id, playerIds: home.players.slice(0, 11).map(p => p.id), formationId: home.formationId },
+        right: { teamId: away.id, playerIds: away.players.slice(0, 11).map(p => p.id), formationId: away.formationId },
+      };
+      const d = buildDangerTimeline({ sides, attackSide: 'left', event, outcome: 'duel', prev: kickoffPositions(sides, 'left'), sentOff: new Set(), entry: 'fade', seed: 9, variant: n.variant, finish: n.finish });
+      expect(d.finish).toBe(n.finish);
+      expect(d.cast.some(c => c.role === 'finisher')).toBe(true);
+      expect(d.timing.endMs).toBeGreaterThan(d.timing.arrivalMs);
+    }
+  });
+
+  it('jogadas de bola parada e lances raros nunca viram duelo', () => {
+    for (const kind of ['penalty', 'freekick', 'own_goal', 'blunder', 'deflected', 'screamer', 'woodwork'] as const) {
+      expect(duelVariantFor(kind, 0.5), kind).toBeNull();
+    }
+    for (const kind of kinds) for (const v of PLAY_VARIANTS[kind] as readonly PlayVariant[]) {
+      if (isEpicVariant(kind, v)) continue;
+      for (const style of duelStylesFor(kind, v)) expect(['tackle', 'slide', 'intercept', 'aerial', 'sweep']).toContain(style);
     }
   });
 });

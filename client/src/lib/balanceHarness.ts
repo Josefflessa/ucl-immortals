@@ -416,8 +416,8 @@ type PosBucket = 'GK' | 'DEF' | 'MID' | 'FWD';
 const POS_BUCKET: Record<string, PosBucket> = {
   GK: 'GK',
   CB: 'DEF', LB: 'DEF', RB: 'DEF', LWB: 'DEF', RWB: 'DEF',
-  CDM: 'MID', CM: 'MID', CAM: 'MID', LM: 'MID', RM: 'MID',
-  ST: 'FWD', LW: 'FWD', RW: 'FWD',
+  CDM: 'MID', CM: 'MID', CAM: 'MID',
+  ST: 'FWD', LW: 'FWD', RW: 'FWD', LM: 'FWD', RM: 'FWD',
 };
 
 function pctl(sorted: number[], p: number): number {

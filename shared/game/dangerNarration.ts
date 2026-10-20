@@ -9,14 +9,14 @@
  */
 import type { MatchEvent, Team } from './engine/teamModel';
 import type { Approach } from './matchNarrative';
-import { allowsAssist, epicFinishesFor, finishesFor, isEpic, isEpicVariant, PLAY_VARIANTS, strikeClassOf, variantFor, type FinishStyle, type PlayVariant } from './playVariants';
+import { allowsAssist, duelStylesFor, duelVariantFor, epicFinishesFor, finishesFor, isEpic, isEpicVariant, PLAY_VARIANTS, strikeClassOf, variantFor, type FinishStyle, type PlayVariant } from './playVariants';
 import { rollEpic } from './epicPlays';
 import { random, seededRandom, seedFromString, withRandomSource } from './random';
 import type { MatchPlay, PlayKind } from './engine/teamModel';
 import { resolveDangerActors, type DangerActorOutcome } from './pitch/actors';
 import { otherSide, sideOfTeam, type PitchSides } from './pitch/geometry';
 
-export type DangerOutcome = 'goal' | 'save' | 'miss';
+export type DangerOutcome = 'goal' | 'save' | 'miss' | 'duel';
 export type { FinishStyle } from './playVariants';
 
 export interface DangerNarration {
@@ -133,6 +133,10 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
         buildUp: [`🔁 ${W} tabela pela ponta e cruza de primeira, antes da marcação chegar...`, `🔁 Tabelinha pelo lado e ${W} levanta de primeira para ${A}...`],
         attempt: headers,
       };
+      if (variant === 'longthrow') return {
+        buildUp: [`🤾 LATERAL LONGO! ${W} pega a bola com as duas mãos, toma distância e arremessa para dentro da área...`, `🤾 ${W} faz o arremesso longo, a bola voa até a pequena área...`, `🤾 Lateral comprido de ${W}! A bola cai no meio da zaga, na direção de ${A}...`],
+        attempt: headers,
+      };
       if (variant === 'early') return {
         buildUp: [`↗️ ${W} cruza cedo, antes da marcação chegar, procurando ${A}...`, `🎯 Bola levantada da intermediária por ${W} na direção de ${A}...`],
         attempt: headers,
@@ -165,6 +169,10 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
       return { buildUp: [`↗️ ${W} cruza da ponta e ${O} sobe para tentar cortar...`], attempt };
     }
     case 'through':
+      if (variant === 'diagonal') return {
+        buildUp: [`↗️ ${W} acha um passe em diagonal, de um lado ao outro do campo, e ${A} corre nas costas de ${D}...`, `↗️ Passe em diagonal de ${W}! A bola corta a defesa e encontra ${A} em profundidade...`, `↗️ ${W} enxerga o espaço no lado oposto e toca em diagonal para ${A}...`],
+        attempt: oneOnOne,
+      };
       if (variant === 'heelpass') return {
         buildUp: [`👠 ${W} recebe de costas e toca de calcanhar para ${A}...`, `👠 Calcanhar de ${W}! A bola sai nas costas de ${D} para ${A}...`, `👠 ${W} nem olha: de calcanhar, deixa ${A} na cara do gol...`],
         attempt: oneOnOne,
@@ -222,6 +230,9 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
           cutinside: [`💨 ${A} recebe de ${W} pela ponta e encara ${D}...`],
           solo: [`🚀 ${W} toca na frente e ${A} arranca, deixando ${D} para trás...`],
           hurdle: [`💨 ${A} recebe de ${W} e ${D} vem no carrinho...`],
+          dragback: [`🪄 ${A} recebe de ${W}, encara ${D} e puxa a bola para trás com a sola...`],
+          strength: [`💪 ${A} recebe de ${W} de costas e segura ${D} no ombro...`],
+          pace: [`🚀 ${A} recebe de ${W}, toca por fora de ${D} e acelera...`],
           nutmeg: [`🤯 ${A} recebe de ${W} e dá uma caneta em ${D}...`],
           elastico: [`🪄 ${A} recebe de ${W}, encara ${D}... ELÁSTICO!`],
           chapeu: [`🎩 ${A} recebe de ${W} e dá um chapéu em ${D}...`],
@@ -274,6 +285,18 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
         buildUp: [`💨 ${A} avança com a bola e ${D} vem no carrinho...`, `⚡ Carrinho de ${D}! ${A} toca na frente e pula por cima...`],
         attempt: [`⚽ ${A} se livra do carrinho e finaliza...!`, `⚽ ${A} deixa ${D} no chão e bate...!`],
       };
+      if (variant === 'dragback') return {
+        buildUp: [`🪄 ${A} encara ${D}, puxa a bola para trás com a sola e ${D} passa direto...`, `🪄 Puxadinha de ${A}! ${D} se joga na bola e ela já não está mais lá...`, `🪄 ${A} arrasta a bola com a sola e deixa ${D} no vazio...`],
+        attempt: [`⚽ ${A} gira o corpo e finaliza...!`, `⚽ ${A} se livra de ${D} e bate...!`],
+      };
+      if (variant === 'strength') return {
+        buildUp: [`💪 ${A} segura ${D} no ombro e protege a bola com o corpo...`, `💪 ${D} tenta tirar, mas ${A} é forte e não larga a bola...`, `💪 ${A} usa o corpo, empurra ${D} e gira com a bola dominada...`],
+        attempt: [`⚽ ${A} gira sobre ${D} e finaliza...!`, `⚽ ${A} se livra da marcação na força e bate...!`],
+      };
+      if (variant === 'pace') return {
+        buildUp: [`🚀 ${A} toca na frente, por fora de ${D}, e vence a corrida...`, `🚀 ${A} empurra a bola e deixa ${D} para trás na velocidade...`, `🚀 Arrancada de ${A}! ${D} corre, corre e não alcança...`],
+        attempt: [`⚽ ${A} chega primeiro na bola e finaliza...!`, `⚽ ${A} abre vantagem e bate...!`],
+      };
       if (variant === 'solo') return {
         buildUp: [`💨 ${A} toca na frente de ${D} e dispara em velocidade...`, `🚀 Arrancada de ${A}! Deixa ${D} para trás...`],
         attempt: oneOnOne,
@@ -308,6 +331,18 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
       return variant === 'dribble' ? takeOn : layoff;
     case 'longrange':
       if (variant === 'clearance') return halfCleared;
+      if (variant === 'wallpass') return {
+        buildUp: [`🔁 ${A} toca para ${W} na entrada da área e sai para receber de volta...`, `🔁 Tabela na meia-lua! ${A} devolve para ${W} e parte para o espaço...`, `🔁 ${W} segura de costas e ${A} avança para pegar o devolvido...`],
+        attempt: [`⚽ ${W} devolve de primeira e ${A} bate de fora da área...!`, `⚽ Na sobra da tabela, ${A} chuta de longe...!`],
+      };
+      if (variant === 'curler') return {
+        buildUp: [`🏃 ${A} recebe aberto na ponta e vem em diagonal, com ${D} na frente...`, `🏃 ${A} deixa ${D} para trás e corta para o meio, para a perna de dentro...`, `🏃 ${A} puxa para dentro, de fora para dentro, procurando o ângulo...`],
+        attempt: [`🌀 ${A} bate colocado, de curva, no ângulo distante...!`, `🌀 Chute colocado de ${A}, a bola faz a curva rumo ao canto...!`],
+      };
+      if (variant === 'crossfield') return {
+        buildUp: [`🌐 ${W} inverte o jogo com um lançamento de lado a lado e a bola chega a ${A}...`, `🌐 Bola longa e diagonal de ${W}! ${A} domina na corrida, do outro lado...`, `🌐 ${W} vira o jogo para ${A}, que recebe livre na ponta da área...`],
+        attempt: [`⚽ ${A} domina e bate de fora da área...!`, `⚽ ${A} ajeita e arrisca de longe...!`],
+      };
       if (variant === 'carryshot') return {
         buildUp: [`🏃 ${A} arranca desde o meio-campo e ninguém chega nele...`, `🏃 ${A} conduz pelo meio e a zaga vai recuando...`, `🏃 ${A} avança com a bola dominada, ganhando metros...`],
         attempt: [`⚽ ${A} levanta os olhos e solta a BOMBA de fora da área...!`, ...longShots],
@@ -349,6 +384,10 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
       };
       return variant === 'clearance' ? halfCleared : layoff;
     case 'counter':
+      if (variant === 'onetwo') return {
+        buildUp: [`⚡ CONTRA-ATAQUE! ${A} toca para ${W} e sai em velocidade para receber de volta...`, `⚡ Tabela em velocidade! ${A} devolve com ${W} e passa por ${D}...`, `🚀 ${A} e ${W} trocam passes em alta velocidade e deixam ${D} para trás...`],
+        attempt: [`⚽ ${W} devolve de primeira e ${A} fica sozinho para finalizar...!`, `⚽ A bola volta nos pés de ${A}, na cara do gol, e ele bate...!`],
+      };
       if (variant === 'threevtwo') return {
         buildUp: [`⚡ CONTRA-ATAQUE! Três contra dois! ${W} conduz e abre o jogo...`, `🚀 O ${T} chega em superioridade: três contra dois, com ${W} na bola...`],
         attempt: [`⚽ ${W} inverte para ${A}, que chega batendo...!`, `⚽ A bola chega a ${A} do outro lado e ele finaliza...!`],
@@ -386,6 +425,10 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
         attempt: [`⚽ ${A} chega na frente de ${G} e bate...!`, `⚽ ${A} conclui o contra-ataque...!`],
       };
     case 'corner':
+      if (variant === 'scramble') return {
+        buildUp: [`🚩 Escanteio para o ${T}! A bola é levantada, ${W} desvia de cabeça e a pequena área vira uma confusão...`, `🚩 Bola na pequena área, desvio de cabeça e ninguém afasta! A bola sobra para ${A}...`, `🚩 Confusão na área! A zaga não consegue tirar e a bola cai viva diante de ${A}...`],
+        attempt: [`⚽ ${A} aproveita a sobra e finaliza de perto...!`, `⚽ ${A} chega primeiro e empurra a bola...!`],
+      };
       if (variant === 'backpost') return {
         // With an assist, the assist provider is the one heading it back across.
         buildUp: assisted
@@ -436,6 +479,14 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
         buildUp: [`🎯 Falta ensaiada! A bola é rolada para o lado...`, `🎯 Cobrança combinada: toque curto para ${A} chegar batendo...`, `🎯 Jogada de laboratório: toque de lado e ${A} vem de trás...`, `🎯 O ${T} inventa na falta: rolada curta para ${A}...`],
         attempt: [`⚽ ${A} chega batendo forte, por cima da barreira...!`, `⚽ ${A} solta a bomba depois do toque curto...!`],
       };
+      if (variant === 'knuckle') return {
+        buildUp: [`🎯 Falta frontal: ${A} se posiciona e vai bater sem efeito, de bola solta...`, `🎯 ${A} ajeita a bola e promete uma batida seca, sem rotação...`, `🎯 Falta perigosa: ${A} vai de bola parada para a cobrança...`],
+        attempt: [`⚽ ${A} bate com o peito do pé, sem efeito, e a bola balança no ar...!`, `⚽ A bola de ${A} sai tremendo no ar, difícil para ${G}...!`],
+      };
+      if (variant === 'dipper') return {
+        buildUp: [`🎯 Falta pertinho da área: ${A} pega distância e olha para a barreira...`, `🎯 ${A} vai à bola, a barreira se ajeita...`, `🎯 ${A} só precisa passar a barreira e fazer a bola cair...`],
+        attempt: [`⚽ ${A} bate por cima da barreira, com efeito, para a bola cair...!`, `⚽ A bola passa a barreira e começa a descer, sobre ${G}...!`],
+      };
       if (variant === 'dummyrun') return {
         buildUp: [`🎯 Dois na bola! Um passa por cima e ${A} vem logo atrás...`, `🎯 Falta frontal: o primeiro corre e passa direto pela bola... é ${A} quem bate!`, `🎯 Corta-luz na cobrança! A barreira se mexe e ${A} prepara o chute...`],
         attempt: [`⚽ ${A} bate com curva, por cima da barreira...!`, `⚽ ${A} chuta colocado, com a barreira já fora do lugar...!`],
@@ -479,6 +530,8 @@ function linesFor(kind: PlayKind, variant: PlayVariant, n: Names, assisted: bool
       if (variant === 'power') return { buildUp, attempt: [`⚽ ${A} toma distância, corre forte e solta a bomba...!`, `⚽ ${A} corre e enche o pé...!`] };
       if (variant === 'center') return { buildUp, attempt: [`⚽ ${A} corre e bate firme, no meio do gol...!`, `⚽ ${A} escolhe o meio e chuta...!`] };
       if (variant === 'corner') return { buildUp, attempt: [`⚽ ${A} bate colocado, buscando o cantinho...!`, `⚽ ${A} tira do goleiro e chuta rente à trave...!`] };
+      if (variant === 'curved') return { buildUp, attempt: [`⚽ ${A} corre em diagonal para a bola e bate...!`, `⚽ ${A} parte de lado para a bola e chuta forte...!`] };
+      if (variant === 'calm') return { buildUp, attempt: [`⚽ ${A} espera, dá dois passos e bate com calma...!`, `⚽ ${A} bate sem pressa, com tranquilidade...!`] };
       if (variant === 'panenka') return { buildUp, attempt: [`⚽ ${A} corre devagar... e tenta a cavadinha...!`, `⚽ ${A} espera o goleiro... e cava...!`] };
       return { buildUp, attempt: [`⚽ ${A} toma distância, corre para a bola e bate...!`, `⚽ ${A} parte para a bola e chuta...!`] };
     }
@@ -585,7 +638,7 @@ function epicReveal(kind: PlayKind, variant: PlayVariant, finish: FinishStyle, n
 
 /** The reveal (stage 3): exactly how it ended. */
 function revealFor(kind: PlayKind, variant: PlayVariant, finish: FinishStyle, n: Names & { DT: string }): string[] {
-  const { A, G, T, O, DT } = n;
+  const { A, D, G, T, O, DT } = n;
   const TT = T.toUpperCase();
   const header = strikeClassOf(kind, variant) === 'header';
   const epic = epicReveal(kind, variant, finish, n);
@@ -642,10 +695,23 @@ function revealFor(kind: PlayKind, variant: PlayVariant, finish: FinishStyle, n:
       return [`🧤 QUE DEFESA! ${G} voa e tira com a mão trocada, para escanteio!`, `🧤 ${G} se estica todo e, com uma mão só, manda a bola de ${A} para fora!`, `🧤 MÃO TROCADA! ${G} busca no ângulo o chute de ${A}!`];
     case 'reflex':
       return [`🧤 REFLEXO! ${G} defende à queima-roupa e ainda fica com a bola!`, `🧤 Que reflexo de ${G}! A bola bate nele, sobe, e ele segura!`, `🧤 À QUEIMA-ROUPA! ${G} salva o chute de ${A} com o corpo!`];
+    case 'punch':
+      return [`🥊 SOCO! ${G} sobe com os dois punhos e afasta a bola cabeceada por ${A}!`, `🥊 ${G} socorre a defesa! Soca no meio da multidão e manda para longe!`, `🥊 ${G} sobe mais que todos e afasta de soco!`, `🥊 QUE CORAGEM! ${G} soca a bola no meio da área e livra o perigo!`];
     case 'spread':
       return [`🧤 ${G} SAI DO GOL, ABRE OS BRAÇOS e a bola de ${A} bate nele!`, `🧤 Fechou o ângulo! ${G} se agiganta na frente de ${A} e salva!`, `🧤 ${G} sai rápido, abre o corpo e bloqueia ${A}!`];
     case 'feet':
       return [`🧤 ${G} SALVA COM O PÉ! Defesa milagrosa no chute de ${A}!`, `🧤 Com a perna! ${G} fecha o ângulo e bloqueia ${A}!`, `🧤 ${G} estica a perna e salva!`, `🧤 Defesa com o pé! ${G} tira o chute de ${A}!`];
+    // Duels: a defender stops the move before the strike
+    case 'tackle':
+      return [`🛡️ DESARME! ${D} chega firme e tira a bola de ${A} antes do chute!`, `🛡️ ${D} dá o bote certo e desarma ${A} na hora de finalizar!`, `🛡️ Cortou! ${D} antecipa e toma a bola de ${A}!`, `🛡️ ${A} ia bater, mas ${D} chega primeiro e desarma!`];
+    case 'slide':
+      return [`🛡️ CARRINHO! ${D} se joga e desarma ${A} no último segundo!`, `🛡️ ${D} DESLIZA e tira a bola de ${A}! Que carrinho!`, `🛡️ Carrinho perfeito de ${D}! ${A} ficou sem a bola na hora de bater!`, `🛡️ Na hora H! ${D} entra de carrinho e salva a zaga do ${DT}!`];
+    case 'intercept':
+      return [`🛡️ CORTOU! ${D} se coloca na frente e tira a bola de ${A}!`, `🛡️ ${D} lê a jogada e intercepta antes de ${A} finalizar!`, `🛡️ Antecipação de ${D}! A bola não chega a ${A}!`, `🛡️ ${D} fecha o espaço e afasta o perigo!`];
+    case 'aerial':
+      return [`🛡️ ${D} SOBE MAIS ALTO! Ganha de ${A} pelo alto e afasta!`, `🛡️ Cabeçada de ${D}! Ele corta o cruzamento antes de ${A} cabecear!`, `🛡️ ${D} vence o duelo aéreo e manda para longe!`, `🛡️ Afasta de cabeça! ${D} leva a melhor sobre ${A}!`];
+    case 'sweep':
+      return [`🧤 ${G} SAI DO GOL E ABAFA! Salva nos pés de ${A}!`, `🧤 Que coragem! ${G} sai aos pés de ${A} e fica com a bola!`, `🧤 ${G} sai rápido e se joga nos pés de ${A}! Perigo afastado!`, `🧤 ${G} antecipa, sai da área e abafa o ataque de ${A}!`];
     // Misses
     case 'wide':
       if (variant === 'roundkeeper') return [`❌ ${A} dribla ${G}, mas fica sem ângulo e manda para fora!`];
@@ -840,8 +906,8 @@ export function narrateDanger(args: {
     right: { teamId: awayTeam.id, playerIds: awayTeam.players.slice(0, 11).map(p => p.id), formationId: awayTeam.formationId },
   };
   const eventSide = sideOfTeam(sides, event.teamId) ?? 'left';
-  // A save is credited to the keeper's side; goal and miss to the attackers.
-  const attackSide = outcome === 'save' ? otherSide(eventSide) : eventSide;
+  // A save (and a duel, the defender's stop) is credited to the defending side; goal and miss to the attackers.
+  const attackSide = outcome === 'save' || outcome === 'duel' ? otherSide(eventSide) : eventSide;
   const attackId = sides[attackSide].teamId;
   const defendId = sides[otherSide(attackSide)].teamId;
   const attackTeam = attackId === homeTeam.id ? homeTeam : awayTeam;
@@ -865,7 +931,7 @@ export function narrateDanger(args: {
 
   // The epic roll, on its own stream (so it never shifts the ordinary draws below).
   const epicRandom = seededRandom(dangerSeed(event, eventIndex) ^ 0x5eed1e);
-  const epicPick = args.force ? null : rollEpic({
+  const epicPick = args.force || outcome === 'duel' ? null : rollEpic({
     kind, outcome, assisted,
     shooter: attackTeam.players.find(p => p.id === shooterId),
     keeper: defendTeam.players.find(p => p.id === play?.goalkeeperId),
@@ -874,9 +940,12 @@ export function narrateDanger(args: {
 
   return withRandomSource(seededRandom(dangerSeed(event, eventIndex)), () => {
     const seen = (key: string) => args.recent?.plays.includes(key) ?? false;
-    let variant = variantFor(kind, random(), outcome, assisted);
-    if (seen(`${kind}/${variant}`)) variant = variantFor(kind, random(), outcome, assisted);
-    const finishes = finishesFor(kind, variant, outcome);
+    // A duel is a move stopped before the strike: its own variants and finishes.
+    const duel = outcome === 'duel';
+    const shotOutcome = duel ? 'miss' : outcome;
+    let variant: PlayVariant = duel ? (duelVariantFor(kind, random()) ?? variantFor(kind, random(), 'miss')) : variantFor(kind, random(), shotOutcome, assisted);
+    if (seen(`${kind}/${variant}`)) variant = duel ? (duelVariantFor(kind, random()) ?? variant) : variantFor(kind, random(), shotOutcome, assisted);
+    const finishes: readonly FinishStyle[] = duel ? (duelStylesFor(kind, variant).length > 0 ? duelStylesFor(kind, variant) : ['tackle']) : finishesFor(kind, variant, shotOutcome);
     let finish = pick(finishes);
     if (seen(`${kind}/${finish}`)) finish = pick(finishes);
     if (args.force) {
@@ -884,12 +953,12 @@ export function narrateDanger(args: {
       finish = args.force.finish;
     } else if (epicPick?.variant) {
       variant = epicPick.variant;
-      finish = pick(finishesFor(kind, variant, outcome));
+      finish = pick(finishesFor(kind, variant, shotOutcome));
     } else if (epicPick?.finish) {
       // An epic finish crowns an ordinary play that can end that way.
       const epicFinish = epicPick.finish;
       const fitting = (PLAY_VARIANTS[kind] as readonly PlayVariant[])
-        .filter(v => !isEpicVariant(kind, v) && (!assisted || allowsAssist(kind, v)) && epicFinishesFor(kind, v, outcome).includes(epicFinish));
+        .filter(v => !isEpicVariant(kind, v) && (!assisted || allowsAssist(kind, v)) && epicFinishesFor(kind, v, shotOutcome).includes(epicFinish));
       if (fitting.length > 0) {
         if (!fitting.includes(variant)) variant = pick(fitting);
         finish = epicFinish;

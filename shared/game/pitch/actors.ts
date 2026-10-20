@@ -2,7 +2,8 @@ import type { MatchEvent } from '../engine/teamModel';
 import { serverRolesFor } from '../playVariants';
 import { otherSide, roleOfSlot, slotBase, slotOfPlayer, type PitchSides, type Side } from './geometry';
 
-export type DangerActorOutcome = 'goal' | 'save' | 'miss';
+/** A 'duel' is a move stopped by a defender before any strike (the engine's duel event). */
+export type DangerActorOutcome = 'goal' | 'save' | 'miss' | 'duel';
 
 export interface DangerActors {
   attackSide: Side;
@@ -51,7 +52,7 @@ export function resolveDangerActors(input: {
 
   let finisher = valid(slotOfPlayer(
     sides,
-    play?.attackerId ?? (outcome === 'save' ? event.opponentId : event.playerId),
+    play?.attackerId ?? (outcome === 'save' || outcome === 'duel' ? event.opponentId : event.playerId),
     sides[attackSide].teamId,
   ), atkLive);
   if (finisher < 0) finisher = pickByRole(sides, atkLive, ['ST', 'CF', 'LW', 'RW', 'CAM'], []);
@@ -61,7 +62,7 @@ export function resolveDangerActors(input: {
 
   let defender = valid(slotOfPlayer(
     sides,
-    play?.defenderId ?? (kind === 'own_goal' ? event.opponentId : undefined),
+    play?.defenderId ?? (kind === 'own_goal' ? event.opponentId : outcome === 'duel' ? event.playerId : undefined),
     sides[defendSide].teamId,
   ), defLive);
   if (defender < 0 || defender === goalkeeper) {

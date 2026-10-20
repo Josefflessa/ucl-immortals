@@ -10,6 +10,7 @@
 import type { Player, Rarity } from '../gameData';
 import { rarityForBaseOverall } from '../rarity';
 import { clubIdForName } from '../crests';
+import { normalizeLegacyPlayerPosition } from '../positions';
 import { BRAZILIAN_STARTERS } from './brazilianStarters';
 import { BRAZILIAN_NOTABLE_ADDITIONS } from './brazilianNotableAdditions';
 import { SORTITOUTSI_BRAZILIAN_LEAGUE_ADDITIONS } from './sortitoutsiBrazilianLeagueExpansion';
@@ -35,7 +36,7 @@ export interface PlayerSource {
   players: Player[];
 }
 
-export const PLAYER_SOURCES: PlayerSource[] = [
+const RAW_PLAYER_SOURCES: PlayerSource[] = [
   { file: 'brazilianStarters', players: BRAZILIAN_STARTERS },
   { file: 'brazilianNotableAdditions', players: BRAZILIAN_NOTABLE_ADDITIONS },
   { file: 'sortitoutsiBrazilianLeagueExpansion', players: SORTITOUTSI_BRAZILIAN_LEAGUE_ADDITIONS },
@@ -53,6 +54,13 @@ export const PLAYER_SOURCES: PlayerSource[] = [
   { file: 'fifaIndex2000Expansion', players: FIFAINDEX_2000_ADDITIONS },
 ];
 
+// The imported datasets still use LM/RM for a handful of legacy entries. The
+// game catalog exposes those players as LW/RW while formations retain LM/RM.
+export const PLAYER_SOURCES: PlayerSource[] = RAW_PLAYER_SOURCES.map(source => ({
+  ...source,
+  players: source.players.map(normalizeLegacyPlayerPosition),
+}));
+
 // The source objects still carry a hand-written rarity label, but the overall band
 // (rarity.ts) is the single source of truth in the exported catalogue.
 function normalizeRegularPlayerRarity<T extends { overall: number }>(player: T): T & { rarity: Exclude<Rarity, 'unique'> } {
@@ -60,7 +68,7 @@ function normalizeRegularPlayerRarity<T extends { overall: number }>(player: T):
 }
 
 function withCanonicalClub(player: Player): Player {
-  return { ...player, clubId: clubIdForName(player.club) };
+  return { ...normalizeLegacyPlayerPosition(player), clubId: clubIdForName(player.club) };
 }
 
 export const PLAYERS: Player[] = PLAYER_SOURCES

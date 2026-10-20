@@ -7,14 +7,14 @@
 import type { PlayKind } from './engine/teamModel';
 
 export const PLAY_VARIANTS = {
-  cross: ['byline', 'early', 'cutback', 'overlap', 'driven', 'volley', 'trivela', 'lowfar', 'deep', 'farknock', 'firsttime', 'bicycle', 'diving', 'backheel', 'scorpion'],
-  through: ['straight', 'onetwo', 'channel', 'lofted', 'split', 'roundkeeper', 'heelpass', 'dummy', 'thirdman', 'blindside', 'scoop', 'tikitaka'],
-  dribble: ['single', 'double', 'cutinside', 'solo', 'hurdle', 'nutmeg', 'elastico', 'chapeu', 'roulette', 'stepover', 'cruyff', 'slalom', 'rabona'],
-  longrange: ['layoff', 'clearance', 'square', 'carryshot', 'knockdown', 'chest', 'outside', 'turn', 'halfway'],
-  counter: ['long', 'carry', 'twoonone', 'breakaway', 'recovery', 'threevtwo', 'overlap', 'switch', 'cutback'],
-  corner: ['near', 'far', 'short', 'flick', 'edge', 'backpost', 'nearpower', 'decoy', 'late', 'olimpico'],
-  freekick: ['curl', 'power', 'under', 'routine', 'flank', 'dummyrun', 'chipped', 'distance'],
-  penalty: ['normal', 'stutter', 'power', 'panenka', 'center', 'corner'],
+  cross: ['byline', 'early', 'cutback', 'overlap', 'driven', 'volley', 'trivela', 'lowfar', 'deep', 'farknock', 'firsttime', 'bicycle', 'diving', 'backheel', 'scorpion', 'longthrow'],
+  through: ['straight', 'onetwo', 'channel', 'lofted', 'split', 'roundkeeper', 'heelpass', 'dummy', 'thirdman', 'blindside', 'scoop', 'tikitaka', 'diagonal'],
+  dribble: ['single', 'double', 'cutinside', 'solo', 'hurdle', 'nutmeg', 'elastico', 'chapeu', 'roulette', 'stepover', 'cruyff', 'slalom', 'rabona', 'dragback', 'strength', 'pace'],
+  longrange: ['layoff', 'clearance', 'square', 'carryshot', 'knockdown', 'chest', 'outside', 'turn', 'halfway', 'wallpass', 'curler', 'crossfield'],
+  counter: ['long', 'carry', 'twoonone', 'breakaway', 'recovery', 'threevtwo', 'overlap', 'switch', 'cutback', 'onetwo'],
+  corner: ['near', 'far', 'short', 'flick', 'edge', 'backpost', 'nearpower', 'decoy', 'late', 'olimpico', 'scramble'],
+  freekick: ['curl', 'power', 'under', 'routine', 'flank', 'dummyrun', 'chipped', 'distance', 'knuckle', 'dipper'],
+  penalty: ['normal', 'stutter', 'power', 'panenka', 'center', 'corner', 'curved', 'calm'],
   own_goal: ['byline', 'cutback', 'clearance', 'corner'],
   blunder: ['single', 'longshot', 'header', 'freekick'],
   deflected: ['layoff', 'dribble', 'freekick', 'edge'],
@@ -54,8 +54,9 @@ export function isEpic(kind: PlayKind, variant: PlayVariant, finish: FinishStyle
 const UNASSISTED: Partial<Record<PlayKind, readonly string[]>> = {
   // The far-post knock-down: the last touch is the header back across, not the cross.
   cross: ['farknock'],
-  counter: ['breakaway', 'recovery'],
-  longrange: ['clearance', 'carryshot', 'halfway'],
+  // (The wall passes: the return pass is the last one, but the one who starts with the ball is the finisher.)
+  counter: ['breakaway', 'recovery', 'onetwo'],
+  longrange: ['clearance', 'carryshot', 'halfway', 'curler', 'wallpass'],
   dribble: ['slalom'],
   corner: ['olimpico'],
 };
@@ -100,9 +101,9 @@ export type GoalStyle = 'low' | 'high' | 'chip' | 'postin' | 'deflect' | 'fumble
 /**
  * How the keeper stops it ('double': the shot and then the follow-up, both saved — an epic;
  * 'onehand': at full stretch with the top hand, round the post; 'reflex': point blank, off
- * his body and up, then claimed; 'spread': out to the shooter, spread wide, and it hits him).
+ * his body and up, then claimed; 'spread': out to the shooter, spread wide, and it hits him; 'punch': up with both fists on a header, clearing it high and wide).
  */
-export type SaveStyle = 'parry' | 'catch' | 'tip' | 'feet' | 'double' | 'onehand' | 'reflex' | 'spread';
+export type SaveStyle = 'parry' | 'catch' | 'tip' | 'feet' | 'double' | 'onehand' | 'reflex' | 'spread' | 'punch';
 /**
  * Where a miss goes ('blocked': off a defender, or the wall, and out; 'cleared': off the line;
  * 'posts': off one post, along the line and off the other — an epic; 'sidenet': into the
@@ -110,18 +111,29 @@ export type SaveStyle = 'parry' | 'catch' | 'tip' | 'feet' | 'double' | 'onehand
  * 'barline': off the bar, down on the line and back out — an epic).
  */
 export type MissStyle = 'wide' | 'over' | 'post' | 'bar' | 'blocked' | 'cleared' | 'posts' | 'sidenet' | 'scuffed' | 'barline';
-export type FinishStyle = GoalStyle | SaveStyle | MissStyle;
+/**
+ * How a defender stops the move before any strike (a duel, the engine's 'duel' event):
+ * 'tackle': he steps in and takes it off him on his feet; 'slide': a sliding tackle;
+ * 'intercept': he gets in front and cuts the ball out; 'aerial': he wins the header and
+ * clears; 'sweep': the keeper comes out and smothers it at the attacker's feet.
+ */
+export type DuelStyle = 'tackle' | 'slide' | 'intercept' | 'aerial' | 'sweep';
+export const DUEL_STYLES: readonly DuelStyle[] = ['tackle', 'slide', 'intercept', 'aerial', 'sweep'];
+export function isDuelStyle(finish: FinishStyle | undefined): finish is DuelStyle {
+  return finish !== undefined && (DUEL_STYLES as readonly string[]).includes(finish);
+}
+export type FinishStyle = GoalStyle | SaveStyle | MissStyle | DuelStyle;
 export type Outcome = 'goal' | 'save' | 'miss';
 
 /** What the strike is: it decides which finishes make sense. */
 export type StrikeClass = 'header' | 'close' | 'long' | 'setpiece' | 'penalty';
 
-const HEADED_CROSSES: readonly string[] = ['byline', 'early', 'overlap', 'trivela', 'diving', 'deep', 'firsttime'];
+const HEADED_CROSSES: readonly string[] = ['byline', 'early', 'overlap', 'trivela', 'diving', 'deep', 'firsttime', 'longthrow'];
 
 export function strikeClassOf(kind: PlayKind, variant: PlayVariant): StrikeClass {
   switch (kind) {
     case 'cross': return HEADED_CROSSES.includes(variant) ? 'header' : 'close';
-    case 'corner': return variant === 'edge' ? 'long' : variant === 'nearpower' ? 'close' : variant === 'olimpico' ? 'setpiece' : 'header';
+    case 'corner': return variant === 'edge' ? 'long' : variant === 'nearpower' || variant === 'scramble' ? 'close' : variant === 'olimpico' ? 'setpiece' : 'header';
     case 'freekick': return variant === 'flank' ? 'header' : variant === 'chipped' ? 'close' : 'setpiece';
     case 'own_goal': return 'close';
     case 'blunder': return variant === 'header' ? 'header' : variant === 'freekick' ? 'setpiece' : 'close';
@@ -218,7 +230,7 @@ export function finishesFor(kind: PlayKind, variant: PlayVariant, outcome: Outco
     }
     if (cls === 'close') return oneOnOne(kind, variant) ? ['parry', 'catch', 'feet', 'reflex', 'spread'] : ['parry', 'catch', 'feet', 'reflex'];
     if (kind === 'freekick' && variant === 'under') return ['parry', 'catch'];
-    if (cls === 'header') return ['parry', 'catch', 'tip', 'reflex'];
+    if (cls === 'header') return ['parry', 'catch', 'tip', 'reflex', 'punch'];
     return ['parry', 'catch', 'tip', 'onehand'];
   }
   if (kind === 'woodwork') return ['post', 'bar'];
@@ -237,5 +249,39 @@ export function finishesFor(kind: PlayKind, variant: PlayVariant, outcome: Outco
 /** A finish for the outcome, from a [0, 1) draw. */
 export function finishFor(kind: PlayKind, variant: PlayVariant, outcome: Outcome, draw: number): FinishStyle {
   const list = finishesFor(kind, variant, outcome);
+  return list[Math.min(list.length - 1, Math.floor(draw * list.length))];
+}
+
+/** Plays that cannot end in a duel: the set pieces and the freak goals have no move to stop. */
+const NO_DUEL: readonly PlayKind[] = ['penalty', 'freekick', 'own_goal', 'blunder', 'deflected', 'screamer', 'woodwork'];
+
+/** Every way a defender can stop this play before the strike (empty: it cannot be stopped). */
+export function duelStylesFor(kind: PlayKind, variant: PlayVariant): readonly DuelStyle[] {
+  if (NO_DUEL.includes(kind)) return [];
+  const v: string = variant;
+  // Rounding the keeper: only the keeper can still stop it. A dink over him: nobody can get a foot to it.
+  if (v === 'roundkeeper') return ['sweep'];
+  // A dink over the keeper, or a volley after one: nobody can get a foot to it. A lofted ball can still be cut out.
+  if (v === 'scoop' || v === 'chip') return [];
+  if (v === 'lofted') return ['intercept'];
+  // A volley is struck on the run from a ball already coming down: too late to stop it.
+  if (v === 'volley') return [];
+  const cls = strikeClassOf(kind, variant);
+  if (cls === 'header') return ['aerial'];
+  if (cls === 'setpiece') return [];
+  // Through on goal: the last man, or the keeper rushing out.
+  if (kind === 'through' || kind === 'counter' || v === 'solo') return ['tackle', 'slide', 'sweep'];
+  return ['tackle', 'slide', 'intercept'];
+}
+
+/** A variant of the kind that a defender can stop (never an epic), from a [0, 1) draw. */
+export function duelVariantFor(kind: PlayKind, draw: number): PlayVariant | null {
+  const all = (PLAY_VARIANTS[kind] as readonly PlayVariant[]).filter(v => !isEpicVariant(kind, v) && duelStylesFor(kind, v).length > 0);
+  return all.length === 0 ? null : all[Math.min(all.length - 1, Math.floor(draw * all.length))];
+}
+
+/** How the defender stops it, from a [0, 1) draw. */
+export function duelFinishFor(kind: PlayKind, variant: PlayVariant, draw: number): DuelStyle {
+  const list = duelStylesFor(kind, variant);
   return list[Math.min(list.length - 1, Math.floor(draw * list.length))];
 }

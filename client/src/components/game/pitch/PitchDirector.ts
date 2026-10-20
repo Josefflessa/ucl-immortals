@@ -203,7 +203,8 @@ export class PitchDirector {
   /** Plays a danger; returns how the ball reached the decisive move (for the narration's first line). */
   startDanger(event: MatchEvent, eventIndex: number, outcome: DangerOutcome, finish?: FinishStyle, variant?: PlayVariant): LeadIn {
     const eventSide = sideOfTeam(this.sides, event.teamId) ?? 'left';
-    const attackSide = outcome === 'save' ? otherSide(eventSide) : eventSide;
+    // A save and a duel are credited to the defending side; the attack is the other.
+    const attackSide = outcome === 'save' || outcome === 'duel' ? otherSide(eventSide) : eventSide;
     const fromRadio = this.snapshot.mode === 'flow' || this.snapshot.mode === 'idle';
     this.sample();
     const danger = buildDangerTimeline({

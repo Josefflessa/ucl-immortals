@@ -4,6 +4,7 @@ import { Player, PLAYERS, STORE_UNIQUE_CARDS, UNIQUE_CARDS, EVENT_UNIQUE_CARDS, 
 import { rollActivePlayerTraits } from '../traits';
 import { RETIRED_VARIANTS } from '../shop';
 import { random } from '../random';
+import { samePrimaryPosition } from '../positions';
 
 // ============================================================
 // DRAFT ENGINE
@@ -56,7 +57,7 @@ export const IMPROVISADOR_SECONDARY_CHEM = 8;
 export const IMPROVISADOR_OOP_CHEM = 12;
 // 🚀 Desenfreado — +1 em tudo ao XI a cada N pontos de química geral acima de 100.
 export const DESENFREADO_CHEM_THRESHOLD = 100;
-export const DESENFREADO_CHEM_PER_BOOST = 2;
+export const DESENFREADO_CHEM_PER_BOOST = 3;
 export function desenfreadoStatBoost(totalChemistry: number | undefined): number {
   return Math.floor(Math.max(0, (totalChemistry ?? 0) - DESENFREADO_CHEM_THRESHOLD) / DESENFREADO_CHEM_PER_BOOST);
 }
@@ -186,7 +187,7 @@ function shuffleWithRarityWeight(pool: Player[]): Player[] {
 }
 
 function canPlayDraftPosition(player: Player, position: string): boolean {
-  return player.position === position || effectiveSecondaries(player).includes(position);
+  return samePrimaryPosition(player.position, position) || effectiveSecondaries(player).includes(position);
 }
 
 // A draft slot can be `null` after a RoomState crosses the Socket.IO/JSON
@@ -207,12 +208,19 @@ export function draftSlotIndex(
 ): number {
   const formation = FORMATIONS.find(f => f.id === formationId);
   const roles = formation?.positions.map(p => p.role) ?? [];
-  const preferredRoles = [player.position, ...effectiveSecondaries(player)];
-  for (const preferredRole of preferredRoles) {
-    const targetIndex = roles.findIndex((role, index) =>
-      role === preferredRole && isEmptyDraftSlot(drafted[index])
-    );
-    if (targetIndex !== -1) return targetIndex;
+  const exactPrimaryIndex = roles.findIndex((role, index) =>
+    role === player.position && isEmptyDraftSlot(drafted[index])
+  );
+  if (exactPrimaryIndex !== -1) return exactPrimaryIndex;
+
+  const equivalentPrimaryIndex = roles.findIndex((role, index) =>
+    samePrimaryPosition(role, player.position) && isEmptyDraftSlot(drafted[index])
+  );
+  if (equivalentPrimaryIndex !== -1) return equivalentPrimaryIndex;
+
+  for (const secondary of effectiveSecondaries(player)) {
+    const secondaryIndex = roles.findIndex((role, index) => role === secondary && isEmptyDraftSlot(drafted[index]));
+    if (secondaryIndex !== -1) return secondaryIndex;
   }
 
   const startersComplete = drafted.slice(0, 11).every(slot => !isEmptyDraftSlot(slot));

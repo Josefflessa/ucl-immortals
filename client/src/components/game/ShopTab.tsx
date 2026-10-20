@@ -20,7 +20,7 @@ import { Armchair, Eraser, ShoppingCart, Star } from 'lucide-react';
 import { INLINE_ICON } from './inlineIcon';
 
 type ItemId = 'coach' | 'turbinar' | 'removeVariant' | 'scout' | 'playerPacks';
-const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
+const SCOUT_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'];
 const VARIANTS_PER_PAGE = 10;
 // A grade do pacote Único é a parte mais pesada da loja: cada card tem textura,
 // render próprio e moldura. Aqueça apenas as quatro cartas da oferta atual,

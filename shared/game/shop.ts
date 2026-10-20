@@ -215,7 +215,7 @@ export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; c
   { key: 'midiatico', icon: '📺', label: 'Midiático', color: '#7C6FF0', desc: 'Cada gol marcado por ele rende 20 créditos.' },
   { key: 'mentor', icon: '🧑‍🏫', label: 'Mentor', color: '#8B5E3C', desc: 'A cada vitória em uma partida em que for titular, aumenta em 1 o progresso de evolução de todo o elenco. Não acumula com outro Mentor.' },
   { key: 'improvisador', icon: '🔀', label: 'Improvisador', color: '#A6A83C', desc: 'Se for titular, cada jogador em posição secundária acrescenta +8 à química geral. Cada jogador fora de posição acrescenta +12. O bônus não acumula.' },
-  { key: 'desenfreado', icon: '🚀', label: 'Desenfreado', color: '#D2A86E', desc: 'A cada 2 pontos de química geral acima de 100, dá +1 em todos os atributos aos titulares.' },
+  { key: 'desenfreado', icon: '🚀', label: 'Desenfreado', color: '#D2A86E', desc: 'A cada 3 pontos de química geral acima de 100, dá +1 em todos os atributos aos titulares.' },
   { key: 'fazTudo', icon: '🔧', label: 'Faz-Tudo', color: '#4A6FD9', desc: 'Depois de ser titular fora de posição em 2 partidas na mesma função, passa a tratá-la como posição secundária até o fim da competição.' },
   { key: 'fominha', icon: '🍽️', label: 'Fominha', color: '#B32D45', desc: 'Se for titular, cada gol dele dá +1 em todos os atributos e reduz em 2 a química geral do time.' },
   { key: 'poliglota', icon: '💬', label: 'Poliglota', color: '#8FD6B4', desc: 'Se for titular, recebe +2 em todos os atributos por cada nacionalidade diferente da dele entre os titulares.' },

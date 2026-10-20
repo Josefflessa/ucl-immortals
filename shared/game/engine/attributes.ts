@@ -5,6 +5,7 @@ import { activePlayerTraits, AttrKey, getTraitAttributeBonus } from '../traits';
 import { Stadium } from '../stadium';
 import { stadiumHomeBonus } from '../clubProjects';
 import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS, teamWonMatch } from './teamModel';
+import { samePrimaryPosition } from '../positions';
 import { getCoachModifiersForPlayer, calculateChemistry, type CharBoostMap } from './chemistry';
 import { tacticStatBonus } from './matchSim';
 import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, estribadoStatBoost, ESTRIBADO_CREDITS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost, apostadorStatBoost } from './draft';
@@ -190,7 +191,7 @@ export const SECONDARY_STAT_MULT = 0.95;
 type PosFit = 'native' | 'secondary' | 'off';
 export function positionFit(player: { position: string; secondaryPositions?: string[]; coringa?: boolean }, role: string): PosFit {
   if (player.coringa) return 'native';                       // 🃏 imune
-  if (player.position === role) return 'native';
+  if (samePrimaryPosition(player.position, role)) return 'native';
   if (effectiveSecondaries(player).includes(role)) return 'secondary';
   return 'off';
 }

@@ -615,7 +615,7 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[], tea
     if (otherNations === 0) continue;
     contribute(pl.id, { type: 'poliglota', fromId: pl.id, fromName: pl.shortName, flatAll: otherNations * POLIGLOTA_STAT_BOOST_PER_NATION, perStat: {}, self: true });
   }
-  // 🚀 Desenfreado — +1 em tudo ao XI a cada 2 de química geral acima de 100 (não acumula).
+  // 🚀 Desenfreado — +1 em tudo ao XI a cada 3 de química geral acima de 100 (não acumula).
   const unbridled = xi.find(p => p.desenfreado);
   const perfectBoost = unbridled ? desenfreadoStatBoost(teamChemTotal) : 0;
   if (unbridled && perfectBoost > 0) {
