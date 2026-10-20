@@ -1,6 +1,8 @@
+import { useRef } from 'react';
 import CompetitionExitControl from '../../components/game/CompetitionExitControl';
 import CreditsWallet from '../../components/game/CreditsWallet';
 import Crest from '../../components/game/Crest';
+import MissionQuickSummary from '../../components/game/MissionQuickSummary';
 import { Tab, TabList, Tabs, TopBar } from '../../design-system';
 import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
 import SpoilerLock from './SpoilerLock';
@@ -33,7 +35,7 @@ export function HubHeader({ hub }: { hub: LeagueHub }) {
       />
 
       {/* Hero banner */}
-      <div className="relative h-20 sm:h-32 overflow-hidden">
+      <div className="relative h-16 overflow-hidden sm:h-32">
         <div className="absolute inset-0" style={{
           background: 'linear-gradient(180deg, transparent, var(--ui-bg))',
         }} />
@@ -59,18 +61,30 @@ export function HubSummary({ hub }: { hub: LeagueHub }) {
     qualifies, playerPosition, groupQualified, directQual, playoffQual, playerGroupLabel,
     directTeams, qualifiedTeams, activeTab, setActiveTab, hasLeagueClassification, leagueRound,
   } = hub;
+  const previousTab = useRef<typeof activeTab>('fixtures');
+
+  const handleMissionShortcut = () => {
+    if (activeTab === 'missions') {
+      setActiveTab(previousTab.current);
+      return;
+    }
+
+    previousTab.current = activeTab;
+    setActiveTab('missions');
+  };
+
   return (
     <>
         {/* Player summary card — league standing only (irrelevant in the knockout) */}
         {/* ONLINE anti-spoiler: while others are still watching, hide the position/qualification. */}
         {!isKnockout && spoilerLock && (
-          <div className="mb-6">
+          <div className="mb-3">
             <SpoilerLock waiting={spoilerWaiting} label="POSIÇÃO E CLASSIFICAÇÃO OCULTAS" />
           </div>
         )}
         {!isKnockout && !spoilerLock && playerStanding && (
           <div
-            className="rounded-xl p-4 mb-6"
+            className="rounded-xl p-4 mb-3"
             style={{
               background: qualifies
                 ? 'linear-gradient(135deg, #0A2A0A, #0F0F1A)'
@@ -126,6 +140,11 @@ export function HubSummary({ hub }: { hub: LeagueHub }) {
           </div>
         )}
 
+        <MissionQuickSummary
+          isOpen={activeTab === 'missions'}
+          onOpen={handleMissionShortcut}
+        />
+
         {/* Tabs — scrollable on mobile */}
         <Tabs
           value={activeTab}
@@ -141,7 +160,6 @@ export function HubSummary({ hub }: { hub: LeagueHub }) {
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU CLUBE' },
                 { id: 'results', label: 'HISTÓRICO' },
-                { id: 'missions', label: 'MISSÕES' },
                 { id: 'shop', label: 'LOJA' },
                 { id: 'market', label: 'MERCADO' },
               ]
@@ -151,7 +169,6 @@ export function HubSummary({ hub }: { hub: LeagueHub }) {
                 { id: 'scorers', label: 'ESTATÍSTICAS' },
                 { id: 'squad', label: 'MEU CLUBE' },
                 { id: 'results', label: 'HISTÓRICO' },
-                { id: 'missions', label: 'MISSÕES' },
                 { id: 'shop', label: 'LOJA' },
                 { id: 'market', label: 'MERCADO' },
               ]
