@@ -144,14 +144,19 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                             <div className="text-base font-black text-white truncate" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                               {player.shortName}
                             </div>
-                            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-semibold text-[#6A6A7A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                              <span className="shrink-0 rounded-md px-2 py-0.5 text-xs font-black text-white" style={{ background: '#222' }}>
-                                {POS_PT[player.position] ?? player.position}
-                              </span>
-                              <span className="min-w-0 truncate">
-                                {displayTeamName ? <>{displayTeamName} · </> : null}
-                                <span className="text-[#8A8A9A]">{player.stats.played} {player.stats.played === 1 ? 'jogo' : 'jogos'}</span>
-                              </span>
+                            <div className="mt-1 min-w-0 space-y-1 text-sm font-semibold text-[#6A6A7A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                              <div>
+                                <span className="inline-flex shrink-0 rounded-md px-2 py-0.5 text-xs font-black text-white" style={{ background: '#222' }}>
+                                  {POS_PT[player.position] ?? player.position}
+                                </span>
+                              </div>
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                {displayTeamName && <>
+                                  <span className="min-w-0 truncate">{displayTeamName}</span>
+                                  <span className="shrink-0" aria-hidden="true">·</span>
+                                </>}
+                                <span className="shrink-0 text-[#8A8A9A]">{player.stats.played} {player.stats.played === 1 ? 'jogo' : 'jogos'}</span>
+                              </div>
                             </div>
                           </div>
 

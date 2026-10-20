@@ -116,9 +116,11 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
             const isGoalkeeper = player.position === 'GK';
             return (
               <details key={`${player.id}-${index}`} className="group px-4 py-4 sm:px-5 sm:py-5">
-                <summary className="flex cursor-pointer list-none items-center gap-3.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)] [&::-webkit-details-marker]:hidden sm:gap-4">
-                  <PlayerAvatar playerId={player.id} photoUrl={player.photoUrl} rarity={player.rarity} size={48} />
-                  <div className="min-w-0 flex-1">
+                <summary className="grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_20px] items-center gap-x-3 gap-y-2 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)] [&::-webkit-details-marker]:hidden sm:flex sm:gap-4">
+                  <div className="row-span-2 sm:row-span-1">
+                    <PlayerAvatar playerId={player.id} photoUrl={player.photoUrl} rarity={player.rarity} size={48} />
+                  </div>
+                  <div className="col-start-2 row-start-1 min-w-0 sm:flex-1">
                     <div className="truncate text-base font-black" style={{ color: 'var(--ui-text)' }}>{player.shortName}</div>
                     <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm" style={{ color: 'var(--ui-text-faint)' }}>
                       <span className="shrink-0 rounded-md px-2 py-0.5 text-xs font-black" style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}>{POS_PT[player.position] ?? player.position}</span>
@@ -127,15 +129,19 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
                           <Armchair size={15} strokeWidth={2.4} aria-hidden="true" />
                         </span>
                       )}
-                      <span className="min-w-0 truncate">{teamName ? `${teamName} · ` : ''}{stats.played} {stats.played === 1 ? 'jogo' : 'jogos'}</span>
+                      {teamName && <>
+                        <span className="min-w-0 truncate">{teamName}</span>
+                        <span className="shrink-0" aria-hidden="true">·</span>
+                      </>}
+                      <span className="shrink-0">{stats.played} {stats.played === 1 ? 'jogo' : 'jogos'}</span>
                     </div>
                   </div>
-                  <div className="grid shrink-0 grid-cols-3 gap-x-2 text-center sm:gap-x-5">
-                    <div><div className="text-base font-black tabular-nums" style={{ color: 'var(--ui-text)' }}>{stats.goals}</div><div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>Gols</div></div>
-                    <div><div className="text-base font-black tabular-nums" style={{ color: 'var(--ui-text)' }}>{stats.assists}</div><div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>Assist.</div></div>
-                    <div><div className="text-base font-black tabular-nums" style={{ color: hasPlayed ? 'var(--ui-brand-strong)' : 'var(--ui-text-faint)' }}>{hasPlayed ? stats.ratingAvg.toFixed(1) : '—'}</div><div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>Nota</div></div>
+                  <div className="col-start-2 row-start-2 grid grid-cols-3 gap-x-1 border-t pt-1.5 text-center sm:ml-auto sm:shrink-0 sm:gap-x-5 sm:border-0 sm:pt-0">
+                    <div className="flex items-baseline justify-center gap-1 sm:block"><span className="text-sm font-black tabular-nums sm:text-base" style={{ color: 'var(--ui-text)' }}>{stats.goals}</span><span className="text-[10px] font-bold uppercase tracking-wide sm:text-[11px] sm:tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>Gols</span></div>
+                    <div className="flex items-baseline justify-center gap-1 sm:block"><span className="text-sm font-black tabular-nums sm:text-base" style={{ color: 'var(--ui-text)' }}>{stats.assists}</span><span className="text-[10px] font-bold uppercase tracking-wide sm:text-[11px] sm:tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>Assist.</span></div>
+                    <div className="flex items-baseline justify-center gap-1 sm:block"><span className="text-sm font-black tabular-nums sm:text-base" style={{ color: hasPlayed ? 'var(--ui-brand-strong)' : 'var(--ui-text-faint)' }}>{hasPlayed ? stats.ratingAvg.toFixed(1) : '—'}</span><span className="text-[10px] font-bold uppercase tracking-wide sm:text-[11px] sm:tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>Nota</span></div>
                   </div>
-                  <ChevronDown size={18} className="ml-0.5 shrink-0 transition-transform group-open:rotate-180" style={{ color: 'var(--ui-text-faint)' }} aria-hidden="true" />
+                  <ChevronDown size={18} className="col-start-3 row-start-1 ml-0.5 shrink-0 transition-transform group-open:rotate-180 sm:ml-0" style={{ color: 'var(--ui-text-faint)' }} aria-hidden="true" />
                 </summary>
                 <div className="grid grid-cols-2 gap-2.5 pl-[62px] pt-4 sm:grid-cols-4 lg:grid-cols-6">
                   {(!isGoalkeeper || number(stats.shots) > 0) && <DetailMetric label="Finalizações" value={number(stats.shots)} />}
