@@ -5,6 +5,7 @@ import ClubHubTab from '../components/game/ClubHubTab';
 import MarketTab from '../components/game/MarketTab';
 import ShopTab from '../components/game/ShopTab';
 import MissionsTab from '../components/game/MissionsTab';
+import MissionQuickSummary from '../components/game/MissionQuickSummary';
 import KnockoutTiesTab from '../components/game/KnockoutTiesTab';
 import BracketTab from '../components/game/BracketTab';
 import { AppShell, PageContainer, Tab, TabList, Tabs } from '../design-system';
@@ -20,7 +21,7 @@ import HubModals from './league/HubModals';
 export default function LeaguePage() {
   const hub = useLeagueHub();
   const {
-    activeTab, isKnockout, hasLeagueClassification, hasGroupStage, spoilerLock, spoilerWaiting,
+    activeTab, setActiveTab, isKnockout, hasLeagueClassification, hasGroupStage, spoilerLock, spoilerWaiting,
     classificationSubTab, setClassificationSubTab,
   } = hub;
   // Desktop side column: the league table next to the round's matches. Other tabs need the full
@@ -33,6 +34,7 @@ export default function LeaguePage() {
 
       <PageContainer className="max-w-4xl lg:max-w-7xl">
         <HubSummary hub={hub} />
+        {activeTab === 'fixtures' && <MissionQuickSummary onOpen={() => setActiveTab('missions')} />}
 
         {/* Desktop: on the round tab, the matches on the left and the league table on the right.
             Mobile keeps the single column. */}
