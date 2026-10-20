@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, CircleHelp, Eye, LoaderCircle, Table2, Trophy } from 'lucide-react';
+import { CircleHelp, Eye, LoaderCircle, Trophy } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { useTeams } from '../hooks/useTeams';
+import Crest from '../components/game/Crest';
+import BracketTab from '../components/game/BracketTab';
 import MatchDetailsModal from '../components/game/MatchDetailsModal';
 import PlayerSeasonStatsPanel, { type PlayerSeasonStatsRow } from '../components/game/PlayerSeasonStatsPanel';
 import { Button } from '../design-system';
@@ -15,6 +17,7 @@ import {
   MIN_MATCHES_FOR_RATING_LEADER,
   statKey,
   type MatchResult,
+  type Team,
 } from '@shared/game/gameEngine';
 
 export type CompetitionReviewSection = 'table' | 'bracket' | 'matches' | 'stats';
@@ -54,25 +57,54 @@ function EmptyState({ children }: { children: string }) {
   );
 }
 
-function StandingsTable({ entries, localTeamId }: { entries: ReturnType<typeof computeStandings>; localTeamId?: string }) {
+interface StandingStatus {
+  label: string;
+  color: string;
+}
+
+function StandingsTable({ entries, localTeamId, teams, statusFor }: {
+  entries: ReturnType<typeof computeStandings>;
+  localTeamId?: string;
+  teams: Team[];
+  statusFor: (index: number) => StandingStatus;
+}) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[620px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[390px] border-collapse text-left text-sm sm:min-w-[640px]">
+        <caption className="sr-only">Classificação e situação de cada equipe</caption>
         <thead>
           <tr className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)', background: 'var(--ui-bg)' }}>
-            <th className="px-3 py-3 text-center">#</th><th className="px-3 py-3">Time</th><th className="px-2 py-3 text-center">J</th><th className="px-2 py-3 text-center">V</th><th className="px-2 py-3 text-center">E</th><th className="px-2 py-3 text-center">D</th><th className="px-2 py-3 text-center">GP</th><th className="px-2 py-3 text-center">GC</th><th className="px-2 py-3 text-center">SG</th><th className="px-3 py-3 text-center">PTS</th>
+            <th className="px-2 py-3 text-center">#</th><th className="px-2 py-3">Time</th><th className="px-2 py-3 text-center">J</th>
+            <th className="hidden px-2 py-3 text-center md:table-cell">V</th><th className="hidden px-2 py-3 text-center md:table-cell">E</th><th className="hidden px-2 py-3 text-center md:table-cell">D</th>
+            <th className="hidden px-2 py-3 text-center md:table-cell">GP</th><th className="hidden px-2 py-3 text-center md:table-cell">GC</th><th className="px-2 py-3 text-center">SG</th><th className="px-2 py-3 text-center">PTS</th><th className="hidden px-3 py-3 sm:table-cell">Situação</th>
           </tr>
         </thead>
         <tbody className="divide-y" style={{ borderColor: 'var(--ui-line-subtle)' }}>
           {entries.map((entry, index) => {
             const goalDiff = entry.goalsFor - entry.goalsAgainst;
             const isLocal = entry.teamId === localTeamId;
+            const team = teams.find(item => item.id === entry.teamId);
+            const status = statusFor(index);
             return (
               <tr key={entry.teamId} style={{ background: isLocal ? 'color-mix(in srgb, var(--ui-brand) 10%, var(--ui-surface-1))' : 'var(--ui-surface-1)' }}>
-                <td className="px-3 py-3 text-center font-display" style={{ color: index < 4 ? 'var(--ui-brand-strong)' : 'var(--ui-text-faint)' }}>{index + 1}</td>
-                <td className="max-w-[220px] truncate px-3 py-3 font-bold" style={{ color: isLocal ? 'var(--ui-brand-strong)' : 'var(--ui-text)' }}>{entry.teamName}{isLocal ? <span className="ml-2 text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--ui-brand)' }}>Meu time</span> : null}</td>
-                <td className="px-2 py-3 text-center tabular-nums">{entry.played}</td><td className="px-2 py-3 text-center tabular-nums">{entry.won}</td><td className="px-2 py-3 text-center tabular-nums">{entry.drawn}</td><td className="px-2 py-3 text-center tabular-nums">{entry.lost}</td><td className="px-2 py-3 text-center tabular-nums">{entry.goalsFor}</td><td className="px-2 py-3 text-center tabular-nums">{entry.goalsAgainst}</td><td className="px-2 py-3 text-center tabular-nums">{goalDiff > 0 ? `+${goalDiff}` : goalDiff}</td>
-                <td className="px-3 py-3 text-center font-black tabular-nums" style={{ color: 'var(--ui-brand-strong)' }}>{entry.points}</td>
+                <td className="px-2 py-3 text-center font-display" style={{ color: status.color }}>{index + 1}</td>
+                <td className="max-w-[190px] px-2 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Crest crestId={team?.crestId} name={entry.teamName} size={23} />
+                    <div className="min-w-0">
+                      <div className="truncate font-bold" style={{ color: isLocal ? 'var(--ui-brand-strong)' : 'var(--ui-text)' }} title={entry.teamName}>{entry.teamName}</div>
+                      <div className="truncate text-[10px] font-bold uppercase tracking-wide sm:hidden" style={{ color: status.color }}>
+                        {isLocal ? 'Meu time · ' : ''}{status.label}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-2 py-3 text-center tabular-nums">{entry.played}</td>
+                <td className="hidden px-2 py-3 text-center tabular-nums md:table-cell">{entry.won}</td><td className="hidden px-2 py-3 text-center tabular-nums md:table-cell">{entry.drawn}</td><td className="hidden px-2 py-3 text-center tabular-nums md:table-cell">{entry.lost}</td>
+                <td className="hidden px-2 py-3 text-center tabular-nums md:table-cell">{entry.goalsFor}</td><td className="hidden px-2 py-3 text-center tabular-nums md:table-cell">{entry.goalsAgainst}</td>
+                <td className="px-2 py-3 text-center tabular-nums">{goalDiff > 0 ? `+${goalDiff}` : goalDiff}</td>
+                <td className="px-2 py-3 text-center font-black tabular-nums" style={{ color: 'var(--ui-brand-strong)' }}>{entry.points}</td>
+                <td className="hidden px-3 py-3 text-xs font-bold sm:table-cell" style={{ color: status.color }}>{status.label}</td>
               </tr>
             );
           })}
@@ -213,109 +245,121 @@ export default function CompetitionReview({ section, partial = false }: Props) {
 
   if (section === 'table') {
     if (!hasLeagueStage) return <EmptyState>Esta competição não tem fase de liga ou grupos.</EmptyState>;
+    const playoffPlaces = Math.max(0, format.qualifiedTeams - 16);
+    const directPlaces = Math.max(0, 16 - playoffPlaces);
+    const statusFor = (index: number): StandingStatus => {
+      if (isGroupFormat) {
+        return index < format.qualifiedPerGroup
+          ? { label: 'Avança', color: 'var(--ui-success)' }
+          : { label: 'Fora da classificação', color: 'var(--ui-text-faint)' };
+      }
+      if (format.id === 'league') {
+        return index === 0
+          ? { label: isLocalPartial ? 'Líder' : '1º lugar', color: 'var(--ui-brand-strong)' }
+          : { label: '—', color: 'var(--ui-text-faint)' };
+      }
+      if (index < directPlaces) return { label: 'Oitavas', color: 'var(--ui-success)' };
+      if (index < format.qualifiedTeams) return { label: 'Playoff', color: '#60A5FA' };
+      return { label: 'Fora da classificação', color: 'var(--ui-text-faint)' };
+    };
     return (
       <div className="space-y-5">
         <div>
           <h2 className="font-display text-2xl" style={{ color: 'var(--ui-text)' }}>{isGroupFormat ? 'CLASSIFICAÇÃO DOS GRUPOS' : isLocalPartial ? 'CLASSIFICAÇÃO ATÉ AQUI' : 'CLASSIFICAÇÃO FINAL'}</h2>
-          <p className="mt-1 text-sm" style={{ color: 'var(--ui-text-muted)' }}>{isLocalPartial ? 'Dados atualizados até o encerramento da sua campanha.' : 'Tabela calculada com os resultados disputados nesta competição.'}</p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--ui-text-muted)' }}>{isGroupFormat
+            ? `${format.qualifiedPerGroup} ${format.qualifiedPerGroup === 1 ? 'time avança' : 'times avançam'} de cada grupo.`
+            : format.id === 'league'
+              ? 'Tabela final organizada por pontos, saldo de gols e critérios de desempate.'
+              : `${directPlaces} ${directPlaces === 1 ? 'vaga direta' : 'vagas diretas'} às oitavas${playoffPlaces > 0 ? ` · ${playoffPlaces} vagas no playoff` : ''}.`}</p>
         </div>
         {isGroupFormat ? groupTables.map(group => (
           <section key={group.groupId} className="overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--ui-line-subtle)', background: 'var(--ui-surface-1)' }}>
-            <h3 className="border-b px-4 py-3 text-sm font-black tracking-widest" style={{ borderColor: 'var(--ui-line-subtle)', color: 'var(--ui-brand-strong)' }}>GRUPO {String.fromCharCode(65 + group.groupId)}</h3>
-            <StandingsTable entries={group.entries} localTeamId={localTeamId} />
+            <h3 className="flex items-center justify-between gap-3 border-b px-4 py-3 text-sm font-black tracking-widest" style={{ borderColor: 'var(--ui-line-subtle)', color: 'var(--ui-brand-strong)' }}>
+              <span>GRUPO {String.fromCharCode(65 + group.groupId)}</span>
+              <span className="text-[10px] tracking-wide" style={{ color: 'var(--ui-text-muted)' }}>{format.qualifiedPerGroup} avançam</span>
+            </h3>
+            <StandingsTable entries={group.entries} localTeamId={localTeamId} teams={allTeams} statusFor={statusFor} />
           </section>
         )) : (
           <section className="overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--ui-line-subtle)', background: 'var(--ui-surface-1)' }}>
-            <StandingsTable entries={leagueTable} localTeamId={localTeamId} />
+            <StandingsTable entries={leagueTable} localTeamId={localTeamId} teams={allTeams} statusFor={statusFor} />
           </section>
         )}
-        <p className="text-xs" style={{ color: 'var(--ui-text-faint)' }}>J: jogos · V: vitórias · E: empates · D: derrotas · GP/GC: gols pró/contra · SG: saldo · PTS: pontos</p>
+        <p className="text-xs" style={{ color: 'var(--ui-text-faint)' }}>No celular, a tabela mostra jogos, saldo e pontos. Em telas maiores, aparecem também vitórias, empates, derrotas e gols pró/contra.</p>
       </div>
     );
   }
 
   if (section === 'bracket') {
     if (!bracket) return <EmptyState>O chaveamento ainda não foi iniciado nesta competição.</EmptyState>;
-    const bracketRounds = KNOCKOUT_ROUNDS.map(({ key }) => ({
-      key,
-      label: knockoutRoundLabel(key, bracket.firstRoundSize),
-      ties: key === 'quarters' ? bracket.quarterFinals ?? [] : key === 'semis' ? bracket.semiFinals ?? [] : key === 'final' ? bracket.final ? [bracket.final] : [] : bracket[key] ?? [],
-    })).filter(round => round.ties.some((tie: any) => tie.homeTeamId || tie.awayTeamId || tie.played));
     return (
       <div className="space-y-5">
         <div>
-          <h2 className="font-display text-2xl" style={{ color: 'var(--ui-text)' }}>CHAVEAMENTO</h2>
-          <p className="mt-1 text-sm" style={{ color: 'var(--ui-text-muted)' }}>{isLocalPartial ? 'Apenas confrontos e resultados registrados até o fim da sua campanha.' : 'Confrontos, placares agregados e classificados de cada fase.'}</p>
+          <h2 className="flex items-center gap-2 font-display text-2xl" style={{ color: 'var(--ui-text)' }}><Trophy size={21} aria-hidden="true" /> CHAVEAMENTO</h2>
+          <p className="mt-1 text-sm" style={{ color: 'var(--ui-text-muted)' }}>{isLocalPartial ? 'Veja até onde a competição avançou e em qual confronto sua campanha terminou.' : 'Acompanhe os placares e os classificados de cada fase.'}</p>
         </div>
-        {bracketRounds.length === 0 ? <EmptyState>Nenhum confronto do mata-mata foi definido.</EmptyState> : bracketRounds.map(round => (
-          <section key={round.key} className="space-y-2">
-            <h3 className="flex items-center gap-2 text-xs font-black tracking-[0.16em]" style={{ color: 'var(--ui-brand-strong)' }}><Trophy size={14} aria-hidden="true" />{round.label.toUpperCase()}</h3>
-            <div className="grid gap-2 lg:grid-cols-2">
-              {round.ties.map((tie: any, index: number) => {
-                const home = allTeams.find(team => team.id === tie.homeTeamId);
-                const away = allTeams.find(team => team.id === tie.awayTeamId);
-                const finalResult: MatchResult | undefined = tie.result;
-                const winnerId = finalResult?.winner ?? finalResult?.penaltyWinner;
-                const aggregate = tie.leg1 && tie.leg2 ? finalResult : null;
-                const id = tie.id ?? `${round.key}-${index}`;
-                return (
-                  <article key={id} className="rounded-xl border p-3 sm:p-4" style={{ background: 'var(--ui-surface-1)', borderColor: winnerId === localTeamId ? 'color-mix(in srgb, var(--ui-brand) 48%, var(--ui-line-subtle))' : 'var(--ui-line-subtle)' }}>
-                    <div className="space-y-2">
-                      {[{ team: home, teamId: tie.homeTeamId, score: aggregate?.homeGoals ?? (tie.isSingleLeg ? finalResult?.homeGoals : null) }, { team: away, teamId: tie.awayTeamId, score: aggregate?.awayGoals ?? (tie.isSingleLeg ? finalResult?.awayGoals : null) }].map((row, rowIndex) => (
-                        <div key={`${id}-${rowIndex}`} className="flex items-center gap-2">
-                          {winnerId === row.teamId ? <Check size={15} className="shrink-0 text-emerald-400" aria-label="Classificado" /> : <span className="w-[15px] shrink-0" />}
-                          <span className="min-w-0 flex-1 truncate text-sm font-bold" style={{ color: row.teamId === localTeamId ? 'var(--ui-brand-strong)' : 'var(--ui-text)' }}>{row.team?.name ?? 'A definir'}</span>
-                          <span className="font-display text-xl tabular-nums" style={{ color: finalResult ? 'var(--ui-text)' : 'var(--ui-text-faint)' }}>{row.score ?? '—'}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {aggregate && <div className="mt-2 border-t pt-2 text-xs font-bold" style={{ borderColor: 'var(--ui-line-subtle)', color: 'var(--ui-text-muted)' }}>Placar agregado{finalResult?.penaltyWinner ? ` · decidido nos pênaltis` : ''}</div>}
-                    {tie.leg1 && <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs" style={{ borderColor: 'var(--ui-line-subtle)', color: 'var(--ui-text-muted)' }}>
-                      <span>Ida: {allTeams.find(team => team.id === tie.leg1.homeTeamId)?.name ?? tie.leg1.homeTeamId} {tie.leg1.homeGoals}–{tie.leg1.awayGoals} {allTeams.find(team => team.id === tie.leg1.awayTeamId)?.name ?? tie.leg1.awayTeamId}</span>
-                      {tie.leg2 && <span>Volta: {allTeams.find(team => team.id === tie.leg2.homeTeamId)?.name ?? tie.leg2.homeTeamId} {tie.leg2.homeGoals}–{tie.leg2.awayGoals} {allTeams.find(team => team.id === tie.leg2.awayTeamId)?.name ?? tie.leg2.awayTeamId}</span>}
-                    </div>}
-                    {!tie.played && <div className="mt-2 text-xs" style={{ color: 'var(--ui-text-faint)' }}>{tie.leg1 ? 'Aguardando jogo de volta' : 'Confronto ainda não disputado'}</div>}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+        <BracketTab reviewMode />
       </div>
     );
   }
 
   if (section === 'matches') {
+    const matchSections = [
+      { key: 'league', title: isGroupFormat ? 'FASE DE GRUPOS' : 'FASE DE LIGA', results: matches.filter(match => !match.isKnockout) },
+      { key: 'knockout', title: 'MATA-MATA', results: matches.filter(match => match.isKnockout) },
+    ].filter(group => group.results.length > 0);
     return (
       <div className="space-y-4">
         <div>
-          <h2 className="font-display text-2xl" style={{ color: 'var(--ui-text)' }}>HISTÓRICO DE PARTIDAS</h2>
-          <p className="mt-1 text-sm" style={{ color: 'var(--ui-text-muted)' }}>{isLocalPartial ? 'Resultados disputados até o encerramento da sua campanha.' : `${matches.length} ${matches.length === 1 ? 'partida disputada' : 'partidas disputadas'} nesta competição.`}</p>
+          <h2 className="font-display text-2xl" style={{ color: 'var(--ui-text)' }}>PARTIDAS DA CAMPANHA</h2>
+          <p className="mt-1 text-sm" style={{ color: 'var(--ui-text-muted)' }}>{isLocalPartial ? `${matches.length} ${matches.length === 1 ? 'resultado registrado' : 'resultados registrados'} até o fim da sua campanha.` : `${matches.length} ${matches.length === 1 ? 'partida disputada' : 'partidas disputadas'} nesta competição. Selecione “Detalhes” para rever uma partida.`}</p>
         </div>
         {matches.length === 0 ? <EmptyState>Nenhuma partida foi disputada ainda.</EmptyState> : (
-          <div className="space-y-2">
-            {matches.map(match => {
-              const home = allTeams.find(team => team.id === match.result.homeTeamId);
-              const away = allTeams.find(team => team.id === match.result.awayTeamId);
-              const winner = match.result.winner ?? match.result.penaltyWinner;
-              return (
-                <article key={match.key} className="rounded-xl border p-3 sm:p-4" style={{ background: 'var(--ui-surface-1)', borderColor: 'var(--ui-line-subtle)' }}>
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>{match.stage}</span>
-                    <span className="shrink-0 text-[11px] font-bold" style={{ color: 'var(--ui-text-faint)' }}>{match.result.durationMinutes === 120 ? 'Prorrogação' : ''}</span>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <span className="min-w-0 flex-1 truncate text-right text-sm font-bold" style={{ color: winner === match.result.homeTeamId ? 'var(--ui-text)' : 'var(--ui-text-muted)' }}>{home?.name ?? match.result.homeTeamId}</span>
-                    <ResultScore result={match.result} />
-                    <span className="min-w-0 flex-1 truncate text-sm font-bold" style={{ color: winner === match.result.awayTeamId ? 'var(--ui-text)' : 'var(--ui-text-muted)' }}>{away?.name ?? match.result.awayTeamId}</span>
-                    <Button type="button" intent="secondary" aria-label={`${loadingMatchKey === match.key ? 'Carregando detalhes' : 'Ver detalhes'}: ${home?.name ?? 'mandante'} contra ${away?.name ?? 'visitante'}`} disabled={loadingMatchKey !== null} onClick={() => void openMatchDetails(match)} className="min-h-9 shrink-0 px-2.5 text-xs">
-                      {loadingMatchKey === match.key ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}<span className="hidden sm:inline">{loadingMatchKey === match.key ? 'CARREGANDO' : 'DETALHES'}</span>
-                    </Button>
-                  </div>
-                  {match.result.penaltyWinner && <div className="mt-2 text-center text-xs font-bold" style={{ color: 'var(--ui-warning)' }}>Decidida nos pênaltis · {match.result.homePenalties}–{match.result.awayPenalties}</div>}
-                </article>
-              );
-            })}
+          <div className="space-y-5">
+            {matchSections.map(group => (
+              <section key={group.key} className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3 border-b pb-2" style={{ borderColor: 'var(--ui-line-subtle)' }}>
+                  <h3 className="text-xs font-black tracking-[0.16em]" style={{ color: 'var(--ui-brand-strong)' }}>{group.title}</h3>
+                  <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--ui-text-faint)' }}>{group.results.length} {group.results.length === 1 ? 'partida' : 'partidas'}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+                  {group.results.map(match => {
+                    const home = allTeams.find(team => team.id === match.result.homeTeamId);
+                    const away = allTeams.find(team => team.id === match.result.awayTeamId);
+                    const winner = match.result.winner ?? match.result.penaltyWinner;
+                    const involvesPlayer = match.result.homeTeamId === localTeamId || match.result.awayTeamId === localTeamId;
+                    const outcomeLabel = !involvesPlayer ? null : winner === localTeamId ? 'SUA VITÓRIA' : winner == null ? 'EMPATE' : 'SUA DERROTA';
+                    const outcomeColor = winner === localTeamId ? 'var(--ui-success)' : winner == null ? 'var(--ui-warning)' : 'var(--ui-danger)';
+                    return (
+                      <article key={match.key} className="rounded-xl border p-3 sm:p-4" style={{ background: 'var(--ui-surface-1)', borderColor: involvesPlayer ? 'color-mix(in srgb, var(--ui-brand) 30%, var(--ui-line-subtle))' : 'var(--ui-line-subtle)' }}>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>{match.stage}</span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {match.result.durationMinutes === 120 && <span className="text-[10px] font-bold" style={{ color: 'var(--ui-text-faint)' }}>PRORROGAÇÃO</span>}
+                            {outcomeLabel && <span className="rounded-full px-2 py-0.5 text-[10px] font-black tracking-wide" style={{ color: outcomeColor, background: `color-mix(in srgb, ${outcomeColor} 13%, transparent)` }}>{outcomeLabel}</span>}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 sm:gap-3">
+                          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
+                            <span className="min-w-0 truncate text-right text-xs font-bold sm:text-sm" style={{ color: winner === match.result.homeTeamId ? 'var(--ui-text)' : 'var(--ui-text-muted)' }}>{home?.name ?? match.result.homeTeamId}</span>
+                            <Crest crestId={home?.crestId} name={home?.name ?? match.result.homeTeamId} size={22} />
+                          </div>
+                          <ResultScore result={match.result} />
+                          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+                            <Crest crestId={away?.crestId} name={away?.name ?? match.result.awayTeamId} size={22} />
+                            <span className="min-w-0 truncate text-xs font-bold sm:text-sm" style={{ color: winner === match.result.awayTeamId ? 'var(--ui-text)' : 'var(--ui-text-muted)' }}>{away?.name ?? match.result.awayTeamId}</span>
+                          </div>
+                          <Button type="button" intent="secondary" aria-label={`${loadingMatchKey === match.key ? 'Carregando detalhes' : 'Ver detalhes'}: ${home?.name ?? 'mandante'} contra ${away?.name ?? 'visitante'}`} disabled={loadingMatchKey !== null} onClick={() => void openMatchDetails(match)} className="min-h-9 shrink-0 px-2.5 text-xs">
+                            {loadingMatchKey === match.key ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}<span className="hidden sm:inline">{loadingMatchKey === match.key ? 'CARREGANDO' : 'DETALHES'}</span>
+                          </Button>
+                        </div>
+                        {match.result.penaltyWinner && <div className="mt-2 text-center text-xs font-bold" style={{ color: 'var(--ui-warning)' }}>Pênaltis · {match.result.homePenalties}–{match.result.awayPenalties}</div>}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
         {detailsMatch && <MatchDetailsModal
@@ -345,7 +389,9 @@ export default function CompetitionReview({ section, partial = false }: Props) {
     keepers: 'DEFESAS · TOP 15', tackles: 'DESARMES · TOP 15', cards: 'DISCIPLINA · TOP 15',
   };
   const descriptions: Record<StatsCategory, string> = {
-    squad: 'Todos os seus jogadores, inclusive reservas e quem ainda não entrou em campo. Abra cada linha para ver os números completos.',
+    squad: isLocalPartial
+      ? 'Os números consideram as partidas disputadas até o fim da sua campanha. Abra cada jogador para ver os detalhes.'
+      : 'Todos os seus jogadores, inclusive reservas e quem ainda não entrou em campo. Abra cada linha para ver os números completos.',
     goals: 'Jogadores com ao menos um gol. A nota média considera quem disputou pelo menos três jogos.',
     assists: 'Jogadores com ao menos uma assistência registrada.', ratings: `Jogadores com pelo menos ${MIN_MATCHES_FOR_RATING_LEADER} jogos, ordenados pela nota média.`,
     keepers: 'Goleiros que já atuaram, ordenados pelo total de defesas.', tackles: 'Jogadores com ao menos um desarme.', cards: 'Jogadores que receberam cartões, ordenados pela pontuação disciplinar.',
@@ -356,11 +402,11 @@ export default function CompetitionReview({ section, partial = false }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="font-display text-2xl" style={{ color: 'var(--ui-text)' }}>ESTATÍSTICAS DA COMPETIÇÃO</h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--ui-text-muted)' }}>{isLocalPartial ? 'Sua campanha foi encerrada. Os dados do seu elenco consideram somente as partidas registradas até aqui.' : 'Números acumulados das partidas oficiais, incluindo a fase de mata-mata.'}</p>
+        <h2 className="font-display text-2xl" style={{ color: 'var(--ui-text)' }}>{isLocalPartial ? 'ESTATÍSTICAS DA CAMPANHA' : 'ESTATÍSTICAS DA COMPETIÇÃO'}</h2>
+        <p className="mt-1 text-sm" style={{ color: 'var(--ui-text-muted)' }}>{isLocalPartial ? 'Como a competição continuou após sua eliminação, esta seção mostra somente os dados do seu elenco.' : 'Números acumulados das partidas oficiais, incluindo a fase de mata-mata.'}</p>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" role="tablist" aria-label="Categoria das estatísticas">
-        {categories.map(category => <button key={category.id} id={`competition-stats-tab-${category.id}`} type="button" role="tab" aria-selected={statsCategory === category.id} aria-controls={`competition-stats-panel-${category.id}`} onClick={() => setStatsCategory(category.id)} className="ui-tab shrink-0 text-xs" data-active={statsCategory === category.id}>{category.label}</button>)}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="tablist" aria-label="Categoria das estatísticas">
+        {categories.map(category => <button key={category.id} id={`competition-stats-tab-${category.id}`} type="button" role="tab" aria-selected={statsCategory === category.id} aria-controls={`competition-stats-panel-${category.id}`} onClick={() => setStatsCategory(category.id)} className="ui-tab w-full justify-center text-xs sm:w-auto" data-active={statsCategory === category.id}>{category.label}</button>)}
       </div>
       <div id={`competition-stats-panel-${statsCategory}`} role="tabpanel" aria-labelledby={`competition-stats-tab-${statsCategory}`}>
         <PlayerSeasonStatsPanel

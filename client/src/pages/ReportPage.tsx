@@ -326,6 +326,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   // ── Cinematic reveal phases ────────────────────────────────────────────────
   const [phase, setPhase] = useState(0);
   const [reviewSection, setReviewSection] = useState<'overview' | CompetitionReviewSection>('overview');
+  // Keep the expanded campaign review hidden until its sections are ready to return.
+  const showExtendedReview = false;
   const [selectedPlayer, setSelectedPlayer] = useState<{ player: Player; positionIndex: number } | null>(null);
   useEffect(() => {
     const timers = [
@@ -780,9 +782,13 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         )}
       </div>
 
-      {!historyEntry && !historySnapshot && (
+      {showExtendedReview && !historyEntry && !historySnapshot && (
         <nav className="mx-auto w-full max-w-6xl px-4 pb-3" aria-label="Revisão da competição">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" role="tablist" aria-label="Seções do relatório">
+          <div className="mb-3">
+            <h2 className="text-xs font-black tracking-[0.16em] text-[var(--ui-brand-strong)]">REVISÃO DA COMPETIÇÃO</h2>
+            <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Consulte a classificação, o chaveamento, os resultados e as estatísticas da campanha.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="tablist" aria-label="Seções do relatório">
             {[
               { id: 'overview' as const, label: 'RESUMO', Icon: ClipboardList },
               ...(state.competitionFormat.id !== 'knockout' ? [{ id: 'table' as const, label: state.competitionFormat.id === 'groups_knockout' ? 'GRUPOS' : 'CLASSIFICAÇÃO', Icon: Table2 }] : []),
@@ -798,7 +804,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 aria-selected={reviewSection === id}
                 aria-controls={`competition-review-panel-${id}`}
                 onClick={() => setReviewSection(id)}
-                className="ui-tab shrink-0 text-xs"
+                className="ui-tab min-h-10 w-full justify-center text-xs sm:w-auto"
                 data-active={reviewSection === id}
               >
                 <span className="inline-flex items-center gap-1.5"><Icon size={14} aria-hidden="true" />{label}</span>
@@ -808,7 +814,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         </nav>
       )}
 
-      {!historyEntry && !historySnapshot && reviewSection !== 'overview' ? (
+      {showExtendedReview && !historyEntry && !historySnapshot && reviewSection !== 'overview' ? (
         <PageContainer
           id={`competition-review-panel-${reviewSection}`}
           role="tabpanel"
@@ -826,10 +832,10 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         </PageContainer>
       ) : (
       <PageContainer
-        id={!historyEntry && !historySnapshot ? 'competition-review-panel-overview' : undefined}
-        role={!historyEntry && !historySnapshot ? 'tabpanel' : undefined}
-        aria-labelledby={!historyEntry && !historySnapshot ? 'competition-review-tab-overview' : undefined}
-        tabIndex={!historyEntry && !historySnapshot ? 0 : undefined}
+        id={showExtendedReview && !historyEntry && !historySnapshot ? 'competition-review-panel-overview' : undefined}
+        role={showExtendedReview && !historyEntry && !historySnapshot ? 'tabpanel' : undefined}
+        aria-labelledby={showExtendedReview && !historyEntry && !historySnapshot ? 'competition-review-tab-overview' : undefined}
+        tabIndex={showExtendedReview && !historyEntry && !historySnapshot ? 0 : undefined}
         narrow
         className={`relative z-10 flex-1 space-y-5 lg:max-w-6xl ${historyEntry ? 'pb-28' : ''}`}
       >

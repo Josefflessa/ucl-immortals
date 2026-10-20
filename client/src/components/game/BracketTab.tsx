@@ -23,7 +23,7 @@ type Tie = {
 
 const ROUND_ORDER = ['playoffs', 'round16', 'quarters', 'semis', 'final'] as const;
 
-export default function BracketTab() {
+export default function BracketTab({ reviewMode = false }: { reviewMode?: boolean } = {}) {
   const { state } = useGame();
   const { knockoutBracket } = state;
   const { localTeamId, getTeamName: resolveTeamName } = useTeams();
@@ -107,7 +107,7 @@ export default function BracketTab() {
         : !!tie && state.watchedKnockoutMatches.includes(`${tie.id}_l1`) && state.watchedKnockoutMatches.includes(`${tie.id}_l2`));
     // In solo, only the player's own tie waits for its replay; online results
     // stay hidden until all connected participants in the active round watched.
-    const hideScore = status === 'future' || !decided || (status === 'active' && !activeTieWatched);
+    const hideScore = status === 'future' || !decided || (!reviewMode && status === 'active' && !activeTieWatched);
     const winner = tie?.result?.winner;
     return (
       <div className="ui-panel ui-panel--inset overflow-hidden"
@@ -128,13 +128,18 @@ export default function BracketTab() {
   return (
     <div>
       <div className="mb-3 text-sm leading-relaxed text-[var(--ui-text-muted)]">
-        Caminho até o título — seu time em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>. O placar da fase em andamento aparece depois que os replays forem assistidos.
+        {reviewMode
+          ? <>Veja os confrontos e quem avançou em cada fase. Seu time aparece em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>.</>
+          : <>Caminho até o título — seu time em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>. O placar da fase em andamento aparece depois que os replays forem assistidos.</>}
       </div>
       <div className="overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
         <div className="flex gap-3 min-w-max lg:mx-auto">
           {roundOrder.map((key, ri) => {
-            const status: 'done' | 'active' | 'future' = ri < curIdx ? 'done' : ri === curIdx ? 'active' : 'future';
             const real = tiesFor(key);
+            const roundComplete = real.length > 0 && real.every(tie => tie.played && tie.result);
+            const status: 'done' | 'active' | 'future' = reviewMode && roundComplete
+              ? 'done'
+              : ri < curIdx ? 'done' : ri === curIdx ? 'active' : 'future';
             const slots = slotsFor(key);
             // Future rounds have no ties yet — render greyed placeholders so the tree shape reads.
             const cards: (Tie | null)[] = real.length > 0 ? real : Array.from({ length: slots }, () => null);
