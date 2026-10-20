@@ -265,7 +265,7 @@ export const MISSION_CATALOG: MissionDefinition[] = [
   m('pilar_win', 'Pilar da Equipe', 'Vencer com um jogador com Pilar titular e com pelo menos 80 de química no início da partida.', 'special', 'rare', 1, 110, { kind: 'pilar_chemistry_and_win', value: 80 }),
   m('lobo_win', 'Lobo Solitário', 'Vencer com um jogador com Lobo Solitário entre os titulares e com a química do time em 40 ou menos no início da partida.', 'special', 'epic', 1, 180, { kind: 'lobo_chemistry_and_win', value: 40 }),
   m('nomade_win', 'Nômade', 'Vencer com um jogador com Nômade entre os titulares.', 'special', 'rare', 1, 105, { kind: 'nomade_and_win' }),
-  m('forasteiro_win', 'Forasteiro Isolado', 'Vencer com Forasteiro ativo, sendo ele o único titular de seu país e clube.', 'special', 'epic', 1, 170, { kind: 'forasteiro_and_win' }),
+  m('forasteiro_win', 'Forasteiro em Campo', 'Vencer com Forasteiro titular e pelo menos um titular de outro clube e outra nacionalidade.', 'special', 'epic', 1, 170, { kind: 'forasteiro_and_win' }),
   m('martir_win', 'Mártir em Campo', 'Jogar uma partida com um jogador com Mártir entre os titulares.', 'special', 'uncommon', 1, 55, { kind: 'martir_active' }),
   m('idolo_win', 'Ídolo do Vestiário', 'Vencer com Ídolo titular e pelo menos 3 companheiros do mesmo clube na escalação.', 'special', 'rare', 1, 120, { kind: 'idolo_and_win', value: 3 }),
   m('collector_win', 'Elenco Completo', 'Vencer com Colecionador entre os titulares e pelo menos 5 jogadores fora do time titular disponíveis no banco.', 'special', 'uncommon', 1, 80, { kind: 'collector_bench_and_win', value: 5 }),
@@ -899,6 +899,12 @@ function hasLateLeadGoal(context: MissionMatchContext, minute: number): boolean 
   return false;
 }
 
+function forasteiroPartnerCount(player: PlayerCard, starters: PlayerCard[]): number {
+  return starters.filter(other => other.id !== player.id
+    && other.nation !== player.nation
+    && !sameClub(other.club, player.club)).length;
+}
+
 function traitIsActive(context: MissionMatchContext, key: keyof PlayerCard): boolean {
   if (key === 'noe') {
     const carded = context.starters.filter(specialCarded);
@@ -906,18 +912,14 @@ function traitIsActive(context: MissionMatchContext, key: keyof PlayerCard): boo
   }
   if (key === 'todosPorUm') return context.starters.length === 11 && context.starters.every(player => player.todosPorUm);
   if (key === 'forasteiro') {
-    return context.starters.some(player => player.forasteiro
-      && context.starters.filter(other => other.nation === player.nation).length === 1
-      && context.starters.filter(other => sameClub(other.club, player.club)).length === 1);
+    return context.starters.some(player => player.forasteiro && forasteiroPartnerCount(player, context.starters) > 0);
   }
   return activeTraitPlayers(context, key).length > 0;
 }
 
 function activeTraitPlayers(context: MissionMatchContext, key: keyof PlayerCard): PlayerCard[] {
   if (key === 'forasteiro') {
-    return context.starters.filter(player => player.forasteiro
-      && context.starters.filter(other => other.nation === player.nation).length === 1
-      && context.starters.filter(other => sameClub(other.club, player.club)).length === 1);
+    return context.starters.filter(player => player.forasteiro && forasteiroPartnerCount(player, context.starters) > 0);
   }
   return context.starters.filter(player => Boolean(player[key]));
 }
@@ -1122,10 +1124,10 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
     case 'chemistry_and_win': return { matched: context.isWin && context.chemistry >= (rule.value ?? 80) };
     case 'chemistry_max_and_win': return { matched: context.isWin && context.chemistry <= (rule.value ?? 10) };
     case 'chemistry_range_and_win': return { matched: context.isWin && context.chemistry >= (rule.value ?? 70) && context.chemistry <= Number(rule.values?.[0] ?? 79) };
-    case 'all_compatible_and_win': return { matched: context.isWin && context.starters.every(player => !player.isOOP) };
+    case 'all_compatible_and_win': return { matched: context.isWin && context.starters.every(player => !player.isOOP || player.coringa) };
     case 'secondary_positions_and_win': {
       // Secondary-position starters are derived from the occupied formation roles.
-      const calculated = calculateChemistry(context.starters, context.team.coachId, formation?.positions.map(position => position.role), context.formationId);
+      const calculated = calculateChemistry(context.starters, context.team.coachId, formation?.positions.map(position => position.role), context.formationId, context.team.players.slice(11));
       const secondaryCount = formation?.positions.reduce((total, _position, index) => {
         const player = context.starters[index];
         return total + (player && !calculated.outOfPosition[player.id] && calculated.secondaryPos[player.id] ? 1 : 0);
@@ -1133,7 +1135,7 @@ function ruleMatches(definition: MissionDefinition, context: MissionMatchContext
       return { matched: context.isWin && secondaryCount >= (rule.value ?? 3) };
     }
     case 'coringa_secondary_and_win': {
-      const calculated = calculateChemistry(context.starters, context.team.coachId, formation?.positions.map(position => position.role), context.formationId);
+      const calculated = calculateChemistry(context.starters, context.team.coachId, formation?.positions.map(position => position.role), context.formationId, context.team.players.slice(11));
       const secondaryCount = formation?.positions.reduce((total, _position, index) => {
         const player = context.starters[index];
         return total + (player && !player.coringa && !calculated.outOfPosition[player.id] && calculated.secondaryPos[player.id] ? 1 : 0);

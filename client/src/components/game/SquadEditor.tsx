@@ -14,7 +14,7 @@ import { FORMATIONS, COACHES, HISTORICAL_TRIOS, getRarityColor, getTacticById, P
 import {
   calculateChemistry, getPlayerEffectiveStats, getChemistryLinks, getEvolutionLevel,
   MAX_RESERVE_PLAYERS,
-  PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_TARGET_BOOST, PADRINHO_AFILHADO_BOOST, captainBoostFromStarters,
+  PREFERRED_FORMATION_CHEM_BONUS, PILAR_CHEM_BONUS, LOBO_CHEM_PENALTY, MARTIR_DISTRIBUTION_PER_WIN, martirDistributionLimit, PADRINHO_AFILHADO_BOOST, captainBoostFromStarters,
   computeCharacteristicBoosts, evolvePointsSpent, evolvePointsBudget, EVOLVE_LEVEL_THRESHOLDS, EVOLVE_POINTS, SPECIALIZATION_LEVEL, SPECIALIZATION_UNLOCK_COST, positionFit, type EffectiveStats,
 } from '@shared/game/gameEngine';
 import { type AttrKey } from '@shared/game/traits';
@@ -50,7 +50,7 @@ interface SquadEditorProps {
   onSetPenaltyTaker: (id: string) => void;
   onSetFreeKickTaker: (id: string) => void;
   onSwap: (indexA: number, indexB: number) => void;
-  onSetMartirTargets?: (playerId: string, targetIds: string[]) => void; // 🩸 pick the 2 buffed teammates
+  onSetMartirTargets?: (playerId: string, targetIds: string[], distribution: Record<string, number>) => void;
   onSetPadrinhoTarget?: (playerId: string, targetId: string) => void; // 🤵 pick the godchild ("" = automatic)
   showCoachCard?: boolean;           // the manager card (default on)
   footer?: React.ReactNode;          // host-specific action (e.g. "INICIAR DRAFT")
@@ -153,10 +153,10 @@ export default function SquadEditor({
   const xi = useMemo(() => players.slice(0, 11), [players]);
   const bench = useMemo(() => players.slice(11), [players]);
   const formationRoles = useMemo(() => formation?.positions.map(p => p.role) ?? [], [formation]);
-  const chemData = useMemo(() => calculateChemistry(xi, coachId, formationRoles, formationId), [xi, coachId, formationRoles, formationId]);
+  const chemData = useMemo(() => calculateChemistry(xi, coachId, formationRoles, formationId, bench), [xi, coachId, formationRoles, formationId, bench]);
   const chemLinks = useMemo(() => getChemistryLinks(xi, coachId), [xi, coachId]);
   const captainBoost = useMemo(() => captainBoostFromStarters(xi, captain ?? undefined) ?? undefined, [xi, captain]);
-  const charBoosts = useMemo(() => computeCharacteristicBoosts(players, chemData.total), [players, chemData.total]); // 🩸❤️🪑 team-effect characteristics
+  const charBoosts = useMemo(() => computeCharacteristicBoosts(players, chemData.total, formationRoles), [players, chemData.total, formationRoles]); // 🩸❤️🪑 team-effect characteristics
 
   // A química usa o verde como identidade visual fixa nesta síntese do elenco;
   // o valor continua indicando o nível real, sem mudar o cálculo.
@@ -192,7 +192,7 @@ export default function SquadEditor({
     const swap = temp[selectedIndex];
     temp[selectedIndex] = temp[candidateIdx];
     temp[candidateIdx] = swap;
-    const preview = calculateChemistry(temp.slice(0, 11), coachId, formationRoles, formationId);
+    const preview = calculateChemistry(temp.slice(0, 11), coachId, formationRoles, formationId, temp.slice(11));
     return { total: preview.total, diff: preview.total - chemData.total };
   };
 
@@ -370,7 +370,7 @@ export default function SquadEditor({
             <span className="min-w-0 break-words">Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do técnico ({coach.name})</span>
           </div>
         )}
-        {/* Cartas especiais que mexem na QUÍMICA GERAL (total) do time: Pilar, Noé, Improvisador (+) e Lobo Solitário, Fominha (−). */}
+        {/* Cartas especiais que mexem na QUÍMICA GERAL (total) do time: Pilar, Noé, 12º Homem, Improvisador (+), Lobo Solitário, Forasteiro e Fominha (−). */}
         {(() => {
           const GREEN = { background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80' };
           const RED = { background: '#EF444418', border: '1px solid #EF444440', color: '#FCA5A5' };
@@ -378,11 +378,16 @@ export default function SquadEditor({
           const chips: { key: string; trait: string; fallback: string; who: string; value: string; style: typeof GREEN; note?: string }[] = [];
           for (const p of xi.filter(p => p?.pilar)) chips.push({ key: `pilar-${p.id}`, trait: 'pilar', fallback: '🧱', who: p.shortName, value: `+${PILAR_CHEM_BONUS}`, style: GREEN });
           for (const p of xi.filter(p => p?.lobo)) chips.push({ key: `lobo-${p.id}`, trait: 'lobo', fallback: '🐺', who: p.shortName, value: `−${LOBO_CHEM_PENALTY}`, style: RED });
+          for (const p of bench.filter(p => p?.decimoHomem)) chips.push({ key: `decimo-${p.id}`, trait: 'decimoHomem', fallback: '🪑', who: p.shortName, value: `+${chemData.bonuses.decimoHomem / Math.max(1, bench.filter(q => q?.decimoHomem).length)}`, style: GREEN });
           const noes = xi.filter(p => p?.noe);
           for (const p of noes) chips.push({ key: `noe-${p.id}`, trait: 'noe', fallback: '🛟', who: p.shortName, value: `+${Math.round(chemData.bonuses.noe / noes.length)}`, style: chemData.bonuses.noe > 0 ? GREEN : MUTED, note: chemData.bonuses.noe > 0 ? undefined : 'nenhum titular sem característica' });
           const improvisador = xi.find(p => p?.improvisador);
           if (improvisador) {
             chips.push({ key: 'improvisador', trait: 'improvisador', fallback: '🔀', who: improvisador.shortName, value: `+${chemData.bonuses.improvisador}`, style: chemData.bonuses.improvisador > 0 ? GREEN : MUTED });
+          }
+          const forasteiros = xi.filter(p => p?.forasteiro);
+          if (chemData.bonuses.forasteiro > 0) {
+            chips.push({ key: 'forasteiro', trait: 'forasteiro', fallback: '🧳', who: forasteiros.length > 1 ? 'Forasteiros' : forasteiros[0]?.shortName ?? 'Forasteiro', value: `−${chemData.bonuses.forasteiro}`, style: RED });
           }
           for (const p of xi.filter(p => p?.fominha)) {
             const penalty = Math.round(chemData.bonuses.fominha / Math.max(1, xi.filter(q => q?.fominha).length));
@@ -792,22 +797,41 @@ export default function SquadEditor({
                   <PlayerSheet model={selectedSheet} collapsibleBreakdown />
                 </div>
                 <div className="min-w-0 space-y-5">
-                {/* 🩸 Mártir — pick the 2 XI teammates who get +5 (in-league only; post-draft uses auto). */}
+                {/* 🩸 Mártir — split the growing all-attribute transfer pool between two starters. */}
                 {selectedPlayer.martir && onSetMartirTargets && selectedIndex < 11 && (() => {
                   const others = players.slice(0, 11).filter(p => p.id !== selectedPlayer.id);
                   const current = (selectedPlayer.martirTargets ?? []).filter(id => others.some(o => o.id === id));
+                  const distribution = selectedPlayer.martirDistribution ?? {};
+                  const wins = Math.max(0, Math.floor(selectedPlayer.martirWins ?? 0));
+                  const limit = martirDistributionLimit(wins);
+                  const assigned = current.reduce((sum, id) => sum + Math.max(0, Math.floor(distribution[id] ?? 0)), 0);
                   const toggle = (id: string) => {
                     let next = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
                     if (next.length > 2) next = next.slice(next.length - 2);
-                    onSetMartirTargets(selectedPlayer.id, next);
+                    const nextDistribution = Object.fromEntries(next
+                      .filter(targetId => (distribution[targetId] ?? 0) > 0)
+                      .map(targetId => [targetId, Math.floor(distribution[targetId])]));
+                    onSetMartirTargets(selectedPlayer.id, next, nextDistribution);
+                  };
+                  const setAmount = (id: string, value: number) => {
+                    const otherAssigned = current.filter(targetId => targetId !== id)
+                      .reduce((sum, targetId) => sum + Math.max(0, Math.floor(distribution[targetId] ?? 0)), 0);
+                    const amount = Math.max(0, Math.min(limit - otherAssigned, Math.floor(value || 0)));
+                    const nextDistribution = { ...distribution };
+                    if (amount > 0) nextDistribution[id] = amount;
+                    else delete nextDistribution[id];
+                    onSetMartirTargets(selectedPlayer.id, current, nextDistribution);
                   };
                   return (
                     <div className="rounded-xl p-3" style={{ background: '#1a0808', border: '1px solid #B91C1C55' }}>
                       <div className="text-[13px] font-black tracking-widest" style={{ color: '#F87171', fontFamily: 'var(--font-game), sans-serif' }}><TraitIcon trait="martir" fallback="🩸" size={18} className="mr-1 align-[-0.25em]" />SACRIFÍCIO DO MÁRTIR</div>
                       <p className="text-[13px] mt-0.5 leading-snug" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
-                        Escolha até <b style={{ color: '#fff' }}>2 titulares</b> que recebem <b style={{ color: '#F87171' }}>+{MARTIR_TARGET_BOOST} em todos os atributos</b>.
-                        {current.length < 2 && <> Sem escolher, vai automático pros 2 de maior overall.</>}
+                        Começa com <b style={{ color: '#fff' }}>6 pontos</b> para distribuir entre dois titulares. Cada ponto tira <b style={{ color: '#F87171' }}>−1 em tudo do Mártir</b> e dá <b style={{ color: '#fff' }}>+1 em tudo</b> ao escolhido; cada vitória com ele titular libera mais <b style={{ color: '#fff' }}>+{MARTIR_DISTRIBUTION_PER_WIN}</b> pontos.
                       </p>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg px-2.5 py-2" style={{ background: '#0d090d', border: '1px solid #B91C1C33' }}>
+                        <span className="text-[12px] font-bold" style={{ color: '#D1D5DB', fontFamily: 'var(--font-game), sans-serif' }}>LIMITE {limit} PONTOS · {wins} VITÓRIAS</span>
+                        <span className="text-[12px] font-black" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>{assigned}/{limit} DISTRIBUÍDOS</span>
+                      </div>
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {others.map(o => {
                           const sel = current.includes(o.id);
@@ -820,6 +844,30 @@ export default function SquadEditor({
                           );
                         })}
                       </div>
+                      {current.length === 2 ? (
+                        <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                          {current.map(id => {
+                            const target = others.find(player => player.id === id)!;
+                            const amount = Math.max(0, Math.floor(distribution[id] ?? 0));
+                            const maxForTarget = limit - current.filter(targetId => targetId !== id)
+                              .reduce((sum, targetId) => sum + Math.max(0, Math.floor(distribution[targetId] ?? 0)), 0);
+                            return (
+                              <label key={id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-2" style={{ background: '#0d090d', border: '1px solid #B91C1C33' }}>
+                                <span className="min-w-0 truncate text-[13px] font-bold text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{target.shortName}</span>
+                                <span className="flex shrink-0 items-center gap-1.5">
+                                  <input aria-label={`Pontos do Mártir para ${target.shortName}`} type="number" min={0} max={maxForTarget} step={1} value={amount}
+                                    onChange={event => setAmount(id, Number(event.target.value))}
+                                    className="w-[4.5rem] rounded-md px-2 py-1 text-center text-[13px] font-black text-white outline-none"
+                                    style={{ background: '#171018', border: '1px solid #7F1D1D', fontFamily: 'var(--font-game), sans-serif' }} />
+                                  <span className="text-[11px] font-bold" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>EM TUDO</span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-[12px] font-bold" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>Escolha 2 titulares para distribuir os pontos.</p>
+                      )}
                     </div>
                   );
                 })()}

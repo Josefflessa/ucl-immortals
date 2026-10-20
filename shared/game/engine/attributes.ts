@@ -4,7 +4,7 @@ import { Player, Coach, FORMATIONS, effectiveSecondaries, getCompetitionAlbumBon
 import { activePlayerTraits, AttrKey, getTraitAttributeBonus } from '../traits';
 import { Stadium } from '../stadium';
 import { stadiumHomeBonus } from '../clubProjects';
-import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS, teamWonMatch } from './teamModel';
+import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS, teamWonMatch, migrateLegacyMartirTeam } from './teamModel';
 import { samePrimaryPosition } from '../positions';
 import { getCoachModifiersForPlayer, calculateChemistry, type CharBoostMap } from './chemistry';
 import { tacticStatBonus } from './matchSim';
@@ -50,7 +50,9 @@ export function getEffectiveAttribute(
   // Individual chemistry bonus: If OOP, apply the full stats debuff. If not, apply
   // standard chemistry multipliers (+0% / +3% / +6% / +10%), plus the secondary-position penalty.
   const oopMult = 0.85;
-  const chemMult = player.isOOP ? oopMult : (player.chemistryScore >= 3 ? 1.10 : player.chemistryScore === 2 ? 1.06 : player.chemistryScore === 1 ? 1.03 : 1.00) * (player.isSecondary ? SECONDARY_STAT_MULT : 1);
+  const positionOOPPenalty = player.isOOP && !player.coringa;
+  const positionSecondaryPenalty = player.isSecondary && !player.coringa;
+  const chemMult = positionOOPPenalty ? oopMult : (player.chemistryScore >= 3 ? 1.10 : player.chemistryScore === 2 ? 1.06 : player.chemistryScore === 1 ? 1.03 : 1.00) * (positionSecondaryPenalty ? SECONDARY_STAT_MULT : 1);
   base = Math.round(base * chemMult);
 
   // Chemistry global bonus (passing & pace)
@@ -189,11 +191,17 @@ export const HOME_ATTR_BONUS = 3;
 // Jogar numa posição SECUNDÁRIA custa −5% (× 0.95) — entre a nativa (0%) e o fora-de-posição (−15%).
 export const SECONDARY_STAT_MULT = 0.95;
 type PosFit = 'native' | 'secondary' | 'off';
-export function positionFit(player: { position: string; secondaryPositions?: string[]; coringa?: boolean }, role: string): PosFit {
-  if (player.coringa) return 'native';                       // 🃏 imune
+/** Classifies the role against the card's listed positions, without applying trait immunity. */
+export function naturalPositionFit(player: { position: string; secondaryPositions?: string[] }, role: string): PosFit {
   if (samePrimaryPosition(player.position, role)) return 'native';
   if (effectiveSecondaries(player).includes(role)) return 'secondary';
   return 'off';
+}
+
+/** Position fit after traits: Coringa can fill any role without a position penalty. */
+export function positionFit(player: { position: string; secondaryPositions?: string[]; coringa?: boolean }, role: string): PosFit {
+  if (player.coringa) return 'native';                       // 🃏 imune
+  return naturalPositionFit(player, role);
 }
 
 // ⭐ Evolução cumulativa: 4/8/12 titularidades desbloqueiam os níveis 1/2/3.
@@ -347,7 +355,7 @@ export function bumpStarterAppearances(
  * Idempotent per `matchId`, like the other post-match growth helpers.
  */
 export function applyPostMatchCardProgress(team: Team, result: MatchResult, matchId = `${result.homeTeamId}:${result.awayTeamId}`): Team {
-  let next = team;
+  let next = migrateLegacyMartirTeam(team);
   const starters = new Set(startingIdsForResult(result, team.id, team));
   const mentor = team.players.find(player => player.mentor && starters.has(player.id));
   if (mentor && teamWonMatch(result, team.id)) {
@@ -362,9 +370,27 @@ export function applyPostMatchCardProgress(team: Team, result: MatchResult, matc
       };
     }
   }
+  // 🩸 Each win with a Mártir in the captured starting XI raises its transfer
+  // budget by +2. Store one idempotent win receipt on the card; replay/reconnect
+  // may process the same result more than once.
+  if (teamWonMatch(result, team.id)) {
+    let martirChanged = false;
+    const players = next.players.map(player => {
+      if (!player.martir || !player.martirProgressive || !starters.has(player.id)) return player;
+      const receipts = Array.isArray(player.martirMatchIds) ? player.martirMatchIds : [];
+      if (receipts.includes(matchId)) return player;
+      martirChanged = true;
+      return {
+        ...player,
+        martirWins: (player.martirWins ?? 0) + 1,
+        martirMatchIds: Array.from(new Set([...receipts, matchId])).slice(-64),
+      };
+    });
+    if (martirChanged) next = { ...next, players };
+  }
   if (next.players.some(player => player.fominha || player.fazTudo)) {
     const formation = FORMATIONS.find(f => f.id === next.formationId);
-    const chemData = calculateChemistry(next.players.slice(0, 11), next.coachId, formation?.positions.map(p => p.role) ?? [], next.formationId);
+    const chemData = calculateChemistry(next.players.slice(0, 11), next.coachId, formation?.positions.map(p => p.role) ?? [], next.formationId, next.players.slice(11));
     next = {
       ...next,
       totalChemistry: chemData.total,
@@ -409,7 +435,14 @@ function kickoffCardStates(team: Pick<Team, 'players'>): Record<string, KickoffC
     const state: KickoffCardState = {};
     for (const field of KICKOFF_CARD_FIELDS) {
       const value = player[field];
-      if (value !== undefined) (state as Record<string, unknown>)[field] = field === 'evolvePoints' ? { ...(value as object) } : value;
+      if (value !== undefined) {
+        const cloned = field === 'evolvePoints' || field === 'martirDistribution'
+          ? { ...(value as object) }
+          : field === 'martirMatchIds' || field === 'martirTargets'
+            ? [...(value as string[])]
+            : value;
+        (state as Record<string, unknown>)[field] = cloned;
+      }
     }
     // An empty entry still matters: it resets a counter that only appeared after kickoff.
     states[player.id] = state;

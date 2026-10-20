@@ -2,7 +2,7 @@ import { useEffect, useState, memo } from 'react';
 import TraitIcon from './TraitIcon';
 import { motion } from 'framer-motion';
 import { getCompetitionAlbumBonus, PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
-import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
+import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
 import { canonicalClubName, crestIdForClub } from '@shared/game/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -1078,15 +1078,15 @@ export function getCardVariants(player: Player): CardVariant[] {
 function variantDesc(player: Player): string {
   if (player.inForm) return `Carta EM ALTA: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : INFORM_STAT_BOOST} em cada atributo; o GER da carta já inclui este bônus`;
   if (player.lobo) return `LOBO SOLITÁRIO: +${player.baseOverall !== undefined ? player.overall - player.baseOverall : LOBO_STAT_BOOST} em cada atributo; o GER da carta já inclui este bônus, mas −12 na QUÍMICA GERAL do time`;
-  if (player.coringa) return 'CORINGA: joga em qualquer posição sem penalidade de posição ou química; no gol, jogador de linha tem aptidão reduzida';
+  if (player.coringa) return `CORINGA: sem penalidade de posição; recebe +${CORINGA_SECONDARY_STAT_BOOST} em todos os atributos por titular em posição secundária e +${CORINGA_OOP_STAT_BOOST} em todos por titular fora de posição; no gol, jogador de linha tem aptidão reduzida`;
   if (player.nomade) return 'NÔMADE: conta como qualquer nação na química';
   if (player.pilar) return `PILAR: +${PILAR_CHEM_BONUS} na QUÍMICA GERAL do time`;
-  if (player.martir) return `MÁRTIR: −6 em cada atributo nele, mas dá +${MARTIR_TARGET_BOOST} em tudo a 2 titulares`;
+  if (player.martir) return `MÁRTIR: começa com 6 pontos para distribuir entre 2 titulares; cada vitória com ele titular libera +2 pontos. Cada ponto tira 1 em tudo dele e dá +1 em tudo ao escolhido`;
   if (player.idolo) return 'ÍDOLO: +3 em cada atributo aos OUTROS titulares do mesmo clube (não a ele)';
-  if (player.decimoHomem) return `12º HOMEM: no banco, dá +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos a todo o time`;
+  if (player.decimoHomem) return `12º HOMEM: no banco, dá +${DECIMO_HOMEM_STAT_BOOST} em tudo aos titulares e +${DECIMO_HOMEM_CHEM_BONUS} de química geral ao time`;
   if (player.pipoqueiro) return `PIPOQUEIRO: +${PIPOQUEIRO_LEAGUE_BOOST} em cada atributo na FASE DE LIGA, mas −${PIPOQUEIRO_KO_PENALTY} no MATA-MATA`;
   if (player.noe) return `NOÉ: se for titular, recebe +${NOE_STAT_BOOST} em todos os atributos por cada jogador titular sem característica especial. O time recebe +${NOE_CHEM_BONUS} de química geral por cada um.`;
-  if (player.forasteiro) return 'FORASTEIRO: +9 em cada atributo quando é o ÚNICO titular do seu país E do seu clube';
+  if (player.forasteiro) return 'FORASTEIRO: titular, +3 em todos os atributos e −4 de química geral por cada outro titular de clube E nacionalidade diferentes';
   if (player.colecionador) return 'COLECIONADOR: +1 em cada atributo por jogador que estiver na reserva';
   if (player.estribado) return 'ESTRIBADO: +1 em cada atributo a cada 100 créditos disponíveis';
   if (player.todosPorUm) return `TODOS POR UM: se os 11 titulares tiverem a característica, todos recebem +${TODOS_POR_UM_STAT_BOOST} em cada atributo`;
@@ -1140,7 +1140,7 @@ function variantDesc(player: Player): string {
     const goals = player.fominhaGoals ?? 0;
     return `FOMINHA: +${goals * FOMINHA_STAT_BOOST_PER_GOAL} em cada atributo · −${goals * FOMINHA_CHEM_PENALTY_PER_GOAL} na química geral (${goals} gol${goals === 1 ? '' : 's'})`;
   }
-  if (player.poliglota) return `POLIGLOTA: titular, +${POLIGLOTA_STAT_BOOST_PER_NATION} em cada atributo nele por nação diferente da dele entre os titulares`;
+  if (player.poliglota) return `POLIGLOTA: titular, +${POLIGLOTA_STAT_BOOST_PER_NATION} em todos os atributos por cada nacionalidade diferente da dele entre titulares e reservas`;
   return '';
 }
 

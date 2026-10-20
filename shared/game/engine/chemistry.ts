@@ -5,11 +5,11 @@ import { activePlayerTraits, AttrKey, getTraitAttributeBonus, hasPlayerTrait } f
 import { sameClub } from '../crests';
 import { projectLevel } from '../clubProjects';
 import { random } from '../random';
-import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedPlayer, type Team, formationRoleForPlayer, matchRoleForPlayer, padrinhoGodchildId } from './teamModel';
-import { getEffectiveAttribute, SECONDARY_STAT_MULT, positionFit, specializationAttributeBonus } from './attributes';
+import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedPlayer, type Team, formationRoleForPlayer, matchRoleForPlayer, padrinhoGodchildId, migrateLegacyMartirTeam } from './teamModel';
+import { getEffectiveAttribute, SECONDARY_STAT_MULT, naturalPositionFit, specializationAttributeBonus } from './attributes';
 import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
-import { MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, FOMINHA_CHEM_PENALTY_PER_GOAL, FOMINHA_STAT_BOOST_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, desenfreadoStatBoost } from './draft';
+import { MARTIR_TARGET_BOOST, martirDistributionLimit, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, FOMINHA_CHEM_PENALTY_PER_GOAL, FOMINHA_STAT_BOOST_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, desenfreadoStatBoost } from './draft';
 
 // The preferred formation adds chemistry for the whole team, which can move it into a
 // higher team-chemistry bonus tier.
@@ -22,8 +22,16 @@ export interface ChemistryBonuses {
   pilar: number;
   lobo: number;
   noe: number;
+  decimoHomem: number;
   improvisador: number;
+  forasteiro: number;
   fominha: number;
+}
+
+function forasteiroPartnerCount(forasteiro: Player, starters: Player[]): number {
+  return starters.filter(other => other.id !== forasteiro.id
+    && other.nation !== forasteiro.nation
+    && !sameClub(other.club, forasteiro.club)).length;
 }
 
 export function calculateChemistry(
@@ -31,6 +39,7 @@ export function calculateChemistry(
   coachId: string,
   formationRoles?: string[], // ordered list matching players array
   formationId?: string,      // the team's formation id — enables the coach-preference bonus
+  reservePlayers: Player[] = [], // reserve characteristics that affect the team's chemistry
 ): {
   individual: Record<string, number>;
   total: number;
@@ -48,14 +57,15 @@ export function calculateChemistry(
     const player = players[i];
     const formationRole = formationRoles?.[i];
 
-    // Encaixe em 3 estados: nativa / secundária (−5%) / fora (−15%). 🃏 Coringa é sempre nativa.
-    const fit = formationRole ? positionFit(player, formationRole) : 'native';
+    // Classifica a posição natural para os gatilhos (como Improvisador). 🃏 Coringa
+    // mantém essa classificação, mas sua imunidade é aplicada apenas às penalidades.
+    const fit = formationRole ? naturalPositionFit(player, formationRole) : 'native';
     const isOOP = fit === 'off';
     outOfPosition[player.id] = isOOP;
     secondaryPos[player.id] = fit === 'secondary';
 
-    // Out-of-position players are forced to chemistry=0
-    if (isOOP) {
+    // Fora de posição zera a química individual, exceto para Coringa, que ignora a penalidade.
+    if (isOOP && !player.coringa) {
       individual[player.id] = 0;
       continue;
     }
@@ -113,7 +123,9 @@ export function calculateChemistry(
   // 🧱 Pilar lifts the team's chemistry · 🐺 Lobo Solitário drains it (per such player in the XI).
   const pilarBonus = players.filter(p => p.pilar).length * PILAR_CHEM_BONUS;
   const loboPenalty = players.filter(p => p.lobo).length * LOBO_CHEM_PENALTY;
-  // 🛟 Noé — +3 de química geral por titular SEM característica (cada Noé titular soma o seu).
+  // 🪑 12º Homem — each copy in the reserve adds +8 to the team's general chemistry.
+  const decimoHomemBonus = reservePlayers.filter(p => p.decimoHomem).length * DECIMO_HOMEM_CHEM_BONUS;
+  // 🛟 Noé — +2 de química geral por titular SEM característica (cada Noé titular soma o seu).
   const xi = players.slice(0, 11).filter((p): p is Player => !!p);
   const plainStarters = xi.filter(p => !hasVariant(p)).length;
   const noeBonus = xi.filter(p => p.noe).length * plainStarters * NOE_CHEM_BONUS;
@@ -122,15 +134,19 @@ export function calculateChemistry(
     ? xi.filter(p => secondaryPos[p.id]).length * IMPROVISADOR_SECONDARY_CHEM
       + xi.filter(p => outOfPosition[p.id]).length * IMPROVISADOR_OOP_CHEM
     : 0;
+  // 🧳 Forasteiro — each starter with both a different club and nationality costs −4 chemistry.
+  const forasteiroPenalty = xi.reduce((sum, p) => p.forasteiro
+    ? sum + forasteiroPartnerCount(p, xi) * FORASTEIRO_CHEM_PENALTY_PER_PLAYER
+    : sum, 0);
   // 🍽️ Fominha — cada gol dele (como titular) tira −2 da química geral.
   const fominhaPenalty = xi.reduce((sum, p) => sum + (p.fominha ? Math.max(0, p.fominhaGoals ?? 0) * FOMINHA_CHEM_PENALTY_PER_GOAL : 0), 0);
   const total = Math.max(0,
     Math.round((baseTotal / maxPossible) * 80) + trioBonus + coachFormBonus + pilarBonus - loboPenalty + noeBonus
-      + improvisadorBonus - fominhaPenalty);
+    + improvisadorBonus - forasteiroPenalty - fominhaPenalty + decimoHomemBonus);
 
   const bonuses: ChemistryBonuses = {
     coachFormation: coachFormBonus, trios: trioBonus, pilar: pilarBonus, lobo: loboPenalty, noe: noeBonus,
-    improvisador: improvisadorBonus, fominha: fominhaPenalty,
+    decimoHomem: decimoHomemBonus, improvisador: improvisadorBonus, forasteiro: forasteiroPenalty, fominha: fominhaPenalty,
   };
   return { individual, total, trios, outOfPosition, secondaryPos, bonuses };
 }
@@ -331,12 +347,14 @@ export function getPlayerEffectiveStats(
   }
 ): EffectiveStats {
   const isSecondary = context?.isSecondary ?? false;
-  const effectiveChem = isOOP ? 0 : chemScore;
+  const positionOOPPenalty = isOOP && !player.coringa;
+  const positionSecondaryPenalty = isSecondary && !player.coringa;
+  const effectiveChem = positionOOPPenalty ? 0 : chemScore;
   // Química PURA (OOP tem chem 0 → 1.00). A penalidade de POSIÇÃO é separada em posMult.
   const chemMult = effectiveChem === 3 ? 1.10 : effectiveChem === 2 ? 1.06 : effectiveChem === 1 ? 1.03 : 1.00;
   const oopMult = 0.85;
   // Penalidade de posição: fora = −15%; secundária = −5%; nativa = 0%.
-  const posMult = isOOP ? oopMult : (isSecondary ? SECONDARY_STAT_MULT : 1);
+  const posMult = positionOOPPenalty ? oopMult : (positionSecondaryPenalty ? SECONDARY_STAT_MULT : 1);
 
   const albumBonus = getCompetitionAlbumBonus(player);
   const withAlbum = (base: number) => base + albumBonus;
@@ -475,7 +493,7 @@ export function getPlayerEffectiveStats(
     vision,
     composure,
     chemScore: effectiveChem,
-    isOOP,
+    isOOP: positionOOPPenalty,
     overallMod,
     activeCoachEffects: modifiers.activeEffects,
     chemMult,
@@ -508,14 +526,14 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho' | 'agregador' | 'fominha' | 'poliglota' | 'desenfreado'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; self?: boolean };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'coringa' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho' | 'agregador' | 'fominha' | 'poliglota' | 'desenfreado'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; chemistryPenalty?: number; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
 /**
  * `teamChemTotal` (química geral do XI) só é usado pelo 🚀 Desenfreado; sem ele, o bônus é zero.
  */
-export function computeCharacteristicBoosts(players: (Player | undefined)[], teamChemTotal?: number): CharBoostMap {
+export function computeCharacteristicBoosts(players: (Player | undefined)[], teamChemTotal?: number, formationRoles?: string[]): CharBoostMap {
   const map: CharBoostMap = {};
   const xi = players.slice(0, 11).filter((p): p is Player => !!p);
   const slot = (id: string) => map[id] ?? (map[id] = { flatAll: 0, perStat: {}, sources: [] });
@@ -526,23 +544,60 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[], tea
     for (const k in src.perStat) b.perStat[k as AttrKey] = (b.perStat[k as AttrKey] ?? 0) + (src.perStat[k as AttrKey] ?? 0);
     b.sources.push(src);
   };
+  // 🃏 Coringa — retains immunity to positional penalties and gains +2 to all
+  // attributes per naturally secondary-position starter and +3 per naturally
+  // out-of-position starter. Count the natural fit even for Coringas: immunity
+  // removes the penalty, not the role occupied in the formation.
+  const positionalFits = xi.map((player, index) => naturalPositionFit(player, formationRoles?.[index] ?? player.position));
+  const secondaryCount = positionalFits.filter(fit => fit === 'secondary').length;
+  const outOfPositionCount = positionalFits.filter(fit => fit === 'off').length;
+  const coringaBoost = secondaryCount * CORINGA_SECONDARY_STAT_BOOST + outOfPositionCount * CORINGA_OOP_STAT_BOOST;
+  if (coringaBoost > 0) {
+    for (const p of xi) {
+      if (p.coringa) contribute(p.id, { type: 'coringa', fromId: p.id, fromName: p.shortName, flatAll: coringaBoost, perStat: {}, self: true });
+    }
+  }
   // ❤️ Ídolo — +3 em todos os atributos a cada OUTRO titular do MESMO CLUBE (NÃO a ele: o ídolo
   // inspira os companheiros de clube, não a si mesmo).
   for (const idol of xi) {
     if (!idol.idolo) continue;
     for (const mate of xi) if (mate.id !== idol.id && sameClub(mate.club, idol.club)) contribute(mate.id, { type: 'idolo', fromId: idol.id, fromName: idol.shortName, flatAll: IDOLO_STAT_BOOST, perStat: {} });
   }
-  // 🩸 Mártir — +5 em tudo aos 2 titulares escolhidos (ou 2 maiores overalls além dele). Acumulável.
+  // 🩸 Mártir — each allocated point transfers −1 in every attribute from him to
+  // +1 in every attribute on one of at most two chosen starters. Old saves are
+  // migrated before normal squad/match calculations; keep the legacy branch as
+  // a safe fallback for historical snapshots that still carry the old shape.
   for (const m of xi) {
     if (!m.martir) continue;
-    let targets = (m.martirTargets ?? []).filter(id => id !== m.id && xi.some(p => p.id === id)).slice(0, 2);
-    if (targets.length < 2) {
-      const fill = xi.filter(p => p.id !== m.id && !targets.includes(p.id))
-        .sort((a, b) => (b.overall + getCompetitionAlbumBonus(b)) - (a.overall + getCompetitionAlbumBonus(a)))
-        .map(p => p.id);
-      targets = [...targets, ...fill].slice(0, 2);
+    if (!m.martirProgressive) {
+      let targets = (m.martirTargets ?? []).filter(id => id !== m.id && xi.some(p => p.id === id)).slice(0, 2);
+      if (targets.length < 2) {
+        const fill = xi.filter(p => p.id !== m.id && !targets.includes(p.id))
+          .sort((a, b) => (b.overall + getCompetitionAlbumBonus(b)) - (a.overall + getCompetitionAlbumBonus(a)))
+          .map(p => p.id);
+        targets = [...targets, ...fill].slice(0, 2);
+      }
+      for (const id of targets) contribute(id, { type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: MARTIR_TARGET_BOOST, perStat: {} });
+      continue;
     }
-    for (const id of targets) contribute(id, { type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: MARTIR_TARGET_BOOST, perStat: {} });
+
+    const targets = (m.martirTargets ?? []).filter(id => id !== m.id && xi.some(p => p.id === id)).slice(0, 2);
+    let remaining = martirDistributionLimit(m.martirWins);
+    const allocations = targets.map(id => {
+      const requested = Math.max(0, Math.floor(m.martirDistribution?.[id] ?? 0));
+      const amount = Math.min(requested, remaining);
+      remaining -= amount;
+      return { id, amount };
+    });
+    const totalSacrifice = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+    if (totalSacrifice > 0) contribute(m.id, {
+      type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: -totalSacrifice, perStat: {}, self: true,
+    });
+    for (const allocation of allocations) {
+      if (allocation.amount > 0) contribute(allocation.id, {
+        type: 'martir', fromId: m.id, fromName: m.shortName, flatAll: allocation.amount, perStat: {},
+      });
+    }
   }
   // 🤵 Padrinho — o afilhado escolhido (ou o titular de maior overall além dele) ganha +3 em tudo
   // enquanto os dois são titulares. Vários Padrinhos podem apadrinhar o mesmo jogador (acumula).
@@ -608,10 +663,10 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[], tea
     if (!f.fominha || goals === 0) continue;
     contribute(f.id, { type: 'fominha', fromId: f.id, fromName: f.shortName, flatAll: goals * FOMINHA_STAT_BOOST_PER_GOAL, perStat: {}, self: true });
   }
-  // 🌐 Poliglota — titular: +2 em tudo NELE por nação diferente da dele entre os titulares.
+  // 🌐 Poliglota — titular: +1 em tudo NELE por nacionalidade distinta da sua no XI e no banco.
   for (const pl of xi) {
     if (!pl.poliglota) continue;
-    const otherNations = new Set(xi.filter(p => p.nation !== pl.nation).map(p => p.nation)).size;
+    const otherNations = new Set(players.filter((p): p is Player => !!p && p.nation !== pl.nation).map(p => p.nation)).size;
     if (otherNations === 0) continue;
     contribute(pl.id, { type: 'poliglota', fromId: pl.id, fromName: pl.shortName, flatAll: otherNations * POLIGLOTA_STAT_BOOST_PER_NATION, perStat: {}, self: true });
   }
@@ -621,14 +676,15 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[], tea
   if (unbridled && perfectBoost > 0) {
     for (const mate of xi) contribute(mate.id, { type: 'desenfreado', fromId: unbridled.id, fromName: unbridled.shortName, flatAll: perfectBoost, perStat: {} });
   }
-  // 🧳 Forasteiro — +9 em tudo quando é o ÚNICO titular do seu PAÍS e do seu CLUBE.
+  // 🧳 Forasteiro — each titular with a different club and nationality adds +3 and costs −4 chemistry.
   for (const f of xi) {
     if (!f.forasteiro) continue;
-    const soloNation = xi.filter(p => p.nation === f.nation).length === 1;
-    const soloClub = xi.filter(p => sameClub(p.club, f.club)).length === 1;
-    if (soloNation && soloClub) {
-      contribute(f.id, { type: 'forasteiro', fromId: f.id, fromName: f.shortName, flatAll: FORASTEIRO_STAT_BOOST, perStat: {}, self: true });
-    }
+    const partners = forasteiroPartnerCount(f, xi);
+    if (partners > 0) contribute(f.id, {
+      type: 'forasteiro', fromId: f.id, fromName: f.shortName,
+      flatAll: partners * FORASTEIRO_STAT_BOOST, perStat: {},
+      chemistryPenalty: partners * FORASTEIRO_CHEM_PENALTY_PER_PLAYER, self: true,
+    });
   }
   return map;
 }
@@ -659,12 +715,14 @@ export function getTeamEffectiveStats(
   team: Team,
   options: TeamEffectiveStatsOptions = {},
 ): Record<string, EffectiveStats> {
+  team = migrateLegacyMartirTeam(team);
   const formation = FORMATIONS.find(f => f.id === team.formationId);
   const formationRoles = formation?.positions.map(position => position.role) ?? [];
   const starters = team.players.slice(0, 11);
-  const chemistry = calculateChemistry(starters, team.coachId, formationRoles, team.formationId);
+  const activeRoles = starters.map((player, index) => options.roleOverrides?.[player.id] ?? formationRoles[index] ?? player.position);
+  const chemistry = calculateChemistry(starters, team.coachId, activeRoles, team.formationId, team.players.slice(11));
   const captainBoost = captainBoostForTeam(team) ?? undefined;
-  const charBoosts = computeCharacteristicBoosts(team.players, chemistry.total);
+  const charBoosts = computeCharacteristicBoosts(team.players, chemistry.total, activeRoles);
   const playStyle = options.playStyle ?? team.playStyle ?? 'balanced';
   return Object.fromEntries(team.players.map((player, index) => {
     const isStarter = index < 11;
@@ -749,7 +807,8 @@ export function teamPlaymaking(
   const coach = COACHES.find(c => c.id === team.coachId)!;
   const chemBonus = getChemistryBonus(team.totalChemistry);
   const captainBoost = captainBoostForTeam(team) ?? undefined;
-  const charBoosts = computeCharacteristicBoosts(team.players, team.totalChemistry);
+  const roles = xi.map(player => matchRoleForPlayer(team, player));
+  const charBoosts = computeCharacteristicBoosts(team.players, team.totalChemistry, roles);
   const eff = (p: PlayerCard, attr: 'passing' | 'vision') =>
     getEffectiveAttribute(p, attr, coach, chemBonus, playStyleOverride ?? 'balanced', {
       captainBoost,

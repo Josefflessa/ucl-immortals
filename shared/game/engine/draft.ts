@@ -32,9 +32,19 @@ export const DRAFT_RARITY_CHANCES: Readonly<Record<DraftRarity, number>> = {
 // cloned, so the static PLAYERS pool is never mutated.
 export const DRAFT_VARIANT_CHANCE = 0.25;
 export const RECRUITMENT_VARIANT_CHANCE = 0.40;
-export const MARTIR_STAT_PENALTY = 6;      // Mártir: −6 em todos os atributos (nele mesmo)
-export const MARTIR_TARGET_BOOST = 5; // Mártir: +5 em todos os atributos para 2 titulares escolhidos
+export const MARTIR_INITIAL_DISTRIBUTION = 6;
+/** Legacy name retained for migrating cards that baked this amount into their stats. */
+export const MARTIR_STAT_PENALTY = MARTIR_INITIAL_DISTRIBUTION;
+/** Legacy fixed recipient amount retained for historical match snapshots. */
+export const MARTIR_TARGET_BOOST = 5;
+export const MARTIR_DISTRIBUTION_PER_WIN = 2;
+export function martirDistributionLimit(wins: number | undefined): number {
+  return MARTIR_INITIAL_DISTRIBUTION + Math.max(0, Math.floor(wins ?? 0)) * MARTIR_DISTRIBUTION_PER_WIN;
+}
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
+export const DECIMO_HOMEM_CHEM_BONUS = 8; // 12º Homem: +8 de química geral enquanto fica no banco
+export const CORINGA_SECONDARY_STAT_BOOST = 2; // Coringa: +2 em tudo por titular em posição secundária
+export const CORINGA_OOP_STAT_BOOST = 3; // Coringa: +3 em tudo por titular fora de posição
 export const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
 export const FRAGIL_STAT_BOOST = 7;  // 🩹 Frágil: +7 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida por isto (não empilha: 1+ magnatas → 1 só).
@@ -47,11 +57,11 @@ export function magnataPointMultiplier(starters: (Player | undefined)[]): number
 // RUNTIME (depende de context.isKnockout), por isso NÃO é assado no stat base como o Em Alta/Lobo.
 export const PIPOQUEIRO_LEAGUE_BOOST = 7;   // +7 em cada atributo na FASE DE LIGA
 export const PIPOQUEIRO_KO_PENALTY = 7;     // −7 em cada atributo no MATA-MATA
-// 🛟 Noé — se titular, +2 em tudo ao Noé e +3 na química geral por jogador titular SEM característica (ele "põe
-// todo mundo na arca"). Com 10 companheiros sem característica: +20/+30. Efeitos em
+// 🛟 Noé — se titular, +2 em tudo ao Noé e +2 na química geral por jogador titular SEM característica (ele "põe
+// todo mundo na arca"). Com 10 companheiros sem característica: +20/+20. Efeitos em
 // computeCharacteristicBoosts (atributos) e calculateChemistry (química).
 export const NOE_STAT_BOOST = 2;
-export const NOE_CHEM_BONUS = 3;
+export const NOE_CHEM_BONUS = 2;
 // 🔀 Improvisador — +química geral por titular em posição secundária / fora de posição (não acumula).
 export const IMPROVISADOR_SECONDARY_CHEM = 8;
 export const IMPROVISADOR_OOP_CHEM = 12;
@@ -66,10 +76,11 @@ export const FAZ_TUDO_STARTS_TO_LEARN = 2;
 // 🍽️ Fominha — +N em tudo nele por gol; −N na química geral por gol.
 export const FOMINHA_STAT_BOOST_PER_GOAL = 1;
 export const FOMINHA_CHEM_PENALTY_PER_GOAL = 2;
-// 🗣️ Poliglota — +N em tudo nele por nação diferente da dele entre os titulares.
-export const POLIGLOTA_STAT_BOOST_PER_NATION = 2;
-// 🧳 Forasteiro — o anti-química: +9 em tudo quando é o ÚNICO titular do seu país E do seu clube.
-export const FORASTEIRO_STAT_BOOST = 9;
+// 🗣️ Poliglota — +1 em tudo nele por nacionalidade distinta da sua no elenco (XI + reservas).
+export const POLIGLOTA_STAT_BOOST_PER_NATION = 1;
+// 🧳 Forasteiro — por titular de outro clube E outra nacionalidade: +3 em tudo e −4 de química.
+export const FORASTEIRO_STAT_BOOST = 3;
+export const FORASTEIRO_CHEM_PENALTY_PER_PLAYER = 4;
 /** ❤️ Ídolo: +N em cada atributo para os outros titulares do mesmo clube. */
 export const IDOLO_STAT_BOOST = 3;
 // 🧩 Colecionador — +1 em todos os atributos por jogador que estiver na reserva.
@@ -146,7 +157,7 @@ export function mercenarioStatBoost(completedMissions: number | undefined): numb
   return Math.max(0, Math.floor(completedMissions ?? 0)) * MERCENARIO_STAT_BOOST_PER_MISSION;
 }
 
-// Aplica o +N/−N das características assadas no BASE (Em Alta/Lobo/Mártir/Magnata). SEM teto de 99:
+// Aplica o +N/−N das características assadas no BASE (Em Alta/Lobo/Magnata e Mártir legado). SEM teto de 99:
 // o base pode passar de 99 (o efetivo já era livre). Mantém só o PISO de 1 (nenhum stat vira 0/negativo).
 function clampStat(v: number): number {
   return Math.max(1, v);
@@ -445,9 +456,20 @@ export function applyShopVariant(
   variant: VariantFlag,
   competitionStats: { goals?: number; assists?: number; missionsCompleted?: number } = {},
 ): Player {
-  if (variant === 'inForm' || variant === 'lobo' || variant === 'martir' || variant === 'magnata' || variant === 'fragil') {
-    // inForm/lobo/fragil add to every attribute; martir/magnata SUBTRACT from every attribute.
-    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'martir' ? -MARTIR_STAT_PENALTY : variant === 'fragil' ? FRAGIL_STAT_BOOST : -MAGNATA_STAT_PENALTY;
+  if (variant === 'martir') {
+    return {
+      ...player,
+      martir: true,
+      martirProgressive: true,
+      martirWins: 0,
+      martirMatchIds: [],
+      martirTargets: [],
+      martirDistribution: {},
+    };
+  }
+  if (variant === 'inForm' || variant === 'lobo' || variant === 'magnata' || variant === 'fragil') {
+    // InForm/Lobo/Fragile add to every attribute; Magnate subtracts.
+    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'fragil' ? FRAGIL_STAT_BOOST : -MAGNATA_STAT_PENALTY;
     return {
       ...player, [variant]: true, baseOverall: player.baseOverall ?? player.overall,
       overall: clampStat(player.overall + b), pace: clampStat(player.pace + b), shooting: clampStat(player.shooting + b),
@@ -497,7 +519,7 @@ export function canAddVariant(p: Player): boolean {
 // Mártir subtracts) via the stored baseOverall, then clears every variant flag.
 export function stripVariant<T extends Player>(player: T): T {
   const p: T = { ...player };
-  if (p.baseOverall !== undefined && (p.inForm || p.lobo || p.martir || p.magnata || p.fragil)) {
+  if (p.baseOverall !== undefined && (p.inForm || p.lobo || (p.martir && !p.martirProgressive) || p.magnata || p.fragil)) {
     const delta = p.overall - p.baseOverall; // +N for Em Alta/Lobo/Frágil, −N for Mártir/Magnata
     p.pace = clampStat(p.pace - delta);
     p.shooting = clampStat(p.shooting - delta);
@@ -511,7 +533,7 @@ export function stripVariant<T extends Player>(player: T): T {
   }
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
-  delete p.martir; delete p.martirTargets; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
+  delete p.martir; delete p.martirProgressive; delete p.martirWins; delete p.martirMatchIds; delete p.martirTargets; delete p.martirDistribution; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
   delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.todosPorUm; delete p.capitaoNato; delete p.magnata; delete p.fragil; delete p.prodigio; delete p.prodigioStarts;
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
   delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds; delete p.arrogante; delete p.arroganteGoals; delete p.arroganteMatchIds;
@@ -534,7 +556,7 @@ const BAKED_DELTA: Partial<Record<VariantFlag, number>> = {
 };
 export function stripSpecificVariant<T extends Player>(player: T, variant: VariantFlag): T {
   const p: T = { ...player };
-  const d = BAKED_DELTA[variant] ?? 0;
+  const d = variant === 'martir' && p.martirProgressive ? 0 : (BAKED_DELTA[variant] ?? 0);
   if (d !== 0 && p.baseOverall !== undefined) {
     p.pace = clampStat(p.pace - d); p.shooting = clampStat(p.shooting - d);
     p.passing = clampStat(p.passing - d); p.dribbling = clampStat(p.dribbling - d);
@@ -546,7 +568,13 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
     if (!otherBaked) delete p.baseOverall;
   }
   delete (p as unknown as Record<string, unknown>)[variant];
-  if (variant === 'martir') delete p.martirTargets;
+  if (variant === 'martir') {
+    delete p.martirProgressive; delete p.martirWins; delete p.martirMatchIds; delete p.martirTargets; delete p.martirDistribution;
+    if (p.baseOverall !== undefined && d === 0) {
+      const otherBaked = (['inForm', 'lobo', 'fragil', 'magnata'] as const).some(k => p[k]);
+      if (!otherBaked) delete p.baseOverall;
+    }
+  }
   if (variant === 'prodigio') delete p.prodigioStarts;
   if (variant === 'resiliente') delete p.resilienteDefeats;
   if (variant === 'goleador') { delete p.goleadorGoals; delete p.goleadorMatchIds; }

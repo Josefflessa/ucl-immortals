@@ -3,7 +3,7 @@
 import { Player, FORMATIONS, getCompetitionAlbumBonus, effectiveSecondaries } from '../gameData';
 import { type ClubProjectsState } from '../clubProjects';
 import type { AlbumLevel } from '../album';
-import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL, FAZ_TUDO_STARTS_TO_LEARN } from './draft';
+import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL, FAZ_TUDO_STARTS_TO_LEARN, MARTIR_STAT_PENALTY } from './draft';
 
 // Premium variants keep their own card IDs for inventory/UI. Cards that represent
 // a different club/era may provide historicalPlayerId so historical chemistry
@@ -28,13 +28,14 @@ export function areHistoricalPartners(a: Player, b: Player): boolean {
 export const KICKOFF_CARD_FIELDS = [
   'appearances', 'evolvePoints', 'prodigioStarts', 'resilienteDefeats', 'goleadorGoals',
   'garcomAssists', 'arroganteGoals', 'mercenarioMissions', 'padrinhoGoals', 'lapidadoBoost',
+  'martirWins', 'martirMatchIds', 'martirTargets', 'martirDistribution',
 ] as const;
 export type KickoffCardState = Partial<Pick<Player, (typeof KICKOFF_CARD_FIELDS)[number]>>;
 
 export interface PlayerCard extends Player {
   chemistryScore: number; // 0-3
-  isOOP: boolean;
-  isSecondary?: boolean; // jogando numa posição secundária (−5%)
+  isOOP: boolean; // posição natural incompatível; Coringa mantém o status, mas ignora a penalidade
+  isSecondary?: boolean; // posição secundária natural; Coringa mantém o status, mas ignora −5%
   // Per-MATCH unique stat key ("teamId::playerId"). The same player (same id) can
   // appear on two teams (the pool is smaller than 36×11), so match stats must be
   // keyed per instance, not by playerId alone. Set by setStatIds() before a sim.
@@ -181,6 +182,57 @@ export interface Team {
   crestId?: string; // selected club crest (see lib/crests.ts); undefined → initials badge
   /** 🔥 Recuperação — consecutive losses in a row right now. Resets to 0 on a win or draw. */
   lossStreak?: number;
+}
+
+/** Migrates saved Mártires from the old baked −6 / fixed +5 rule to the transfer pool. */
+export function migrateLegacyMartirTeam(team: Team): Team {
+  let changed = false;
+  const players = team.players.map(player => {
+    if (!player.martir || player.martirProgressive) return player;
+
+    changed = true;
+    const restored = { ...player };
+    // Older copies baked −6 into the card on acquisition. Restore it before the
+    // dynamically allocated transfer is applied by the match engine.
+    if (player.baseOverall !== undefined) {
+      restored.overall += MARTIR_STAT_PENALTY;
+      restored.pace += MARTIR_STAT_PENALTY;
+      restored.shooting += MARTIR_STAT_PENALTY;
+      restored.passing += MARTIR_STAT_PENALTY;
+      restored.dribbling += MARTIR_STAT_PENALTY;
+      restored.defending += MARTIR_STAT_PENALTY;
+      restored.physical += MARTIR_STAT_PENALTY;
+      restored.vision += MARTIR_STAT_PENALTY;
+      restored.composure += MARTIR_STAT_PENALTY;
+      const otherBakedVariant = !!(player.inForm || player.lobo || player.magnata || player.fragil);
+      if (!otherBakedVariant) delete restored.baseOverall;
+    }
+
+    const others = team.players.slice(0, 11).filter(candidate => candidate.id !== player.id);
+    const targets = (player.martirTargets ?? []).filter(id => others.some(candidate => candidate.id === id)).slice(0, 2);
+    for (const candidate of others
+      .filter(candidate => !targets.includes(candidate.id))
+      .sort((a, b) => b.overall - a.overall)) {
+      if (targets.length >= 2) break;
+      targets.push(candidate.id);
+    }
+    const distribution: Record<string, number> = {};
+    const each = targets.length > 0 ? Math.floor(MARTIR_STAT_PENALTY / targets.length) : 0;
+    let remainder = targets.length > 0 ? MARTIR_STAT_PENALTY % targets.length : 0;
+    for (const id of targets) {
+      distribution[id] = each + (remainder > 0 ? 1 : 0);
+      remainder = Math.max(0, remainder - 1);
+    }
+    return {
+      ...restored,
+      martirProgressive: true,
+      martirWins: 0,
+      martirMatchIds: [],
+      martirTargets: targets,
+      martirDistribution: distribution,
+    };
+  });
+  return changed ? { ...team, players } : team;
 }
 
 // The first eleven slots are always the starting XI. Everything after them is

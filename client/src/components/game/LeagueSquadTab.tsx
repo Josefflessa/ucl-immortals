@@ -74,9 +74,9 @@ export default function LeagueSquadTab() {
       onSwap={(a, b) => online
         ? swapPlayerTeamOnline(a, b)
         : dispatch({ type: 'SWAP_PLAYER_TEAM', indexA: a, indexB: b })}
-      onSetMartirTargets={(playerId, targetIds) => online
-        ? martirTargetsOnline(playerId, targetIds)
-        : dispatch({ type: 'SET_PLAYER_TEAM_MARTIR_TARGETS', playerId, targetIds })}
+      onSetMartirTargets={(playerId, targetIds, distribution) => online
+        ? martirTargetsOnline(playerId, targetIds, distribution)
+        : dispatch({ type: 'SET_PLAYER_TEAM_MARTIR_TARGETS', playerId, targetIds, distribution })}
       onSetPadrinhoTarget={(playerId, targetId) => online
         ? padrinhoTargetOnline(playerId, targetId)
         : dispatch({ type: 'SET_PLAYER_TEAM_PADRINHO_TARGET', playerId, targetId })}

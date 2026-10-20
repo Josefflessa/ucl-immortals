@@ -186,15 +186,15 @@ export const RETIRED_VARIANTS: readonly ShopVariant[] = ['inForm', 'lobo', 'pila
 export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: 'Recebe +4 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: 'Recebe +7 em todos os atributos. Se for titular, reduz em 12 a química geral do time.' },
-  { key: 'coringa', icon: '🃏', label: 'Coringa', color: '#EF4444', desc: 'Ignora as penalidades de atributos e química por jogar fora de posição.' },
+  { key: 'coringa', icon: '🃏', label: 'Coringa', color: '#EF4444', desc: 'Ignora penalidades de posição. Recebe +2 em todos os atributos por titular em posição secundária e +3 em todos por titular fora de posição.' },
   { key: 'nomade', icon: '🌍', label: 'Nômade', color: '#3B82F6', desc: 'Cria vínculo de química com qualquer titular que ainda não tenha outro vínculo.' },
   { key: 'pilar', icon: '🧱', label: 'Pilar', color: '#FFFFFF', desc: 'Se for titular, aumenta em 12 a química geral do time.' },
-  { key: 'martir', icon: '🩸', label: 'Mártir', color: '#B91C1C', desc: 'Recebe −6 em todos os atributos. Se for titular, dá +5 a dois titulares escolhidos.' },
+  { key: 'martir', icon: '🩸', label: 'Mártir', color: '#B91C1C', desc: 'Começa com 6 pontos para distribuir entre dois titulares escolhidos. Cada vitória com ele titular libera +2 pontos; cada ponto dá +1 em tudo ao escolhido e tira 1 em tudo do Mártir.' },
   { key: 'idolo', icon: '❤️', label: 'Ídolo', color: '#F59E0B', desc: 'Dá +3 em cada atributo aos outros titulares do mesmo clube.' },
-  { key: 'decimoHomem', icon: '🪑', label: '12º Homem', color: '#14B8A6', desc: 'No banco, dá +1 em todos os atributos aos titulares.' },
+  { key: 'decimoHomem', icon: '🪑', label: '12º Homem', color: '#14B8A6', desc: 'No banco, dá +1 em todos os atributos aos titulares e +8 de química geral ao time.' },
   { key: 'pipoqueiro', icon: '🍿', label: 'Pipoqueiro', color: '#EC4899', desc: 'Na fase de liga, recebe +7 em todos os atributos. No mata-mata, recebe −7.' },
-  { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: 'Se for titular, o Noé recebe +2 em todos os atributos por cada jogador titular sem característica especial. O time recebe +3 de química geral por cada um.' },
-  { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: 'Se for o único titular do seu país e do seu clube, recebe +9 em todos os atributos.' },
+  { key: 'noe', icon: '🛟', label: 'Noé', color: '#22D3EE', desc: 'Se for titular, o Noé recebe +2 em todos os atributos por cada jogador titular sem característica especial. O time recebe +2 de química geral por cada um.' },
+  { key: 'forasteiro', icon: '🧳', label: 'Forasteiro', color: '#A3E635', desc: 'Se for titular, cada outro titular de clube e nacionalidade diferentes dá +3 em todos os atributos e reduz em 4 a química geral.' },
   { key: 'colecionador', icon: '🧩', label: 'Colecionador', color: '#C084FC', desc: 'Se for titular, recebe +1 em todos os atributos por jogador na reserva.' },
   { key: 'estribado', icon: '💰', label: 'Estribado', color: '#FACC15', desc: 'Ganha +1 em todos os atributos a cada 100 créditos no seu saldo.' },
   { key: 'todosPorUm', icon: '🤝', label: 'Todos por um', color: '#4ADE80', desc: 'Se os 11 titulares tiverem Todos por um, todos recebem +20 em cada atributo.' },
@@ -218,7 +218,7 @@ export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; c
   { key: 'desenfreado', icon: '🚀', label: 'Desenfreado', color: '#D2A86E', desc: 'A cada 3 pontos de química geral acima de 100, dá +1 em todos os atributos aos titulares.' },
   { key: 'fazTudo', icon: '🔧', label: 'Faz-Tudo', color: '#4A6FD9', desc: 'Depois de ser titular fora de posição em 2 partidas na mesma função, passa a tratá-la como posição secundária até o fim da competição.' },
   { key: 'fominha', icon: '🍽️', label: 'Fominha', color: '#B32D45', desc: 'Se for titular, cada gol dele dá +1 em todos os atributos e reduz em 2 a química geral do time.' },
-  { key: 'poliglota', icon: '💬', label: 'Poliglota', color: '#8FD6B4', desc: 'Se for titular, recebe +2 em todos os atributos por cada nacionalidade diferente da dele entre os titulares.' },
+  { key: 'poliglota', icon: '💬', label: 'Poliglota', color: '#8FD6B4', desc: 'Se for titular, recebe +1 em todos os atributos por cada nacionalidade diferente da dele entre titulares e reservas.' },
 ];
 /** O que dá pra comprar no Turbinar: o catálogo sem as aposentadas. */
 export const TURBINAR_VARIANTS = VARIANT_CATALOG.filter(v => !RETIRED_VARIANTS.includes(v.key));

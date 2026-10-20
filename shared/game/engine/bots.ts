@@ -4,7 +4,7 @@ import { Player, PLAYERS, COACHES, FORMATIONS, HISTORICAL_TRIOS } from '../gameD
 import { rollActivePlayerTraits } from '../traits';
 import { PLAYABLE_CRESTS, BOT_CREST_MAP, canonicalClubName, crestIdForClub, sameClub } from '../crests';
 import { random } from '../random';
-import { type PlayerCard, type Team, type MatchResult } from './teamModel';
+import { type PlayerCard, type Team, type MatchResult, migrateLegacyMartirTeam } from './teamModel';
 import { calculateChemistry } from './chemistry';
 import { formationProfile } from './matchSim';
 import { INFORM_STAT_BOOST } from './draft';
@@ -204,7 +204,7 @@ export function generateBotTeam(name: string, difficulty: number): Team {
   selected.push(...bench);
 
   const formationRoles = formation.positions.map(p => p.role);
-  const chemData = calculateChemistry(starters, coach.id, formationRoles, formation.id);
+  const chemData = calculateChemistry(starters, coach.id, formationRoles, formation.id, bench);
 
   const playerCards: PlayerCard[] = selected.map(p => ({
     ...p,
@@ -243,12 +243,30 @@ export interface ImmortalReport {
 }
 
 export function rebuildTeamChemistry(team: Team): Team {
+  team = migrateLegacyMartirTeam(team);
+  const startersSet = new Set(team.players.slice(0, 11).map(player => player.id));
+  const players = team.players.map(player => {
+    if (!player.martirProgressive) return player;
+    const targets = startersSet.has(player.id)
+      ? (player.martirTargets ?? []).filter(id => id !== player.id && startersSet.has(id)).slice(0, 2)
+      : [];
+    const distribution = Object.fromEntries(targets
+      .filter(id => Math.max(0, Math.floor(player.martirDistribution?.[id] ?? 0)) > 0)
+      .map(id => [id, Math.max(0, Math.floor(player.martirDistribution?.[id] ?? 0))]));
+    const sameTargets = targets.length === (player.martirTargets ?? []).length
+      && targets.every((id, index) => id === player.martirTargets?.[index]);
+    const sameDistribution = Object.keys(distribution).length === Object.keys(player.martirDistribution ?? {}).length
+      && Object.entries(distribution).every(([id, points]) => player.martirDistribution?.[id] === points);
+    return sameTargets && sameDistribution
+      ? player
+      : { ...player, martirTargets: targets, martirDistribution: distribution };
+  });
   const formation = FORMATIONS.find(f => f.id === team.formationId);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
-  const starters = team.players.slice(0, 11);
-  const chemData = calculateChemistry(starters, team.coachId, formationRoles, team.formationId);
+  const starters = players.slice(0, 11);
+  const chemData = calculateChemistry(starters, team.coachId, formationRoles, team.formationId, players.slice(11));
 
-  const updatedPlayers = team.players.map(p => ({
+  const updatedPlayers = players.map(p => ({
     ...p,
     chemistryScore: chemData.individual[p.id] ?? 1,
     isOOP: chemData.outOfPosition[p.id] ?? false,
@@ -298,7 +316,7 @@ export function generateImmortalReport(
     : '0-0';
 
   // Chemistry highlights
-  const chemData = calculateChemistry(playerTeam.players.slice(0, 11), playerTeam.coachId);
+  const chemData = calculateChemistry(playerTeam.players.slice(0, 11), playerTeam.coachId, undefined, undefined, playerTeam.players.slice(11));
   const activeTrios = chemData.trios.map(trioId => {
     const trio = HISTORICAL_TRIOS.find(t => t.id === trioId);
     return trio?.name ?? trioId;

@@ -11,7 +11,7 @@ import {
   applyEvolvePoint, applyMercenarioProgress, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, getActiveKnockoutMatches, validateMatchPlan, applyShopVariant, canAddVariant, canUnlockSpecialization,
   choosePlayerSpecialization, drawPlayerPackCard, drawUniquePackCard, evolvePointsBudget,
   generatePlayerPackOffer, generateScoutOptions, generateUniquePackOffer, getEvolutionLevel, hasVariant,
-  isEvolved, rebuildTeamChemistry, SPECIALIZATION_UNLOCK_COST, stripSpecificVariant, stripVariant,
+  isEvolved, rebuildTeamChemistry, martirDistributionLimit, migrateLegacyMartirTeam, SPECIALIZATION_UNLOCK_COST, stripSpecificVariant, stripVariant,
   unlockPlayerSpecialization, type PlayerCard, type Team, type VariantFlag,
 } from './gameEngine';
 import { canEvolvePrime, PRIME_COST, sellValue, SHOP_COSTS, shopItemCost, type RegularPlayerPackRarity, type ShopVariant, type TrainAttr } from './shop';
@@ -71,10 +71,11 @@ function spend(seat: PlayerSeat, cost: number, team: Team = seat.team): PlayerSe
 
 function addToBench(seat: PlayerSeat, card: Player): Team {
   const playerCard: PlayerCard = { ...card, chemistryScore: 0, isOOP: false };
-  return applyMercenarioProgress(
+  const next = applyMercenarioProgress(
     { ...seat.team, players: [...seat.team.players, playerCard] },
     seat.missions ? completedMissionCount(seat.missions) : 0,
   );
+  return rebuildTeamChemistry(next);
 }
 
 const ownedIds = (seat: PlayerSeat) => seat.team.players.map(player => player.id);
@@ -608,13 +609,34 @@ export function setMatchPlan(seat: PlayerSeat, plan: unknown): SeatResult {
   return ok({ ...seat, team: { ...seat.team, matchPlan } });
 }
 
-/** Mártir: up to two other starters receive its boost. */
-export function setMartirTargets(seat: PlayerSeat, playerId: string, targetIds: unknown): SeatResult {
-  const source = seat.team.players.find(card => card.id === playerId);
-  if (!source?.martir || !Array.isArray(targetIds)) return fail();
-  const starters = new Set(seat.team.players.slice(0, 11).map(card => card.id));
-  const targets = targetIds.filter((id): id is string => typeof id === 'string' && id !== playerId && starters.has(id)).slice(0, 2);
-  return ok({ ...seat, team: { ...seat.team, players: mapPlayer(seat, playerId, card => ({ ...card, martirTargets: targets })) } });
+/** Mártir: select two starters and allocate its growing all-attribute transfer pool. */
+export function setMartirTargets(seat: PlayerSeat, playerId: string, targetIds: unknown, distribution: unknown = {}): SeatResult {
+  if (!Array.isArray(targetIds) || !distribution || typeof distribution !== 'object' || Array.isArray(distribution)) return fail();
+  const migratedTeam = migrateLegacyMartirTeam(seat.team);
+  const source = migratedTeam.players.find(card => card.id === playerId);
+  const starters = new Set(migratedTeam.players.slice(0, 11).map(card => card.id));
+  if (!source?.martir || !source.martirProgressive || !starters.has(playerId)) return fail();
+
+  const targets = Array.from(new Set(targetIds.filter((id): id is string =>
+    typeof id === 'string' && id !== playerId && starters.has(id),
+  ))).slice(0, 2);
+  const rawDistribution = distribution as Record<string, unknown>;
+  const cleanDistribution: Record<string, number> = {};
+  let total = 0;
+  const limit = martirDistributionLimit(source.martirWins);
+  for (const id of targets) {
+    const points = rawDistribution[id] ?? 0;
+    if (typeof points !== 'number' || !Number.isSafeInteger(points) || points < 0 || points > limit) return fail();
+    total += points;
+    if (total > limit) return fail();
+    if (points > 0) cleanDistribution[id] = points;
+  }
+  const players = mapPlayer({ ...seat, team: migratedTeam }, playerId, card => ({
+    ...card,
+    martirTargets: targets,
+    martirDistribution: cleanDistribution,
+  }));
+  return ok({ ...seat, team: rebuildTeamChemistry({ ...migratedTeam, players }) });
 }
 
 /** Padrinho: one other starter is the godchild (empty string clears the choice → automatic). */

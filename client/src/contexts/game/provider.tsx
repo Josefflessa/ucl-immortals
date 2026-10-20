@@ -93,7 +93,7 @@ export interface GameContextType {
   playerUnreadyOnline: () => void;
   shopTrainOnline: (playerId: string, attr: TrainAttr) => void;
   swapPlayerTeamOnline: (indexA: number, indexB: number) => void;
-  martirTargetsOnline: (playerId: string, targetIds: string[]) => void;
+  martirTargetsOnline: (playerId: string, targetIds: string[], distribution: Record<string, number>) => void;
   padrinhoTargetOnline: (playerId: string, targetId: string) => void;
   setEvolvePointOnline: (playerId: string, attr: AttrKey, delta: number) => void;
   setAutoEvolveAttributeOnline: (playerId: string, attr: AttrKey | null) => void;
@@ -717,8 +717,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const swapPlayerTeamOnline = useCallback((indexA: number, indexB: number) => {
     emitOnlineAction("swap_player_team", { roomCode: state.roomCode, indexA, indexB });
   }, [emitOnlineAction, state.roomCode]);
-  const martirTargetsOnline = useCallback((playerId: string, targetIds: string[]) => {
-    emitOnlineAction("set_martir_targets", { roomCode: state.roomCode, playerId, targetIds });
+  const martirTargetsOnline = useCallback((playerId: string, targetIds: string[], distribution: Record<string, number>) => {
+    emitOnlineAction("set_martir_targets", { roomCode: state.roomCode, playerId, targetIds, distribution });
   }, [emitOnlineAction, state.roomCode]);
   const padrinhoTargetOnline = useCallback((playerId: string, targetId: string) => {
     emitOnlineAction("set_padrinho_target", { roomCode: state.roomCode, playerId, targetId });

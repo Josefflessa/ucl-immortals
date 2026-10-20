@@ -166,7 +166,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
   const formation = FORMATIONS.find(f => f.id === playerTeam?.formationId);
   const formationRoles = formation?.positions.map(p => p.role) ?? [];
   const chemData = playerTeam
-    ? calculateChemistry(playerTeam.players.slice(0, 11), playerTeam.coachId, formationRoles, playerTeam.formationId)
+    ? calculateChemistry(playerTeam.players.slice(0, 11), playerTeam.coachId, formationRoles, playerTeam.formationId, playerTeam.players.slice(11))
     : null;
 
   const allResults = useMemo(

@@ -55,6 +55,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
     team.coachId,
     formation.positions.map(position => position.role),
     team.formationId,
+    team.players.slice(11),
   );
 
   // The match engine can move a line player to goal after a goalkeeper red card.

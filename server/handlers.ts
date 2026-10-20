@@ -2167,7 +2167,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
           const starters = p.draftedPlayers.slice(0, 11).filter((pl): pl is Player => pl !== undefined);
           const formation = FORMATIONS.find(f => f.id === p.formationId);
           const roles = formation?.positions.map(pos => pos.role) ?? [];
-          const chemData = calculateChemistry(starters, p.coachId, roles, p.formationId);
+          const reserves = p.draftedPlayers.slice(11).filter((pl): pl is Player => pl !== undefined);
+          const chemData = calculateChemistry(starters, p.coachId, roles, p.formationId, reserves);
 
           const playerCards: PlayerCard[] = p.draftedPlayers
             .filter((pl): pl is Player => pl !== undefined)
@@ -2314,14 +2315,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
       applySeatRule(socket, io, room, player, "swap_player_team", seat => seatRules.swapLineup(seat, indexA, indexB), { broadcast: true });
     });
 
-    // 🩸 Mártir — set which (up to 2) XI teammates receive the +3. Validated against the CURRENT XI.
-    on("set_martir_targets", ({ roomCode, playerId, targetIds }: { roomCode: string; playerId: string; targetIds: string[] }) => {
+    // 🩸 Mártir — select up to two current starters and allocate its earned transfer points.
+    on("set_martir_targets", ({ roomCode, playerId, targetIds, distribution }: { roomCode: string; playerId: string; targetIds: string[]; distribution: Record<string, number> }) => {
       const room = rooms.get(roomCode);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player || !player.team) return;
       if (!isValidId(playerId)) return;
-      applySeatRule(socket, io, room, player, "set_martir_targets", seat => seatRules.setMartirTargets(seat, playerId, targetIds));
+      applySeatRule(socket, io, room, player, "set_martir_targets", seat => seatRules.setMartirTargets(seat, playerId, targetIds, distribution));
     });
 
     // 🤵 Padrinho — choose the XI teammate (godchild) who receives the +3. "" = automatic.

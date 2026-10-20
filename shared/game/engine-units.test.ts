@@ -638,7 +638,7 @@ describe('char boosts flow through getEffectiveAttribute (engine = the buff)', (
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🛟 Noé — +2 em tudo nele e +3 de química por titular sem característica', () => {
+describe('🛟 Noé — +2 em tudo nele e +2 de química por titular sem característica', () => {
   const xiOf = (extra: Player[]) => [...extra, ...Array.from({ length: 11 - extra.length }, () => mkP())];
 
   it('+20 em tudo quando os outros 10 titulares não têm característica', () => {
@@ -661,7 +661,7 @@ describe('🛟 Noé — +2 em tudo nele e +3 de química por titular sem caracte
     expect(boosts['b']?.flatAll).toBe(9 * NOE_STAT_BOOST);
   });
 
-  it('+5 na química geral por titular sem característica', () => {
+  it('+2 na química geral por titular sem característica', () => {
     // XI com nação/clube DISTINTOS → química base baixa, para validar o bônus do Noé.
     const plainXI = Array.from({ length: 11 }, (_, i) => mkP({ id: `n${i}`, nation: `Nat${i}`, club: `Club${i}` }));
     const noeXI = plainXI.map(p => p.id === 'n0' ? { ...p, noe: true } : p);
@@ -801,9 +801,10 @@ describe('🧹 Remover característica (hasVariant / stripVariant)', () => {
     expect(hasVariant(clean)).toBe(false);
   });
 
-  it('reverte a penalidade do Mártir e limpa flag + alvos', () => {
+  it('remove o Mártir progressivo e limpa alvos sem alterar os atributos-base', () => {
     const m = applyShopVariant(mkP({ id: 'b', pace: 70, overall: 80, martirTargets: ['x', 'y'] }), 'martir');
-    expect(m.pace).toBeLessThan(70);
+    expect(m.martirProgressive).toBe(true);
+    expect(m.pace).toBe(70);
     const clean = stripVariant(m);
     expect(clean.martir).toBeFalsy();
     expect(clean.martirTargets).toBeUndefined();
@@ -1151,13 +1152,16 @@ describe('generateBotTeam', () => {
 describe('applyShopVariant — variant stat math (no pool mutation)', () => {
   const src = PLAYERS.find(p => p.position !== 'GK' && p.overall < 90)!;
 
-  it('🩸 Mártir subtracts 6 from every attribute and records baseOverall', () => {
+  it('🩸 Mártir starts with a transferable pool without baking a penalty into the card', () => {
     const before = { ...src };
     const v = applyShopVariant(src, 'martir');
     expect(v.martir).toBe(true);
-    expect(v.overall).toBe(src.overall - 6);
-    expect(v.pace).toBe(src.pace - 6);
-    expect(v.baseOverall).toBe(src.overall);
+    expect(v.martirProgressive).toBe(true);
+    expect(v.martirWins).toBe(0);
+    expect(v.martirDistribution).toEqual({});
+    expect(v.overall).toBe(src.overall);
+    expect(v.pace).toBe(src.pace);
+    expect(v.baseOverall).toBe(src.baseOverall);
     expect(src).toEqual(before); // original untouched
   });
   it('🐺 Lobo adds a flat boost to every attribute', () => {

@@ -61,7 +61,7 @@ export interface PlayerSheetModel {
   traits: SheetTrait[];
   captain: SheetCaptain | null;
   charBoost?: CharBoost;
-  /** What each source adds to the team chemistry total (Pilar, Noé, Improvisador...). */
+  /** What each source adds to the team chemistry total (Pilar, Noé, 12º Homem, Improvisador...). */
   chemBonuses: ChemistryBonuses;
   coachName: string;
   situations: SheetSituation[];
@@ -98,7 +98,7 @@ export interface PlayerSheetInput {
 }
 
 // Variants that change the card's own printed values (already inside player.*).
-const BAKED_VARIANTS = new Set(['inForm', 'lobo', 'martir', 'fragil', 'magnata']);
+const BAKED_VARIANTS = new Set(['inForm', 'lobo', 'fragil', 'magnata']);
 const LINK_POINTS: Record<string, number> = { club: 2, nation: 1, coach: 2, partner: 1, nomade: 1 };
 const LINK_LABEL: Record<string, string> = {
   club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica', nomade: 'Nômade (vale como nação)',
@@ -122,8 +122,8 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
   const roles = formation.positions.map(p => p.role);
   const formationRole = isStarter ? (roles[index] ?? player.position) : player.position;
   const fit = isStarter ? positionFit(player, formationRole) : 'native';
-  const chemData = calculateChemistry(xi, input.coachId, roles, input.formationId);
-  const charBoosts = computeCharacteristicBoosts(players, chemData.total);
+  const chemData = calculateChemistry(xi, input.coachId, roles, input.formationId, players.slice(11));
+  const charBoosts = computeCharacteristicBoosts(players, chemData.total, roles);
   const captainBoost = captainBoostFromStarters(xi, input.captainId ?? undefined) ?? undefined;
   const playStyle = input.playStyle ?? 'balanced';
   const credits = Math.max(0, input.credits ?? 0);

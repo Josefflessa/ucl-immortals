@@ -2,7 +2,7 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player, FORMATIONS, DIFFICULTY_LEVELS } from '@shared/game/gameData';
-import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, applyPostMatchCardProgress, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress, applyApostadorWins, midiaticoCredits } from '@shared/game/gameEngine';
+import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, rebuildTeamChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, applyPostMatchCardProgress, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress, applyApostadorWins, midiaticoCredits } from '@shared/game/gameEngine';
 import { computeMatchPointsWithConfig, MatchPoints, lossStreakBonus, nextLossStreak } from '@shared/game/shop';
 import { buildLeagueMatchKey, buildKnockoutMatchKey, newlyWonBets, revealEligibleKoBets, settleBet } from '@shared/game/bets';
 import { applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout } from '@shared/game/discipline';
@@ -242,7 +242,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return applySoloSeatRule(state, seat => seatRules.setMatchRoles(seat, { captain: action.playerId }));
 
     case 'SET_PLAYER_TEAM_MARTIR_TARGETS':
-      return applySoloSeatRule(state, seat => seatRules.setMartirTargets(seat, action.playerId, action.targetIds));
+      return applySoloSeatRule(state, seat => seatRules.setMartirTargets(seat, action.playerId, action.targetIds, action.distribution));
     case 'SET_PLAYER_TEAM_PADRINHO_TARGET':
       return applySoloSeatRule(state, seat => seatRules.setPadrinhoTarget(seat, action.playerId, action.targetId));
 
@@ -374,6 +374,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'START_LEAGUE': {
       // Build player team
       const starters = state.draftedPlayers.slice(0, 11).filter((p): p is Player => p !== null && p !== undefined);
+      const allPlayers = state.draftedPlayers.filter((p): p is Player => p !== null && p !== undefined);
       const formation = FORMATIONS.find(f => f.id === state.selectedFormationId);
       const formationRoles = formation?.positions.map(p => p.role) ?? [];
 
@@ -381,10 +382,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         starters,
         state.selectedCoachId,
         formationRoles,
-        state.selectedFormationId
+        state.selectedFormationId,
+        allPlayers.slice(11),
       );
 
-      const allPlayers = state.draftedPlayers.filter((p): p is Player => p !== null && p !== undefined);
       const playerCards: PlayerCard[] = allPlayers.map(p => {
         const idx = state.draftedPlayers.findIndex(dp => dp?.id === p.id);
         const isOOP = idx !== -1 && idx < 11 ? (chemData.outOfPosition[p.id] ?? false) : false;
@@ -1141,7 +1142,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_ONLINE_STATE': {
       const { socketId } = action;
-      const roomState = normalizeLegacyPlayerPositionsDeep(action.roomState);
+      const normalizedRoomState = normalizeLegacyPlayerPositionsDeep(action.roomState);
+      const roomState = {
+        ...normalizedRoomState,
+        players: (normalizedRoomState.players ?? []).map((roomPlayer: any) => roomPlayer.team
+          ? { ...roomPlayer, team: rebuildTeamChemistry(roomPlayer.team) }
+          : roomPlayer),
+      };
       const me = roomState.players.find((p: any) => p.socketId === socketId);
       
       let draftState: any = null;
@@ -1375,6 +1382,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // account's current Album cannot retroactively affect a running save.
       const albumSnapshot = savedState.competitionAlbumLevelSnapshot ?? {};
       const albumPageBonusSnapshot = savedState.competitionAlbumPageBonusSnapshot ?? {};
+      const restoredPlayerTeam = savedState.playerTeam ? rebuildTeamChemistry({
+        ...savedState.playerTeam,
+        players: savedState.playerTeam.players.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot)),
+      }) : null;
+      const restoredBotTeams = normalizeBotTeamNames(savedState.botTeams).map(rebuildTeamChemistry);
       return {
         ...initialState,
         ...savedState,
@@ -1387,10 +1399,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ...savedState.draftState,
           currentOptions: lockSoloDraftOptions(savedState.draftState.currentOptions, albumSnapshot, albumPageBonusSnapshot),
         } : null,
-        playerTeam: savedState.playerTeam ? {
-          ...savedState.playerTeam,
-          players: savedState.playerTeam.players.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot)),
-        } : null,
+        playerTeam: restoredPlayerTeam,
         reinforcementOptions: savedState.reinforcementOptions?.map(player => lockSoloAlbumBonuses(player, albumSnapshot, albumPageBonusSnapshot))
           ?? savedState.reinforcementOptions
           ?? null,
@@ -1405,7 +1414,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         pendingUniquePack: savedState.pendingUniquePack
           ? lockSoloAlbumBonuses(savedState.pendingUniquePack, albumSnapshot, albumPageBonusSnapshot)
           : null,
-        botTeams: normalizeBotTeamNames(savedState.botTeams),
+        botTeams: restoredBotTeams,
         mode: 'solo', roomCode: null, socketId: null, isHost: false, onlinePlayers: [],
       };
     }

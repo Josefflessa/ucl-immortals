@@ -93,17 +93,21 @@ export interface Player {
   baseOverall?: number; // original overall before the in-form / lobo boost (shown in details)
   // Special draft variants (rolled at draft time, mutually exclusive — see gameEngine.applyDraftVariant):
   lobo?: boolean;       // 🐺 Lobo Solitário — big personal boost, but drains TEAM chemistry
-  coringa?: boolean;    // 🃏 Coringa — immune to the out-of-position penalty (stats & chemistry)
+  coringa?: boolean;    // 🃏 Coringa — ignores positional penalties; +2 per secondary-position starter and +3 per out-of-position starter
   nomade?: boolean;     // 🌍 Nômade — counts as ANY nation for chemistry links
   pilar?: boolean;      // 🧱 Pilar — lifts the whole team's chemistry just by being in the XI
   // ── Team-effect characteristics (buff OTHER players — see gameEngine.computeCharacteristicBoosts) ──
-  martir?: boolean;     // 🩸 Mártir — −6 em tudo nele; dá +5 em tudo a 2 titulares escolhidos (acumulável)
-  martirTargets?: string[]; // ids dos (até 2) titulares que recebem o +5 do Mártir; vazio → 2 maiores overalls
+  martir?: boolean;     // 🩸 Mártir — transfere pontos de todos os atributos para até 2 titulares
+  martirProgressive?: boolean; // Mártir usa o pool novo e não tem penalidade fixa assada na carta
+  martirWins?: number; // 🩸 vitórias com ele titular; cada uma libera +2 pontos para distribuir
+  martirMatchIds?: string[]; // 🩸 partidas já contabilizadas (idempotência online/reconexão)
+  martirTargets?: string[]; // ids dos até 2 titulares que recebem os pontos distribuídos
+  martirDistribution?: Record<string, number>; // 🩸 pontos de todos os atributos alocados a cada titular
   idolo?: boolean;      // ❤️ Ídolo — +3 em tudo a cada OUTRO titular do mesmo clube (não a ele)
-  decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 em todos os atributos a todo o XI
+  decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 em todos os atributos do XI e +8 de química geral
   pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +7 em tudo na FASE DE LIGA, −7 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
-  noe?: boolean;         // 🛟 Noé — se titular, +2 em tudo ao Noé e +3 de química geral por jogador titular sem característica especial
-  forasteiro?: boolean;  // 🧳 Forasteiro — +9 em tudo quando é o ÚNICO titular do seu país E do seu clube (anti-química)
+  noe?: boolean;         // 🛟 Noé — se titular, +2 em tudo ao Noé e +2 de química geral por jogador titular sem característica especial
+  forasteiro?: boolean;  // 🧳 Forasteiro — titular: por outro titular de clube E nacionalidade diferentes, +3 em tudo e −4 de química geral
   colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva
   estribado?: boolean;    // 💰 Estribado — +1 em tudo a cada 100 créditos disponíveis
   todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +20 em todos os atributos
@@ -149,7 +153,7 @@ export interface Player {
   fominha?: boolean;     // 🍽️ Fominha — titular: +1 em tudo por gol dele; cada gol tira −2 da química geral
   fominhaGoals?: number; // 🍽️ gols acumulados desde que recebeu a característica
   fominhaMatchIds?: string[]; // 🍽️ partidas já contabilizadas
-  poliglota?: boolean;   // 🗣️ Poliglota — titular: +2 em tudo nele por nação diferente da dele entre os titulares
+  poliglota?: boolean;   // 🗣️ Poliglota — titular: +1 em tudo por nacionalidade distinta da sua entre titulares e reservas
   trainCount?: number;  // 💪 how many times this player was trained in the shop (escalates the next cost)
   // 💪 Shop "Treino" — a permanent, stacking per-attribute boost (no cap; flows through the
   // engine and the effective-overall like any other buff, and is shown in the player modal).

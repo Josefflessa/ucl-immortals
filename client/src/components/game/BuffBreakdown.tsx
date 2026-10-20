@@ -8,10 +8,10 @@ import { BookOpenCheck, ChevronsUp, ClipboardList, Dna, Dumbbell, GraduationCap,
 import { INLINE_ICON } from './inlineIcon';
 import { useState } from 'react';
 import {
-  ARROGANTE_GOALS_PER_PENALTY, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
-  FORASTEIRO_STAT_BOOST, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
-  INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_STAT_PENALTY,
-  LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, MARTIR_TARGET_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
+  ARROGANTE_GOALS_PER_PENALTY, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
+  FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
+  INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_INITIAL_DISTRIBUTION,
+  LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, martirDistributionLimit, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
   PILAR_CHEM_BONUS, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST,
   TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
   garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, padrinhoStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
@@ -85,10 +85,15 @@ function variantState(variant: Variant, model: PlayerSheetModel): { active: bool
   switch (variant.key) {
     case 'decimoHomem': return model.isStarter ? { active: false, inactiveReason: 'precisa estar no banco' } : { active: true };
     case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular sem característica' : 'só ativa se for titular' };
-    case 'poliglota': return sources.some(s => s.type === 'poliglota') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular de outra nação' : 'só ativa se for titular' };
+    case 'poliglota': return sources.some(s => s.type === 'poliglota') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular ou reserva de outra nacionalidade' : 'só ativa se for titular' };
     case 'desenfreado': return sources.some(s => s.type === 'desenfreado') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'química geral até 100' : 'só ativa se for titular' };
+    case 'martir': return !model.isStarter
+      ? { active: false, inactiveReason: 'só funciona se for titular' }
+      : sources.some(s => s.type === 'martir' && s.fromId === model.player.id)
+        ? { active: true }
+        : { active: false, inactiveReason: 'distribua pontos aos dois titulares escolhidos' };
     case 'fominha': return !model.isStarter ? { active: false, inactiveReason: 'só ativa se for titular' } : (model.player.fominhaGoals ?? 0) > 0 ? { active: true } : { active: false, inactiveReason: 'ainda sem gols' };
-    case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'outro titular compartilha o país ou o clube' : 'só ativa se for titular' };
+    case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular tem clube e nacionalidade diferentes' : 'só ativa se for titular' };
     case 'todosPorUm': return sources.some(s => s.type === 'todosPorUm') ? { active: true } : { active: false, inactiveReason: 'os 11 titulares precisam ter a característica' };
     case 'agregador': return sources.some(s => s.type === 'agregador' && s.fromId === model.player.id) ? { active: true } : { active: false, inactiveReason: 'só ativa se for titular' };
     case 'padrinho':
@@ -122,18 +127,45 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
       return { chips: [{ text: `+${INFORM_STAT_BOOST} EM CADA ATRIBUTO`, color: GREEN }], description: `Já incluído nos valores impressos da carta.` };
     case 'lobo':
       return { chips: [{ text: `+${LOBO_STAT_BOOST} EM CADA ATRIBUTO`, color: GREEN }, { text: `−${LOBO_CHEM_PENALTY} QUÍMICA GERAL DO TIME`, color: RED }], description: `O bônus próprio já está nos valores da carta. Em troca, o time perde ${LOBO_CHEM_PENALTY} de química geral.` };
-    case 'coringa':
-      return { chips: [{ text: 'SEM PENALIDADE DE POSIÇÃO', color: GREEN }], description: `Joga em qualquer posição sem perder atributos nem química. No gol, um jogador de linha ainda defende com ${Math.round(OUTFIELD_GK_MULTIPLIER * 100)}% da Defesa.` };
+    case 'coringa': {
+      const boost = charBoost?.sources.find(s => s.type === 'coringa' && s.fromId === p.id)?.flatAll;
+      return {
+        chips: [
+          { text: 'SEM PENALIDADE DE POSIÇÃO', color: GREEN },
+          { text: model.isStarter ? `+${boost ?? 0} EM TUDO` : `+${CORINGA_SECONDARY_STAT_BOOST} / +${CORINGA_OOP_STAT_BOOST} EM TUDO`, color: GREEN },
+        ],
+        description: `Se for titular, recebe +${CORINGA_SECONDARY_STAT_BOOST} em todos os atributos por cada outro titular em posição secundária e +${CORINGA_OOP_STAT_BOOST} por cada outro titular fora de posição. Continua sem penalidade por jogar fora de posição. No gol, um jogador de linha ainda defende com ${Math.round(OUTFIELD_GK_MULTIPLIER * 100)}% da Defesa.`,
+      };
+    }
     case 'nomade':
       return { chips: [{ text: 'VALE COMO QUALQUER NAÇÃO', color: GREEN }], description: 'Forma vínculo de nação com qualquer titular com quem ainda não tenha vínculo.' };
     case 'pilar':
       return { chips: [{ text: `+${PILAR_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Enquanto estiver no XI, a química geral do time sobe ${PILAR_CHEM_BONUS}.` };
-    case 'martir':
-      return { chips: [{ text: `−${MARTIR_STAT_PENALTY} EM CADA ATRIBUTO`, color: RED }, { text: `+${MARTIR_TARGET_BOOST} EM TUDO A 2 TITULARES`, color: GREEN }], description: `A perda própria já está nos valores da carta. Os dois escolhidos recebem +${MARTIR_TARGET_BOOST} em tudo.` };
+    case 'martir': {
+      const used = Object.values(p.martirDistribution ?? {}).reduce((sum, value) => sum + Math.max(0, Math.floor(value || 0)), 0);
+      const limit = martirDistributionLimit(p.martirWins);
+      const selfLoss = charBoost?.sources
+        .filter(source => source.type === 'martir' && source.fromId === p.id && source.self)
+        .reduce((sum, source) => sum + Math.abs(Math.min(0, source.flatAll ?? 0)), 0) ?? 0;
+      const wins = Math.max(0, Math.floor(p.martirWins ?? 0));
+      return {
+        chips: [
+          { text: selfLoss ? `−${selfLoss} EM TUDO` : 'SEM PONTOS DISTRIBUÍDOS', color: selfLoss ? RED : '#9CA3AF' },
+          { text: `${used}/${limit} PONTOS DISTRIBUÍDOS`, color: GREEN },
+        ],
+        description: `Cada ponto distribuído tira 1 em todos os atributos do Mártir e dá +1 em tudo a um dos dois titulares escolhidos. Começa com ${MARTIR_INITIAL_DISTRIBUTION} pontos; cada vitória com ele titular acrescenta 2. ${wins} vitória${wins === 1 ? '' : 's'} registrada${wins === 1 ? '' : 's'}.`,
+      };
+    }
     case 'idolo':
       return { chips: [{ text: `+${IDOLO_STAT_BOOST} EM TUDO AOS COLEGAS DO MESMO CLUBE`, color: GREEN }], description: `Os outros titulares do mesmo clube recebem +${IDOLO_STAT_BOOST} em cada atributo. O próprio Ídolo não recebe o bônus.` };
     case 'decimoHomem':
-      return { chips: [{ text: `+${DECIMO_HOMEM_STAT_BOOST} EM TUDO AO TIME`, color: GREEN }], description: 'Só funciona no banco: todo o XI recebe o bônus.' };
+      return {
+        chips: [
+          { text: `+${DECIMO_HOMEM_STAT_BOOST} EM TUDO AO TIME`, color: GREEN },
+          { text: `+${DECIMO_HOMEM_CHEM_BONUS} QUÍMICA GERAL`, color: GREEN },
+        ],
+        description: `Só funciona no banco: todo o XI recebe +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos e o time ganha +${DECIMO_HOMEM_CHEM_BONUS} de química geral.`,
+      };
     case 'pipoqueiro': {
       const ko = model.isKnockout;
       return {
@@ -147,8 +179,18 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'noe':
       { const boost = charBoost?.sources.find(s => s.type === 'noe' && s.fromId === p.id)?.flatAll ?? 0; const plain = boost / NOE_STAT_BOOST;
       return { chips: [{ text: `+${boost} EM TUDO`, color: GREEN }, { text: `+${plain * NOE_CHEM_BONUS} QUÍMICA GERAL DO TIME`, color: GREEN }], description: `Se for titular, o Noé recebe +${NOE_STAT_BOOST} em todos os atributos por cada jogador titular sem característica especial. O time recebe +${NOE_CHEM_BONUS} de química geral por cada um.` }; }
-    case 'forasteiro':
-      return { chips: [{ text: `+${FORASTEIRO_STAT_BOOST} EM TUDO`, color: GREEN }], description: 'Só funciona quando é o único titular do seu país e do seu clube.' };
+    case 'forasteiro': {
+      const source = charBoost?.sources.find(s => s.type === 'forasteiro' && s.fromId === p.id);
+      const boost = source?.flatAll ?? 0;
+      const penalty = source?.chemistryPenalty ?? 0;
+      return {
+        chips: source ? [
+          { text: `+${boost} EM TUDO`, color: GREEN },
+          { text: `−${penalty} QUÍMICA GERAL`, color: RED },
+        ] : [],
+        description: `Se for titular, recebe +${FORASTEIRO_STAT_BOOST} em todos os atributos e reduz ${FORASTEIRO_CHEM_PENALTY_PER_PLAYER} da química geral por cada outro titular que seja de um clube e de uma nacionalidade diferentes dos dele.`,
+      };
+    }
     case 'colecionador': {
       const boost = charBoost?.sources.find(s => s.type === 'colecionador')?.flatAll;
       return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO`, color: GREEN }], description: 'Ganha +1 em cada atributo por jogador na reserva.' };
@@ -226,7 +268,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     }
     case 'poliglota': {
       const boost = charBoost?.sources.find(s => s.type === 'poliglota' && s.fromId === p.id)?.flatAll;
-      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO`, color: GREEN }], description: `Se for titular, recebe +${POLIGLOTA_STAT_BOOST_PER_NATION} em todos os atributos por cada nacionalidade diferente da dele entre os titulares.` };
+      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO`, color: GREEN }], description: `Se for titular, recebe +${POLIGLOTA_STAT_BOOST_PER_NATION} em todos os atributos por cada nacionalidade diferente da dele entre titulares e reservas.` };
     }
     case 'midiatico':
       return { chips: [{ text: `+${MIDIATICO_CREDITS_PER_GOAL} CRÉDITOS POR GOL`, color: GREEN }], description: 'Cada gol dele rende créditos, somados aos créditos da partida.' };
@@ -239,6 +281,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
 const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> = {
   martir: { icon: '🩸', label: 'MÁRTIR', color: '#F87171' },
   idolo: { icon: '❤️', label: 'ÍDOLO', color: '#F59E0B' },
+  coringa: { icon: '🃏', label: 'CORINGA', color: '#EF4444' },
   decimoHomem: { icon: '🪑', label: '12º HOMEM', color: '#14B8A6' },
   noe: { icon: '🛟', label: 'NOÉ', color: '#22D3EE' },
   forasteiro: { icon: '🧳', label: 'FORASTEIRO', color: '#A3E635' },
