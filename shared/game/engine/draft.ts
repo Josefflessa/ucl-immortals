@@ -43,8 +43,8 @@ export function martirDistributionLimit(wins: number | undefined): number {
 }
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
 export const DECIMO_HOMEM_CHEM_BONUS = 8; // 12º Homem: +8 de química geral enquanto fica no banco
-export const CORINGA_SECONDARY_STAT_BOOST = 2; // Coringa: +2 em tudo por titular em posição secundária
-export const CORINGA_OOP_STAT_BOOST = 3; // Coringa: +3 em tudo por titular fora de posição
+export const CORINGA_SECONDARY_STAT_BOOST = 1; // Coringa: +1 em tudo por titular em posição secundária
+export const CORINGA_OOP_STAT_BOOST = 2; // Coringa: +2 em tudo por titular fora de posição
 export const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
 export const FRAGIL_STAT_BOOST = 7;  // 🩹 Frágil: +7 em todos os atributos (nele mesmo)
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida por isto (não empilha: 1+ magnatas → 1 só).

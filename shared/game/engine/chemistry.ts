@@ -544,8 +544,8 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[], tea
     for (const k in src.perStat) b.perStat[k as AttrKey] = (b.perStat[k as AttrKey] ?? 0) + (src.perStat[k as AttrKey] ?? 0);
     b.sources.push(src);
   };
-  // 🃏 Coringa — retains immunity to positional penalties and gains +2 to all
-  // attributes per naturally secondary-position starter and +3 per naturally
+  // 🃏 Coringa — retains immunity to positional penalties and gains +1 to all
+  // attributes per naturally secondary-position starter and +2 per naturally
   // out-of-position starter. Count the natural fit even for Coringas: immunity
   // removes the penalty, not the role occupied in the formation.
   const positionalFits = xi.map((player, index) => naturalPositionFit(player, formationRoles?.[index] ?? player.position));

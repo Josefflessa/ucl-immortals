@@ -93,7 +93,7 @@ export interface Player {
   baseOverall?: number; // original overall before the in-form / lobo boost (shown in details)
   // Special draft variants (rolled at draft time, mutually exclusive — see gameEngine.applyDraftVariant):
   lobo?: boolean;       // 🐺 Lobo Solitário — big personal boost, but drains TEAM chemistry
-  coringa?: boolean;    // 🃏 Coringa — ignores positional penalties; +2 per secondary-position starter and +3 per out-of-position starter
+  coringa?: boolean;    // 🃏 Coringa — ignores positional penalties; +1 per secondary-position starter and +2 per out-of-position starter
   nomade?: boolean;     // 🌍 Nômade — counts as ANY nation for chemistry links
   pilar?: boolean;      // 🧱 Pilar — lifts the whole team's chemistry just by being in the XI
   // ── Team-effect characteristics (buff OTHER players — see gameEngine.computeCharacteristicBoosts) ──

@@ -134,7 +134,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
           { text: 'SEM PENALIDADE DE POSIÇÃO', color: GREEN },
           { text: model.isStarter ? `+${boost ?? 0} EM TUDO` : `+${CORINGA_SECONDARY_STAT_BOOST} / +${CORINGA_OOP_STAT_BOOST} EM TUDO`, color: GREEN },
         ],
-        description: `Se for titular, recebe +${CORINGA_SECONDARY_STAT_BOOST} em todos os atributos por cada outro titular em posição secundária e +${CORINGA_OOP_STAT_BOOST} por cada outro titular fora de posição. Continua sem penalidade por jogar fora de posição. No gol, um jogador de linha ainda defende com ${Math.round(OUTFIELD_GK_MULTIPLIER * 100)}% da Defesa.`,
+        description: `Se for titular, recebe +${CORINGA_SECONDARY_STAT_BOOST} em todos os atributos por cada titular em posição secundária e +${CORINGA_OOP_STAT_BOOST} por cada titular fora de posição. A contagem inclui o próprio Coringa se ele estiver numa dessas posições. Continua sem penalidade por jogar fora de posição. No gol, um jogador de linha ainda defende com ${Math.round(OUTFIELD_GK_MULTIPLIER * 100)}% da Defesa.`,
       };
     }
     case 'nomade':

@@ -186,7 +186,7 @@ export const RETIRED_VARIANTS: readonly ShopVariant[] = ['inForm', 'lobo', 'pila
 export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: 'Recebe +4 em todos os atributos.' },
   { key: 'lobo', icon: '🐺', label: 'Lobo Solitário', color: '#A855F7', desc: 'Recebe +7 em todos os atributos. Se for titular, reduz em 12 a química geral do time.' },
-  { key: 'coringa', icon: '🃏', label: 'Coringa', color: '#EF4444', desc: 'Ignora penalidades de posição. Recebe +2 em todos os atributos por titular em posição secundária e +3 em todos por titular fora de posição.' },
+  { key: 'coringa', icon: '🃏', label: 'Coringa', color: '#EF4444', desc: 'Ignora penalidades de posição. Recebe +1 em todos os atributos por titular em posição secundária e +2 em todos por titular fora de posição.' },
   { key: 'nomade', icon: '🌍', label: 'Nômade', color: '#3B82F6', desc: 'Cria vínculo de química com qualquer titular que ainda não tenha outro vínculo.' },
   { key: 'pilar', icon: '🧱', label: 'Pilar', color: '#FFFFFF', desc: 'Se for titular, aumenta em 12 a química geral do time.' },
   { key: 'martir', icon: '🩸', label: 'Mártir', color: '#B91C1C', desc: 'Começa com 6 pontos para distribuir entre dois titulares escolhidos. Cada vitória com ele titular libera +2 pontos; cada ponto dá +1 em tudo ao escolhido e tira 1 em tudo do Mártir.' },
