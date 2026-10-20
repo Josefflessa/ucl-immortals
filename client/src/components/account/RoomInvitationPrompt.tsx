@@ -3,7 +3,7 @@ import { playSound } from '../../audio/uiSound';
 import { Check, DoorOpen, X } from 'lucide-react';
 import { useAccount, type RoomInvitationEntry } from '../../contexts/AccountContext';
 import { useGame } from '../../contexts/GameContext';
-import { Button, GameModal, Input, StatusBanner } from '../../design-system';
+import { Button, GameModal, StatusBanner } from '../../design-system';
 
 export default function RoomInvitationPrompt() {
   const { state, joinRoom } = useGame();
@@ -11,8 +11,6 @@ export default function RoomInvitationPrompt() {
   const [invitations, setInvitations] = useState<RoomInvitationEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [step, setStep] = useState<'invite' | 'team-name'>('invite');
-  const [teamName, setTeamName] = useState('');
   const [isVisible, setIsVisible] = useState(false);
   const dismissedIds = useRef(new Set<string>());
   const presenceId = useRef<string | null>(null);
@@ -101,8 +99,6 @@ export default function RoomInvitationPrompt() {
   useEffect(() => {
     if (!invitation) return;
     playSound('notify');
-    setStep('invite');
-    setTeamName('');
     setError('');
   }, [invitation?.id]);
 
@@ -115,8 +111,7 @@ export default function RoomInvitationPrompt() {
   };
 
   const joinInvitedRoom = async (current: RoomInvitationEntry) => {
-    const normalizedTeamName = teamName.trim().slice(0, 32);
-    if (!normalizedTeamName || busy) return;
+    if (!account || busy) return;
     setBusy(true);
     setError('');
     try {
@@ -124,7 +119,9 @@ export default function RoomInvitationPrompt() {
       if (!result.roomCode) throw new Error('room_not_available');
       dismissedIds.current.add(current.id);
       setInvitations(previous => previous.filter(invite => invite.id !== current.id));
-      joinRoom(result.roomCode, normalizedTeamName);
+      // The profile name identifies the person in the lobby. The team name is
+      // chosen later, together with the crest, on the competition setup screen.
+      joinRoom(result.roomCode, account.displayName || account.username);
     } catch (cause) {
       const code = cause instanceof Error ? cause.message : '';
       const messages: Record<string, string> = {
@@ -150,60 +147,31 @@ export default function RoomInvitationPrompt() {
     <GameModal
       open
       onOpenChange={open => { if (!open && !busy) dismiss(invitation); }}
-      title={step === 'invite' ? 'CONVITE PARA PARTIDA' : 'NOME DO SEU TIME'}
-      subtitle={step === 'invite' ? 'Convite válido por 5 minutos.' : 'Escolha como seu time aparecerá na sala.'}
+      title="CONVITE PARA PARTIDA"
+      subtitle="Convite válido por 5 minutos."
       size="default"
       stacked
       dismissible={!busy}
       closeLabel="Dispensar convite"
     >
       <div className="space-y-5">
-        {step === 'invite' ? (
-          <>
-            <div className="flex flex-col items-center gap-3 py-2 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full border border-[var(--ui-brand)]/30 bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)]">
-                <DoorOpen size={28} aria-hidden="true" />
-              </div>
-              <p className="max-w-sm text-sm leading-relaxed text-[var(--ui-text-muted)]">
-                <strong className="text-[var(--ui-text)]">{invitation.inviter_display_name}</strong> está convidando você para entrar em uma partida.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" intent="ghost" disabled={busy} onClick={() => dismiss(invitation)} className="w-full">
-                <X size={16} /> RECUSAR
-              </Button>
-              <Button type="button" intent="primary" disabled={busy} onClick={() => { setError(''); setStep('team-name'); }} className="w-full">
-                <Check size={16} /> ACEITAR
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <label htmlFor="room-invitation-team-name" className="text-xs font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">
-                Nome do seu time
-              </label>
-              <Input
-                id="room-invitation-team-name"
-                value={teamName}
-                onChange={event => setTeamName(event.target.value.slice(0, 32))}
-                maxLength={32}
-                autoComplete="organization"
-                autoFocus
-                placeholder="Ex.: UCL Immortals"
-              />
-            </div>
-            {error ? <StatusBanner tone="danger" role="alert">{error}</StatusBanner> : null}
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" intent="ghost" disabled={busy} onClick={() => { setError(''); setStep('invite'); }} className="w-full">
-                VOLTAR
-              </Button>
-              <Button type="button" intent="primary" loading={busy} disabled={busy || !teamName.trim()} onClick={() => void joinInvitedRoom(invitation)} className="w-full">
-                {!busy ? <Check size={16} /> : null} ENTRAR NA SALA
-              </Button>
-            </div>
-          </>
-        )}
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
+          <div className="flex size-16 items-center justify-center rounded-full border border-[var(--ui-brand)]/30 bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)]">
+            <DoorOpen size={28} aria-hidden="true" />
+          </div>
+          <p className="max-w-sm text-sm leading-relaxed text-[var(--ui-text-muted)]">
+            <strong className="text-[var(--ui-text)]">{invitation.inviter_display_name}</strong> está convidando você para entrar em uma partida.
+          </p>
+        </div>
+        {error ? <StatusBanner tone="danger" role="alert">{error}</StatusBanner> : null}
+        <div className="grid grid-cols-2 gap-2">
+          <Button type="button" intent="ghost" disabled={busy} onClick={() => dismiss(invitation)} className="w-full">
+            <X size={16} /> RECUSAR
+          </Button>
+          <Button type="button" intent="primary" loading={busy} disabled={busy} onClick={() => void joinInvitedRoom(invitation)} className="w-full">
+            {!busy ? <Check size={16} /> : null} ACEITAR
+          </Button>
+        </div>
       </div>
     </GameModal>
   );

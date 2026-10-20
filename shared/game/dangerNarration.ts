@@ -9,11 +9,12 @@
  */
 import type { MatchEvent, Team } from './engine/teamModel';
 import type { Approach } from './matchNarrative';
-import { allowsAssist, epicFinishesFor, finishesFor, isEpic, isEpicVariant, PLAY_VARIANTS, serverRolesFor, strikeClassOf, variantFor, type FinishStyle, type PlayVariant } from './playVariants';
+import { allowsAssist, epicFinishesFor, finishesFor, isEpic, isEpicVariant, PLAY_VARIANTS, strikeClassOf, variantFor, type FinishStyle, type PlayVariant } from './playVariants';
 import { rollEpic } from './epicPlays';
-import { formationRoleForPlayer } from './engine/teamModel';
 import { random, seededRandom, seedFromString, withRandomSource } from './random';
 import type { MatchPlay, PlayKind } from './engine/teamModel';
+import { resolveDangerActors, type DangerActorOutcome } from './pitch/actors';
+import { otherSide, sideOfTeam, type PitchSides } from './pitch/geometry';
 
 export type DangerOutcome = 'goal' | 'save' | 'miss';
 export type { FinishStyle } from './playVariants';
@@ -827,36 +828,40 @@ export function narrateDanger(args: {
   recent?: { plays: readonly string[]; lines: readonly string[] };
   /** Plays exactly this variant and finish (tests, the gallery, the dev harness). */
   force?: { variant: PlayVariant; finish: FinishStyle };
+  /** The same live lineup and dismissals used by the pitch animation. */
+  pitchSides?: PitchSides;
+  sentOff?: ReadonlySet<number>;
 }): DangerNarration {
   const { event, eventIndex, homeTeam, awayTeam } = args;
-  const outcome = event.type as DangerOutcome;
+  const outcome = event.type as DangerActorOutcome;
   const play = event.play;
+  const sides = args.pitchSides ?? {
+    left: { teamId: homeTeam.id, playerIds: homeTeam.players.slice(0, 11).map(p => p.id), formationId: homeTeam.formationId },
+    right: { teamId: awayTeam.id, playerIds: awayTeam.players.slice(0, 11).map(p => p.id), formationId: awayTeam.formationId },
+  };
+  const eventSide = sideOfTeam(sides, event.teamId) ?? 'left';
   // A save is credited to the keeper's side; goal and miss to the attackers.
-  const eventTeam = event.teamId === homeTeam.id ? homeTeam : awayTeam;
-  const otherTeam = eventTeam === homeTeam ? awayTeam : homeTeam;
-  const attackTeam = outcome === 'save' ? otherTeam : eventTeam;
-  const defendTeam = attackTeam === homeTeam ? awayTeam : homeTeam;
+  const attackSide = outcome === 'save' ? otherSide(eventSide) : eventSide;
+  const attackId = sides[attackSide].teamId;
+  const defendId = sides[otherSide(attackSide)].teamId;
+  const attackTeam = attackId === homeTeam.id ? homeTeam : awayTeam;
+  const defendTeam = defendId === homeTeam.id ? homeTeam : awayTeam;
+  const actors = resolveDangerActors({ sides, attackSide, event, outcome, sentOff: args.sentOff ?? new Set() });
   const nameIn = (team: Team, id?: string) => (id ? team.players.find(p => p.id === id)?.shortName : undefined);
 
   // Own goals carry no scorer on the attacking side (the engine tags the defender as opponentId).
   const isOwnGoal = outcome === 'goal' && (play?.kind === 'own_goal' || !event.playerId);
   const kind: PlayKind = play?.kind ?? (isOwnGoal ? 'own_goal' : 'through');
-  const ownGoalName = isOwnGoal ? nameIn(defendTeam, play?.defenderId ?? event.opponentId) ?? 'um zagueiro' : '';
-  const shooterId = play?.attackerId ?? (outcome === 'save' ? event.opponentId : event.playerId);
+  const ownGoalName = isOwnGoal ? nameIn(defendTeam, actors.defenderId) ?? 'um zagueiro' : '';
+  const shooterId = actors.finisherId;
   const shooterName = nameIn(attackTeam, shooterId) ?? 'Atacante';
   const attackerName = isOwnGoal ? `Gol Contra (${ownGoalName})` : shooterName;
-  const goalkeeperName = nameIn(defendTeam, play?.goalkeeperId) ?? args.fallbackGoalkeeperName(defendTeam);
-  const defenderName = nameIn(defendTeam, play?.defenderId) ?? goalkeeperName;
+  const goalkeeperName = nameIn(defendTeam, actors.goalkeeperId) ?? args.fallbackGoalkeeperName(defendTeam);
+  const defenderName = nameIn(defendTeam, actors.defenderId) ?? goalkeeperName;
   // With an assist, the assist provider is the one who serves the ball.
   const assisted = outcome === 'goal' && !!event.assisterId;
-  // Who serves the ball: as named by the engine (the assist first) when he is on the pitch;
-  // otherwise the same rule the pitch uses, so the name read out is the player shown.
   const lineup = attackTeam.players.slice(0, 11);
-  const namedId = (assisted ? event.assisterId : undefined) ?? play?.wideId ?? play?.creatorId;
-  const named = lineup.find(p => p.id === namedId && p.id !== shooterId && formationRoleForPlayer(attackTeam, p) !== 'GK');
-  const byRole = serverRolesFor(kind).map(role => lineup.find(p => p.id !== shooterId && formationRoleForPlayer(attackTeam, p) === role)).find(Boolean);
-  const anyone = lineup.find(p => p.id !== shooterId && formationRoleForPlayer(attackTeam, p) !== 'GK');
-  const serverName = (named ?? byRole ?? anyone)?.shortName ?? attackTeam.name;
+  const serverName = nameIn(attackTeam, actors.creatorId) ?? attackTeam.name;
 
   // The epic roll, on its own stream (so it never shifts the ordinary draws below).
   const epicRandom = seededRandom(dangerSeed(event, eventIndex) ^ 0x5eed1e);

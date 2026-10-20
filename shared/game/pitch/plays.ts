@@ -10,12 +10,13 @@
  * the right team attacks.
  */
 import type { MatchEvent, PlayKind, PlayShot } from '../engine/teamModel';
-import { finishFor, isEpic, serverRolesFor, variantFor, type FinishStyle, type PlayVariant } from '../playVariants';
+import { finishFor, isEpic, variantFor, type FinishStyle, type PlayVariant } from '../playVariants';
 import { seededRandom } from '../random';
 import {
-  BALL_SLOT, GOAL_HEIGHT, GOAL_Y_MAX, GOAL_Y_MIN, PITCH_LENGTH, PITCH_WIDTH, PLAYERS_PER_SIDE, mirrorPoint, otherSide, roleOfSlot, shapeFor, slotBase, slotOfPlayer,
+  BALL_SLOT, GOAL_HEIGHT, GOAL_Y_MAX, GOAL_Y_MIN, PITCH_LENGTH, PITCH_WIDTH, PLAYERS_PER_SIDE, mirrorPoint, otherSide, roleOfSlot, shapeFor, slotBase,
   type PitchSides, type Point, type Side,
 } from './geometry';
+import { resolveDangerActors } from './actors';
 import { BALL_SPEED, CUT_MS, CUT_SNAP_MS, MAX_PLAYER_SPEED, SPEED } from './motion';
 import { createPositionBuffer, EASE_LINEAR, EASE_OUT, EASE_ROLL, EASE_SMOOTH, mirrorBuffer, mirrorTimeline, sampleTrack, TimelineBuilder, type Ease, type Key, type Timeline } from './timeline';
 
@@ -4011,31 +4012,18 @@ export function buildDangerTimeline(input: DangerInput): DangerTimeline {
   const defBase = slotBase(defendSide);
   const atkLive = liveSlots(atkBase, sentOff);
   const defLive = liveSlots(defBase, sentOff);
-  const play = event.play;
-  const kind: PlayKind = play?.kind ?? (outcome === 'goal' && !event.playerId ? 'own_goal' : 'through');
+  const kind: PlayKind = event.play?.kind ?? (outcome === 'goal' && !event.playerId ? 'own_goal' : 'through');
   // A recorded stream: the decisive move may be built twice (see below), drawing the same numbers.
   const draw = seededRandom(input.seed);
   const tape: number[] = [];
   let tapePos = 0;
   const rng = () => { if (tapePos === tape.length) tape.push(draw()); return tape[tapePos++]; };
-  const valid =(slot: number, live: number[]) => (slot >= 0 && live.includes(slot) ? slot : -1);
   const assisted = outcome === 'goal' && !!event.assisterId;
   const variant = input.variant ?? variantFor(kind, rng(), outcome, assisted);
   const finish = input.finish ?? finishFor(kind, variant, outcome, rng());
   const script = scriptOf(kind, variant);
-
-  let finisher = valid(slotOfPlayer(sides, play?.attackerId ?? (outcome === 'save' ? event.opponentId : event.playerId), sides[attackSide].teamId), atkLive);
-  if (finisher < 0) finisher = pickByRole(sides, atkLive, ['ST', 'CF', 'LW', 'RW', 'CAM'], []);
-  let gk = valid(slotOfPlayer(sides, play?.goalkeeperId, sides[defendSide].teamId), defLive);
-  if (gk < 0) gk = pickByRole(sides, defLive, ['GK'], []);
-  let defender = valid(slotOfPlayer(sides, play?.defenderId ?? (kind === 'own_goal' ? event.opponentId : undefined), sides[defendSide].teamId), defLive);
-  if (defender < 0 || defender === gk) defender = pickByRole(sides, defLive, ['CB', 'LB', 'RB', 'CDM'], [gk]);
-  // With an assist, the assist provider is the one who serves the ball.
-  let creator = valid(slotOfPlayer(sides, (assisted ? event.assisterId : undefined) ?? play?.wideId ?? play?.creatorId, sides[attackSide].teamId), atkLive);
-  if (creator < 0 || creator === finisher || roleOfSlot(sides, creator) === 'GK') {
-    // Nobody named: the same rule as the narration, so the name read out is the player shown.
-    creator = pickByRole(sides, atkLive, [...serverRolesFor(kind)], [finisher]);
-  }
+  const actors = resolveDangerActors({ sides, attackSide, event, outcome, sentOff });
+  const { finisher, creator, defender, goalkeeper: gk } = actors;
   const helperList = helperRoles(script.base, script.variant);
   const helper = helperList && atkLive.length > 3 ? pickByRole(sides, atkLive.filter(s => roleOfSlot(sides, s) !== 'GK'), helperList, [finisher, creator]) : -1;
 

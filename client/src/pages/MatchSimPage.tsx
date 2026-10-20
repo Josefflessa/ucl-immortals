@@ -442,9 +442,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
         if (shotEvs.length > 0) {
           const decisive = shotEvs[shotEvs.length - 1];
-          const isGoalOutcome = shotEvs.some(e => e.type === 'goal');
           // The goal (if any) is the play we show; otherwise the minute's last shot.
-          const featured = isGoalOutcome ? [...shotEvs].reverse().find(e => e.type === 'goal')! : decisive;
+          const featured = shotEvs.some(e => e.type === 'goal') ? [...shotEvs].reverse().find(e => e.type === 'goal')! : decisive;
+          const isGoalOutcome = featured.type === 'goal';
+          const isSaveOutcome = featured.type === 'save';
           const featuredIndex = replayResult.events.indexOf(featured);
           const narration = narrateDanger({
             event: featured,
@@ -453,7 +454,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             awayTeam,
             fallbackGoalkeeperName: team => activeGoalkeeperForTeam(team, undefined, replayResult.playerStats).player?.shortName ?? team.name,
             recent: recentNarrationRef.current,
-            force: forcedPlayFor(featured, isGoalOutcome ? 'goal' : decisive.type === 'save' ? 'save' : 'miss'),
+            force: forcedPlayFor(featured, isGoalOutcome ? 'goal' : isSaveOutcome ? 'save' : 'miss'),
+            pitchSides: pitchDirector.sides,
+            sentOff: pitchDirector.getSnapshot().sentOff,
           });
           // Remember it, so the next dangers vary (repeats get rarer, never impossible).
           {
@@ -464,19 +467,12 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               lines: [...memory.lines, narration.buildUp, narration.attempt, narration.reveal].slice(-12),
             };
           }
-          const isSaveOutcome = !isGoalOutcome && decisive.type === 'save';
-          // For a save the event teamId is the keeper's (defending) side; the attacker
-          // is on the other team. For goals/misses teamId is the attacking team.
-          const atkId = isSaveOutcome ? (decisive.teamId === homeTeam.id ? awayTeam.id : homeTeam.id) : decisive.teamId;
+          // Keep team attribution tied to the exact event used for the commentary and animation.
+          const atkId = narration.attackTeamId;
           const atkTeam = atkId === homeTeam.id ? homeTeam : awayTeam;
           const defTeam = atkTeam.id === homeTeam.id ? awayTeam : homeTeam;
-          // Own goal: the engine tags the scorer via opponentId (a defender on the
-          // OTHER team). Name him explicitly so the broadcast is clear about who put
-          // it in his own net and for which team — instead of a vague "Gol Contra".
-          // Own goals carry NO playerId (the scorer isn't on the attacking team). The
-          // old check `description.includes('Contra')` wrongly flagged "Contra-ataque"
-          // goals — which DO have a scorer — as own goals. Use the structural signal.
-          const isOwnGoal = isGoalOutcome && !decisive.playerId;
+          // Own goals carry no attacking playerId; the event tags the defender in opponentId.
+          const isOwnGoal = isGoalOutcome && narration.isOwnGoal;
           const homeDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === homeTeam.id).length;
           const awayDelta = shotEvs.filter(e => e.type === 'goal' && e.teamId === awayTeam.id).length;
           const atkIsHome = atkId === homeTeam.id;
@@ -486,7 +482,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           // The goal moment: scorer (the defender on an own goal), assist and both
           // cards with the effective stats they have at this minute.
           let goalMoment: GoalMoment | null = null;
-          const goalEv = [...shotEvs].reverse().find(e => e.type === 'goal');
+          const goalEv = isGoalOutcome ? featured : undefined;
           if (goalEv) {
             const scorerTeam = isOwnGoal ? defTeam : atkTeam;
             const scorerId = isOwnGoal ? goalEv.opponentId : goalEv.playerId;

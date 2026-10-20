@@ -1,4 +1,5 @@
 export * from './geometry';
+export * from './actors';
 export * from './timeline';
 export * from './motion';
 export * from './flow';

@@ -7,6 +7,7 @@ import { narrateDanger } from './dangerNarration';
 import type { MatchEvent, Team } from './engine/teamModel';
 import { buildDangerTimeline } from './pitch/plays';
 import { kickoffPositions } from './pitch/flow';
+import { resolveDangerActors } from './pitch/actors';
 
 let home: Team;
 let away: Team;
@@ -68,6 +69,62 @@ describe('narrateDanger', () => {
     expect(n.attempt.length).toBeGreaterThan(10);
     expect(n.reveal.length).toBeGreaterThan(5);
     expect(n.goalkeeperName).toBe(away.players[0].shortName);
+  });
+
+  it('narra os mesmos jogadores que a animação usa quando os indicados foram expulsos', () => {
+    const sides = {
+      left: { teamId: home.id, playerIds: home.players.slice(0, 11).map(p => p.id), formationId: home.formationId },
+      right: { teamId: away.id, playerIds: away.players.slice(0, 11).map(p => p.id), formationId: away.formationId },
+    } as const;
+    const sentOff = new Set([9, 5, 11, 13]);
+    const event: MatchEvent = {
+      minute: 64,
+      type: 'goal',
+      description: '',
+      teamId: home.id,
+      playerId: home.players[9].id,
+      opponentId: away.players[2].id,
+      play: {
+        kind: 'through',
+        attackerId: home.players[9].id,
+        creatorId: home.players[5].id,
+        defenderId: away.players[2].id,
+        goalkeeperId: away.players[0].id,
+      },
+    };
+    const actors = resolveDangerActors({ sides, attackSide: 'left', event, outcome: 'goal', sentOff });
+    const n = narrateDanger({
+      event,
+      eventIndex: 64,
+      homeTeam: home,
+      awayTeam: away,
+      fallbackGoalkeeperName: gkName,
+      pitchSides: sides,
+      sentOff,
+    });
+    const d = buildDangerTimeline({
+      sides,
+      attackSide: 'left',
+      event,
+      outcome: 'goal',
+      prev: kickoffPositions(sides),
+      sentOff,
+      entry: 'cut',
+      seed: 6401,
+      variant: n.variant,
+      finish: n.finish,
+    });
+    const playerAtSlot = (slot: number) => (slot < 11 ? home : away).players[slot % 11];
+    const visualFinisher = d.cast.find(actor => actor.role === 'finisher');
+    const visualKeeper = d.cast.find(actor => actor.role === 'goalkeeper');
+    expect(visualFinisher).toBeDefined();
+    expect(visualKeeper).toBeDefined();
+    expect(playerAtSlot(visualFinisher!.slot).id).toBe(actors.finisherId);
+    expect(playerAtSlot(visualKeeper!.slot).id).toBe(actors.goalkeeperId);
+    expect(n.attackerName).toBe(playerAtSlot(actors.finisher).shortName);
+    expect(n.defenderName).toBe(playerAtSlot(actors.defender).shortName);
+    expect(n.goalkeeperName).toBe(playerAtSlot(actors.goalkeeper).shortName);
+    expect(n.buildUp).toContain(playerAtSlot(actors.creator).shortName);
   });
 
   it('bola na trave sempre é narrada como trave, e defesa e chute para fora trazem o estilo', () => {

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import Crest from '../../components/game/Crest';
 import { useGame } from '../../contexts/GameContext';
 import { buildLeagueMatchKey, describeBet } from '@shared/game/bets';
@@ -12,6 +13,8 @@ import { INLINE_ICON } from '../../components/game/inlineIcon';
 // the advance/ready/play controls.
 export default function FixturesTab({ hub }: { hub: LeagueHub }) {
   const { leaveRoomOnline } = useGame();
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  const [onlineActionBarSpace, setOnlineActionBarSpace] = useState(240);
   const {
     state, isGroupStage, isLeagueOnly, playerTeam, myUnavailable, reserveLimitExceeded, reserveCount,
     roundGroupIds, displayedRoundFixtures, playerGroup, localTeamId, getTeamName, allTeams,
@@ -34,8 +37,36 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
     background: pinRoundAction ? 'rgba(8, 8, 16, 0.96)' : undefined,
     backdropFilter: pinRoundAction ? 'blur(14px)' : undefined,
   };
+
+  // Reserve the actual fixed bar height under the fixtures. The host has two
+  // actions and a readiness counter, so a fixed padding can leave the last card
+  // partly hidden on some phones and safe-area sizes.
+  useEffect(() => {
+    if (state.mode !== 'online' || !pinRoundAction) return;
+    const bar = actionBarRef.current;
+    if (!bar) return;
+    const measure = () => {
+      const isMobile = window.matchMedia('(max-width: 1023px)').matches;
+      setOnlineActionBarSpace(isMobile ? Math.ceil(bar.getBoundingClientRect().height) + 16 : 0);
+    };
+    measure();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(bar);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [pinRoundAction, state.mode]);
+
+  const contentBottomSpace = state.mode === 'online' && pinRoundAction
+    ? { '--online-action-bar-space': `${onlineActionBarSpace}px` } as CSSProperties
+    : undefined;
   return (
-          <div className={`space-y-3 ${pinRoundAction ? (state.mode === 'solo' ? 'pb-32 lg:pb-0' : 'pb-56 lg:pb-0') : ''}`}>
+          <div
+            className={`space-y-3 ${pinRoundAction ? (state.mode === 'solo' ? 'pb-32 lg:pb-0' : 'pb-[var(--online-action-bar-space)] lg:pb-0') : ''}`}
+            style={contentBottomSpace}
+          >
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-bold tracking-widest text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 {isGroupStage ? 'TODAS AS PARTIDAS DA RODADA' : 'PARTIDAS DA RODADA'}
@@ -228,7 +259,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
 
             {/* Advance controls */}
             {state.mode === 'online' ? (
-              <div className={`mt-6 p-4 rounded-xl text-center border ${mobileActionBarClasses}`}
+              <div ref={actionBarRef} className={`mt-6 p-4 rounded-xl text-center border ${mobileActionBarClasses}`}
                 style={{ ...mobileActionBarStyle, background: mobileActionBarStyle.background ?? 'var(--ui-surface-1)', borderColor: 'var(--ui-surface-3)' }}
               >
                 {state.isHost ? (

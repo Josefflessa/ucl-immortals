@@ -2,7 +2,7 @@
 // The bracket ties + ida/volta leg controls (with online watch-gating) + result
 // modal, hosted as a tab of the season hub (LeaguePage).
 
-import { useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame, KnockoutMatch } from '../../contexts/GameContext';
 import { useTeams } from '../../hooks/useTeams';
@@ -24,6 +24,8 @@ export default function KnockoutTiesTab() {
   const { knockoutBracket, playerTeam } = state;
   const online = state.mode === 'online';
   const { allTeams, localTeamId, getTeamName: resolveTeamName } = useTeams();
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  const [onlineActionBarSpace, setOnlineActionBarSpace] = useState(240);
   const [betSlip, setBetSlip] = useState<{
     matchKey: string;
     homeName: string;
@@ -115,6 +117,10 @@ export default function KnockoutTiesTab() {
   // watch any other human's match as a live broadcast. Their watch doesn't gate anyone.
   const iAmSpectator = state.mode === 'online' && matches.length > 0 &&
     !matches.some(m => isPlayerTeam(m.homeTeamId) || isPlayerTeam(m.awayTeamId));
+  // A player with a bye (for example, already qualified for the round of 16)
+  // can still bet on the active ties. Eliminated spectators cannot.
+  const canBetOnActiveMatches = !iAmSpectator
+    || (!!playerTeam && isKnockoutTeamAlive(knockoutBracket, playerTeam.id));
 
   const spectateLeg = (match: KnockoutMatch, leg: 0 | 1 | 2) => {
     const teamA = getTeamById(match.homeTeamId); // first-leg home
@@ -179,8 +185,35 @@ export default function KnockoutTiesTab() {
     ? 'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:mt-0 max-lg:rounded-t-2xl max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0 max-lg:px-4 max-lg:pt-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))] max-lg:shadow-[0_-10px_30px_rgba(0,0,0,0.45)]'
     : '';
 
+  // Keep the final tie card scrollable above the fixed controls, including the
+  // host's ready/count/play stack and the device's safe-area inset.
+  useEffect(() => {
+    if (!online || !pinAction) return;
+    const bar = actionBarRef.current;
+    if (!bar) return;
+    const measure = () => {
+      const isMobile = window.matchMedia('(max-width: 1023px)').matches;
+      setOnlineActionBarSpace(isMobile ? Math.ceil(bar.getBoundingClientRect().height) + 16 : 0);
+    };
+    measure();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(bar);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [online, pinAction]);
+
+  const contentBottomSpace = online && pinAction
+    ? { '--online-action-bar-space': `${onlineActionBarSpace}px` } as CSSProperties
+    : undefined;
+
   return (
-    <div className={pinAction ? 'pb-40 lg:pb-0' : undefined}>
+    <div
+      className={pinAction ? (online ? 'pb-[var(--online-action-bar-space)] lg:pb-0' : 'pb-40 lg:pb-0') : undefined}
+      style={contentBottomSpace}
+    >
         {/* Confrontos da fase atual */}
         {/* Desktop: ties in two columns; your own tie keeps the full width. */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -427,7 +460,7 @@ export default function KnockoutTiesTab() {
                   </div>
 
                   {/* 🎯 Palpite — botão na perna ativa (pré-jogo) + badges das pernas reveladas */}
-                  {!iAmSpectator && (() => {
+                  {canBetOnActiveMatches && (() => {
                     const isSingleLegTie = !twoLeg;
                     const legNum = isSingleLegTie ? 1 : currentLeg;
                     const activeKey = buildKnockoutMatchKey(match.id, legNum);
@@ -479,6 +512,7 @@ export default function KnockoutTiesTab() {
 
         {/* Round controls — solo: the player drives; online: only the host */}
         <motion.div
+          ref={actionBarRef}
           initial={{ opacity: 0, y: pinAction ? 0 : 10 }}
           animate={{ opacity: 1, y: 0 }}
           className={`mt-6 p-4 rounded-xl text-center border ${actionBarClasses}`}
