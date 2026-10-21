@@ -2,14 +2,14 @@
 // opens its sheet, to paste it for a level or sell it).
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, ChevronLeft, ChevronRight, Package } from 'lucide-react';
-import { copiesToNextLevel, levelForCopies, MAX_BULK_ITEM_OPEN, MAX_COPIES, SELL_VALUE, type AlbumItemKey, type AlbumLevel } from '@shared/game/album';
+import { Check, ChevronLeft, ChevronRight, Layers, Package } from 'lucide-react';
+import { copiesToNextLevel, ENVELOPE_SIZE, levelForCopies, MAX_BULK_ITEM_OPEN, MAX_COPIES, PACK_SIZE, SELL_VALUE, type AlbumItemKey, type AlbumLevel } from '@shared/game/album';
 import { getRarityColor, type Rarity } from '@shared/game/gameData';
 import { Button, EmptyState, GameModal } from '../../design-system';
 import PlayerCard from '../game/PlayerCard';
 import { useAlbum } from '../../contexts/AlbumContext';
 import { albumCard, CATALOG, itemColor, itemLabel, RARITY_LABEL, sortedItems } from './albumData';
-import { CoinAmount, ItemArt, LevelStars } from './AlbumPieces';
+import { CoinAmount, ItemArt, LevelStars, QuantityStepper } from './AlbumPieces';
 import AlbumPackOpening from './AlbumPackOpening';
 import StickerSheet from './StickerSheet';
 import SelectMenu from '../account/SelectMenu';
@@ -29,6 +29,10 @@ function normalize(value: string) {
 export default function AlbumInventory() {
   const { album, sellBatch } = useAlbum();
   const [opening, setOpening] = useState<AlbumItemKey[] | null>(null);
+  const [openingBulk, setOpeningBulk] = useState(false);
+  const [openingSession, setOpeningSession] = useState(0);
+  const [bulkItemKey, setBulkItemKey] = useState<AlbumItemKey | null>(null);
+  const [bulkQuantity, setBulkQuantity] = useState(2);
   const [selected, setSelected] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<SpareFilter>('all');
@@ -41,6 +45,24 @@ export default function AlbumInventory() {
   const [sellingBulk, setSellingBulk] = useState(false);
 
   const items = album ? sortedItems(album.inventory) : [];
+  const bulkAvailable = bulkItemKey && album ? album.inventory[bulkItemKey] ?? 0 : 0;
+  const bulkMax = Math.min(bulkAvailable, MAX_BULK_ITEM_OPEN);
+  const bulkItemKind = bulkItemKey?.startsWith('envelope:') ? 'envelope' : 'pack';
+  const cardsPerBulkItem = bulkItemKind === 'pack' ? PACK_SIZE : ENVELOPE_SIZE;
+  const startOpening = (key: AlbumItemKey, quantity: number, asBulk: boolean) => {
+    setOpening(Array.from({ length: quantity }, () => key));
+    setOpeningBulk(asBulk);
+    setOpeningSession(session => session + 1);
+    setBulkItemKey(null);
+  };
+  const openNextWithAnimation = () => {
+    const key = opening?.[0];
+    const quantity = key && album ? album.inventory[key] ?? 0 : 0;
+    if (!key || quantity < 1) return;
+    setOpening([key]);
+    setOpeningBulk(false);
+    setOpeningSession(session => session + 1);
+  };
   const spares = useMemo(() => {
     if (!album) return [];
     const list: { id: string; spare: number; copies: number; number: number }[] = [];
@@ -158,12 +180,12 @@ export default function AlbumInventory() {
                 </div>
                 <div className="mt-2 text-center text-xs font-bold text-[var(--ui-text)]">{itemLabel(key)}</div>
                 <div className="mt-2.5 flex w-full flex-col gap-1.5">
-                  <Button intent="primary" onClick={() => setOpening([key])} className="min-h-9 w-full text-xs">
+                  <Button intent="primary" onClick={() => startOpening(key, 1, false)} className="min-h-9 w-full text-xs">
                     <Package size={14} aria-hidden="true" /> Abrir
                   </Button>
                   {quantity > 1 ? (
-                    <Button intent="ghost" onClick={() => setOpening(Array.from({ length: Math.min(quantity, MAX_BULK_ITEM_OPEN) }, () => key))} className="min-h-8 w-full text-xs">
-                      <Package size={13} aria-hidden="true" /> {quantity > MAX_BULK_ITEM_OPEN ? `Abrir ${MAX_BULK_ITEM_OPEN} de ${quantity}` : `Abrir todos (${quantity})`}
+                    <Button intent="ghost" onClick={() => { setBulkItemKey(key); setBulkQuantity(Math.max(2, Math.min(quantity, MAX_BULK_ITEM_OPEN))); }} className="min-h-8 w-full text-xs">
+                      <Layers size={13} aria-hidden="true" /> Abrir em lote
                     </Button>
                   ) : null}
                 </div>
@@ -290,8 +312,55 @@ export default function AlbumInventory() {
         )}
       </section>
 
-      {opening ? <AlbumPackOpening items={opening} bulk={opening.length > 1} onClose={() => setOpening(null)} /> : null}
+      {opening ? (
+        <AlbumPackOpening
+          key={openingSession}
+          items={opening}
+          bulk={openingBulk}
+          remainingCount={album?.inventory[opening[0]] ?? 0}
+          onOpenNext={openNextWithAnimation}
+          onClose={() => { setOpening(null); setOpeningBulk(false); }}
+        />
+      ) : null}
       <StickerSheet cardId={selected} onClose={() => setSelected(null)} />
+      <GameModal
+        open={bulkItemKey !== null}
+        onOpenChange={open => { if (!open) setBulkItemKey(null); }}
+        title="Abrir em lote"
+        subtitle={bulkItemKey ? `${itemLabel(bulkItemKey)} · escolha quantos quer abrir.` : undefined}
+        footer={bulkItemKey && bulkMax >= 2 ? (
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button intent="secondary" onClick={() => startOpening(bulkItemKey, bulkQuantity, false)} className="w-full sm:w-auto">
+              Abrir um por vez
+            </Button>
+            <Button intent="primary" onClick={() => startOpening(bulkItemKey, bulkQuantity, true)} className="w-full sm:w-auto">
+              Abrir {bulkQuantity} em lote
+            </Button>
+          </div>
+        ) : undefined}
+      >
+        {bulkItemKey ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-3">
+              <ItemArt itemKey={bulkItemKey} height={88} />
+              <div className="min-w-0 flex-1">
+                <div className="font-display text-lg text-[var(--ui-text)]">{bulkQuantity} {bulkItemKind === 'pack' ? 'pacotes' : 'envelopes'}</div>
+                <div className="mt-1 text-sm text-[var(--ui-text-muted)]">Até {bulkQuantity * cardsPerBulkItem} cartas adicionadas ao álbum.</div>
+                <div className="mt-1 text-xs text-[var(--ui-text-faint)]">
+                  {bulkAvailable > MAX_BULK_ITEM_OPEN ? `${bulkAvailable} disponíveis · máximo de ${MAX_BULK_ITEM_OPEN} por lote` : `${bulkAvailable} disponíveis`}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 rounded-xl border border-[var(--ui-line-subtle)] p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-bold text-[var(--ui-text)]">Quantidade</div>
+                <div className="text-xs text-[var(--ui-text-muted)]">Em lote, todas as cartas aparecem juntas; esta opção abre a quantidade selecionada pacote por pacote.</div>
+              </div>
+              <QuantityStepper value={bulkQuantity} onChange={setBulkQuantity} label={bulkItemKind === 'pack' ? 'pacotes' : 'envelopes'} min={2} max={bulkMax} />
+            </div>
+          </div>
+        ) : null}
+      </GameModal>
       <GameModal
         open={confirmBulkSale}
         onOpenChange={open => { if (!sellingBulk) setConfirmBulkSale(open); }}

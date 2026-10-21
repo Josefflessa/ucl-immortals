@@ -4,9 +4,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, Check, Copy, Package, Sparkles } from 'lucide-react';
-import { ENVELOPE_SIZE, PACK_SIZE, parseItemKey, type AlbumItemKey } from '@shared/game/album';
-import { getRarityColor, type Rarity } from '@shared/game/gameData';
+import { BookOpen, Check, Copy, Sparkles } from 'lucide-react';
+import { ENVELOPE_SIZE, levelForCopies, PACK_SIZE, parseItemKey, type AlbumItemKey } from '@shared/game/album';
+import type { Rarity } from '@shared/game/gameData';
 import { getCrest } from '@shared/game/crests';
 import BannerGachaReveal from '../store/gacha/BannerGachaReveal';
 import { playSound } from '../../audio/uiSound';
@@ -16,9 +16,10 @@ import AlbumPackArt, { ALBUM_PACK_ASPECT, ALBUM_PACK_TEAR_AT } from './AlbumPack
 import { ClubCover, ClubFrameRing } from '../account/ClubRewards';
 import { useAlbum, type OpenResult, type PageReward } from '../../contexts/AlbumContext';
 import { Button } from '../../design-system';
-import { albumCard, CATALOG, groupKeys, itemColor, itemLabel, RARITY_LABEL } from './albumData';
+import { albumCard, CATALOG, groupKeys, itemColor, itemLabel } from './albumData';
 import { ItemArt } from './AlbumPieces';
-import PlayerPortrait from '../game/PlayerPortrait';
+import PlayerCard from '../game/PlayerCard';
+import type { AlbumLevel } from '../game/AlbumLevelFrame';
 
 type Stage = 'sealed' | 'tearing' | 'revealed';
 
@@ -93,7 +94,13 @@ function EnvelopeFront({ itemKey, opening, onOpen }: { itemKey: AlbumItemKey; op
 
 const BULK_RARITY_ORDER: Record<Rarity, number> = { bronze: 0, silver: 1, gold: 2, legendary: 3, immortal: 4, unique: 5 };
 
-function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: { itemKey: AlbumItemKey; quantity: number; result: OpenResult; onClose: () => void }) {
+function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
+  itemKey: AlbumItemKey;
+  quantity: number;
+  result: OpenResult;
+  onClose: () => void;
+}) {
+  const { album } = useAlbum();
   const grouped = new Map<string, { id: string; total: number; newCopies: number; repeatCopies: number }>();
   for (const draw of result.cards) {
     const row = grouped.get(draw.id) ?? { id: draw.id, total: 0, newCopies: 0, repeatCopies: 0 };
@@ -116,11 +123,13 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: { itemKey:
     <div role="dialog" aria-modal="true" aria-label="Resultado da abertura em lote" className="fixed inset-0 z-[80] flex flex-col overflow-hidden text-white" style={{ background: 'radial-gradient(circle at 50% 0%, #191827 0%, #090A12 52%, #05060B 100%)' }}>
       <header className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-8">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[11px] font-black tracking-[0.18em] text-[#E9C46A]" style={FONT}>ABERTURA EM LOTE</div>
-            <h2 className="mt-1 truncate text-lg font-black text-white sm:text-xl" style={FONT}>{quantity}× {itemLabel(itemKey)}</h2>
+          <div className="flex min-w-0 items-center gap-3">
+            <ItemArt itemKey={itemKey} height={58} />
+            <div className="min-w-0">
+              <div className="text-[11px] font-black tracking-[0.18em] text-[#E9C46A]" style={FONT}>ABERTURA EM LOTE</div>
+              <h2 className="mt-1 truncate text-lg font-black text-white sm:text-xl" style={FONT}>{quantity}× {itemLabel(itemKey)}</h2>
+            </div>
           </div>
-          <Package className="size-6 shrink-0 text-[#E9C46A]" aria-hidden="true" />
         </div>
       </header>
 
@@ -144,24 +153,20 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: { itemKey:
               <h3 className="text-sm font-black text-white sm:text-base" style={FONT}>Cartas recebidas</h3>
               <span className="text-xs tabular-nums text-white/55">{cards.length} {cards.length === 1 ? 'tipo' : 'tipos'}</span>
             </div>
-            <div className="grid max-h-[min(52dvh,620px)] grid-cols-1 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+            <div className="grid grid-cols-2 items-start gap-x-2 gap-y-4 min-[420px]:grid-cols-3 sm:grid-cols-4 sm:gap-x-3 lg:grid-cols-6 xl:grid-cols-8">
               {cards.map(({ id, player, number, total, newCopies, repeatCopies }) => {
-                const color = getRarityColor(player.rarity);
+                const level = levelForCopies(album?.stickers.get(id)?.copies ?? 0);
                 return (
-                  <article key={id} className="flex min-w-0 items-center gap-3 rounded-xl border border-white/10 bg-white/[.035] p-2.5 sm:p-3">
-                    <PlayerPortrait playerId={id} alt="" loading="lazy" className="size-12 shrink-0 rounded-lg border border-white/10 bg-black/30 object-cover" fallback={<span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-white/5 text-xs font-black text-white/50">{player.shortName.slice(0, 2)}</span>} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-start justify-between gap-2">
-                        <strong className="min-w-0 break-words text-sm leading-snug text-white">{player.shortName}</strong>
-                        <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase" style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}>{RARITY_LABEL[player.rarity]}</span>
-                      </div>
-                      <div className="mt-0.5 truncate text-[11px] text-white/55">{player.club} · Nº {number}</div>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                        {newCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#7BD88F]/10 px-2 py-0.5 text-[10px] font-bold text-[#7BD88F]"><Sparkles size={10} aria-hidden="true" />{newCopies} {newCopies === 1 ? 'nova' : 'novas'}</span> : null}
-                        {repeatCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#E9C46A]/10 px-2 py-0.5 text-[10px] font-bold text-[#E9C46A]"><Copy size={10} aria-hidden="true" />{repeatCopies} {repeatCopies === 1 ? 'repetida' : 'repetidas'}</span> : null}
-                        {total > 1 ? <span className="rounded-full bg-white/[.08] px-2 py-0.5 text-[10px] font-bold tabular-nums text-white/55">×{total} no lote</span> : null}
-                      </div>
+                  <article key={id} className="flex min-w-0 flex-col items-center rounded-xl border border-white/10 bg-white/[.035] px-1.5 pb-2.5 pt-2" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}>
+                    <div className="relative">
+                      <PlayerCard player={player} lite flat scale={0.62} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
+                      {total > 1 ? <span className="absolute -right-1 -top-1 z-10 rounded-full border border-black/50 bg-[#E9C46A] px-2 py-1 text-[10px] font-black tabular-nums text-[#171208] shadow">×{total}</span> : null}
                     </div>
+                    <div className="mt-2 flex min-h-5 flex-wrap justify-center gap-1">
+                      {newCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#7BD88F]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#7BD88F]"><Sparkles size={9} aria-hidden="true" />{newCopies} {newCopies === 1 ? 'nova' : 'novas'}</span> : null}
+                      {repeatCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#E9C46A]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#E9C46A]"><Copy size={9} aria-hidden="true" />{repeatCopies} {repeatCopies === 1 ? 'repetida' : 'repetidas'}</span> : null}
+                    </div>
+                    <span className="mt-1 text-[9px] text-white/45">Nº {number} · {player.club}</span>
                   </article>
                 );
               })}
@@ -201,7 +206,13 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: { itemKey:
   );
 }
 
-export default function AlbumPackOpening({ items, onClose, bulk = false }: { items: readonly AlbumItemKey[]; onClose: () => void; bulk?: boolean }) {
+export default function AlbumPackOpening({ items, onClose, bulk = false, remainingCount = 0, onOpenNext = () => {} }: {
+  items: readonly AlbumItemKey[];
+  onClose: () => void;
+  bulk?: boolean;
+  remainingCount?: number;
+  onOpenNext?: () => void;
+}) {
   useMusicDuck();
   const { open } = useAlbum();
   const [index, setIndex] = useState(0);
@@ -262,13 +273,19 @@ export default function AlbumPackOpening({ items, onClose, bulk = false }: { ite
       });
   };
 
-  const next = () => {
+  const nextInSequence = () => {
     opening.current = false;
     setIndex(value => value + 1);
     setResult(null);
     setStaged(false);
     setCutProgress(0);
     setStage('sealed');
+  };
+
+  const openNext = () => {
+    if (remaining > 0) nextInSequence();
+    else if (!isBulk && remainingCount > 0) onOpenNext();
+    else onClose();
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
@@ -356,10 +373,10 @@ export default function AlbumPackOpening({ items, onClose, bulk = false }: { ite
           skipCharge
           onClose={onClose}
           summary={{
-            primaryLabel: remaining > 0 ? `Abrir próximo (${remaining})` : 'Concluir',
-            onPrimary: remaining > 0 ? next : onClose,
-            secondaryLabel: remaining > 0 ? 'Guardar o resto' : undefined,
-            onSecondary: remaining > 0 ? onClose : undefined,
+            primaryLabel: remaining > 0 || remainingCount > 0 ? 'Abrir próximo' : 'Concluir',
+            onPrimary: openNext,
+            secondaryLabel: remaining > 0 || remainingCount > 0 ? 'Guardar o resto' : undefined,
+            onSecondary: remaining > 0 || remainingCount > 0 ? onClose : undefined,
             extra: result.pageRewards.length > 0 ? <div className="flex w-full max-w-[520px] flex-col gap-3">{result.pageRewards.map(reward => <PageRewardCard key={reward.pageId} reward={reward} />)}</div> : null,
           }}
           draws={{
