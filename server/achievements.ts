@@ -267,7 +267,15 @@ export async function syncAchievementPackRewards(db: D1Database, userId: string,
   })));
   if (reached.length === 0) return [];
 
-  const results = await db.batch(reached.flatMap(reward => [
+  // Album actions also run this reconciliation. Avoid rebuilding a batch of INSERT OR IGNORE
+  // writes for every already-claimed level every time someone opens a pack.
+  const grantedRows = await db.prepare('SELECT achievement_id, level FROM user_achievement_pack_rewards WHERE user_id = ?')
+    .bind(userId).all<{ achievement_id: string; level: number }>();
+  const granted = new Set(grantedRows.results.map(reward => `${reward.achievement_id}\u0000${reward.level}`));
+  const pending = reached.filter(reward => !granted.has(`${reward.achievementId}\u0000${reward.level}`));
+  if (pending.length === 0) return [];
+
+  const results = await db.batch(pending.flatMap(reward => [
     db.prepare(`INSERT OR IGNORE INTO user_achievement_pack_rewards (user_id, achievement_id, level, granted_at)
       VALUES (?, ?, ?, ?)`)
       .bind(userId, reward.achievementId, reward.level, now),
@@ -278,7 +286,7 @@ export async function syncAchievementPackRewards(db: D1Database, userId: string,
       .bind(userId, reward.key, now),
   ]));
 
-  return reached.filter((_, index) => Number(results[index * 2]?.meta?.changes ?? 0) === 1)
+  return pending.filter((_, index) => Number(results[index * 2]?.meta?.changes ?? 0) === 1)
     .map(reward => ({ key: reward.key, source: 'achievement' as const, achievementId: reward.achievementId, achievementLevel: reward.level }));
 }
 

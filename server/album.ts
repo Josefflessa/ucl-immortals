@@ -654,6 +654,59 @@ export async function applyCopy(db: D1Database, userId: string, cardId: string, 
   return { ok: true };
 }
 
+/** Applies selected spare copies atomically, so a stale selection never partly consumes cards. */
+export async function applyCopiesBatch(
+  db: D1Database,
+  userId: string,
+  applications: readonly { cardId: string; quantity: number }[],
+  now = Date.now(),
+): Promise<{ cards: number; copies: number } | { error: string }> {
+  if (applications.length < 1 || applications.length > 100) return { error: 'invalid_quantity' };
+  const seen = new Set<string>();
+  let copies = 0;
+  for (const application of applications) {
+    if (!albumCatalog().stickers.has(application.cardId)) return { error: 'invalid_card' };
+    if (seen.has(application.cardId) || !Number.isSafeInteger(application.quantity) || application.quantity < 1 || application.quantity > MAX_COPIES) {
+      return { error: 'invalid_quantity' };
+    }
+    seen.add(application.cardId);
+    copies += application.quantity;
+  }
+
+  const applicationJson = JSON.stringify(applications);
+  const updated = await db.prepare(`WITH requested AS (
+      SELECT json_extract(value, '$.cardId') AS card_id,
+             CAST(json_extract(value, '$.quantity') AS INTEGER) AS quantity
+      FROM json_each(?)
+    ), eligibility AS (
+      SELECT COUNT(*) AS valid_count
+      FROM user_stickers current
+      JOIN requested ON requested.card_id = current.card_id
+      WHERE current.user_id = ? AND current.spare >= requested.quantity AND current.copies + requested.quantity <= ?
+    )
+    UPDATE user_stickers
+    SET copies = copies + (SELECT quantity FROM requested WHERE requested.card_id = user_stickers.card_id),
+        spare = spare - (SELECT quantity FROM requested WHERE requested.card_id = user_stickers.card_id),
+        updated_at = ?
+    WHERE user_id = ? AND card_id IN (SELECT card_id FROM requested)
+      AND (SELECT valid_count FROM eligibility) = (SELECT COUNT(*) FROM requested)`)
+    .bind(applicationJson, userId, MAX_COPIES, now, userId).run();
+
+  if ((updated.meta?.changes ?? 0) !== applications.length) {
+    const current = await db.prepare(`SELECT card_id, copies, spare FROM user_stickers
+      WHERE user_id = ? AND card_id IN (
+        SELECT json_extract(value, '$.cardId') FROM json_each(?)
+      )`)
+      .bind(userId, applicationJson).all<{ card_id: string; copies: number; spare: number }>();
+    const byId = new Map(current.results.map(row => [row.card_id, row]));
+    if (applications.some(({ cardId, quantity }) => (byId.get(cardId)?.spare ?? 0) < quantity)) return { error: 'no_spare_copy' };
+    if (applications.some(({ cardId, quantity }) => (byId.get(cardId)?.copies ?? MAX_COPIES) + quantity > MAX_COPIES)) return { error: 'max_level' };
+    return { error: 'operation_failed' };
+  }
+
+  return { cards: applications.length, copies };
+}
+
 /** Sells spare copies of a card for the account's shared store coins. */
 export async function sellCopies(db: D1Database, userId: string, cardId: string, quantity: number, now = Date.now()): Promise<{ coins: number } | { error: string }> {
   const sticker = albumCatalog().stickers.get(cardId);

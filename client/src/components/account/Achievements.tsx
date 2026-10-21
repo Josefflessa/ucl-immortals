@@ -340,7 +340,7 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
     return [wrapper(<AlbumCardShowcaseTile item={item} />)];
   });
   return (
-    <section aria-label="Mural" className="space-y-8 sm:space-y-10">
+    <section aria-label="Mural" className="flex flex-col gap-10 sm:gap-12">
       <SectionHeader
         title="Mural"
         className="mb-0 items-center"
@@ -353,7 +353,7 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
       {tiles.length > 0 ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-6 sm:gap-4">{tiles}</div> : null}
       {tiles.length > 0
         ? null
-        : <div className="!mt-6 rounded-xl border border-dashed border-[var(--ui-line-strong)] p-4 text-center text-xs text-[var(--ui-text-muted)]">{emptyText}</div>}
+        : <div className="rounded-xl border border-dashed border-[var(--ui-line-strong)] p-4 text-center text-xs text-[var(--ui-text-muted)]">{emptyText}</div>}
     </section>
   );
 }

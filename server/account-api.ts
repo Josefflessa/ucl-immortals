@@ -17,7 +17,7 @@ import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, loadOwnedNameS
 import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { isAvatarFrameKey } from '../shared/game/events.js';
 import { isClubRewardKey } from '../shared/game/clubRewards.js';
-import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyDailyBannerCards, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, buyWeeklyBannerCards, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItems, sellCopies, sellCopiesBatch, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
+import { albumSummary, applyCopy, applyCopiesBatch, buyAvatarFrame, buyDailyBannerCard, buyDailyBannerCards, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, buyWeeklyBannerCards, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItems, sellCopies, sellCopiesBatch, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
 import { albumCatalog, levelForCopies } from '../shared/game/album.js';
 import { WEEKLY_PACK_REWARDS } from '../shared/game/dailyRewards.js';
 import { currentSeason, seasonAt, seasonBounds } from '../shared/game/seasons.js';
@@ -1979,6 +1979,10 @@ async function albumAction(request: Request, env: AccountEnv, account: Authentic
   switch (action) {
     case 'open': result = await openItems(env.DB, account.id, String(body.item ?? ''), Number(body.quantity ?? 1)) as unknown as Record<string, unknown>; break;
     case 'apply': result = await applyCopy(env.DB, account.id, String(body.cardId ?? ''), Number(body.quantity ?? 1)); break;
+    case 'apply-batch': result = await applyCopiesBatch(env.DB, account.id, Array.isArray(body.applications) ? body.applications.map((application: unknown) => ({
+      cardId: typeof application === 'object' && application !== null && 'cardId' in application ? String(application.cardId) : '',
+      quantity: typeof application === 'object' && application !== null && 'quantity' in application ? Number(application.quantity) : 0,
+    })) : []); break;
     case 'sell': result = await sellCopies(env.DB, account.id, String(body.cardId ?? ''), Number(body.quantity ?? 1)); break;
     case 'sell-batch': result = await sellCopiesBatch(env.DB, account.id, Array.isArray(body.sales) ? body.sales.map((sale: unknown) => ({
       cardId: typeof sale === 'object' && sale !== null && 'cardId' in sale ? String(sale.cardId) : '',
@@ -2171,7 +2175,7 @@ export async function handleAccountRequest(
     if (url.pathname === '/api/account/album/daily-banner' && request.method === 'GET') return json(dailyBannerRotations());
     if (url.pathname === '/api/account/album/weekly-banner' && request.method === 'GET') return json(weeklyBannerRotations());
     if (url.pathname === '/api/account/album' && request.method === 'GET') return albumResponse(env, account.id);
-    const albumRoute = url.pathname.match(/^\/api\/account\/album\/(open|apply|sell|sell-batch|buy-pack|buy-frame|buy-cover|buy-name-style|buy-daily-banner|buy-weekly-banner|buy-daily-banner-batch|buy-weekly-banner-batch)$/);
+    const albumRoute = url.pathname.match(/^\/api\/account\/album\/(open|apply|apply-batch|sell|sell-batch|buy-pack|buy-frame|buy-cover|buy-name-style|buy-daily-banner|buy-weekly-banner|buy-daily-banner-batch|buy-weekly-banner-batch)$/);
     if (albumRoute && request.method === 'POST') return albumAction(request, env, account, albumRoute[1]);
     const eventChoice = url.pathname.match(/^\/api\/account\/events\/([a-z0-9-]+)\/choice$/);
     if (eventChoice && request.method === 'POST') return chooseEvent(request, env, account, eventChoice[1]);

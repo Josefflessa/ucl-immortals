@@ -62,6 +62,7 @@ interface AlbumContextValue {
   }>;
   open: (item: AlbumItemKey, quantity?: number) => Promise<OpenResult>;
   applyCopy: (cardId: string, quantity?: number) => Promise<void>;
+  applyCopiesBatch: (applications: readonly { cardId: string; quantity: number }[]) => Promise<{ cards: number; copies: number }>;
   sell: (cardId: string, quantity: number) => Promise<number>;
   sellBatch: (sales: readonly { cardId: string; quantity: number }[]) => Promise<{ coins: number; copies: number }>;
   buyPack: (tier: string, quantity?: number) => Promise<void>;
@@ -82,9 +83,11 @@ interface AlbumContextValue {
 const ERROR_MESSAGES: Record<string, string> = {
   item_not_owned: 'Este pacote já foi aberto.',
   not_enough_items: 'A quantidade disponível mudou. Atualize o inventário e tente novamente.',
-  invalid_quantity: 'Essa quantidade não pode ser aberta de uma vez.',
+  invalid_quantity: 'Essa quantidade não pode ser processada de uma vez.',
+  invalid_card: 'Uma das cartas selecionadas não é válida.',
   no_spare_copy: 'Você não tem cópias extras desta carta.',
   max_level: 'Esta carta já está no nível máximo.',
+  operation_failed: 'As cartas mudaram desde a seleção. Atualize o álbum e tente novamente.',
   not_enough_coins: 'Moedas insuficientes.',
   already_owned: 'Você já possui este item.',
   banner_unavailable: 'Este banner está temporariamente indisponível.',
@@ -287,6 +290,7 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
     captureCompetitionSnapshot,
     open: (item, quantity = 1) => post<OpenResult>('open', { item, quantity }),
     applyCopy: async (cardId, quantity = 1) => { await post('apply', { cardId, quantity }); },
+    applyCopiesBatch: applications => post<{ cards: number; copies: number }>('apply-batch', { applications }),
     sell: async (cardId, quantity) => (await post<{ coins: number }>('sell', { cardId, quantity })).coins,
     sellBatch: sales => post<{ coins: number; copies: number }>('sell-batch', { sales }),
     buyPack: async (tier, quantity = 1) => { await post('buy-pack', { tier, quantity }); },
